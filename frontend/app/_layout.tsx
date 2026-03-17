@@ -1,7 +1,17 @@
 import React from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { Image, View, StyleSheet } from 'react-native';
 import { AppProvider } from '../src/context/AppContext';
+
+// Small logo component for headers
+const HeaderLogo = () => (
+  <Image
+    source={require('../assets/images/logo_coh.png')}
+    style={{ width: 28, height: 28, marginRight: 8 }}
+    resizeMode="contain"
+  />
+);
 
 export default function RootLayout() {
   return (
@@ -19,13 +29,14 @@ export default function RootLayout() {
           contentStyle: {
             backgroundColor: '#F8F9FA',
           },
+          headerLeft: () => <HeaderLogo />,
         }}
       >
         <Stack.Screen 
           name="index" 
           options={{ 
             headerShown: false,
-            title: 'Zones of Regulation' 
+            title: 'Class of Happiness' 
           }} 
         />
         <Stack.Screen 

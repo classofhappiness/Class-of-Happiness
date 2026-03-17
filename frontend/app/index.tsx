@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +17,11 @@ export default function HomeScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.loadingContainer}>
+          <Image
+            source={require('../assets/images/logo_coh.png')}
+            style={styles.splashLogo}
+            resizeMode="contain"
+          />
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
       </View>
@@ -48,7 +53,16 @@ export default function HomeScreen() {
         )}
       </View>
 
-      {/* Header */}
+      {/* Logo */}
+      <View style={styles.logoContainer}>
+        <Image
+          source={require('../assets/images/logo_coh.png')}
+          style={styles.mainLogo}
+          resizeMode="contain"
+        />
+      </View>
+
+      {/* Title */}
       <View style={styles.header}>
         <Text style={styles.title}>{t('zones_of_regulation')}</Text>
         <Text style={styles.subtitle}>{t('how_are_you_feeling')}</Text>
@@ -132,7 +146,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8F9FA',
   },
   scrollContent: {
-    padding: 24,
+    padding: 20,
     paddingBottom: 40,
   },
   loadingContainer: {
@@ -140,9 +154,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  splashLogo: {
+    width: 200,
+    height: 200,
+  },
   loadingText: {
     fontSize: 18,
     color: '#666',
+    marginTop: 20,
   },
   topBar: {
     flexDirection: 'row',
@@ -171,12 +190,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#5C6BC0',
   },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  mainLogo: {
+    width: 140,
+    height: 140,
+  },
   header: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: 'bold',
     color: '#333',
     textAlign: 'center',
@@ -184,11 +211,11 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#666',
-    marginTop: 8,
+    marginTop: 6,
     textAlign: 'center',
   },
   zonePreviewContainer: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   zonePreviewRow: {
     flexDirection: 'row',
@@ -196,9 +223,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   zoneFaceContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 3,
@@ -208,23 +235,23 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
   },
   zoneFace: {
-    fontSize: 28,
+    fontSize: 26,
   },
   roleContainer: {
     flex: 1,
   },
   roleTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '600',
     color: '#333',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   roleButton: {
     borderRadius: 24,
-    padding: 24,
+    padding: 20,
     alignItems: 'center',
-    marginVertical: 10,
+    marginVertical: 8,
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
@@ -238,10 +265,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#5C6BC0',
   },
   roleButtonText: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: 'bold',
     color: 'white',
-    marginTop: 10,
+    marginTop: 8,
   },
   roleButtonSubtext: {
     fontSize: 14,
@@ -260,7 +287,7 @@ const styles = StyleSheet.create({
     color: 'white',
   },
   trialSection: {
-    marginTop: 24,
+    marginTop: 20,
     alignItems: 'center',
   },
   trialButton: {

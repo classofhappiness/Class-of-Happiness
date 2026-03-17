@@ -1,26 +1,26 @@
 {
   "expo": {
-    "name": "Zones of Regulation",
-    "slug": "zones-of-regulation",
+    "name": "Class of Happiness",
+    "slug": "class-of-happiness",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "zonesofregulation",
+    "icon": "./assets/images/logo_coh.png",
+    "scheme": "classofhappiness",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.zonesofregulation.app",
+      "bundleIdentifier": "com.classofhappiness.app",
       "infoPlist": {
         "NSCameraUsageDescription": "Take profile photos for student avatars",
         "NSPhotoLibraryUsageDescription": "Upload photos for student avatars and strategies"
       }
     },
     "android": {
-      "package": "com.zonesofregulation.app",
+      "package": "com.classofhappiness.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#4CAF50"
+        "foregroundImage": "./assets/images/logo_coh.png",
+        "backgroundColor": "#FFFFFF"
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
@@ -33,17 +33,17 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/logo_coh.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "image": "./assets/images/logo_coh.png",
+          "imageWidth": 250,
           "resizeMode": "contain",
-          "backgroundColor": "#4CAF50"
+          "backgroundColor": "#FFFFFF"
         }
       ],
       [
@@ -59,7 +59,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "zones-of-regulation"
+        "projectId": "class-of-happiness"
       }
     }
   }
