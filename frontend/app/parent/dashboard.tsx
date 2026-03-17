@@ -19,7 +19,7 @@ import { PieChart } from 'react-native-gifted-charts';
 import { useApp } from '../../src/context/AppContext';
 import { 
   parentApi, Student, zoneLogsApi, ZoneLog, analyticsApi,
-  familyApi, FamilyMember, FamilyZoneLog
+  familyApi, FamilyMember, FamilyZoneLog, authApiExtended
 } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 
@@ -70,9 +70,17 @@ export default function ParentDashboard() {
     name: '',
     relationship: 'child' as 'child' | 'partner' | 'self',
   });
+  const [savingMember, setSavingMember] = useState(false);
 
   const fetchData = async () => {
     try {
+      // First, ensure user role is set to parent
+      try {
+        await authApiExtended.updateRole('parent');
+      } catch (roleError) {
+        console.log('Role update skipped or failed:', roleError);
+      }
+      
       // Fetch linked children from school
       const children = await parentApi.getChildren();
       setLinkedChildren(children);
@@ -160,16 +168,21 @@ export default function ParentDashboard() {
       Alert.alert('Error', 'Please enter a name');
       return;
     }
+    setSavingMember(true);
     try {
       await familyApi.createMember({
-        name: newMember.name,
+        name: newMember.name.trim(),
         relationship: newMember.relationship,
       });
+      Alert.alert('Success', `${newMember.name} has been added to your family!`);
       setShowAddFamilyModal(false);
       setNewMember({ name: '', relationship: 'child' });
       fetchData();
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to add family member');
+      console.error('Error adding family member:', error);
+      Alert.alert('Error', error.message || 'Failed to add family member. Please make sure you are logged in as a parent.');
+    } finally {
+      setSavingMember(false);
     }
   };
 
@@ -512,10 +525,13 @@ export default function ParentDashboard() {
             </View>
             
             <TouchableOpacity
-              style={styles.submitButton}
+              style={[styles.submitButton, savingMember && styles.submitButtonDisabled]}
               onPress={handleAddFamilyMember}
+              disabled={savingMember}
             >
-              <Text style={styles.submitButtonText}>Add Member</Text>
+              <Text style={styles.submitButtonText}>
+                {savingMember ? 'Adding...' : 'Add Member'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>

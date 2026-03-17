@@ -137,7 +137,7 @@ export default function HomeScreen() {
         >
           <MaterialIcons name="family-restroom" size={48} color="white" />
           <Text style={styles.roleButtonText}>Parent</Text>
-          <Text style={styles.roleButtonSubtext}>View child's progress</Text>
+          <Text style={styles.roleButtonSubtext}>Your family's emotions</Text>
           {!isAuthenticated && (
             <View style={styles.loginBadge}>
               <Text style={styles.loginBadgeText}>{t('login')} required</Text>
