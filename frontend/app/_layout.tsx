@@ -138,6 +138,13 @@ export default function RootLayout() {
           }} 
         />
         <Stack.Screen 
+          name="teacher/resources" 
+          options={{ 
+            headerShown: false,
+            title: 'Teacher Resources',
+          }} 
+        />
+        <Stack.Screen 
           name="parent/dashboard" 
           options={{ 
             headerShown: false,

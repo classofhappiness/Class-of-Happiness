@@ -196,6 +196,51 @@ class ResourceUpdate(BaseModel):
     content: Optional[str] = None
     is_active: Optional[bool] = None
 
+# Teacher Resource with topics, ratings and comments
+TEACHER_RESOURCE_TOPICS = [
+    "emotions",
+    "healthy_relationships",
+    "leader_online",
+    "you_are_what_you_eat",
+    "special_needs_education"
+]
+
+class TeacherResource(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    description: str
+    topic: str  # One of TEACHER_RESOURCE_TOPICS
+    content_type: str = "pdf"  # "text" or "pdf"
+    content: Optional[str] = None  # Text content or base64 PDF
+    pdf_filename: Optional[str] = None
+    created_by: str  # user_id
+    created_by_name: Optional[str] = None
+    is_active: bool = True
+    average_rating: float = 0.0
+    total_ratings: int = 0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class TeacherResourceCreate(BaseModel):
+    title: str
+    description: str
+    topic: str
+    content_type: str = "pdf"
+    content: Optional[str] = None
+    pdf_filename: Optional[str] = None
+
+class TeacherResourceRating(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    resource_id: str
+    user_id: str
+    user_name: Optional[str] = None
+    rating: int  # 1-5 stars
+    comment: Optional[str] = None  # Max 100 characters
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class TeacherResourceRatingCreate(BaseModel):
+    rating: int  # 1-5 stars
+    comment: Optional[str] = None  # Max 100 characters
+
 # Family member for parent accounts
 class FamilyMember(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -1928,6 +1973,337 @@ async def get_shared_strategies(student_id: str, request: Request):
     }).to_list(100)
     
     return [CustomStrategy(**s) for s in strategies]
+
+# ---- Teacher Resources with Topics ----
+@api_router.get("/teacher-resources/topics")
+async def get_resource_topics():
+    """Get list of available topics"""
+    topics = [
+        {"id": "emotions", "name": "Emotions"},
+        {"id": "healthy_relationships", "name": "Healthy Relationships"},
+        {"id": "leader_online", "name": "Leader Online"},
+        {"id": "you_are_what_you_eat", "name": "You Are What You Eat"},
+        {"id": "special_needs_education", "name": "Special Needs Education & Disability"},
+    ]
+    return topics
+
+@api_router.get("/teacher-resources")
+async def get_teacher_resources(topic: Optional[str] = None):
+    """Get teacher resources, optionally filtered by topic"""
+    query = {"is_active": True}
+    if topic:
+        query["topic"] = topic
+    
+    resources = await db.teacher_resources.find(query).sort("created_at", -1).to_list(100)
+    # Don't return full PDF content in list
+    result = []
+    for r in resources:
+        resource_data = {
+            "id": r["id"],
+            "title": r["title"],
+            "description": r["description"],
+            "topic": r["topic"],
+            "content_type": r.get("content_type", "pdf"),
+            "pdf_filename": r.get("pdf_filename"),
+            "created_by": r["created_by"],
+            "created_by_name": r.get("created_by_name"),
+            "average_rating": r.get("average_rating", 0),
+            "total_ratings": r.get("total_ratings", 0),
+            "created_at": r["created_at"]
+        }
+        result.append(resource_data)
+    return result
+
+@api_router.get("/teacher-resources/{resource_id}")
+async def get_teacher_resource(resource_id: str):
+    """Get a specific teacher resource including content"""
+    resource = await db.teacher_resources.find_one({"id": resource_id, "is_active": True})
+    if not resource:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    return TeacherResource(**resource)
+
+@api_router.post("/teacher-resources")
+async def create_teacher_resource(resource: TeacherResourceCreate, request: Request):
+    """Create a new teacher resource (teachers only)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role not in ["teacher", "admin"]:
+        raise HTTPException(status_code=403, detail="Only teachers can upload resources")
+    
+    if resource.topic not in TEACHER_RESOURCE_TOPICS:
+        raise HTTPException(status_code=400, detail="Invalid topic")
+    
+    resource_dict = resource.dict()
+    resource_obj = TeacherResource(
+        **resource_dict, 
+        created_by=user.user_id,
+        created_by_name=user.name
+    )
+    await db.teacher_resources.insert_one(resource_obj.dict())
+    return resource_obj
+
+@api_router.delete("/teacher-resources/{resource_id}")
+async def delete_teacher_resource(resource_id: str, request: Request):
+    """Delete a teacher resource (owner or admin only)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    resource = await db.teacher_resources.find_one({"id": resource_id})
+    if not resource:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    
+    if resource["created_by"] != user.user_id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized to delete this resource")
+    
+    await db.teacher_resources.delete_one({"id": resource_id})
+    return {"message": "Resource deleted successfully"}
+
+# ---- Resource Ratings and Comments ----
+@api_router.post("/teacher-resources/{resource_id}/rate")
+async def rate_teacher_resource(resource_id: str, rating_data: TeacherResourceRatingCreate, request: Request):
+    """Rate a teacher resource (1-5 stars with optional comment)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role not in ["teacher", "admin"]:
+        raise HTTPException(status_code=403, detail="Only teachers can rate resources")
+    
+    resource = await db.teacher_resources.find_one({"id": resource_id})
+    if not resource:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    
+    if rating_data.rating < 1 or rating_data.rating > 5:
+        raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
+    
+    # Check if user already rated
+    existing_rating = await db.teacher_resource_ratings.find_one({
+        "resource_id": resource_id,
+        "user_id": user.user_id
+    })
+    
+    comment = rating_data.comment[:100] if rating_data.comment else None
+    
+    if existing_rating:
+        # Update existing rating
+        await db.teacher_resource_ratings.update_one(
+            {"id": existing_rating["id"]},
+            {"$set": {"rating": rating_data.rating, "comment": comment}}
+        )
+    else:
+        # Create new rating
+        rating_obj = TeacherResourceRating(
+            resource_id=resource_id,
+            user_id=user.user_id,
+            user_name=user.name,
+            rating=rating_data.rating,
+            comment=comment
+        )
+        await db.teacher_resource_ratings.insert_one(rating_obj.dict())
+    
+    # Recalculate average rating
+    all_ratings = await db.teacher_resource_ratings.find({"resource_id": resource_id}).to_list(1000)
+    if all_ratings:
+        avg = sum(r["rating"] for r in all_ratings) / len(all_ratings)
+        await db.teacher_resources.update_one(
+            {"id": resource_id},
+            {"$set": {"average_rating": round(avg, 1), "total_ratings": len(all_ratings)}}
+        )
+    
+    return {"message": "Rating submitted successfully"}
+
+@api_router.get("/teacher-resources/{resource_id}/ratings")
+async def get_resource_ratings(resource_id: str):
+    """Get all ratings and comments for a resource"""
+    ratings = await db.teacher_resource_ratings.find({"resource_id": resource_id}).sort("created_at", -1).to_list(100)
+    return [TeacherResourceRating(**r) for r in ratings]
+
+# ---- Classroom Statistics PDF ----
+@api_router.get("/reports/classroom/{classroom_id}/pdf")
+async def generate_classroom_report(classroom_id: str, request: Request, year: int = None, month: int = None):
+    """Generate PDF report for a classroom's statistics for a month"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role not in ["teacher", "admin"]:
+        raise HTTPException(status_code=403, detail="Only teachers can download reports")
+    
+    classroom = await db.classrooms.find_one({"id": classroom_id})
+    if not classroom:
+        raise HTTPException(status_code=404, detail="Classroom not found")
+    
+    # Default to current month
+    if year is None or month is None:
+        now = datetime.now(timezone.utc)
+        year = now.year
+        month = now.month
+    
+    # Get date range for the month
+    start_date = datetime(year, month, 1, tzinfo=timezone.utc)
+    if month == 12:
+        end_date = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
+    else:
+        end_date = datetime(year, month + 1, 1, tzinfo=timezone.utc)
+    
+    # Get all students in classroom
+    students = await db.students.find({"classroom_id": classroom_id}).to_list(100)
+    student_ids = [s["id"] for s in students]
+    
+    # Get all logs for these students in the month
+    logs = await db.zone_logs.find({
+        "student_id": {"$in": student_ids},
+        "timestamp": {"$gte": start_date, "$lt": end_date}
+    }).to_list(10000)
+    
+    # Build PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=72)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=24, spaceAfter=20, alignment=1, textColor=colors.HexColor('#5C6BC0'))
+    subtitle_style = ParagraphStyle('Subtitle', parent=styles['Heading2'], fontSize=14, spaceAfter=20, alignment=1, textColor=colors.HexColor('#666666'))
+    
+    elements.append(Paragraph(f"Classroom Report", title_style))
+    elements.append(Paragraph(f"{classroom.get('name', 'Classroom')} - {calendar.month_name[month]} {year}", subtitle_style))
+    elements.append(Spacer(1, 20))
+    
+    # Summary stats
+    zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+    time_of_day = {"Morning": 0, "Afternoon": 0, "Evening": 0}
+    student_checkins = {}
+    
+    for log in logs:
+        zone = log.get("zone", "")
+        if zone in zone_counts:
+            zone_counts[zone] += 1
+        
+        # Time of day
+        hour = log["timestamp"].hour
+        if 6 <= hour < 12:
+            time_of_day["Morning"] += 1
+        elif 12 <= hour < 17:
+            time_of_day["Afternoon"] += 1
+        else:
+            time_of_day["Evening"] += 1
+        
+        # Per student
+        sid = log["student_id"]
+        if sid not in student_checkins:
+            student_checkins[sid] = {"total": 0, "zones": {"blue": 0, "green": 0, "yellow": 0, "red": 0}}
+        student_checkins[sid]["total"] += 1
+        if zone in student_checkins[sid]["zones"]:
+            student_checkins[sid]["zones"][zone] += 1
+    
+    # Zone Distribution Table
+    elements.append(Paragraph("Zone Distribution", styles['Heading3']))
+    zone_data = [['Zone', 'Count', 'Percentage']]
+    total = sum(zone_counts.values())
+    for zone, count in zone_counts.items():
+        pct = f"{(count/total*100):.1f}%" if total > 0 else "0%"
+        zone_data.append([zone.capitalize(), str(count), pct])
+    
+    zone_table = Table(zone_data, colWidths=[150, 80, 80])
+    zone_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#5C6BC0')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E0E0E0')),
+        ('PADDING', (0, 0), (-1, -1), 8),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9F9F9')]),
+    ]))
+    elements.append(zone_table)
+    elements.append(Spacer(1, 20))
+    
+    # Time of Day Table
+    elements.append(Paragraph("Check-ins by Time of Day", styles['Heading3']))
+    time_data = [['Time Period', 'Count']]
+    for period, count in time_of_day.items():
+        time_data.append([period, str(count)])
+    
+    time_table = Table(time_data, colWidths=[150, 80])
+    time_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#5C6BC0')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E0E0E0')),
+        ('PADDING', (0, 0), (-1, -1), 8),
+    ]))
+    elements.append(time_table)
+    elements.append(Spacer(1, 20))
+    
+    # Per Student Summary
+    if students:
+        elements.append(Paragraph("Student Summary", styles['Heading3']))
+        student_data = [['Student', 'Total', 'Blue', 'Green', 'Yellow', 'Red']]
+        for s in students:
+            checkin_data = student_checkins.get(s["id"], {"total": 0, "zones": {"blue": 0, "green": 0, "yellow": 0, "red": 0}})
+            student_data.append([
+                s["name"],
+                str(checkin_data["total"]),
+                str(checkin_data["zones"]["blue"]),
+                str(checkin_data["zones"]["green"]),
+                str(checkin_data["zones"]["yellow"]),
+                str(checkin_data["zones"]["red"])
+            ])
+        
+        student_table = Table(student_data, colWidths=[120, 50, 50, 50, 50, 50])
+        student_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#5C6BC0')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E0E0E0')),
+            ('PADDING', (0, 0), (-1, -1), 6),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9F9F9')]),
+        ]))
+        elements.append(student_table)
+    
+    # Footer
+    elements.append(Spacer(1, 40))
+    footer_style = ParagraphStyle('Footer', parent=styles['Normal'], fontSize=10, alignment=1, textColor=colors.HexColor('#999999'))
+    elements.append(Paragraph(f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M')}", footer_style))
+    elements.append(Paragraph("Class of Happiness", footer_style))
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    month_name = calendar.month_name[month]
+    filename = f"classroom_report_{classroom.get('name', 'classroom')}_{month_name}_{year}.pdf"
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@api_router.get("/reports/classroom/{classroom_id}/available-months")
+async def get_classroom_available_months(classroom_id: str, request: Request):
+    """Get list of months that have data for a classroom"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Get all students in classroom
+    students = await db.students.find({"classroom_id": classroom_id}).to_list(100)
+    student_ids = [s["id"] for s in students]
+    
+    if not student_ids:
+        return []
+    
+    # Get distinct months from logs
+    logs = await db.zone_logs.find({"student_id": {"$in": student_ids}}).to_list(10000)
+    
+    months = set()
+    for log in logs:
+        ts = log["timestamp"]
+        months.add(f"{ts.year}-{ts.month:02d}")
+    
+    return sorted(list(months), reverse=True)
 
 # Include the router in the main app
 app.include_router(api_router)

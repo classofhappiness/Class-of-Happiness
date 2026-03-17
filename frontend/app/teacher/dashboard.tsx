@@ -120,6 +120,19 @@ export default function TeacherDashboardScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Resources Button */}
+        <TouchableOpacity
+          style={styles.resourcesButton}
+          onPress={() => router.push('/teacher/resources')}
+        >
+          <MaterialIcons name="library-books" size={24} color="white" />
+          <View style={styles.resourcesButtonContent}>
+            <Text style={styles.resourcesButtonTitle}>Teacher Resources</Text>
+            <Text style={styles.resourcesButtonSubtitle}>Upload & share educational materials</Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={24} color="white" />
+        </TouchableOpacity>
+
         {/* Classroom Filter */}
         {classrooms.length > 0 && (
           <View style={styles.filterSection}>
@@ -295,6 +308,28 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     marginTop: 4,
+  },
+  resourcesButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#5C6BC0',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    gap: 12,
+  },
+  resourcesButtonContent: {
+    flex: 1,
+  },
+  resourcesButtonTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+  },
+  resourcesButtonSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
   },
   filterSection: {
     marginBottom: 16,

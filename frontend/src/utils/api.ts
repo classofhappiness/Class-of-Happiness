@@ -369,3 +369,69 @@ export const strategySyncApi = {
   getShared: (studentId: string): Promise<CustomStrategy[]> =>
     apiRequest(`/strategies/shared/${studentId}`),
 };
+
+// Teacher Resources API
+export interface TeacherResourceTopic {
+  id: string;
+  name: string;
+}
+
+export interface TeacherResource {
+  id: string;
+  title: string;
+  description: string;
+  topic: string;
+  content_type: string;
+  content?: string;
+  pdf_filename?: string;
+  created_by: string;
+  created_by_name?: string;
+  average_rating: number;
+  total_ratings: number;
+  created_at: string;
+}
+
+export interface TeacherResourceRating {
+  id: string;
+  resource_id: string;
+  user_id: string;
+  user_name?: string;
+  rating: number;
+  comment?: string;
+  created_at: string;
+}
+
+export const teacherResourcesApi = {
+  getTopics: (): Promise<TeacherResourceTopic[]> =>
+    apiRequest('/teacher-resources/topics'),
+  
+  getAll: (topic?: string): Promise<TeacherResource[]> =>
+    apiRequest(topic ? `/teacher-resources?topic=${topic}` : '/teacher-resources'),
+  
+  get: (id: string): Promise<TeacherResource> =>
+    apiRequest(`/teacher-resources/${id}`),
+  
+  create: (data: Partial<TeacherResource>): Promise<TeacherResource> =>
+    apiRequest('/teacher-resources', { method: 'POST', body: JSON.stringify(data) }),
+  
+  delete: (id: string): Promise<void> =>
+    apiRequest(`/teacher-resources/${id}`, { method: 'DELETE' }),
+  
+  rate: (resourceId: string, rating: number, comment?: string): Promise<void> =>
+    apiRequest(`/teacher-resources/${resourceId}/rate`, { 
+      method: 'POST', 
+      body: JSON.stringify({ rating, comment }) 
+    }),
+  
+  getRatings: (resourceId: string): Promise<TeacherResourceRating[]> =>
+    apiRequest(`/teacher-resources/${resourceId}/ratings`),
+};
+
+// Classroom Reports API
+export const classroomReportsApi = {
+  getAvailableMonths: (classroomId: string): Promise<string[]> =>
+    apiRequest(`/reports/classroom/${classroomId}/available-months`),
+  
+  getPdfUrl: (classroomId: string, year: number, month: number): string =>
+    `${API_URL}/reports/classroom/${classroomId}/pdf?year=${year}&month=${month}`,
+};
