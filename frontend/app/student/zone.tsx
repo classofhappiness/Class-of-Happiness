@@ -10,7 +10,7 @@ const ZONE_SIZE = (width - 60) / 2 - 8;
 
 export default function ZoneSelectionScreen() {
   const router = useRouter();
-  const { currentStudent, presetAvatars } = useApp();
+  const { currentStudent, presetAvatars, t } = useApp();
 
   const handleSelectZone = (zone: 'blue' | 'green' | 'yellow' | 'red') => {
     router.push({
@@ -23,7 +23,7 @@ export default function ZoneSelectionScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Please select a profile first</Text>
+          <Text style={styles.errorText}>{t('select_profile')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -42,8 +42,8 @@ export default function ZoneSelectionScreen() {
             presetAvatars={presetAvatars}
           />
           <View style={styles.greetingText}>
-            <Text style={styles.greetingHi}>Hi, {currentStudent.name}!</Text>
-            <Text style={styles.greetingQuestion}>Which zone are you in?</Text>
+            <Text style={styles.greetingHi}>{t('hi')}, {currentStudent.name}!</Text>
+            <Text style={styles.greetingQuestion}>{t('which_zone')}</Text>
           </View>
         </View>
 
@@ -75,7 +75,7 @@ export default function ZoneSelectionScreen() {
           </View>
         </View>
 
-        <Text style={styles.helpText}>Tap the color that matches how you feel</Text>
+        <Text style={styles.helpText}>{t('tap_zone_help')}</Text>
       </ScrollView>
     </SafeAreaView>
   );

@@ -27,7 +27,7 @@ const ZONE_COLORS = {
 
 export default function TeacherDashboardScreen() {
   const router = useRouter();
-  const { students, classrooms, presetAvatars, refreshStudents, refreshClassrooms } = useApp();
+  const { students, classrooms, presetAvatars, refreshStudents, refreshClassrooms, t } = useApp();
   const [selectedPeriod, setSelectedPeriod] = useState<7 | 14 | 30>(7);
   const [recentLogs, setRecentLogs] = useState<ZoneLog[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
@@ -106,7 +106,7 @@ export default function TeacherDashboardScreen() {
             onPress={() => router.push('/teacher/students')}
           >
             <MaterialIcons name="people" size={28} color="#5C6BC0" />
-            <Text style={styles.actionText}>Students</Text>
+            <Text style={styles.actionText}>{t('students')}</Text>
             <Text style={styles.actionCount}>{students.length}</Text>
           </TouchableOpacity>
 
@@ -115,7 +115,7 @@ export default function TeacherDashboardScreen() {
             onPress={() => router.push('/teacher/classrooms')}
           >
             <MaterialIcons name="school" size={28} color="#5C6BC0" />
-            <Text style={styles.actionText}>Classrooms</Text>
+            <Text style={styles.actionText}>{t('classrooms')}</Text>
             <Text style={styles.actionCount}>{classrooms.length}</Text>
           </TouchableOpacity>
         </View>
@@ -127,8 +127,8 @@ export default function TeacherDashboardScreen() {
         >
           <MaterialIcons name="library-books" size={24} color="white" />
           <View style={styles.resourcesButtonContent}>
-            <Text style={styles.resourcesButtonTitle}>Teacher Resources</Text>
-            <Text style={styles.resourcesButtonSubtitle}>Upload & share educational materials</Text>
+            <Text style={styles.resourcesButtonTitle}>{t('teacher_resources')}</Text>
+            <Text style={styles.resourcesButtonSubtitle}>{t('upload_share_materials')}</Text>
           </View>
           <MaterialIcons name="chevron-right" size={24} color="white" />
         </TouchableOpacity>
@@ -192,7 +192,7 @@ export default function TeacherDashboardScreen() {
 
         {/* Zone Distribution Chart */}
         <View style={styles.chartSection}>
-          <Text style={styles.sectionTitle}>Zone Distribution</Text>
+          <Text style={styles.sectionTitle}>{t('week_overview')}</Text>
           {analytics && analytics.total_logs > 0 ? (
             <View style={styles.chartContainer}>
               <BarChart
@@ -211,13 +211,13 @@ export default function TeacherDashboardScreen() {
                 width={width - 80}
               />
               <Text style={styles.chartSubtitle}>
-                Total check-ins: {analytics.total_logs}
+                {t('check_ins')}: {analytics.total_logs}
               </Text>
             </View>
           ) : (
             <View style={styles.emptyChart}>
               <MaterialIcons name="bar-chart" size={48} color="#CCC" />
-              <Text style={styles.emptyChartText}>No data for this period</Text>
+              <Text style={styles.emptyChartText}>{t('no_data_yet')}</Text>
             </View>
           )}
         </View>

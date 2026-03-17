@@ -235,14 +235,14 @@ export default function ParentDashboard() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Family Dashboard</Text>
-          <Text style={styles.headerSubtitle}>Track emotional wellness at home</Text>
+          <Text style={styles.headerTitle}>{t('family_dashboard')}</Text>
+          <Text style={styles.headerSubtitle}>{t('track_emotional_wellness')}</Text>
         </View>
 
         {/* Family Members Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>My Family</Text>
+            <Text style={styles.sectionTitle}>{t('my_family')}</Text>
             <TouchableOpacity
               style={styles.addButton}
               onPress={() => setShowAddFamilyModal(true)}
@@ -296,13 +296,13 @@ export default function ParentDashboard() {
         {/* Linked Children from School */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Children (School)</Text>
+            <Text style={styles.sectionTitle}>{t('children_school')}</Text>
             <TouchableOpacity
               style={styles.linkButton}
               onPress={() => setShowLinkModal(true)}
             >
               <MaterialIcons name="link" size={18} color="white" />
-              <Text style={styles.linkButtonText}>Link</Text>
+              <Text style={styles.linkButtonText}>{t('link_child')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -353,7 +353,7 @@ export default function ParentDashboard() {
           <>
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
-                {(selectedMember as any).name}'s Week Overview
+                {(selectedMember as any).name}'s {t('week_overview')}
               </Text>
               
               {totalLogs > 0 ? (
@@ -392,7 +392,7 @@ export default function ParentDashboard() {
 
             {/* Recent Activity */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Recent Check-ins</Text>
+              <Text style={styles.sectionTitle}>{t('recent_check_ins')}</Text>
               
               {recentLogs.length > 0 ? (
                 recentLogs.slice(0, 10).map((log) => (
@@ -430,7 +430,7 @@ export default function ParentDashboard() {
                 })}
               >
                 <MaterialIcons name="lightbulb" size={24} color="#FFC107" />
-                <Text style={styles.actionButtonText}>Strategies</Text>
+                <Text style={styles.actionButtonText}>{t('strategies')}</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
@@ -438,7 +438,7 @@ export default function ParentDashboard() {
                 onPress={() => router.push('/parent/resources')}
               >
                 <MaterialIcons name="library-books" size={24} color="#5C6BC0" />
-                <Text style={styles.actionButtonText}>Resources</Text>
+                <Text style={styles.actionButtonText}>{t('resources')}</Text>
               </TouchableOpacity>
             </View>
           </>

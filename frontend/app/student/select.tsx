@@ -7,7 +7,7 @@ import { Avatar } from '../../src/components/Avatar';
 
 export default function StudentSelectScreen() {
   const router = useRouter();
-  const { students, presetAvatars, setCurrentStudent, refreshStudents } = useApp();
+  const { students, presetAvatars, setCurrentStudent, refreshStudents, t } = useApp();
 
   const handleSelectStudent = (student: typeof students[0]) => {
     setCurrentStudent(student);
@@ -21,7 +21,7 @@ export default function StudentSelectScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.instruction}>Tap your picture to check in!</Text>
+        <Text style={styles.instruction}>{t('tap_to_check_in')}</Text>
 
         <View style={styles.studentsGrid}>
           {students.map((student) => (
@@ -53,7 +53,7 @@ export default function StudentSelectScreen() {
             <View style={styles.addIconContainer}>
               <MaterialIcons name="add" size={40} color="#4CAF50" />
             </View>
-            <Text style={styles.addText}>Add Profile</Text>
+            <Text style={styles.addText}>{t('add_profile')}</Text>
           </TouchableOpacity>
         </View>
 

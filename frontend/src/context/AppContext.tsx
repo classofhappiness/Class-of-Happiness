@@ -108,6 +108,15 @@ const defaultTranslations: Translations = {
   upload: "Upload",
   download: "Download",
   share: "Share",
+  hi: "Hi",
+  which_zone: "Which zone are you in?",
+  tap_zone_help: "Tap the color that matches how you feel",
+  choose_strategies: "Choose helpful strategies",
+  want_to_say: "Want to say how you feel?",
+  write_sentence: "Write one sentence about how you feel...",
+  save_checkin: "Save Check-in",
+  well_done: "Well Done!",
+  great_job: "Great job choosing strategies!",
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);

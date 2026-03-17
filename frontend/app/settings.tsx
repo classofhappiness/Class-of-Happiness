@@ -23,9 +23,9 @@ export default function SettingsScreen() {
   const handleLogout = () => {
     Alert.alert(
       t('logout'),
-      'Are you sure you want to sign out?',
+      t('confirm_logout'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
           text: t('logout'),
           style: 'destructive',

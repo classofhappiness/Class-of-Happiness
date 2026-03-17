@@ -13,7 +13,7 @@ const MAX_COMMENT_LENGTH = 100;
 export default function StrategiesScreen() {
   const router = useRouter();
   const { zone } = useLocalSearchParams<{ zone: 'blue' | 'green' | 'yellow' | 'red' }>();
-  const { currentStudent, presetAvatars } = useApp();
+  const { currentStudent, presetAvatars, t } = useApp();
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -200,7 +200,7 @@ export default function StrategiesScreen() {
                   styles.commentToggleText,
                   (showCommentInput || comment) && { color: zoneConfig.color }
                 ]}>
-                  {comment ? 'Edit your note' : 'Want to say how you feel?'} (optional)
+                  {comment ? t('edit') : t('want_to_say')}
                 </Text>
                 <MaterialIcons 
                   name={showCommentInput ? 'expand-less' : 'expand-more'} 
@@ -213,7 +213,7 @@ export default function StrategiesScreen() {
                 <View style={styles.commentInputContainer}>
                   <TextInput
                     style={[styles.commentInput, { borderColor: zoneConfig.color }]}
-                    placeholder="Write one sentence about how you feel..."
+                    placeholder={t('write_sentence')}
                     placeholderTextColor="#999"
                     value={comment}
                     onChangeText={(text) => setComment(text.slice(0, MAX_COMMENT_LENGTH))}
@@ -238,7 +238,7 @@ export default function StrategiesScreen() {
           onPress={handleSkip}
           disabled={saving}
         >
-          <Text style={styles.skipButtonText}>Skip</Text>
+          <Text style={styles.skipButtonText}>{t('skip')}</Text>
         </TouchableOpacity>
         
         <TouchableOpacity
@@ -247,7 +247,7 @@ export default function StrategiesScreen() {
           disabled={saving}
         >
           <Text style={styles.doneButtonText}>
-            {saving ? 'Saving...' : `Done ${selectedStrategies.length > 0 ? `(${selectedStrategies.length})` : ''}`}
+            {saving ? t('loading') : `${t('done')} ${selectedStrategies.length > 0 ? `(${selectedStrategies.length})` : ''}`}
           </Text>
           <MaterialIcons name="check" size={24} color="white" />
         </TouchableOpacity>
