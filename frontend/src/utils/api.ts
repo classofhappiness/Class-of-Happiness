@@ -238,6 +238,18 @@ export const analyticsApi = {
   
   getClassroom: (classroomId: string, days: number = 7) => 
     apiRequest(`/analytics/classroom/${classroomId}?days=${days}`),
+  
+  getStudentMonthly: (studentId: string, year: number, month: number) =>
+    apiRequest(`/analytics/student/${studentId}/month/${year}/${month}`),
+};
+
+// Reports API
+export const reportsApi = {
+  getAvailableMonths: (studentId: string): Promise<string[]> =>
+    apiRequest(`/reports/available-months/${studentId}`),
+  
+  getPdfUrl: (studentId: string, year: number, month: number): string =>
+    `${API_URL}/reports/pdf/student/${studentId}/month/${year}/${month}`,
 };
 
 // Avatars API

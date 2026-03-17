@@ -1,31 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { strategiesApi, zoneLogsApi, Strategy } from '../../src/utils/api';
 import { StrategyCard } from '../../src/components/StrategyCard';
 import { ZONE_CONFIG } from '../../src/components/ZoneButton';
+import { CelebrationOverlay } from '../../src/components/CelebrationOverlay';
 
 export default function StrategiesScreen() {
   const router = useRouter();
   const { zone } = useLocalSearchParams<{ zone: 'blue' | 'green' | 'yellow' | 'red' }>();
-  const { currentStudent } = useApp();
+  const { currentStudent, presetAvatars } = useApp();
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
 
   const zoneConfig = zone ? ZONE_CONFIG[zone] : ZONE_CONFIG.green;
 
   useEffect(() => {
     fetchStrategies();
-  }, [zone]);
+  }, [zone, currentStudent]);
 
   const fetchStrategies = async () => {
     if (!zone) return;
     try {
-      const data = await strategiesApi.getByZone(zone);
+      // Fetch strategies including custom ones for this student
+      const data = currentStudent 
+        ? await strategiesApi.getForStudent(currentStudent.id, zone)
+        : await strategiesApi.getByZone(zone);
       setStrategies(data);
     } catch (error) {
       console.error('Error fetching strategies:', error);
@@ -53,19 +58,15 @@ export default function StrategiesScreen() {
         strategies_selected: selectedStrategies,
       });
       
-      Alert.alert(
-        'Great Job! 🌟',
-        `You checked in to the ${zoneConfig.label}${selectedStrategies.length > 0 ? ' and picked some helpful strategies!' : '!'}`,
-        [
-          {
-            text: 'Done',
-            onPress: () => router.replace('/'),
-          },
-        ]
-      );
+      // Show celebration overlay if strategies were selected
+      if (selectedStrategies.length > 0) {
+        setShowCelebration(true);
+      } else {
+        // Just go back to home
+        router.replace('/');
+      }
     } catch (error) {
       console.error('Error saving zone log:', error);
-      Alert.alert('Oops!', 'Something went wrong. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -82,22 +83,17 @@ export default function StrategiesScreen() {
         strategies_selected: [],
       });
       
-      Alert.alert(
-        'Check-in Complete! 🌟',
-        `You checked in to the ${zoneConfig.label}!`,
-        [
-          {
-            text: 'Done',
-            onPress: () => router.replace('/'),
-          },
-        ]
-      );
+      router.replace('/');
     } catch (error) {
       console.error('Error saving zone log:', error);
-      Alert.alert('Oops!', 'Something went wrong. Please try again.');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCelebrationComplete = () => {
+    setShowCelebration(false);
+    router.replace('/');
   };
 
   if (!zone) {
@@ -108,11 +104,38 @@ export default function StrategiesScreen() {
     );
   }
 
+  // Get current date and time for display
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+  const timeStr = now.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit',
+    hour12: true 
+  });
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Celebration Overlay */}
+      {currentStudent && (
+        <CelebrationOverlay
+          visible={showCelebration}
+          studentName={currentStudent.name}
+          avatarType={currentStudent.avatar_type as 'preset' | 'custom'}
+          avatarPreset={currentStudent.avatar_preset}
+          avatarCustom={currentStudent.avatar_custom}
+          presetAvatars={presetAvatars}
+          onComplete={handleCelebrationComplete}
+        />
+      )}
+
       {/* Zone Header */}
       <View style={[styles.header, { backgroundColor: zoneConfig.color }]}>
-        <MaterialIcons name={zoneConfig.icon} size={40} color="white" />
+        <Text style={styles.zoneFace}>{zoneConfig.face}</Text>
         <View style={styles.headerText}>
           <Text style={styles.headerTitle}>{zoneConfig.label}</Text>
           <Text style={styles.headerSubtitle}>
@@ -121,6 +144,12 @@ export default function StrategiesScreen() {
               : "Here are some strategies that might help:"}
           </Text>
         </View>
+      </View>
+
+      {/* Date/Time Banner */}
+      <View style={styles.dateTimeBanner}>
+        <MaterialIcons name="schedule" size={18} color="#666" />
+        <Text style={styles.dateTimeText}>{dateStr} at {timeStr}</Text>
       </View>
 
       <ScrollView 
@@ -143,6 +172,8 @@ export default function StrategiesScreen() {
                 name={strategy.name}
                 description={strategy.description}
                 icon={strategy.icon}
+                customImage={strategy.custom_image}
+                imageType={strategy.image_type}
                 selected={selectedStrategies.includes(strategy.id)}
                 onPress={() => toggleStrategy(strategy.id)}
                 zoneColor={zoneConfig.color}
@@ -187,6 +218,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
+  zoneFace: {
+    fontSize: 40,
+  },
   headerText: {
     marginLeft: 16,
     flex: 1,
@@ -200,6 +234,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255,255,255,0.9)',
     marginTop: 4,
+  },
+  dateTimeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E8F4FD',
+    paddingVertical: 10,
+    gap: 8,
+  },
+  dateTimeText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
   },
   scrollView: {
     flex: 1,

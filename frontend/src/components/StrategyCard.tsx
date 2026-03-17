@@ -1,11 +1,13 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, View, Image } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 interface StrategyCardProps {
   name: string;
   description: string;
   icon: string;
+  imageType?: string;
+  customImage?: string;
   selected?: boolean;
   onPress: () => void;
   zoneColor: string;
@@ -15,6 +17,8 @@ export const StrategyCard: React.FC<StrategyCardProps> = ({
   name,
   description,
   icon,
+  imageType = 'icon',
+  customImage,
   selected = false,
   onPress,
   zoneColor,
@@ -29,7 +33,15 @@ export const StrategyCard: React.FC<StrategyCardProps> = ({
       activeOpacity={0.7}
     >
       <View style={[styles.iconContainer, { backgroundColor: zoneColor }]}>
-        <MaterialIcons name={icon as any} size={32} color="white" />
+        {imageType === 'custom' && customImage ? (
+          <Image 
+            source={{ uri: customImage }} 
+            style={styles.customImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <MaterialIcons name={icon as any} size={32} color="white" />
+        )}
       </View>
       <View style={styles.textContainer}>
         <Text style={styles.name}>{name}</Text>
@@ -66,6 +78,12 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  customImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
   },
   textContainer: {
     flex: 1,

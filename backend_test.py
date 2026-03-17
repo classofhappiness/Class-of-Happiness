@@ -334,6 +334,116 @@ def test_strategies_with_student_id():
         print_test_result("GET /api/strategies with student_id", False, f"Exception: {str(e)}")
         return False
 
+def test_reports_endpoints():
+    """Test reports endpoints: available months and PDF generation"""
+    print("=== Testing Reports Endpoints ===")
+    
+    # Step 1: Create a test student
+    test_student_data = {
+        "name": "Test Student",
+        "avatar_type": "preset", 
+        "avatar_preset": "cat"
+    }
+    
+    try:
+        print("Creating test student...")
+        response = requests.post(f"{BASE_URL}/students", json=test_student_data, timeout=10)
+        if response.status_code != 200:
+            print_test_result("Create test student for reports", False, f"Status: {response.status_code}")
+            return False
+        
+        student_data = response.json()
+        student_id = student_data["id"]
+        print(f"✓ Created test student: {student_id}")
+        
+        # Step 2: Create some zone logs for the current month (June 2025)
+        zone_logs_data = [
+            {"student_id": student_id, "zone": "green", "strategies_selected": ["green_1"]},
+            {"student_id": student_id, "zone": "yellow", "strategies_selected": ["yellow_1", "yellow_2"]},
+            {"student_id": student_id, "zone": "blue", "strategies_selected": ["blue_1"]}
+        ]
+        
+        print("Creating zone logs...")
+        log_ids = []
+        for log_data in zone_logs_data:
+            response = requests.post(f"{BASE_URL}/zone-logs", json=log_data, timeout=10)
+            if response.status_code == 200:
+                log_result = response.json()
+                log_ids.append(log_result["id"])
+                print(f"✓ Created zone log: {log_result['zone']} zone")
+            else:
+                print(f"✗ Failed to create zone log: Status {response.status_code}")
+        
+        if len(log_ids) < 2:  # Need at least some data
+            print_test_result("Create zone logs for testing", False, f"Only created {len(log_ids)} logs")
+            return False
+        
+        print(f"✓ Created {len(log_ids)} zone logs")
+        
+        # Step 3: Test GET /api/reports/available-months/{student_id}
+        print("\nTesting available months endpoint...")
+        response = requests.get(f"{BASE_URL}/reports/available-months/{student_id}", timeout=10)
+        months_success = response.status_code == 200
+        
+        if months_success:
+            available_months = response.json()
+            is_list = isinstance(available_months, list)
+            has_data = len(available_months) > 0 if is_list else False
+            # Since logs are created with current system time, we should check if we got any months back
+            months_success = is_list and has_data
+            details = f"Status: {response.status_code}, Months: {available_months if is_list else 'Invalid format'}"
+        else:
+            details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+        
+        print_test_result("GET /api/reports/available-months/{student_id}", months_success, details)
+        
+        # Step 4: Test GET /api/reports/pdf/student/{student_id}/month/{year}/{month}
+        print("Testing PDF generation endpoint...")
+        # Use the first available month from the months list for PDF testing
+        if months_success and available_months:
+            test_month_str = available_months[0]  # Format: "YYYY-MM"
+            year, month = test_month_str.split('-')
+            year, month = int(year), int(month)
+        else:
+            # Fallback to current date if months endpoint failed
+            from datetime import datetime
+            now = datetime.now()
+            year, month = now.year, now.month
+            
+        response = requests.get(f"{BASE_URL}/reports/pdf/student/{student_id}/month/{year}/{month}", timeout=15)
+        pdf_success = response.status_code == 200
+        
+        if pdf_success:
+            content_type = response.headers.get('content-type', '')
+            is_pdf = content_type == 'application/pdf'
+            has_content = len(response.content) > 1000  # PDF should be substantial
+            content_disposition = response.headers.get('content-disposition', '')
+            has_filename = 'filename=' in content_disposition
+            
+            pdf_success = is_pdf and has_content and has_filename
+            details = f"Status: {response.status_code}, Content-Type: {content_type}, Size: {len(response.content)} bytes, Filename: {has_filename}, Month: {year}-{month:02d}"
+        else:
+            details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+        
+        print_test_result("GET /api/reports/pdf/student/{student_id}/month/2025/6", pdf_success, details)
+        
+        # Clean up: delete test student (this will cascade delete logs)
+        print("Cleaning up test data...")
+        cleanup_response = requests.delete(f"{BASE_URL}/students/{student_id}", timeout=10)
+        if cleanup_response.status_code == 200:
+            print("✓ Cleanup successful")
+        else:
+            print("⚠ Cleanup failed, but continuing...")
+        
+        # Return overall success
+        overall_success = months_success and pdf_success
+        print(f"\n📊 Reports testing {'PASSED' if overall_success else 'FAILED'}")
+        return overall_success
+        
+    except Exception as e:
+        print_test_result("Reports endpoints testing", False, f"Exception: {str(e)}")
+        return False
+
 def run_comprehensive_test_suite():
     """Run all backend API tests for new features"""
     print("=" * 60)
@@ -358,6 +468,9 @@ def run_comprehensive_test_suite():
     
     print("\n=== STRATEGIES WITH STUDENT_ID ===")
     results["strategies_with_student_id"] = test_strategies_with_student_id()
+    
+    print("\n=== REPORTS ENDPOINTS ===")
+    results["reports_endpoints"] = test_reports_endpoints()
     
     # Summary
     print("\n" + "=" * 60)

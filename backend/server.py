@@ -1,4 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response
+from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -10,6 +11,18 @@ from typing import List, Optional, Dict
 import uuid
 from datetime import datetime, timedelta, timezone
 import httpx
+import io
+import calendar
+
+# PDF Generation
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
+from reportlab.graphics.shapes import Drawing, Rect
+from reportlab.graphics.charts.barcharts import VerticalBarChart
+from reportlab.graphics.charts.legends import Legend
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -164,12 +177,36 @@ PRESET_AVATARS = [
 
 # ================== STRATEGY ICONS ==================
 STRATEGY_ICONS = [
-    "fitness-center", "chat", "local-drink", "weekend", "music-note", 
-    "wb-sunny", "thumb-up", "air", "visibility", "pan-tool", "favorite",
-    "sentiment-very-satisfied", "filter-9-plus", "sports-baseball", 
-    "directions-walk", "exposure-neg-1", "home", "support-agent",
-    "self-improvement", "spa", "psychology", "volunteer-activism",
-    "emoji-emotions", "lightbulb", "star", "pets", "nature"
+    # Movement & Exercise
+    "fitness-center", "directions-walk", "directions-run", "pool", "sports-soccer",
+    "sports-baseball", "sports-basketball", "sports-tennis", "hiking", "rowing",
+    # Communication
+    "chat", "forum", "support-agent", "record-voice-over", "campaign",
+    # Relaxation & Wellness
+    "spa", "self-improvement", "psychology", "air", "weekend", "bathtub",
+    "local-cafe", "local-drink", "restaurant", "cake",
+    # Nature & Outdoors
+    "wb-sunny", "nature", "park", "grass", "forest", "pets", "eco",
+    # Emotions & Feelings  
+    "favorite", "emoji-emotions", "sentiment-very-satisfied", "sentiment-satisfied",
+    "sentiment-neutral", "sentiment-dissatisfied", "mood", "face",
+    # Music & Art
+    "music-note", "headphones", "piano", "brush", "palette", "color-lens",
+    # Mindfulness
+    "visibility", "visibility-off", "timer", "hourglass-empty", "access-time",
+    # Actions
+    "thumb-up", "thumb-down", "pan-tool", "back-hand", "front-hand", "waving-hand",
+    # Home & Safety
+    "home", "shield", "security", "lock", "night-shelter",
+    # Learning & Focus
+    "school", "menu-book", "edit", "lightbulb", "tips-and-updates",
+    # Misc
+    "star", "filter-9-plus", "exposure-neg-1", "volunteer-activism",
+    "celebration", "emoji-events", "workspace-premium", "military-tech",
+    # Body & Health
+    "accessibility", "hearing", "remove-red-eye", "touch-app",
+    # Play
+    "toys", "videogame-asset", "sports-esports", "extension", "casino"
 ]
 
 # ================== DEFAULT STRATEGIES ==================
@@ -1110,6 +1147,237 @@ async def get_classroom_analytics(classroom_id: str, days: int = 7):
         "student_breakdown": student_data,
         "period_days": days
     }
+
+# ---- Available Months for Reports ----
+@api_router.get("/reports/available-months/{student_id}")
+async def get_available_months(student_id: str):
+    """Get list of months that have data for a student"""
+    logs = await db.zone_logs.find(
+        {"student_id": student_id},
+        {"timestamp": 1}
+    ).sort("timestamp", 1).to_list(10000)
+    
+    months = set()
+    for log in logs:
+        ts = log["timestamp"]
+        months.add(f"{ts.year}-{ts.month:02d}")
+    
+    return sorted(list(months), reverse=True)
+
+# ---- Monthly Analytics ----
+@api_router.get("/analytics/student/{student_id}/month/{year}/{month}")
+async def get_student_monthly_analytics(student_id: str, year: int, month: int):
+    """Get analytics for a specific month"""
+    start_date = datetime(year, month, 1)
+    _, last_day = calendar.monthrange(year, month)
+    end_date = datetime(year, month, last_day, 23, 59, 59)
+    
+    logs = await db.zone_logs.find({
+        "student_id": student_id,
+        "timestamp": {"$gte": start_date, "$lte": end_date}
+    }).sort("timestamp", 1).to_list(10000)
+    
+    zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+    strategy_counts = {}
+    daily_data = {}
+    detailed_logs = []
+    
+    for log in logs:
+        zone = log.get("zone", "")
+        if zone in zone_counts:
+            zone_counts[zone] += 1
+        
+        for strategy in log.get("strategies_selected", []):
+            strategy_counts[strategy] = strategy_counts.get(strategy, 0) + 1
+        
+        day = log["timestamp"].strftime("%Y-%m-%d")
+        if day not in daily_data:
+            daily_data[day] = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+        if zone in daily_data[day]:
+            daily_data[day][zone] += 1
+        
+        detailed_logs.append({
+            "date": log["timestamp"].strftime("%Y-%m-%d"),
+            "time": log["timestamp"].strftime("%H:%M"),
+            "zone": zone,
+            "strategies": log.get("strategies_selected", [])
+        })
+    
+    return {
+        "zone_counts": zone_counts,
+        "total_logs": len(logs),
+        "strategy_counts": strategy_counts,
+        "daily_data": daily_data,
+        "detailed_logs": detailed_logs,
+        "month": month,
+        "year": year
+    }
+
+# ---- PDF Report Generation ----
+def create_zone_chart(zone_counts):
+    """Create a bar chart for zone distribution"""
+    drawing = Drawing(400, 200)
+    
+    chart = VerticalBarChart()
+    chart.x = 50
+    chart.y = 50
+    chart.height = 125
+    chart.width = 300
+    
+    data = [[zone_counts.get("blue", 0), zone_counts.get("green", 0), 
+             zone_counts.get("yellow", 0), zone_counts.get("red", 0)]]
+    chart.data = data
+    
+    chart.categoryAxis.categoryNames = ['Blue', 'Green', 'Yellow', 'Red']
+    chart.categoryAxis.labels.boxAnchor = 'n'
+    
+    chart.bars[0].fillColor = colors.HexColor('#4A90D9')
+    chart.bars.strokeColor = None
+    
+    # Set individual bar colors
+    for i, color_hex in enumerate(['#4A90D9', '#4CAF50', '#FFC107', '#F44336']):
+        chart.bars[0].fillColor = colors.HexColor(color_hex)
+    
+    drawing.add(chart)
+    return drawing
+
+@api_router.get("/reports/pdf/student/{student_id}/month/{year}/{month}")
+async def generate_student_monthly_pdf(student_id: str, year: int, month: int):
+    """Generate PDF report for a student's monthly data"""
+    # Get student info
+    student = await db.students.find_one({"id": student_id})
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    # Get monthly data
+    start_date = datetime(year, month, 1)
+    _, last_day = calendar.monthrange(year, month)
+    end_date = datetime(year, month, last_day, 23, 59, 59)
+    
+    logs = await db.zone_logs.find({
+        "student_id": student_id,
+        "timestamp": {"$gte": start_date, "$lte": end_date}
+    }).sort("timestamp", 1).to_list(10000)
+    
+    # Calculate stats
+    zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+    strategy_counts = {}
+    
+    for log in logs:
+        zone = log.get("zone", "")
+        if zone in zone_counts:
+            zone_counts[zone] += 1
+        for strategy in log.get("strategies_selected", []):
+            strategy_counts[strategy] = strategy_counts.get(strategy, 0) + 1
+    
+    # Create PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    elements = []
+    
+    # Title
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        spaceAfter=20,
+        alignment=1  # Center
+    )
+    month_name = calendar.month_name[month]
+    elements.append(Paragraph(f"Zones of Regulation Report", title_style))
+    elements.append(Paragraph(f"{student['name']} - {month_name} {year}", styles['Heading2']))
+    elements.append(Spacer(1, 20))
+    
+    # Summary stats
+    elements.append(Paragraph("Summary", styles['Heading3']))
+    summary_data = [
+        ['Total Check-ins', str(len(logs))],
+        ['Blue Zone', str(zone_counts['blue'])],
+        ['Green Zone', str(zone_counts['green'])],
+        ['Yellow Zone', str(zone_counts['yellow'])],
+        ['Red Zone', str(zone_counts['red'])],
+    ]
+    
+    summary_table = Table(summary_data, colWidths=[200, 100])
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#5C6BC0')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#F5F5F5')),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#E0E0E0')),
+        ('PADDING', (0, 0), (-1, -1), 8),
+    ]))
+    elements.append(summary_table)
+    elements.append(Spacer(1, 20))
+    
+    # Detailed logs
+    if logs:
+        elements.append(Paragraph("Detailed Check-ins", styles['Heading3']))
+        log_data = [['Date', 'Time', 'Zone', 'Strategies Used']]
+        
+        for log in logs:
+            strategies = ", ".join(log.get("strategies_selected", [])) or "None"
+            log_data.append([
+                log["timestamp"].strftime("%Y-%m-%d"),
+                log["timestamp"].strftime("%H:%M"),
+                log.get("zone", "").capitalize(),
+                strategies[:30] + "..." if len(strategies) > 30 else strategies
+            ])
+        
+        log_table = Table(log_data, colWidths=[80, 60, 70, 180])
+        log_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#5C6BC0')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E0E0E0')),
+            ('PADDING', (0, 0), (-1, -1), 6),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9F9F9')]),
+        ]))
+        elements.append(log_table)
+    
+    # Top strategies
+    if strategy_counts:
+        elements.append(Spacer(1, 20))
+        elements.append(Paragraph("Most Used Strategies", styles['Heading3']))
+        sorted_strategies = sorted(strategy_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+        strat_data = [['Strategy', 'Times Used']]
+        for strat, count in sorted_strategies:
+            strat_data.append([strat, str(count)])
+        
+        strat_table = Table(strat_data, colWidths=[250, 80])
+        strat_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#FFC107')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E0E0E0')),
+            ('PADDING', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(strat_table)
+    
+    # Footer
+    elements.append(Spacer(1, 30))
+    footer_style = ParagraphStyle('Footer', parent=styles['Normal'], fontSize=10, textColor=colors.gray)
+    elements.append(Paragraph(f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M')}", footer_style))
+    elements.append(Paragraph("Class of Happiness - Zones of Regulation", footer_style))
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    filename = f"{student['name'].replace(' ', '_')}_{month_name}_{year}_report.pdf"
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 # Include the router in the main app
 app.include_router(api_router)

@@ -7,13 +7,16 @@ import {
   ScrollView, 
   TouchableOpacity,
   Dimensions,
-  RefreshControl
+  RefreshControl,
+  Alert,
+  Linking,
+  Modal
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
 import { useApp } from '../../src/context/AppContext';
-import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy } from '../../src/utils/api';
+import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy, reportsApi } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 
 const { width } = Dimensions.get('window');
@@ -32,6 +35,11 @@ const ZONE_LABELS = {
   red: 'Red Zone',
 };
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
 export default function StudentDetailScreen() {
   const router = useRouter();
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
@@ -44,18 +52,22 @@ export default function StudentDetailScreen() {
   const [logs, setLogs] = useState<ZoneLog[]>([]);
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   const fetchData = async () => {
     if (!studentId) return;
     try {
-      const [analyticsData, logsData, strategiesData] = await Promise.all([
+      const [analyticsData, logsData, strategiesData, months] = await Promise.all([
         analyticsApi.getStudent(studentId, selectedPeriod),
         zoneLogsApi.getByStudent(studentId, selectedPeriod),
         strategiesApi.getAll(),
+        reportsApi.getAvailableMonths(studentId),
       ]);
       setAnalytics(analyticsData);
       setLogs(logsData);
       setStrategies(strategiesData);
+      setAvailableMonths(months);
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -88,9 +100,33 @@ export default function StudentDetailScreen() {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
+    });
+  };
+
+  const formatTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
+      hour12: true,
     });
+  };
+
+  const downloadReport = (monthStr: string) => {
+    const [year, month] = monthStr.split('-').map(Number);
+    const pdfUrl = reportsApi.getPdfUrl(studentId!, year, month);
+    
+    if (typeof window !== 'undefined') {
+      window.open(pdfUrl, '_blank');
+    } else {
+      Linking.openURL(pdfUrl);
+    }
+    setShowReportModal(false);
+  };
+
+  const formatMonthYear = (monthStr: string) => {
+    const [year, month] = monthStr.split('-').map(Number);
+    return `${MONTH_NAMES[month - 1]} ${year}`;
   };
 
   if (!student) {
@@ -255,6 +291,23 @@ export default function StudentDetailScreen() {
           </View>
         )}
 
+        {/* Download Reports Section */}
+        {availableMonths.length > 0 && (
+          <View style={styles.reportsSection}>
+            <Text style={styles.sectionTitle}>Download Monthly Reports</Text>
+            <Text style={styles.reportsSubtitle}>
+              Select a month to download a PDF report
+            </Text>
+            <TouchableOpacity
+              style={styles.downloadButton}
+              onPress={() => setShowReportModal(true)}
+            >
+              <MaterialIcons name="picture-as-pdf" size={24} color="white" />
+              <Text style={styles.downloadButtonText}>Download Report</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Top Strategies */}
         {analytics && Object.keys(analytics.strategy_counts || {}).length > 0 && (
           <View style={styles.strategiesSection}>
@@ -282,7 +335,9 @@ export default function StudentDetailScreen() {
                 </View>
                 <View style={styles.logDetails}>
                   <Text style={styles.logZoneName}>{ZONE_LABELS[log.zone]}</Text>
-                  <Text style={styles.logTime}>{formatDate(log.timestamp)}</Text>
+                  <Text style={styles.logTime}>
+                    {formatDate(log.timestamp)} at {formatTime(log.timestamp)}
+                  </Text>
                   {log.strategies_selected.length > 0 && (
                     <View style={styles.logStrategies}>
                       <MaterialIcons name="lightbulb" size={14} color="#FFC107" />
@@ -302,6 +357,48 @@ export default function StudentDetailScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Report Month Selection Modal */}
+      <Modal
+        visible={showReportModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowReportModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Month</Text>
+              <TouchableOpacity
+                onPress={() => setShowReportModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <MaterialIcons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.monthsList}>
+              {availableMonths.map((monthStr) => (
+                <TouchableOpacity
+                  key={monthStr}
+                  style={styles.monthItem}
+                  onPress={() => downloadReport(monthStr)}
+                >
+                  <MaterialIcons name="calendar-today" size={20} color="#5C6BC0" />
+                  <Text style={styles.monthItemText}>{formatMonthYear(monthStr)}</Text>
+                  <MaterialIcons name="download" size={20} color="#4CAF50" />
+                </TouchableOpacity>
+              ))}
+              
+              {availableMonths.length === 0 && (
+                <View style={styles.noMonthsContainer}>
+                  <Text style={styles.noMonthsText}>No data available yet</Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -551,5 +648,84 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#999',
     marginTop: 12,
+  },
+  reportsSection: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+  },
+  reportsSubtitle: {
+    fontSize: 14,
+    color: '#888',
+    marginBottom: 16,
+  },
+  downloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#5C6BC0',
+    borderRadius: 12,
+    padding: 16,
+    gap: 10,
+  },
+  downloadButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '60%',
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#333',
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  monthsList: {
+    padding: 16,
+  },
+  monthItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    marginBottom: 8,
+    gap: 12,
+  },
+  monthItemText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+  noMonthsContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  noMonthsText: {
+    fontSize: 16,
+    color: '#999',
   },
 });

@@ -297,6 +297,30 @@ backend:
         agent: "testing"
         comment: "✅ VERIFIED: Strategies endpoint enhanced to support student_id parameter. Returns default + custom strategies correctly filtered by zone."
 
+  - task: "GET /api/reports/available-months/{student_id} - Get available report months"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED: Reports available months endpoint working perfectly. Returns list of months (in YYYY-MM format) that have zone log data for the specified student. Tested with test data and correctly returned [2026-03] format."
+
+  - task: "GET /api/reports/pdf/student/{student_id}/month/{year}/{month} - Generate PDF report"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED: PDF report generation endpoint working perfectly. Returns properly formatted PDF file with correct Content-Type (application/pdf), includes filename in Content-Disposition header, and generates substantial PDF content (2650+ bytes) with student zone data, summary statistics, detailed logs, and strategy usage."
+
 frontend:
   - task: "Home screen with role selection"
     implemented: true
@@ -426,7 +450,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "New feature verification complete"
+    - "Reports endpoints testing complete"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -438,3 +462,5 @@ agent_communication:
     message: "✅ COMPREHENSIVE BACKEND TESTING COMPLETE: All 19 API endpoint tests PASSED successfully. Tested health check, avatars, students CRUD, classrooms CRUD, strategies with zone filtering, zone logs creation/retrieval, and both student & classroom analytics. All endpoints return proper HTTP status codes and expected data structures. Backend API is fully functional and ready for production use. Created comprehensive test suite in /app/backend_test.py for future regression testing."
   - agent: "testing"
     message: "✅ NEW FEATURES TESTING COMPLETE: All 8 new backend API features PASSED successfully. Comprehensive testing of multi-language support (5 languages), subscription plans integration, custom strategies CRUD operations, enhanced strategy icons, and improved strategies endpoint with student_id parameter. All new endpoints return proper HTTP status codes and expected data structures. Enhanced backend API with internationalization and custom strategy management is fully functional. Updated comprehensive test suite covers all 27 total backend endpoints."
+  - agent: "testing"
+    message: "✅ REPORTS ENDPOINTS TESTING COMPLETE: Both reporting API endpoints PASSED successfully. Tested GET /api/reports/available-months/{student_id} which returns months with data in YYYY-MM format, and GET /api/reports/pdf/student/{student_id}/month/{year}/{month} which generates proper PDF reports with Content-Type application/pdf, correct headers, and substantial content including zone summaries, detailed logs, and strategy usage statistics. Created test data (student + zone logs) to validate functionality. All 29 total backend endpoints now fully tested and operational."
