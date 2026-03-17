@@ -365,12 +365,12 @@ CREATURES = [
     }
 ]
 
-# Points configuration
+# Points configuration - reduced thresholds for faster evolution
 POINTS_CONFIG = {
-    "strategy_used": 10,
-    "comment_added": 15,
-    "daily_streak_bonus": 5,
-    "evolution_thresholds": [0, 50, 150, 300]
+    "strategy_used": 5,
+    "comment_added": 10,
+    "daily_streak_bonus": 3,
+    "evolution_thresholds": [0, 15, 35, 60]  # Much faster evolution!
 }
 
 # Student Rewards Model
