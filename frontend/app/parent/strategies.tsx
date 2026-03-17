@@ -174,7 +174,7 @@ export default function ParentStrategiesScreen() {
                     onPress={() => handleToggleShare(strategy)}
                   >
                     <MaterialIcons
-                      name={strategy.is_shared ? 'share' : 'share-outlined' as any}
+                      name="share"
                       size={18}
                       color={strategy.is_shared ? '#4CAF50' : '#999'}
                     />

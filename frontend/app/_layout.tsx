@@ -137,6 +137,27 @@ export default function RootLayout() {
             title: 'Manage Strategies',
           }} 
         />
+        <Stack.Screen 
+          name="parent/dashboard" 
+          options={{ 
+            headerShown: false,
+            title: 'Parent Dashboard',
+          }} 
+        />
+        <Stack.Screen 
+          name="parent/resources" 
+          options={{ 
+            headerShown: false,
+            title: 'Resources',
+          }} 
+        />
+        <Stack.Screen 
+          name="parent/strategies" 
+          options={{ 
+            headerShown: false,
+            title: 'Strategies',
+          }} 
+        />
       </Stack>
     </AppProvider>
   );

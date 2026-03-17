@@ -58,6 +58,7 @@ export interface CustomStrategy {
   id: string;
   student_id?: string;
   user_id?: string;
+  creator_role?: string;
   name: string;
   description: string;
   zone: string;
@@ -65,6 +66,7 @@ export interface CustomStrategy {
   icon: string;
   custom_image?: string;
   is_active: boolean;
+  is_shared?: boolean;
   created_at: string;
 }
 
