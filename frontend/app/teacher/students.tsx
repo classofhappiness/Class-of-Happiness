@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useLayoutEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -10,7 +10,7 @@ import {
   TextInput,
   Modal
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
@@ -18,9 +18,17 @@ import { studentsApi } from '../../src/utils/api';
 
 export default function ManageStudentsScreen() {
   const router = useRouter();
-  const { students, classrooms, presetAvatars, refreshStudents } = useApp();
+  const navigation = useNavigation();
+  const { students, classrooms, presetAvatars, refreshStudents, t, language, translations } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterClassroom, setFilterClassroom] = useState<string | null>(null);
+
+  // Set translated header title - depend on language/translations to trigger updates
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: t('students'),
+    });
+  }, [navigation, language, translations]);
 
   const filteredStudents = students.filter(student => {
     const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase());

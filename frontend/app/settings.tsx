@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../src/context/AppContext';
@@ -16,9 +16,17 @@ const LANGUAGES = [
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { user, language, setLanguage, logout, t, hasActiveSubscription } = useApp();
+  const { user, language, setLanguage, logout, t, hasActiveSubscription, translations } = useApp();
   const [showLanguages, setShowLanguages] = useState(false);
+
+  // Set translated header title - depend on language/translations to trigger updates
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: t('settings'),
+    });
+  }, [navigation, language, translations]);
 
   const handleLogout = () => {
     Alert.alert(

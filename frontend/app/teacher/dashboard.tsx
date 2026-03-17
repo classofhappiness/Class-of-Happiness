@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -9,12 +9,13 @@ import {
   Dimensions,
   RefreshControl
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BarChart } from 'react-native-gifted-charts';
 import { useApp } from '../../src/context/AppContext';
 import { analyticsApi, zoneLogsApi, ZoneLog } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 
 const { width } = Dimensions.get('window');
 
@@ -27,12 +28,20 @@ const ZONE_COLORS = {
 
 export default function TeacherDashboardScreen() {
   const router = useRouter();
-  const { students, classrooms, presetAvatars, refreshStudents, refreshClassrooms, t } = useApp();
+  const navigation = useNavigation();
+  const { students, classrooms, presetAvatars, refreshStudents, refreshClassrooms, t, language, translations } = useApp();
   const [selectedPeriod, setSelectedPeriod] = useState<7 | 14 | 30>(7);
   const [recentLogs, setRecentLogs] = useState<ZoneLog[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedClassroom, setSelectedClassroom] = useState<string | null>(null);
+
+  // Hide default header
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: false,
+    });
+  }, [navigation]);
 
   const fetchData = async () => {
     try {
@@ -92,7 +101,8 @@ export default function TeacherDashboardScreen() {
   ] : [];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <TranslatedHeader title={t('dashboard')} backTo="/" />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
@@ -268,7 +278,7 @@ export default function TeacherDashboardScreen() {
           )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

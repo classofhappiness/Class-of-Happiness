@@ -1,13 +1,22 @@
-import React from 'react';
+import React, { useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 
 export default function StudentSelectScreen() {
   const router = useRouter();
-  const { students, presetAvatars, setCurrentStudent, refreshStudents, t } = useApp();
+  const navigation = useNavigation();
+  const { students, presetAvatars, setCurrentStudent, refreshStudents, t, language, translations } = useApp();
+
+  // Hide default header and use custom translated header
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: false,
+    });
+  }, [navigation]);
 
   const handleSelectStudent = (student: typeof students[0]) => {
     setCurrentStudent(student);
@@ -19,7 +28,8 @@ export default function StudentSelectScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <TranslatedHeader title={t('select_profile')} backTo="/" />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.instruction}>{t('tap_to_check_in')}</Text>
 
@@ -65,7 +75,7 @@ export default function StudentSelectScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

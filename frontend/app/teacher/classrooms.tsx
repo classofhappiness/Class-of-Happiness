@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useLayoutEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -12,18 +12,26 @@ import {
   KeyboardAvoidingView,
   Platform
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { classroomsApi } from '../../src/utils/api';
 
 export default function ManageClassroomsScreen() {
   const router = useRouter();
-  const { classrooms, students, refreshClassrooms } = useApp();
+  const navigation = useNavigation();
+  const { classrooms, students, refreshClassrooms, t, language, translations } = useApp();
   const [modalVisible, setModalVisible] = useState(false);
   const [newClassName, setNewClassName] = useState('');
   const [newTeacherName, setNewTeacherName] = useState('');
   const [creating, setCreating] = useState(false);
+
+  // Set translated header title - depend on language/translations to trigger updates
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: t('classrooms'),
+    });
+  }, [navigation, language, translations]);
 
   const getStudentCount = (classroomId: string) => {
     return students.filter(s => s.classroom_id === classroomId).length;

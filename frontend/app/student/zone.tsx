@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, Dimensions } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
 import { useApp } from '../../src/context/AppContext';
 import { ZoneButton } from '../../src/components/ZoneButton';
 import { Avatar } from '../../src/components/Avatar';
@@ -10,7 +10,15 @@ const ZONE_SIZE = (width - 60) / 2 - 8;
 
 export default function ZoneSelectionScreen() {
   const router = useRouter();
-  const { currentStudent, presetAvatars, t } = useApp();
+  const navigation = useNavigation();
+  const { currentStudent, presetAvatars, t, language, translations } = useApp();
+
+  // Set translated header title - depend on language/translations to trigger updates
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: t('which_zone'),
+    });
+  }, [navigation, language, translations]);
 
   const handleSelectZone = (zone: 'blue' | 'green' | 'yellow' | 'red') => {
     router.push({
