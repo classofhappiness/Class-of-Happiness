@@ -29,6 +29,34 @@ export default function RootLayout() {
           }} 
         />
         <Stack.Screen 
+          name="auth/callback" 
+          options={{ 
+            headerShown: false,
+            title: 'Signing In' 
+          }} 
+        />
+        <Stack.Screen 
+          name="settings" 
+          options={{ 
+            title: 'Settings',
+            headerBackTitle: 'Back',
+          }} 
+        />
+        <Stack.Screen 
+          name="subscription/index" 
+          options={{ 
+            headerShown: false,
+            title: 'Subscription' 
+          }} 
+        />
+        <Stack.Screen 
+          name="subscription/success" 
+          options={{ 
+            headerShown: false,
+            title: 'Payment Success' 
+          }} 
+        />
+        <Stack.Screen 
           name="student/select" 
           options={{ 
             title: 'Select Your Profile',
@@ -89,6 +117,13 @@ export default function RootLayout() {
           options={{ 
             title: 'Student Details',
             headerBackTitle: 'Back',
+          }} 
+        />
+        <Stack.Screen 
+          name="teacher/strategies" 
+          options={{ 
+            headerShown: false,
+            title: 'Manage Strategies',
           }} 
         />
       </Stack>

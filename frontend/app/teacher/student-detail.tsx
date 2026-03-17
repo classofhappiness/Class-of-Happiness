@@ -149,6 +149,15 @@ export default function StudentDetailScreen() {
           >
             <MaterialIcons name="edit" size={20} color="#5C6BC0" />
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.strategiesButton}
+            onPress={() => router.push({
+              pathname: '/teacher/strategies',
+              params: { studentId: student.id }
+            })}
+          >
+            <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
+          </TouchableOpacity>
         </View>
 
         {/* Period Selector */}
@@ -346,6 +355,12 @@ const styles = StyleSheet.create({
     padding: 8,
     backgroundColor: '#EDE7F6',
     borderRadius: 8,
+  },
+  strategiesButton: {
+    padding: 8,
+    backgroundColor: '#FFF8E1',
+    borderRadius: 8,
+    marginLeft: 8,
   },
   periodSelector: {
     flexDirection: 'row',

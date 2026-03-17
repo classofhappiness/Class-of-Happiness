@@ -1,28 +1,98 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Student, Classroom, studentsApi, classroomsApi, avatarsApi, PresetAvatar } from '../utils/api';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { 
+  Student, Classroom, User, Translations,
+  studentsApi, classroomsApi, avatarsApi, PresetAvatar,
+  authApi, translationsApi
+} from '../utils/api';
 
 interface AppContextType {
+  // Auth
+  user: User | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  login: () => void;
+  logout: () => Promise<void>;
+  checkAuth: () => Promise<void>;
+  
+  // Data
   students: Student[];
   classrooms: Classroom[];
   presetAvatars: PresetAvatar[];
   currentStudent: Student | null;
   currentClassroom: Classroom | null;
-  loading: boolean;
+  
+  // Translations
+  language: string;
+  translations: Translations;
+  setLanguage: (lang: string) => Promise<void>;
+  t: (key: string) => string;
+  
+  // Actions
   setCurrentStudent: (student: Student | null) => void;
   setCurrentClassroom: (classroom: Classroom | null) => void;
   refreshStudents: () => Promise<void>;
   refreshClassrooms: () => Promise<void>;
+  
+  // Subscription
+  hasActiveSubscription: boolean;
 }
+
+const defaultTranslations: Translations = {
+  zones_of_regulation: "Zones of Regulation",
+  how_are_you_feeling: "How are you feeling today?",
+  i_am_a: "I am a...",
+  student: "Student",
+  teacher: "Teacher",
+  check_in_feelings: "Check in with my feelings",
+  view_progress: "View student progress",
+  blue_zone: "Blue Zone",
+  green_zone: "Green Zone",
+  yellow_zone: "Yellow Zone",
+  red_zone: "Red Zone",
+  blue_desc: "Sad, Tired, Bored",
+  green_desc: "Calm, Happy, Focused",
+  yellow_desc: "Worried, Frustrated, Silly",
+  red_desc: "Angry, Scared, Out of Control",
+  select_profile: "Select Your Profile",
+  tap_to_check_in: "Tap your picture to check in!",
+  add_profile: "Add Profile",
+  strategies: "Helpful Strategies",
+  skip: "Skip",
+  done: "Done",
+  settings: "Settings",
+  language: "Language",
+  subscription: "Subscription",
+  logout: "Logout",
+  login: "Login",
+  sign_in_google: "Sign in with Google",
+  trial: "Free Trial",
+  trial_desc: "7 days free trial",
+  monthly: "Monthly",
+  six_months: "6 Months",
+  annual: "Annual",
+  subscribe: "Subscribe",
+  per_month: "/month",
+  save: "Save",
+};
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  // Auth state
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Data state
   const [students, setStudents] = useState<Student[]>([]);
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [presetAvatars, setPresetAvatars] = useState<PresetAvatar[]>([]);
   const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
   const [currentClassroom, setCurrentClassroom] = useState<Classroom | null>(null);
-  const [loading, setLoading] = useState(true);
+  
+  // Translations state
+  const [language, setLanguageState] = useState<string>('en');
+  const [translations, setTranslations] = useState<Translations>(defaultTranslations);
 
   const refreshStudents = async () => {
     try {
@@ -51,15 +121,88 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const fetchTranslations = async (lang: string) => {
+    try {
+      const data = await translationsApi.get(lang);
+      setTranslations(data);
+    } catch (error) {
+      console.error('Error fetching translations:', error);
+      setTranslations(defaultTranslations);
+    }
+  };
+
+  const setLanguage = async (lang: string) => {
+    setLanguageState(lang);
+    await fetchTranslations(lang);
+    if (user) {
+      try {
+        await authApi.updateLanguage(lang);
+      } catch (error) {
+        console.error('Error updating language:', error);
+      }
+    }
+  };
+
+  const t = (key: string): string => {
+    return translations[key] || key;
+  };
+
+  const checkAuth = useCallback(async () => {
+    // Skip if URL has session_id (let AuthCallback handle it)
+    if (typeof window !== 'undefined' && window.location.hash?.includes('session_id=')) {
+      setIsLoading(false);
+      return;
+    }
+    
+    try {
+      const userData = await authApi.getMe();
+      setUser(userData);
+      setIsAuthenticated(true);
+      if (userData.language) {
+        setLanguageState(userData.language);
+        await fetchTranslations(userData.language);
+      }
+    } catch (error) {
+      setUser(null);
+      setIsAuthenticated(false);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const login = () => {
+    // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+    if (typeof window !== 'undefined') {
+      const redirectUrl = window.location.origin + '/auth/callback';
+      window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } catch (error) {
+      console.error('Error logging out:', error);
+    } finally {
+      setUser(null);
+      setIsAuthenticated(false);
+    }
+  };
+
+  const hasActiveSubscription = user ? (
+    user.subscription_status === 'active' || user.subscription_status === 'trial'
+  ) : false;
+
   useEffect(() => {
     const initialize = async () => {
-      setLoading(true);
+      setIsLoading(true);
       await Promise.all([
         refreshStudents(),
         refreshClassrooms(),
         fetchPresetAvatars(),
+        fetchTranslations('en'),
       ]);
-      setLoading(false);
+      await checkAuth();
     };
     initialize();
   }, []);
@@ -67,16 +210,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider
       value={{
+        // Auth
+        user,
+        isAuthenticated,
+        isLoading,
+        login,
+        logout,
+        checkAuth,
+        
+        // Data
         students,
         classrooms,
         presetAvatars,
         currentStudent,
         currentClassroom,
-        loading,
+        
+        // Translations
+        language,
+        translations,
+        setLanguage,
+        t,
+        
+        // Actions
         setCurrentStudent,
         setCurrentClassroom,
         refreshStudents,
         refreshClassrooms,
+        
+        // Subscription
+        hasActiveSubscription,
       }}
     >
       {children}

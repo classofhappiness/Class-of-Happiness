@@ -1,0 +1,270 @@
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { useRouter } from 'expo-router';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useApp } from '../src/context/AppContext';
+import { translationsApi } from '../src/utils/api';
+
+const LANGUAGES = [
+  { code: 'en', name: 'English', flag: '🇺🇸' },
+  { code: 'es', name: 'Español', flag: '🇪🇸' },
+  { code: 'fr', name: 'Français', flag: '🇫🇷' },
+  { code: 'pt', name: 'Português', flag: '🇧🇷' },
+  { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+];
+
+export default function SettingsScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { user, language, setLanguage, logout, t, hasActiveSubscription } = useApp();
+  const [showLanguages, setShowLanguages] = useState(false);
+
+  const handleLogout = () => {
+    Alert.alert(
+      t('logout'),
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: t('logout'),
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            router.replace('/');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleLanguageSelect = async (langCode: string) => {
+    await setLanguage(langCode);
+    setShowLanguages(false);
+  };
+
+  const currentLang = LANGUAGES.find(l => l.code === language) || LANGUAGES[0];
+
+  return (
+    <ScrollView 
+      style={[styles.container, { paddingTop: insets.top }]}
+      contentContainerStyle={styles.scrollContent}
+    >
+      {/* User Info */}
+      {user && (
+        <View style={styles.userCard}>
+          <View style={styles.userAvatar}>
+            <Text style={styles.userInitial}>{user.name?.[0]?.toUpperCase() || '?'}</Text>
+          </View>
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>{user.name}</Text>
+            <Text style={styles.userEmail}>{user.email}</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Subscription Status */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('subscription')}</Text>
+        <TouchableOpacity
+          style={styles.settingItem}
+          onPress={() => router.push('/subscription')}
+        >
+          <View style={styles.settingLeft}>
+            <MaterialIcons name="card-membership" size={24} color="#5C6BC0" />
+            <View style={styles.settingText}>
+              <Text style={styles.settingLabel}>Status</Text>
+              <Text style={[styles.settingValue, { color: hasActiveSubscription ? '#4CAF50' : '#F44336' }]}>
+                {user?.subscription_status === 'trial' ? 'Free Trial' :
+                 user?.subscription_status === 'active' ? `${user.subscription_plan || 'Active'}` :
+                 'Inactive'}
+              </Text>
+            </View>
+          </View>
+          <MaterialIcons name="chevron-right" size={24} color="#CCC" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Language */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('language')}</Text>
+        <TouchableOpacity
+          style={styles.settingItem}
+          onPress={() => setShowLanguages(!showLanguages)}
+        >
+          <View style={styles.settingLeft}>
+            <Text style={styles.langFlag}>{currentLang.flag}</Text>
+            <View style={styles.settingText}>
+              <Text style={styles.settingLabel}>{t('language')}</Text>
+              <Text style={styles.settingValue}>{currentLang.name}</Text>
+            </View>
+          </View>
+          <MaterialIcons 
+            name={showLanguages ? "expand-less" : "expand-more"} 
+            size={24} 
+            color="#CCC" 
+          />
+        </TouchableOpacity>
+
+        {showLanguages && (
+          <View style={styles.languageList}>
+            {LANGUAGES.map((lang) => (
+              <TouchableOpacity
+                key={lang.code}
+                style={[
+                  styles.languageItem,
+                  language === lang.code && styles.languageItemActive
+                ]}
+                onPress={() => handleLanguageSelect(lang.code)}
+              >
+                <Text style={styles.langFlag}>{lang.flag}</Text>
+                <Text style={styles.langName}>{lang.name}</Text>
+                {language === lang.code && (
+                  <MaterialIcons name="check" size={20} color="#5C6BC0" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* Logout */}
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <MaterialIcons name="logout" size={24} color="#F44336" />
+        <Text style={styles.logoutText}>{t('logout')}</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  userCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  userAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#5C6BC0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userInitial: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  userInfo: {
+    marginLeft: 16,
+    flex: 1,
+  },
+  userName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  userEmail: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#888',
+    marginBottom: 8,
+    marginLeft: 4,
+    textTransform: 'uppercase',
+  },
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  settingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  settingText: {
+    marginLeft: 12,
+  },
+  settingLabel: {
+    fontSize: 14,
+    color: '#888',
+  },
+  settingValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginTop: 2,
+  },
+  langFlag: {
+    fontSize: 24,
+  },
+  languageList: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    marginTop: 8,
+    overflow: 'hidden',
+  },
+  languageItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  languageItemActive: {
+    backgroundColor: '#EDE7F6',
+  },
+  langName: {
+    fontSize: 16,
+    color: '#333',
+    marginLeft: 12,
+    flex: 1,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFEBEE',
+    borderRadius: 12,
+    padding: 16,
+    gap: 8,
+    marginTop: 16,
+  },
+  logoutText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#F44336',
+  },
+});

@@ -225,6 +225,78 @@ backend:
         agent: "testing"
         comment: "✅ VERIFIED: Classroom analytics API excellent. Returns aggregated data with zone_counts, student_count, daily_data, and student_breakdown. Properly handles empty classrooms."
 
+  - task: "GET /api/languages - Get available languages"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED: Returns exactly 5 languages (en, es, fr, pt, de) with correct structure containing code and name fields."
+
+  - task: "GET /api/translations/{lang} - Get language translations"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED: Spanish and German translations working perfectly. Returns 35+ translation keys with all expected zone and UI translations."
+
+  - task: "GET /api/subscription/plans - Get subscription plans"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED: Returns correct subscription plans - monthly ($4.99), six_month ($19.99), annual ($35.00) with 7-day trial period."
+
+  - task: "GET /api/strategy-icons - Get available icons"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED: Returns 27 strategy icons as expected. All required icons like star, favorite, chat, fitness-center present."
+
+  - task: "CRUD /api/custom-strategies - Custom strategies management"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED: Full CRUD operations working perfectly. CREATE/GET/UPDATE/DELETE all functional with proper student association and cleanup."
+
+  - task: "GET /api/strategies with student_id - Enhanced strategies endpoint"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED: Strategies endpoint enhanced to support student_id parameter. Returns default + custom strategies correctly filtered by zone."
+
 frontend:
   - task: "Home screen with role selection"
     implemented: true
@@ -348,13 +420,13 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "1.0"
-  test_sequence: 2
+  version: "1.1"
+  test_sequence: 3
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Backend API endpoints"
+    - "New feature verification complete"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -364,3 +436,5 @@ agent_communication:
     message: "MVP complete - Zones of Regulation app with student zone check-ins, regulation strategies, and teacher analytics dashboard. All core features implemented and manually tested via curl and screenshots."
   - agent: "testing"
     message: "✅ COMPREHENSIVE BACKEND TESTING COMPLETE: All 19 API endpoint tests PASSED successfully. Tested health check, avatars, students CRUD, classrooms CRUD, strategies with zone filtering, zone logs creation/retrieval, and both student & classroom analytics. All endpoints return proper HTTP status codes and expected data structures. Backend API is fully functional and ready for production use. Created comprehensive test suite in /app/backend_test.py for future regression testing."
+  - agent: "testing"
+    message: "✅ NEW FEATURES TESTING COMPLETE: All 8 new backend API features PASSED successfully. Comprehensive testing of multi-language support (5 languages), subscription plans integration, custom strategies CRUD operations, enhanced strategy icons, and improved strategies endpoint with student_id parameter. All new endpoints return proper HTTP status codes and expected data structures. Enhanced backend API with internationalization and custom strategy management is fully functional. Updated comprehensive test suite covers all 27 total backend endpoints."

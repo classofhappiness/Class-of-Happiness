@@ -1,13 +1,30 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
 
 interface ZoneButtonProps {
   zone: 'blue' | 'green' | 'yellow' | 'red';
   onPress: () => void;
   selected?: boolean;
   size?: 'small' | 'medium' | 'large';
+  translations?: {
+    blue_zone?: string;
+    green_zone?: string;
+    yellow_zone?: string;
+    red_zone?: string;
+    blue_desc?: string;
+    green_desc?: string;
+    yellow_desc?: string;
+    red_desc?: string;
+  };
 }
+
+// Unique emoji-style faces - different from standard emoji
+const ZONE_FACES = {
+  blue: '😔', // Pensive face - unique sad look
+  green: '😊', // Smiling face with smiling eyes
+  yellow: '😬', // Grimacing face - anxious/nervous
+  red: '🤯', // Exploding head - overwhelmed
+};
 
 const ZONE_CONFIG = {
   blue: {
@@ -15,28 +32,28 @@ const ZONE_CONFIG = {
     lightColor: '#E3F2FD',
     label: 'Blue Zone',
     description: 'Sad, Tired, Bored',
-    icon: 'sentiment-dissatisfied' as const,
+    face: ZONE_FACES.blue,
   },
   green: {
     color: '#4CAF50',
     lightColor: '#E8F5E9',
     label: 'Green Zone',
     description: 'Calm, Happy, Focused',
-    icon: 'sentiment-satisfied' as const,
+    face: ZONE_FACES.green,
   },
   yellow: {
     color: '#FFC107',
     lightColor: '#FFF8E1',
     label: 'Yellow Zone',
     description: 'Worried, Frustrated, Silly',
-    icon: 'sentiment-neutral' as const,
+    face: ZONE_FACES.yellow,
   },
   red: {
     color: '#F44336',
     lightColor: '#FFEBEE',
     label: 'Red Zone',
     description: 'Angry, Scared, Out of Control',
-    icon: 'sentiment-very-dissatisfied' as const,
+    face: ZONE_FACES.red,
   },
 };
 
@@ -44,10 +61,15 @@ export const ZoneButton: React.FC<ZoneButtonProps> = ({
   zone, 
   onPress, 
   selected = false,
-  size = 'large' 
+  size = 'large',
+  translations
 }) => {
   const config = ZONE_CONFIG[zone];
   const sizeStyles = SIZE_STYLES[size];
+  
+  // Use translations if provided
+  const label = translations?.[`${zone}_zone` as keyof typeof translations] || config.label;
+  const description = translations?.[`${zone}_desc` as keyof typeof translations] || config.description;
 
   return (
     <TouchableOpacity
@@ -60,15 +82,11 @@ export const ZoneButton: React.FC<ZoneButtonProps> = ({
       onPress={onPress}
       activeOpacity={0.8}
     >
-      <MaterialIcons 
-        name={config.icon} 
-        size={sizeStyles.iconSize} 
-        color="white" 
-      />
-      <Text style={[styles.label, sizeStyles.label]}>{config.label}</Text>
+      <Text style={[styles.face, sizeStyles.face]}>{config.face}</Text>
+      <Text style={[styles.label, sizeStyles.label]}>{label}</Text>
       {size !== 'small' && (
         <Text style={[styles.description, sizeStyles.description]}>
-          {config.description}
+          {description}
         </Text>
       )}
     </TouchableOpacity>
@@ -78,19 +96,19 @@ export const ZoneButton: React.FC<ZoneButtonProps> = ({
 const SIZE_STYLES = {
   small: {
     container: { padding: 12, minWidth: 80 },
-    iconSize: 28,
+    face: { fontSize: 24 },
     label: { fontSize: 12 },
     description: { fontSize: 10 },
   },
   medium: {
     container: { padding: 16, minWidth: 140 },
-    iconSize: 36,
+    face: { fontSize: 32 },
     label: { fontSize: 16 },
     description: { fontSize: 12 },
   },
   large: {
     container: { padding: 24, minWidth: 160, minHeight: 140 },
-    iconSize: 48,
+    face: { fontSize: 40 },
     label: { fontSize: 20 },
     description: { fontSize: 14 },
   },
@@ -106,15 +124,19 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
+    flex: 1,
   },
   selected: {
     borderWidth: 4,
     borderColor: 'white',
   },
+  face: {
+    marginBottom: 4,
+  },
   label: {
     color: 'white',
     fontWeight: 'bold',
-    marginTop: 8,
+    marginTop: 4,
   },
   description: {
     color: 'rgba(255,255,255,0.9)',
@@ -123,4 +145,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export { ZONE_CONFIG };
+export { ZONE_CONFIG, ZONE_FACES };
