@@ -136,11 +136,11 @@ export default function HomeScreen() {
           activeOpacity={0.8}
         >
           <MaterialIcons name="family-restroom" size={48} color="white" />
-          <Text style={styles.roleButtonText}>Parent</Text>
-          <Text style={styles.roleButtonSubtext}>Your family's emotions</Text>
+          <Text style={styles.roleButtonText}>{t('parent')}</Text>
+          <Text style={styles.roleButtonSubtext}>{t('your_family_emotions')}</Text>
           {!isAuthenticated && (
             <View style={styles.loginBadge}>
-              <Text style={styles.loginBadgeText}>{t('login')} required</Text>
+              <Text style={styles.loginBadgeText}>{t('login_required')}</Text>
             </View>
           )}
         </TouchableOpacity>
