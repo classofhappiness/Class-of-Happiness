@@ -248,6 +248,12 @@ const defaultTranslations: Translations = {
   your_custom_strategies: "Your Custom Strategies",
   shared_with_teacher: "Shared with teacher",
   not_shared: "Not shared",
+  // Language settings
+  change_language: "Change Language",
+  change_language_confirm: "Set",
+  as_default_language: "as your default language?",
+  language_changed: "Language Changed",
+  is_now_default: "is now your default language. The app will remember this choice.",
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -359,7 +365,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const userData = await authApi.getMe();
       setUser(userData);
       setIsAuthenticated(true);
-      if (userData.language) {
+      // Only use user's server-side language if no local preference is saved
+      const localLang = await AsyncStorage.getItem('app_language');
+      if (!localLang && userData.language) {
         setLanguageState(userData.language);
         await fetchTranslations(userData.language);
       }

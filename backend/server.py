@@ -764,6 +764,12 @@ TRANSLATIONS = {
         "add_first_strategy": "Add your first custom strategy",
         "strategy_description": "Strategy Description",
         "share_strategy": "Share with teacher",
+        # Language settings
+        "change_language": "Change Language",
+        "change_language_confirm": "Set",
+        "as_default_language": "as your default language?",
+        "language_changed": "Language Changed",
+        "is_now_default": "is now your default language. The app will remember this choice.",
     },
     "es": {
         "app_name": "Clase de Felicidad",
@@ -990,6 +996,12 @@ TRANSLATIONS = {
         "add_comment": "Agregar comentario...",
         "no_strategies_yet": "Sin estrategias todavía",
         "add_first_strategy": "Agrega tu primera estrategia personalizada",
+        # Language settings
+        "change_language": "Cambiar Idioma",
+        "change_language_confirm": "Establecer",
+        "as_default_language": "como tu idioma predeterminado?",
+        "language_changed": "Idioma Cambiado",
+        "is_now_default": "es ahora tu idioma predeterminado. La aplicación recordará esta elección.",
     },
     "fr": {
         "app_name": "Classe du Bonheur",

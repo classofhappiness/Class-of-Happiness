@@ -20,6 +20,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { user, language, setLanguage, logout, t, hasActiveSubscription, translations } = useApp();
   const [showLanguages, setShowLanguages] = useState(false);
+  const [pendingLanguage, setPendingLanguage] = useState<string | null>(null);
 
   // Set translated header title - depend on language/translations to trigger updates
   useLayoutEffect(() => {
@@ -46,9 +47,40 @@ export default function SettingsScreen() {
     );
   };
 
-  const handleLanguageSelect = async (langCode: string) => {
-    await setLanguage(langCode);
+  const handleLanguageSelect = (langCode: string) => {
+    const selectedLang = LANGUAGES.find(l => l.code === langCode);
+    if (!selectedLang || langCode === language) {
+      setShowLanguages(false);
+      return;
+    }
+    
+    setPendingLanguage(langCode);
     setShowLanguages(false);
+    
+    // Show confirmation dialog
+    Alert.alert(
+      t('change_language') || 'Change Language',
+      `${t('change_language_confirm') || 'Set'} ${selectedLang.name} ${t('as_default_language') || 'as your default language?'}`,
+      [
+        { 
+          text: t('cancel'), 
+          style: 'cancel',
+          onPress: () => setPendingLanguage(null),
+        },
+        {
+          text: t('confirm'),
+          onPress: async () => {
+            await setLanguage(langCode);
+            setPendingLanguage(null);
+            Alert.alert(
+              '✓ ' + (t('language_changed') || 'Language Changed'),
+              `${selectedLang.name} ${t('is_now_default') || 'is now your default language. The app will remember this choice.'}`,
+              [{ text: t('done') || 'OK' }]
+            );
+          },
+        },
+      ]
+    );
   };
 
   const currentLang = LANGUAGES.find(l => l.code === language) || LANGUAGES[0];
