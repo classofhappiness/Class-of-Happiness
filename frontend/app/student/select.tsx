@@ -1,12 +1,19 @@
 import React, { useLayoutEffect, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Animated } from 'react-native';
 import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { CreatureCollection } from '../../src/components/CreatureCollection';
-import { rewardsApi, StudentCollection } from '../../src/utils/api';
+import { rewardsApi, StudentCollection, StudentRewards, Creature } from '../../src/utils/api';
+
+interface StudentCreatureData {
+  currentCreature: Creature;
+  currentStage: number;
+  collectedCreatures: Creature[];
+  totalPoints: number;
+}
 
 export default function StudentSelectScreen() {
   const router = useRouter();
@@ -15,6 +22,7 @@ export default function StudentSelectScreen() {
   const [showCollection, setShowCollection] = useState(false);
   const [collectionData, setCollectionData] = useState<StudentCollection | null>(null);
   const [selectedStudentForCollection, setSelectedStudentForCollection] = useState<string | null>(null);
+  const [studentCreatures, setStudentCreatures] = useState<Record<string, StudentCreatureData>>({});
 
   // Hide default header and use custom translated header
   useLayoutEffect(() => {
@@ -22,6 +30,33 @@ export default function StudentSelectScreen() {
       headerShown: false,
     });
   }, [navigation]);
+
+  // Fetch creature data for all students
+  useEffect(() => {
+    const fetchAllCreatures = async () => {
+      const creatureData: Record<string, StudentCreatureData> = {};
+      
+      for (const student of students) {
+        try {
+          const collection = await rewardsApi.getCollection(student.id);
+          creatureData[student.id] = {
+            currentCreature: collection.current_creature,
+            currentStage: collection.current_stage,
+            collectedCreatures: collection.collected_creatures,
+            totalPoints: collection.current_points,
+          };
+        } catch (error) {
+          console.error(`Error fetching creatures for ${student.id}:`, error);
+        }
+      }
+      
+      setStudentCreatures(creatureData);
+    };
+
+    if (students.length > 0) {
+      fetchAllCreatures();
+    }
+  }, [students]);
 
   const handleSelectStudent = (student: typeof students[0]) => {
     setCurrentStudent(student);
@@ -43,6 +78,68 @@ export default function StudentSelectScreen() {
     router.push('/profiles/create');
   };
 
+  // Render mini creature icons for a student
+  const renderCreatureIcons = (studentId: string) => {
+    const data = studentCreatures[studentId];
+    if (!data) return null;
+
+    const { currentCreature, currentStage, collectedCreatures } = data;
+
+    return (
+      <View style={styles.creatureIconsContainer}>
+        {/* Current creature (animated) */}
+        <View style={[styles.currentCreatureIcon, { borderColor: currentCreature.color }]}>
+          <Text style={styles.miniCreatureEmoji}>
+            {currentCreature.stages[currentStage].emoji}
+          </Text>
+          {/* Stage indicator dots */}
+          <View style={styles.stageDots}>
+            {[0, 1, 2, 3].map((s) => (
+              <View 
+                key={s} 
+                style={[
+                  styles.stageDot,
+                  { backgroundColor: s <= currentStage ? currentCreature.color : '#DDD' }
+                ]} 
+              />
+            ))}
+          </View>
+        </View>
+
+        {/* Collected creatures (smaller) */}
+        {collectedCreatures.length > 0 && (
+          <View style={styles.collectedIcons}>
+            {collectedCreatures.slice(0, 3).map((creature) => (
+              <View 
+                key={creature.id} 
+                style={[styles.collectedCreatureIcon, { backgroundColor: creature.color + '30' }]}
+              >
+                <Text style={styles.collectedEmoji}>
+                  {creature.stages[3].emoji}
+                </Text>
+                <View style={[styles.completeBadge, { backgroundColor: creature.color }]}>
+                  <Text style={styles.completeBadgeText}>✓</Text>
+                </View>
+              </View>
+            ))}
+            {collectedCreatures.length > 3 && (
+              <View style={styles.moreCreatures}>
+                <Text style={styles.moreText}>+{collectedCreatures.length - 3}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Total points badge */}
+        {data.totalPoints > 0 && (
+          <View style={styles.pointsBadge}>
+            <Text style={styles.pointsText}>⭐ {data.totalPoints}</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <TranslatedHeader title={t('select_profile')} backTo="/" />
@@ -61,18 +158,22 @@ export default function StudentSelectScreen() {
                   type={student.avatar_type}
                   preset={student.avatar_preset}
                   custom={student.avatar_custom}
-                  size={80}
+                  size={70}
                   presetAvatars={presetAvatars}
                 />
                 <Text style={styles.studentName} numberOfLines={1}>
                   {student.name}
                 </Text>
               </TouchableOpacity>
+              
+              {/* Mini Creature Display */}
+              {renderCreatureIcons(student.id)}
+              
               <TouchableOpacity
                 style={styles.creaturesButton}
                 onPress={() => handleViewCreatures(student.id)}
               >
-                <Text style={styles.creaturesButtonText}>🐾 My Creatures</Text>
+                <Text style={styles.creaturesButtonText}>{t('my_creatures')}</Text>
               </TouchableOpacity>
             </View>
           ))}
@@ -138,9 +239,10 @@ const styles = StyleSheet.create({
   studentCard: {
     backgroundColor: 'white',
     borderRadius: 20,
-    padding: 16,
+    padding: 12,
     alignItems: 'center',
-    width: 140,
+    width: 155,
+    minHeight: 200,
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -168,6 +270,90 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#666',
     fontWeight: '500',
+  },
+  // Creature icons styles
+  creatureIconsContainer: {
+    alignItems: 'center',
+    marginTop: 8,
+    width: '100%',
+  },
+  currentCreatureIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#F8F9FA',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+  },
+  miniCreatureEmoji: {
+    fontSize: 28,
+  },
+  stageDots: {
+    flexDirection: 'row',
+    marginTop: 4,
+    gap: 3,
+  },
+  stageDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  collectedIcons: {
+    flexDirection: 'row',
+    marginTop: 6,
+    gap: 4,
+  },
+  collectedCreatureIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  collectedEmoji: {
+    fontSize: 16,
+  },
+  completeBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  completeBadgeText: {
+    color: 'white',
+    fontSize: 8,
+    fontWeight: 'bold',
+  },
+  moreCreatures: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#E0E0E0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  moreText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#666',
+  },
+  pointsBadge: {
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: '#FFF9C4',
+    borderRadius: 10,
+  },
+  pointsText: {
+    fontSize: 10,
+    color: '#F9A825',
+    fontWeight: 'bold',
   },
   addCard: {
     borderWidth: 2,
