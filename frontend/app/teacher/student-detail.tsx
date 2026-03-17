@@ -29,7 +29,7 @@ const ZONE_COLORS = {
   red: '#F44336',
 };
 
-const ZONE_LABELS = {
+const ZONE_LABELS: Record<string, string> = {
   blue: 'Blue Zone',
   green: 'Green Zone',
   yellow: 'Yellow Zone',
@@ -44,7 +44,7 @@ const MONTH_NAMES = [
 export default function StudentDetailScreen() {
   const router = useRouter();
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
-  const { students, presetAvatars, classrooms } = useApp();
+  const { students, presetAvatars, classrooms, t } = useApp();
   
   const student = students.find(s => s.id === studentId);
   
