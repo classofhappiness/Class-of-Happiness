@@ -245,7 +245,7 @@ export default function SubscriptionScreen() {
             const url = typeof window !== 'undefined' ? window.location.origin : 'https://emotion-zones-kids.preview.emergentagent.com';
             if (typeof navigator !== 'undefined' && navigator.share) {
               navigator.share({
-                title: 'Zones of Regulation App',
+                title: 'Class of Happiness App',
                 text: 'Try this amazing emotional regulation app for students!',
                 url: url
               });

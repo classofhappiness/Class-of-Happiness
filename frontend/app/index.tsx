@@ -64,7 +64,6 @@ export default function HomeScreen() {
 
       {/* Title */}
       <View style={styles.header}>
-        <Text style={styles.title}>{t('zones_of_regulation')}</Text>
         <Text style={styles.subtitle}>{t('how_are_you_feeling')}</Text>
       </View>
 

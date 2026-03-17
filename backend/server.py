@@ -328,7 +328,7 @@ DEFAULT_STRATEGIES = [
 # ================== TRANSLATIONS ==================
 TRANSLATIONS = {
     "en": {
-        "zones_of_regulation": "Zones of Regulation",
+        "app_name": "Class of Happiness",
         "how_are_you_feeling": "How are you feeling today?",
         "i_am_a": "I am a...",
         "student": "Student",
@@ -570,7 +570,7 @@ def check_subscription_active(user: User) -> bool:
 
 @api_router.get("/")
 async def root():
-    return {"message": "Zones of Regulation API", "status": "running"}
+    return {"message": "Class of Happiness API", "status": "running"}
 
 # ---- Translations ----
 @api_router.get("/translations/{lang}")
@@ -1386,7 +1386,7 @@ async def generate_student_monthly_pdf(student_id: str, year: int, month: int):
         alignment=1  # Center
     )
     month_name = calendar.month_name[month]
-    elements.append(Paragraph(f"Zones of Regulation Report", title_style))
+    elements.append(Paragraph(f"Emotional Wellness Report", title_style))
     elements.append(Paragraph(f"{student['name']} - {month_name} {year}", styles['Heading2']))
     elements.append(Spacer(1, 20))
     
@@ -1501,7 +1501,7 @@ async def generate_student_monthly_pdf(student_id: str, year: int, month: int):
     elements.append(Spacer(1, 30))
     footer_style = ParagraphStyle('Footer', parent=styles['Normal'], fontSize=10, textColor=colors.gray)
     elements.append(Paragraph(f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M')}", footer_style))
-    elements.append(Paragraph("Class of Happiness - Zones of Regulation", footer_style))
+    elements.append(Paragraph("Class of Happiness", footer_style))
     
     doc.build(elements)
     buffer.seek(0)

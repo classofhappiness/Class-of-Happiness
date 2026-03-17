@@ -481,7 +481,7 @@ export default function StudentDetailScreen() {
                     style={styles.shareCodeButton}
                     onPress={() => {
                       Share.share({
-                        message: `Link code for ${student.name} in Zones of Regulation app: ${linkCode}\n\nUse this code in the Parent section to connect your account.`,
+                        message: `Link code for ${student.name} in Class of Happiness app: ${linkCode}\n\nUse this code in the Parent section to connect your account.`,
                       });
                     }}
                   >

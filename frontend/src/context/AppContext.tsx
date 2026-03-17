@@ -39,7 +39,7 @@ interface AppContextType {
 }
 
 const defaultTranslations: Translations = {
-  zones_of_regulation: "Zones of Regulation",
+  app_name: "Class of Happiness",
   how_are_you_feeling: "How are you feeling today?",
   i_am_a: "I am a...",
   student: "Student",

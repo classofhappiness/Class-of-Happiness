@@ -185,7 +185,7 @@ export default function ParentDashboard() {
   const handleShareCode = () => {
     if (!generatedCode) return;
     Share.share({
-      message: `Teacher link code: ${generatedCode}\n\nUse this code in the Zones of Regulation app to link to my child.`,
+      message: `Teacher link code: ${generatedCode}\n\nUse this code in the Class of Happiness app to link to my child.`,
     });
   };
 
@@ -260,6 +260,15 @@ export default function ParentDashboard() {
                 </View>
                 <Text style={styles.memberName}>{member.name}</Text>
                 <Text style={styles.memberRole}>{member.relationship}</Text>
+                <TouchableOpacity
+                  style={styles.checkinButton}
+                  onPress={() => router.push({
+                    pathname: '/parent/checkin',
+                    params: { memberId: member.id, memberName: member.name }
+                  })}
+                >
+                  <MaterialIcons name="add-circle" size={20} color="#4CAF50" />
+                </TouchableOpacity>
               </TouchableOpacity>
             ))}
             
@@ -661,6 +670,12 @@ const styles = StyleSheet.create({
   shareToTeacherButton: {
     position: 'absolute',
     top: 4,
+    right: 4,
+    padding: 4,
+  },
+  checkinButton: {
+    position: 'absolute',
+    bottom: 4,
     right: 4,
     padding: 4,
   },

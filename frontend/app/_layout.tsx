@@ -158,6 +158,13 @@ export default function RootLayout() {
             title: 'Strategies',
           }} 
         />
+        <Stack.Screen 
+          name="parent/checkin" 
+          options={{ 
+            headerShown: false,
+            title: 'Check-in',
+          }} 
+        />
       </Stack>
     </AppProvider>
   );
