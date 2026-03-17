@@ -10,13 +10,14 @@ import {
   RefreshControl,
   Alert,
   Linking,
-  Modal
+  Modal,
+  Share
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
 import { useApp } from '../../src/context/AppContext';
-import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy, reportsApi } from '../../src/utils/api';
+import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy, reportsApi, parentApi } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 
 const { width } = Dimensions.get('window');
@@ -54,6 +55,9 @@ export default function StudentDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showLinkCodeModal, setShowLinkCodeModal] = useState(false);
+  const [linkCode, setLinkCode] = useState<string | null>(null);
+  const [generatingCode, setGeneratingCode] = useState(false);
 
   const fetchData = async () => {
     if (!studentId) return;
@@ -193,6 +197,12 @@ export default function StudentDetailScreen() {
             })}
           >
             <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.shareParentButton}
+            onPress={() => setShowLinkCodeModal(true)}
+          >
+            <MaterialIcons name="family-restroom" size={20} color="#4A90D9" />
           </TouchableOpacity>
         </View>
 
@@ -396,6 +406,85 @@ export default function StudentDetailScreen() {
                 </View>
               )}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Parent Link Code Modal */}
+      <Modal
+        visible={showLinkCodeModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowLinkCodeModal(false);
+          setLinkCode(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Share with Parent</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowLinkCodeModal(false);
+                  setLinkCode(null);
+                }}
+                style={styles.modalCloseButton}
+              >
+                <MaterialIcons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.linkCodeContent}>
+              {!linkCode ? (
+                <>
+                  <MaterialIcons name="family-restroom" size={64} color="#4A90D9" />
+                  <Text style={styles.linkCodeDescription}>
+                    Generate a code that {student.name}'s parent can use to link their account and view check-ins from home.
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.generateCodeButton, generatingCode && styles.generateCodeButtonDisabled]}
+                    onPress={async () => {
+                      setGeneratingCode(true);
+                      try {
+                        const result = await parentApi.generateLinkCode(student.id);
+                        setLinkCode(result.link_code);
+                      } catch (error) {
+                        Alert.alert('Error', 'Failed to generate link code');
+                      } finally {
+                        setGeneratingCode(false);
+                      }
+                    }}
+                    disabled={generatingCode}
+                  >
+                    <MaterialIcons name="vpn-key" size={24} color="white" />
+                    <Text style={styles.generateCodeButtonText}>
+                      {generatingCode ? 'Generating...' : 'Generate Code'}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <MaterialIcons name="check-circle" size={64} color="#4CAF50" />
+                  <Text style={styles.linkCodeLabel}>Parent Link Code:</Text>
+                  <Text style={styles.linkCodeValue}>{linkCode}</Text>
+                  <Text style={styles.linkCodeNote}>
+                    This code expires in 7 days. Share it with the parent so they can link their account.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.shareCodeButton}
+                    onPress={() => {
+                      Share.share({
+                        message: `Link code for ${student.name} in Zones of Regulation app: ${linkCode}\n\nUse this code in the Parent section to connect your account.`,
+                      });
+                    }}
+                  >
+                    <MaterialIcons name="share" size={24} color="white" />
+                    <Text style={styles.shareCodeButtonText}>Share Code</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
           </View>
         </View>
       </Modal>
@@ -727,5 +816,77 @@ const styles = StyleSheet.create({
   noMonthsText: {
     fontSize: 16,
     color: '#999',
+  },
+  shareParentButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E3F2FD',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  linkCodeContent: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  linkCodeDescription: {
+    fontSize: 15,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  generateCodeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#4A90D9',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 10,
+  },
+  generateCodeButtonDisabled: {
+    backgroundColor: '#CCC',
+  },
+  generateCodeButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  linkCodeLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 16,
+  },
+  linkCodeValue: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#4A90D9',
+    letterSpacing: 6,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  linkCodeNote: {
+    fontSize: 13,
+    color: '#999',
+    textAlign: 'center',
+    marginBottom: 24,
+    paddingHorizontal: 20,
+  },
+  shareCodeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 10,
+  },
+  shareCodeButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

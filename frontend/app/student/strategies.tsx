@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
@@ -7,6 +7,8 @@ import { strategiesApi, zoneLogsApi, Strategy } from '../../src/utils/api';
 import { StrategyCard } from '../../src/components/StrategyCard';
 import { ZONE_CONFIG } from '../../src/components/ZoneButton';
 import { CelebrationOverlay } from '../../src/components/CelebrationOverlay';
+
+const MAX_COMMENT_LENGTH = 100;
 
 export default function StrategiesScreen() {
   const router = useRouter();
@@ -17,6 +19,8 @@ export default function StrategiesScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [comment, setComment] = useState('');
+  const [showCommentInput, setShowCommentInput] = useState(false);
 
   const zoneConfig = zone ? ZONE_CONFIG[zone] : ZONE_CONFIG.green;
 
@@ -56,6 +60,7 @@ export default function StrategiesScreen() {
         student_id: currentStudent.id,
         zone: zone,
         strategies_selected: selectedStrategies,
+        comment: comment.trim() || undefined,
       });
       
       // Show celebration overlay if strategies were selected
@@ -179,6 +184,49 @@ export default function StrategiesScreen() {
                 zoneColor={zoneConfig.color}
               />
             ))}
+
+            {/* Comment Bubble Section */}
+            <View style={styles.commentSection}>
+              <TouchableOpacity
+                style={styles.commentToggle}
+                onPress={() => setShowCommentInput(!showCommentInput)}
+              >
+                <MaterialIcons 
+                  name="chat-bubble-outline" 
+                  size={24} 
+                  color={showCommentInput || comment ? zoneConfig.color : '#999'} 
+                />
+                <Text style={[
+                  styles.commentToggleText,
+                  (showCommentInput || comment) && { color: zoneConfig.color }
+                ]}>
+                  {comment ? 'Edit your note' : 'Want to say how you feel?'} (optional)
+                </Text>
+                <MaterialIcons 
+                  name={showCommentInput ? 'expand-less' : 'expand-more'} 
+                  size={24} 
+                  color="#999" 
+                />
+              </TouchableOpacity>
+
+              {showCommentInput && (
+                <View style={styles.commentInputContainer}>
+                  <TextInput
+                    style={[styles.commentInput, { borderColor: zoneConfig.color }]}
+                    placeholder="Write one sentence about how you feel..."
+                    placeholderTextColor="#999"
+                    value={comment}
+                    onChangeText={(text) => setComment(text.slice(0, MAX_COMMENT_LENGTH))}
+                    maxLength={MAX_COMMENT_LENGTH}
+                    multiline={false}
+                    returnKeyType="done"
+                  />
+                  <Text style={styles.commentCounter}>
+                    {comment.length}/{MAX_COMMENT_LENGTH}
+                  </Text>
+                </View>
+              )}
+            </View>
           </>
         )}
       </ScrollView>
@@ -299,5 +347,40 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: 'white',
+  },
+  commentSection: {
+    marginTop: 20,
+    marginBottom: 10,
+    backgroundColor: 'white',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  commentToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 10,
+  },
+  commentToggleText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#666',
+  },
+  commentInputContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  commentInput: {
+    borderWidth: 2,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 16,
+    backgroundColor: '#FAFAFA',
+  },
+  commentCounter: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'right',
+    marginTop: 6,
   },
 });

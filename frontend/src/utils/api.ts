@@ -39,6 +39,7 @@ export interface ZoneLog {
   student_id: string;
   zone: 'blue' | 'green' | 'yellow' | 'red';
   strategies_selected: string[];
+  comment?: string;
   timestamp: string;
 }
 
@@ -216,7 +217,7 @@ export const customStrategiesApi = {
 
 // Zone Logs API
 export const zoneLogsApi = {
-  create: (data: { student_id: string; zone: string; strategies_selected: string[] }): Promise<ZoneLog> => 
+  create: (data: { student_id: string; zone: string; strategies_selected: string[]; comment?: string }): Promise<ZoneLog> => 
     apiRequest('/zone-logs', { method: 'POST', body: JSON.stringify(data) }),
   
   getByStudent: (studentId: string, days?: number): Promise<ZoneLog[]> => 
@@ -256,4 +257,50 @@ export const reportsApi = {
 export const avatarsApi = {
   getPresets: (): Promise<PresetAvatar[]> => 
     apiRequest('/avatars'),
+};
+
+// Parent API
+export const parentApi = {
+  getChildren: (): Promise<Student[]> =>
+    apiRequest('/parent/children'),
+  
+  linkChild: (linkCode: string): Promise<{ message: string; student_id: string; student_name: string }> =>
+    apiRequest('/students/link', { method: 'POST', body: JSON.stringify({ link_code: linkCode }) }),
+  
+  generateLinkCode: (studentId: string): Promise<{ link_code: string; expires_at: string }> =>
+    apiRequest(`/students/${studentId}/generate-link-code`, { method: 'POST' }),
+};
+
+// Resources API
+export interface Resource {
+  id: string;
+  title: string;
+  description: string;
+  content_type: 'text' | 'pdf';
+  content?: string;
+  pdf_filename?: string;
+  created_at: string;
+}
+
+export const resourcesApi = {
+  getAll: (): Promise<Resource[]> =>
+    apiRequest('/resources'),
+  
+  get: (id: string): Promise<Resource> =>
+    apiRequest(`/resources/${id}`),
+  
+  create: (data: Partial<Resource>): Promise<Resource> =>
+    apiRequest('/resources', { method: 'POST', body: JSON.stringify(data) }),
+  
+  update: (id: string, data: Partial<Resource>): Promise<Resource> =>
+    apiRequest(`/resources/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  
+  delete: (id: string): Promise<void> =>
+    apiRequest(`/resources/${id}`, { method: 'DELETE' }),
+};
+
+// Auth API - Extended
+export const authApiExtended = {
+  updateRole: (role: 'teacher' | 'parent'): Promise<{ role: string }> =>
+    apiRequest('/auth/role', { method: 'PUT', body: JSON.stringify({ role }) }),
 };

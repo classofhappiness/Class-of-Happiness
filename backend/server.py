@@ -58,7 +58,7 @@ class User(BaseModel):
     email: str
     name: str
     picture: Optional[str] = None
-    role: str = "teacher"  # "teacher" or "admin"
+    role: str = "teacher"  # "teacher", "parent", or "admin"
     language: str = "en"
     subscription_status: str = "none"  # "none", "trial", "active", "expired"
     subscription_plan: Optional[str] = None
@@ -80,6 +80,9 @@ class Student(BaseModel):
     avatar_custom: Optional[str] = None
     classroom_id: Optional[str] = None
     user_id: Optional[str] = None  # Teacher who created this student
+    parent_user_id: Optional[str] = None  # Parent linked to this student
+    link_code: Optional[str] = None  # Code for parent to link
+    link_code_expires: Optional[datetime] = None  # When link code expires
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class StudentCreate(BaseModel):
@@ -112,18 +115,22 @@ class ZoneLog(BaseModel):
     student_id: str
     zone: str
     strategies_selected: List[str] = []
+    comment: Optional[str] = None  # Optional comment from student (max 100 chars)
+    logged_by: str = "student"  # "student", "teacher", or "parent"
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 class ZoneLogCreate(BaseModel):
     student_id: str
     zone: str
     strategies_selected: List[str] = []
+    comment: Optional[str] = None
 
 # Custom strategy for specific student
 class CustomStrategy(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     student_id: Optional[str] = None  # None means global/default strategy
-    user_id: Optional[str] = None  # Teacher who created this
+    user_id: Optional[str] = None  # Teacher or Parent who created this
+    creator_role: str = "teacher"  # "teacher" or "parent"
     name: str
     description: str
     zone: str
@@ -131,6 +138,7 @@ class CustomStrategy(BaseModel):
     icon: str = "star"
     custom_image: Optional[str] = None  # base64 image
     is_active: bool = True
+    is_shared: bool = False  # If true, shared between teacher and parent
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class CustomStrategyCreate(BaseModel):
@@ -141,6 +149,7 @@ class CustomStrategyCreate(BaseModel):
     image_type: str = "icon"
     icon: str = "star"
     custom_image: Optional[str] = None
+    is_shared: bool = False
 
 class CustomStrategyUpdate(BaseModel):
     name: Optional[str] = None
@@ -150,6 +159,7 @@ class CustomStrategyUpdate(BaseModel):
     icon: Optional[str] = None
     custom_image: Optional[str] = None
     is_active: Optional[bool] = None
+    is_shared: Optional[bool] = None
 
 class PaymentTransaction(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -160,6 +170,31 @@ class PaymentTransaction(BaseModel):
     currency: str = "usd"
     payment_status: str = "pending"  # "pending", "paid", "failed", "expired"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# Resource for parents (emotional intelligence development materials)
+class Resource(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    description: str  # Short paragraph description
+    content_type: str = "text"  # "text" or "pdf"
+    content: Optional[str] = None  # Text content or base64 PDF
+    pdf_filename: Optional[str] = None  # Original PDF filename
+    created_by: str  # user_id of teacher/admin who created
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class ResourceCreate(BaseModel):
+    title: str
+    description: str
+    content_type: str = "text"
+    content: Optional[str] = None
+    pdf_filename: Optional[str] = None
+
+class ResourceUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    content: Optional[str] = None
+    is_active: Optional[bool] = None
 
 # ================== PRESET AVATARS ==================
 PRESET_AVATARS = [
@@ -1020,6 +1055,9 @@ async def create_zone_log(log: ZoneLogCreate):
         raise HTTPException(status_code=404, detail="Student not found")
     
     log_dict = log.dict()
+    # Limit comment to 100 characters
+    if log_dict.get("comment"):
+        log_dict["comment"] = log_dict["comment"][:100]
     log_obj = ZoneLog(**log_dict)
     await db.zone_logs.insert_one(log_obj.dict())
     return log_obj
@@ -1378,6 +1416,192 @@ async def generate_student_monthly_pdf(student_id: str, year: int, month: int):
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+# ---- Parent Linking ----
+import random
+import string
+
+def generate_link_code():
+    """Generate a 6-character alphanumeric code"""
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+
+@api_router.post("/students/{student_id}/generate-link-code")
+async def generate_student_link_code(student_id: str, request: Request):
+    """Generate a code for parent to link their child (teacher only)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role not in ["teacher", "admin"]:
+        raise HTTPException(status_code=403, detail="Only teachers can generate link codes")
+    
+    student = await db.students.find_one({"id": student_id})
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    # Generate new code that expires in 7 days
+    link_code = generate_link_code()
+    expires = datetime.now(timezone.utc) + timedelta(days=7)
+    
+    await db.students.update_one(
+        {"id": student_id},
+        {"$set": {"link_code": link_code, "link_code_expires": expires}}
+    )
+    
+    return {"link_code": link_code, "expires_at": expires.isoformat()}
+
+@api_router.post("/students/link")
+async def link_student_to_parent(request: Request):
+    """Parent links their child using a code from teacher"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "parent":
+        raise HTTPException(status_code=403, detail="Only parents can link children")
+    
+    body = await request.json()
+    link_code = body.get("link_code", "").upper()
+    
+    if not link_code:
+        raise HTTPException(status_code=400, detail="Link code required")
+    
+    # Find student with this code
+    student = await db.students.find_one({"link_code": link_code})
+    if not student:
+        raise HTTPException(status_code=404, detail="Invalid link code")
+    
+    # Check if code expired
+    expires = student.get("link_code_expires")
+    if expires:
+        if isinstance(expires, str):
+            expires = datetime.fromisoformat(expires)
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if expires < datetime.now(timezone.utc):
+            raise HTTPException(status_code=400, detail="Link code expired")
+    
+    # Link parent to student
+    await db.students.update_one(
+        {"id": student["id"]},
+        {"$set": {"parent_user_id": user.user_id, "link_code": None, "link_code_expires": None}}
+    )
+    
+    return {"message": "Child linked successfully", "student_id": student["id"], "student_name": student["name"]}
+
+@api_router.get("/parent/children")
+async def get_parent_children(request: Request):
+    """Get all children linked to the current parent"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "parent":
+        raise HTTPException(status_code=403, detail="Only parents can access this")
+    
+    students = await db.students.find({"parent_user_id": user.user_id}).to_list(100)
+    return [Student(**s) for s in students]
+
+# ---- Resources (for Parents) ----
+@api_router.get("/resources")
+async def get_resources():
+    """Get all active resources"""
+    resources = await db.resources.find({"is_active": True}).sort("created_at", -1).to_list(100)
+    # Don't return full PDF content in list, just metadata
+    result = []
+    for r in resources:
+        resource_data = {
+            "id": r["id"],
+            "title": r["title"],
+            "description": r["description"],
+            "content_type": r.get("content_type", "text"),
+            "pdf_filename": r.get("pdf_filename"),
+            "created_at": r["created_at"]
+        }
+        if r.get("content_type") == "text":
+            resource_data["content"] = r.get("content")
+        result.append(resource_data)
+    return result
+
+@api_router.get("/resources/{resource_id}")
+async def get_resource(resource_id: str):
+    """Get a specific resource including content"""
+    resource = await db.resources.find_one({"id": resource_id, "is_active": True})
+    if not resource:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    return Resource(**resource)
+
+@api_router.post("/resources")
+async def create_resource(resource: ResourceCreate, request: Request):
+    """Create a new resource (teacher/admin only)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role not in ["teacher", "admin"]:
+        raise HTTPException(status_code=403, detail="Only teachers and admins can create resources")
+    
+    resource_dict = resource.dict()
+    resource_obj = Resource(**resource_dict, created_by=user.user_id)
+    await db.resources.insert_one(resource_obj.dict())
+    return resource_obj
+
+@api_router.put("/resources/{resource_id}")
+async def update_resource(resource_id: str, update: ResourceUpdate, request: Request):
+    """Update a resource (teacher/admin only)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role not in ["teacher", "admin"]:
+        raise HTTPException(status_code=403, detail="Only teachers and admins can update resources")
+    
+    resource = await db.resources.find_one({"id": resource_id})
+    if not resource:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    
+    update_data = {k: v for k, v in update.dict().items() if v is not None}
+    if update_data:
+        await db.resources.update_one({"id": resource_id}, {"$set": update_data})
+    
+    updated = await db.resources.find_one({"id": resource_id})
+    return Resource(**updated)
+
+@api_router.delete("/resources/{resource_id}")
+async def delete_resource(resource_id: str, request: Request):
+    """Delete a resource (teacher/admin only)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role not in ["teacher", "admin"]:
+        raise HTTPException(status_code=403, detail="Only teachers and admins can delete resources")
+    
+    result = await db.resources.delete_one({"id": resource_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    return {"message": "Resource deleted successfully"}
+
+# ---- Update User Role ----
+@api_router.put("/auth/role")
+async def update_user_role(request: Request):
+    """Update user's role (for initial setup)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    body = await request.json()
+    role = body.get("role")
+    
+    if role not in ["teacher", "parent"]:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"role": role}}
+    )
+    
+    return {"role": role}
 
 # Include the router in the main app
 app.include_router(api_router)

@@ -122,6 +122,29 @@ export default function HomeScreen() {
             </View>
           )}
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.roleButton, styles.parentButton]}
+          onPress={() => {
+            if (!isAuthenticated) {
+              login();
+            } else if (!hasActiveSubscription) {
+              router.push('/subscription');
+            } else {
+              router.push('/parent/dashboard');
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons name="family-restroom" size={48} color="white" />
+          <Text style={styles.roleButtonText}>Parent</Text>
+          <Text style={styles.roleButtonSubtext}>View child's progress</Text>
+          {!isAuthenticated && (
+            <View style={styles.loginBadge}>
+              <Text style={styles.loginBadgeText}>{t('login')} required</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* Trial Link for sharing */}
@@ -262,7 +285,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
   },
   teacherButton: {
-    backgroundColor: '#5C6BC0',
+    backgroundColor: '#FFC107',
+  },
+  parentButton: {
+    backgroundColor: '#4A90D9',
   },
   roleButtonText: {
     fontSize: 24,
