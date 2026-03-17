@@ -356,6 +356,12 @@ export default function StudentDetailScreen() {
                       </Text>
                     </View>
                   )}
+                  {log.comment && (
+                    <View style={styles.logComment}>
+                      <MaterialIcons name="chat-bubble" size={14} color="#5C6BC0" />
+                      <Text style={styles.logCommentText}>"{log.comment}"</Text>
+                    </View>
+                  )}
                 </View>
               </View>
             ))
@@ -728,6 +734,22 @@ const styles = StyleSheet.create({
     color: '#666',
     marginLeft: 4,
     flex: 1,
+  },
+  logComment: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 6,
+    backgroundColor: '#F0F4FF',
+    padding: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  logCommentText: {
+    fontSize: 13,
+    color: '#5C6BC0',
+    fontStyle: 'italic',
+    flex: 1,
+    lineHeight: 18,
   },
   emptyLogs: {
     alignItems: 'center',

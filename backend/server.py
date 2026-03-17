@@ -1300,6 +1300,11 @@ async def generate_student_monthly_pdf(student_id: str, year: int, month: int):
     # Calculate stats
     zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
     strategy_counts = {}
+    time_of_day_zones = {
+        "Morning (6am-12pm)": {"blue": 0, "green": 0, "yellow": 0, "red": 0},
+        "Afternoon (12pm-5pm)": {"blue": 0, "green": 0, "yellow": 0, "red": 0},
+        "Evening (5pm-9pm)": {"blue": 0, "green": 0, "yellow": 0, "red": 0},
+    }
     
     for log in logs:
         zone = log.get("zone", "")
@@ -1307,6 +1312,18 @@ async def generate_student_monthly_pdf(student_id: str, year: int, month: int):
             zone_counts[zone] += 1
         for strategy in log.get("strategies_selected", []):
             strategy_counts[strategy] = strategy_counts.get(strategy, 0) + 1
+        
+        # Track time of day
+        hour = log["timestamp"].hour
+        if 6 <= hour < 12:
+            time_period = "Morning (6am-12pm)"
+        elif 12 <= hour < 17:
+            time_period = "Afternoon (12pm-5pm)"
+        else:
+            time_period = "Evening (5pm-9pm)"
+        
+        if zone in time_of_day_zones[time_period]:
+            time_of_day_zones[time_period][zone] += 1
     
     # Create PDF
     buffer = io.BytesIO()
@@ -1352,27 +1369,61 @@ async def generate_student_monthly_pdf(student_id: str, year: int, month: int):
     elements.append(summary_table)
     elements.append(Spacer(1, 20))
     
+    # Time of Day Breakdown
+    elements.append(Paragraph("Zones by Time of Day", styles['Heading3']))
+    time_data = [['Time Period', 'Blue', 'Green', 'Yellow', 'Red']]
+    for period, zone_data in time_of_day_zones.items():
+        time_data.append([
+            period,
+            str(zone_data['blue']),
+            str(zone_data['green']),
+            str(zone_data['yellow']),
+            str(zone_data['red'])
+        ])
+    
+    time_table = Table(time_data, colWidths=[140, 60, 60, 60, 60])
+    time_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#5C6BC0')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E0E0E0')),
+        ('PADDING', (0, 0), (-1, -1), 6),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9F9F9')]),
+        # Color code the zone columns
+        ('BACKGROUND', (1, 1), (1, -1), colors.HexColor('#E3F2FD')),
+        ('BACKGROUND', (2, 1), (2, -1), colors.HexColor('#E8F5E9')),
+        ('BACKGROUND', (3, 1), (3, -1), colors.HexColor('#FFF8E1')),
+        ('BACKGROUND', (4, 1), (4, -1), colors.HexColor('#FFEBEE')),
+    ]))
+    elements.append(time_table)
+    elements.append(Spacer(1, 20))
+    
     # Detailed logs
     if logs:
         elements.append(Paragraph("Detailed Check-ins", styles['Heading3']))
-        log_data = [['Date', 'Time', 'Zone', 'Strategies Used']]
+        log_data = [['Date', 'Time', 'Zone', 'Comment']]
         
         for log in logs:
-            strategies = ", ".join(log.get("strategies_selected", [])) or "None"
+            comment = log.get("comment", "") or "-"
+            if len(comment) > 40:
+                comment = comment[:40] + "..."
             log_data.append([
                 log["timestamp"].strftime("%Y-%m-%d"),
-                log["timestamp"].strftime("%H:%M"),
+                log["timestamp"].strftime("%I:%M %p"),
                 log.get("zone", "").capitalize(),
-                strategies[:30] + "..." if len(strategies) > 30 else strategies
+                comment
             ])
         
-        log_table = Table(log_data, colWidths=[80, 60, 70, 180])
+        log_table = Table(log_data, colWidths=[80, 70, 70, 170])
         log_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#5C6BC0')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E0E0E0')),
             ('PADDING', (0, 0), (-1, -1), 6),
