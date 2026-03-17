@@ -306,3 +306,66 @@ export const authApiExtended = {
   updateRole: (role: 'teacher' | 'parent'): Promise<{ role: string }> =>
     apiRequest('/auth/role', { method: 'PUT', body: JSON.stringify({ role }) }),
 };
+
+// Family Member types and API
+export interface FamilyMember {
+  id: string;
+  parent_user_id: string;
+  name: string;
+  relationship: 'partner' | 'self' | 'child';
+  avatar_type: string;
+  avatar_preset?: string;
+  avatar_custom?: string;
+  linked_student_id?: string;
+  created_at: string;
+}
+
+export interface FamilyZoneLog {
+  id: string;
+  family_member_id: string;
+  parent_user_id: string;
+  zone: string;
+  strategies_selected: string[];
+  comment?: string;
+  timestamp: string;
+}
+
+export const familyApi = {
+  getMembers: (): Promise<FamilyMember[]> =>
+    apiRequest('/family/members'),
+  
+  createMember: (data: Partial<FamilyMember>): Promise<FamilyMember> =>
+    apiRequest('/family/members', { method: 'POST', body: JSON.stringify(data) }),
+  
+  deleteMember: (id: string): Promise<void> =>
+    apiRequest(`/family/members/${id}`, { method: 'DELETE' }),
+  
+  // Zone logs
+  createZoneLog: (data: { family_member_id: string; zone: string; strategies_selected: string[]; comment?: string }): Promise<FamilyZoneLog> =>
+    apiRequest('/family/zone-logs', { method: 'POST', body: JSON.stringify(data) }),
+  
+  getZoneLogs: (memberId: string, days: number = 7): Promise<FamilyZoneLog[]> =>
+    apiRequest(`/family/zone-logs/${memberId}?days=${days}`),
+  
+  getAnalytics: (memberId: string, days: number = 7): Promise<{ zone_counts: Record<string, number>; strategy_counts: Record<string, number>; total_logs: number }> =>
+    apiRequest(`/family/analytics/${memberId}?days=${days}`),
+  
+  // Teacher link code (parent generates for teacher)
+  generateTeacherCode: (studentId: string): Promise<{ link_code: string; expires_at: string }> =>
+    apiRequest(`/parent/generate-teacher-code/${studentId}`, { method: 'POST' }),
+};
+
+// Teacher API for linking from parent
+export const teacherLinkApi = {
+  linkFromParent: (linkCode: string): Promise<{ message: string; student_id: string; student_name: string }> =>
+    apiRequest('/teacher/link-from-parent', { method: 'POST', body: JSON.stringify({ link_code: linkCode }) }),
+};
+
+// Strategy sync API
+export const strategySyncApi = {
+  toggleSync: (strategyId: string): Promise<{ is_shared: boolean }> =>
+    apiRequest(`/strategies/sync/${strategyId}`, { method: 'PUT' }),
+  
+  getShared: (studentId: string): Promise<CustomStrategy[]> =>
+    apiRequest(`/strategies/shared/${studentId}`),
+};

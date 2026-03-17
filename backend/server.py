@@ -196,6 +196,52 @@ class ResourceUpdate(BaseModel):
     content: Optional[str] = None
     is_active: Optional[bool] = None
 
+# Family member for parent accounts
+class FamilyMember(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    parent_user_id: str  # Parent who created this family member
+    name: str
+    relationship: str  # "partner", "self", "child"
+    avatar_type: str = "preset"
+    avatar_preset: Optional[str] = "star"
+    avatar_custom: Optional[str] = None
+    linked_student_id: Optional[str] = None  # If this is a child linked to a school student
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class FamilyMemberCreate(BaseModel):
+    name: str
+    relationship: str
+    avatar_type: str = "preset"
+    avatar_preset: Optional[str] = "star"
+    avatar_custom: Optional[str] = None
+
+# Zone log for family members (home tracking)
+class FamilyZoneLog(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    family_member_id: str
+    parent_user_id: str
+    zone: str
+    strategies_selected: List[str] = []
+    comment: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+class FamilyZoneLogCreate(BaseModel):
+    family_member_id: str
+    zone: str
+    strategies_selected: List[str] = []
+    comment: Optional[str] = None
+
+# Teacher link request from parent (reverse linking)
+class TeacherLinkCode(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    parent_user_id: str
+    student_id: str  # The child being shared
+    link_code: str
+    expires_at: datetime
+    teacher_user_id: Optional[str] = None  # Teacher who used the code
+    is_used: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
 # ================== PRESET AVATARS ==================
 PRESET_AVATARS = [
     {"id": "cat", "name": "Cat", "emoji": "🐱"},
@@ -1653,6 +1699,235 @@ async def update_user_role(request: Request):
     )
     
     return {"role": role}
+
+# ---- Family Members (for Parent home tracking) ----
+@api_router.get("/family/members")
+async def get_family_members(request: Request):
+    """Get all family members for the current parent"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "parent":
+        raise HTTPException(status_code=403, detail="Only parents can access family members")
+    
+    members = await db.family_members.find({"parent_user_id": user.user_id}).to_list(50)
+    return [FamilyMember(**m) for m in members]
+
+@api_router.post("/family/members")
+async def create_family_member(member: FamilyMemberCreate, request: Request):
+    """Create a new family member"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "parent":
+        raise HTTPException(status_code=403, detail="Only parents can create family members")
+    
+    member_dict = member.dict()
+    member_obj = FamilyMember(**member_dict, parent_user_id=user.user_id)
+    await db.family_members.insert_one(member_obj.dict())
+    return member_obj
+
+@api_router.delete("/family/members/{member_id}")
+async def delete_family_member(member_id: str, request: Request):
+    """Delete a family member"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    result = await db.family_members.delete_one({"id": member_id, "parent_user_id": user.user_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Family member not found")
+    return {"message": "Family member deleted"}
+
+# ---- Family Zone Logs (home tracking) ----
+@api_router.post("/family/zone-logs")
+async def create_family_zone_log(log: FamilyZoneLogCreate, request: Request):
+    """Create a zone log for a family member"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "parent":
+        raise HTTPException(status_code=403, detail="Only parents can log family zones")
+    
+    # Verify family member belongs to this parent
+    member = await db.family_members.find_one({"id": log.family_member_id, "parent_user_id": user.user_id})
+    if not member:
+        raise HTTPException(status_code=404, detail="Family member not found")
+    
+    log_dict = log.dict()
+    if log_dict.get("comment"):
+        log_dict["comment"] = log_dict["comment"][:100]
+    log_obj = FamilyZoneLog(**log_dict, parent_user_id=user.user_id)
+    await db.family_zone_logs.insert_one(log_obj.dict())
+    return log_obj
+
+@api_router.get("/family/zone-logs/{member_id}")
+async def get_family_zone_logs(member_id: str, request: Request, days: int = 7):
+    """Get zone logs for a family member"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "parent":
+        raise HTTPException(status_code=403, detail="Only parents can view family logs")
+    
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    logs = await db.family_zone_logs.find({
+        "family_member_id": member_id,
+        "parent_user_id": user.user_id,
+        "timestamp": {"$gte": since}
+    }).sort("timestamp", -1).to_list(500)
+    return [FamilyZoneLog(**l) for l in logs]
+
+@api_router.get("/family/analytics/{member_id}")
+async def get_family_analytics(member_id: str, request: Request, days: int = 7):
+    """Get analytics for a family member"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    logs = await db.family_zone_logs.find({
+        "family_member_id": member_id,
+        "parent_user_id": user.user_id,
+        "timestamp": {"$gte": since}
+    }).to_list(500)
+    
+    zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+    strategy_counts = {}
+    
+    for log in logs:
+        zone = log.get("zone", "")
+        if zone in zone_counts:
+            zone_counts[zone] += 1
+        for strategy in log.get("strategies_selected", []):
+            strategy_counts[strategy] = strategy_counts.get(strategy, 0) + 1
+    
+    return {
+        "zone_counts": zone_counts,
+        "strategy_counts": strategy_counts,
+        "total_logs": len(logs)
+    }
+
+# ---- Parent to Teacher QR Code Sharing ----
+@api_router.post("/parent/generate-teacher-code/{student_id}")
+async def generate_teacher_link_code(student_id: str, request: Request):
+    """Parent generates a code to share child with a teacher"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "parent":
+        raise HTTPException(status_code=403, detail="Only parents can generate teacher codes")
+    
+    # Verify parent has this child linked
+    student = await db.students.find_one({"id": student_id, "parent_user_id": user.user_id})
+    if not student:
+        # Also check family members
+        family_member = await db.family_members.find_one({"id": student_id, "parent_user_id": user.user_id})
+        if not family_member:
+            raise HTTPException(status_code=404, detail="Child not found")
+    
+    # Generate code
+    link_code = generate_link_code()
+    expires = datetime.now(timezone.utc) + timedelta(days=7)
+    
+    code_obj = TeacherLinkCode(
+        parent_user_id=user.user_id,
+        student_id=student_id,
+        link_code=link_code,
+        expires_at=expires
+    )
+    await db.teacher_link_codes.insert_one(code_obj.dict())
+    
+    return {"link_code": link_code, "expires_at": expires.isoformat()}
+
+@api_router.post("/teacher/link-from-parent")
+async def link_student_from_parent(request: Request):
+    """Teacher uses code from parent to link a student"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role not in ["teacher", "admin"]:
+        raise HTTPException(status_code=403, detail="Only teachers can use parent codes")
+    
+    body = await request.json()
+    link_code = body.get("link_code", "").upper()
+    
+    if not link_code:
+        raise HTTPException(status_code=400, detail="Link code required")
+    
+    # Find the code
+    code_record = await db.teacher_link_codes.find_one({"link_code": link_code, "is_used": False})
+    if not code_record:
+        raise HTTPException(status_code=404, detail="Invalid or used link code")
+    
+    # Check expiry
+    expires = code_record.get("expires_at")
+    if expires:
+        if isinstance(expires, str):
+            expires = datetime.fromisoformat(expires)
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if expires < datetime.now(timezone.utc):
+            raise HTTPException(status_code=400, detail="Link code expired")
+    
+    student_id = code_record["student_id"]
+    
+    # Update the student record to link teacher
+    await db.students.update_one(
+        {"id": student_id},
+        {"$set": {"user_id": user.user_id}}
+    )
+    
+    # Mark code as used
+    await db.teacher_link_codes.update_one(
+        {"id": code_record["id"]},
+        {"$set": {"is_used": True, "teacher_user_id": user.user_id}}
+    )
+    
+    student = await db.students.find_one({"id": student_id})
+    return {"message": "Student linked successfully", "student_id": student_id, "student_name": student.get("name", "Unknown")}
+
+# ---- Strategy Synchronization ----
+@api_router.put("/strategies/sync/{strategy_id}")
+async def toggle_strategy_sync(strategy_id: str, request: Request):
+    """Toggle strategy sharing between teacher and parent"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    strategy = await db.custom_strategies.find_one({"id": strategy_id})
+    if not strategy:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    
+    # Toggle is_shared
+    new_shared = not strategy.get("is_shared", False)
+    await db.custom_strategies.update_one(
+        {"id": strategy_id},
+        {"$set": {"is_shared": new_shared}}
+    )
+    
+    return {"is_shared": new_shared}
+
+@api_router.get("/strategies/shared/{student_id}")
+async def get_shared_strategies(student_id: str, request: Request):
+    """Get all shared strategies for a student (visible to both teacher and parent)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    strategies = await db.custom_strategies.find({
+        "student_id": student_id,
+        "is_shared": True,
+        "is_active": True
+    }).to_list(100)
+    
+    return [CustomStrategy(**s) for s in strategies]
 
 # Include the router in the main app
 app.include_router(api_router)

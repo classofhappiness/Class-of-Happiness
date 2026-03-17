@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
   Student, Classroom, User, Translations,
   studentsApi, classroomsApi, avatarsApi, PresetAvatar,
@@ -134,12 +135,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const setLanguage = async (lang: string) => {
     setLanguageState(lang);
     await fetchTranslations(lang);
+    // Persist language to AsyncStorage
+    try {
+      await AsyncStorage.setItem('app_language', lang);
+    } catch (error) {
+      console.error('Error saving language preference:', error);
+    }
     if (user) {
       try {
         await authApi.updateLanguage(lang);
       } catch (error) {
         console.error('Error updating language:', error);
       }
+    }
+  };
+
+  // Load saved language on app start
+  const loadSavedLanguage = async () => {
+    try {
+      const savedLang = await AsyncStorage.getItem('app_language');
+      if (savedLang) {
+        setLanguageState(savedLang);
+        await fetchTranslations(savedLang);
+      }
+    } catch (error) {
+      console.error('Error loading saved language:', error);
     }
   };
 
@@ -196,11 +216,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     const initialize = async () => {
       setIsLoading(true);
+      // Load saved language first
+      await loadSavedLanguage();
       await Promise.all([
         refreshStudents(),
         refreshClassrooms(),
         fetchPresetAvatars(),
-        fetchTranslations('en'),
       ]);
       await checkAuth();
     };
