@@ -248,6 +248,9 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ VERIFIED: Spanish and German translations working perfectly. Returns 35+ translation keys with all expected zone and UI translations."
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE INTERNATIONALIZATION TESTING COMPLETE: All 5 languages (en, es, fr, de, pt) fully tested and working. Fixed missing translations in DE and PT for keys: no_profiles_yet, create_first_profile, filter_by_classroom, all_students. All required translation keys verified and properly translated. Fallback to English for invalid language codes working correctly. Internationalization system fully functional with EN: 242 keys, ES: 194 keys, FR: 163 keys, DE: 82 keys, PT: 83 keys."
 
   - task: "GET /api/subscription/plans - Get subscription plans"
     implemented: true
@@ -464,3 +467,5 @@ agent_communication:
     message: "✅ NEW FEATURES TESTING COMPLETE: All 8 new backend API features PASSED successfully. Comprehensive testing of multi-language support (5 languages), subscription plans integration, custom strategies CRUD operations, enhanced strategy icons, and improved strategies endpoint with student_id parameter. All new endpoints return proper HTTP status codes and expected data structures. Enhanced backend API with internationalization and custom strategy management is fully functional. Updated comprehensive test suite covers all 27 total backend endpoints."
   - agent: "testing"
     message: "✅ REPORTS ENDPOINTS TESTING COMPLETE: Both reporting API endpoints PASSED successfully. Tested GET /api/reports/available-months/{student_id} which returns months with data in YYYY-MM format, and GET /api/reports/pdf/student/{student_id}/month/{year}/{month} which generates proper PDF reports with Content-Type application/pdf, correct headers, and substantial content including zone summaries, detailed logs, and strategy usage statistics. Created test data (student + zone logs) to validate functionality. All 29 total backend endpoints now fully tested and operational."
+  - agent: "testing"
+    message: "✅ TRANSLATIONS API COMPREHENSIVE RE-TESTING COMPLETE: Focused testing of GET /api/translations/{lang} for all 5 languages (en, es, fr, de, pt) with verification of specific required keys. FIXED missing translations in German and Portuguese languages by adding: no_profiles_yet, create_first_profile, filter_by_classroom, all_students. All languages now properly translated and different from English. Fallback to English for invalid language codes verified working. Internationalization system fully operational with comprehensive coverage: EN (242 keys), ES (194 keys), FR (163 keys), DE (82 keys), PT (83 keys)."

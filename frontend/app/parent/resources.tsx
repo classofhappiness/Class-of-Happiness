@@ -13,9 +13,11 @@ import {
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { resourcesApi, Resource } from '../../src/utils/api';
+import { useApp } from '../../src/context/AppContext';
 
 export default function ResourcesScreen() {
   const router = useRouter();
+  const { t } = useApp();
   const [resources, setResources] = useState<Resource[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -63,7 +65,7 @@ export default function ResourcesScreen() {
         {/* Header */}
         <View style={styles.header}>
           <MaterialIcons name="library-books" size={48} color="#5C6BC0" />
-          <Text style={styles.headerTitle}>Resources</Text>
+          <Text style={styles.headerTitle}>{t('resources')}</Text>
           <Text style={styles.headerSubtitle}>
             Articles and guides on emotional intelligence development
           </Text>

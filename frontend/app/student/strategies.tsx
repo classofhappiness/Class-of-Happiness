@@ -146,7 +146,7 @@ export default function StrategiesScreen() {
           <Text style={styles.headerSubtitle}>
             {zone === 'green' 
               ? "Great! Here are ways to stay in the green zone:" 
-              : "Here are some strategies that might help:"}
+              : t('other_zone_help')}
           </Text>
         </View>
       </View>
@@ -162,7 +162,7 @@ export default function StrategiesScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {loading ? (
-          <Text style={styles.loadingText}>Loading strategies...</Text>
+          <Text style={styles.loadingText}>{t('loading_strategies')}</Text>
         ) : (
           <>
             <Text style={styles.instruction}>

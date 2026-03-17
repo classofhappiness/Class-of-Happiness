@@ -287,7 +287,7 @@ export default function ParentDashboard() {
             
             {familyMembers.length === 0 && (
               <View style={styles.emptyMembers}>
-                <Text style={styles.emptyText}>Add family members to track</Text>
+                <Text style={styles.emptyText}>{t('add_family_to_track')}</Text>
               </View>
             )}
           </ScrollView>
@@ -327,7 +327,7 @@ export default function ParentDashboard() {
                   presetAvatars={presetAvatars}
                 />
                 <Text style={styles.memberName}>{child.name}</Text>
-                <Text style={styles.memberRole}>School</Text>
+                <Text style={styles.memberRole}>{t('school')}</Text>
                 <TouchableOpacity
                   style={styles.shareToTeacherButton}
                   onPress={() => {
@@ -342,7 +342,7 @@ export default function ParentDashboard() {
 
             {linkedChildren.length === 0 && (
               <View style={styles.emptyMembers}>
-                <Text style={styles.emptyText}>Link children from school</Text>
+                <Text style={styles.emptyText}>{t('link_children_school')}</Text>
               </View>
             )}
           </ScrollView>
@@ -366,7 +366,7 @@ export default function ParentDashboard() {
                     centerLabelComponent={() => (
                       <View style={styles.chartCenter}>
                         <Text style={styles.chartCenterNumber}>{totalLogs}</Text>
-                        <Text style={styles.chartCenterLabel}>Check-ins</Text>
+                        <Text style={styles.chartCenterLabel}>{t('check_ins')}</Text>
                       </View>
                     )}
                   />
@@ -385,7 +385,7 @@ export default function ParentDashboard() {
               ) : (
                 <View style={styles.noDataContainer}>
                   <MaterialIcons name="pie-chart" size={48} color="#CCC" />
-                  <Text style={styles.noDataText}>No check-ins this week</Text>
+                  <Text style={styles.noDataText}>{t('no_checkins_week')}</Text>
                 </View>
               )}
             </View>
@@ -415,7 +415,7 @@ export default function ParentDashboard() {
               ) : (
                 <View style={styles.noDataContainer}>
                   <MaterialIcons name="history" size={48} color="#CCC" />
-                  <Text style={styles.noDataText}>No recent activity</Text>
+                  <Text style={styles.noDataText}>{t('no_recent_activity')}</Text>
                 </View>
               )}
             </View>
@@ -450,13 +450,13 @@ export default function ParentDashboard() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Link Child from School</Text>
+              <Text style={styles.modalTitle}>{t('link_child_school')}</Text>
               <TouchableOpacity onPress={() => setShowLinkModal(false)}>
                 <MaterialIcons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
             <Text style={styles.modalText}>
-              Enter the 6-character code from your child's teacher.
+              {t('enter_code')}
             </Text>
             <TextInput
               style={styles.codeInput}
@@ -472,7 +472,7 @@ export default function ParentDashboard() {
               disabled={linking || linkCode.length !== 6}
             >
               <Text style={styles.submitButtonText}>
-                {linking ? 'Linking...' : 'Link Child'}
+                {linking ? t('linking') : t('link_child')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -484,21 +484,21 @@ export default function ParentDashboard() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Family Member</Text>
+              <Text style={styles.modalTitle}>{t('add_family_member')}</Text>
               <TouchableOpacity onPress={() => setShowAddFamilyModal(false)}>
                 <MaterialIcons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
             
-            <Text style={styles.inputLabel}>Name</Text>
+            <Text style={styles.inputLabel}>{t('name')}</Text>
             <TextInput
               style={styles.textInput}
               value={newMember.name}
               onChangeText={(text) => setNewMember({ ...newMember, name: text })}
-              placeholder="Enter name"
+              placeholder={t('name')}
             />
             
-            <Text style={styles.inputLabel}>Relationship</Text>
+            <Text style={styles.inputLabel}>{t('relationship')}</Text>
             <View style={styles.relationshipButtons}>
               {(['self', 'partner', 'child'] as const).map((rel) => (
                 <TouchableOpacity
@@ -518,7 +518,7 @@ export default function ParentDashboard() {
                     styles.relationshipButtonText,
                     newMember.relationship === rel && styles.relationshipButtonTextSelected,
                   ]}>
-                    {rel.charAt(0).toUpperCase() + rel.slice(1)}
+                    {t(rel)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -530,7 +530,7 @@ export default function ParentDashboard() {
               disabled={savingMember}
             >
               <Text style={styles.submitButtonText}>
-                {savingMember ? 'Adding...' : 'Add Member'}
+                {savingMember ? t('adding') : t('add_member')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -542,7 +542,7 @@ export default function ParentDashboard() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Share with Teacher</Text>
+              <Text style={styles.modalTitle}>{t('share_with_teacher')}</Text>
               <TouchableOpacity onPress={() => { setShowShareModal(false); setGeneratedCode(null); }}>
                 <MaterialIcons name="close" size={24} color="#666" />
               </TouchableOpacity>
@@ -553,30 +553,30 @@ export default function ParentDashboard() {
                 <View style={styles.shareInfo}>
                   <MaterialIcons name="qr-code-2" size={64} color="#4A90D9" />
                   <Text style={styles.modalText}>
-                    Generate a code that teachers can use to link to your child's profile.
+                    {t('generate_teacher_code')}
                   </Text>
                 </View>
                 <TouchableOpacity
                   style={styles.submitButton}
                   onPress={() => selectedMember && handleGenerateTeacherCode(selectedMember.id)}
                 >
-                  <Text style={styles.submitButtonText}>Generate Code</Text>
+                  <Text style={styles.submitButtonText}>{t('generate_code')}</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <>
                 <View style={styles.codeDisplay}>
                   <MaterialIcons name="check-circle" size={48} color="#4CAF50" />
-                  <Text style={styles.codeLabel}>Teacher Link Code:</Text>
+                  <Text style={styles.codeLabel}>{t('teacher_link_code')}</Text>
                   <Text style={styles.codeValue}>{generatedCode}</Text>
-                  <Text style={styles.codeExpiry}>Expires in 7 days</Text>
+                  <Text style={styles.codeExpiry}>{t('expires_7_days')}</Text>
                 </View>
                 <TouchableOpacity
                   style={[styles.submitButton, { backgroundColor: '#4CAF50' }]}
                   onPress={handleShareCode}
                 >
                   <MaterialIcons name="share" size={20} color="white" />
-                  <Text style={styles.submitButtonText}> Share Code</Text>
+                  <Text style={styles.submitButtonText}> {t('share_code')}</Text>
                 </TouchableOpacity>
               </>
             )}

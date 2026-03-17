@@ -107,9 +107,9 @@ export default function FamilyCheckInScreen() {
             <MaterialIcons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
           <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>Check-in for {memberName}</Text>
+            <Text style={styles.headerTitle}>{t('checkin_for')} {memberName}</Text>
             <Text style={styles.headerSubtitle}>
-              {step === 'zone' ? 'How is everyone feeling?' : 'Choose helpful strategies'}
+              {step === 'zone' ? t('how_everyone_feeling') : t('choose_helpful_strategies')}
             </Text>
           </View>
         </View>
@@ -147,7 +147,7 @@ export default function FamilyCheckInScreen() {
               </View>
 
               {/* Strategies List */}
-              <Text style={styles.sectionTitle}>Select helpful strategies:</Text>
+              <Text style={styles.sectionTitle}>{t('select_helpful_strategies')}</Text>
               <View style={styles.strategiesGrid}>
                 {strategies.map((strategy) => (
                   <TouchableOpacity
@@ -188,7 +188,7 @@ export default function FamilyCheckInScreen() {
                   styles.commentToggleText,
                   (showCommentInput || comment) && { color: zoneConfig?.color }
                 ]}>
-                  {comment ? 'Edit note' : 'Add a note'} (optional)
+                  {comment ? t('edit_note') : t('add_note_optional')}
                 </Text>
                 <MaterialIcons
                   name={showCommentInput ? 'expand-less' : 'expand-more'}
@@ -201,7 +201,7 @@ export default function FamilyCheckInScreen() {
                 <View style={styles.commentInputContainer}>
                   <TextInput
                     style={[styles.commentInput, { borderColor: zoneConfig?.color }]}
-                    placeholder="Write a short note..."
+                    placeholder={t('write_short_note')}
                     placeholderTextColor="#999"
                     value={comment}
                     onChangeText={(text) => setComment(text.slice(0, MAX_COMMENT_LENGTH))}
@@ -220,7 +220,7 @@ export default function FamilyCheckInScreen() {
                 disabled={loading}
               >
                 <Text style={styles.submitButtonText}>
-                  {loading ? 'Saving...' : 'Save Check-in'}
+                  {loading ? t('saving') : t('save_checkin')}
                 </Text>
               </TouchableOpacity>
 
@@ -232,7 +232,7 @@ export default function FamilyCheckInScreen() {
                   handleSubmit();
                 }}
               >
-                <Text style={styles.skipButtonText}>Skip strategies</Text>
+                <Text style={styles.skipButtonText}>{t('skip_strategies')}</Text>
               </TouchableOpacity>
             </>
           )}

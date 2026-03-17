@@ -60,8 +60,8 @@ export default function StudentSelectScreen() {
         {students.length === 0 && (
           <View style={styles.emptyState}>
             <MaterialIcons name="person-add" size={64} color="#CCC" />
-            <Text style={styles.emptyText}>No profiles yet!</Text>
-            <Text style={styles.emptySubtext}>Create your first profile to get started</Text>
+            <Text style={styles.emptyText}>{t('no_profiles_yet')}</Text>
+            <Text style={styles.emptySubtext}>{t('create_first_profile')}</Text>
           </View>
         )}
       </ScrollView>

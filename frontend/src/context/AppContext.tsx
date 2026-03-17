@@ -117,6 +117,103 @@ const defaultTranslations: Translations = {
   save_checkin: "Save Check-in",
   well_done: "Well Done!",
   great_job: "Great job choosing strategies!",
+  // New translations
+  no_profiles_yet: "No profiles yet!",
+  create_first_profile: "Create your first profile to get started",
+  loading_strategies: "Loading strategies...",
+  green_zone_help: "Great! Here are ways to stay in the green zone:",
+  other_zone_help: "Here are some strategies that might help:",
+  tap_strategies_green: "Tap any strategies you'd like to try:",
+  tap_strategies_other: "Tap to select strategies that might help:",
+  no_zone_selected: "No zone selected",
+  filter_by_classroom: "Filter by Classroom",
+  all_students: "All Students",
+  days_7: "7 Days",
+  days_14: "2 Weeks",
+  days_30: "30 Days",
+  no_recent_checkins: "No recent check-ins",
+  search_students: "Search students...",
+  add_new_student: "Add New Student",
+  delete_student: "Delete Student",
+  delete_student_confirm: "Are you sure you want to delete this student?",
+  no_students_found: "No students found",
+  no_students_yet: "No students yet",
+  try_different_search: "Try a different search",
+  add_first_student: "Add your first student to get started",
+  student_not_found: "Student not found",
+  zone_distribution: "Zone Distribution",
+  zone_comparison: "Zone Comparison",
+  no_data_period: "No data for this period",
+  most_used_strategies: "Most Used Strategies",
+  no_checkins_yet: "No check-ins yet",
+  share_with_parent: "Share with Parent",
+  generate_code: "Generate Code",
+  generating: "Generating...",
+  parent_link_code: "Parent Link Code:",
+  code_expires_7_days: "This code expires in 7 days.",
+  share_code: "Share Code",
+  create_new_classroom: "Create New Classroom",
+  classroom_name: "Classroom Name",
+  teacher_name_optional: "Teacher Name (Optional)",
+  create_classroom: "Create Classroom",
+  creating: "Creating...",
+  no_classrooms_yet: "No classrooms yet",
+  create_classroom_organize: "Create a classroom to organize your students",
+  no_classroom: "No Classroom",
+  loading_resources: "Loading resources...",
+  no_resources_yet: "No resources yet",
+  be_first_upload: "Be the first to upload a resource!",
+  title: "Title",
+  description: "Description",
+  uploading: "Uploading...",
+  submit_rating: "Submit Rating",
+  submitting: "Submitting...",
+  manage_strategies: "Manage Strategies",
+  add_custom_strategy: "Add Custom Strategy",
+  custom_strategies: "Custom Strategies",
+  default_strategies: "Default Strategies",
+  default: "Default",
+  saving: "Saving...",
+  name: "Name",
+  choose_avatar: "Choose an Avatar",
+  gallery: "Gallery",
+  camera: "Camera",
+  your_photo: "Your Photo",
+  or_choose_character: "Or choose a character:",
+  create_profile: "Create Profile",
+  save_changes: "Save Changes",
+  delete_profile: "Delete Profile",
+  avatar: "Avatar",
+  classroom: "Classroom",
+  link_child_school: "Link Child from School",
+  enter_code: "Enter the 6-character code from your child's teacher.",
+  linking: "Linking...",
+  add_member: "Add Member",
+  adding: "Adding...",
+  relationship: "Relationship",
+  self: "Self",
+  partner: "Partner",
+  child: "Child",
+  school: "School",
+  add_family_to_track: "Add family members to track",
+  link_children_school: "Link children from school",
+  no_checkins_week: "No check-ins this week",
+  no_recent_activity: "No recent activity",
+  share_with_teacher: "Share with Teacher",
+  generate_teacher_code: "Generate a code that teachers can use to link to your child's profile.",
+  expires_7_days: "Expires in 7 days",
+  teacher_link_code: "Teacher Link Code:",
+  checkin_for: "Check-in for",
+  how_everyone_feeling: "How is everyone feeling?",
+  change: "Change",
+  select_helpful_strategies: "Select helpful strategies:",
+  add_note_optional: "Add a note (optional)",
+  edit_note: "Edit note",
+  write_short_note: "Write a short note...",
+  skip_strategies: "Skip strategies",
+  articles_guides: "Articles and guides on emotional intelligence development",
+  download_report: "Download Report",
+  by: "By",
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -126,6 +223,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [translationsLoaded, setTranslationsLoaded] = useState(false);
   
   // Data state
   const [students, setStudents] = useState<Student[]>([]);
@@ -169,9 +267,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const data = await translationsApi.get(lang);
       setTranslations(data);
+      setTranslationsLoaded(true);
     } catch (error) {
       console.error('Error fetching translations:', error);
       setTranslations(defaultTranslations);
+      setTranslationsLoaded(true);
     }
   };
 
@@ -200,9 +300,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (savedLang) {
         setLanguageState(savedLang);
         await fetchTranslations(savedLang);
+      } else {
+        // No saved language, use default English
+        setTranslationsLoaded(true);
       }
     } catch (error) {
       console.error('Error loading saved language:', error);
+      setTranslationsLoaded(true);
     }
   };
 
@@ -259,7 +363,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     const initialize = async () => {
       setIsLoading(true);
-      // Load saved language first
+      // Load saved language first - CRITICAL for i18n
       await loadSavedLanguage();
       await Promise.all([
         refreshStudents(),
@@ -271,13 +375,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     initialize();
   }, []);
 
+  // Combined loading state - wait for both auth and translations
+  const isAppLoading = isLoading || !translationsLoaded;
+
   return (
     <AppContext.Provider
       value={{
         // Auth
         user,
         isAuthenticated,
-        isLoading,
+        isLoading: isAppLoading,
         login,
         logout,
         checkAuth,

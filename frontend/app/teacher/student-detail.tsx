@@ -137,7 +137,7 @@ export default function StudentDetailScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Student not found</Text>
+          <Text style={styles.errorText}>{t('student_not_found')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -249,7 +249,7 @@ export default function StudentDetailScreen() {
 
         {/* Zone Distribution */}
         <View style={styles.chartSection}>
-          <Text style={styles.sectionTitle}>Zone Distribution</Text>
+          <Text style={styles.sectionTitle}>{t('zone_distribution')}</Text>
           {pieData.length > 0 ? (
             <View style={styles.chartRow}>
               <PieChart
@@ -272,7 +272,7 @@ export default function StudentDetailScreen() {
             </View>
           ) : (
             <View style={styles.emptyChart}>
-              <Text style={styles.emptyChartText}>No data for this period</Text>
+              <Text style={styles.emptyChartText}>{t('no_data_period')}</Text>
             </View>
           )}
         </View>
@@ -280,7 +280,7 @@ export default function StudentDetailScreen() {
         {/* Bar Chart */}
         {analytics && analytics.total_logs > 0 && (
           <View style={styles.chartSection}>
-            <Text style={styles.sectionTitle}>Zone Comparison</Text>
+            <Text style={styles.sectionTitle}>{t('zone_comparison')}</Text>
             <View style={styles.barChartContainer}>
               <BarChart
                 data={barData}
@@ -313,7 +313,7 @@ export default function StudentDetailScreen() {
               onPress={() => setShowReportModal(true)}
             >
               <MaterialIcons name="picture-as-pdf" size={24} color="white" />
-              <Text style={styles.downloadButtonText}>Download Report</Text>
+              <Text style={styles.downloadButtonText}>{t('download_report')}</Text>
             </TouchableOpacity>
           </View>
         )}

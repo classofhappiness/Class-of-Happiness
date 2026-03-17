@@ -136,7 +136,7 @@ export default function TeacherDashboardScreen() {
         {/* Classroom Filter */}
         {classrooms.length > 0 && (
           <View style={styles.filterSection}>
-            <Text style={styles.sectionTitle}>Filter by Classroom</Text>
+            <Text style={styles.sectionTitle}>{t('filter_by_classroom')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.filterChips}>
                 <TouchableOpacity
@@ -144,7 +144,7 @@ export default function TeacherDashboardScreen() {
                   onPress={() => setSelectedClassroom(null)}
                 >
                   <Text style={[styles.filterChipText, !selectedClassroom && styles.filterChipTextActive]}>
-                    All Students
+                    {t('all_students')}
                   </Text>
                 </TouchableOpacity>
                 {classrooms.map(classroom => (
@@ -184,7 +184,7 @@ export default function TeacherDashboardScreen() {
                 styles.periodButtonText,
                 selectedPeriod === days && styles.periodButtonTextActive
               ]}>
-                {days === 7 ? '7 Days' : days === 14 ? '2 Weeks' : '30 Days'}
+                {days === 7 ? t('days_7') : days === 14 ? t('days_14') : t('days_30')}
               </Text>
             </TouchableOpacity>
           ))}
@@ -224,7 +224,7 @@ export default function TeacherDashboardScreen() {
 
         {/* Recent Check-ins */}
         <View style={styles.recentSection}>
-          <Text style={styles.sectionTitle}>Recent Check-ins</Text>
+          <Text style={styles.sectionTitle}>{t('recent_check_ins')}</Text>
           {recentLogs.length > 0 ? (
             recentLogs.slice(0, 10).map((log) => {
               const student = getStudent(log.student_id);
@@ -263,7 +263,7 @@ export default function TeacherDashboardScreen() {
           ) : (
             <View style={styles.emptyLogs}>
               <MaterialIcons name="history" size={48} color="#CCC" />
-              <Text style={styles.emptyLogsText}>No recent check-ins</Text>
+              <Text style={styles.emptyLogsText}>{t('no_recent_checkins')}</Text>
             </View>
           )}
         </View>

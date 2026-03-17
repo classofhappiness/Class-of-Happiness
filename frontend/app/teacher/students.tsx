@@ -36,7 +36,7 @@ export default function ManageStudentsScreen() {
 
   const handleDeleteStudent = (student: typeof students[0]) => {
     Alert.alert(
-      'Delete Student',
+      t('delete_student'),
       `Are you sure you want to delete ${student.name}? This will also delete all their zone logs.`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -63,7 +63,7 @@ export default function ManageStudentsScreen() {
         <MaterialIcons name="search" size={24} color="#999" />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search students..."
+          placeholder={t('search_students')}
           value={searchQuery}
           onChangeText={setSearchQuery}
           placeholderTextColor="#999"
@@ -118,7 +118,7 @@ export default function ManageStudentsScreen() {
           onPress={() => router.push('/profiles/create')}
         >
           <MaterialIcons name="person-add" size={24} color="white" />
-          <Text style={styles.addButtonText}>Add New Student</Text>
+          <Text style={styles.addButtonText}>{t('add_new_student')}</Text>
         </TouchableOpacity>
 
         {/* Students List */}
@@ -170,10 +170,10 @@ export default function ManageStudentsScreen() {
           <View style={styles.emptyState}>
             <MaterialIcons name="people-outline" size={64} color="#CCC" />
             <Text style={styles.emptyText}>
-              {searchQuery ? 'No students found' : 'No students yet'}
+              {searchQuery ? t('no_students_found') : t('no_students_yet')}
             </Text>
             <Text style={styles.emptySubtext}>
-              {searchQuery ? 'Try a different search' : 'Add your first student to get started'}
+              {searchQuery ? t('try_different_search') : t('add_first_student')}
             </Text>
           </View>
         )}

@@ -117,7 +117,7 @@ export default function HomeScreen() {
           <Text style={styles.roleButtonSubtext}>{t('view_progress')}</Text>
           {!isAuthenticated && (
             <View style={styles.loginBadge}>
-              <Text style={styles.loginBadgeText}>{t('login')} required</Text>
+              <Text style={styles.loginBadgeText}>{t('login_required')}</Text>
             </View>
           )}
         </TouchableOpacity>
