@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Comprehensive Backend API Test Suite for Zones of Regulation App
-Testing all new features including translations, subscriptions, and custom strategies
+Backend API Test Suite for Class of Happiness App
+Testing the creature reward system APIs and translations
 """
 import requests
 import json

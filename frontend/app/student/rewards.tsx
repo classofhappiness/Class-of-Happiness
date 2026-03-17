@@ -165,7 +165,7 @@ export default function RewardsScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingEmoji}>🥚</Text>
-          <Text style={styles.loadingText}>Loading your creature...</Text>
+          <Text style={styles.loadingText}>{t('loading_creature')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -175,11 +175,11 @@ export default function RewardsScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>🎉 Great Job!</Text>
+        <Text style={styles.headerTitle}>🎉 {t('great_job_title')}</Text>
         <Text style={styles.headerSubtitle}>
           {rewardsData.streak_days > 1 
-            ? `🔥 ${rewardsData.streak_days} day streak!` 
-            : 'Keep it up!'}
+            ? `🔥 ${rewardsData.streak_days} ${t('day_streak')}` 
+            : t('keep_it_up')}
         </Text>
       </View>
 
@@ -199,10 +199,10 @@ export default function RewardsScreen() {
       {/* Points Earned */}
       {rewardsData.points_added > 0 && (
         <Animated.View style={[styles.pointsSection, { transform: [{ scale: celebrateScale }] }]}>
-          <Text style={styles.pointsEarned}>+{rewardsData.points_added} Points!</Text>
+          <Text style={styles.pointsEarned}>+{rewardsData.points_added} {t('points')}!</Text>
           {rewardsData.streak_bonus > 0 && (
             <Text style={styles.streakBonus}>
-              (includes +{rewardsData.streak_bonus} streak bonus! 🔥)
+              (+{rewardsData.streak_bonus} streak bonus! 🔥)
             </Text>
           )}
         </Animated.View>
@@ -212,7 +212,7 @@ export default function RewardsScreen() {
       {rewardsData.points_for_next_evolution && (
         <View style={styles.progressHint}>
           <Text style={styles.progressHintText}>
-            {rewardsData.points_for_next_evolution - rewardsData.current_points} more points until {rewardsData.current_creature.name} evolves!
+            {rewardsData.points_for_next_evolution - rewardsData.current_points} {t('more_points_until')} {rewardsData.current_creature.name} {t('evolves')}
           </Text>
         </View>
       )}
@@ -225,7 +225,7 @@ export default function RewardsScreen() {
           onPress={() => setShowCollection(true)}
         >
           <MaterialIcons name="pets" size={24} color="#FFD700" />
-          <Text style={styles.collectionButtonText}>My Creatures</Text>
+          <Text style={styles.collectionButtonText}>{t('my_creatures')}</Text>
         </TouchableOpacity>
 
         {/* Continue Button */}
@@ -233,7 +233,7 @@ export default function RewardsScreen() {
           style={[styles.continueButton, { backgroundColor: rewardsData.current_creature.color }]}
           onPress={handleContinue}
         >
-          <Text style={styles.continueText}>Continue</Text>
+          <Text style={styles.continueText}>{t('continue')}</Text>
           <MaterialIcons name="arrow-forward" size={24} color="white" />
         </TouchableOpacity>
       </View>

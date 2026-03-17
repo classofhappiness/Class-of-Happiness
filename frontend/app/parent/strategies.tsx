@@ -16,19 +16,19 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { customStrategiesApi, strategiesApi, CustomStrategy, Strategy } from '../../src/utils/api';
 
-const ZONES = [
-  { id: 'blue', name: 'Blue Zone', color: '#4A90D9' },
-  { id: 'green', name: 'Green Zone', color: '#4CAF50' },
-  { id: 'yellow', name: 'Yellow Zone', color: '#FFC107' },
-  { id: 'red', name: 'Red Zone', color: '#F44336' },
-];
-
 export default function ParentStrategiesScreen() {
   const router = useRouter();
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
-  const { user, students, presetAvatars } = useApp();
+  const { user, students, presetAvatars, t } = useApp();
   
   const student = students.find(s => s.id === studentId);
+  
+  const ZONES = [
+    { id: 'blue', name: t('blue_zone'), color: '#4A90D9' },
+    { id: 'green', name: t('green_zone'), color: '#4CAF50' },
+    { id: 'yellow', name: t('yellow_zone'), color: '#FFC107' },
+    { id: 'red', name: t('red_zone'), color: '#F44336' },
+  ];
   
   const [selectedZone, setSelectedZone] = useState('blue');
   const [strategies, setStrategies] = useState<Strategy[]>([]);

@@ -24,17 +24,17 @@ import {
   TeacherResourceRating 
 } from '../../src/utils/api';
 
-const TOPICS = [
-  { id: 'emotions', name: 'Emotions', icon: 'mood' },
-  { id: 'healthy_relationships', name: 'Healthy Relationships', icon: 'favorite' },
-  { id: 'leader_online', name: 'Leader Online', icon: 'computer' },
-  { id: 'you_are_what_you_eat', name: 'You Are What You Eat', icon: 'restaurant' },
-  { id: 'special_needs_education', name: 'Special Needs Education', icon: 'accessibility' },
-];
-
 export default function TeacherResourcesScreen() {
   const router = useRouter();
-  const { user } = useApp();
+  const { user, t } = useApp();
+  
+  const TOPICS = [
+    { id: 'emotions', name: t('emotions_topic'), icon: 'mood' },
+    { id: 'healthy_relationships', name: t('healthy_relationships'), icon: 'favorite' },
+    { id: 'leader_online', name: t('leader_online'), icon: 'computer' },
+    { id: 'you_are_what_you_eat', name: t('you_are_what_you_eat'), icon: 'restaurant' },
+    { id: 'special_needs_education', name: t('special_needs_education'), icon: 'accessibility' },
+  ];
   
   const [selectedTopic, setSelectedTopic] = useState(TOPICS[0].id);
   const [resources, setResources] = useState<TeacherResource[]>([]);

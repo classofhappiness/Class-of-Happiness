@@ -33,7 +33,7 @@ const PRESET_AVATARS = [
 
 export default function CreateProfileScreen() {
   const router = useRouter();
-  const { refreshStudents, classrooms } = useApp();
+  const { refreshStudents, classrooms, t } = useApp();
   const [name, setName] = useState('');
   const [avatarType, setAvatarType] = useState<'preset' | 'custom'>('preset');
   const [selectedPreset, setSelectedPreset] = useState('cat');
