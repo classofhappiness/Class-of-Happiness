@@ -435,3 +435,85 @@ export const classroomReportsApi = {
   getPdfUrl: (classroomId: string, year: number, month: number): string =>
     `${API_URL}/reports/classroom/${classroomId}/pdf?year=${year}&month=${month}`,
 };
+
+// ================== CREATURE REWARDS API ==================
+
+export interface CreatureStage {
+  stage: number;
+  name: string;
+  emoji: string;
+  description: string;
+  required_points: number;
+}
+
+export interface Creature {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  stages: CreatureStage[];
+}
+
+export interface StudentRewards {
+  student_id: string;
+  current_creature: Creature;
+  current_stage: number;
+  current_stage_info: CreatureStage;
+  current_points: number;
+  total_points_earned: number;
+  points_for_next_evolution: number | null;
+  collected_creatures: string[];
+  streak_days: number;
+  is_fully_evolved: boolean;
+}
+
+export interface AddPointsResponse {
+  points_added: number;
+  streak_bonus: number;
+  current_points: number;
+  total_points_earned: number;
+  current_stage: number;
+  current_creature: Creature;
+  current_stage_info: CreatureStage;
+  points_for_next_evolution: number | null;
+  evolved: boolean;
+  evolution_info: any;
+  completed_creature: boolean;
+  new_creature_started: boolean;
+  collected_creatures: string[];
+  streak_days: number;
+}
+
+export interface StudentCollection {
+  collected_creatures: Creature[];
+  current_creature: Creature;
+  current_stage: number;
+  current_points: number;
+  total_creatures: number;
+  total_collected: number;
+}
+
+export interface PointsConfig {
+  strategy_used: number;
+  comment_added: number;
+  daily_streak_bonus: number;
+  evolution_thresholds: number[];
+}
+
+export const rewardsApi = {
+  getCreatures: (): Promise<{ creatures: Creature[]; points_config: PointsConfig }> =>
+    apiRequest('/creatures'),
+  
+  getStudentRewards: (studentId: string): Promise<StudentRewards> =>
+    apiRequest(`/rewards/${studentId}`),
+  
+  addPoints: (studentId: string, pointsType: 'strategy' | 'comment' | 'streak', strategyCount: number = 1): Promise<AddPointsResponse> =>
+    apiRequest(`/rewards/${studentId}/add-points`, {
+      method: 'POST',
+      body: JSON.stringify({ points_type: pointsType, strategy_count: strategyCount })
+    }),
+  
+  getCollection: (studentId: string): Promise<StudentCollection> =>
+    apiRequest(`/rewards/${studentId}/collection`),
+};
+

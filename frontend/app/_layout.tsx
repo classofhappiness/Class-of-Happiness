@@ -89,6 +89,13 @@ export default function RootLayout() {
           }} 
         />
         <Stack.Screen 
+          name="student/rewards" 
+          options={{ 
+            headerShown: false,
+            title: 'Rewards',
+          }} 
+        />
+        <Stack.Screen 
           name="profiles/create" 
           options={{ 
             title: 'Create Profile',

@@ -1,15 +1,20 @@
-import React, { useLayoutEffect } from 'react';
+import React, { useLayoutEffect, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
+import { CreatureCollection } from '../../src/components/CreatureCollection';
+import { rewardsApi, StudentCollection } from '../../src/utils/api';
 
 export default function StudentSelectScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const { students, presetAvatars, setCurrentStudent, refreshStudents, t, language, translations } = useApp();
+  const [showCollection, setShowCollection] = useState(false);
+  const [collectionData, setCollectionData] = useState<StudentCollection | null>(null);
+  const [selectedStudentForCollection, setSelectedStudentForCollection] = useState<string | null>(null);
 
   // Hide default header and use custom translated header
   useLayoutEffect(() => {
@@ -21,6 +26,17 @@ export default function StudentSelectScreen() {
   const handleSelectStudent = (student: typeof students[0]) => {
     setCurrentStudent(student);
     router.push('/student/zone');
+  };
+
+  const handleViewCreatures = async (studentId: string) => {
+    try {
+      const collection = await rewardsApi.getCollection(studentId);
+      setCollectionData(collection);
+      setSelectedStudentForCollection(studentId);
+      setShowCollection(true);
+    } catch (error) {
+      console.error('Error fetching collection:', error);
+    }
   };
 
   const handleCreateProfile = () => {
@@ -35,23 +51,30 @@ export default function StudentSelectScreen() {
 
         <View style={styles.studentsGrid}>
           {students.map((student) => (
-            <TouchableOpacity
-              key={student.id}
-              style={styles.studentCard}
-              onPress={() => handleSelectStudent(student)}
-              activeOpacity={0.7}
-            >
-              <Avatar
-                type={student.avatar_type}
-                preset={student.avatar_preset}
-                custom={student.avatar_custom}
-                size={80}
-                presetAvatars={presetAvatars}
-              />
-              <Text style={styles.studentName} numberOfLines={1}>
-                {student.name}
-              </Text>
-            </TouchableOpacity>
+            <View key={student.id} style={styles.studentCard}>
+              <TouchableOpacity
+                style={styles.studentMain}
+                onPress={() => handleSelectStudent(student)}
+                activeOpacity={0.7}
+              >
+                <Avatar
+                  type={student.avatar_type}
+                  preset={student.avatar_preset}
+                  custom={student.avatar_custom}
+                  size={80}
+                  presetAvatars={presetAvatars}
+                />
+                <Text style={styles.studentName} numberOfLines={1}>
+                  {student.name}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.creaturesButton}
+                onPress={() => handleViewCreatures(student.id)}
+              >
+                <Text style={styles.creaturesButtonText}>🐾 My Creatures</Text>
+              </TouchableOpacity>
+            </View>
           ))}
 
           {/* Add New Profile Button */}
@@ -75,6 +98,18 @@ export default function StudentSelectScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Creature Collection Modal */}
+      {collectionData && (
+        <CreatureCollection
+          visible={showCollection}
+          collectedCreatures={collectionData.collected_creatures}
+          currentCreature={collectionData.current_creature}
+          currentStage={collectionData.current_stage}
+          totalCreatures={collectionData.total_creatures}
+          onClose={() => setShowCollection(false)}
+        />
+      )}
     </View>
   );
 }
@@ -103,7 +138,7 @@ const styles = StyleSheet.create({
   studentCard: {
     backgroundColor: 'white',
     borderRadius: 20,
-    padding: 20,
+    padding: 16,
     alignItems: 'center',
     width: 140,
     elevation: 3,
@@ -112,12 +147,27 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
+  studentMain: {
+    alignItems: 'center',
+  },
   studentName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
     marginTop: 12,
     textAlign: 'center',
+  },
+  creaturesButton: {
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: '#F0F0F0',
+  },
+  creaturesButtonText: {
+    fontSize: 11,
+    color: '#666',
+    fontWeight: '500',
   },
   addCard: {
     borderWidth: 2,

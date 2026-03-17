@@ -63,13 +63,14 @@ export default function StrategiesScreen() {
         comment: comment.trim() || undefined,
       });
       
-      // Show celebration overlay if strategies were selected
-      if (selectedStrategies.length > 0) {
-        setShowCelebration(true);
-      } else {
-        // Just go back to home
-        router.replace('/');
-      }
+      // Navigate to rewards screen with points info
+      router.replace({
+        pathname: '/student/rewards',
+        params: {
+          strategiesUsed: selectedStrategies.length.toString(),
+          hasComment: comment.trim() ? 'true' : 'false',
+        },
+      });
     } catch (error) {
       console.error('Error saving zone log:', error);
     } finally {
@@ -88,7 +89,14 @@ export default function StrategiesScreen() {
         strategies_selected: [],
       });
       
-      router.replace('/');
+      // Still go to rewards to show creature, but no points earned
+      router.replace({
+        pathname: '/student/rewards',
+        params: {
+          strategiesUsed: '0',
+          hasComment: 'false',
+        },
+      });
     } catch (error) {
       console.error('Error saving zone log:', error);
     } finally {
@@ -98,7 +106,7 @@ export default function StrategiesScreen() {
 
   const handleCelebrationComplete = () => {
     setShowCelebration(false);
-    router.replace('/');
+    router.replace('/student/rewards');
   };
 
   if (!zone) {

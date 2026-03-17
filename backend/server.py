@@ -287,6 +287,110 @@ class TeacherLinkCode(BaseModel):
     is_used: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+# ================== CREATURE REWARD SYSTEM ==================
+
+# Creature definitions - cute, colorful creatures for kids 5-12
+CREATURES = [
+    {
+        "id": "bubbles",
+        "name": "Bubbles",
+        "description": "A friendly water creature who loves to make friends",
+        "color": "#4FC3F7",
+        "stages": [
+            {"stage": 0, "name": "Bubble Egg", "emoji": "🥚", "description": "A shimmering blue egg", "required_points": 0},
+            {"stage": 1, "name": "Droplet", "emoji": "💧", "description": "A tiny water droplet with big eyes", "required_points": 50},
+            {"stage": 2, "name": "Splashy", "emoji": "🫧", "description": "A bouncy bubble friend", "required_points": 150},
+            {"stage": 3, "name": "Bubbles", "emoji": "🐳", "description": "A majestic water spirit!", "required_points": 300}
+        ]
+    },
+    {
+        "id": "sunny",
+        "name": "Sunny",
+        "description": "A warm and cheerful sun creature",
+        "color": "#FFD54F",
+        "stages": [
+            {"stage": 0, "name": "Sun Egg", "emoji": "🥚", "description": "A glowing golden egg", "required_points": 0},
+            {"stage": 1, "name": "Sparkle", "emoji": "✨", "description": "A tiny spark of light", "required_points": 50},
+            {"stage": 2, "name": "Glow", "emoji": "🌟", "description": "A bright shining star", "required_points": 150},
+            {"stage": 3, "name": "Sunny", "emoji": "☀️", "description": "A radiant sun friend!", "required_points": 300}
+        ]
+    },
+    {
+        "id": "leafy",
+        "name": "Leafy",
+        "description": "A nature-loving plant creature",
+        "color": "#81C784",
+        "stages": [
+            {"stage": 0, "name": "Seed Pod", "emoji": "🥚", "description": "A green seed waiting to grow", "required_points": 0},
+            {"stage": 1, "name": "Sprout", "emoji": "🌱", "description": "A tiny sprout reaching up", "required_points": 50},
+            {"stage": 2, "name": "Blossom", "emoji": "🌸", "description": "A beautiful blooming flower", "required_points": 150},
+            {"stage": 3, "name": "Leafy", "emoji": "🌳", "description": "A mighty tree of wisdom!", "required_points": 300}
+        ]
+    },
+    {
+        "id": "flamey",
+        "name": "Flamey",
+        "description": "A passionate fire creature with a warm heart",
+        "color": "#FF7043",
+        "stages": [
+            {"stage": 0, "name": "Ember Egg", "emoji": "🥚", "description": "A warm orange egg", "required_points": 0},
+            {"stage": 1, "name": "Spark", "emoji": "💥", "description": "A tiny dancing flame", "required_points": 50},
+            {"stage": 2, "name": "Blaze", "emoji": "🔥", "description": "A bright burning fire", "required_points": 150},
+            {"stage": 3, "name": "Flamey", "emoji": "🐉", "description": "A legendary fire dragon!", "required_points": 300}
+        ]
+    },
+    {
+        "id": "cloudy",
+        "name": "Cloudy",
+        "description": "A dreamy sky creature who floats through the air",
+        "color": "#B39DDB",
+        "stages": [
+            {"stage": 0, "name": "Sky Egg", "emoji": "🥚", "description": "A fluffy purple egg", "required_points": 0},
+            {"stage": 1, "name": "Puff", "emoji": "💨", "description": "A tiny cloud puff", "required_points": 50},
+            {"stage": 2, "name": "Misty", "emoji": "☁️", "description": "A soft floating cloud", "required_points": 150},
+            {"stage": 3, "name": "Cloudy", "emoji": "🌈", "description": "A magical rainbow cloud!", "required_points": 300}
+        ]
+    },
+    {
+        "id": "rocky",
+        "name": "Rocky",
+        "description": "A strong and steady earth creature",
+        "color": "#A1887F",
+        "stages": [
+            {"stage": 0, "name": "Stone Egg", "emoji": "🥚", "description": "A solid brown egg", "required_points": 0},
+            {"stage": 1, "name": "Pebble", "emoji": "🪨", "description": "A small rolling stone", "required_points": 50},
+            {"stage": 2, "name": "Boulder", "emoji": "⛰️", "description": "A mighty boulder", "required_points": 150},
+            {"stage": 3, "name": "Rocky", "emoji": "🗿", "description": "An ancient earth guardian!", "required_points": 300}
+        ]
+    }
+]
+
+# Points configuration
+POINTS_CONFIG = {
+    "strategy_used": 10,
+    "comment_added": 15,
+    "daily_streak_bonus": 5,
+    "evolution_thresholds": [0, 50, 150, 300]
+}
+
+# Student Rewards Model
+class StudentRewards(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    student_id: str
+    current_creature_id: str = "bubbles"  # Default starting creature
+    current_stage: int = 0  # 0=egg, 1=baby, 2=teen, 3=adult
+    current_points: int = 0  # Points towards current evolution
+    total_points_earned: int = 0
+    collected_creatures: List[str] = []  # List of fully evolved creature IDs
+    last_checkin_date: Optional[str] = None  # YYYY-MM-DD format
+    streak_days: int = 0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class AddPointsRequest(BaseModel):
+    points_type: str  # "strategy", "comment", "streak"
+    strategy_count: int = 1  # Number of strategies used
+
 # ================== PRESET AVATARS ==================
 PRESET_AVATARS = [
     {"id": "cat", "name": "Cat", "emoji": "🐱"},
@@ -2894,6 +2998,200 @@ async def get_classroom_available_months(classroom_id: str, request: Request):
         months.add(f"{ts.year}-{ts.month:02d}")
     
     return sorted(list(months), reverse=True)
+
+# ================== CREATURE REWARDS ENDPOINTS ==================
+
+@api_router.get("/creatures")
+async def get_all_creatures():
+    """Get all available creatures and their evolution stages"""
+    return {
+        "creatures": CREATURES,
+        "points_config": POINTS_CONFIG
+    }
+
+@api_router.get("/rewards/{student_id}")
+async def get_student_rewards(student_id: str):
+    """Get a student's reward progress and current creature"""
+    rewards = await db.student_rewards.find_one({"student_id": student_id})
+    
+    if not rewards:
+        # Create default rewards for new student
+        new_rewards = StudentRewards(student_id=student_id).dict()
+        await db.student_rewards.insert_one(new_rewards)
+        rewards = new_rewards
+    
+    # Get current creature info
+    creature = next((c for c in CREATURES if c["id"] == rewards.get("current_creature_id", "bubbles")), CREATURES[0])
+    current_stage_info = creature["stages"][rewards.get("current_stage", 0)]
+    
+    # Calculate points needed for next evolution
+    next_stage = rewards.get("current_stage", 0) + 1
+    points_for_next = POINTS_CONFIG["evolution_thresholds"][next_stage] if next_stage < 4 else None
+    
+    return {
+        "student_id": student_id,
+        "current_creature": creature,
+        "current_stage": rewards.get("current_stage", 0),
+        "current_stage_info": current_stage_info,
+        "current_points": rewards.get("current_points", 0),
+        "total_points_earned": rewards.get("total_points_earned", 0),
+        "points_for_next_evolution": points_for_next,
+        "collected_creatures": rewards.get("collected_creatures", []),
+        "streak_days": rewards.get("streak_days", 0),
+        "is_fully_evolved": rewards.get("current_stage", 0) >= 3
+    }
+
+@api_router.post("/rewards/{student_id}/add-points")
+async def add_points_to_student(student_id: str, request: AddPointsRequest):
+    """Add points to a student's rewards and handle evolution"""
+    rewards = await db.student_rewards.find_one({"student_id": student_id})
+    
+    if not rewards:
+        # Create default rewards for new student
+        new_rewards = StudentRewards(student_id=student_id).dict()
+        await db.student_rewards.insert_one(new_rewards)
+        rewards = new_rewards
+    
+    # Calculate points to add
+    points_to_add = 0
+    if request.points_type == "strategy":
+        points_to_add = POINTS_CONFIG["strategy_used"] * request.strategy_count
+    elif request.points_type == "comment":
+        points_to_add = POINTS_CONFIG["comment_added"]
+    elif request.points_type == "streak":
+        points_to_add = POINTS_CONFIG["daily_streak_bonus"]
+    
+    # Update streak
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    last_checkin = rewards.get("last_checkin_date")
+    streak_days = rewards.get("streak_days", 0)
+    streak_bonus = 0
+    
+    if last_checkin:
+        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+        if last_checkin == yesterday:
+            streak_days += 1
+            streak_bonus = POINTS_CONFIG["daily_streak_bonus"]
+        elif last_checkin != today:
+            streak_days = 1  # Reset streak
+    else:
+        streak_days = 1
+    
+    # Add streak bonus
+    points_to_add += streak_bonus
+    
+    # Calculate new totals
+    current_points = rewards.get("current_points", 0) + points_to_add
+    total_points = rewards.get("total_points_earned", 0) + points_to_add
+    current_stage = rewards.get("current_stage", 0)
+    current_creature_id = rewards.get("current_creature_id", "bubbles")
+    collected_creatures = rewards.get("collected_creatures", [])
+    
+    # Check for evolution
+    evolved = False
+    evolution_info = None
+    completed_creature = False
+    new_creature_started = False
+    
+    thresholds = POINTS_CONFIG["evolution_thresholds"]
+    
+    while current_stage < 3 and current_points >= thresholds[current_stage + 1]:
+        current_stage += 1
+        evolved = True
+        
+        creature = next((c for c in CREATURES if c["id"] == current_creature_id), CREATURES[0])
+        evolution_info = {
+            "new_stage": current_stage,
+            "stage_info": creature["stages"][current_stage],
+            "creature": creature
+        }
+    
+    # Check if creature is fully evolved
+    if current_stage >= 3 and current_creature_id not in collected_creatures:
+        collected_creatures.append(current_creature_id)
+        completed_creature = True
+        
+        # Start a new random creature (that hasn't been collected yet)
+        available_creatures = [c["id"] for c in CREATURES if c["id"] not in collected_creatures]
+        if available_creatures:
+            import random
+            current_creature_id = random.choice(available_creatures)
+            current_stage = 0
+            current_points = 0  # Reset points for new creature
+            new_creature_started = True
+            
+            new_creature = next((c for c in CREATURES if c["id"] == current_creature_id), None)
+            evolution_info = {
+                "new_creature": new_creature,
+                "message": "You completed a creature! Starting a new adventure!"
+            }
+    
+    # Update database
+    await db.student_rewards.update_one(
+        {"student_id": student_id},
+        {"$set": {
+            "current_points": current_points,
+            "total_points_earned": total_points,
+            "current_stage": current_stage,
+            "current_creature_id": current_creature_id,
+            "collected_creatures": collected_creatures,
+            "last_checkin_date": today,
+            "streak_days": streak_days,
+            "updated_at": datetime.now(timezone.utc)
+        }},
+        upsert=True
+    )
+    
+    # Get updated creature info
+    creature = next((c for c in CREATURES if c["id"] == current_creature_id), CREATURES[0])
+    current_stage_info = creature["stages"][current_stage]
+    next_stage = current_stage + 1
+    points_for_next = thresholds[next_stage] if next_stage < 4 else None
+    
+    return {
+        "points_added": points_to_add,
+        "streak_bonus": streak_bonus,
+        "current_points": current_points,
+        "total_points_earned": total_points,
+        "current_stage": current_stage,
+        "current_creature": creature,
+        "current_stage_info": current_stage_info,
+        "points_for_next_evolution": points_for_next,
+        "evolved": evolved,
+        "evolution_info": evolution_info,
+        "completed_creature": completed_creature,
+        "new_creature_started": new_creature_started,
+        "collected_creatures": collected_creatures,
+        "streak_days": streak_days
+    }
+
+@api_router.get("/rewards/{student_id}/collection")
+async def get_student_collection(student_id: str):
+    """Get all creatures a student has collected"""
+    rewards = await db.student_rewards.find_one({"student_id": student_id})
+    
+    if not rewards:
+        return {
+            "collected_creatures": [],
+            "current_creature": CREATURES[0],
+            "current_stage": 0,
+            "total_creatures": len(CREATURES)
+        }
+    
+    collected_ids = rewards.get("collected_creatures", [])
+    current_creature_id = rewards.get("current_creature_id", "bubbles")
+    
+    collected = [c for c in CREATURES if c["id"] in collected_ids]
+    current = next((c for c in CREATURES if c["id"] == current_creature_id), CREATURES[0])
+    
+    return {
+        "collected_creatures": collected,
+        "current_creature": current,
+        "current_stage": rewards.get("current_stage", 0),
+        "current_points": rewards.get("current_points", 0),
+        "total_creatures": len(CREATURES),
+        "total_collected": len(collected_ids)
+    }
 
 # Include the router in the main app
 app.include_router(api_router)
