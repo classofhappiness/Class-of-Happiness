@@ -8,7 +8,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
-import { strategiesApi, customStrategiesApi, CustomStrategy, Strategy } from '../../src/utils/api';
+import { strategiesApi, customStrategiesApi, strategySyncApi, CustomStrategy, Strategy } from '../../src/utils/api';
 import { ZONE_CONFIG } from '../../src/components/ZoneButton';
 
 const ZONES = ['blue', 'green', 'yellow', 'red'] as const;
@@ -33,6 +33,7 @@ export default function ManageStrategiesScreen() {
   const [selectedZone, setSelectedZone] = useState<typeof ZONES[number]>('blue');
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [customStrategies, setCustomStrategies] = useState<CustomStrategy[]>([]);
+  const [sharedStrategies, setSharedStrategies] = useState<CustomStrategy[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Modal state
@@ -53,12 +54,17 @@ export default function ManageStrategiesScreen() {
   const fetchStrategies = async () => {
     setLoading(true);
     try {
-      const [defaultStrats, customStrats] = await Promise.all([
+      const [defaultStrats, customStrats, sharedStrats] = await Promise.all([
         strategiesApi.getByZone(selectedZone),
-        studentId ? customStrategiesApi.getAll(studentId) : Promise.resolve([])
+        studentId ? customStrategiesApi.getAll(studentId) : Promise.resolve([]),
+        studentId ? strategySyncApi.getShared(studentId) : Promise.resolve([])
       ]);
       setStrategies(defaultStrats.filter(s => !s.is_custom));
       setCustomStrategies(customStrats.filter(s => s.zone === selectedZone));
+      // Filter shared strategies by zone and exclude ones we created (to avoid duplicates)
+      setSharedStrategies(sharedStrats.filter(s => 
+        s.zone === selectedZone && s.creator_role === 'parent'
+      ));
     } catch (error) {
       console.error('Error fetching strategies:', error);
     } finally {
@@ -231,6 +237,33 @@ export default function ManageStrategiesScreen() {
                 <TouchableOpacity style={styles.deleteIcon} onPress={() => handleDelete(strategy)}>
                   <MaterialIcons name="delete" size={20} color="#F44336" />
                 </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Shared Strategies from Parents */}
+        {sharedStrategies.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sharedHeader}>
+              <MaterialIcons name="home" size={20} color="#9C27B0" />
+              <Text style={[styles.sectionTitle, { color: '#9C27B0', marginLeft: 8 }]}>
+                {t('shared_strategies')} ({t('parent')})
+              </Text>
+            </View>
+            {sharedStrategies.map((strategy) => (
+              <View key={strategy.id} style={[styles.strategyCard, styles.sharedCard]}>
+                <View style={[styles.strategyIcon, { backgroundColor: '#9C27B0' }]}>
+                  <MaterialIcons name={strategy.icon as any || 'star'} size={28} color="white" />
+                </View>
+                <View style={styles.strategyInfo}>
+                  <Text style={styles.strategyName}>{strategy.name}</Text>
+                  <Text style={styles.strategyDesc}>{strategy.description}</Text>
+                  <View style={styles.syncBadge}>
+                    <MaterialIcons name="sync" size={14} color="#9C27B0" />
+                    <Text style={styles.syncText}>{t('synced')}</Text>
+                  </View>
+                </View>
               </View>
             ))}
           </View>
@@ -659,5 +692,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: 'white',
+  },
+  sharedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sharedCard: {
+    borderLeftWidth: 3,
+    borderLeftColor: '#9C27B0',
+  },
+  syncBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 4,
+  },
+  syncText: {
+    fontSize: 12,
+    color: '#9C27B0',
+    fontWeight: '500',
   },
 });
