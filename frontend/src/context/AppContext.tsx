@@ -351,7 +351,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const t = (key: string): string => {
-    return translations[key] || key;
+    if (translations[key]) {
+      return translations[key];
+    }
+    // Fallback: convert key to readable text (replace underscores with spaces, capitalize)
+    return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   const checkAuth = useCallback(async () => {

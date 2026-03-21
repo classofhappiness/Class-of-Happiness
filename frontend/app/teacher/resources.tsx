@@ -21,7 +21,8 @@ import {
   teacherResourcesApi, 
   TeacherResource, 
   TeacherResourceTopic,
-  TeacherResourceRating 
+  TeacherResourceRating,
+  authApiExtended
 } from '../../src/utils/api';
 
 export default function TeacherResourcesScreen() {
@@ -29,11 +30,11 @@ export default function TeacherResourcesScreen() {
   const { user, t } = useApp();
   
   const TOPICS = [
-    { id: 'emotions', name: t('emotions_topic'), icon: 'mood' },
-    { id: 'healthy_relationships', name: t('healthy_relationships'), icon: 'favorite' },
-    { id: 'leader_online', name: t('leader_online'), icon: 'computer' },
-    { id: 'you_are_what_you_eat', name: t('you_are_what_you_eat'), icon: 'restaurant' },
-    { id: 'special_needs_education', name: t('special_needs_education'), icon: 'accessibility' },
+    { id: 'emotions', name: t('emotions_topic') || 'Emotions', icon: 'mood' },
+    { id: 'healthy_relationships', name: t('healthy_relationships') || 'Healthy Relationships', icon: 'favorite' },
+    { id: 'leader_online', name: t('leader_online') || 'Leader Online', icon: 'computer' },
+    { id: 'you_are_what_you_eat', name: t('you_are_what_you_eat') || 'You Are What You Eat', icon: 'restaurant' },
+    { id: 'special_needs_education', name: t('special_needs_education') || 'Special Needs', icon: 'accessibility' },
   ];
   
   const [selectedTopic, setSelectedTopic] = useState(TOPICS[0].id);
@@ -58,6 +59,18 @@ export default function TeacherResourcesScreen() {
   const [userComment, setUserComment] = useState('');
   const [ratings, setRatings] = useState<TeacherResourceRating[]>([]);
   const [submittingRating, setSubmittingRating] = useState(false);
+
+  // Set teacher role on page load
+  useEffect(() => {
+    const setTeacherRole = async () => {
+      try {
+        await authApiExtended.updateRole('teacher');
+      } catch (error) {
+        console.log('Could not update role:', error);
+      }
+    };
+    setTeacherRole();
+  }, []);
 
   const fetchResources = async () => {
     try {
