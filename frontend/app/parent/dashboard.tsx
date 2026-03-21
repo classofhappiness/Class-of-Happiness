@@ -347,7 +347,7 @@ export default function ParentDashboard() {
                   })}
                 >
                   <Text style={styles.bigCheckinEmoji}>😊</Text>
-                  <Text style={styles.bigCheckinText}>{t('check_in') || 'Check In'}</Text>
+                  <Text style={styles.bigCheckinText}>Check In</Text>
                 </TouchableOpacity>
               </View>
             ))}

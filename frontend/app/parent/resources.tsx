@@ -15,6 +15,15 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { resourcesApi, teacherResourcesApi, Resource, TeacherResource } from '../../src/utils/api';
 import { useApp } from '../../src/context/AppContext';
 
+const TOPICS = [
+  { id: 'all', name: 'All', icon: 'apps' as const },
+  { id: 'emotions', name: 'Emotions', icon: 'mood' as const },
+  { id: 'healthy_relationships', name: 'Healthy Relationships', icon: 'people' as const },
+  { id: 'leader_online', name: 'Leader Online', icon: 'computer' as const },
+  { id: 'you_are_what_you_eat', name: 'You Are What You Eat', icon: 'restaurant' as const },
+  { id: 'special_needs', name: 'Special Needs', icon: 'accessibility' as const },
+];
+
 export default function ResourcesScreen() {
   const router = useRouter();
   const { t } = useApp();
@@ -24,6 +33,7 @@ export default function ResourcesScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
   const [activeTab, setActiveTab] = useState<'general' | 'teacher'>('general');
+  const [selectedTopic, setSelectedTopic] = useState('all');
 
   const fetchResources = async () => {
     try {
@@ -50,15 +60,14 @@ export default function ResourcesScreen() {
     setRefreshing(false);
   };
 
-  const handleViewResource = async (resource: Resource) => {
-    if (resource.content_type === 'pdf' && resource.content) {
-      // For PDF, we'd need to handle the base64 data
-      // For now, show the description
-      setSelectedResource(resource);
-    } else {
-      setSelectedResource(resource);
-    }
+  const handleViewResource = async (resource: Resource | TeacherResource) => {
+    setSelectedResource(resource as Resource);
   };
+
+  // Filter resources by topic
+  const filteredTeacherResources = selectedTopic === 'all' 
+    ? teacherResources 
+    : teacherResources.filter(r => r.topic === selectedTopic);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -85,7 +94,7 @@ export default function ResourcesScreen() {
           >
             <MaterialIcons name="library-books" size={20} color={activeTab === 'general' ? '#5C6BC0' : '#999'} />
             <Text style={[styles.tabText, activeTab === 'general' && styles.tabTextActive]}>
-              {t('general') || 'General'}
+              General
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -94,10 +103,36 @@ export default function ResourcesScreen() {
           >
             <MaterialIcons name="school" size={20} color={activeTab === 'teacher' ? '#5C6BC0' : '#999'} />
             <Text style={[styles.tabText, activeTab === 'teacher' && styles.tabTextActive]}>
-              {t('from_teacher') || 'From Teacher'} ({teacherResources.length})
+              From Teacher ({teacherResources.length})
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* Topic Filter - Show for both tabs */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.topicScroll}>
+          {TOPICS.map((topic) => (
+            <TouchableOpacity
+              key={topic.id}
+              style={[
+                styles.topicChip,
+                selectedTopic === topic.id && styles.topicChipActive
+              ]}
+              onPress={() => setSelectedTopic(topic.id)}
+            >
+              <MaterialIcons 
+                name={topic.icon} 
+                size={16} 
+                color={selectedTopic === topic.id ? 'white' : '#666'} 
+              />
+              <Text style={[
+                styles.topicChipText,
+                selectedTopic === topic.id && styles.topicChipTextActive
+              ]}>
+                {topic.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
 
         {/* Resources List */}
         {loading ? (
@@ -141,20 +176,20 @@ export default function ResourcesScreen() {
             ))
           )
         ) : (
-          teacherResources.length === 0 ? (
+          filteredTeacherResources.length === 0 ? (
             <View style={styles.emptyState}>
               <MaterialIcons name="school" size={64} color="#CCC" />
-              <Text style={styles.emptyStateText}>{t('no_teacher_resources') || 'No teacher resources yet'}</Text>
+              <Text style={styles.emptyStateText}>No teacher resources yet</Text>
               <Text style={styles.emptyStateSubtext}>
-                {t('teacher_will_share') || 'Your child\'s teacher will share resources here'}
+                Your child's teacher will share resources here
               </Text>
             </View>
           ) : (
-            teacherResources.map((resource) => (
+            filteredTeacherResources.map((resource) => (
               <TouchableOpacity
                 key={resource.id}
                 style={[styles.resourceCard, styles.teacherResourceCard]}
-                onPress={() => handleViewResource(resource as any)}
+                onPress={() => handleViewResource(resource)}
               >
                 <View style={[styles.resourceIcon, { backgroundColor: '#E8F5E9' }]}>
                   <MaterialIcons
@@ -166,13 +201,15 @@ export default function ResourcesScreen() {
                 <View style={styles.resourceContent}>
                   <View style={styles.teacherBadge}>
                     <MaterialIcons name="verified" size={14} color="#4CAF50" />
-                    <Text style={styles.teacherBadgeText}>{t('from_teacher') || 'From Teacher'}</Text>
+                    <Text style={styles.teacherBadgeText}>From Teacher</Text>
                   </View>
                   <Text style={styles.resourceTitle}>{resource.title}</Text>
                   <Text style={styles.resourceDescription} numberOfLines={2}>
                     {resource.description}
                   </Text>
-                  <Text style={styles.resourceTopic}>{resource.topic}</Text>
+                  <Text style={styles.resourceTopic}>
+                    {TOPICS.find(t => t.id === resource.topic)?.name || resource.topic}
+                  </Text>
                 </View>
                 <MaterialIcons name="chevron-right" size={24} color="#CCC" />
               </TouchableOpacity>
@@ -415,6 +452,33 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: '#5C6BC0',
     fontWeight: '600',
+  },
+  // Topic filter styles
+  topicScroll: {
+    marginBottom: 16,
+    marginHorizontal: -16,
+    paddingHorizontal: 16,
+  },
+  topicChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F5F5F5',
+    marginRight: 8,
+    gap: 6,
+  },
+  topicChipActive: {
+    backgroundColor: '#5C6BC0',
+  },
+  topicChipText: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
+  },
+  topicChipTextActive: {
+    color: 'white',
   },
   // Teacher resource styles
   teacherResourceCard: {
