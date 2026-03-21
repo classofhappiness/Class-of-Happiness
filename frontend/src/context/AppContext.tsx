@@ -6,6 +6,14 @@ import {
   authApi, translationsApi
 } from '../utils/api';
 
+// Helper function to wrap any promise with timeout
+const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), timeoutMs))
+  ]);
+};
+
 // Helper function to wrap AsyncStorage calls with timeout to prevent mobile hanging
 const getStorageWithTimeout = async (key: string, timeoutMs: number = 3000): Promise<string | null> => {
   return Promise.race([
@@ -424,14 +432,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     const initialize = async () => {
       setIsLoading(true);
-      // Load saved language first - CRITICAL for i18n
-      await loadSavedLanguage();
-      await Promise.all([
-        refreshStudents(),
-        refreshClassrooms(),
-        fetchPresetAvatars(),
-      ]);
-      await checkAuth();
+      
+      try {
+        // Load saved language first with timeout - don't let it block forever
+        await withTimeout(loadSavedLanguage(), 5000, undefined);
+        
+        // Load data with timeouts - if any fail, continue anyway
+        await Promise.all([
+          withTimeout(refreshStudents(), 5000, undefined),
+          withTimeout(refreshClassrooms(), 5000, undefined),
+          withTimeout(fetchPresetAvatars(), 5000, undefined),
+        ]);
+        
+        // Check auth with timeout
+        await withTimeout(checkAuth(), 5000, undefined);
+      } catch (error) {
+        console.error('Initialization error:', error);
+      } finally {
+        // ALWAYS set loading to false, even if everything fails
+        setIsLoading(false);
+        setTranslationsLoaded(true);
+      }
     };
     initialize();
   }, []);

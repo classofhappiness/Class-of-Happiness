@@ -17,11 +17,7 @@ export default function HomeScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.loadingContainer}>
-          <Image
-            source={require('../assets/images/logo_coh.png')}
-            style={styles.splashLogo}
-            resizeMode="contain"
-          />
+          <Text style={styles.appTitle}>Class of Happiness</Text>
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
       </View>
@@ -330,5 +326,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#4CAF50',
+  },
+  appTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#5C6BC0',
+    marginBottom: 16,
   },
 });
