@@ -242,7 +242,7 @@ export default function SubscriptionScreen() {
         <TouchableOpacity
           style={styles.shareButton}
           onPress={() => {
-            const url = typeof window !== 'undefined' ? window.location.origin : 'https://emotion-zones-kids.preview.emergentagent.com';
+            const url = typeof window !== 'undefined' ? window.location.origin : '';
             if (typeof navigator !== 'undefined' && navigator.share) {
               navigator.share({
                 title: 'Class of Happiness App',
@@ -250,7 +250,7 @@ export default function SubscriptionScreen() {
                 url: url
               });
             } else {
-              Alert.alert('Share Link', url);
+              Alert.alert('Share Link', url || 'App link');
             }
           }}
         >
