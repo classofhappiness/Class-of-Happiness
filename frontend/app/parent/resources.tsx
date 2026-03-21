@@ -12,21 +12,27 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { resourcesApi, Resource } from '../../src/utils/api';
+import { resourcesApi, teacherResourcesApi, Resource, TeacherResource } from '../../src/utils/api';
 import { useApp } from '../../src/context/AppContext';
 
 export default function ResourcesScreen() {
   const router = useRouter();
   const { t } = useApp();
   const [resources, setResources] = useState<Resource[]>([]);
+  const [teacherResources, setTeacherResources] = useState<TeacherResource[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
+  const [activeTab, setActiveTab] = useState<'general' | 'teacher'>('general');
 
   const fetchResources = async () => {
     try {
-      const data = await resourcesApi.getAll();
-      setResources(data);
+      const [generalData, teacherData] = await Promise.all([
+        resourcesApi.getAll(),
+        teacherResourcesApi.getAll()
+      ]);
+      setResources(generalData);
+      setTeacherResources(teacherData);
     } catch (error) {
       console.error('Error fetching resources:', error);
     } finally {
@@ -67,8 +73,30 @@ export default function ResourcesScreen() {
           <MaterialIcons name="library-books" size={48} color="#5C6BC0" />
           <Text style={styles.headerTitle}>{t('resources')}</Text>
           <Text style={styles.headerSubtitle}>
-            Articles and guides on emotional intelligence development
+            Articles and guides for emotional development
           </Text>
+        </View>
+
+        {/* Tab Selector */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'general' && styles.tabActive]}
+            onPress={() => setActiveTab('general')}
+          >
+            <MaterialIcons name="library-books" size={20} color={activeTab === 'general' ? '#5C6BC0' : '#999'} />
+            <Text style={[styles.tabText, activeTab === 'general' && styles.tabTextActive]}>
+              {t('general') || 'General'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'teacher' && styles.tabActive]}
+            onPress={() => setActiveTab('teacher')}
+          >
+            <MaterialIcons name="school" size={20} color={activeTab === 'teacher' ? '#5C6BC0' : '#999'} />
+            <Text style={[styles.tabText, activeTab === 'teacher' && styles.tabTextActive]}>
+              {t('from_teacher') || 'From Teacher'} ({teacherResources.length})
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Resources List */}
@@ -76,47 +104,87 @@ export default function ResourcesScreen() {
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>Loading resources...</Text>
           </View>
-        ) : resources.length === 0 ? (
-          <View style={styles.emptyState}>
-            <MaterialIcons name="folder-open" size={64} color="#CCC" />
-            <Text style={styles.emptyStateText}>No resources available yet</Text>
-            <Text style={styles.emptyStateSubtext}>
-              Check back later for helpful articles and guides
-            </Text>
-          </View>
+        ) : activeTab === 'general' ? (
+          resources.length === 0 ? (
+            <View style={styles.emptyState}>
+              <MaterialIcons name="folder-open" size={64} color="#CCC" />
+              <Text style={styles.emptyStateText}>No resources available yet</Text>
+              <Text style={styles.emptyStateSubtext}>
+                Check back later for helpful articles and guides
+              </Text>
+            </View>
+          ) : (
+            resources.map((resource) => (
+              <TouchableOpacity
+                key={resource.id}
+                style={styles.resourceCard}
+                onPress={() => handleViewResource(resource)}
+              >
+                <View style={styles.resourceIcon}>
+                  <MaterialIcons
+                    name={resource.content_type === 'pdf' ? 'picture-as-pdf' : 'article'}
+                    size={32}
+                    color={resource.content_type === 'pdf' ? '#F44336' : '#5C6BC0'}
+                  />
+                </View>
+                <View style={styles.resourceContent}>
+                  <Text style={styles.resourceTitle}>{resource.title}</Text>
+                  <Text style={styles.resourceDescription} numberOfLines={2}>
+                    {resource.description}
+                  </Text>
+                  <Text style={styles.resourceType}>
+                    {resource.content_type === 'pdf' ? 'PDF Document' : 'Article'}
+                  </Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={24} color="#CCC" />
+              </TouchableOpacity>
+            ))
+          )
         ) : (
-          resources.map((resource) => (
-            <TouchableOpacity
-              key={resource.id}
-              style={styles.resourceCard}
-              onPress={() => handleViewResource(resource)}
-            >
-              <View style={styles.resourceIcon}>
-                <MaterialIcons
-                  name={resource.content_type === 'pdf' ? 'picture-as-pdf' : 'article'}
-                  size={32}
-                  color={resource.content_type === 'pdf' ? '#F44336' : '#5C6BC0'}
-                />
-              </View>
-              <View style={styles.resourceContent}>
-                <Text style={styles.resourceTitle}>{resource.title}</Text>
-                <Text style={styles.resourceDescription} numberOfLines={2}>
-                  {resource.description}
-                </Text>
-                <Text style={styles.resourceType}>
-                  {resource.content_type === 'pdf' ? 'PDF Document' : 'Article'}
-                </Text>
-              </View>
-              <MaterialIcons name="chevron-right" size={24} color="#CCC" />
-            </TouchableOpacity>
-          ))
+          teacherResources.length === 0 ? (
+            <View style={styles.emptyState}>
+              <MaterialIcons name="school" size={64} color="#CCC" />
+              <Text style={styles.emptyStateText}>{t('no_teacher_resources') || 'No teacher resources yet'}</Text>
+              <Text style={styles.emptyStateSubtext}>
+                {t('teacher_will_share') || 'Your child\'s teacher will share resources here'}
+              </Text>
+            </View>
+          ) : (
+            teacherResources.map((resource) => (
+              <TouchableOpacity
+                key={resource.id}
+                style={[styles.resourceCard, styles.teacherResourceCard]}
+                onPress={() => handleViewResource(resource as any)}
+              >
+                <View style={[styles.resourceIcon, { backgroundColor: '#E8F5E9' }]}>
+                  <MaterialIcons
+                    name={resource.content_type === 'pdf' ? 'picture-as-pdf' : 'article'}
+                    size={32}
+                    color={resource.content_type === 'pdf' ? '#F44336' : '#4CAF50'}
+                  />
+                </View>
+                <View style={styles.resourceContent}>
+                  <View style={styles.teacherBadge}>
+                    <MaterialIcons name="verified" size={14} color="#4CAF50" />
+                    <Text style={styles.teacherBadgeText}>{t('from_teacher') || 'From Teacher'}</Text>
+                  </View>
+                  <Text style={styles.resourceTitle}>{resource.title}</Text>
+                  <Text style={styles.resourceDescription} numberOfLines={2}>
+                    {resource.description}
+                  </Text>
+                  <Text style={styles.resourceTopic}>{resource.topic}</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={24} color="#CCC" />
+              </TouchableOpacity>
+            ))
+          )
         )}
 
         {/* Info Card */}
         <View style={styles.infoCard}>
           <MaterialIcons name="info" size={24} color="#5C6BC0" />
           <Text style={styles.infoText}>
-            These resources are provided by teachers to help you support your child's emotional development at home.
+            These resources are provided to help you support your child's emotional development at home.
           </Text>
         </View>
       </ScrollView>
@@ -318,5 +386,61 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginTop: 12,
+  },
+  // Tab styles
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 6,
+  },
+  tabActive: {
+    backgroundColor: '#E8EAF6',
+  },
+  tabText: {
+    fontSize: 14,
+    color: '#999',
+    fontWeight: '500',
+  },
+  tabTextActive: {
+    color: '#5C6BC0',
+    fontWeight: '600',
+  },
+  // Teacher resource styles
+  teacherResourceCard: {
+    borderLeftWidth: 3,
+    borderLeftColor: '#4CAF50',
+  },
+  teacherBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  teacherBadgeText: {
+    fontSize: 11,
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  resourceTopic: {
+    fontSize: 11,
+    color: '#4CAF50',
+    marginTop: 6,
+    textTransform: 'capitalize',
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
   },
 });

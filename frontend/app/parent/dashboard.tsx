@@ -12,10 +12,12 @@ import {
   Alert,
   Share,
   Dimensions,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { PieChart } from 'react-native-gifted-charts';
+import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
 import { 
   parentApi, Student, zoneLogsApi, ZoneLog, analyticsApi,
@@ -69,8 +71,58 @@ export default function ParentDashboard() {
   const [newMember, setNewMember] = useState({
     name: '',
     relationship: 'child' as 'child' | 'partner' | 'self',
+    avatar_type: 'preset' as 'preset' | 'custom',
+    avatar_preset: 'star',
+    avatar_custom: '',
   });
   const [savingMember, setSavingMember] = useState(false);
+
+  // Helper to get day of week
+  const getDayOfWeek = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return days[date.getDay()];
+  };
+
+  // Group logs by day for weekly view
+  const getWeeklyLogs = () => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    const weekData: Record<string, { logs: (ZoneLog | FamilyZoneLog)[], times: string[] }> = {};
+    days.forEach(day => { weekData[day] = { logs: [], times: [] }; });
+    
+    recentLogs.forEach(log => {
+      const day = getDayOfWeek(log.timestamp);
+      if (weekData[day]) {
+        const time = new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        weekData[day].logs.push(log);
+        weekData[day].times.push(time);
+      }
+    });
+    return weekData;
+  };
+
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+        base64: true,
+      });
+      
+      if (!result.canceled && result.assets[0].base64) {
+        setNewMember({
+          ...newMember,
+          avatar_type: 'custom',
+          avatar_custom: `data:image/jpeg;base64,${result.assets[0].base64}`,
+        });
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -173,10 +225,13 @@ export default function ParentDashboard() {
       await familyApi.createMember({
         name: newMember.name.trim(),
         relationship: newMember.relationship,
+        avatar_type: newMember.avatar_type,
+        avatar_preset: newMember.avatar_preset,
+        avatar_custom: newMember.avatar_type === 'custom' ? newMember.avatar_custom : undefined,
       });
       Alert.alert('Success', `${newMember.name} has been added to your family!`);
       setShowAddFamilyModal(false);
-      setNewMember({ name: '', relationship: 'child' });
+      setNewMember({ name: '', relationship: 'child', avatar_type: 'preset', avatar_preset: 'star', avatar_custom: '' });
       fetchData();
     } catch (error: any) {
       console.error('Error adding family member:', error);
@@ -253,36 +308,48 @@ export default function ParentDashboard() {
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.membersScroll}>
             {familyMembers.map((member) => (
-              <TouchableOpacity
-                key={member.id}
-                style={[
-                  styles.memberCard,
-                  selectedMember?.id === member.id && selectedType === 'family' && styles.memberCardSelected,
-                ]}
-                onPress={() => {
-                  setSelectedMember(member);
-                  setSelectedType('family');
-                }}
-              >
-                <View style={styles.memberAvatar}>
-                  <MaterialIcons 
-                    name={member.relationship === 'self' ? 'person' : member.relationship === 'partner' ? 'favorite' : 'child-care'} 
-                    size={32} 
-                    color="#5C6BC0" 
-                  />
-                </View>
-                <Text style={styles.memberName}>{member.name}</Text>
-                <Text style={styles.memberRole}>{member.relationship}</Text>
+              <View key={member.id} style={styles.memberCardWrapper}>
                 <TouchableOpacity
-                  style={styles.checkinButton}
+                  style={[
+                    styles.memberCard,
+                    selectedMember?.id === member.id && selectedType === 'family' && styles.memberCardSelected,
+                  ]}
+                  onPress={() => {
+                    setSelectedMember(member);
+                    setSelectedType('family');
+                  }}
+                >
+                  {/* Avatar - Support both preset and custom */}
+                  {member.avatar_type === 'custom' && member.avatar_custom ? (
+                    <Image 
+                      source={{ uri: member.avatar_custom }} 
+                      style={styles.memberAvatarImage} 
+                    />
+                  ) : (
+                    <View style={styles.memberAvatar}>
+                      <MaterialIcons 
+                        name={member.relationship === 'self' ? 'person' : member.relationship === 'partner' ? 'favorite' : 'child-care'} 
+                        size={32} 
+                        color="#5C6BC0" 
+                      />
+                    </View>
+                  )}
+                  <Text style={styles.memberName}>{member.name}</Text>
+                  <Text style={styles.memberRole}>{t(member.relationship)}</Text>
+                </TouchableOpacity>
+                
+                {/* Big kid-friendly check-in button */}
+                <TouchableOpacity
+                  style={styles.bigCheckinButton}
                   onPress={() => router.push({
                     pathname: '/parent/checkin',
                     params: { memberId: member.id, memberName: member.name }
                   })}
                 >
-                  <MaterialIcons name="add-circle" size={20} color="#4CAF50" />
+                  <Text style={styles.bigCheckinEmoji}>😊</Text>
+                  <Text style={styles.bigCheckinText}>{t('check_in') || 'Check In'}</Text>
                 </TouchableOpacity>
-              </TouchableOpacity>
+              </View>
             ))}
             
             {familyMembers.length === 0 && (
@@ -394,6 +461,37 @@ export default function ParentDashboard() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{t('recent_check_ins')}</Text>
               
+              {/* Weekly Table View */}
+              <View style={styles.weeklyTable}>
+                <View style={styles.weeklyHeader}>
+                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((day) => (
+                    <View key={day} style={styles.weeklyDayHeader}>
+                      <Text style={styles.weeklyDayText}>{day}</Text>
+                    </View>
+                  ))}
+                </View>
+                <View style={styles.weeklyBody}>
+                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((day) => {
+                    const dayData = getWeeklyLogs()[day];
+                    return (
+                      <View key={day} style={styles.weeklyDayCell}>
+                        {dayData.logs.length > 0 ? (
+                          dayData.logs.slice(0, 3).map((log, idx) => (
+                            <View key={idx} style={styles.weeklyLogItem}>
+                              <View style={[styles.weeklyZoneDot, { backgroundColor: ZONE_COLORS[log.zone] }]} />
+                              <Text style={styles.weeklyTime}>{dayData.times[idx]}</Text>
+                            </View>
+                          ))
+                        ) : (
+                          <Text style={styles.weeklyNoData}>-</Text>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+              
+              {/* Recent logs list */}
               {recentLogs.length > 0 ? (
                 recentLogs.slice(0, 10).map((log) => (
                   <View key={log.id} style={styles.logItem}>
@@ -487,6 +585,47 @@ export default function ParentDashboard() {
               <Text style={styles.modalTitle}>{t('add_family_member')}</Text>
               <TouchableOpacity onPress={() => setShowAddFamilyModal(false)}>
                 <MaterialIcons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Avatar Selection */}
+            <Text style={styles.inputLabel}>{t('photo') || 'Photo'}</Text>
+            <View style={styles.avatarSelection}>
+              <TouchableOpacity
+                style={[
+                  styles.avatarOption,
+                  newMember.avatar_type === 'preset' && styles.avatarOptionSelected
+                ]}
+                onPress={() => setNewMember({ ...newMember, avatar_type: 'preset', avatar_custom: '' })}
+              >
+                <View style={styles.presetAvatarPreview}>
+                  <MaterialIcons 
+                    name={newMember.relationship === 'self' ? 'person' : newMember.relationship === 'partner' ? 'favorite' : 'child-care'} 
+                    size={40} 
+                    color="#5C6BC0" 
+                  />
+                </View>
+                <Text style={styles.avatarOptionText}>{t('use_icon') || 'Use Icon'}</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.avatarOption,
+                  newMember.avatar_type === 'custom' && styles.avatarOptionSelected
+                ]}
+                onPress={pickImage}
+              >
+                {newMember.avatar_custom ? (
+                  <Image 
+                    source={{ uri: newMember.avatar_custom }} 
+                    style={styles.customAvatarPreview} 
+                  />
+                ) : (
+                  <View style={styles.uploadPlaceholder}>
+                    <MaterialIcons name="add-a-photo" size={40} color="#5C6BC0" />
+                  </View>
+                )}
+                <Text style={styles.avatarOptionText}>{t('upload_photo') || 'Upload Photo'}</Text>
               </TouchableOpacity>
             </View>
             
@@ -940,6 +1079,135 @@ const styles = StyleSheet.create({
   codeExpiry: {
     fontSize: 12,
     color: '#999',
+    marginTop: 8,
+  },
+  // New styles for kid-friendly check-in and weekly table
+  memberCardWrapper: {
+    alignItems: 'center',
+    marginHorizontal: 6,
+  },
+  memberAvatarImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+  },
+  bigCheckinButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginTop: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  bigCheckinEmoji: {
+    fontSize: 20,
+  },
+  bigCheckinText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  // Weekly table styles
+  weeklyTable: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  weeklyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  weeklyDayHeader: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  weeklyDayText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+  },
+  weeklyBody: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 60,
+  },
+  weeklyDayCell: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 4,
+  },
+  weeklyLogItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: 4,
+  },
+  weeklyZoneDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  weeklyTime: {
+    fontSize: 10,
+    color: '#666',
+  },
+  weeklyNoData: {
+    fontSize: 16,
+    color: '#CCC',
+  },
+  // Avatar selection styles
+  avatarSelection: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+  },
+  avatarOption: {
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    width: 120,
+  },
+  avatarOptionSelected: {
+    borderColor: '#5C6BC0',
+    backgroundColor: '#E8EAF6',
+  },
+  presetAvatarPreview: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customAvatarPreview: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+  },
+  uploadPlaceholder: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderStyle: 'dashed',
+    borderWidth: 2,
+    borderColor: '#CCC',
+  },
+  avatarOptionText: {
+    fontSize: 12,
+    color: '#666',
     marginTop: 8,
   },
 });
