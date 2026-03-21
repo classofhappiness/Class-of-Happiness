@@ -8,7 +8,7 @@ import { AppProvider } from '../src/context/AppContext';
 const HeaderLogo = () => (
   <Image
     source={require('../assets/images/logo_coh.png')}
-    style={{ width: 28, height: 28, marginRight: 8 }}
+    style={{ width: 28, height: 28, marginLeft: 16, marginRight: 8 }}
     resizeMode="contain"
   />
 );
