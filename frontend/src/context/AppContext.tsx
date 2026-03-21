@@ -6,6 +6,21 @@ import {
   authApi, translationsApi
 } from '../utils/api';
 
+// Helper function to wrap AsyncStorage calls with timeout to prevent mobile hanging
+const getStorageWithTimeout = async (key: string, timeoutMs: number = 3000): Promise<string | null> => {
+  return Promise.race([
+    AsyncStorage.getItem(key),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs))
+  ]);
+};
+
+const setStorageWithTimeout = async (key: string, value: string, timeoutMs: number = 3000): Promise<void> => {
+  return Promise.race([
+    AsyncStorage.setItem(key, value),
+    new Promise<void>((resolve) => setTimeout(() => resolve(), timeoutMs))
+  ]);
+};
+
 interface AppContextType {
   // Auth
   user: User | null;
@@ -318,9 +333,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const setLanguage = async (lang: string) => {
     setLanguageState(lang);
     await fetchTranslations(lang);
-    // Persist language to AsyncStorage
+    // Persist language to AsyncStorage with timeout
     try {
-      await AsyncStorage.setItem('app_language', lang);
+      await setStorageWithTimeout('app_language', lang, 3000);
     } catch (error) {
       console.error('Error saving language preference:', error);
     }
@@ -336,7 +351,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Load saved language on app start
   const loadSavedLanguage = async () => {
     try {
-      const savedLang = await AsyncStorage.getItem('app_language');
+      const savedLang = await getStorageWithTimeout('app_language', 3000);
       if (savedLang) {
         setLanguageState(savedLang);
         await fetchTranslations(savedLang);
@@ -370,7 +385,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setUser(userData);
       setIsAuthenticated(true);
       // Only use user's server-side language if no local preference is saved
-      const localLang = await AsyncStorage.getItem('app_language');
+      const localLang = await getStorageWithTimeout('app_language', 3000);
       if (!localLang && userData.language) {
         setLanguageState(userData.language);
         await fetchTranslations(userData.language);
