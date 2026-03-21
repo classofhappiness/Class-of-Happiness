@@ -242,7 +242,10 @@ export default function FamilyCheckInScreen() {
       {/* Celebration Overlay */}
       <CelebrationOverlay
         visible={showCelebration}
-        onFinish={() => {
+        studentName={memberName || 'Family Member'}
+        avatarType="preset"
+        avatarPreset="cat"
+        onComplete={() => {
           setShowCelebration(false);
           router.back();
         }}

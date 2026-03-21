@@ -215,7 +215,7 @@ export default function TeacherDashboardScreen() {
                 yAxisThickness={0}
                 yAxisTextStyle={{ color: '#666', fontSize: 12 }}
                 noOfSections={4}
-                maxValue={Math.max(...Object.values(analytics.zone_counts)) + 2}
+                maxValue={Math.max(...Object.values(analytics.zone_counts).map(v => Number(v))) + 2}
                 isAnimated
                 barBorderRadius={8}
                 width={width - 80}

@@ -91,9 +91,16 @@ export default function TeacherResourcesScreen() {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const file = result.assets[0];
         
-        // Read file as base64
-        const base64 = await FileSystem.readAsStringAsync(file.uri, {
-          encoding: FileSystem.EncodingType.Base64,
+        // Read file as base64 using fetch API (compatible with Expo SDK 54+)
+        const response = await fetch(file.uri);
+        const blob = await response.blob();
+        const base64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1] || '');
+          };
+          reader.readAsDataURL(blob);
         });
         
         setUploadData({

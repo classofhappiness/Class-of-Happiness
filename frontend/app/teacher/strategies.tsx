@@ -123,15 +123,18 @@ export default function ManageStrategiesScreen() {
 
     setSaving(true);
     try {
-      const data = {
+      const data: any = {
         student_id: studentId,
         name: strategyName.trim(),
         description: strategyDesc.trim(),
         zone: strategyZone,
         image_type: imageType,
         icon: selectedIcon,
-        custom_image: imageType === 'custom' ? customImage : undefined,
       };
+      
+      if (imageType === 'custom' && customImage) {
+        data.custom_image = customImage;
+      }
 
       if (editingStrategy) {
         await customStrategiesApi.update(editingStrategy.id, data);

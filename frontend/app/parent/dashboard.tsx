@@ -112,7 +112,7 @@ export default function ParentDashboard() {
         // Fetch school data for linked child
         const [logsData, analyticsData] = await Promise.all([
           zoneLogsApi.getByStudent((selectedMember as Student).id, 7),
-          analyticsApi.getByStudent((selectedMember as Student).id, 7),
+          analyticsApi.getStudent((selectedMember as Student).id, 7),
         ]);
         setRecentLogs(logsData);
         setAnalytics(analyticsData);
