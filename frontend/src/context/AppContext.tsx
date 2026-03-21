@@ -458,7 +458,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   // Combined loading state - wait for both auth and translations
-  const isAppLoading = isLoading || !translationsLoaded;
+  // FAILSAFE: If something went wrong and states weren't updated, default to not loading after 10 seconds
+  const [failsafeTriggered, setFailsafeTriggered] = useState(false);
+  
+  useEffect(() => {
+    // Failsafe timer - after 10 seconds, force the app to show even if initialization failed
+    const failsafeTimer = setTimeout(() => {
+      console.log('Failsafe triggered - forcing app to load');
+      setFailsafeTriggered(true);
+    }, 10000);
+    
+    return () => clearTimeout(failsafeTimer);
+  }, []);
+  
+  const isAppLoading = failsafeTriggered ? false : (isLoading || !translationsLoaded);
 
   return (
     <AppContext.Provider
