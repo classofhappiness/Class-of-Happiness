@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform, Linking } from 'react-native';
+import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+import * as ExpoLinking from 'expo-linking';
 import Constants from 'expo-constants';
 import { 
   Student, Classroom, User, Translations,
@@ -13,7 +14,7 @@ import {
 function withTimeout(promise: Promise<any>, timeoutMs: number, fallback: any): Promise<any> {
   return Promise.race([
     promise,
-    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), timeoutMs))
+    new Promise<any>((resolve) => setTimeout(() => resolve(fallback), timeoutMs))
   ]);
 };
 
@@ -428,7 +429,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         let redirectUrl: string;
         if (Constants.appOwnership === 'expo') {
           // Running in Expo Go
-          redirectUrl = Linking.createURL('auth/callback');
+          redirectUrl = ExpoLinking.createURL('auth/callback');
         } else {
           // Standalone build
           redirectUrl = `${scheme}://auth/callback`;
@@ -481,7 +482,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (sessionId) {
             // Exchange session with backend
             try {
-              const userData = await authApi.exchangeSession(sessionId);
+              const userData: any = await authApi.exchangeSession(sessionId);
               // Store the session token from the response for mobile auth
               if (userData && userData.session_token) {
                 await setSessionToken(userData.session_token);
