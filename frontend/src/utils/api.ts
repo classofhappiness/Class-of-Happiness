@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+// Production backend URL - MUST be set for APK builds
+const PRODUCTION_BACKEND_URL = 'https://emotion-zones-kids.preview.emergentagent.com';
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || PRODUCTION_BACKEND_URL;
 const API_URL = `${BACKEND_URL}/api`;
 
 // Store session token for mobile auth
