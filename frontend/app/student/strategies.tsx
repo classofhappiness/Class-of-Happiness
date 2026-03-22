@@ -146,14 +146,14 @@ export default function StrategiesScreen() {
         />
       )}
 
-      {/* Zone Header */}
+      {/* Emotion Header */}
       <View style={[styles.header, { backgroundColor: zoneConfig.color }]}>
         <Text style={styles.zoneFace}>{zoneConfig.face}</Text>
         <View style={styles.headerText}>
           <Text style={styles.headerTitle}>{zoneConfig.label}</Text>
           <Text style={styles.headerSubtitle}>
             {zone === 'green' 
-              ? "Great! Here are ways to stay in the green zone:" 
+              ? "Great! Here are ways to stay feeling green:" 
               : t('other_zone_help')}
           </Text>
         </View>

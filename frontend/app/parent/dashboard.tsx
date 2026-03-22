@@ -35,10 +35,10 @@ const ZONE_COLORS: Record<string, string> = {
 };
 
 const ZONE_LABELS: Record<string, string> = {
-  blue: 'Blue Zone',
-  green: 'Green Zone',
-  yellow: 'Yellow Zone',
-  red: 'Red Zone',
+  blue: 'Blue Emotions',
+  green: 'Green Emotions',
+  yellow: 'Yellow Emotions',
+  red: 'Red Emotions',
 };
 
 export default function ParentDashboard() {

@@ -9,10 +9,15 @@ import {
   RefreshControl,
   Linking,
   Modal,
+  TextInput,
+  Alert,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { resourcesApi, teacherResourcesApi, Resource, TeacherResource } from '../../src/utils/api';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { resourcesApi, teacherResourcesApi, Resource, TeacherResource, TeacherResourceRating } from '../../src/utils/api';
 import { useApp } from '../../src/context/AppContext';
 
 const TOPICS = [
@@ -24,16 +29,27 @@ const TOPICS = [
   { id: 'special_needs', name: 'Special Needs', icon: 'accessibility' as const },
 ];
 
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://emotion-zones-kids.preview.emergentagent.com';
+
 export default function ResourcesScreen() {
   const router = useRouter();
-  const { t } = useApp();
+  const { t, isAuthenticated } = useApp();
   const [resources, setResources] = useState<Resource[]>([]);
   const [teacherResources, setTeacherResources] = useState<TeacherResource[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
+  const [selectedResource, setSelectedResource] = useState<Resource | TeacherResource | null>(null);
   const [activeTab, setActiveTab] = useState<'general' | 'teacher'>('general');
   const [selectedTopic, setSelectedTopic] = useState('all');
+  const [downloading, setDownloading] = useState(false);
+  
+  // Rating state
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [selectedRating, setSelectedRating] = useState(0);
+  const [ratingComment, setRatingComment] = useState('');
+  const [submittingRating, setSubmittingRating] = useState(false);
+  const [ratings, setRatings] = useState<TeacherResourceRating[]>([]);
+  const [loadingRatings, setLoadingRatings] = useState(false);
 
   const fetchResources = async () => {
     try {
@@ -61,13 +77,119 @@ export default function ResourcesScreen() {
   };
 
   const handleViewResource = async (resource: Resource | TeacherResource) => {
-    setSelectedResource(resource as Resource);
+    setSelectedResource(resource);
+    
+    // Load ratings for teacher resources
+    if ('topic' in resource) {
+      setLoadingRatings(true);
+      try {
+        const resourceRatings = await teacherResourcesApi.getRatings(resource.id);
+        setRatings(resourceRatings);
+      } catch (error) {
+        console.error('Error loading ratings:', error);
+      } finally {
+        setLoadingRatings(false);
+      }
+    }
+  };
+
+  const handleDownloadPdf = async (resource: Resource | TeacherResource) => {
+    if (!resource.pdf_url && !resource.pdf_filename) {
+      Alert.alert('Error', 'No PDF available for download');
+      return;
+    }
+
+    setDownloading(true);
+    
+    try {
+      const pdfUrl = resource.pdf_url || `${BACKEND_URL}/api/files/${resource.pdf_filename}`;
+      const filename = resource.pdf_filename || `${resource.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
+      
+      if (Platform.OS === 'web') {
+        // Web: Open in new tab
+        Linking.openURL(pdfUrl);
+      } else {
+        // Mobile: Download and share
+        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+        
+        const downloadResult = await FileSystem.downloadAsync(pdfUrl, fileUri);
+        
+        if (downloadResult.status === 200) {
+          // Check if sharing is available
+          const canShare = await Sharing.isAvailableAsync();
+          if (canShare) {
+            await Sharing.shareAsync(downloadResult.uri, {
+              mimeType: 'application/pdf',
+              dialogTitle: `Share ${resource.title}`,
+            });
+          } else {
+            Alert.alert('Success', 'PDF downloaded successfully');
+          }
+        } else {
+          throw new Error('Download failed');
+        }
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      Alert.alert('Error', 'Failed to download PDF. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleOpenRatingModal = () => {
+    setSelectedRating(0);
+    setRatingComment('');
+    setShowRatingModal(true);
+  };
+
+  const handleSubmitRating = async () => {
+    if (!selectedResource || selectedRating === 0) {
+      Alert.alert('Error', 'Please select a rating');
+      return;
+    }
+
+    setSubmittingRating(true);
+    try {
+      await teacherResourcesApi.rate(
+        selectedResource.id,
+        selectedRating,
+        ratingComment.trim() || undefined
+      );
+      
+      // Refresh ratings
+      const newRatings = await teacherResourcesApi.getRatings(selectedResource.id);
+      setRatings(newRatings);
+      
+      setShowRatingModal(false);
+      Alert.alert('Thank you!', 'Your rating has been submitted.');
+    } catch (error) {
+      console.error('Error submitting rating:', error);
+      Alert.alert('Error', 'Failed to submit rating. Please try again.');
+    } finally {
+      setSubmittingRating(false);
+    }
+  };
+
+  // Calculate average rating
+  const getAverageRating = () => {
+    if (ratings.length === 0) return 0;
+    const sum = ratings.reduce((acc, r) => acc + r.rating, 0);
+    return (sum / ratings.length).toFixed(1);
   };
 
   // Filter resources by topic
+  // Note: General resources don't have topics, only Teacher resources do
+  // So we show all general resources when on the 'general' tab
+  const filteredResources = resources;
+    
   const filteredTeacherResources = selectedTopic === 'all' 
     ? teacherResources 
     : teacherResources.filter(r => r.topic === selectedTopic);
+
+  const isTeacherResource = (resource: Resource | TeacherResource | null): resource is TeacherResource => {
+    return resource !== null && 'topic' in resource;
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -94,7 +216,7 @@ export default function ResourcesScreen() {
           >
             <MaterialIcons name="library-books" size={20} color={activeTab === 'general' ? '#5C6BC0' : '#999'} />
             <Text style={[styles.tabText, activeTab === 'general' && styles.tabTextActive]}>
-              General
+              General ({filteredResources.length})
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -103,12 +225,12 @@ export default function ResourcesScreen() {
           >
             <MaterialIcons name="school" size={20} color={activeTab === 'teacher' ? '#5C6BC0' : '#999'} />
             <Text style={[styles.tabText, activeTab === 'teacher' && styles.tabTextActive]}>
-              From Teacher ({teacherResources.length})
+              From Teacher ({filteredTeacherResources.length})
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Topic Filter - Show for both tabs */}
+        {/* Topic Filter */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.topicScroll}>
           {TOPICS.map((topic) => (
             <TouchableOpacity
@@ -140,7 +262,7 @@ export default function ResourcesScreen() {
             <Text style={styles.loadingText}>Loading resources...</Text>
           </View>
         ) : activeTab === 'general' ? (
-          resources.length === 0 ? (
+          filteredResources.length === 0 ? (
             <View style={styles.emptyState}>
               <MaterialIcons name="folder-open" size={64} color="#CCC" />
               <Text style={styles.emptyStateText}>No resources available yet</Text>
@@ -149,7 +271,7 @@ export default function ResourcesScreen() {
               </Text>
             </View>
           ) : (
-            resources.map((resource) => (
+            filteredResources.map((resource) => (
               <TouchableOpacity
                 key={resource.id}
                 style={styles.resourceCard}
@@ -167,9 +289,17 @@ export default function ResourcesScreen() {
                   <Text style={styles.resourceDescription} numberOfLines={2}>
                     {resource.description}
                   </Text>
-                  <Text style={styles.resourceType}>
-                    {resource.content_type === 'pdf' ? 'PDF Document' : 'Article'}
-                  </Text>
+                  <View style={styles.resourceMeta}>
+                    <Text style={styles.resourceType}>
+                      {resource.content_type === 'pdf' ? 'PDF Document' : 'Article'}
+                    </Text>
+                    {resource.content_type === 'pdf' && (
+                      <View style={styles.downloadBadge}>
+                        <MaterialIcons name="download" size={12} color="#4CAF50" />
+                        <Text style={styles.downloadBadgeText}>Download</Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
                 <MaterialIcons name="chevron-right" size={24} color="#CCC" />
               </TouchableOpacity>
@@ -207,9 +337,17 @@ export default function ResourcesScreen() {
                   <Text style={styles.resourceDescription} numberOfLines={2}>
                     {resource.description}
                   </Text>
-                  <Text style={styles.resourceTopic}>
-                    {TOPICS.find(t => t.id === resource.topic)?.name || resource.topic}
-                  </Text>
+                  <View style={styles.resourceMeta}>
+                    <Text style={styles.resourceTopic}>
+                      {TOPICS.find(t => t.id === resource.topic)?.name || resource.topic}
+                    </Text>
+                    {resource.content_type === 'pdf' && (
+                      <View style={styles.downloadBadge}>
+                        <MaterialIcons name="download" size={12} color="#4CAF50" />
+                        <Text style={styles.downloadBadgeText}>Download</Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
                 <MaterialIcons name="chevron-right" size={24} color="#CCC" />
               </TouchableOpacity>
@@ -236,13 +374,13 @@ export default function ResourcesScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{selectedResource?.title}</Text>
+              <Text style={styles.modalTitle} numberOfLines={2}>{selectedResource?.title}</Text>
               <TouchableOpacity onPress={() => setSelectedResource(null)}>
                 <MaterialIcons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
             
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
               <Text style={styles.modalDescription}>
                 {selectedResource?.description}
               </Text>
@@ -254,16 +392,165 @@ export default function ResourcesScreen() {
               )}
               
               {selectedResource?.content_type === 'pdf' && (
-                <View style={styles.pdfNotice}>
-                  <MaterialIcons name="picture-as-pdf" size={48} color="#F44336" />
-                  <Text style={styles.pdfNoticeText}>
-                    PDF Document: {selectedResource.pdf_filename || 'document.pdf'}
+                <View style={styles.pdfSection}>
+                  <View style={styles.pdfNotice}>
+                    <MaterialIcons name="picture-as-pdf" size={48} color="#F44336" />
+                    <Text style={styles.pdfNoticeText}>
+                      {selectedResource.pdf_filename || 'document.pdf'}
+                    </Text>
+                  </View>
+                  
+                  <TouchableOpacity
+                    style={styles.downloadButton}
+                    onPress={() => handleDownloadPdf(selectedResource)}
+                    disabled={downloading}
+                  >
+                    <MaterialIcons 
+                      name={downloading ? 'hourglass-empty' : 'file-download'} 
+                      size={24} 
+                      color="white" 
+                    />
+                    <Text style={styles.downloadButtonText}>
+                      {downloading ? 'Preparing...' : 'Download & Share PDF'}
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  {/* Sharing options info */}
+                  <View style={styles.sharingInfo}>
+                    <MaterialIcons name="share" size={16} color="#666" />
+                    <Text style={styles.sharingInfoText}>
+                      Save to phone, email, Google Drive, WhatsApp & more
+                    </Text>
+                  </View>
+                  
+                  {/* IP Disclaimer */}
+                  <Text style={styles.ipDisclaimer}>
+                    © {new Date().getFullYear()} Class of Happiness. All rights reserved. 
+                    This material is protected intellectual property. Unauthorized reproduction, 
+                    distribution, or commercial use is strictly prohibited.
                   </Text>
+                </View>
+              )}
+
+              {/* Ratings Section - Only for Teacher Resources */}
+              {isTeacherResource(selectedResource) && (
+                <View style={styles.ratingsSection}>
+                  <View style={styles.ratingsSummary}>
+                    <Text style={styles.ratingsTitle}>Ratings & Reviews</Text>
+                    {ratings.length > 0 ? (
+                      <View style={styles.averageRating}>
+                        <MaterialIcons name="star" size={24} color="#FFB300" />
+                        <Text style={styles.averageRatingText}>{getAverageRating()}</Text>
+                        <Text style={styles.ratingsCount}>({ratings.length} reviews)</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.noRatingsText}>No ratings yet</Text>
+                    )}
+                  </View>
+
+                  {isAuthenticated && (
+                    <TouchableOpacity
+                      style={styles.rateButton}
+                      onPress={handleOpenRatingModal}
+                    >
+                      <MaterialIcons name="rate-review" size={20} color="#5C6BC0" />
+                      <Text style={styles.rateButtonText}>Rate this resource</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Reviews List */}
+                  {ratings.length > 0 && (
+                    <View style={styles.reviewsList}>
+                      {ratings.slice(0, 5).map((rating, index) => (
+                        <View key={index} style={styles.reviewCard}>
+                          <View style={styles.reviewHeader}>
+                            <View style={styles.reviewStars}>
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <MaterialIcons
+                                  key={star}
+                                  name={star <= rating.rating ? 'star' : 'star-border'}
+                                  size={16}
+                                  color="#FFB300"
+                                />
+                              ))}
+                            </View>
+                            <Text style={styles.reviewDate}>
+                              {new Date(rating.created_at).toLocaleDateString()}
+                            </Text>
+                          </View>
+                          {rating.comment && (
+                            <Text style={styles.reviewComment}>{rating.comment}</Text>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </View>
               )}
             </ScrollView>
           </View>
         </View>
+      </Modal>
+
+      {/* Rating Modal */}
+      <Modal
+        visible={showRatingModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRatingModal(false)}
+      >
+        <TouchableOpacity 
+          style={styles.ratingModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowRatingModal(false)}
+        >
+          <View style={styles.ratingModalContent} onStartShouldSetResponder={() => true}>
+            <Text style={styles.ratingModalTitle}>Rate this resource</Text>
+            
+            <View style={styles.starRating}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity
+                  key={star}
+                  onPress={() => setSelectedRating(star)}
+                >
+                  <MaterialIcons
+                    name={star <= selectedRating ? 'star' : 'star-border'}
+                    size={40}
+                    color="#FFB300"
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+            
+            <TextInput
+              style={styles.ratingInput}
+              placeholder="Add a comment (optional)"
+              placeholderTextColor="#999"
+              value={ratingComment}
+              onChangeText={setRatingComment}
+              multiline
+              maxLength={200}
+            />
+            
+            <View style={styles.ratingButtons}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setShowRatingModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.submitButton, selectedRating === 0 && styles.submitButtonDisabled]}
+                onPress={handleSubmitRating}
+                disabled={selectedRating === 0 || submittingRating}
+              >
+                <Text style={styles.submitButtonText}>
+                  {submittingRating ? 'Submitting...' : 'Submit'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
       </Modal>
     </SafeAreaView>
   );
@@ -281,150 +568,19 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 24,
-    paddingVertical: 20,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
     marginTop: 12,
   },
   headerSubtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#666',
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 60,
-    backgroundColor: 'white',
-    borderRadius: 16,
-  },
-  emptyStateText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#999',
-    marginTop: 16,
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: '#999',
-    marginTop: 8,
-    textAlign: 'center',
-    paddingHorizontal: 40,
-  },
-  resourceCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-  },
-  resourceIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: '#F5F5F5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  resourceContent: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  resourceTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  resourceDescription: {
     fontSize: 14,
     color: '#666',
     marginTop: 4,
-    lineHeight: 20,
+    textAlign: 'center',
   },
-  resourceType: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 6,
-    textTransform: 'uppercase',
-  },
-  infoCard: {
-    flexDirection: 'row',
-    backgroundColor: '#E8EAF6',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 20,
-    gap: 12,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#5C6BC0',
-    lineHeight: 20,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '85%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
-    flex: 1,
-    paddingRight: 16,
-  },
-  modalBody: {
-    padding: 20,
-  },
-  modalDescription: {
-    fontSize: 16,
-    color: '#666',
-    lineHeight: 24,
-    marginBottom: 20,
-  },
-  modalArticle: {
-    fontSize: 16,
-    color: '#333',
-    lineHeight: 26,
-  },
-  pdfNotice: {
-    alignItems: 'center',
-    paddingVertical: 40,
-    backgroundColor: '#FFF3F3',
-    borderRadius: 12,
-  },
-  pdfNoticeText: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 12,
-  },
-  // Tab styles
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: 'white',
@@ -451,60 +607,383 @@ const styles = StyleSheet.create({
   },
   tabTextActive: {
     color: '#5C6BC0',
-    fontWeight: '600',
   },
-  // Topic filter styles
   topicScroll: {
     marginBottom: 16,
-    marginHorizontal: -16,
-    paddingHorizontal: 16,
   },
   topicChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
+    backgroundColor: 'white',
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#F5F5F5',
     marginRight: 8,
     gap: 6,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   topicChipActive: {
     backgroundColor: '#5C6BC0',
+    borderColor: '#5C6BC0',
   },
   topicChipText: {
     fontSize: 13,
     color: '#666',
-    fontWeight: '500',
   },
   topicChipTextActive: {
     color: 'white',
   },
-  // Teacher resource styles
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#999',
+  },
+  emptyState: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#666',
+    marginTop: 16,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  resourceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
   teacherResourceCard: {
-    borderLeftWidth: 3,
+    borderLeftWidth: 4,
     borderLeftColor: '#4CAF50',
+  },
+  resourceIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  resourceContent: {
+    flex: 1,
+  },
+  resourceTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  resourceDescription: {
+    fontSize: 13,
+    color: '#666',
+    lineHeight: 18,
+    marginBottom: 6,
+  },
+  resourceMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  resourceType: {
+    fontSize: 12,
+    color: '#999',
+  },
+  resourceTopic: {
+    fontSize: 12,
+    color: '#5C6BC0',
+    fontWeight: '500',
+  },
+  downloadBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    gap: 4,
+  },
+  downloadBadgeText: {
+    fontSize: 11,
+    color: '#4CAF50',
+    fontWeight: '500',
   },
   teacherBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
     marginBottom: 4,
+    gap: 4,
   },
   teacherBadgeText: {
     fontSize: 11,
     color: '#4CAF50',
+    fontWeight: '500',
+  },
+  infoCard: {
+    flexDirection: 'row',
+    backgroundColor: '#E8EAF6',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    alignItems: 'center',
+    gap: 12,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#5C6BC0',
+    lineHeight: 18,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '90%',
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    gap: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+  },
+  modalBody: {
+    maxHeight: 500,
+  },
+  modalDescription: {
+    fontSize: 15,
+    color: '#666',
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  modalArticle: {
+    fontSize: 15,
+    color: '#333',
+    lineHeight: 24,
+  },
+  pdfSection: {
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  pdfNotice: {
+    alignItems: 'center',
+    backgroundColor: '#FFF3E0',
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 16,
+    width: '100%',
+  },
+  pdfNoticeText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
+  downloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 30,
+    gap: 8,
+  },
+  downloadButtonText: {
+    color: 'white',
+    fontSize: 16,
     fontWeight: '600',
   },
-  resourceTopic: {
-    fontSize: 11,
-    color: '#4CAF50',
-    marginTop: 6,
-    textTransform: 'capitalize',
-    backgroundColor: '#E8F5E9',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
+  sharingInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 6,
+  },
+  sharingInfoText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  ipDisclaimer: {
+    fontSize: 10,
+    fontStyle: 'italic',
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 16,
+    lineHeight: 14,
+    paddingHorizontal: 10,
+  },
+  ratingsSection: {
+    marginTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+    paddingTop: 20,
+  },
+  ratingsSummary: {
+    marginBottom: 16,
+  },
+  ratingsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  averageRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  averageRatingText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  ratingsCount: {
+    fontSize: 14,
+    color: '#999',
+    marginLeft: 4,
+  },
+  noRatingsText: {
+    fontSize: 14,
+    color: '#999',
+  },
+  rateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E8EAF6',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+    marginBottom: 16,
+  },
+  rateButtonText: {
+    color: '#5C6BC0',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  reviewsList: {
+    marginTop: 8,
+  },
+  reviewCard: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  reviewStars: {
+    flexDirection: 'row',
+  },
+  reviewDate: {
+    fontSize: 12,
+    color: '#999',
+  },
+  reviewComment: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+  },
+  ratingModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  ratingModalContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 340,
+  },
+  ratingModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  starRating: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 20,
+  },
+  ratingInput: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
+    color: '#333',
+    minHeight: 80,
+    textAlignVertical: 'top',
+    marginBottom: 20,
+  },
+  ratingButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  submitButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#5C6BC0',
+    alignItems: 'center',
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#CCC',
+  },
+  submitButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

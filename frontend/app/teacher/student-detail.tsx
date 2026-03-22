@@ -30,10 +30,10 @@ const ZONE_COLORS = {
 };
 
 const ZONE_LABELS: Record<string, string> = {
-  blue: 'Blue Zone',
-  green: 'Green Zone',
-  yellow: 'Yellow Zone',
-  red: 'Red Zone',
+  blue: 'Blue Emotions',
+  green: 'Green Emotions',
+  yellow: 'Yellow Emotions',
+  red: 'Red Emotions',
 };
 
 const MONTH_NAMES = [
@@ -237,7 +237,7 @@ export default function StudentDetailScreen() {
             <Text style={[styles.statValue, { color: ZONE_COLORS.green }]}>
               {analytics?.zone_counts.green || 0}
             </Text>
-            <Text style={styles.statLabel}>Green Zone</Text>
+            <Text style={styles.statLabel}>Green Emotions</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>

@@ -13,7 +13,7 @@ const COLOUR_INFO = {
   blue: {
     color: '#5DADE2',
     emoji: '🔋',
-    title: 'Low-Battery',
+    title: 'Blue Emotions',
     feeling: 'Quiet Energy',
     examples: ['Tired', 'Sad', 'Lonely', 'Need Rest'],
     description: 'Your body is moving slowly. This might mean you are feeling tired, a bit lonely, or just need some rest to recharge.',
@@ -21,7 +21,7 @@ const COLOUR_INFO = {
   green: {
     color: '#58D68D',
     emoji: '🌊',
-    title: 'Flow',
+    title: 'Green Emotions',
     feeling: 'Balanced Energy',
     examples: ['Calm', 'Happy', 'Focused', 'Ready to Learn'],
     description: 'You are ready to learn, listen, and play fairly. This is the steady state where you feel comfortable and focused.',
@@ -29,7 +29,7 @@ const COLOUR_INFO = {
   yellow: {
     color: '#F4D03F',
     emoji: '✨',
-    title: 'Spark',
+    title: 'Yellow Emotions',
     feeling: 'Fizzing Energy',
     examples: ['Silly', 'Frustrated', 'Worried', 'Butterflies'],
     description: 'You are starting to lose focus or feeling wobbly. This covers being silly, frustrated, or having butterflies in your stomach.',
@@ -37,7 +37,7 @@ const COLOUR_INFO = {
   red: {
     color: '#EC7063',
     emoji: '🔥',
-    title: 'Power',
+    title: 'Red Emotions',
     feeling: 'Fire Energy',
     examples: ['Super-Charged', 'Very Upset', 'Out of Control', 'Explosive'],
     description: 'This is when your body feels like it\'s moving too fast—think of feelings like being super-charged, extremely upset, or out of control.',

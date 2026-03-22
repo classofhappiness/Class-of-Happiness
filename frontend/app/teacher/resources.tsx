@@ -11,11 +11,13 @@ import {
   TextInput,
   Alert,
   Platform,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { useApp } from '../../src/context/AppContext';
 import { 
   teacherResourcesApi, 
@@ -24,6 +26,8 @@ import {
   TeacherResourceRating,
   authApiExtended
 } from '../../src/utils/api';
+
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://emotion-zones-kids.preview.emergentagent.com';
 
 export default function TeacherResourcesScreen() {
   const router = useRouter();
@@ -59,6 +63,11 @@ export default function TeacherResourcesScreen() {
   const [userComment, setUserComment] = useState('');
   const [ratings, setRatings] = useState<TeacherResourceRating[]>([]);
   const [submittingRating, setSubmittingRating] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  
+  // View resource modal
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [viewingResource, setViewingResource] = useState<TeacherResource | null>(null);
 
   // Set teacher role on page load
   useEffect(() => {
@@ -178,6 +187,56 @@ export default function TeacherResourcesScreen() {
       setRatings(ratingsData);
     } catch (error) {
       console.error('Error fetching ratings:', error);
+    }
+  };
+
+  const handleViewResource = (resource: TeacherResource) => {
+    setViewingResource(resource);
+    setShowViewModal(true);
+  };
+
+  const handleDownloadPdf = async (resource: TeacherResource) => {
+    if (!resource.pdf_filename && !resource.content) {
+      Alert.alert('Error', 'No PDF available for download');
+      return;
+    }
+
+    setDownloading(true);
+    
+    try {
+      const pdfUrl = `${BACKEND_URL}/api/files/${resource.pdf_filename}`;
+      const filename = resource.pdf_filename || `${resource.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
+      
+      if (Platform.OS === 'web') {
+        // Web: Open in new tab
+        Linking.openURL(pdfUrl);
+      } else {
+        // Mobile: Download and share with options
+        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+        
+        const downloadResult = await FileSystem.downloadAsync(pdfUrl, fileUri);
+        
+        if (downloadResult.status === 200) {
+          // Check if sharing is available
+          const canShare = await Sharing.isAvailableAsync();
+          if (canShare) {
+            await Sharing.shareAsync(downloadResult.uri, {
+              mimeType: 'application/pdf',
+              dialogTitle: `Share ${resource.title}`,
+              UTI: 'com.adobe.pdf',
+            });
+          } else {
+            Alert.alert('Success', 'PDF downloaded successfully to your device');
+          }
+        } else {
+          throw new Error('Download failed');
+        }
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      Alert.alert('Error', 'Failed to download PDF. Please try again.');
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -301,7 +360,7 @@ export default function TeacherResourcesScreen() {
             <TouchableOpacity
               key={resource.id}
               style={styles.resourceCard}
-              onPress={() => handleOpenRating(resource)}
+              onPress={() => handleViewResource(resource)}
             >
               <View style={styles.resourceIcon}>
                 <MaterialIcons name="picture-as-pdf" size={32} color="#F44336" />
@@ -465,6 +524,89 @@ export default function TeacherResourcesScreen() {
                   ))}
                 </View>
               )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* View Resource Modal */}
+      <Modal
+        visible={showViewModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowViewModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle} numberOfLines={1}>
+                {viewingResource?.title}
+              </Text>
+              <TouchableOpacity onPress={() => setShowViewModal(false)}>
+                <MaterialIcons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              {/* Resource Info */}
+              <View style={styles.resourceInfo}>
+                <MaterialIcons name="picture-as-pdf" size={48} color="#F44336" />
+                <Text style={styles.resourceInfoTitle}>{viewingResource?.title}</Text>
+                <Text style={styles.resourceInfoDesc}>{viewingResource?.description}</Text>
+                <View style={styles.currentRating}>
+                  {renderStars(viewingResource?.average_rating || 0, 24)}
+                  <Text style={styles.currentRatingText}>
+                    {(viewingResource?.average_rating || 0).toFixed(1)} ({viewingResource?.total_ratings || 0} ratings)
+                  </Text>
+                </View>
+              </View>
+
+              {/* Download Button */}
+              {viewingResource?.pdf_filename && (
+                <View style={styles.downloadSection}>
+                  <TouchableOpacity
+                    style={styles.downloadButton}
+                    onPress={() => handleDownloadPdf(viewingResource)}
+                    disabled={downloading}
+                  >
+                    <MaterialIcons 
+                      name={downloading ? 'hourglass-empty' : 'file-download'} 
+                      size={24} 
+                      color="white" 
+                    />
+                    <Text style={styles.downloadButtonText}>
+                      {downloading ? 'Preparing...' : 'Download & Share PDF'}
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  {/* Sharing options info */}
+                  <View style={styles.sharingInfo}>
+                    <MaterialIcons name="share" size={16} color="#666" />
+                    <Text style={styles.sharingInfoText}>
+                      Save to phone, email, Google Drive, WhatsApp & more
+                    </Text>
+                  </View>
+                  
+                  {/* IP Disclaimer */}
+                  <Text style={styles.ipDisclaimer}>
+                    © {new Date().getFullYear()} Class of Happiness. All rights reserved. 
+                    This material is protected intellectual property. Unauthorized reproduction, 
+                    distribution, or commercial use is strictly prohibited.
+                  </Text>
+                </View>
+              )}
+
+              {/* Rate Button */}
+              <TouchableOpacity
+                style={styles.rateButton}
+                onPress={() => {
+                  setShowViewModal(false);
+                  handleOpenRating(viewingResource!);
+                }}
+              >
+                <MaterialIcons name="rate-review" size={20} color="#5C6BC0" />
+                <Text style={styles.rateButtonText}>Rate this Resource</Text>
+              </TouchableOpacity>
             </ScrollView>
           </View>
         </View>
@@ -784,5 +926,61 @@ const styles = StyleSheet.create({
     color: '#666',
     fontStyle: 'italic',
     marginTop: 8,
+  },
+  downloadSection: {
+    alignItems: 'center',
+    marginVertical: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#F0F0F0',
+  },
+  downloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 30,
+    gap: 10,
+  },
+  downloadButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  sharingInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 6,
+  },
+  sharingInfoText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  ipDisclaimer: {
+    fontSize: 10,
+    fontStyle: 'italic',
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 16,
+    lineHeight: 14,
+    paddingHorizontal: 20,
+  },
+  rateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E8EAF6',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+    marginTop: 20,
+  },
+  rateButtonText: {
+    color: '#5C6BC0',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
