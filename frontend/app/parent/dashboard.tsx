@@ -41,6 +41,16 @@ const ZONE_LABELS: Record<string, string> = {
   red: 'Red Emotions',
 };
 
+const RELATIONSHIP_COLORS: Record<string, string> = {
+  self: '#5C6BC0',
+  partner: '#E91E63',
+  child: '#4CAF50',
+};
+
+const getRelationshipColor = (relationship: string) => {
+  return RELATIONSHIP_COLORS[relationship] || '#5C6BC0';
+};
+
 export default function ParentDashboard() {
   const router = useRouter();
   const { user, presetAvatars, t } = useApp();
@@ -76,6 +86,38 @@ export default function ParentDashboard() {
     avatar_custom: '',
   });
   const [savingMember, setSavingMember] = useState(false);
+  const [deletingMember, setDeletingMember] = useState<string | null>(null);
+
+  // Delete family member
+  const handleDeleteFamilyMember = async (member: FamilyMember) => {
+    Alert.alert(
+      t('delete_member') || 'Delete Family Member',
+      `${t('confirm_delete_member') || 'Are you sure you want to remove'} ${member.name}?`,
+      [
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
+        {
+          text: t('delete') || 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeletingMember(member.id);
+              await familyApi.deleteMember(member.id);
+              setFamilyMembers(prev => prev.filter(m => m.id !== member.id));
+              if (selectedMember?.id === member.id) {
+                setSelectedMember(null);
+              }
+              Alert.alert(t('success') || 'Success', `${member.name} ${t('has_been_removed') || 'has been removed'}`);
+            } catch (error) {
+              console.error('Error deleting family member:', error);
+              Alert.alert(t('error') || 'Error', t('failed_delete_member') || 'Failed to delete family member');
+            } finally {
+              setDeletingMember(null);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   // Helper to get day of week
   const getDayOfWeek = (dateStr: string): string => {
@@ -318,7 +360,20 @@ export default function ParentDashboard() {
                     setSelectedMember(member);
                     setSelectedType('family');
                   }}
+                  onLongPress={() => handleDeleteFamilyMember(member)}
                 >
+                  {/* Delete button */}
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() => handleDeleteFamilyMember(member)}
+                  >
+                    <MaterialIcons 
+                      name="close" 
+                      size={16} 
+                      color={deletingMember === member.id ? '#999' : '#F44336'} 
+                    />
+                  </TouchableOpacity>
+                  
                   {/* Avatar - Support both preset and custom */}
                   {member.avatar_type === 'custom' && member.avatar_custom ? (
                     <Image 
@@ -326,15 +381,15 @@ export default function ParentDashboard() {
                       style={styles.memberAvatarImage} 
                     />
                   ) : (
-                    <View style={styles.memberAvatar}>
+                    <View style={[styles.memberAvatar, { backgroundColor: getRelationshipColor(member.relationship) + '20' }]}>
                       <MaterialIcons 
                         name={member.relationship === 'self' ? 'person' : member.relationship === 'partner' ? 'favorite' : 'child-care'} 
                         size={32} 
-                        color="#5C6BC0" 
+                        color={getRelationshipColor(member.relationship)} 
                       />
                     </View>
                   )}
-                  <Text style={styles.memberName}>{member.name}</Text>
+                  <Text style={styles.memberName} numberOfLines={1}>{member.name}</Text>
                   <Text style={styles.memberRole}>{t(member.relationship)}</Text>
                 </TouchableOpacity>
                 
@@ -347,7 +402,7 @@ export default function ParentDashboard() {
                   })}
                 >
                   <Text style={styles.bigCheckinEmoji}>😊</Text>
-                  <Text style={styles.bigCheckinText}>Check In</Text>
+                  <Text style={styles.bigCheckinText}>{t('check_in') || 'Check In'}</Text>
                 </TouchableOpacity>
               </View>
             ))}
@@ -736,12 +791,14 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
-    marginBottom: 24,
+    marginBottom: 20,
+    marginTop: 8,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: 'bold',
     color: '#333',
+    marginBottom: 4,
   },
   headerSubtitle: {
     fontSize: 16,
@@ -793,15 +850,29 @@ const styles = StyleSheet.create({
   memberCard: {
     alignItems: 'center',
     padding: 12,
+    paddingTop: 24,
     marginHorizontal: 6,
     borderRadius: 16,
     backgroundColor: '#F5F5F5',
-    minWidth: 90,
+    minWidth: 100,
+    position: 'relative',
   },
   memberCardSelected: {
     backgroundColor: '#E3F2FD',
     borderWidth: 2,
     borderColor: '#4A90D9',
+  },
+  deleteButton: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'white',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
   },
   memberAvatar: {
     width: 50,
