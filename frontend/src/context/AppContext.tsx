@@ -386,8 +386,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const checkAuth = useCallback(async () => {
-    // Skip if URL has session_id (let AuthCallback handle it)
-    if (typeof window !== 'undefined' && window.location.hash?.includes('session_id=')) {
+    // Skip if URL has session_id on web (let AuthCallback handle it)
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.hash?.includes('session_id=')) {
       setIsLoading(false);
       return;
     }
@@ -427,7 +427,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // For Expo Go, we need to use the Expo scheme
         // For standalone builds, use the app scheme
         let redirectUrl: string;
-        if (Constants.appOwnership === 'expo') {
+        if (Constants.executionEnvironment === 'storeClient' || Constants.appOwnership === 'expo') {
           // Running in Expo Go
           redirectUrl = ExpoLinking.createURL('auth/callback');
         } else {
@@ -562,8 +562,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // Step 3: Check auth - but don't block on it
         console.log('[AppContext] Checking auth...');
         try {
-          // Skip if URL has session_id (let AuthCallback handle it)
-          if (typeof window !== 'undefined' && window.location.hash?.includes('session_id=')) {
+          // Skip if URL has session_id on web (let AuthCallback handle it)
+          if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.hash?.includes('session_id=')) {
             console.log('[AppContext] Session ID detected, skipping auth check');
           } else {
             const userData = await Promise.race([
