@@ -501,6 +501,7 @@ TRANSLATIONS = {
         "tap_to_check_in": "Tap your picture to check in!",
         "add_profile": "Add Profile",
         "strategies": "Helpful Strategies",
+        "quick_actions": "Quick Actions",
         "skip": "Skip",
         "done": "Done",
         "settings": "Settings",
@@ -578,6 +579,8 @@ TRANSLATIONS = {
         "monthly_reports": "Monthly Reports",
         "hi": "Hi",
         "which_zone": "What colour are you feeling?",
+        "tap_colour": "Tap the colour that matches your feeling",
+        "need_help": "Need help? Tap here!",
         "tap_zone_help": "Tap the color that matches how you feel",
         "choose_strategies": "Choose helpful strategies",
         "want_to_say": "Want to say how you feel?",
@@ -801,6 +804,7 @@ TRANSLATIONS = {
         "tap_to_check_in": "¡Toca tu foto para registrarte!",
         "add_profile": "Agregar Perfil",
         "strategies": "Estrategias Útiles",
+        "quick_actions": "Acciones Rápidas",
         "skip": "Saltar",
         "done": "Listo",
         "settings": "Configuración",
@@ -866,6 +870,8 @@ TRANSLATIONS = {
         "monthly_reports": "Informes Mensuales",
         "hi": "Hola",
         "which_zone": "¿Qué color estás sintiendo?",
+        "tap_colour": "Toca el color que coincida con tu sentimiento",
+        "need_help": "¿Necesitas ayuda? ¡Toca aquí!",
         "tap_zone_help": "Toca el color que coincida con cómo te sientes",
         "choose_strategies": "Elige estrategias útiles",
         "want_to_say": "¿Quieres decir cómo te sientes?",
@@ -1038,6 +1044,7 @@ TRANSLATIONS = {
         "tap_to_check_in": "Tape sur ta photo pour t'enregistrer!",
         "add_profile": "Ajouter Profil",
         "strategies": "Stratégies Utiles",
+        "quick_actions": "Actions Rapides",
         "skip": "Passer",
         "done": "Terminé",
         "settings": "Paramètres",
@@ -1115,6 +1122,8 @@ TRANSLATIONS = {
         "monthly_reports": "Rapports Mensuels",
         "hi": "Salut",
         "which_zone": "Quelle couleur ressens-tu?",
+        "tap_colour": "Tape sur la couleur qui correspond à ton sentiment",
+        "need_help": "Besoin d'aide? Tape ici!",
         "tap_zone_help": "Tape sur la couleur qui correspond à ce que tu ressens",
         "choose_strategies": "Choisis des stratégies utiles",
         "want_to_say": "Tu veux dire comment tu te sens?",
@@ -1330,6 +1339,7 @@ TRANSLATIONS = {
         "tap_to_check_in": "Toque na sua foto para registrar!",
         "add_profile": "Adicionar Perfil",
         "strategies": "Estratégias Úteis",
+        "quick_actions": "Ações Rápidas",
         "skip": "Pular",
         "done": "Pronto",
         "settings": "Configurações",
@@ -1407,6 +1417,8 @@ TRANSLATIONS = {
         "monthly_reports": "Relatórios Mensais",
         "hi": "Oi",
         "which_zone": "Que cor você está sentindo?",
+        "tap_colour": "Toque na cor que corresponde ao seu sentimento",
+        "need_help": "Precisa de ajuda? Toque aqui!",
         "tap_zone_help": "Toque na cor que corresponde a como você se sente",
         "choose_strategies": "Escolha estratégias úteis",
         "want_to_say": "Quer dizer como você se sente?",
@@ -1622,6 +1634,7 @@ TRANSLATIONS = {
         "tap_to_check_in": "Tippe auf dein Bild zum Einchecken!",
         "add_profile": "Profil Hinzufügen",
         "strategies": "Hilfreiche Strategien",
+        "quick_actions": "Schnelle Aktionen",
         "skip": "Überspringen",
         "done": "Fertig",
         "settings": "Einstellungen",
@@ -1699,6 +1712,8 @@ TRANSLATIONS = {
         "monthly_reports": "Monatsberichte",
         "hi": "Hallo",
         "which_zone": "Welche Farbe fühlst du?",
+        "tap_colour": "Tippe auf die Farbe, die zu deinem Gefühl passt",
+        "need_help": "Brauchst du Hilfe? Tippe hier!",
         "tap_zone_help": "Tippe auf die Farbe, die zu deinen Gefühlen passt",
         "choose_strategies": "Wähle hilfreiche Strategien",
         "want_to_say": "Möchtest du sagen, wie du dich fühlst?",
@@ -3425,6 +3440,32 @@ async def get_teacher_resources(topic: Optional[str] = None):
         }
         result.append(resource_data)
     return result
+
+@api_router.get("/teacher-resources/{resource_id}/download")
+async def download_teacher_resource_pdf(resource_id: str):
+    """Download the PDF file for a teacher resource"""
+    resource = await db.teacher_resources.find_one({"id": resource_id, "is_active": True})
+    if not resource:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    
+    if not resource.get("content"):
+        raise HTTPException(status_code=404, detail="No PDF content available")
+    
+    # Decode base64 PDF content
+    try:
+        import base64
+        pdf_content = base64.b64decode(resource["content"])
+        filename = resource.get("pdf_filename", f"{resource['title']}.pdf")
+        
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
 
 @api_router.get("/teacher-resources/{resource_id}")
 async def get_teacher_resource(resource_id: str):

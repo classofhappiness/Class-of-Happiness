@@ -415,6 +415,28 @@ export default function ParentDashboard() {
           </ScrollView>
         </View>
 
+        {/* Quick Actions - Always visible */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('quick_actions') || 'Quick Actions'}</Text>
+          <View style={styles.actionsRow}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => router.push('/parent/strategies')}
+            >
+              <MaterialIcons name="lightbulb" size={24} color="#FFC107" />
+              <Text style={styles.actionButtonText}>{t('strategies')}</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => router.push('/parent/resources')}
+            >
+              <MaterialIcons name="library-books" size={24} color="#5C6BC0" />
+              <Text style={styles.actionButtonText}>{t('resources')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Selected Member Analytics */}
         {selectedMember && (
           <>
@@ -516,28 +538,6 @@ export default function ParentDashboard() {
                   <Text style={styles.noDataText}>{t('no_recent_activity')}</Text>
                 </View>
               )}
-            </View>
-
-            {/* Quick Actions */}
-            <View style={styles.actionsRow}>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => router.push({
-                  pathname: '/parent/strategies',
-                  params: { studentId: selectedMember.id }
-                })}
-              >
-                <MaterialIcons name="lightbulb" size={24} color="#FFC107" />
-                <Text style={styles.actionButtonText}>{t('strategies')}</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => router.push('/parent/resources')}
-              >
-                <MaterialIcons name="library-books" size={24} color="#5C6BC0" />
-                <Text style={styles.actionButtonText}>{t('resources')}</Text>
-              </TouchableOpacity>
             </View>
           </>
         )}

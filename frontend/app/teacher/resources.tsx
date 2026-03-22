@@ -196,7 +196,7 @@ export default function TeacherResourcesScreen() {
   };
 
   const handleDownloadPdf = async (resource: TeacherResource) => {
-    if (!resource.pdf_filename && !resource.content) {
+    if (!resource.pdf_filename && !resource.id) {
       Alert.alert('Error', 'No PDF available for download');
       return;
     }
@@ -204,7 +204,8 @@ export default function TeacherResourcesScreen() {
     setDownloading(true);
     
     try {
-      const pdfUrl = `${BACKEND_URL}/api/files/${resource.pdf_filename}`;
+      // Use the download endpoint
+      const pdfUrl = `${BACKEND_URL}/api/teacher-resources/${resource.id}/download`;
       const filename = resource.pdf_filename || `${resource.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
       
       if (Platform.OS === 'web') {

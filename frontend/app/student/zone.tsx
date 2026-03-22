@@ -12,7 +12,8 @@ const { width } = Dimensions.get('window');
 const COLOUR_INFO = {
   blue: {
     color: '#5DADE2',
-    emoji: '🔋',
+    icon: '🔋',
+    iconColor: '#5DADE2',
     title: 'Blue Emotions',
     feeling: 'Quiet Energy',
     examples: ['Tired', 'Sad', 'Lonely', 'Need Rest'],
@@ -20,7 +21,8 @@ const COLOUR_INFO = {
   },
   green: {
     color: '#58D68D',
-    emoji: '🌊',
+    icon: '🌊',
+    iconColor: '#58D68D',
     title: 'Green Emotions',
     feeling: 'Balanced Energy',
     examples: ['Calm', 'Happy', 'Focused', 'Ready to Learn'],
@@ -28,7 +30,8 @@ const COLOUR_INFO = {
   },
   yellow: {
     color: '#F4D03F',
-    emoji: '✨',
+    icon: '✨',
+    iconColor: '#F4D03F',
     title: 'Yellow Emotions',
     feeling: 'Fizzing Energy',
     examples: ['Silly', 'Frustrated', 'Worried', 'Butterflies'],
@@ -36,7 +39,8 @@ const COLOUR_INFO = {
   },
   red: {
     color: '#EC7063',
-    emoji: '🔥',
+    icon: '🔥',
+    iconColor: '#EC7063',
     title: 'Red Emotions',
     feeling: 'Fire Energy',
     examples: ['Super-Charged', 'Very Upset', 'Out of Control', 'Explosive'],
@@ -88,7 +92,7 @@ export default function ColourSelectionScreen() {
           />
           <View style={styles.greetingText}>
             <Text style={styles.greetingHi}>{t('hi')}, {currentStudent.name}!</Text>
-            <Text style={styles.greetingQuestion}>Which colour matches how you feel?</Text>
+            <Text style={styles.greetingQuestion}>{t('which_zone')}</Text>
           </View>
         </View>
 
@@ -99,11 +103,13 @@ export default function ColourSelectionScreen() {
               zone="blue"
               onPress={() => handleSelectColour('blue')}
               size="large"
+              translations={translations}
             />
             <ZoneButton
               zone="green"
               onPress={() => handleSelectColour('green')}
               size="large"
+              translations={translations}
             />
           </View>
           <View style={styles.colourRow}>
@@ -111,16 +117,18 @@ export default function ColourSelectionScreen() {
               zone="yellow"
               onPress={() => handleSelectColour('yellow')}
               size="large"
+              translations={translations}
             />
             <ZoneButton
               zone="red"
               onPress={() => handleSelectColour('red')}
               size="large"
+              translations={translations}
             />
           </View>
         </View>
 
-        <Text style={styles.helpText}>Tap the colour that matches your feeling</Text>
+        <Text style={styles.helpText}>{t('tap_colour') || 'Tap the colour that matches your feeling'}</Text>
 
         {/* Help Button - Simple for kids */}
         <TouchableOpacity 
@@ -128,7 +136,7 @@ export default function ColourSelectionScreen() {
           onPress={() => setShowHelp(true)}
         >
           <MaterialIcons name="help-outline" size={20} color="#5C6BC0" />
-          <Text style={styles.helpButtonText}>Need help? Tap here!</Text>
+          <Text style={styles.helpButtonText}>{t('need_help') || 'Need help? Tap here!'}</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -159,7 +167,9 @@ export default function ColourSelectionScreen() {
               {/* Blue - Low-Battery */}
               <View style={[styles.colourInfoCard, { borderLeftColor: COLOUR_INFO.blue.color }]}>
                 <View style={styles.colourInfoHeader}>
-                  <Text style={styles.colourEmoji}>{COLOUR_INFO.blue.emoji}</Text>
+                  <View style={[styles.iconContainer, { backgroundColor: COLOUR_INFO.blue.color + '20' }]}>
+                    <MaterialIcons name="battery-charging-full" size={28} color={COLOUR_INFO.blue.color} />
+                  </View>
                   <View style={styles.colourTitleContainer}>
                     <Text style={[styles.colourTitle, { color: COLOUR_INFO.blue.color }]}>
                       {COLOUR_INFO.blue.title}
@@ -180,7 +190,9 @@ export default function ColourSelectionScreen() {
               {/* Green - Flow */}
               <View style={[styles.colourInfoCard, { borderLeftColor: COLOUR_INFO.green.color }]}>
                 <View style={styles.colourInfoHeader}>
-                  <Text style={styles.colourEmoji}>{COLOUR_INFO.green.emoji}</Text>
+                  <View style={[styles.iconContainer, { backgroundColor: COLOUR_INFO.green.color + '20' }]}>
+                    <MaterialIcons name="waves" size={28} color={COLOUR_INFO.green.color} />
+                  </View>
                   <View style={styles.colourTitleContainer}>
                     <Text style={[styles.colourTitle, { color: COLOUR_INFO.green.color }]}>
                       {COLOUR_INFO.green.title}
@@ -201,7 +213,9 @@ export default function ColourSelectionScreen() {
               {/* Yellow - Spark */}
               <View style={[styles.colourInfoCard, { borderLeftColor: COLOUR_INFO.yellow.color }]}>
                 <View style={styles.colourInfoHeader}>
-                  <Text style={styles.colourEmoji}>{COLOUR_INFO.yellow.emoji}</Text>
+                  <View style={[styles.iconContainer, { backgroundColor: COLOUR_INFO.yellow.color + '20' }]}>
+                    <MaterialIcons name="flash-on" size={28} color={COLOUR_INFO.yellow.color} />
+                  </View>
                   <View style={styles.colourTitleContainer}>
                     <Text style={[styles.colourTitle, { color: COLOUR_INFO.yellow.color }]}>
                       {COLOUR_INFO.yellow.title}
@@ -222,7 +236,9 @@ export default function ColourSelectionScreen() {
               {/* Red - Power */}
               <View style={[styles.colourInfoCard, { borderLeftColor: COLOUR_INFO.red.color }]}>
                 <View style={styles.colourInfoHeader}>
-                  <Text style={styles.colourEmoji}>{COLOUR_INFO.red.emoji}</Text>
+                  <View style={[styles.iconContainer, { backgroundColor: COLOUR_INFO.red.color + '20' }]}>
+                    <MaterialIcons name="local-fire-department" size={28} color={COLOUR_INFO.red.color} />
+                  </View>
                   <View style={styles.colourTitleContainer}>
                     <Text style={[styles.colourTitle, { color: COLOUR_INFO.red.color }]}>
                       {COLOUR_INFO.red.title}
@@ -376,6 +392,13 @@ const styles = StyleSheet.create({
   },
   colourEmoji: {
     fontSize: 32,
+  },
+  iconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   colourTitleContainer: {
     flex: 1,
