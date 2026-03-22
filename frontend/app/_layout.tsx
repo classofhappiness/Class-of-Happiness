@@ -15,11 +15,11 @@ const HeaderWithBackAndLogo = ({ canGoBack }: { canGoBack?: boolean }) => {
   const router = useRouter();
   
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 4 }}>
+    <View style={styles.headerLeftContainer}>
       {canGoBack && (
         <TouchableOpacity 
           onPress={() => router.back()} 
-          style={{ padding: 8, marginRight: 4 }}
+          style={styles.backButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <MaterialIcons name="arrow-back-ios" size={22} color="#333" />
@@ -27,12 +27,29 @@ const HeaderWithBackAndLogo = ({ canGoBack }: { canGoBack?: boolean }) => {
       )}
       <Image
         source={require('../assets/images/logo_coh.png')}
-        style={{ width: 28, height: 28 }}
+        style={styles.headerLogo}
         resizeMode="contain"
       />
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  headerLeftContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+    paddingTop: Platform.OS === 'ios' ? 4 : 8,
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 6,
+  },
+  headerLogo: {
+    width: 30,
+    height: 30,
+  },
+});
 
 export default function RootLayout() {
   return (

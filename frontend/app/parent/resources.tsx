@@ -470,7 +470,7 @@ export default function ResourcesScreen() {
                                   key={star}
                                   name={star <= rating.rating ? 'star' : 'star-border'}
                                   size={16}
-                                  color="#FFB300"
+                                  color="#4CAF50"
                                 />
                               ))}
                             </View>
@@ -512,11 +512,13 @@ export default function ResourcesScreen() {
                 <TouchableOpacity
                   key={star}
                   onPress={() => setSelectedRating(star)}
+                  style={styles.interactiveStar}
+                  activeOpacity={0.6}
                 >
                   <MaterialIcons
                     name={star <= selectedRating ? 'star' : 'star-border'}
-                    size={40}
-                    color="#FFB300"
+                    size={44}
+                    color={star <= selectedRating ? '#4CAF50' : '#E0E0E0'}
                   />
                 </TouchableOpacity>
               ))}
@@ -944,6 +946,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     marginBottom: 20,
+  },
+  interactiveStar: {
+    padding: 6,
+    borderRadius: 8,
   },
   ratingInput: {
     backgroundColor: '#F5F5F5',

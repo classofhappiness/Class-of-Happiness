@@ -269,11 +269,13 @@ export default function TeacherResourcesScreen() {
           key={i}
           disabled={!interactive}
           onPress={() => interactive && setUserRating(i)}
+          style={interactive ? styles.interactiveStar : undefined}
+          activeOpacity={interactive ? 0.6 : 1}
         >
           <MaterialIcons
             name={i <= rating ? 'star' : 'star-border'}
             size={size}
-            color="#FFC107"
+            color={interactive ? (i <= rating ? '#4CAF50' : '#E0E0E0') : '#4CAF50'}
           />
         </TouchableOpacity>
       );
@@ -890,8 +892,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   starRating: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
+    gap: 8,
+  },
+  interactiveStar: {
+    padding: 6,
+    borderRadius: 8,
   },
   charCounter: {
     fontSize: 12,
