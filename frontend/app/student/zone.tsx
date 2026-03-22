@@ -8,45 +8,41 @@ import { Avatar } from '../../src/components/Avatar';
 
 const { width } = Dimensions.get('window');
 
-// Colour of Emotion info for kids - simple and friendly
-const COLOUR_INFO = {
+// Colour of Emotion info for kids - will use translations
+const getColourInfo = (t: (key: string) => string) => ({
   blue: {
     color: '#5DADE2',
-    icon: '🔋',
-    iconColor: '#5DADE2',
-    title: 'Blue Emotions',
-    feeling: 'Quiet Energy',
-    examples: ['Tired', 'Sad', 'Lonely', 'Need Rest'],
-    description: 'Your body is moving slowly. This might mean you are feeling tired, a bit lonely, or just need some rest to recharge.',
+    icon: 'battery-charging-full',
+    title: t('blue_zone') || 'Blue Emotions',
+    feeling: t('blue_feeling') || 'Quiet Energy',
+    examples: [t('tired') || 'Tired', t('sad') || 'Sad', t('lonely') || 'Lonely', t('need_rest') || 'Need Rest'],
+    description: t('blue_description') || 'Your body is moving slowly. This might mean you are feeling tired, a bit lonely, or just need some rest to recharge.',
   },
   green: {
     color: '#58D68D',
-    icon: '🌊',
-    iconColor: '#58D68D',
-    title: 'Green Emotions',
-    feeling: 'Balanced Energy',
-    examples: ['Calm', 'Happy', 'Focused', 'Ready to Learn'],
-    description: 'You are ready to learn, listen, and play fairly. This is the steady state where you feel comfortable and focused.',
+    icon: 'waves',
+    title: t('green_zone') || 'Green Emotions',
+    feeling: t('green_feeling') || 'Balanced Energy',
+    examples: [t('calm') || 'Calm', t('happy') || 'Happy', t('focused') || 'Focused', t('ready_to_learn') || 'Ready to Learn'],
+    description: t('green_description') || 'You are ready to learn, listen, and play fairly. This is the steady state where you feel comfortable and focused.',
   },
   yellow: {
     color: '#F4D03F',
-    icon: '✨',
-    iconColor: '#F4D03F',
-    title: 'Yellow Emotions',
-    feeling: 'Fizzing Energy',
-    examples: ['Silly', 'Frustrated', 'Worried', 'Butterflies'],
-    description: 'You are starting to lose focus or feeling wobbly. This covers being silly, frustrated, or having butterflies in your stomach.',
+    icon: 'flash-on',
+    title: t('yellow_zone') || 'Yellow Emotions',
+    feeling: t('yellow_feeling') || 'Fizzing Energy',
+    examples: [t('silly') || 'Silly', t('frustrated') || 'Frustrated', t('worried') || 'Worried', t('butterflies') || 'Butterflies'],
+    description: t('yellow_description') || 'You are starting to lose focus or feeling wobbly. This covers being silly, frustrated, or having butterflies in your stomach.',
   },
   red: {
     color: '#EC7063',
-    icon: '🔥',
-    iconColor: '#EC7063',
-    title: 'Red Emotions',
-    feeling: 'Fire Energy',
-    examples: ['Super-Charged', 'Very Upset', 'Out of Control', 'Explosive'],
-    description: 'This is when your body feels like it\'s moving too fast—think of feelings like being super-charged, extremely upset, or out of control.',
+    icon: 'local-fire-department',
+    title: t('red_zone') || 'Red Emotions',
+    feeling: t('red_feeling') || 'Fire Energy',
+    examples: [t('super_charged') || 'Super-Charged', t('very_upset') || 'Very Upset', t('out_of_control') || 'Out of Control', t('explosive') || 'Explosive'],
+    description: t('red_description') || 'This is when your body feels like it\'s moving too fast—think of feelings like being super-charged, extremely upset, or out of control.',
   },
-};
+});
 
 export default function ColourSelectionScreen() {
   const router = useRouter();
@@ -150,7 +146,7 @@ export default function ColourSelectionScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>What do the colours mean?</Text>
+              <Text style={styles.modalTitle}>{t('what_colours_mean') || 'What do the colours mean?'}</Text>
               <TouchableOpacity 
                 onPress={() => setShowHelp(false)}
                 style={styles.closeButton}
@@ -165,68 +161,68 @@ export default function ColourSelectionScreen() {
               contentContainerStyle={styles.colourListContent}
             >
               {/* Blue - Low-Battery */}
-              <View style={[styles.colourInfoCard, { borderLeftColor: COLOUR_INFO.blue.color }]}>
+              <View style={[styles.colourInfoCard, { borderLeftColor: getColourInfo(t).blue.color }]}>
                 <View style={styles.colourInfoHeader}>
-                  <View style={[styles.iconContainer, { backgroundColor: COLOUR_INFO.blue.color + '20' }]}>
-                    <MaterialIcons name="battery-charging-full" size={28} color={COLOUR_INFO.blue.color} />
+                  <View style={[styles.iconContainer, { backgroundColor: getColourInfo(t).blue.color + '20' }]}>
+                    <MaterialIcons name="battery-charging-full" size={28} color={getColourInfo(t).blue.color} />
                   </View>
                   <View style={styles.colourTitleContainer}>
-                    <Text style={[styles.colourTitle, { color: COLOUR_INFO.blue.color }]}>
-                      {COLOUR_INFO.blue.title}
+                    <Text style={[styles.colourTitle, { color: getColourInfo(t).blue.color }]}>
+                      {getColourInfo(t).blue.title}
                     </Text>
-                    <Text style={styles.colourFeeling}>{COLOUR_INFO.blue.feeling}</Text>
+                    <Text style={styles.colourFeeling}>{getColourInfo(t).blue.feeling}</Text>
                   </View>
                 </View>
                 <View style={styles.exampleTags}>
-                  {COLOUR_INFO.blue.examples.map((example, i) => (
-                    <View key={i} style={[styles.exampleTag, { backgroundColor: COLOUR_INFO.blue.color + '25' }]}>
-                      <Text style={[styles.exampleText, { color: COLOUR_INFO.blue.color }]}>{example}</Text>
+                  {getColourInfo(t).blue.examples.map((example, i) => (
+                    <View key={i} style={[styles.exampleTag, { backgroundColor: getColourInfo(t).blue.color + '25' }]}>
+                      <Text style={[styles.exampleText, { color: getColourInfo(t).blue.color }]}>{example}</Text>
                     </View>
                   ))}
                 </View>
-                <Text style={styles.colourDescription}>{COLOUR_INFO.blue.description}</Text>
+                <Text style={styles.colourDescription}>{getColourInfo(t).blue.description}</Text>
               </View>
 
               {/* Green - Flow */}
-              <View style={[styles.colourInfoCard, { borderLeftColor: COLOUR_INFO.green.color }]}>
+              <View style={[styles.colourInfoCard, { borderLeftColor: getColourInfo(t).green.color }]}>
                 <View style={styles.colourInfoHeader}>
-                  <View style={[styles.iconContainer, { backgroundColor: COLOUR_INFO.green.color + '20' }]}>
-                    <MaterialIcons name="waves" size={28} color={COLOUR_INFO.green.color} />
+                  <View style={[styles.iconContainer, { backgroundColor: getColourInfo(t).green.color + '20' }]}>
+                    <MaterialIcons name="waves" size={28} color={getColourInfo(t).green.color} />
                   </View>
                   <View style={styles.colourTitleContainer}>
-                    <Text style={[styles.colourTitle, { color: COLOUR_INFO.green.color }]}>
-                      {COLOUR_INFO.green.title}
+                    <Text style={[styles.colourTitle, { color: getColourInfo(t).green.color }]}>
+                      {getColourInfo(t).green.title}
                     </Text>
-                    <Text style={styles.colourFeeling}>{COLOUR_INFO.green.feeling}</Text>
+                    <Text style={styles.colourFeeling}>{getColourInfo(t).green.feeling}</Text>
                   </View>
                 </View>
                 <View style={styles.exampleTags}>
-                  {COLOUR_INFO.green.examples.map((example, i) => (
-                    <View key={i} style={[styles.exampleTag, { backgroundColor: COLOUR_INFO.green.color + '25' }]}>
-                      <Text style={[styles.exampleText, { color: COLOUR_INFO.green.color }]}>{example}</Text>
+                  {getColourInfo(t).green.examples.map((example, i) => (
+                    <View key={i} style={[styles.exampleTag, { backgroundColor: getColourInfo(t).green.color + '25' }]}>
+                      <Text style={[styles.exampleText, { color: getColourInfo(t).green.color }]}>{example}</Text>
                     </View>
                   ))}
                 </View>
-                <Text style={styles.colourDescription}>{COLOUR_INFO.green.description}</Text>
+                <Text style={styles.colourDescription}>{getColourInfo(t).green.description}</Text>
               </View>
 
               {/* Yellow - Spark */}
-              <View style={[styles.colourInfoCard, { borderLeftColor: COLOUR_INFO.yellow.color }]}>
+              <View style={[styles.colourInfoCard, { borderLeftColor: getColourInfo(t).yellow.color }]}>
                 <View style={styles.colourInfoHeader}>
-                  <View style={[styles.iconContainer, { backgroundColor: COLOUR_INFO.yellow.color + '20' }]}>
-                    <MaterialIcons name="flash-on" size={28} color={COLOUR_INFO.yellow.color} />
+                  <View style={[styles.iconContainer, { backgroundColor: getColourInfo(t).yellow.color + '20' }]}>
+                    <MaterialIcons name="flash-on" size={28} color={getColourInfo(t).yellow.color} />
                   </View>
                   <View style={styles.colourTitleContainer}>
-                    <Text style={[styles.colourTitle, { color: COLOUR_INFO.yellow.color }]}>
-                      {COLOUR_INFO.yellow.title}
+                    <Text style={[styles.colourTitle, { color: getColourInfo(t).yellow.color }]}>
+                      {getColourInfo(t).yellow.title}
                     </Text>
-                    <Text style={styles.colourFeeling}>{COLOUR_INFO.yellow.feeling}</Text>
+                    <Text style={styles.colourFeeling}>{getColourInfo(t).yellow.feeling}</Text>
                   </View>
                 </View>
                 <View style={styles.exampleTags}>
-                  {COLOUR_INFO.yellow.examples.map((example, i) => (
-                    <View key={i} style={[styles.exampleTag, { backgroundColor: COLOUR_INFO.yellow.color + '25' }]}>
-                      <Text style={[styles.exampleText, { color: COLOUR_INFO.yellow.color }]}>{example}</Text>
+                  {getColourInfo(t).yellow.examples.map((example, i) => (
+                    <View key={i} style={[styles.exampleTag, { backgroundColor: getColourInfo(t).yellow.color + '25' }]}>
+                      <Text style={[styles.exampleText, { color: getColourInfo(t).yellow.color }]}>{example}</Text>
                     </View>
                   ))}
                 </View>
@@ -234,26 +230,26 @@ export default function ColourSelectionScreen() {
               </View>
 
               {/* Red - Power */}
-              <View style={[styles.colourInfoCard, { borderLeftColor: COLOUR_INFO.red.color }]}>
+              <View style={[styles.colourInfoCard, { borderLeftColor: getColourInfo(t).red.color }]}>
                 <View style={styles.colourInfoHeader}>
-                  <View style={[styles.iconContainer, { backgroundColor: COLOUR_INFO.red.color + '20' }]}>
-                    <MaterialIcons name="local-fire-department" size={28} color={COLOUR_INFO.red.color} />
+                  <View style={[styles.iconContainer, { backgroundColor: getColourInfo(t).red.color + '20' }]}>
+                    <MaterialIcons name="local-fire-department" size={28} color={getColourInfo(t).red.color} />
                   </View>
                   <View style={styles.colourTitleContainer}>
-                    <Text style={[styles.colourTitle, { color: COLOUR_INFO.red.color }]}>
-                      {COLOUR_INFO.red.title}
+                    <Text style={[styles.colourTitle, { color: getColourInfo(t).red.color }]}>
+                      {getColourInfo(t).red.title}
                     </Text>
-                    <Text style={styles.colourFeeling}>{COLOUR_INFO.red.feeling}</Text>
+                    <Text style={styles.colourFeeling}>{getColourInfo(t).red.feeling}</Text>
                   </View>
                 </View>
                 <View style={styles.exampleTags}>
-                  {COLOUR_INFO.red.examples.map((example, i) => (
-                    <View key={i} style={[styles.exampleTag, { backgroundColor: COLOUR_INFO.red.color + '25' }]}>
-                      <Text style={[styles.exampleText, { color: COLOUR_INFO.red.color }]}>{example}</Text>
+                  {getColourInfo(t).red.examples.map((example, i) => (
+                    <View key={i} style={[styles.exampleTag, { backgroundColor: getColourInfo(t).red.color + '25' }]}>
+                      <Text style={[styles.exampleText, { color: getColourInfo(t).red.color }]}>{example}</Text>
                     </View>
                   ))}
                 </View>
-                <Text style={styles.colourDescription}>{COLOUR_INFO.red.description}</Text>
+                <Text style={styles.colourDescription}>{getColourInfo(t).red.description}</Text>
               </View>
             </ScrollView>
 

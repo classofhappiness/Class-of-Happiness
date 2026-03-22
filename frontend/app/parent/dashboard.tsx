@@ -545,14 +545,14 @@ export default function ParentDashboard() {
               {/* Weekly Table View - All 7 days */}
               <View style={styles.weeklyTable}>
                 <View style={styles.weeklyHeader}>
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                  {[t('day_sun') || 'Sun', t('day_mon') || 'Mon', t('day_tue') || 'Tue', t('day_wed') || 'Wed', t('day_thu') || 'Thu', t('day_fri') || 'Fri', t('day_sat') || 'Sat'].map((day) => (
                     <View key={day} style={styles.weeklyDayHeader}>
                       <Text style={styles.weeklyDayText}>{day}</Text>
                     </View>
                   ))}
                 </View>
                 <View style={styles.weeklyBody}>
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => {
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => {
                     const dayData = getWeeklyLogs()[day];
                     return (
                       <View key={day} style={styles.weeklyDayCell}>
