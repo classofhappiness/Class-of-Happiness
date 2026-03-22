@@ -126,9 +126,9 @@ export default function ParentDashboard() {
     return days[date.getDay()];
   };
 
-  // Group logs by day for weekly view
+  // Group logs by day for weekly view - all 7 days
   const getWeeklyLogs = () => {
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const weekData: Record<string, { logs: (ZoneLog | FamilyZoneLog)[], times: string[] }> = {};
     days.forEach(day => { weekData[day] = { logs: [], times: [] }; });
     
@@ -538,17 +538,17 @@ export default function ParentDashboard() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{t('recent_check_ins')}</Text>
               
-              {/* Weekly Table View */}
+              {/* Weekly Table View - All 7 days */}
               <View style={styles.weeklyTable}>
                 <View style={styles.weeklyHeader}>
-                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((day) => (
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
                     <View key={day} style={styles.weeklyDayHeader}>
                       <Text style={styles.weeklyDayText}>{day}</Text>
                     </View>
                   ))}
                 </View>
                 <View style={styles.weeklyBody}>
-                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((day) => {
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => {
                     const dayData = getWeeklyLogs()[day];
                     return (
                       <View key={day} style={styles.weeklyDayCell}>

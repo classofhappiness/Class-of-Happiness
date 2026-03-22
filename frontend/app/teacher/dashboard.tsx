@@ -93,6 +93,30 @@ export default function TeacherDashboardScreen() {
     return date.toLocaleDateString();
   };
 
+  // Helper to get day of week
+  const getDayOfWeek = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return days[date.getDay()];
+  };
+
+  // Group logs by day for weekly view - all 7 days
+  const getWeeklyLogs = () => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const weekData: Record<string, { logs: ZoneLog[], times: string[] }> = {};
+    days.forEach(day => { weekData[day] = { logs: [], times: [] }; });
+    
+    recentLogs.forEach(log => {
+      const day = getDayOfWeek(log.timestamp);
+      if (weekData[day]) {
+        const time = new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        weekData[day].logs.push(log);
+        weekData[day].times.push(time);
+      }
+    });
+    return weekData;
+  };
+
   const chartData = analytics ? [
     { value: analytics.zone_counts.blue, frontColor: ZONE_COLORS.blue, label: 'Blue' },
     { value: analytics.zone_counts.green, frontColor: ZONE_COLORS.green, label: 'Green' },
@@ -235,6 +259,40 @@ export default function TeacherDashboardScreen() {
         {/* Recent Check-ins */}
         <View style={styles.recentSection}>
           <Text style={styles.sectionTitle}>{t('recent_check_ins')}</Text>
+          
+          {/* Weekly Table View - All 7 days */}
+          <View style={styles.weeklyTable}>
+            <View style={styles.weeklyHeader}>
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                <View key={day} style={styles.weeklyDayHeader}>
+                  <Text style={styles.weeklyDayText}>{day}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={styles.weeklyBody}>
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => {
+                const dayData = getWeeklyLogs()[day];
+                return (
+                  <View key={day} style={styles.weeklyDayCell}>
+                    {dayData.logs.length > 0 ? (
+                      dayData.logs.slice(0, 3).map((log, idx) => (
+                        <View key={idx} style={styles.weeklyLogItem}>
+                          <View style={[styles.weeklyZoneDot, { backgroundColor: ZONE_COLORS[log.zone] }]} />
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={styles.weeklyNoData}>-</Text>
+                    )}
+                    {dayData.logs.length > 0 && (
+                      <Text style={styles.weeklyCount}>{dayData.logs.length}</Text>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+          
+          {/* Recent logs list */}
           {recentLogs.length > 0 ? (
             recentLogs.slice(0, 10).map((log) => {
               const student = getStudent(log.student_id);
@@ -481,5 +539,53 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#999',
     marginTop: 12,
+  },
+  weeklyTable: {
+    marginBottom: 20,
+    borderRadius: 12,
+    backgroundColor: '#F8F9FA',
+    overflow: 'hidden',
+  },
+  weeklyHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#5C6BC0',
+  },
+  weeklyDayHeader: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  weeklyDayText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'white',
+  },
+  weeklyBody: {
+    flexDirection: 'row',
+  },
+  weeklyDayCell: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    minHeight: 70,
+    borderRightWidth: 1,
+    borderRightColor: '#E0E0E0',
+  },
+  weeklyLogItem: {
+    marginVertical: 2,
+  },
+  weeklyZoneDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+  },
+  weeklyNoData: {
+    fontSize: 16,
+    color: '#CCC',
+  },
+  weeklyCount: {
+    fontSize: 10,
+    color: '#666',
+    marginTop: 4,
   },
 });
