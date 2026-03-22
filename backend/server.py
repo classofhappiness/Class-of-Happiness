@@ -367,10 +367,11 @@ CREATURES = [
 
 # Points configuration - reduced thresholds for faster evolution
 POINTS_CONFIG = {
-    "strategy_used": 5,
-    "comment_added": 10,
-    "daily_streak_bonus": 3,
-    "evolution_thresholds": [0, 15, 35, 60]  # Much faster evolution!
+    "strategy_used": 10,        # 10 points per strategy (was 5)
+    "comment_added": 15,        # 15 points for sharing feelings (was 10)
+    "daily_streak_bonus": 8,    # 8 points streak bonus (was 3)
+    "zone_checkin": 5,          # 5 points just for checking in
+    "evolution_thresholds": [0, 12, 28, 50]  # Faster evolution! (was 15, 35, 60)
 }
 
 # Student Rewards Model
@@ -448,6 +449,7 @@ DEFAULT_STRATEGIES = [
     {"id": "blue_4", "name": "Take a Break", "description": "Rest for a few minutes", "zone": "blue", "icon": "weekend", "image_type": "icon"},
     {"id": "blue_5", "name": "Listen to Music", "description": "Put on your favorite upbeat song", "zone": "blue", "icon": "music-note", "image_type": "icon"},
     {"id": "blue_6", "name": "Go Outside", "description": "Get some fresh air", "zone": "blue", "icon": "wb-sunny", "image_type": "icon"},
+    {"id": "blue_7", "name": "Ask for a Hug", "description": "A warm hug can make you feel better", "zone": "blue", "icon": "favorite", "image_type": "icon"},
     
     # Green Zone (Ready to learn - calm, happy, focused)
     {"id": "green_1", "name": "Keep Going!", "description": "You're doing great, stay focused", "zone": "green", "icon": "thumb-up", "image_type": "icon"},
@@ -2546,16 +2548,36 @@ async def create_zone_log(log: ZoneLogCreate, request: Request = None):
 async def get_zone_logs(
     student_id: Optional[str] = None,
     classroom_id: Optional[str] = None,
-    days: int = 7
+    days: int = 7,
+    request: Request = None
 ):
+    user = await get_current_user(request)
     start_date = datetime.utcnow() - timedelta(days=days)
     query = {"timestamp": {"$gte": start_date}}
     
     if student_id:
+        # Verify student belongs to user
+        if user:
+            student = await db.students.find_one({"id": student_id, "user_id": user.user_id})
+            if not student:
+                return []  # Return empty if student doesn't belong to user
         query["student_id"] = student_id
     elif classroom_id:
-        students = await db.students.find({"classroom_id": classroom_id}).to_list(1000)
+        # Get only students belonging to user
+        student_query = {"classroom_id": classroom_id}
+        if user:
+            student_query["user_id"] = user.user_id
+        students = await db.students.find(student_query).to_list(1000)
         student_ids = [s["id"] for s in students]
+        if not student_ids:
+            return []  # Return empty if no students found
+        query["student_id"] = {"$in": student_ids}
+    elif user:
+        # No specific filter, get all students belonging to user
+        students = await db.students.find({"user_id": user.user_id}).to_list(1000)
+        student_ids = [s["id"] for s in students]
+        if not student_ids:
+            return []  # Return empty if no students found
         query["student_id"] = {"$in": student_ids}
     
     logs = await db.zone_logs.find(query).sort("timestamp", -1).to_list(1000)
@@ -3755,6 +3777,8 @@ async def add_points_to_student(student_id: str, request: AddPointsRequest):
         points_to_add = POINTS_CONFIG["comment_added"]
     elif request.points_type == "streak":
         points_to_add = POINTS_CONFIG["daily_streak_bonus"]
+    elif request.points_type == "checkin":
+        points_to_add = POINTS_CONFIG["zone_checkin"]
     
     # Update streak
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")

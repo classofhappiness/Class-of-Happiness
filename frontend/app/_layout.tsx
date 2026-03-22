@@ -1,21 +1,25 @@
 import React from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Image, View, StyleSheet } from 'react-native';
+import { Image, View, StyleSheet, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import { AppProvider } from '../src/context/AppContext';
 
 // Warm up browser and allow completing auth sessions
 WebBrowser.maybeCompleteAuthSession();
 
-// Small logo component for headers
-const HeaderLogo = () => (
-  <Image
-    source={require('../assets/images/logo_coh.png')}
-    style={{ width: 28, height: 28, marginLeft: 16, marginRight: 8 }}
-    resizeMode="contain"
-  />
-);
+// Small logo component for headers with safe area padding
+const HeaderLogo = () => {
+  const insets = useSafeAreaInsets();
+  return (
+    <Image
+      source={require('../assets/images/logo_coh.png')}
+      style={{ width: 28, height: 28, marginLeft: 8 }}
+      resizeMode="contain"
+    />
+  );
+};
 
 export default function RootLayout() {
   return (
@@ -158,29 +162,29 @@ export default function RootLayout() {
         <Stack.Screen 
           name="parent/dashboard" 
           options={{ 
-            headerShown: false,
-            title: 'Parent Dashboard',
+            title: 'Family Dashboard',
+            headerBackTitle: 'Home',
           }} 
         />
         <Stack.Screen 
           name="parent/resources" 
           options={{ 
-            headerShown: false,
             title: 'Resources',
+            headerBackTitle: 'Dashboard',
           }} 
         />
         <Stack.Screen 
           name="parent/strategies" 
           options={{ 
-            headerShown: false,
-            title: 'Strategies',
+            title: "My Family's Strategies",
+            headerBackTitle: 'Dashboard',
           }} 
         />
         <Stack.Screen 
           name="parent/checkin" 
           options={{ 
-            headerShown: false,
             title: 'Check-in',
+            headerBackTitle: 'Dashboard',
           }} 
         />
       </Stack>

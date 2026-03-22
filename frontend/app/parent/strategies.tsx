@@ -117,7 +117,7 @@ export default function ParentStrategiesScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>
-            {student?.name}'s Strategies
+            My Family's Strategies
           </Text>
           <Text style={styles.headerSubtitle}>
             Create and manage coping strategies for your child

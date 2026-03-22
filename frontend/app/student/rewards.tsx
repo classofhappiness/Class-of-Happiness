@@ -53,37 +53,17 @@ export default function RewardsScreen() {
       const strategiesCount = params.strategiesUsed ? parseInt(params.strategiesUsed) : 0;
       const hasComment = params.hasComment === 'true';
 
-      // Add points for strategies used
-      let response: AddPointsResponse | null = null;
-      
+      // Always add points for checking in!
+      let response: AddPointsResponse = await rewardsApi.addPoints(currentStudent.id, 'checkin');
+
+      // Add bonus points for strategies used
       if (strategiesCount > 0) {
         response = await rewardsApi.addPoints(currentStudent.id, 'strategy', strategiesCount);
       }
 
-      // Add points for comment if present
+      // Add bonus points for comment if present
       if (hasComment) {
         response = await rewardsApi.addPoints(currentStudent.id, 'comment');
-      }
-
-      // If no strategies and no comment, just fetch current state
-      if (!response) {
-        const rewards = await rewardsApi.getStudentRewards(currentStudent.id);
-        response = {
-          points_added: 0,
-          streak_bonus: 0,
-          current_points: rewards.current_points,
-          total_points_earned: rewards.total_points_earned,
-          current_stage: rewards.current_stage,
-          current_creature: rewards.current_creature,
-          current_stage_info: rewards.current_stage_info,
-          points_for_next_evolution: rewards.points_for_next_evolution,
-          evolved: false,
-          evolution_info: null,
-          completed_creature: false,
-          new_creature_started: false,
-          collected_creatures: rewards.collected_creatures,
-          streak_days: rewards.streak_days,
-        };
       }
 
       setRewardsData(response);

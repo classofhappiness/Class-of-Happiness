@@ -547,7 +547,7 @@ export const rewardsApi = {
   getStudentRewards: (studentId: string): Promise<StudentRewards> =>
     apiRequest(`/rewards/${studentId}`),
   
-  addPoints: (studentId: string, pointsType: 'strategy' | 'comment' | 'streak', strategyCount: number = 1): Promise<AddPointsResponse> =>
+  addPoints: (studentId: string, pointsType: 'strategy' | 'comment' | 'streak' | 'checkin', strategyCount: number = 1): Promise<AddPointsResponse> =>
     apiRequest(`/rewards/${studentId}/add-points`, {
       method: 'POST',
       body: JSON.stringify({ points_type: pointsType, strategy_count: strategyCount })
