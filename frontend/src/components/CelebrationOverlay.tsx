@@ -14,6 +14,10 @@ interface CelebrationOverlayProps {
   avatarCustom?: string;
   presetAvatars?: { id: string; emoji: string }[];
   onComplete: () => void;
+  translations?: {
+    well_done?: string;
+    support_message?: string;
+  };
 }
 
 export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
@@ -24,6 +28,7 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
   avatarCustom,
   presetAvatars,
   onComplete,
+  translations = {},
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
@@ -164,12 +169,12 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
           </View>
 
           {/* Message */}
-          <Text style={styles.title}>Well Done!</Text>
+          <Text style={styles.title}>{translations.well_done || 'Well Done!'}</Text>
           <Text style={styles.name}>{studentName}</Text>
           
           <View style={styles.messageContainer}>
             <Text style={styles.message}>
-              You can always ask an adult{'\n'}and friends for support
+              {translations.support_message || 'You can always ask an adult\nand friends for support'}
             </Text>
           </View>
 

@@ -827,6 +827,9 @@ TRANSLATIONS = {
         "very_upset": "Very Upset",
         "out_of_control": "Out of Control",
         "explosive": "Explosive",
+        # Celebration overlay
+        "well_done": "Well Done!",
+        "support_message": "You can always ask an adult and friends for support",
     },
     "es": {
         "app_name": "Clase de Felicidad",
@@ -1110,6 +1113,8 @@ TRANSLATIONS = {
         "very_upset": "Muy Molesto",
         "out_of_control": "Fuera de Control",
         "explosive": "Explosivo",
+        "well_done": "¡Bien Hecho!",
+        "support_message": "Siempre puedes pedir ayuda a un adulto o amigos",
         "link_children_school": "Vincular niños de la escuela",
     },
     "fr": {
@@ -1449,6 +1454,8 @@ TRANSLATIONS = {
         "very_upset": "Très Contrarié",
         "out_of_control": "Hors Contrôle",
         "explosive": "Explosif",
+        "well_done": "Bien Joué!",
+        "support_message": "Tu peux toujours demander de l'aide à un adulte ou à des amis",
     },
     "pt": {
         "app_name": "Classe da Felicidade",
@@ -1787,6 +1794,8 @@ TRANSLATIONS = {
         "very_upset": "Muito Chateado",
         "out_of_control": "Fora de Controle",
         "explosive": "Explosivo",
+        "well_done": "Muito Bem!",
+        "support_message": "Você sempre pode pedir ajuda a um adulto ou amigos",
     },
     "de": {
         "app_name": "Klasse des Glücks",
@@ -2125,6 +2134,8 @@ TRANSLATIONS = {
         "very_upset": "Sehr Aufgeregt",
         "out_of_control": "Außer Kontrolle",
         "explosive": "Explosiv",
+        "well_done": "Gut Gemacht!",
+        "support_message": "Du kannst immer einen Erwachsenen oder Freunde um Hilfe bitten",
     },
     "it": {
         "app_name": "Classe della Felicità",
@@ -2338,6 +2349,8 @@ TRANSLATIONS = {
         "very_upset": "Molto Arrabbiato",
         "out_of_control": "Fuori Controllo",
         "explosive": "Esplosivo",
+        "well_done": "Ben Fatto!",
+        "support_message": "Puoi sempre chiedere aiuto a un adulto o agli amici",
     }
 }
 

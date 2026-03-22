@@ -143,6 +143,10 @@ export default function StrategiesScreen() {
           avatarCustom={currentStudent.avatar_custom}
           presetAvatars={presetAvatars}
           onComplete={handleCelebrationComplete}
+          translations={{
+            well_done: t('well_done'),
+            support_message: t('support_message'),
+          }}
         />
       )}
 
