@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform, Linking } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import Constants from 'expo-constants';
 import { 
   Student, Classroom, User, Translations,
   studentsApi, classroomsApi, avatarsApi, PresetAvatar,
@@ -7,7 +10,7 @@ import {
 } from '../utils/api';
 
 // Helper function to wrap any promise with timeout
-const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {
+function withTimeout(promise: Promise<any>, timeoutMs: number, fallback: any): Promise<any> {
   return Promise.race([
     promise,
     new Promise<T>((resolve) => setTimeout(() => resolve(fallback), timeoutMs))
@@ -34,7 +37,7 @@ interface AppContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: () => void;
+  login: () => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   
@@ -406,11 +409,45 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
-  const login = () => {
+  const login = async () => {
     // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-    if (typeof window !== 'undefined') {
-      const redirectUrl = window.location.origin + '/auth/callback';
-      window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+    try {
+      if (Platform.OS === 'web') {
+        // Web: use traditional redirect
+        if (typeof window !== 'undefined') {
+          const redirectUrl = window.location.origin + '/auth/callback';
+          window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+        }
+      } else {
+        // Mobile (iOS/Android): use WebBrowser for auth
+        const scheme = Constants.expoConfig?.scheme || 'classofhappiness';
+        const redirectUrl = `${scheme}://auth/callback`;
+        
+        // Warm up the browser for better UX
+        await WebBrowser.warmUpAsync();
+        
+        const result = await WebBrowser.openAuthSessionAsync(
+          `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`,
+          redirectUrl
+        );
+        
+        await WebBrowser.coolDownAsync();
+        
+        if (result.type === 'success' && result.url) {
+          // Extract session_id from the URL
+          const url = new URL(result.url);
+          const sessionId = url.searchParams.get('session_id') || 
+                           url.hash.split('session_id=')[1]?.split('&')[0];
+          
+          if (sessionId) {
+            // Store session and check auth
+            await AsyncStorage.setItem('session_token', sessionId);
+            await checkAuth();
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Login error:', error);
     }
   };
 
