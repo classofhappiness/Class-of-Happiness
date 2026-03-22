@@ -8,7 +8,14 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "preinstall": "npx npm-force-resolutions || true"
+  },
+  "resolutions": {
+    "react-native-worklets": "npm:empty-package@1.0.0"
+  },
+  "overrides": {
+    "react-native-worklets": "npm:empty-package@1.0.0"
   },
   "dependencies": {
     "@babel/runtime": "^7.20.6",
