@@ -4,7 +4,7 @@
     "slug": "class-of-happiness",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/logo_coh.png",
+    "icon": "./assets/images/icon.png",
     "scheme": "classofhappiness",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
@@ -19,7 +19,7 @@
     "android": {
       "package": "com.classofhappiness.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/logo_coh.png",
+        "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       },
       "edgeToEdgeEnabled": true,
