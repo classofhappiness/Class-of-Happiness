@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Platform } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useGlobalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import * as ExpoLinking from 'expo-linking';
@@ -15,7 +15,9 @@ export default function AuthCallbackScreen() {
   const insets = useSafeAreaInsets();
   const { checkAuth } = useApp();
   const [error, setError] = useState<string | null>(null);
-  const params = useLocalSearchParams();
+  const [status, setStatus] = useState<string>('Checking authentication...');
+  const localParams = useLocalSearchParams();
+  const globalParams = useGlobalSearchParams();
 
   useEffect(() => {
     handleCallback();
@@ -25,53 +27,111 @@ export default function AuthCallbackScreen() {
     try {
       let sessionId: string | null = null;
 
-      // Try to get session_id from route params first (works for deep links)
-      if (params.session_id) {
-        sessionId = params.session_id as string;
-        console.log('[Callback] Got session_id from params:', sessionId ? 'yes' : 'no');
+      console.log('[Callback] Platform:', Platform.OS);
+      console.log('[Callback] Local params:', JSON.stringify(localParams));
+      console.log('[Callback] Global params:', JSON.stringify(globalParams));
+
+      // Method 1: Check route params (both local and global)
+      if (localParams.session_id) {
+        sessionId = localParams.session_id as string;
+        console.log('[Callback] Got session_id from local params');
+      } else if (globalParams.session_id) {
+        sessionId = globalParams.session_id as string;
+        console.log('[Callback] Got session_id from global params');
       }
 
-      // For web, also check window.location
+      // Method 2: For web, check window.location
       if (!sessionId && Platform.OS === 'web' && typeof window !== 'undefined') {
-        const hash = window.location.hash;
-        const hashParams = new URLSearchParams(hash.replace('#', ''));
-        sessionId = hashParams.get('session_id');
+        setStatus('Checking web URL...');
         
-        // Also check query params
+        // Check hash first (auth often returns in hash)
+        const hash = window.location.hash;
+        if (hash) {
+          const hashParams = new URLSearchParams(hash.replace('#', ''));
+          sessionId = hashParams.get('session_id');
+          if (sessionId) console.log('[Callback] Got session_id from hash');
+        }
+        
+        // Check query params
         if (!sessionId) {
           const queryParams = new URLSearchParams(window.location.search);
           sessionId = queryParams.get('session_id');
+          if (sessionId) console.log('[Callback] Got session_id from query');
         }
-        console.log('[Callback] Got session_id from window:', sessionId ? 'yes' : 'no');
+
+        // Check full URL with regex
+        if (!sessionId) {
+          const fullUrl = window.location.href;
+          const match = fullUrl.match(/session_id[=]([^&\s#]+)/);
+          if (match) {
+            sessionId = match[1];
+            console.log('[Callback] Got session_id from URL regex');
+          }
+        }
       }
 
-      // For mobile, try to get from linking URL
+      // Method 3: For mobile, get from Linking
       if (!sessionId && Platform.OS !== 'web') {
-        const url = await ExpoLinking.getInitialURL();
-        if (url) {
-          console.log('[Callback] Initial URL:', url);
-          const parsed = ExpoLinking.parse(url);
-          sessionId = parsed.queryParams?.session_id as string || null;
+        setStatus('Checking mobile deep link...');
+        
+        // Get initial URL that opened the app
+        const initialUrl = await ExpoLinking.getInitialURL();
+        console.log('[Callback] Initial URL:', initialUrl);
+        
+        if (initialUrl) {
+          // Parse the URL
+          const parsed = ExpoLinking.parse(initialUrl);
+          console.log('[Callback] Parsed URL:', JSON.stringify(parsed));
           
-          // Also try to extract from URL directly
+          // Check queryParams
+          if (parsed.queryParams?.session_id) {
+            sessionId = parsed.queryParams.session_id as string;
+            console.log('[Callback] Got session_id from parsed queryParams');
+          }
+          
+          // Check path for session_id
+          if (!sessionId && parsed.path) {
+            const pathMatch = parsed.path.match(/session_id[=]([^&\s#/]+)/);
+            if (pathMatch) {
+              sessionId = pathMatch[1];
+              console.log('[Callback] Got session_id from path');
+            }
+          }
+          
+          // Regex fallback on full URL
           if (!sessionId) {
-            const match = url.match(/session_id[=:]([^&\s#]+)/);
+            const match = initialUrl.match(/session_id[=]([^&\s#]+)/);
             if (match) {
               sessionId = match[1];
+              console.log('[Callback] Got session_id from URL regex');
             }
           }
         }
-        console.log('[Callback] Got session_id from linking:', sessionId ? 'yes' : 'no');
+
+        // Also try getCurrentURL as fallback
+        if (!sessionId) {
+          try {
+            const currentUrl = await ExpoLinking.parseInitialURLAsync();
+            console.log('[Callback] Current URL async:', JSON.stringify(currentUrl));
+            if (currentUrl.queryParams?.session_id) {
+              sessionId = currentUrl.queryParams.session_id as string;
+              console.log('[Callback] Got session_id from parseInitialURLAsync');
+            }
+          } catch (e) {
+            console.log('[Callback] parseInitialURLAsync error:', e);
+          }
+        }
       }
       
       if (!sessionId) {
-        console.log('[Callback] No session ID found');
+        console.log('[Callback] No session ID found after all methods');
         setError('No session ID found');
-        setTimeout(() => router.replace('/'), 2000);
+        setTimeout(() => router.replace('/'), 3000);
         return;
       }
       
-      console.log('[Callback] Exchanging session...');
+      setStatus('Exchanging session...');
+      console.log('[Callback] Exchanging session with ID:', sessionId.substring(0, 8) + '...');
       
       // Exchange session
       const userData: any = await authApi.exchangeSession(sessionId);
@@ -81,6 +141,8 @@ export default function AuthCallbackScreen() {
         await setSessionToken(userData.session_token);
         console.log('[Callback] Session token stored');
       }
+      
+      setStatus('Finalizing...');
       
       // Refresh auth state
       await checkAuth();
@@ -92,7 +154,7 @@ export default function AuthCallbackScreen() {
     } catch (err: any) {
       console.error('[Callback] Auth error:', err);
       setError(err.message || 'Authentication failed');
-      setTimeout(() => router.replace('/'), 2000);
+      setTimeout(() => router.replace('/'), 3000);
     }
   };
 
@@ -108,6 +170,7 @@ export default function AuthCallbackScreen() {
           <>
             <ActivityIndicator size="large" color="#5C6BC0" />
             <Text style={styles.text}>Signing you in...</Text>
+            <Text style={styles.statusText}>{status}</Text>
           </>
         )}
       </View>
@@ -130,6 +193,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#666',
     marginTop: 20,
+  },
+  statusText: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 10,
   },
   errorText: {
     fontSize: 18,

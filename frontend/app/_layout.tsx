@@ -2,7 +2,11 @@ import React from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Image, View, StyleSheet } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { AppProvider } from '../src/context/AppContext';
+
+// Warm up browser and allow completing auth sessions
+WebBrowser.maybeCompleteAuthSession();
 
 // Small logo component for headers
 const HeaderLogo = () => (
