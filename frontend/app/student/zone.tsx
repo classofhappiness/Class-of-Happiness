@@ -7,61 +7,60 @@ import { ZoneButton } from '../../src/components/ZoneButton';
 import { Avatar } from '../../src/components/Avatar';
 
 const { width } = Dimensions.get('window');
-const ZONE_SIZE = (width - 60) / 2 - 8;
 
-// Zone info for kids - simple and friendly
-const ZONE_INFO = {
+// Colour of Emotion info for kids - simple and friendly
+const COLOUR_INFO = {
   blue: {
     color: '#5DADE2',
-    emoji: '😢',
-    title: 'Blue Zone',
-    feeling: 'Slow & Low',
-    examples: ['Sad', 'Tired', 'Bored', 'Sick'],
-    description: 'When your body feels slow and you have low energy. It\'s okay to feel this way sometimes!',
+    emoji: '🔋',
+    title: 'Low-Battery',
+    feeling: 'Quiet Energy',
+    examples: ['Tired', 'Sad', 'Lonely', 'Need Rest'],
+    description: 'Your body is moving slowly. This might mean you are feeling tired, a bit lonely, or just need some rest to recharge.',
   },
   green: {
     color: '#58D68D',
-    emoji: '😊',
-    title: 'Green Zone',
-    feeling: 'Good to Go!',
-    examples: ['Happy', 'Calm', 'Focused', 'Ready to Learn'],
-    description: 'When you feel calm, happy, and ready! This is a great place to be for learning.',
+    emoji: '🌊',
+    title: 'Flow',
+    feeling: 'Balanced Energy',
+    examples: ['Calm', 'Happy', 'Focused', 'Ready to Learn'],
+    description: 'You are ready to learn, listen, and play fairly. This is the steady state where you feel comfortable and focused.',
   },
   yellow: {
     color: '#F4D03F',
-    emoji: '😰',
-    title: 'Yellow Zone',
-    feeling: 'Getting Wiggly',
-    examples: ['Worried', 'Frustrated', 'Excited', 'Silly'],
-    description: 'When you start to lose control a little. Your energy is getting higher!',
+    emoji: '✨',
+    title: 'Spark',
+    feeling: 'Fizzing Energy',
+    examples: ['Silly', 'Frustrated', 'Worried', 'Butterflies'],
+    description: 'You are starting to lose focus or feeling wobbly. This covers being silly, frustrated, or having butterflies in your stomach.',
   },
   red: {
     color: '#EC7063',
-    emoji: '😡',
-    title: 'Red Zone',
-    feeling: 'Out of Control',
-    examples: ['Angry', 'Scared', 'Yelling', 'Hitting'],
-    description: 'When you have very big feelings and need help to calm down. It\'s okay, everyone feels this way sometimes.',
+    emoji: '🔥',
+    title: 'Power',
+    feeling: 'Fire Energy',
+    examples: ['Super-Charged', 'Very Upset', 'Out of Control', 'Explosive'],
+    description: 'This is when your body feels like it\'s moving too fast—think of feelings like being super-charged, extremely upset, or out of control.',
   },
 };
 
-export default function ZoneSelectionScreen() {
+export default function ColourSelectionScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const { currentStudent, presetAvatars, t, language, translations } = useApp();
   const [showHelp, setShowHelp] = useState(false);
 
-  // Set translated header title - depend on language/translations to trigger updates
+  // Set translated header title
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: t('which_zone'),
+      title: 'How are you feeling?',
     });
   }, [navigation, language, translations]);
 
-  const handleSelectZone = (zone: 'blue' | 'green' | 'yellow' | 'red') => {
+  const handleSelectColour = (colour: 'blue' | 'green' | 'yellow' | 'red') => {
     router.push({
       pathname: '/student/strategies',
-      params: { zone },
+      params: { zone: colour },
     });
   };
 
@@ -89,39 +88,39 @@ export default function ZoneSelectionScreen() {
           />
           <View style={styles.greetingText}>
             <Text style={styles.greetingHi}>{t('hi')}, {currentStudent.name}!</Text>
-            <Text style={styles.greetingQuestion}>{t('which_zone')}</Text>
+            <Text style={styles.greetingQuestion}>Which colour matches how you feel?</Text>
           </View>
         </View>
 
-        {/* Zone Buttons Grid */}
-        <View style={styles.zoneGrid}>
-          <View style={styles.zoneRow}>
+        {/* Colour Buttons Grid */}
+        <View style={styles.colourGrid}>
+          <View style={styles.colourRow}>
             <ZoneButton
               zone="blue"
-              onPress={() => handleSelectZone('blue')}
+              onPress={() => handleSelectColour('blue')}
               size="large"
             />
             <ZoneButton
               zone="green"
-              onPress={() => handleSelectZone('green')}
+              onPress={() => handleSelectColour('green')}
               size="large"
             />
           </View>
-          <View style={styles.zoneRow}>
+          <View style={styles.colourRow}>
             <ZoneButton
               zone="yellow"
-              onPress={() => handleSelectZone('yellow')}
+              onPress={() => handleSelectColour('yellow')}
               size="large"
             />
             <ZoneButton
               zone="red"
-              onPress={() => handleSelectZone('red')}
+              onPress={() => handleSelectColour('red')}
               size="large"
             />
           </View>
         </View>
 
-        <Text style={styles.helpText}>{t('tap_zone_help')}</Text>
+        <Text style={styles.helpText}>Tap the colour that matches your feeling</Text>
 
         {/* Help Button - Simple for kids */}
         <TouchableOpacity 
@@ -133,21 +132,17 @@ export default function ZoneSelectionScreen() {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Zone Info Modal - Kid Friendly */}
+      {/* Colour of Emotion Info Modal - Kid Friendly */}
       <Modal
         visible={showHelp}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setShowHelp(false)}
       >
-        <TouchableOpacity 
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowHelp(false)}
-        >
+        <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>What do the colors mean?</Text>
+              <Text style={styles.modalTitle}>What do the colours mean?</Text>
               <TouchableOpacity 
                 onPress={() => setShowHelp(false)}
                 style={styles.closeButton}
@@ -156,26 +151,94 @@ export default function ZoneSelectionScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.zoneList} showsVerticalScrollIndicator={false}>
-              {Object.entries(ZONE_INFO).map(([zone, info]) => (
-                <View key={zone} style={[styles.zoneInfoCard, { borderLeftColor: info.color }]}>
-                  <View style={styles.zoneInfoHeader}>
-                    <Text style={styles.zoneEmoji}>{info.emoji}</Text>
-                    <View>
-                      <Text style={[styles.zoneTitle, { color: info.color }]}>{info.title}</Text>
-                      <Text style={styles.zoneFeeling}>{info.feeling}</Text>
-                    </View>
+            <ScrollView 
+              style={styles.colourList} 
+              showsVerticalScrollIndicator={true}
+              contentContainerStyle={styles.colourListContent}
+            >
+              {/* Blue - Low-Battery */}
+              <View style={[styles.colourInfoCard, { borderLeftColor: COLOUR_INFO.blue.color }]}>
+                <View style={styles.colourInfoHeader}>
+                  <Text style={styles.colourEmoji}>{COLOUR_INFO.blue.emoji}</Text>
+                  <View style={styles.colourTitleContainer}>
+                    <Text style={[styles.colourTitle, { color: COLOUR_INFO.blue.color }]}>
+                      {COLOUR_INFO.blue.title}
+                    </Text>
+                    <Text style={styles.colourFeeling}>{COLOUR_INFO.blue.feeling}</Text>
                   </View>
-                  <View style={styles.exampleTags}>
-                    {info.examples.map((example, i) => (
-                      <View key={i} style={[styles.exampleTag, { backgroundColor: info.color + '20' }]}>
-                        <Text style={[styles.exampleText, { color: info.color }]}>{example}</Text>
-                      </View>
-                    ))}
-                  </View>
-                  <Text style={styles.zoneDescription}>{info.description}</Text>
                 </View>
-              ))}
+                <View style={styles.exampleTags}>
+                  {COLOUR_INFO.blue.examples.map((example, i) => (
+                    <View key={i} style={[styles.exampleTag, { backgroundColor: COLOUR_INFO.blue.color + '25' }]}>
+                      <Text style={[styles.exampleText, { color: COLOUR_INFO.blue.color }]}>{example}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={styles.colourDescription}>{COLOUR_INFO.blue.description}</Text>
+              </View>
+
+              {/* Green - Flow */}
+              <View style={[styles.colourInfoCard, { borderLeftColor: COLOUR_INFO.green.color }]}>
+                <View style={styles.colourInfoHeader}>
+                  <Text style={styles.colourEmoji}>{COLOUR_INFO.green.emoji}</Text>
+                  <View style={styles.colourTitleContainer}>
+                    <Text style={[styles.colourTitle, { color: COLOUR_INFO.green.color }]}>
+                      {COLOUR_INFO.green.title}
+                    </Text>
+                    <Text style={styles.colourFeeling}>{COLOUR_INFO.green.feeling}</Text>
+                  </View>
+                </View>
+                <View style={styles.exampleTags}>
+                  {COLOUR_INFO.green.examples.map((example, i) => (
+                    <View key={i} style={[styles.exampleTag, { backgroundColor: COLOUR_INFO.green.color + '25' }]}>
+                      <Text style={[styles.exampleText, { color: COLOUR_INFO.green.color }]}>{example}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={styles.colourDescription}>{COLOUR_INFO.green.description}</Text>
+              </View>
+
+              {/* Yellow - Spark */}
+              <View style={[styles.colourInfoCard, { borderLeftColor: COLOUR_INFO.yellow.color }]}>
+                <View style={styles.colourInfoHeader}>
+                  <Text style={styles.colourEmoji}>{COLOUR_INFO.yellow.emoji}</Text>
+                  <View style={styles.colourTitleContainer}>
+                    <Text style={[styles.colourTitle, { color: COLOUR_INFO.yellow.color }]}>
+                      {COLOUR_INFO.yellow.title}
+                    </Text>
+                    <Text style={styles.colourFeeling}>{COLOUR_INFO.yellow.feeling}</Text>
+                  </View>
+                </View>
+                <View style={styles.exampleTags}>
+                  {COLOUR_INFO.yellow.examples.map((example, i) => (
+                    <View key={i} style={[styles.exampleTag, { backgroundColor: COLOUR_INFO.yellow.color + '25' }]}>
+                      <Text style={[styles.exampleText, { color: COLOUR_INFO.yellow.color }]}>{example}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={styles.colourDescription}>{COLOUR_INFO.yellow.description}</Text>
+              </View>
+
+              {/* Red - Power */}
+              <View style={[styles.colourInfoCard, { borderLeftColor: COLOUR_INFO.red.color }]}>
+                <View style={styles.colourInfoHeader}>
+                  <Text style={styles.colourEmoji}>{COLOUR_INFO.red.emoji}</Text>
+                  <View style={styles.colourTitleContainer}>
+                    <Text style={[styles.colourTitle, { color: COLOUR_INFO.red.color }]}>
+                      {COLOUR_INFO.red.title}
+                    </Text>
+                    <Text style={styles.colourFeeling}>{COLOUR_INFO.red.feeling}</Text>
+                  </View>
+                </View>
+                <View style={styles.exampleTags}>
+                  {COLOUR_INFO.red.examples.map((example, i) => (
+                    <View key={i} style={[styles.exampleTag, { backgroundColor: COLOUR_INFO.red.color + '25' }]}>
+                      <Text style={[styles.exampleText, { color: COLOUR_INFO.red.color }]}>{example}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={styles.colourDescription}>{COLOUR_INFO.red.description}</Text>
+              </View>
             </ScrollView>
 
             <TouchableOpacity 
@@ -185,7 +248,7 @@ export default function ZoneSelectionScreen() {
               <Text style={styles.gotItText}>Got it!</Text>
             </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -224,6 +287,7 @@ const styles = StyleSheet.create({
   },
   greetingText: {
     marginLeft: 16,
+    flex: 1,
   },
   greetingHi: {
     fontSize: 22,
@@ -235,10 +299,10 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
   },
-  zoneGrid: {
+  colourGrid: {
     gap: 16,
   },
-  zoneRow: {
+  colourRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 16,
@@ -268,16 +332,14 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: 'white',
-    borderRadius: 24,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     padding: 20,
-    width: '100%',
-    maxHeight: '85%',
+    maxHeight: '90%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -293,32 +355,39 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 4,
   },
-  zoneList: {
-    maxHeight: 400,
+  colourList: {
+    flexGrow: 0,
   },
-  zoneInfoCard: {
+  colourListContent: {
+    paddingBottom: 10,
+  },
+  colourInfoCard: {
     backgroundColor: '#FAFAFA',
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    borderLeftWidth: 4,
+    borderLeftWidth: 5,
   },
-  zoneInfoHeader: {
+  colourInfoHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     marginBottom: 10,
   },
-  zoneEmoji: {
-    fontSize: 36,
+  colourEmoji: {
+    fontSize: 32,
   },
-  zoneTitle: {
-    fontSize: 18,
+  colourTitleContainer: {
+    flex: 1,
+  },
+  colourTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
   },
-  zoneFeeling: {
+  colourFeeling: {
     fontSize: 14,
     color: '#666',
+    fontStyle: 'italic',
   },
   exampleTags: {
     flexDirection: 'row',
@@ -328,14 +397,14 @@ const styles = StyleSheet.create({
   },
   exampleTag: {
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 12,
   },
   exampleText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '600',
   },
-  zoneDescription: {
+  colourDescription: {
     fontSize: 14,
     color: '#555',
     lineHeight: 20,

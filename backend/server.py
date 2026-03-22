@@ -442,7 +442,7 @@ STRATEGY_ICONS = [
 
 # ================== DEFAULT STRATEGIES ==================
 DEFAULT_STRATEGIES = [
-    # Blue Zone (Low energy - sad, tired, bored)
+    # Blue - Low-Battery (Low energy - tired, sad, need rest)
     {"id": "blue_1", "name": "Get Moving", "description": "Stretch or do some jumping jacks", "zone": "blue", "icon": "fitness-center", "image_type": "icon"},
     {"id": "blue_2", "name": "Talk to Someone", "description": "Share how you feel with a friend or teacher", "zone": "blue", "icon": "chat", "image_type": "icon"},
     {"id": "blue_3", "name": "Drink Water", "description": "Have a refreshing drink of water", "zone": "blue", "icon": "local-drink", "image_type": "icon"},
@@ -451,7 +451,7 @@ DEFAULT_STRATEGIES = [
     {"id": "blue_6", "name": "Go Outside", "description": "Get some fresh air", "zone": "blue", "icon": "wb-sunny", "image_type": "icon"},
     {"id": "blue_7", "name": "Ask for a Hug", "description": "A warm hug can make you feel better", "zone": "blue", "icon": "favorite", "image_type": "icon"},
     
-    # Green Zone (Ready to learn - calm, happy, focused)
+    # Green - Flow (Balanced energy - calm, happy, focused)
     {"id": "green_1", "name": "Keep Going!", "description": "You're doing great, stay focused", "zone": "green", "icon": "thumb-up", "image_type": "icon"},
     {"id": "green_2", "name": "Deep Breaths", "description": "Take 3 slow, deep breaths", "zone": "green", "icon": "air", "image_type": "icon"},
     {"id": "green_3", "name": "Stay Focused", "description": "Keep your eyes on your work", "zone": "green", "icon": "visibility", "image_type": "icon"},
@@ -459,7 +459,7 @@ DEFAULT_STRATEGIES = [
     {"id": "green_5", "name": "Help Others", "description": "Share your calm energy", "zone": "green", "icon": "favorite", "image_type": "icon"},
     {"id": "green_6", "name": "Smile", "description": "Keep that happy feeling", "zone": "green", "icon": "sentiment-very-satisfied", "image_type": "icon"},
     
-    # Yellow Zone (Heightened - frustrated, worried, silly, excited)
+    # Yellow - Spark (Fizzing energy - silly, worried, butterflies)
     {"id": "yellow_1", "name": "Count to 10", "description": "Slowly count from 1 to 10", "zone": "yellow", "icon": "filter-9-plus", "image_type": "icon"},
     {"id": "yellow_2", "name": "Deep Breaths", "description": "Breathe in for 4, out for 4", "zone": "yellow", "icon": "air", "image_type": "icon"},
     {"id": "yellow_3", "name": "Squeeze Ball", "description": "Squeeze a stress ball or fidget", "zone": "yellow", "icon": "sports-baseball", "image_type": "icon"},
@@ -467,7 +467,7 @@ DEFAULT_STRATEGIES = [
     {"id": "yellow_5", "name": "Get Water", "description": "Take a drink of water", "zone": "yellow", "icon": "local-drink", "image_type": "icon"},
     {"id": "yellow_6", "name": "Think Happy", "description": "Think of something that makes you happy", "zone": "yellow", "icon": "wb-sunny", "image_type": "icon"},
     
-    # Red Zone (Extreme - angry, terrified, out of control)
+    # Red - Power (Fire energy - super-charged, very upset)
     {"id": "red_1", "name": "STOP", "description": "Stop and freeze your body", "zone": "red", "icon": "pan-tool", "image_type": "icon"},
     {"id": "red_2", "name": "Breathe Deep", "description": "Take 5 very slow breaths", "zone": "red", "icon": "air", "image_type": "icon"},
     {"id": "red_3", "name": "Count Back", "description": "Count backwards from 10 to 1", "zone": "red", "icon": "exposure-neg-1", "image_type": "icon"},
@@ -488,14 +488,14 @@ TRANSLATIONS = {
         "check_in_feelings": "Check in with my feelings",
         "view_progress": "View student progress",
         "your_family_emotions": "Your family's emotions",
-        "blue_zone": "Blue Zone",
-        "green_zone": "Green Zone",
-        "yellow_zone": "Yellow Zone",
-        "red_zone": "Red Zone",
-        "blue_desc": "Sad, Tired, Bored",
+        "blue_zone": "Low-Battery",
+        "green_zone": "Flow",
+        "yellow_zone": "Spark",
+        "red_zone": "Power",
+        "blue_desc": "Tired, Sad, Need Rest",
         "green_desc": "Calm, Happy, Focused",
-        "yellow_desc": "Worried, Frustrated, Silly",
-        "red_desc": "Angry, Scared, Out of Control",
+        "yellow_desc": "Silly, Worried, Butterflies",
+        "red_desc": "Super-Charged, Very Upset",
         "select_profile": "Select Your Profile",
         "tap_to_check_in": "Tap your picture to check in!",
         "add_profile": "Add Profile",
