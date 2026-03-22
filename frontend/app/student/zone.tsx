@@ -226,7 +226,7 @@ export default function ColourSelectionScreen() {
                     </View>
                   ))}
                 </View>
-                <Text style={styles.colourDescription}>{COLOUR_INFO.yellow.description}</Text>
+                <Text style={styles.colourDescription}>{getColourInfo(t).yellow.description}</Text>
               </View>
 
               {/* Red - Power */}
