@@ -29,7 +29,7 @@ const TOPICS = [
   { id: 'special_needs', name: 'Special Needs', icon: 'accessibility' as const },
 ];
 
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://emotion-zones-kids.preview.emergentagent.com';
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 export default function ResourcesScreen() {
   const router = useRouter();

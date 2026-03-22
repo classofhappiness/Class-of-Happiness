@@ -27,7 +27,7 @@ import {
   authApiExtended
 } from '../../src/utils/api';
 
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://emotion-zones-kids.preview.emergentagent.com';
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 export default function TeacherResourcesScreen() {
   const router = useRouter();

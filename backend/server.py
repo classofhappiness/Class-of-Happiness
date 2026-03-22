@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import io
 import calendar
+from io import BytesIO
 
 # PDF Generation
 from reportlab.lib import colors
@@ -2842,7 +2843,7 @@ async def generate_student_monthly_pdf(student_id: str, year: int, month: int):
         alignment=1  # Center
     )
     month_name = calendar.month_name[month]
-    elements.append(Paragraph(f"Emotional Wellness Report", title_style))
+    elements.append(Paragraph("Emotional Wellness Report", title_style))
     elements.append(Paragraph(f"{student['name']} - {month_name} {year}", styles['Heading2']))
     elements.append(Spacer(1, 20))
     
@@ -3236,7 +3237,7 @@ async def get_family_zone_logs(member_id: str, request: Request, days: int = 7):
         "parent_user_id": user.user_id,
         "timestamp": {"$gte": since}
     }).sort("timestamp", -1).to_list(500)
-    return [FamilyZoneLog(**l) for l in logs]
+    return [FamilyZoneLog(**log) for log in logs]
 
 @api_router.get("/family/analytics/{member_id}")
 async def get_family_analytics(member_id: str, request: Request, days: int = 7):
@@ -3579,7 +3580,7 @@ async def generate_classroom_report(classroom_id: str, request: Request, year: i
     title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=24, spaceAfter=20, alignment=1, textColor=colors.HexColor('#5C6BC0'))
     subtitle_style = ParagraphStyle('Subtitle', parent=styles['Heading2'], fontSize=14, spaceAfter=20, alignment=1, textColor=colors.HexColor('#666666'))
     
-    elements.append(Paragraph(f"Classroom Report", title_style))
+    elements.append(Paragraph("Classroom Report", title_style))
     elements.append(Paragraph(f"{classroom.get('name', 'Classroom')} - {calendar.month_name[month]} {year}", subtitle_style))
     elements.append(Spacer(1, 20))
     
