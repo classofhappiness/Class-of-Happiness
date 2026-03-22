@@ -436,15 +436,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         
         console.log('[Login] Redirect URL:', redirectUrl);
         
-        // Warm up the browser for better UX
-        await WebBrowser.warmUpAsync();
-        
         const result = await WebBrowser.openAuthSessionAsync(
           `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`,
           redirectUrl
         );
-        
-        await WebBrowser.coolDownAsync();
         
         console.log('[Login] Auth result:', result.type);
         
@@ -525,6 +520,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const hasActiveSubscription = user ? (
     user.subscription_status === 'active' || user.subscription_status === 'trial'
   ) : false;
+
+  // Pre-warm the browser for faster OAuth (mobile only)
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      WebBrowser.warmUpAsync().catch(console.warn);
+    }
+    return () => {
+      if (Platform.OS !== 'web') {
+        WebBrowser.coolDownAsync().catch(console.warn);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const initialize = async () => {
