@@ -34,11 +34,15 @@ const ZONE_COLORS: Record<string, string> = {
   red: '#F44336',
 };
 
-const ZONE_LABELS: Record<string, string> = {
-  blue: 'Blue Emotions',
-  green: 'Green Emotions',
-  yellow: 'Yellow Emotions',
-  red: 'Red Emotions',
+// Use translations for zone labels - will be populated from context
+const getZoneLabel = (zone: string, t: (key: string) => string) => {
+  const labels: Record<string, string> = {
+    blue: t('blue_zone') || 'Blue Emotions',
+    green: t('green_zone') || 'Green Emotions',
+    yellow: t('yellow_zone') || 'Yellow Emotions',
+    red: t('red_zone') || 'Red Emotions',
+  };
+  return labels[zone] || zone;
 };
 
 const RELATIONSHIP_COLORS: Record<string, string> = {
@@ -518,7 +522,7 @@ export default function ParentDashboard() {
                     {Object.entries(ZONE_COLORS).map(([zone, color]) => (
                       <View key={zone} style={styles.legendItem}>
                         <View style={[styles.legendDot, { backgroundColor: color }]} />
-                        <Text style={styles.legendText}>{ZONE_LABELS[zone]}</Text>
+                        <Text style={styles.legendText}>{getZoneLabel(zone, t)}</Text>
                         <Text style={styles.legendCount}>
                           {analytics?.zone_counts[zone] || 0}
                         </Text>
@@ -576,7 +580,7 @@ export default function ParentDashboard() {
                       <Text style={styles.logZoneText}>{log.zone[0].toUpperCase()}</Text>
                     </View>
                     <View style={styles.logDetails}>
-                      <Text style={styles.logZoneName}>{ZONE_LABELS[log.zone]}</Text>
+                      <Text style={styles.logZoneName}>{getZoneLabel(log.zone, t)}</Text>
                       <Text style={styles.logTime}>{formatTime(log.timestamp)}</Text>
                       {log.comment && (
                         <View style={styles.commentBubble}>
@@ -792,13 +796,13 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 20,
-    marginTop: 8,
+    marginTop: 16,
   },
   headerTitle: {
     fontSize: 26,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   headerSubtitle: {
     fontSize: 16,

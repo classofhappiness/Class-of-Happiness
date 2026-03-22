@@ -29,11 +29,15 @@ const ZONE_COLORS = {
   red: '#F44336',
 };
 
-const ZONE_LABELS: Record<string, string> = {
-  blue: 'Blue Emotions',
-  green: 'Green Emotions',
-  yellow: 'Yellow Emotions',
-  red: 'Red Emotions',
+// Use translations for zone labels
+const getZoneLabel = (zone: string, t: (key: string) => string) => {
+  const labels: Record<string, string> = {
+    blue: t('blue_zone') || 'Blue Emotions',
+    green: t('green_zone') || 'Green Emotions',
+    yellow: t('yellow_zone') || 'Yellow Emotions',
+    red: t('red_zone') || 'Red Emotions',
+  };
+  return labels[zone] || zone;
 };
 
 const MONTH_NAMES = [
@@ -344,7 +348,7 @@ export default function StudentDetailScreen() {
                   <Text style={styles.logZoneText}>{log.zone[0].toUpperCase()}</Text>
                 </View>
                 <View style={styles.logDetails}>
-                  <Text style={styles.logZoneName}>{ZONE_LABELS[log.zone]}</Text>
+                  <Text style={styles.logZoneName}>{getZoneLabel(log.zone, t)}</Text>
                   <Text style={styles.logTime}>
                     {formatDate(log.timestamp)} at {formatTime(log.timestamp)}
                   </Text>
