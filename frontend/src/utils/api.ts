@@ -1,5 +1,31 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const API_URL = `${BACKEND_URL}/api`;
+
+// Store session token for mobile auth
+let sessionToken: string | null = null;
+
+export async function setSessionToken(token: string | null) {
+  sessionToken = token;
+  if (token) {
+    await AsyncStorage.setItem('session_token', token);
+  } else {
+    await AsyncStorage.removeItem('session_token');
+  }
+}
+
+export async function getSessionToken(): Promise<string | null> {
+  if (sessionToken) return sessionToken;
+  sessionToken = await AsyncStorage.getItem('session_token');
+  return sessionToken;
+}
+
+export async function clearSessionToken() {
+  sessionToken = null;
+  await AsyncStorage.removeItem('session_token');
+}
 
 export interface User {
   user_id: string;
@@ -89,13 +115,25 @@ export interface Translations {
 // API Helper
 async function apiRequest(endpoint: string, options: RequestInit = {}) {
   const url = `${API_URL}${endpoint}`;
+  
+  // Build headers
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string> || {}),
+  };
+  
+  // On mobile, add Authorization header with session token
+  if (Platform.OS !== 'web') {
+    const token = await getSessionToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  }
+  
   const response = await fetch(url, {
     ...options,
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    credentials: Platform.OS === 'web' ? 'include' : 'omit',
+    headers,
   });
   
   if (!response.ok) {

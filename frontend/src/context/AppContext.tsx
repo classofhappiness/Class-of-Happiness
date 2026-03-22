@@ -6,7 +6,7 @@ import Constants from 'expo-constants';
 import { 
   Student, Classroom, User, Translations,
   studentsApi, classroomsApi, avatarsApi, PresetAvatar,
-  authApi, translationsApi
+  authApi, translationsApi, setSessionToken, clearSessionToken
 } from '../utils/api';
 
 // Helper function to wrap any promise with timeout
@@ -420,8 +420,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } else {
         // Mobile (iOS/Android): use WebBrowser for auth
+        // Use expo-linking to create a proper redirect URL
         const scheme = Constants.expoConfig?.scheme || 'classofhappiness';
-        const redirectUrl = `${scheme}://auth/callback`;
+        
+        // For Expo Go, we need to use the Expo scheme
+        // For standalone builds, use the app scheme
+        let redirectUrl: string;
+        if (Constants.appOwnership === 'expo') {
+          // Running in Expo Go
+          redirectUrl = Linking.createURL('auth/callback');
+        } else {
+          // Standalone build
+          redirectUrl = `${scheme}://auth/callback`;
+        }
+        
+        console.log('[Login] Redirect URL:', redirectUrl);
         
         // Warm up the browser for better UX
         await WebBrowser.warmUpAsync();
@@ -433,17 +446,62 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         
         await WebBrowser.coolDownAsync();
         
+        console.log('[Login] Auth result:', result.type);
+        
         if (result.type === 'success' && result.url) {
-          // Extract session_id from the URL
-          const url = new URL(result.url);
-          const sessionId = url.searchParams.get('session_id') || 
-                           url.hash.split('session_id=')[1]?.split('&')[0];
+          console.log('[Login] Success URL:', result.url);
+          
+          // Extract session_id from the URL - it could be in hash or query params
+          let sessionId: string | null = null;
+          
+          try {
+            const url = new URL(result.url);
+            // Check query params first
+            sessionId = url.searchParams.get('session_id');
+            
+            // If not in query params, check hash
+            if (!sessionId && url.hash) {
+              const hashParams = new URLSearchParams(url.hash.replace('#', ''));
+              sessionId = hashParams.get('session_id');
+            }
+            
+            // Also try to extract from the URL path/fragment directly
+            if (!sessionId) {
+              const match = result.url.match(/session_id[=:]([^&\s#]+)/);
+              if (match) {
+                sessionId = match[1];
+              }
+            }
+          } catch (e) {
+            console.log('[Login] URL parsing error:', e);
+            // Try regex as fallback
+            const match = result.url.match(/session_id[=:]([^&\s#]+)/);
+            if (match) {
+              sessionId = match[1];
+            }
+          }
+          
+          console.log('[Login] Session ID:', sessionId ? 'found' : 'not found');
           
           if (sessionId) {
-            // Store session and check auth
-            await AsyncStorage.setItem('session_token', sessionId);
-            await checkAuth();
+            // Exchange session with backend
+            try {
+              const userData = await authApi.exchangeSession(sessionId);
+              // Store the session token from the response for mobile auth
+              if (userData && userData.session_token) {
+                await setSessionToken(userData.session_token);
+              }
+              // Refresh auth state
+              await checkAuth();
+              console.log('[Login] Auth complete!');
+            } catch (e) {
+              console.error('[Login] Session exchange error:', e);
+            }
           }
+        } else if (result.type === 'cancel') {
+          console.log('[Login] User cancelled');
+        } else {
+          console.log('[Login] Auth failed:', result.type);
         }
       }
     } catch (error) {
@@ -457,6 +515,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (error) {
       console.error('Error logging out:', error);
     } finally {
+      // Clear session token on mobile
+      await clearSessionToken();
       setUser(null);
       setIsAuthenticated(false);
     }

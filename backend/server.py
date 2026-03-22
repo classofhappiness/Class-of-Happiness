@@ -2051,7 +2051,8 @@ async def exchange_session(request: Request, response: Response):
     # Get user data
     user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0})
     
-    return user_doc
+    # Include session_token in response for mobile clients
+    return {**user_doc, "session_token": session_token}
 
 @api_router.get("/auth/me")
 async def get_current_user_info(request: Request):
