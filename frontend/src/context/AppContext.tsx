@@ -431,47 +431,83 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     const initialize = async () => {
+      console.log('[AppContext] Starting initialization...');
       setIsLoading(true);
       
+      // Create abort controller for cleanup
+      const abortController = new AbortController();
+      
       try {
-        // Load saved language first with timeout - don't let it block forever
-        await withTimeout(loadSavedLanguage(), 5000, undefined);
+        // Step 1: Load language from storage FIRST (fast local operation)
+        console.log('[AppContext] Loading saved language...');
+        try {
+          const savedLang = await getStorageWithTimeout('app_language', 2000);
+          if (savedLang) {
+            setLanguageState(savedLang);
+          }
+          console.log('[AppContext] Language loaded:', savedLang || 'default');
+        } catch (e) {
+          console.log('[AppContext] Language load skipped:', e);
+        }
         
-        // Load data with timeouts - if any fail, continue anyway
-        await Promise.all([
-          withTimeout(refreshStudents(), 5000, undefined),
-          withTimeout(refreshClassrooms(), 5000, undefined),
-          withTimeout(fetchPresetAvatars(), 5000, undefined),
-        ]);
+        // Step 2: Set translations loaded immediately (use defaults)
+        // This ensures the app can render even without network
+        setTranslationsLoaded(true);
         
-        // Check auth with timeout
-        await withTimeout(checkAuth(), 5000, undefined);
+        // Step 3: Check auth - but don't block on it
+        console.log('[AppContext] Checking auth...');
+        try {
+          // Skip if URL has session_id (let AuthCallback handle it)
+          if (typeof window !== 'undefined' && window.location.hash?.includes('session_id=')) {
+            console.log('[AppContext] Session ID detected, skipping auth check');
+          } else {
+            const userData = await Promise.race([
+              authApi.getMe(),
+              new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000))
+            ]);
+            if (userData) {
+              setUser(userData);
+              setIsAuthenticated(true);
+              console.log('[AppContext] Auth success');
+            }
+          }
+        } catch (e) {
+          console.log('[AppContext] Auth check skipped:', e);
+        }
+        
       } catch (error) {
-        console.error('Initialization error:', error);
+        console.error('[AppContext] Initialization error:', error);
       } finally {
-        // ALWAYS set loading to false, even if everything fails
+        // CRITICAL: Always set loading to false
+        console.log('[AppContext] Initialization complete, setting loading false');
         setIsLoading(false);
         setTranslationsLoaded(true);
       }
+      
+      // Step 4: Load non-critical data in background (don't block UI)
+      // These are nice-to-have but app works without them
+      setTimeout(async () => {
+        if (abortController.signal.aborted) return;
+        console.log('[AppContext] Loading background data...');
+        try {
+          await Promise.allSettled([
+            refreshStudents(),
+            refreshClassrooms(), 
+            fetchPresetAvatars(),
+          ]);
+          console.log('[AppContext] Background data loaded');
+        } catch (e) {
+          console.log('[AppContext] Background data load failed:', e);
+        }
+      }, 100);
     };
+    
     initialize();
   }, []);
 
-  // Combined loading state - wait for both auth and translations
-  // FAILSAFE: If something went wrong and states weren't updated, default to not loading after 10 seconds
-  const [failsafeTriggered, setFailsafeTriggered] = useState(false);
-  
-  useEffect(() => {
-    // Failsafe timer - after 10 seconds, force the app to show even if initialization failed
-    const failsafeTimer = setTimeout(() => {
-      console.log('Failsafe triggered - forcing app to load');
-      setFailsafeTriggered(true);
-    }, 10000);
-    
-    return () => clearTimeout(failsafeTimer);
-  }, []);
-  
-  const isAppLoading = failsafeTriggered ? false : (isLoading || !translationsLoaded);
+  // Combined loading state - simple check
+  // translationsLoaded is set true immediately now for fast startup
+  const isAppLoading = isLoading;
 
   return (
     <AppContext.Provider
