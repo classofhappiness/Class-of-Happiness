@@ -182,7 +182,7 @@ export default function RewardsScreen() {
           <Text style={styles.pointsEarned}>+{rewardsData.points_added} {t('points')}!</Text>
           {rewardsData.streak_bonus > 0 && (
             <Text style={styles.streakBonus}>
-              (+{rewardsData.streak_bonus} streak bonus! 🔥)
+              (+{rewardsData.streak_bonus} {t('streak_bonus')} 🔥)
             </Text>
           )}
         </Animated.View>

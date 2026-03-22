@@ -153,7 +153,7 @@ export default function StrategiesScreen() {
           <Text style={styles.headerTitle}>{zoneConfig.label}</Text>
           <Text style={styles.headerSubtitle}>
             {zone === 'green' 
-              ? "Great! Here are ways to stay feeling green:" 
+              ? t('green_zone_help')
               : t('other_zone_help')}
           </Text>
         </View>
@@ -175,8 +175,8 @@ export default function StrategiesScreen() {
           <>
             <Text style={styles.instruction}>
               {zone === 'green' 
-                ? "Tap any strategies you'd like to try:" 
-                : "Tap to select strategies that might help:"}
+                ? t('tap_strategies_green')
+                : t('tap_strategies_help')}
             </Text>
             
             {strategies.map((strategy) => (
