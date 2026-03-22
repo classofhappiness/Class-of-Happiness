@@ -9,7 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "preinstall": "npx npm-force-resolutions || true"
+    "postinstall": "node scripts/postinstall.js || true"
   },
   "resolutions": {
     "react-native-worklets": "npm:empty-package@1.0.0"
