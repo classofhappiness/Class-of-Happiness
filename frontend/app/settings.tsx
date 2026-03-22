@@ -168,6 +168,24 @@ export default function SettingsScreen() {
         )}
       </View>
 
+      {/* About & Legal */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Legal</Text>
+        <TouchableOpacity
+          style={styles.settingItem}
+          onPress={() => router.push('/about' as any)}
+        >
+          <View style={styles.settingLeft}>
+            <MaterialIcons name="info-outline" size={24} color="#5C6BC0" />
+            <View style={styles.settingText}>
+              <Text style={styles.settingLabel}>About & Privacy</Text>
+              <Text style={styles.settingValue}>Disclaimer, Privacy Policy, Terms</Text>
+            </View>
+          </View>
+          <MaterialIcons name="chevron-right" size={24} color="#CCC" />
+        </TouchableOpacity>
+      </View>
+
       {/* Logout */}
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <MaterialIcons name="logout" size={24} color="#F44336" />

@@ -76,6 +76,13 @@ export default function RootLayout() {
           }} 
         />
         <Stack.Screen 
+          name="about" 
+          options={{ 
+            title: 'About & Privacy',
+            headerBackTitle: 'Back',
+          }} 
+        />
+        <Stack.Screen 
           name="subscription/index" 
           options={{ 
             headerShown: false,

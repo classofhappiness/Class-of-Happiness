@@ -154,6 +154,17 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* About & Legal Footer */}
+      <View style={styles.footerSection}>
+        <TouchableOpacity
+          style={styles.aboutButton}
+          onPress={() => router.push('/about' as any)}
+        >
+          <MaterialIcons name="info-outline" size={16} color="#999" />
+          <Text style={styles.aboutButtonText}>About & Privacy</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
@@ -332,5 +343,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#5C6BC0',
     marginBottom: 16,
+  },
+  footerSection: {
+    marginTop: 32,
+    alignItems: 'center',
+    paddingBottom: 20,
+  },
+  aboutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    padding: 12,
+  },
+  aboutButtonText: {
+    fontSize: 14,
+    color: '#999',
   },
 });
