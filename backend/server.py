@@ -2317,22 +2317,43 @@ async def create_student(student: StudentCreate, request: Request):
 
 @api_router.get("/students", response_model=List[Student])
 async def get_students(classroom_id: Optional[str] = None, request: Request = None):
+    user = await get_current_user(request)
     query = {}
+    
+    # Filter by user_id if authenticated
+    if user:
+        query["user_id"] = user.user_id
+    
     if classroom_id:
         query["classroom_id"] = classroom_id
+    
     students = await db.students.find(query).to_list(1000)
     return [Student(**s) for s in students]
 
 @api_router.get("/students/{student_id}", response_model=Student)
-async def get_student(student_id: str):
-    student = await db.students.find_one({"id": student_id})
+async def get_student(student_id: str, request: Request = None):
+    user = await get_current_user(request)
+    query = {"id": student_id}
+    
+    # Filter by user_id if authenticated
+    if user:
+        query["user_id"] = user.user_id
+    
+    student = await db.students.find_one(query)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
     return Student(**student)
 
 @api_router.put("/students/{student_id}", response_model=Student)
-async def update_student(student_id: str, update: StudentUpdate):
-    student = await db.students.find_one({"id": student_id})
+async def update_student(student_id: str, update: StudentUpdate, request: Request = None):
+    user = await get_current_user(request)
+    query = {"id": student_id}
+    
+    # Verify ownership if authenticated
+    if user:
+        query["user_id"] = user.user_id
+    
+    student = await db.students.find_one(query)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
     
@@ -2344,8 +2365,15 @@ async def update_student(student_id: str, update: StudentUpdate):
     return Student(**updated)
 
 @api_router.delete("/students/{student_id}")
-async def delete_student(student_id: str):
-    result = await db.students.delete_one({"id": student_id})
+async def delete_student(student_id: str, request: Request = None):
+    user = await get_current_user(request)
+    query = {"id": student_id}
+    
+    # Verify ownership if authenticated
+    if user:
+        query["user_id"] = user.user_id
+    
+    result = await db.students.delete_one(query)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Student not found")
     await db.zone_logs.delete_many({"student_id": student_id})
@@ -2364,20 +2392,41 @@ async def create_classroom(classroom: ClassroomCreate, request: Request):
     return classroom_obj
 
 @api_router.get("/classrooms", response_model=List[Classroom])
-async def get_classrooms():
-    classrooms = await db.classrooms.find().to_list(1000)
+async def get_classrooms(request: Request = None):
+    user = await get_current_user(request)
+    query = {}
+    
+    # Filter by user_id if authenticated
+    if user:
+        query["user_id"] = user.user_id
+    
+    classrooms = await db.classrooms.find(query).to_list(1000)
     return [Classroom(**c) for c in classrooms]
 
 @api_router.get("/classrooms/{classroom_id}", response_model=Classroom)
-async def get_classroom(classroom_id: str):
-    classroom = await db.classrooms.find_one({"id": classroom_id})
+async def get_classroom(classroom_id: str, request: Request = None):
+    user = await get_current_user(request)
+    query = {"id": classroom_id}
+    
+    # Verify ownership if authenticated
+    if user:
+        query["user_id"] = user.user_id
+    
+    classroom = await db.classrooms.find_one(query)
     if not classroom:
         raise HTTPException(status_code=404, detail="Classroom not found")
     return Classroom(**classroom)
 
 @api_router.delete("/classrooms/{classroom_id}")
-async def delete_classroom(classroom_id: str):
-    result = await db.classrooms.delete_one({"id": classroom_id})
+async def delete_classroom(classroom_id: str, request: Request = None):
+    user = await get_current_user(request)
+    query = {"id": classroom_id}
+    
+    # Verify ownership if authenticated
+    if user:
+        query["user_id"] = user.user_id
+    
+    result = await db.classrooms.delete_one(query)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Classroom not found")
     await db.students.update_many({"classroom_id": classroom_id}, {"$set": {"classroom_id": None}})
@@ -2473,8 +2522,15 @@ async def delete_custom_strategy(strategy_id: str):
 
 # ---- Zone Logs ----
 @api_router.post("/zone-logs", response_model=ZoneLog)
-async def create_zone_log(log: ZoneLogCreate):
-    student = await db.students.find_one({"id": log.student_id})
+async def create_zone_log(log: ZoneLogCreate, request: Request = None):
+    user = await get_current_user(request)
+    query = {"id": log.student_id}
+    
+    # Verify student belongs to user if authenticated
+    if user:
+        query["user_id"] = user.user_id
+    
+    student = await db.students.find_one(query)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
     
