@@ -1,23 +1,36 @@
 import React from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Image, View, StyleSheet, Platform } from 'react-native';
+import { Image, View, StyleSheet, Platform, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { AppProvider } from '../src/context/AppContext';
 
 // Warm up browser and allow completing auth sessions
 WebBrowser.maybeCompleteAuthSession();
 
-// Small logo component for headers with safe area padding
-const HeaderLogo = () => {
-  const insets = useSafeAreaInsets();
+// Header component with back button and logo
+const HeaderWithBackAndLogo = ({ canGoBack }: { canGoBack?: boolean }) => {
+  const router = useRouter();
+  
   return (
-    <Image
-      source={require('../assets/images/logo_coh.png')}
-      style={{ width: 28, height: 28, marginLeft: 8 }}
-      resizeMode="contain"
-    />
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 4 }}>
+      {canGoBack && (
+        <TouchableOpacity 
+          onPress={() => router.back()} 
+          style={{ padding: 8, marginRight: 4 }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <MaterialIcons name="arrow-back-ios" size={22} color="#333" />
+        </TouchableOpacity>
+      )}
+      <Image
+        source={require('../assets/images/logo_coh.png')}
+        style={{ width: 28, height: 28 }}
+        resizeMode="contain"
+      />
+    </View>
   );
 };
 
@@ -37,7 +50,8 @@ export default function RootLayout() {
           contentStyle: {
             backgroundColor: '#F8F9FA',
           },
-          headerLeft: () => <HeaderLogo />,
+          headerLeft: ({ canGoBack }) => <HeaderWithBackAndLogo canGoBack={canGoBack} />,
+          headerBackVisible: false,
         }}
       >
         <Stack.Screen 
