@@ -506,6 +506,10 @@ TRANSLATIONS = {
         "confirm_delete_member": "Are you sure you want to remove",
         "has_been_removed": "has been removed",
         "failed_delete_member": "Failed to delete family member",
+        "edit_member": "Edit Family Member",
+        "has_been_updated": "has been updated",
+        "failed_update_member": "Failed to update family member",
+        "please_enter_name": "Please enter a name",
         "check_in": "Check In",
         "skip": "Skip",
         "done": "Done",
@@ -909,6 +913,10 @@ TRANSLATIONS = {
         "confirm_delete_member": "¿Estás seguro de eliminar a",
         "has_been_removed": "ha sido eliminado",
         "failed_delete_member": "Error al eliminar miembro",
+        "edit_member": "Editar Miembro",
+        "has_been_updated": "ha sido actualizado",
+        "failed_update_member": "Error al actualizar miembro",
+        "please_enter_name": "Por favor ingresa un nombre",
         "check_in": "Registrar",
         "skip": "Saltar",
         "done": "Listo",
@@ -1245,6 +1253,10 @@ TRANSLATIONS = {
         "confirm_delete_member": "Êtes-vous sûr de supprimer",
         "has_been_removed": "a été supprimé",
         "failed_delete_member": "Échec de la suppression",
+        "edit_member": "Modifier Membre",
+        "has_been_updated": "a été mis à jour",
+        "failed_update_member": "Échec de la mise à jour",
+        "please_enter_name": "Veuillez entrer un nom",
         "check_in": "Enregistrer",
         "skip": "Passer",
         "done": "Terminé",
@@ -1635,6 +1647,10 @@ TRANSLATIONS = {
         "confirm_delete_member": "Tem certeza que deseja remover",
         "has_been_removed": "foi removido",
         "failed_delete_member": "Falha ao excluir membro",
+        "edit_member": "Editar Membro",
+        "has_been_updated": "foi atualizado",
+        "failed_update_member": "Falha ao atualizar membro",
+        "please_enter_name": "Por favor insira um nome",
         "check_in": "Registrar",
         "skip": "Pular",
         "done": "Pronto",
@@ -2025,6 +2041,10 @@ TRANSLATIONS = {
         "confirm_delete_member": "Sind Sie sicher, dass Sie entfernen möchten",
         "has_been_removed": "wurde entfernt",
         "failed_delete_member": "Fehler beim Löschen",
+        "edit_member": "Mitglied Bearbeiten",
+        "has_been_updated": "wurde aktualisiert",
+        "failed_update_member": "Fehler beim Aktualisieren",
+        "please_enter_name": "Bitte geben Sie einen Namen ein",
         "check_in": "Einchecken",
         "skip": "Überspringen",
         "done": "Fertig",
@@ -2424,6 +2444,10 @@ TRANSLATIONS = {
         "confirm_delete_member": "Sei sicuro di voler rimuovere",
         "has_been_removed": "è stato rimosso",
         "failed_delete_member": "Impossibile eliminare il membro",
+        "edit_member": "Modifica Membro",
+        "has_been_updated": "è stato aggiornato",
+        "failed_update_member": "Impossibile aggiornare il membro",
+        "please_enter_name": "Per favore inserisci un nome",
         "check_in": "Registra",
         "resources": "Risorse",
         "dashboard": "Pannello",
@@ -3975,6 +3999,47 @@ async def delete_family_member(member_id: str, request: Request):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Family member not found")
     return {"message": "Family member deleted"}
+
+@api_router.put("/family/members/{member_id}")
+async def update_family_member(member_id: str, request: Request):
+    """Update a family member's profile (name, relationship, avatar)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Parse request body
+    data = await request.json()
+    
+    # Verify the family member belongs to this user
+    member = await db.family_members.find_one({"id": member_id, "parent_user_id": user.user_id})
+    if not member:
+        raise HTTPException(status_code=404, detail="Family member not found")
+    
+    # Build update dict with only allowed fields
+    update_data = {}
+    if "name" in data and data["name"]:
+        update_data["name"] = data["name"]
+    if "relationship" in data and data["relationship"] in ["self", "partner", "child"]:
+        update_data["relationship"] = data["relationship"]
+    if "avatar_type" in data and data["avatar_type"] in ["preset", "custom"]:
+        update_data["avatar_type"] = data["avatar_type"]
+    if "avatar_preset" in data:
+        update_data["avatar_preset"] = data["avatar_preset"]
+    if "avatar_custom" in data:
+        update_data["avatar_custom"] = data["avatar_custom"]
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+    
+    await db.family_members.update_one(
+        {"id": member_id, "parent_user_id": user.user_id},
+        {"$set": update_data}
+    )
+    
+    # Return updated member
+    updated_member = await db.family_members.find_one({"id": member_id})
+    updated_member.pop("_id", None)
+    return updated_member
 
 # ---- Family Zone Logs (home tracking) ----
 @api_router.post("/family/zone-logs")

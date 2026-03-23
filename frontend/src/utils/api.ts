@@ -379,6 +379,9 @@ export const familyApi = {
   createMember: (data: Partial<FamilyMember>): Promise<FamilyMember> =>
     apiRequest('/family/members', { method: 'POST', body: JSON.stringify(data) }),
   
+  updateMember: (id: string, data: Partial<FamilyMember>): Promise<FamilyMember> =>
+    apiRequest(`/family/members/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  
   deleteMember: (id: string): Promise<void> =>
     apiRequest(`/family/members/${id}`, { method: 'DELETE' }),
   

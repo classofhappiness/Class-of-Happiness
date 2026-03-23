@@ -13,7 +13,7 @@ const MAX_COMMENT_LENGTH = 100;
 export default function StrategiesScreen() {
   const router = useRouter();
   const { zone } = useLocalSearchParams<{ zone: 'blue' | 'green' | 'yellow' | 'red' }>();
-  const { currentStudent, presetAvatars, t } = useApp();
+  const { currentStudent, presetAvatars, t, language } = useApp();
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);

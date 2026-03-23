@@ -91,6 +91,83 @@ export default function ParentDashboard() {
   });
   const [savingMember, setSavingMember] = useState(false);
   const [deletingMember, setDeletingMember] = useState<string | null>(null);
+  
+  // Edit family member state
+  const [showEditFamilyModal, setShowEditFamilyModal] = useState(false);
+  const [editingMember, setEditingMember] = useState<FamilyMember | null>(null);
+  const [editMember, setEditMember] = useState({
+    name: '',
+    relationship: 'child' as 'child' | 'partner' | 'self',
+    avatar_type: 'preset' as 'preset' | 'custom',
+    avatar_preset: 'star',
+    avatar_custom: '',
+  });
+  const [updatingMember, setUpdatingMember] = useState(false);
+
+  // Open edit modal for a family member
+  const handleEditFamilyMember = (member: FamilyMember) => {
+    setEditingMember(member);
+    setEditMember({
+      name: member.name,
+      relationship: member.relationship as 'child' | 'partner' | 'self',
+      avatar_type: member.avatar_type as 'preset' | 'custom',
+      avatar_preset: member.avatar_preset || 'star',
+      avatar_custom: member.avatar_custom || '',
+    });
+    setShowEditFamilyModal(true);
+  };
+
+  // Update family member
+  const handleUpdateFamilyMember = async () => {
+    if (!editingMember || !editMember.name.trim()) {
+      Alert.alert(t('error') || 'Error', t('please_enter_name') || 'Please enter a name');
+      return;
+    }
+    setUpdatingMember(true);
+    try {
+      const updated = await familyApi.updateMember(editingMember.id, {
+        name: editMember.name.trim(),
+        relationship: editMember.relationship,
+        avatar_type: editMember.avatar_type,
+        avatar_preset: editMember.avatar_preset,
+        avatar_custom: editMember.avatar_type === 'custom' ? editMember.avatar_custom : undefined,
+      });
+      // Update local state
+      setFamilyMembers(prev => prev.map(m => m.id === editingMember.id ? { ...m, ...updated } : m));
+      Alert.alert(t('success') || 'Success', `${editMember.name} ${t('has_been_updated') || 'has been updated'}`);
+      setShowEditFamilyModal(false);
+      setEditingMember(null);
+    } catch (error: any) {
+      console.error('Error updating family member:', error);
+      Alert.alert(t('error') || 'Error', error.message || t('failed_update_member') || 'Failed to update family member');
+    } finally {
+      setUpdatingMember(false);
+    }
+  };
+
+  // Pick image for edit modal
+  const pickImageForEdit = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+        base64: true,
+      });
+      
+      if (!result.canceled && result.assets[0].base64) {
+        setEditMember({
+          ...editMember,
+          avatar_type: 'custom',
+          avatar_custom: `data:image/jpeg;base64,${result.assets[0].base64}`,
+        });
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
 
   // Delete family member
   const handleDeleteFamilyMember = async (member: FamilyMember) => {
@@ -366,17 +443,27 @@ export default function ParentDashboard() {
                   }}
                   onLongPress={() => handleDeleteFamilyMember(member)}
                 >
-                  {/* Delete button */}
-                  <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={() => handleDeleteFamilyMember(member)}
-                  >
-                    <MaterialIcons 
-                      name="close" 
-                      size={16} 
-                      color={deletingMember === member.id ? '#999' : '#F44336'} 
-                    />
-                  </TouchableOpacity>
+                  {/* Action buttons row */}
+                  <View style={styles.cardActionButtons}>
+                    {/* Edit button */}
+                    <TouchableOpacity
+                      style={styles.editButton}
+                      onPress={() => handleEditFamilyMember(member)}
+                    >
+                      <MaterialIcons name="edit" size={14} color="#5C6BC0" />
+                    </TouchableOpacity>
+                    {/* Delete button */}
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={() => handleDeleteFamilyMember(member)}
+                    >
+                      <MaterialIcons 
+                        name="close" 
+                        size={16} 
+                        color={deletingMember === member.id ? '#999' : '#F44336'} 
+                      />
+                    </TouchableOpacity>
+                  </View>
                   
                   {/* Avatar - Support both preset and custom */}
                   {member.avatar_type === 'custom' && member.avatar_custom ? (
@@ -781,6 +868,105 @@ export default function ParentDashboard() {
           </View>
         </View>
       </Modal>
+
+      {/* Edit Family Member Modal */}
+      <Modal visible={showEditFamilyModal} transparent animationType="slide" onRequestClose={() => setShowEditFamilyModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{t('edit_member') || 'Edit Family Member'}</Text>
+              <TouchableOpacity onPress={() => setShowEditFamilyModal(false)}>
+                <MaterialIcons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Avatar Selection */}
+            <Text style={styles.inputLabel}>{t('photo') || 'Photo'}</Text>
+            <View style={styles.avatarSelection}>
+              <TouchableOpacity
+                style={[
+                  styles.avatarOption,
+                  editMember.avatar_type === 'preset' && styles.avatarOptionSelected
+                ]}
+                onPress={() => setEditMember({ ...editMember, avatar_type: 'preset', avatar_custom: '' })}
+              >
+                <View style={styles.presetAvatarPreview}>
+                  <MaterialIcons 
+                    name={editMember.relationship === 'self' ? 'person' : editMember.relationship === 'partner' ? 'favorite' : 'child-care'} 
+                    size={40} 
+                    color="#5C6BC0" 
+                  />
+                </View>
+                <Text style={styles.avatarOptionText}>{t('use_icon') || 'Use Icon'}</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.avatarOption,
+                  editMember.avatar_type === 'custom' && styles.avatarOptionSelected
+                ]}
+                onPress={pickImageForEdit}
+              >
+                {editMember.avatar_custom ? (
+                  <Image 
+                    source={{ uri: editMember.avatar_custom }} 
+                    style={styles.customAvatarPreview} 
+                  />
+                ) : (
+                  <View style={styles.uploadPlaceholder}>
+                    <MaterialIcons name="add-a-photo" size={40} color="#5C6BC0" />
+                  </View>
+                )}
+                <Text style={styles.avatarOptionText}>{t('upload_photo') || 'Upload Photo'}</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.inputLabel}>{t('name')}</Text>
+            <TextInput
+              style={styles.textInput}
+              value={editMember.name}
+              onChangeText={(text) => setEditMember({ ...editMember, name: text })}
+              placeholder={t('name')}
+            />
+            
+            <Text style={styles.inputLabel}>{t('relationship')}</Text>
+            <View style={styles.relationshipButtons}>
+              {(['self', 'partner', 'child'] as const).map((rel) => (
+                <TouchableOpacity
+                  key={rel}
+                  style={[
+                    styles.relationshipButton,
+                    editMember.relationship === rel && styles.relationshipButtonSelected,
+                  ]}
+                  onPress={() => setEditMember({ ...editMember, relationship: rel })}
+                >
+                  <MaterialIcons 
+                    name={rel === 'self' ? 'person' : rel === 'partner' ? 'favorite' : 'child-care'} 
+                    size={20} 
+                    color={editMember.relationship === rel ? 'white' : '#666'} 
+                  />
+                  <Text style={[
+                    styles.relationshipButtonText,
+                    editMember.relationship === rel && styles.relationshipButtonTextSelected,
+                  ]}>
+                    {t(rel)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            
+            <TouchableOpacity
+              style={[styles.submitButton, updatingMember && styles.submitButtonDisabled]}
+              onPress={handleUpdateFamilyMember}
+              disabled={updatingMember}
+            >
+              <Text style={styles.submitButtonText}>
+                {updatingMember ? t('updating') || 'Updating...' : t('save_changes') || 'Save Changes'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -866,17 +1052,30 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#4A90D9',
   },
-  deleteButton: {
+  cardActionButtons: {
     position: 'absolute',
     top: 4,
+    left: 4,
     right: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    zIndex: 1,
+  },
+  editButton: {
     width: 24,
     height: 24,
     borderRadius: 12,
     backgroundColor: 'white',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 1,
+  },
+  deleteButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'white',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   memberAvatar: {
     width: 50,
