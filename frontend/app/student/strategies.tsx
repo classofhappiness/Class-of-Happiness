@@ -31,10 +31,10 @@ export default function StrategiesScreen() {
   const fetchStrategies = async () => {
     if (!zone) return;
     try {
-      // Fetch strategies including custom ones for this student
+      // Fetch strategies including custom ones for this student, with language
       const data = currentStudent 
-        ? await strategiesApi.getForStudent(currentStudent.id, zone)
-        : await strategiesApi.getByZone(zone);
+        ? await strategiesApi.getForStudent(currentStudent.id, zone, language)
+        : await strategiesApi.getByZone(zone, undefined, language);
       setStrategies(data);
     } catch (error) {
       console.error('Error fetching strategies:', error);

@@ -228,14 +228,14 @@ export const classroomsApi = {
 
 // Strategies API
 export const strategiesApi = {
-  getAll: (studentId?: string): Promise<Strategy[]> => 
-    apiRequest(studentId ? `/strategies?student_id=${studentId}` : '/strategies'),
+  getAll: (studentId?: string, lang: string = 'en'): Promise<Strategy[]> => 
+    apiRequest(studentId ? `/strategies?student_id=${studentId}&lang=${lang}` : `/strategies?lang=${lang}`),
   
-  getByZone: (zone: string, studentId?: string): Promise<Strategy[]> => 
-    apiRequest(`/strategies?zone=${zone}${studentId ? `&student_id=${studentId}` : ''}`),
+  getByZone: (zone: string, studentId?: string, lang: string = 'en'): Promise<Strategy[]> => 
+    apiRequest(`/strategies?zone=${zone}&lang=${lang}${studentId ? `&student_id=${studentId}` : ''}`),
   
-  getForStudent: (studentId: string, zone?: string): Promise<Strategy[]> =>
-    apiRequest(`/strategies/student/${studentId}${zone ? `?zone=${zone}` : ''}`),
+  getForStudent: (studentId: string, zone?: string, lang: string = 'en'): Promise<Strategy[]> =>
+    apiRequest(`/strategies/student/${studentId}?lang=${lang}${zone ? `&zone=${zone}` : ''}`),
   
   getIcons: (): Promise<string[]> =>
     apiRequest('/strategy-icons'),
