@@ -18,11 +18,12 @@ interface StudentCreatureData {
 export default function StudentSelectScreen() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { students, presetAvatars, setCurrentStudent, refreshStudents, t, language, translations } = useApp();
+  const { students, presetAvatars, setCurrentStudent, currentStudent, refreshStudents, t, language, translations } = useApp();
   const [showCollection, setShowCollection] = useState(false);
   const [collectionData, setCollectionData] = useState<StudentCollection | null>(null);
   const [selectedStudentForCollection, setSelectedStudentForCollection] = useState<string | null>(null);
   const [studentCreatures, setStudentCreatures] = useState<Record<string, StudentCreatureData>>({});
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
   // Hide default header and use custom translated header
   useLayoutEffect(() => {
@@ -59,8 +60,12 @@ export default function StudentSelectScreen() {
   }, [students]);
 
   const handleSelectStudent = (student: typeof students[0]) => {
+    setSelectedStudentId(student.id);
     setCurrentStudent(student);
-    router.push('/student/zone');
+    // Short delay to show selection before navigating
+    setTimeout(() => {
+      router.push('/student/zone');
+    }, 200);
   };
 
   const handleViewCreatures = async (studentId: string) => {
@@ -148,12 +153,24 @@ export default function StudentSelectScreen() {
 
         <View style={styles.studentsGrid}>
           {students.map((student) => (
-            <View key={student.id} style={styles.studentCard}>
+            <View 
+              key={student.id} 
+              style={[
+                styles.studentCard, 
+                selectedStudentId === student.id && styles.studentCardSelected
+              ]}
+            >
               <TouchableOpacity
                 style={styles.studentMain}
                 onPress={() => handleSelectStudent(student)}
                 activeOpacity={0.7}
               >
+                {/* Selection indicator */}
+                {selectedStudentId === student.id && (
+                  <View style={styles.selectionIndicator}>
+                    <MaterialIcons name="check-circle" size={24} color="#4CAF50" />
+                  </View>
+                )}
                 <Avatar
                   type={student.avatar_type}
                   preset={student.avatar_preset}
@@ -173,7 +190,8 @@ export default function StudentSelectScreen() {
                 style={styles.creaturesButton}
                 onPress={() => handleViewCreatures(student.id)}
               >
-                <Text style={styles.creaturesButtonText}>{t('my_creatures')}</Text>
+                <MaterialIcons name="pets" size={14} color="#FF9800" />
+                <Text style={styles.creaturesButtonText}>{t('my_creatures') || 'My Creatures'}</Text>
               </TouchableOpacity>
             </View>
           ))}
@@ -222,13 +240,15 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 12,
+    paddingTop: 20,
     paddingBottom: 30,
   },
   instruction: {
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
+    marginTop: 8,
   },
   studentsGrid: {
     flexDirection: 'row',
@@ -248,9 +268,24 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  studentCardSelected: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#E8F5E9',
+  },
+  selectionIndicator: {
+    position: 'absolute',
+    top: -12,
+    right: -12,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    zIndex: 1,
   },
   studentMain: {
     alignItems: 'center',
+    position: 'relative',
   },
   studentName: {
     fontSize: 14,
@@ -260,16 +295,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   creaturesButton: {
-    marginTop: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    backgroundColor: '#F0F0F0',
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: '#FFF3E0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   creaturesButtonText: {
-    fontSize: 10,
-    color: '#666',
-    fontWeight: '500',
+    fontSize: 11,
+    color: '#FF9800',
+    fontWeight: '600',
   },
   // Creature icons styles
   creatureIconsContainer: {

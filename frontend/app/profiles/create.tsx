@@ -28,7 +28,6 @@ const PRESET_AVATARS = [
   { id: 'monkey', emoji: '🐵', name: 'Monkey' },
   { id: 'unicorn', emoji: '🦄', name: 'Unicorn' },
   { id: 'star', emoji: '⭐', name: 'Star' },
-  { id: 'rainbow', emoji: '🌈', name: 'Rainbow' },
 ];
 
 export default function CreateProfileScreen() {

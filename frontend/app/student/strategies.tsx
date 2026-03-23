@@ -22,11 +22,22 @@ export default function StrategiesScreen() {
   const [comment, setComment] = useState('');
   const [showCommentInput, setShowCommentInput] = useState(false);
 
+  // Get translated zone label
+  const getZoneLabel = () => {
+    const labels: Record<string, string> = {
+      blue: t('blue_zone') || 'Blue Emotions',
+      green: t('green_zone') || 'Green Emotions',
+      yellow: t('yellow_zone') || 'Yellow Emotions',
+      red: t('red_zone') || 'Red Emotions',
+    };
+    return zone ? labels[zone] : labels.green;
+  };
+
   const zoneConfig = zone ? ZONE_CONFIG[zone] : ZONE_CONFIG.green;
 
   useEffect(() => {
     fetchStrategies();
-  }, [zone, currentStudent]);
+  }, [zone, currentStudent, language]);
 
   const fetchStrategies = async () => {
     if (!zone) return;
@@ -154,7 +165,7 @@ export default function StrategiesScreen() {
       <View style={[styles.header, { backgroundColor: zoneConfig.color }]}>
         <Text style={styles.zoneFace}>{zoneConfig.face}</Text>
         <View style={styles.headerText}>
-          <Text style={styles.headerTitle}>{zoneConfig.label}</Text>
+          <Text style={styles.headerTitle}>{getZoneLabel()}</Text>
           <Text style={styles.headerSubtitle}>
             {zone === 'green' 
               ? t('green_zone_help')
