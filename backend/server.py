@@ -712,6 +712,12 @@ TRANSLATIONS = {
         "generate_teacher_code": "Generate a code that teachers can use to link to your child's profile.",
         "expires_7_days": "Expires in 7 days",
         "teacher_link_code": "Teacher Link Code:",
+        # Sharing disclaimer
+        "sharing_disclaimer_title": "Consent to Share Access",
+        "sharing_disclaimer_text": "By choosing to generate and share an access code, you acknowledge and agree to the following:\n\nThe access code you share allows the receiving parent, teacher, or therapist to view the child's emotional Colour of Emotion information within the app. This access is provided solely for the purpose of supporting the child's emotional understanding, identifying patterns, and coordinating strategies across home, school, and therapeutic environments.\n\nThe access code may be used only for the purposes described above. It may not be shared, transferred, or used for any unrelated purpose, including evaluation, discipline, or decision-making outside the child's emotional and behavioral support.\n\nAccess granted through this code is time-limited and will automatically expire after one month unless you request earlier revocation. You may withdraw access at any time, for any reason. Once access is revoked or expired, the receiving party will no longer be able to view the child's information.\n\nBy proceeding, you confirm that you have the authority to share this information, that you understand the nature of the access being granted, and that you consent to provide this limited, temporary access to the child's emotional data.",
+        "i_agree_and_continue": "I Agree & Continue",
+        "cancel": "Cancel",
+        "access_expires_30_days": "Access expires in 30 days",
         "checkin_for": "Check-in for",
         "how_everyone_feeling": "How is everyone feeling?",
         "choose_helpful_strategies": "Choose helpful strategies",
@@ -1031,6 +1037,12 @@ TRANSLATIONS = {
         "parent_link_code": "Código de Vinculación:",
         "code_expires_7_days": "Este código expira en 7 días.",
         "share_code": "Compartir Código",
+        # Sharing disclaimer
+        "sharing_disclaimer_title": "Consentimiento para Compartir Acceso",
+        "sharing_disclaimer_text": "Al elegir generar y compartir un código de acceso, usted reconoce y acepta lo siguiente:\n\nEl código de acceso que comparte permite al padre, maestro o terapeuta receptor ver la información emocional del Color de la Emoción del niño dentro de la aplicación. Este acceso se proporciona únicamente con el propósito de apoyar la comprensión emocional del niño, identificar patrones y coordinar estrategias entre el hogar, la escuela y los entornos terapéuticos.\n\nEl código de acceso solo puede usarse para los fines descritos anteriormente. No puede compartirse, transferirse ni usarse para ningún propósito no relacionado, incluyendo evaluación, disciplina o toma de decisiones fuera del apoyo emocional y conductual del niño.\n\nEl acceso otorgado a través de este código tiene un tiempo limitado y expirará automáticamente después de un mes a menos que solicite una revocación anticipada. Puede retirar el acceso en cualquier momento, por cualquier motivo. Una vez que el acceso sea revocado o expire, la parte receptora ya no podrá ver la información del niño.\n\nAl continuar, confirma que tiene la autoridad para compartir esta información, que comprende la naturaleza del acceso que se está otorgando y que da su consentimiento para proporcionar este acceso limitado y temporal a los datos emocionales del niño.",
+        "i_agree_and_continue": "Acepto y Continuar",
+        "cancel": "Cancelar",
+        "access_expires_30_days": "El acceso expira en 30 días",
         "create_new_classroom": "Crear Nueva Aula",
         "classroom_name": "Nombre del Aula",
         "teacher_name_optional": "Nombre del Maestro (Opcional)",
@@ -1383,6 +1395,12 @@ TRANSLATIONS = {
         "parent_link_code": "Code de Liaison Parent:",
         "code_expires_7_days": "Ce code expire dans 7 jours. Partage-le avec le parent pour qu'il puisse lier son compte.",
         "share_code": "Partager le Code",
+        # Sharing disclaimer
+        "sharing_disclaimer_title": "Consentement au Partage d'Accès",
+        "sharing_disclaimer_text": "En choisissant de générer et de partager un code d'accès, vous reconnaissez et acceptez ce qui suit:\n\nLe code d'accès que vous partagez permet au parent, à l'enseignant ou au thérapeute destinataire de consulter les informations sur la Couleur de l'Émotion de l'enfant dans l'application. Cet accès est fourni uniquement dans le but de soutenir la compréhension émotionnelle de l'enfant, d'identifier des schémas et de coordonner des stratégies entre la maison, l'école et les environnements thérapeutiques.\n\nLe code d'accès ne peut être utilisé que pour les fins décrites ci-dessus. Il ne peut être partagé, transféré ou utilisé à d'autres fins, y compris l'évaluation, la discipline ou la prise de décision en dehors du soutien émotionnel et comportemental de l'enfant.\n\nL'accès accordé via ce code est limité dans le temps et expirera automatiquement après un mois, sauf si vous demandez une révocation anticipée. Vous pouvez retirer l'accès à tout moment, pour n'importe quelle raison. Une fois l'accès révoqué ou expiré, la partie destinataire ne pourra plus consulter les informations de l'enfant.\n\nEn continuant, vous confirmez que vous avez l'autorité de partager ces informations, que vous comprenez la nature de l'accès accordé et que vous consentez à fournir cet accès limité et temporaire aux données émotionnelles de l'enfant.",
+        "i_agree_and_continue": "J'accepte et Continue",
+        "cancel": "Annuler",
+        "access_expires_30_days": "L'accès expire dans 30 jours",
         "create_new_classroom": "Créer une Nouvelle Classe",
         "classroom_name": "Nom de la Classe",
         "teacher_name_optional": "Nom de l'Enseignant (Optionnel)",
@@ -1777,6 +1795,12 @@ TRANSLATIONS = {
         "parent_link_code": "Código de Vinculação:",
         "code_expires_7_days": "Este código expira em 7 dias. Compartilhe com o pai/mãe para que possa vincular sua conta.",
         "share_code": "Compartilhar Código",
+        # Sharing disclaimer
+        "sharing_disclaimer_title": "Consentimento para Compartilhar Acesso",
+        "sharing_disclaimer_text": "Ao optar por gerar e compartilhar um código de acesso, você reconhece e concorda com o seguinte:\n\nO código de acesso que você compartilha permite que o pai, professor ou terapeuta destinatário visualize as informações emocionais de Cor da Emoção da criança no aplicativo. Este acesso é fornecido exclusivamente para apoiar a compreensão emocional da criança, identificar padrões e coordenar estratégias entre casa, escola e ambientes terapêuticos.\n\nO código de acesso só pode ser usado para os fins descritos acima. Não pode ser compartilhado, transferido ou usado para qualquer finalidade não relacionada, incluindo avaliação, disciplina ou tomada de decisão fora do suporte emocional e comportamental da criança.\n\nO acesso concedido através deste código é limitado no tempo e expirará automaticamente após um mês, a menos que você solicite revogação antecipada. Você pode retirar o acesso a qualquer momento, por qualquer motivo. Uma vez revogado ou expirado o acesso, a parte destinatária não poderá mais visualizar as informações da criança.\n\nAo continuar, você confirma que tem autoridade para compartilhar estas informações, que compreende a natureza do acesso sendo concedido e que consente em fornecer este acesso limitado e temporário aos dados emocionais da criança.",
+        "i_agree_and_continue": "Aceito e Continuar",
+        "cancel": "Cancelar",
+        "access_expires_30_days": "O acesso expira em 30 dias",
         "create_new_classroom": "Criar Nova Sala",
         "classroom_name": "Nome da Sala",
         "teacher_name_optional": "Nome do Professor (Opcional)",
@@ -2171,6 +2195,12 @@ TRANSLATIONS = {
         "parent_link_code": "Eltern-Verknüpfungscode:",
         "code_expires_7_days": "Dieser Code läuft in 7 Tagen ab. Teile ihn mit den Eltern, damit sie ihr Konto verknüpfen können.",
         "share_code": "Code teilen",
+        # Sharing disclaimer
+        "sharing_disclaimer_title": "Einwilligung zur Freigabe des Zugangs",
+        "sharing_disclaimer_text": "Durch die Generierung und Weitergabe eines Zugangscodes erkennen Sie Folgendes an und stimmen dem zu:\n\nDer von Ihnen geteilte Zugangscode ermöglicht dem empfangenden Elternteil, Lehrer oder Therapeuten, die emotionalen Farbinformationen des Kindes in der App einzusehen. Dieser Zugang dient ausschließlich der Unterstützung des emotionalen Verständnisses des Kindes, der Identifizierung von Mustern und der Koordination von Strategien zwischen Zuhause, Schule und therapeutischen Umgebungen.\n\nDer Zugangscode darf nur für die oben beschriebenen Zwecke verwendet werden. Er darf nicht weitergegeben, übertragen oder für andere Zwecke verwendet werden, einschließlich Bewertung, Disziplinierung oder Entscheidungsfindung außerhalb der emotionalen und verhaltensbezogenen Unterstützung des Kindes.\n\nDer durch diesen Code gewährte Zugang ist zeitlich begrenzt und läuft automatisch nach einem Monat ab, es sei denn, Sie fordern einen früheren Widerruf an. Sie können den Zugang jederzeit und aus jedem Grund widerrufen. Nach Widerruf oder Ablauf kann die empfangende Partei die Informationen des Kindes nicht mehr einsehen.\n\nDurch Fortfahren bestätigen Sie, dass Sie befugt sind, diese Informationen zu teilen, dass Sie die Art des gewährten Zugangs verstehen und dass Sie diesem eingeschränkten, temporären Zugang zu den emotionalen Daten des Kindes zustimmen.",
+        "i_agree_and_continue": "Ich stimme zu & Weiter",
+        "cancel": "Abbrechen",
+        "access_expires_30_days": "Zugang läuft in 30 Tagen ab",
         "create_new_classroom": "Neuen Klassenraum erstellen",
         "classroom_name": "Name des Klassenraums",
         "teacher_name_optional": "Lehrername (Optional)",
@@ -2583,6 +2613,17 @@ TRANSLATIONS = {
         "shared_strategies": "Strategie Condivise",
         "share_with_home": "Condividi con Casa",
         "share_with_school": "Condividi con Scuola",
+        "share_code": "Condividi Codice",
+        "generate_code": "Genera Codice",
+        "share_with_teacher": "Condividi con Insegnante",
+        "generate_teacher_code": "Genera un codice che gli insegnanti possono usare per collegarsi al profilo del tuo bambino.",
+        "expires_7_days": "Scade tra 7 giorni",
+        "teacher_link_code": "Codice Collegamento Insegnante:",
+        # Sharing disclaimer
+        "sharing_disclaimer_title": "Consenso alla Condivisione dell'Accesso",
+        "sharing_disclaimer_text": "Scegliendo di generare e condividere un codice di accesso, riconosci e accetti quanto segue:\n\nIl codice di accesso che condividi consente al genitore, insegnante o terapeuta destinatario di visualizzare le informazioni emozionali sul Colore dell'Emozione del bambino all'interno dell'app. Questo accesso è fornito esclusivamente per supportare la comprensione emotiva del bambino, identificare schemi e coordinare strategie tra casa, scuola e ambienti terapeutici.\n\nIl codice di accesso può essere utilizzato solo per gli scopi sopra descritti. Non può essere condiviso, trasferito o utilizzato per scopi non correlati, inclusa valutazione, disciplina o processo decisionale al di fuori del supporto emotivo e comportamentale del bambino.\n\nL'accesso concesso tramite questo codice è limitato nel tempo e scadrà automaticamente dopo un mese, a meno che non richiedi una revoca anticipata. Puoi revocare l'accesso in qualsiasi momento, per qualsiasi motivo. Una volta revocato o scaduto l'accesso, la parte destinataria non potrà più visualizzare le informazioni del bambino.\n\nContinuando, confermi di avere l'autorità di condividere queste informazioni, di comprendere la natura dell'accesso concesso e di acconsentire a fornire questo accesso limitato e temporaneo ai dati emotivi del bambino.",
+        "i_agree_and_continue": "Accetto e Continua",
+        "access_expires_30_days": "L'accesso scade tra 30 giorni",
         "synced": "Sincronizzato",
         "great_job_title": "Ottimo Lavoro!",
         "keep_it_up": "Continua così!",
@@ -3837,17 +3878,23 @@ async def link_student_to_parent(request: Request):
         if expires < datetime.now(timezone.utc):
             raise HTTPException(status_code=400, detail="Link code expired")
     
-    # Link parent to student
+    # Link parent to student with 30-day access
+    access_expires = datetime.now(timezone.utc) + timedelta(days=30)
     await db.students.update_one(
         {"id": student["id"]},
-        {"$set": {"parent_user_id": user.user_id, "link_code": None, "link_code_expires": None}}
+        {"$set": {
+            "parent_user_id": user.user_id, 
+            "link_code": None, 
+            "link_code_expires": None,
+            "parent_access_expires": access_expires
+        }}
     )
     
-    return {"message": "Child linked successfully", "student_id": student["id"], "student_name": student["name"]}
+    return {"message": "Child linked successfully", "student_id": student["id"], "student_name": student["name"], "access_expires": access_expires.isoformat()}
 
 @api_router.get("/parent/children")
 async def get_parent_children(request: Request):
-    """Get all children linked to the current parent"""
+    """Get all children linked to the current parent (with valid access)"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -3855,8 +3902,31 @@ async def get_parent_children(request: Request):
     if user.role != "parent":
         raise HTTPException(status_code=403, detail="Only parents can access this")
     
+    # Get all students linked to this parent
     students = await db.students.find({"parent_user_id": user.user_id}).to_list(100)
-    return [Student(**s) for s in students]
+    
+    # Filter out students with expired access and remove expired links
+    valid_students = []
+    for s in students:
+        access_expires = s.get("parent_access_expires")
+        if access_expires:
+            if isinstance(access_expires, str):
+                access_expires = datetime.fromisoformat(access_expires)
+            if access_expires.tzinfo is None:
+                access_expires = access_expires.replace(tzinfo=timezone.utc)
+            
+            # Check if access has expired
+            if access_expires < datetime.now(timezone.utc):
+                # Remove the expired link
+                await db.students.update_one(
+                    {"id": s["id"]},
+                    {"$unset": {"parent_user_id": "", "parent_access_expires": ""}}
+                )
+                continue  # Skip this student
+        
+        valid_students.append(Student(**s))
+    
+    return valid_students
 
 # ---- Resources (for Parents) ----
 @api_router.get("/resources")

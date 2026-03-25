@@ -62,6 +62,7 @@ export default function StudentDetailScreen() {
   const [showLinkCodeModal, setShowLinkCodeModal] = useState(false);
   const [linkCode, setLinkCode] = useState<string | null>(null);
   const [generatingCode, setGeneratingCode] = useState(false);
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
 
   const fetchData = async () => {
     if (!studentId) return;
@@ -428,16 +429,18 @@ export default function StudentDetailScreen() {
         onRequestClose={() => {
           setShowLinkCodeModal(false);
           setLinkCode(null);
+          setDisclaimerAccepted(false);
         }}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { maxHeight: '85%' }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Share with Parent</Text>
+              <Text style={styles.modalTitle}>{t('share_with_teacher') || 'Share with Parent'}</Text>
               <TouchableOpacity
                 onPress={() => {
                   setShowLinkCodeModal(false);
                   setLinkCode(null);
+                  setDisclaimerAccepted(false);
                 }}
                 style={styles.modalCloseButton}
               >
@@ -446,11 +449,31 @@ export default function StudentDetailScreen() {
             </View>
             
             <View style={styles.linkCodeContent}>
-              {!linkCode ? (
+              {!disclaimerAccepted ? (
+                // Disclaimer step
+                <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={true}>
+                  <Text style={styles.disclaimerTitle}>{t('sharing_disclaimer_title') || 'Consent to Share Access'}</Text>
+                  <Text style={styles.disclaimerText}>{t('sharing_disclaimer_text')}</Text>
+                  <View style={styles.disclaimerButtons}>
+                    <TouchableOpacity
+                      style={[styles.generateCodeButton, { backgroundColor: '#999', flex: 1, marginRight: 8 }]}
+                      onPress={() => { setShowLinkCodeModal(false); setDisclaimerAccepted(false); }}
+                    >
+                      <Text style={styles.generateCodeButtonText}>{t('cancel') || 'Cancel'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.generateCodeButton, { flex: 1.5 }]}
+                      onPress={() => setDisclaimerAccepted(true)}
+                    >
+                      <Text style={styles.generateCodeButtonText}>{t('i_agree_and_continue') || 'I Agree & Continue'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </ScrollView>
+              ) : !linkCode ? (
                 <>
                   <MaterialIcons name="family-restroom" size={64} color="#4A90D9" />
                   <Text style={styles.linkCodeDescription}>
-                    Generate a code that {student.name}'s parent can use to link their account and view check-ins from home.
+                    {t('generate_teacher_code') || `Generate a code that ${student.name}'s parent can use to link their account and view check-ins from home.`}
                   </Text>
                   <TouchableOpacity
                     style={[styles.generateCodeButton, generatingCode && styles.generateCodeButtonDisabled]}
@@ -469,28 +492,28 @@ export default function StudentDetailScreen() {
                   >
                     <MaterialIcons name="vpn-key" size={24} color="white" />
                     <Text style={styles.generateCodeButtonText}>
-                      {generatingCode ? 'Generating...' : 'Generate Code'}
+                      {generatingCode ? (t('generating') || 'Generating...') : (t('generate_code') || 'Generate Code')}
                     </Text>
                   </TouchableOpacity>
                 </>
               ) : (
                 <>
                   <MaterialIcons name="check-circle" size={64} color="#4CAF50" />
-                  <Text style={styles.linkCodeLabel}>Parent Link Code:</Text>
+                  <Text style={styles.linkCodeLabel}>{t('parent_link_code') || 'Parent Link Code:'}</Text>
                   <Text style={styles.linkCodeValue}>{linkCode}</Text>
                   <Text style={styles.linkCodeNote}>
-                    This code expires in 7 days. Share it with the parent so they can link their account.
+                    {t('access_expires_30_days') || 'Access expires in 30 days'}. {t('share_code_instructions') || 'Share it with the parent so they can link their account.'}
                   </Text>
                   <TouchableOpacity
                     style={styles.shareCodeButton}
                     onPress={() => {
                       Share.share({
-                        message: `Link code for ${student.name} in Class of Happiness app: ${linkCode}\n\nUse this code in the Parent section to connect your account.`,
+                        message: `Link code for ${student.name} in Class of Happiness app: ${linkCode}\n\nUse this code in the Parent section to connect your account. Access expires in 30 days.`,
                       });
                     }}
                   >
                     <MaterialIcons name="share" size={24} color="white" />
-                    <Text style={styles.shareCodeButtonText}>Share Code</Text>
+                    <Text style={styles.shareCodeButtonText}>{t('share_code') || 'Share Code'}</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -914,5 +937,23 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  disclaimerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  disclaimerText: {
+    fontSize: 13,
+    color: '#444',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  disclaimerButtons: {
+    flexDirection: 'row',
+    marginTop: 8,
+    paddingBottom: 20,
   },
 });

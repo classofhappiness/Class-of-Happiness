@@ -77,9 +77,11 @@ export default function ParentDashboard() {
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [showAddFamilyModal, setShowAddFamilyModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
   const [linkCode, setLinkCode] = useState('');
   const [linking, setLinking] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   
   // New family member form
   const [newMember, setNewMember] = useState({
@@ -823,17 +825,37 @@ export default function ParentDashboard() {
       </Modal>
 
       {/* Share to Teacher Modal */}
-      <Modal visible={showShareModal} transparent animationType="slide" onRequestClose={() => { setShowShareModal(false); setGeneratedCode(null); }}>
+      <Modal visible={showShareModal} transparent animationType="slide" onRequestClose={() => { setShowShareModal(false); setGeneratedCode(null); setDisclaimerAccepted(false); }}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { maxHeight: '85%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('share_with_teacher')}</Text>
-              <TouchableOpacity onPress={() => { setShowShareModal(false); setGeneratedCode(null); }}>
+              <TouchableOpacity onPress={() => { setShowShareModal(false); setGeneratedCode(null); setDisclaimerAccepted(false); }}>
                 <MaterialIcons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
             
-            {!generatedCode ? (
+            {!disclaimerAccepted ? (
+              // Disclaimer step
+              <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={true}>
+                <Text style={styles.disclaimerTitle}>{t('sharing_disclaimer_title')}</Text>
+                <Text style={styles.disclaimerText}>{t('sharing_disclaimer_text')}</Text>
+                <View style={styles.disclaimerButtons}>
+                  <TouchableOpacity
+                    style={[styles.submitButton, { backgroundColor: '#999', flex: 1, marginRight: 8 }]}
+                    onPress={() => { setShowShareModal(false); setDisclaimerAccepted(false); }}
+                  >
+                    <Text style={styles.submitButtonText}>{t('cancel')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.submitButton, { flex: 1.5 }]}
+                    onPress={() => setDisclaimerAccepted(true)}
+                  >
+                    <Text style={styles.submitButtonText}>{t('i_agree_and_continue')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            ) : !generatedCode ? (
               <>
                 <View style={styles.shareInfo}>
                   <MaterialIcons name="qr-code-2" size={64} color="#4A90D9" />
@@ -854,7 +876,7 @@ export default function ParentDashboard() {
                   <MaterialIcons name="check-circle" size={48} color="#4CAF50" />
                   <Text style={styles.codeLabel}>{t('teacher_link_code')}</Text>
                   <Text style={styles.codeValue}>{generatedCode}</Text>
-                  <Text style={styles.codeExpiry}>{t('expires_7_days')}</Text>
+                  <Text style={styles.codeExpiry}>{t('access_expires_30_days')}</Text>
                 </View>
                 <TouchableOpacity
                   style={[styles.submitButton, { backgroundColor: '#4CAF50' }]}
@@ -1484,5 +1506,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 8,
+  },
+  disclaimerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  disclaimerText: {
+    fontSize: 13,
+    color: '#444',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  disclaimerButtons: {
+    flexDirection: 'row',
+    marginTop: 8,
+    paddingBottom: 20,
   },
 });
