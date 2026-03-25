@@ -51,7 +51,11 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
             </View>
           </View>
 
-          <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            style={styles.scrollView} 
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
             {/* Current Creature */}
             <Text style={styles.sectionTitle}>🌟 Current Friend</Text>
             <View style={[styles.creatureCard, { borderColor: currentCreature.color }]}>
@@ -127,22 +131,25 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
   },
   container: {
     backgroundColor: 'white',
     borderRadius: 24,
     width: '100%',
-    maxHeight: '80%',
-    paddingBottom: 40,
+    maxHeight: '85%',
+    minHeight: 400,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#EEE',
+    backgroundColor: 'white',
   },
   title: {
     fontSize: 24,
@@ -150,11 +157,17 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   closeButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F0F0F0',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   closeText: {
-    fontSize: 24,
+    fontSize: 20,
     color: '#666',
+    fontWeight: 'bold',
   },
   progressContainer: {
     padding: 16,
@@ -178,8 +191,12 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   scrollView: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+  },
+  scrollContent: {
     padding: 16,
+    paddingBottom: 40,
   },
   sectionTitle: {
     fontSize: 18,
