@@ -1243,6 +1243,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 20,
     padding: 24,
+    paddingBottom: 40,
     width: '100%',
     maxWidth: 400,
   },

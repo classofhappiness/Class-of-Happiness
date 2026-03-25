@@ -340,6 +340,7 @@ const styles = StyleSheet.create({
   bottomButtons: {
     flexDirection: 'row',
     padding: 16,
+    paddingBottom: 40,
     gap: 12,
     backgroundColor: 'white',
     borderTopWidth: 1,

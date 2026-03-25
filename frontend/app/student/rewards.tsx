@@ -310,7 +310,8 @@ const styles = StyleSheet.create({
   buttonContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 40,
+    paddingTop: 16,
     gap: 12,
   },
   collectionButton: {

@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
   footerSection: {
     marginTop: 32,
     alignItems: 'center',
-    paddingBottom: 20,
+    paddingBottom: 40,
   },
   aboutButton: {
     flexDirection: 'row',
