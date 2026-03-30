@@ -497,12 +497,45 @@ export interface CreatureStage {
   required_points: number;
 }
 
+export interface CreatureMove {
+  id: string;
+  name: string;
+  emoji: string;
+  unlocks_at_stage: number;
+}
+
+export interface CreatureOutfit {
+  id: string;
+  name: string;
+  emoji: string;
+  unlocks_at_stage: number;
+}
+
+export interface CreatureFood {
+  id: string;
+  name: string;
+  emoji: string;
+  unlocks_at_stage: number;
+}
+
+export interface CreatureHome {
+  id: string;
+  name: string;
+  emoji: string;
+  unlocks_at_stage: number;
+}
+
 export interface Creature {
   id: string;
   name: string;
+  zone: string;
   description: string;
   color: string;
   stages: CreatureStage[];
+  moves?: CreatureMove[];
+  outfits?: CreatureOutfit[];
+  foods?: CreatureFood[];
+  homes?: CreatureHome[];
 }
 
 export interface StudentRewards {
@@ -542,6 +575,10 @@ export interface StudentCollection {
   current_points: number;
   total_creatures: number;
   total_collected: number;
+  unlocked_moves: string[];
+  unlocked_outfits: string[];
+  unlocked_foods: string[];
+  unlocked_homes: string[];
 }
 
 export interface PointsConfig {
