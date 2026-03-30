@@ -215,13 +215,13 @@ export default function TeacherResourcesScreen() {
         Linking.openURL(pdfUrl);
       } else {
         // Mobile (Expo Go SDK 54+): Use new File/Directory API
-        const pdfDir = new Directory(Paths.cache, 'pdfs');
-        pdfDir.create(); // Ensure directory exists
+        // Use cache directory directly to avoid create() issues
+        const cacheDir = new Directory(Paths.cache);
         
-        console.log('Downloading to directory:', pdfDir.uri);
+        console.log('Downloading to cache directory');
         
-        // Download file using the new File.downloadFileAsync
-        const downloadedFile = await File.downloadFileAsync(pdfUrl, pdfDir);
+        // Download file directly to cache
+        const downloadedFile = await File.downloadFileAsync(pdfUrl, cacheDir);
         
         console.log('Download result - exists:', downloadedFile.exists);
         console.log('Download result - uri:', downloadedFile.uri);

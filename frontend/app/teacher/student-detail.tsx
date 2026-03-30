@@ -140,13 +140,13 @@ export default function StudentDetailScreen() {
         window.open(fullUrl, '_blank');
       } else {
         // Mobile (Expo Go SDK 54+): Use new File/Directory API
-        const pdfDir = new Directory(Paths.cache, 'reports');
-        pdfDir.create(); // Ensure directory exists
+        // Use cache directory directly to avoid create() issues
+        const cacheDir = new Directory(Paths.cache);
         
-        console.log('Saving report to directory:', pdfDir.uri);
+        console.log('Saving report to cache directory');
         
-        // Download file using the new File.downloadFileAsync
-        const downloadedFile = await File.downloadFileAsync(fullUrl, pdfDir);
+        // Download file directly to cache
+        const downloadedFile = await File.downloadFileAsync(fullUrl, cacheDir);
         
         console.log('Download result - exists:', downloadedFile.exists);
         console.log('Download result - uri:', downloadedFile.uri);

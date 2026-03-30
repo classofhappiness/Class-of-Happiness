@@ -127,13 +127,16 @@ export default function ResourcesScreen() {
         Linking.openURL(downloadUrl);
       } else {
         // Mobile (Expo Go SDK 54+): Use new File/Directory API
-        const pdfDir = new Directory(Paths.cache, 'pdfs');
-        pdfDir.create(); // Ensure directory exists
+        // Use cache directory with unique filename to avoid conflicts
+        const timestamp = Date.now();
+        const safeFilename = `${resourceId}_${timestamp}.pdf`;
+        const cacheDir = new Directory(Paths.cache);
+        const targetFile = new File(cacheDir, safeFilename);
         
-        console.log('Saving PDF to directory:', pdfDir.uri);
+        console.log('Downloading to:', targetFile.uri);
         
-        // Download file using the new File.downloadFileAsync
-        const downloadedFile = await File.downloadFileAsync(downloadUrl, pdfDir);
+        // Download file directly to the target location
+        const downloadedFile = await File.downloadFileAsync(downloadUrl, cacheDir);
         
         console.log('Download result - exists:', downloadedFile.exists);
         console.log('Download result - uri:', downloadedFile.uri);
