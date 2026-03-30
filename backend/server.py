@@ -3454,7 +3454,7 @@ async def get_students(classroom_id: Optional[str] = None, request: Request = No
     if classroom_id:
         query["classroom_id"] = classroom_id
     
-    students = await db.students.find(query).to_list(1000)
+    students = await db.students.find(query).to_list(100)
     return [Student(**s) for s in students]
 
 @api_router.get("/students/{student_id}", response_model=Student)
@@ -3527,7 +3527,7 @@ async def get_classrooms(request: Request = None):
     if user:
         query["user_id"] = user.user_id
     
-    classrooms = await db.classrooms.find(query).to_list(1000)
+    classrooms = await db.classrooms.find(query).to_list(100)
     return [Classroom(**c) for c in classrooms]
 
 @api_router.get("/classrooms/{classroom_id}", response_model=Classroom)
@@ -3591,7 +3591,7 @@ async def get_strategies(zone: Optional[str] = None, student_id: Optional[str] =
         query = {"student_id": student_id, "is_active": True}
         if zone:
             query["zone"] = zone
-        custom = await db.custom_strategies.find(query).to_list(1000)
+        custom = await db.custom_strategies.find(query).to_list(100)
         for c in custom:
             strategies.append({
                 "id": c["id"],
@@ -3632,7 +3632,7 @@ async def get_custom_strategies(student_id: Optional[str] = None, request: Reque
     if student_id:
         query["student_id"] = student_id
     
-    strategies = await db.custom_strategies.find(query).to_list(1000)
+    strategies = await db.custom_strategies.find(query).to_list(100)
     return [CustomStrategy(**s) for s in strategies]
 
 @api_router.get("/custom-strategies/{strategy_id}")
@@ -3709,20 +3709,20 @@ async def get_zone_logs(
         student_query = {"classroom_id": classroom_id}
         if user:
             student_query["user_id"] = user.user_id
-        students = await db.students.find(student_query).to_list(1000)
+        students = await db.students.find(student_query).to_list(100)
         student_ids = [s["id"] for s in students]
         if not student_ids:
             return []  # Return empty if no students found
         query["student_id"] = {"$in": student_ids}
     elif user:
         # No specific filter, get all students belonging to user
-        students = await db.students.find({"user_id": user.user_id}).to_list(1000)
+        students = await db.students.find({"user_id": user.user_id}).to_list(100)
         student_ids = [s["id"] for s in students]
         if not student_ids:
             return []  # Return empty if no students found
         query["student_id"] = {"$in": student_ids}
     
-    logs = await db.zone_logs.find(query).sort("timestamp", -1).to_list(1000)
+    logs = await db.zone_logs.find(query).sort("timestamp", -1).to_list(100)
     return [ZoneLog(**log) for log in logs]
 
 @api_router.get("/zone-logs/student/{student_id}", response_model=List[ZoneLog])
@@ -3731,7 +3731,7 @@ async def get_student_zone_logs(student_id: str, days: int = 30):
     logs = await db.zone_logs.find({
         "student_id": student_id,
         "timestamp": {"$gte": start_date}
-    }).sort("timestamp", -1).to_list(1000)
+    }).sort("timestamp", -1).to_list(100)
     return [ZoneLog(**log) for log in logs]
 
 # ---- Analytics ----
@@ -3742,7 +3742,7 @@ async def get_student_analytics(student_id: str, days: int = 7):
     logs = await db.zone_logs.find({
         "student_id": student_id,
         "timestamp": {"$gte": start_date}
-    }).sort("timestamp", 1).to_list(1000)
+    }).sort("timestamp", 1).to_list(100)
     
     zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
     strategy_counts = {}
@@ -3776,7 +3776,7 @@ async def get_student_analytics(student_id: str, days: int = 7):
 async def get_classroom_analytics(classroom_id: str, days: int = 7):
     start_date = datetime.utcnow() - timedelta(days=days)
     
-    students = await db.students.find({"classroom_id": classroom_id}).to_list(1000)
+    students = await db.students.find({"classroom_id": classroom_id}).to_list(100)
     student_ids = [s["id"] for s in students]
     
     if not student_ids:
@@ -3791,7 +3791,7 @@ async def get_classroom_analytics(classroom_id: str, days: int = 7):
     logs = await db.zone_logs.find({
         "student_id": {"$in": student_ids},
         "timestamp": {"$gte": start_date}
-    }).sort("timestamp", 1).to_list(1000)
+    }).sort("timestamp", 1).to_list(100)
     
     zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
     daily_data = {}
@@ -4792,7 +4792,7 @@ async def rate_teacher_resource(resource_id: str, rating_data: TeacherResourceRa
         await db.teacher_resource_ratings.insert_one(rating_obj.dict())
     
     # Recalculate average rating
-    all_ratings = await db.teacher_resource_ratings.find({"resource_id": resource_id}).to_list(1000)
+    all_ratings = await db.teacher_resource_ratings.find({"resource_id": resource_id}).to_list(100)
     if all_ratings:
         avg = sum(r["rating"] for r in all_ratings) / len(all_ratings)
         await db.teacher_resources.update_one(
