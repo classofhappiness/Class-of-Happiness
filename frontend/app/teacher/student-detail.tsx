@@ -17,7 +17,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
-import * as FileSystem from 'expo-file-system';
+import { File, Directory, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useApp } from '../../src/context/AppContext';
 import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy, reportsApi, teacherApi } from '../../src/utils/api';
@@ -139,39 +139,31 @@ export default function StudentDetailScreen() {
         // Web: Open in new tab
         window.open(fullUrl, '_blank');
       } else {
-        // Mobile: Download and share
-        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+        // Mobile (Expo Go SDK 54+): Use new File/Directory API
+        const pdfDir = new Directory(Paths.cache, 'reports');
+        pdfDir.create(); // Ensure directory exists
         
-        console.log('Saving report to:', fileUri);
+        console.log('Saving report to directory:', pdfDir.uri);
         
-        const downloadResult = await FileSystem.downloadAsync(fullUrl, fileUri, {
-          headers: {
-            'Accept': 'application/pdf',
-          },
-        });
+        // Download file using the new File.downloadFileAsync
+        const downloadedFile = await File.downloadFileAsync(fullUrl, pdfDir);
         
-        console.log('Download result:', downloadResult);
+        console.log('Download result - exists:', downloadedFile.exists);
+        console.log('Download result - uri:', downloadedFile.uri);
         
-        if (downloadResult.status === 200) {
-          // Verify file exists
-          const fileInfo = await FileSystem.getInfoAsync(fileUri);
-          
-          if (!fileInfo.exists || (fileInfo.size && fileInfo.size === 0)) {
-            throw new Error('Downloaded file is empty');
-          }
-          
-          const canShare = await Sharing.isAvailableAsync();
-          if (canShare) {
-            await Sharing.shareAsync(downloadResult.uri, {
-              mimeType: 'application/pdf',
-              dialogTitle: `Share ${student?.name}'s Monthly Report`,
-              UTI: 'com.adobe.pdf',
-            });
-          } else {
-            Alert.alert('Success', 'Report downloaded successfully');
-          }
+        if (!downloadedFile.exists) {
+          throw new Error('Downloaded file does not exist');
+        }
+        
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(downloadedFile.uri, {
+            mimeType: 'application/pdf',
+            dialogTitle: `Share ${student?.name}'s Monthly Report`,
+            UTI: 'com.adobe.pdf',
+          });
         } else {
-          throw new Error(`Download failed with status: ${downloadResult.status}`);
+          Alert.alert('Success', 'Report downloaded successfully');
         }
       }
     } catch (error: any) {

@@ -18,7 +18,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { adminApi, AdminStats, Resource, resourcesApi } from '../../src/utils/api';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -85,11 +85,11 @@ export default function AdminDashboard() {
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const file = result.assets[0];
-        const base64 = await FileSystem.readAsStringAsync(file.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        setSelectedPdf({ name: file.name, base64 });
+        const fileAsset = result.assets[0];
+        // Use new File API to read base64
+        const file = new File(fileAsset.uri);
+        const base64 = await file.base64();
+        setSelectedPdf({ name: fileAsset.name, base64 });
         setNewContentType('pdf');
       }
     } catch (error) {

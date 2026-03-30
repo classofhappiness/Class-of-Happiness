@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
+import { File, Directory, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { resourcesApi, teacherResourcesApi, Resource, TeacherResource, TeacherResourceRating } from '../../src/utils/api';
 import { useApp } from '../../src/context/AppContext';
@@ -126,34 +126,20 @@ export default function ResourcesScreen() {
         // Web: Open URL directly
         Linking.openURL(downloadUrl);
       } else {
-        // Mobile (Expo Go): Use FileSystem.downloadAsync
-        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+        // Mobile (Expo Go SDK 54+): Use new File/Directory API
+        const pdfDir = new Directory(Paths.cache, 'pdfs');
+        pdfDir.create(); // Ensure directory exists
         
-        console.log('Saving PDF to:', fileUri);
+        console.log('Saving PDF to directory:', pdfDir.uri);
         
-        // Download the file
-        const downloadResult = await FileSystem.downloadAsync(
-          downloadUrl,
-          fileUri,
-          {
-            headers: {
-              'Accept': 'application/pdf',
-            },
-          }
-        );
+        // Download file using the new File.downloadFileAsync
+        const downloadedFile = await File.downloadFileAsync(downloadUrl, pdfDir);
         
-        console.log('Download result:', downloadResult);
+        console.log('Download result - exists:', downloadedFile.exists);
+        console.log('Download result - uri:', downloadedFile.uri);
         
-        if (downloadResult.status !== 200) {
-          throw new Error(`Download failed with status: ${downloadResult.status}`);
-        }
-        
-        // Verify file exists and has content
-        const fileInfo = await FileSystem.getInfoAsync(fileUri);
-        console.log('File info:', fileInfo);
-        
-        if (!fileInfo.exists || (fileInfo.size && fileInfo.size === 0)) {
-          throw new Error('Downloaded file is empty or does not exist');
+        if (!downloadedFile.exists) {
+          throw new Error('Downloaded file does not exist');
         }
         
         // Share the file
@@ -161,13 +147,13 @@ export default function ResourcesScreen() {
         console.log('Can share:', canShare);
         
         if (canShare) {
-          await Sharing.shareAsync(fileUri, {
+          await Sharing.shareAsync(downloadedFile.uri, {
             mimeType: 'application/pdf',
             dialogTitle: `Share ${resource.title}`,
             UTI: 'com.adobe.pdf',
           });
         } else {
-          Alert.alert('Success', `PDF saved to: ${fileUri}`);
+          Alert.alert('Success', `PDF saved to: ${downloadedFile.uri}`);
         }
       }
     } catch (error: any) {
