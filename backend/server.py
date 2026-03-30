@@ -290,100 +290,155 @@ class TeacherLinkCode(BaseModel):
 
 # ================== CREATURE REWARD SYSTEM ==================
 
-# Creature definitions - cute, colorful creatures for kids 5-12
+# Creature definitions - 4 emotion-colored creatures with progression system
+# Blue = Water/Calm, Green = Nature/Balance, Yellow = Electric/Energy, Red = Fire/Power
 CREATURES = [
     {
-        "id": "bubbles",
-        "name": "Bubbles",
-        "description": "A friendly water creature who loves to make friends",
+        "id": "aqua_buddy",
+        "name": "Aqua Buddy",
+        "zone": "blue",
+        "description": "A calm water creature that helps when you feel tired or sad",
         "color": "#4FC3F7",
         "stages": [
-            {"stage": 0, "name": "Bubble Egg", "emoji": "🥚", "description": "A shimmering blue egg", "required_points": 0},
-            {"stage": 1, "name": "Droplet", "emoji": "💧", "description": "A tiny water droplet with big eyes", "required_points": 50},
-            {"stage": 2, "name": "Splashy", "emoji": "🫧", "description": "A bouncy bubble friend", "required_points": 150},
-            {"stage": 3, "name": "Bubbles", "emoji": "🐳", "description": "A majestic water spirit!", "required_points": 300}
+            {"stage": 0, "name": "Water Drop", "emoji": "💧", "description": "A peaceful little drop finding its way", "required_points": 0},
+            {"stage": 1, "name": "Splash", "emoji": "🫧", "description": "Learning to make gentle waves", "required_points": 25},
+            {"stage": 2, "name": "Stream", "emoji": "🌊", "description": "Flowing with calm energy", "required_points": 60},
+            {"stage": 3, "name": "Ocean Spirit", "emoji": "🐋", "description": "A wise ocean guardian!", "required_points": 120}
+        ],
+        "moves": [
+            {"id": "calm_wave", "name": "Calm Wave", "emoji": "🌊", "unlocks_at_stage": 1},
+            {"id": "bubble_shield", "name": "Bubble Shield", "emoji": "🫧", "unlocks_at_stage": 2},
+            {"id": "ocean_song", "name": "Ocean Song", "emoji": "🎵", "unlocks_at_stage": 3}
+        ],
+        "outfits": [
+            {"id": "coral_crown", "name": "Coral Crown", "emoji": "👑", "unlocks_at_stage": 2},
+            {"id": "pearl_cape", "name": "Pearl Cape", "emoji": "✨", "unlocks_at_stage": 3}
+        ],
+        "foods": [
+            {"id": "sea_berries", "name": "Sea Berries", "emoji": "🫐", "unlocks_at_stage": 1},
+            {"id": "crystal_drops", "name": "Crystal Drops", "emoji": "💎", "unlocks_at_stage": 2}
+        ],
+        "homes": [
+            {"id": "tide_pool", "name": "Tide Pool", "emoji": "🏊", "unlocks_at_stage": 2},
+            {"id": "ocean_palace", "name": "Ocean Palace", "emoji": "🏰", "unlocks_at_stage": 3}
         ]
     },
     {
-        "id": "sunny",
-        "name": "Sunny",
-        "description": "A warm and cheerful sun creature",
-        "color": "#FFD54F",
-        "stages": [
-            {"stage": 0, "name": "Sun Egg", "emoji": "🥚", "description": "A glowing golden egg", "required_points": 0},
-            {"stage": 1, "name": "Sparkle", "emoji": "✨", "description": "A tiny spark of light", "required_points": 50},
-            {"stage": 2, "name": "Glow", "emoji": "🌟", "description": "A bright shining star", "required_points": 150},
-            {"stage": 3, "name": "Sunny", "emoji": "☀️", "description": "A radiant sun friend!", "required_points": 300}
-        ]
-    },
-    {
-        "id": "leafy",
-        "name": "Leafy",
-        "description": "A nature-loving plant creature",
+        "id": "leaf_friend",
+        "name": "Leaf Friend",
+        "zone": "green",
+        "description": "A balanced nature creature that celebrates feeling happy and calm",
         "color": "#81C784",
         "stages": [
-            {"stage": 0, "name": "Seed Pod", "emoji": "🥚", "description": "A green seed waiting to grow", "required_points": 0},
-            {"stage": 1, "name": "Sprout", "emoji": "🌱", "description": "A tiny sprout reaching up", "required_points": 50},
-            {"stage": 2, "name": "Blossom", "emoji": "🌸", "description": "A beautiful blooming flower", "required_points": 150},
-            {"stage": 3, "name": "Leafy", "emoji": "🌳", "description": "A mighty tree of wisdom!", "required_points": 300}
+            {"stage": 0, "name": "Little Seed", "emoji": "🌰", "description": "A tiny seed full of potential", "required_points": 0},
+            {"stage": 1, "name": "Sprout", "emoji": "🌱", "description": "Growing stronger every day", "required_points": 25},
+            {"stage": 2, "name": "Blossom", "emoji": "🌸", "description": "Blooming with happiness", "required_points": 60},
+            {"stage": 3, "name": "Forest Guardian", "emoji": "🌳", "description": "A mighty tree of peace!", "required_points": 120}
+        ],
+        "moves": [
+            {"id": "leaf_dance", "name": "Leaf Dance", "emoji": "🍃", "unlocks_at_stage": 1},
+            {"id": "nature_heal", "name": "Nature Heal", "emoji": "💚", "unlocks_at_stage": 2},
+            {"id": "forest_song", "name": "Forest Song", "emoji": "🎶", "unlocks_at_stage": 3}
+        ],
+        "outfits": [
+            {"id": "flower_crown", "name": "Flower Crown", "emoji": "💐", "unlocks_at_stage": 2},
+            {"id": "rainbow_leaves", "name": "Rainbow Leaves", "emoji": "🌈", "unlocks_at_stage": 3}
+        ],
+        "foods": [
+            {"id": "sunny_fruit", "name": "Sunny Fruit", "emoji": "🍎", "unlocks_at_stage": 1},
+            {"id": "golden_nectar", "name": "Golden Nectar", "emoji": "🍯", "unlocks_at_stage": 2}
+        ],
+        "homes": [
+            {"id": "cozy_mushroom", "name": "Cozy Mushroom", "emoji": "🍄", "unlocks_at_stage": 2},
+            {"id": "treehouse", "name": "Magical Treehouse", "emoji": "🏡", "unlocks_at_stage": 3}
         ]
     },
     {
-        "id": "flamey",
-        "name": "Flamey",
-        "description": "A passionate fire creature with a warm heart",
+        "id": "spark_pal",
+        "name": "Spark Pal",
+        "zone": "yellow",
+        "description": "An energetic electric creature that helps with big feelings of excitement or worry",
+        "color": "#FFD54F",
+        "stages": [
+            {"stage": 0, "name": "Tiny Spark", "emoji": "✨", "description": "A little spark of energy", "required_points": 0},
+            {"stage": 1, "name": "Zapper", "emoji": "⚡", "description": "Learning to channel energy", "required_points": 25},
+            {"stage": 2, "name": "Bolt", "emoji": "🌟", "description": "Shining bright with power", "required_points": 60},
+            {"stage": 3, "name": "Thunder Star", "emoji": "⭐", "description": "A legendary star of energy!", "required_points": 120}
+        ],
+        "moves": [
+            {"id": "quick_flash", "name": "Quick Flash", "emoji": "💫", "unlocks_at_stage": 1},
+            {"id": "thunder_dance", "name": "Thunder Dance", "emoji": "💃", "unlocks_at_stage": 2},
+            {"id": "star_burst", "name": "Star Burst", "emoji": "🌠", "unlocks_at_stage": 3}
+        ],
+        "outfits": [
+            {"id": "lightning_scarf", "name": "Lightning Scarf", "emoji": "🧣", "unlocks_at_stage": 2},
+            {"id": "star_armor", "name": "Star Armor", "emoji": "🛡️", "unlocks_at_stage": 3}
+        ],
+        "foods": [
+            {"id": "energy_candy", "name": "Energy Candy", "emoji": "🍬", "unlocks_at_stage": 1},
+            {"id": "lightning_berries", "name": "Lightning Berries", "emoji": "🍇", "unlocks_at_stage": 2}
+        ],
+        "homes": [
+            {"id": "cloud_nest", "name": "Cloud Nest", "emoji": "☁️", "unlocks_at_stage": 2},
+            {"id": "star_castle", "name": "Star Castle", "emoji": "🏯", "unlocks_at_stage": 3}
+        ]
+    },
+    {
+        "id": "blaze_heart",
+        "name": "Blaze Heart",
+        "zone": "red",
+        "description": "A powerful fire creature that helps transform big angry or frustrated feelings",
         "color": "#FF7043",
         "stages": [
-            {"stage": 0, "name": "Ember Egg", "emoji": "🥚", "description": "A warm orange egg", "required_points": 0},
-            {"stage": 1, "name": "Spark", "emoji": "💥", "description": "A tiny dancing flame", "required_points": 50},
-            {"stage": 2, "name": "Blaze", "emoji": "🔥", "description": "A bright burning fire", "required_points": 150},
-            {"stage": 3, "name": "Flamey", "emoji": "🐉", "description": "A legendary fire dragon!", "required_points": 300}
-        ]
-    },
-    {
-        "id": "cloudy",
-        "name": "Cloudy",
-        "description": "A dreamy sky creature who floats through the air",
-        "color": "#B39DDB",
-        "stages": [
-            {"stage": 0, "name": "Sky Egg", "emoji": "🥚", "description": "A fluffy purple egg", "required_points": 0},
-            {"stage": 1, "name": "Puff", "emoji": "💨", "description": "A tiny cloud puff", "required_points": 50},
-            {"stage": 2, "name": "Misty", "emoji": "☁️", "description": "A soft floating cloud", "required_points": 150},
-            {"stage": 3, "name": "Cloudy", "emoji": "🌈", "description": "A magical rainbow cloud!", "required_points": 300}
-        ]
-    },
-    {
-        "id": "rocky",
-        "name": "Rocky",
-        "description": "A strong and steady earth creature",
-        "color": "#A1887F",
-        "stages": [
-            {"stage": 0, "name": "Stone Egg", "emoji": "🥚", "description": "A solid brown egg", "required_points": 0},
-            {"stage": 1, "name": "Pebble", "emoji": "🪨", "description": "A small rolling stone", "required_points": 50},
-            {"stage": 2, "name": "Boulder", "emoji": "⛰️", "description": "A mighty boulder", "required_points": 150},
-            {"stage": 3, "name": "Rocky", "emoji": "🗿", "description": "An ancient earth guardian!", "required_points": 300}
+            {"stage": 0, "name": "Ember", "emoji": "🔸", "description": "A small but warm ember", "required_points": 0},
+            {"stage": 1, "name": "Flame", "emoji": "🔥", "description": "Growing into a steady flame", "required_points": 25},
+            {"stage": 2, "name": "Blaze", "emoji": "🌋", "description": "Burning bright with passion", "required_points": 60},
+            {"stage": 3, "name": "Phoenix", "emoji": "🐦‍🔥", "description": "A legendary fire phoenix!", "required_points": 120}
+        ],
+        "moves": [
+            {"id": "warm_glow", "name": "Warm Glow", "emoji": "🌡️", "unlocks_at_stage": 1},
+            {"id": "fire_spin", "name": "Fire Spin", "emoji": "🌀", "unlocks_at_stage": 2},
+            {"id": "phoenix_rise", "name": "Phoenix Rise", "emoji": "🦅", "unlocks_at_stage": 3}
+        ],
+        "outfits": [
+            {"id": "flame_cape", "name": "Flame Cape", "emoji": "🧥", "unlocks_at_stage": 2},
+            {"id": "dragon_armor", "name": "Dragon Armor", "emoji": "🐲", "unlocks_at_stage": 3}
+        ],
+        "foods": [
+            {"id": "spicy_treats", "name": "Spicy Treats", "emoji": "🌶️", "unlocks_at_stage": 1},
+            {"id": "fire_crystals", "name": "Fire Crystals", "emoji": "💠", "unlocks_at_stage": 2}
+        ],
+        "homes": [
+            {"id": "warm_cave", "name": "Warm Cave", "emoji": "🕳️", "unlocks_at_stage": 2},
+            {"id": "volcano_palace", "name": "Volcano Palace", "emoji": "🌋", "unlocks_at_stage": 3}
         ]
     }
 ]
 
-# Points configuration - reduced thresholds for faster evolution
+# Points configuration - balanced for engagement
 POINTS_CONFIG = {
-    "strategy_used": 10,        # 10 points per strategy (was 5)
-    "comment_added": 15,        # 15 points for sharing feelings (was 10)
-    "daily_streak_bonus": 8,    # 8 points streak bonus (was 3)
+    "strategy_used": 8,         # 8 points per strategy
+    "comment_added": 12,        # 12 points for sharing feelings
+    "daily_streak_bonus": 5,    # 5 points streak bonus
     "zone_checkin": 5,          # 5 points just for checking in
-    "evolution_thresholds": [0, 12, 28, 50]  # Faster evolution! (was 15, 35, 60)
+    "evolution_thresholds": [0, 25, 60, 120]  # Matches creature stage requirements
 }
 
 # Student Rewards Model
 class StudentRewards(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     student_id: str
-    current_creature_id: str = "bubbles"  # Default starting creature
-    current_stage: int = 0  # 0=egg, 1=baby, 2=teen, 3=adult
+    current_creature_id: str = "aqua_buddy"  # Default starting creature (blue)
+    current_stage: int = 0  # 0=start, 1=growing, 2=evolved, 3=final
     current_points: int = 0  # Points towards current evolution
     total_points_earned: int = 0
     collected_creatures: List[str] = []  # List of fully evolved creature IDs
+    unlocked_moves: List[str] = []  # List of unlocked move IDs
+    unlocked_outfits: List[str] = []  # List of unlocked outfit IDs
+    unlocked_foods: List[str] = []  # List of unlocked food IDs
+    unlocked_homes: List[str] = []  # List of unlocked home IDs
+    equipped_outfit: Optional[str] = None  # Currently equipped outfit
+    equipped_home: Optional[str] = None  # Current home
     last_checkin_date: Optional[str] = None  # YYYY-MM-DD format
     streak_days: int = 0
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -775,6 +830,29 @@ TRANSLATIONS = {
         "evolved": "EVOLVED!",
         "evolving": "EVOLVING...",
         "amazing_continue": "Amazing! Continue",
+        # Creature items
+        "moves": "Moves",
+        "outfits": "Outfits",
+        "foods": "Food",
+        "homes": "Homes",
+        "unlocked": "Unlocked!",
+        "new_move_unlocked": "New Move Unlocked!",
+        "new_outfit_unlocked": "New Outfit Unlocked!",
+        "new_food_unlocked": "New Food Unlocked!",
+        "new_home_unlocked": "New Home Unlocked!",
+        "creature_collection": "My Creature Collection",
+        "current_creature": "Current Creature",
+        "collected_creatures": "Collected Creatures",
+        "unlocked_items": "Unlocked Items",
+        "your_creature": "Your Creature",
+        "stage": "Stage",
+        "next_evolution": "Next Evolution",
+        "points_needed": "points needed",
+        "fully_evolved": "Fully Evolved!",
+        "blue_creature_desc": "A calm water creature that helps when you feel tired or sad",
+        "green_creature_desc": "A balanced nature creature that celebrates feeling happy and calm",
+        "yellow_creature_desc": "An energetic electric creature that helps with big feelings of excitement or worry",
+        "red_creature_desc": "A powerful fire creature that helps transform big angry or frustrated feelings",
         # Profile creation/editing
         "enter_name": "Enter name",
         "select_classroom": "Select classroom",
@@ -1148,6 +1226,29 @@ TRANSLATIONS = {
         "evolved": "¡EVOLUCIONADO!",
         "evolving": "EVOLUCIONANDO...",
         "amazing_continue": "¡Increíble! Continuar",
+        # Creature items
+        "moves": "Movimientos",
+        "outfits": "Atuendos",
+        "foods": "Comida",
+        "homes": "Hogares",
+        "unlocked": "¡Desbloqueado!",
+        "new_move_unlocked": "¡Nuevo Movimiento Desbloqueado!",
+        "new_outfit_unlocked": "¡Nuevo Atuendo Desbloqueado!",
+        "new_food_unlocked": "¡Nueva Comida Desbloqueada!",
+        "new_home_unlocked": "¡Nuevo Hogar Desbloqueado!",
+        "creature_collection": "Mi Colección de Criaturas",
+        "current_creature": "Criatura Actual",
+        "collected_creatures": "Criaturas Coleccionadas",
+        "unlocked_items": "Objetos Desbloqueados",
+        "your_creature": "Tu Criatura",
+        "stage": "Etapa",
+        "next_evolution": "Próxima Evolución",
+        "points_needed": "puntos necesarios",
+        "fully_evolved": "¡Completamente Evolucionado!",
+        "blue_creature_desc": "Una criatura de agua tranquila que ayuda cuando te sientes cansado o triste",
+        "green_creature_desc": "Una criatura de naturaleza equilibrada que celebra sentirse feliz y tranquilo",
+        "yellow_creature_desc": "Una criatura eléctrica enérgica que ayuda con grandes sentimientos de emoción o preocupación",
+        "red_creature_desc": "Una poderosa criatura de fuego que ayuda a transformar grandes sentimientos de enojo o frustración",
         "enter_name": "Ingresa nombre",
         "select_classroom": "Seleccionar aula",
         "updating": "Actualizando...",
@@ -1550,6 +1651,29 @@ TRANSLATIONS = {
         "evolved": "ÉVOLUÉ!",
         "evolving": "EN ÉVOLUTION...",
         "amazing_continue": "Incroyable! Continuer",
+        # Creature items
+        "moves": "Mouvements",
+        "outfits": "Tenues",
+        "foods": "Nourriture",
+        "homes": "Maisons",
+        "unlocked": "Débloqué!",
+        "new_move_unlocked": "Nouveau Mouvement Débloqué!",
+        "new_outfit_unlocked": "Nouvelle Tenue Débloquée!",
+        "new_food_unlocked": "Nouvelle Nourriture Débloquée!",
+        "new_home_unlocked": "Nouvelle Maison Débloquée!",
+        "creature_collection": "Ma Collection de Créatures",
+        "current_creature": "Créature Actuelle",
+        "collected_creatures": "Créatures Collectées",
+        "unlocked_items": "Objets Débloqués",
+        "your_creature": "Ta Créature",
+        "stage": "Étape",
+        "next_evolution": "Prochaine Évolution",
+        "points_needed": "points nécessaires",
+        "fully_evolved": "Complètement Évolué!",
+        "blue_creature_desc": "Une créature aquatique calme qui aide quand tu te sens fatigué ou triste",
+        "green_creature_desc": "Une créature nature équilibrée qui célèbre le bonheur et le calme",
+        "yellow_creature_desc": "Une créature électrique énergique qui aide avec les grands sentiments d'excitation ou d'inquiétude",
+        "red_creature_desc": "Une puissante créature de feu qui aide à transformer les grands sentiments de colère ou de frustration",
         "enter_name": "Entre le nom",
         "select_classroom": "Sélectionne la classe",
         "updating": "Mise à jour...",
@@ -1959,6 +2083,29 @@ TRANSLATIONS = {
         "evolved": "EVOLUÍDO!",
         "evolving": "EVOLUINDO...",
         "amazing_continue": "Incrível! Continuar",
+        # Creature items
+        "moves": "Movimentos",
+        "outfits": "Roupas",
+        "foods": "Comida",
+        "homes": "Casas",
+        "unlocked": "Desbloqueado!",
+        "new_move_unlocked": "Novo Movimento Desbloqueado!",
+        "new_outfit_unlocked": "Nova Roupa Desbloqueada!",
+        "new_food_unlocked": "Nova Comida Desbloqueada!",
+        "new_home_unlocked": "Nova Casa Desbloqueada!",
+        "creature_collection": "Minha Coleção de Criaturas",
+        "current_creature": "Criatura Atual",
+        "collected_creatures": "Criaturas Coletadas",
+        "unlocked_items": "Itens Desbloqueados",
+        "your_creature": "Sua Criatura",
+        "stage": "Etapa",
+        "next_evolution": "Próxima Evolução",
+        "points_needed": "pontos necessários",
+        "fully_evolved": "Totalmente Evoluído!",
+        "blue_creature_desc": "Uma criatura aquática calma que ajuda quando você se sente cansado ou triste",
+        "green_creature_desc": "Uma criatura da natureza equilibrada que celebra se sentir feliz e calmo",
+        "yellow_creature_desc": "Uma criatura elétrica energética que ajuda com grandes sentimentos de empolgação ou preocupação",
+        "red_creature_desc": "Uma poderosa criatura de fogo que ajuda a transformar grandes sentimentos de raiva ou frustração",
         "enter_name": "Digite o nome",
         "select_classroom": "Selecione a sala",
         "updating": "Atualizando...",
@@ -2368,6 +2515,29 @@ TRANSLATIONS = {
         "evolved": "ENTWICKELT!",
         "evolving": "ENTWICKELT SICH...",
         "amazing_continue": "Toll! Weiter",
+        # Creature items
+        "moves": "Bewegungen",
+        "outfits": "Outfits",
+        "foods": "Essen",
+        "homes": "Häuser",
+        "unlocked": "Freigeschaltet!",
+        "new_move_unlocked": "Neue Bewegung Freigeschaltet!",
+        "new_outfit_unlocked": "Neues Outfit Freigeschaltet!",
+        "new_food_unlocked": "Neues Essen Freigeschaltet!",
+        "new_home_unlocked": "Neues Haus Freigeschaltet!",
+        "creature_collection": "Meine Kreaturensammlung",
+        "current_creature": "Aktuelle Kreatur",
+        "collected_creatures": "Gesammelte Kreaturen",
+        "unlocked_items": "Freigeschaltete Gegenstände",
+        "your_creature": "Deine Kreatur",
+        "stage": "Stufe",
+        "next_evolution": "Nächste Evolution",
+        "points_needed": "Punkte benötigt",
+        "fully_evolved": "Voll Entwickelt!",
+        "blue_creature_desc": "Eine ruhige Wasserkreatur, die hilft, wenn du dich müde oder traurig fühlst",
+        "green_creature_desc": "Eine ausgeglichene Naturkreatur, die Glück und Ruhe feiert",
+        "yellow_creature_desc": "Eine energetische elektrische Kreatur, die bei großen Aufregungen oder Sorgen hilft",
+        "red_creature_desc": "Eine mächtige Feuerkreatur, die hilft, große Wut- oder Frustrationsgefühle zu verwandeln",
         "enter_name": "Name eingeben",
         "select_classroom": "Klassenraum auswählen",
         "updating": "Aktualisiere...",
@@ -2649,6 +2819,29 @@ TRANSLATIONS = {
         "evolved": "EVOLUTO!",
         "evolving": "IN EVOLUZIONE...",
         "amazing_continue": "Fantastico! Continua",
+        # Creature items
+        "moves": "Mosse",
+        "outfits": "Vestiti",
+        "foods": "Cibo",
+        "homes": "Case",
+        "unlocked": "Sbloccato!",
+        "new_move_unlocked": "Nuova Mossa Sbloccata!",
+        "new_outfit_unlocked": "Nuovo Vestito Sbloccato!",
+        "new_food_unlocked": "Nuovo Cibo Sbloccato!",
+        "new_home_unlocked": "Nuova Casa Sbloccata!",
+        "creature_collection": "La Mia Collezione di Creature",
+        "current_creature": "Creatura Attuale",
+        "collected_creatures": "Creature Collezionate",
+        "unlocked_items": "Oggetti Sbloccati",
+        "your_creature": "La Tua Creatura",
+        "stage": "Fase",
+        "next_evolution": "Prossima Evoluzione",
+        "points_needed": "punti necessari",
+        "fully_evolved": "Completamente Evoluto!",
+        "blue_creature_desc": "Una calma creatura d'acqua che aiuta quando ti senti stanco o triste",
+        "green_creature_desc": "Una creatura della natura equilibrata che celebra la felicità e la calma",
+        "yellow_creature_desc": "Una creatura elettrica energica che aiuta con grandi sentimenti di eccitazione o preoccupazione",
+        "red_creature_desc": "Una potente creatura di fuoco che aiuta a trasformare grandi sentimenti di rabbia o frustrazione",
         "enter_name": "Inserisci nome",
         "select_classroom": "Seleziona aula",
         "updating": "Aggiornamento...",
@@ -4869,6 +5062,46 @@ async def add_points_to_student(student_id: str, request: AddPointsRequest):
             "stage_info": creature["stages"][current_stage],
             "creature": creature
         }
+        
+        # Unlock items for this stage
+        unlocked_moves = rewards.get("unlocked_moves", [])
+        unlocked_outfits = rewards.get("unlocked_outfits", [])
+        unlocked_foods = rewards.get("unlocked_foods", [])
+        unlocked_homes = rewards.get("unlocked_homes", [])
+        
+        new_unlocks = []
+        
+        # Check moves
+        for move in creature.get("moves", []):
+            if move["unlocks_at_stage"] == current_stage and move["id"] not in unlocked_moves:
+                unlocked_moves.append(move["id"])
+                new_unlocks.append({"type": "move", "item": move})
+        
+        # Check outfits
+        for outfit in creature.get("outfits", []):
+            if outfit["unlocks_at_stage"] == current_stage and outfit["id"] not in unlocked_outfits:
+                unlocked_outfits.append(outfit["id"])
+                new_unlocks.append({"type": "outfit", "item": outfit})
+        
+        # Check foods
+        for food in creature.get("foods", []):
+            if food["unlocks_at_stage"] == current_stage and food["id"] not in unlocked_foods:
+                unlocked_foods.append(food["id"])
+                new_unlocks.append({"type": "food", "item": food})
+        
+        # Check homes
+        for home in creature.get("homes", []):
+            if home["unlocks_at_stage"] == current_stage and home["id"] not in unlocked_homes:
+                unlocked_homes.append(home["id"])
+                new_unlocks.append({"type": "home", "item": home})
+        
+        evolution_info["new_unlocks"] = new_unlocks
+        
+        # Update rewards with unlocked items
+        rewards["unlocked_moves"] = unlocked_moves
+        rewards["unlocked_outfits"] = unlocked_outfits
+        rewards["unlocked_foods"] = unlocked_foods
+        rewards["unlocked_homes"] = unlocked_homes
     
     # Check if creature is fully evolved
     if current_stage >= 3 and current_creature_id not in collected_creatures:
@@ -4891,18 +5124,27 @@ async def add_points_to_student(student_id: str, request: AddPointsRequest):
             }
     
     # Update database
+    update_data = {
+        "current_points": current_points,
+        "total_points_earned": total_points,
+        "current_stage": current_stage,
+        "current_creature_id": current_creature_id,
+        "collected_creatures": collected_creatures,
+        "last_checkin_date": today,
+        "streak_days": streak_days,
+        "updated_at": datetime.now(timezone.utc)
+    }
+    
+    # Include unlocked items if evolved
+    if evolved:
+        update_data["unlocked_moves"] = rewards.get("unlocked_moves", [])
+        update_data["unlocked_outfits"] = rewards.get("unlocked_outfits", [])
+        update_data["unlocked_foods"] = rewards.get("unlocked_foods", [])
+        update_data["unlocked_homes"] = rewards.get("unlocked_homes", [])
+    
     await db.student_rewards.update_one(
         {"student_id": student_id},
-        {"$set": {
-            "current_points": current_points,
-            "total_points_earned": total_points,
-            "current_stage": current_stage,
-            "current_creature_id": current_creature_id,
-            "collected_creatures": collected_creatures,
-            "last_checkin_date": today,
-            "streak_days": streak_days,
-            "updated_at": datetime.now(timezone.utc)
-        }},
+        {"$set": update_data},
         upsert=True
     )
     
@@ -4954,7 +5196,11 @@ async def get_student_collection(student_id: str):
         "current_stage": rewards.get("current_stage", 0),
         "current_points": rewards.get("current_points", 0),
         "total_creatures": len(CREATURES),
-        "total_collected": len(collected_ids)
+        "total_collected": len(collected_ids),
+        "unlocked_moves": rewards.get("unlocked_moves", []),
+        "unlocked_outfits": rewards.get("unlocked_outfits", []),
+        "unlocked_foods": rewards.get("unlocked_foods", []),
+        "unlocked_homes": rewards.get("unlocked_homes", [])
     }
 
 # Include the router in the main app

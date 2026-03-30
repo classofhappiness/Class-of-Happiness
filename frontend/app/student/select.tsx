@@ -225,7 +225,13 @@ export default function StudentSelectScreen() {
           collectedCreatures={collectionData.collected_creatures}
           currentCreature={collectionData.current_creature}
           currentStage={collectionData.current_stage}
+          currentPoints={collectionData.current_points || 0}
           totalCreatures={collectionData.total_creatures}
+          unlockedMoves={collectionData.unlocked_moves || []}
+          unlockedOutfits={collectionData.unlocked_outfits || []}
+          unlockedFoods={collectionData.unlocked_foods || []}
+          unlockedHomes={collectionData.unlocked_homes || []}
+          t={t}
           onClose={() => setShowCollection(false)}
         />
       )}
