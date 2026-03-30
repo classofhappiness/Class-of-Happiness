@@ -11,11 +11,14 @@ import {
   Alert,
   Linking,
   Modal,
-  Share
+  Share,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { useApp } from '../../src/context/AppContext';
 import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy, reportsApi, teacherApi } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
@@ -121,16 +124,63 @@ export default function StudentDetailScreen() {
     });
   };
 
-  const downloadReport = (monthStr: string) => {
+  const downloadReport = async (monthStr: string) => {
     const [year, month] = monthStr.split('-').map(Number);
     const pdfUrl = reportsApi.getPdfUrl(studentId!, year, month);
+    const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+    const fullUrl = `${BACKEND_URL}${pdfUrl}`;
+    const filename = `${student?.name || 'student'}_report_${year}_${month}.pdf`;
     
-    if (typeof window !== 'undefined') {
-      window.open(pdfUrl, '_blank');
-    } else {
-      Linking.openURL(pdfUrl);
-    }
+    console.log('Downloading monthly report from:', fullUrl);
     setShowReportModal(false);
+    
+    try {
+      if (Platform.OS === 'web') {
+        // Web: Open in new tab
+        window.open(fullUrl, '_blank');
+      } else {
+        // Mobile: Download and share
+        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+        
+        console.log('Saving report to:', fileUri);
+        
+        const downloadResult = await FileSystem.downloadAsync(fullUrl, fileUri, {
+          headers: {
+            'Accept': 'application/pdf',
+          },
+        });
+        
+        console.log('Download result:', downloadResult);
+        
+        if (downloadResult.status === 200) {
+          // Verify file exists
+          const fileInfo = await FileSystem.getInfoAsync(fileUri);
+          
+          if (!fileInfo.exists || (fileInfo.size && fileInfo.size === 0)) {
+            throw new Error('Downloaded file is empty');
+          }
+          
+          const canShare = await Sharing.isAvailableAsync();
+          if (canShare) {
+            await Sharing.shareAsync(downloadResult.uri, {
+              mimeType: 'application/pdf',
+              dialogTitle: `Share ${student?.name}'s Monthly Report`,
+              UTI: 'com.adobe.pdf',
+            });
+          } else {
+            Alert.alert('Success', 'Report downloaded successfully');
+          }
+        } else {
+          throw new Error(`Download failed with status: ${downloadResult.status}`);
+        }
+      }
+    } catch (error: any) {
+      console.error('Report download error:', error);
+      Alert.alert(
+        'Download Error',
+        `Failed to download report: ${error.message || 'Unknown error'}`
+      );
+    }
   };
 
   const formatMonthYear = (monthStr: string) => {

@@ -107,77 +107,75 @@ export default function ResourcesScreen() {
     setDownloading(true);
     
     try {
-      // For mobile, we need to fetch the PDF content from the API that includes auth
       const resourceId = isTeacherResource 
         ? (resource as TeacherResource).id 
         : (resource as Resource).id;
       
       const filename = resource.pdf_filename || `${resource.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
       
+      const endpoint = isTeacherResource
+        ? `/api/teacher-resources/${resourceId}/download`
+        : `/api/resources/${resourceId}/download`;
+      
+      // Build full URL using the proxy URL for Expo Go compatibility
+      const downloadUrl = `${BACKEND_URL}${endpoint}`;
+      
+      console.log('Downloading PDF from:', downloadUrl);
+      
       if (Platform.OS === 'web') {
-        // Web: Use direct URL with backend
-        const pdfUrl = isTeacherResource
-          ? `${BACKEND_URL}/api/teacher-resources/${resourceId}/download`
-          : `${BACKEND_URL}/api/resources/${resourceId}/download`;
-        Linking.openURL(pdfUrl);
+        // Web: Open URL directly
+        Linking.openURL(downloadUrl);
       } else {
-        // Mobile: Fetch via API and save locally
-        try {
-          const endpoint = isTeacherResource
-            ? `/teacher-resources/${resourceId}/download`
-            : `/resources/${resourceId}/download`;
-          
-          // Use fetch with proper headers
-          const response = await fetch(`${BACKEND_URL}/api${endpoint}`, {
-            method: 'GET',
+        // Mobile (Expo Go): Use FileSystem.downloadAsync
+        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+        
+        console.log('Saving PDF to:', fileUri);
+        
+        // Download the file
+        const downloadResult = await FileSystem.downloadAsync(
+          downloadUrl,
+          fileUri,
+          {
             headers: {
               'Accept': 'application/pdf',
             },
-          });
-          
-          if (!response.ok) {
-            throw new Error(`Download failed: ${response.status}`);
           }
-          
-          // Get the PDF as blob and convert to base64
-          const blob = await response.blob();
-          const reader = new FileReader();
-          
-          const base64Data = await new Promise<string>((resolve, reject) => {
-            reader.onloadend = () => {
-              const base64 = reader.result as string;
-              // Extract just the base64 part after the data URI prefix
-              const base64Content = base64.split(',')[1] || base64;
-              resolve(base64Content);
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
+        );
+        
+        console.log('Download result:', downloadResult);
+        
+        if (downloadResult.status !== 200) {
+          throw new Error(`Download failed with status: ${downloadResult.status}`);
+        }
+        
+        // Verify file exists and has content
+        const fileInfo = await FileSystem.getInfoAsync(fileUri);
+        console.log('File info:', fileInfo);
+        
+        if (!fileInfo.exists || (fileInfo.size && fileInfo.size === 0)) {
+          throw new Error('Downloaded file is empty or does not exist');
+        }
+        
+        // Share the file
+        const canShare = await Sharing.isAvailableAsync();
+        console.log('Can share:', canShare);
+        
+        if (canShare) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'application/pdf',
+            dialogTitle: `Share ${resource.title}`,
+            UTI: 'com.adobe.pdf',
           });
-          
-          // Save to file system
-          const fileUri = `${FileSystem.documentDirectory}${filename}`;
-          await FileSystem.writeAsStringAsync(fileUri, base64Data, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          
-          // Share the file
-          const canShare = await Sharing.isAvailableAsync();
-          if (canShare) {
-            await Sharing.shareAsync(fileUri, {
-              mimeType: 'application/pdf',
-              dialogTitle: `Share ${resource.title}`,
-            });
-          } else {
-            Alert.alert('Success', 'PDF downloaded successfully');
-          }
-        } catch (fetchError) {
-          console.error('Fetch error:', fetchError);
-          throw fetchError;
+        } else {
+          Alert.alert('Success', `PDF saved to: ${fileUri}`);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Download error:', error);
-      Alert.alert('Error', 'Failed to download PDF. Please try again.');
+      Alert.alert(
+        'Download Error', 
+        `Failed to download PDF: ${error.message || 'Unknown error'}. Please check your internet connection and try again.`
+      );
     } finally {
       setDownloading(false);
     }

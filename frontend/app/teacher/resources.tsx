@@ -208,6 +208,8 @@ export default function TeacherResourcesScreen() {
       const pdfUrl = `${BACKEND_URL}/api/teacher-resources/${resource.id}/download`;
       const filename = resource.pdf_filename || `${resource.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
       
+      console.log('Teacher resource download URL:', pdfUrl);
+      
       if (Platform.OS === 'web') {
         // Web: Open in new tab
         Linking.openURL(pdfUrl);
@@ -215,9 +217,25 @@ export default function TeacherResourcesScreen() {
         // Mobile: Download and share with options
         const fileUri = `${FileSystem.documentDirectory}${filename}`;
         
-        const downloadResult = await FileSystem.downloadAsync(pdfUrl, fileUri);
+        console.log('Downloading to:', fileUri);
+        
+        const downloadResult = await FileSystem.downloadAsync(pdfUrl, fileUri, {
+          headers: {
+            'Accept': 'application/pdf',
+          },
+        });
+        
+        console.log('Download result:', downloadResult);
         
         if (downloadResult.status === 200) {
+          // Verify file exists
+          const fileInfo = await FileSystem.getInfoAsync(fileUri);
+          console.log('File info:', fileInfo);
+          
+          if (!fileInfo.exists || (fileInfo.size && fileInfo.size === 0)) {
+            throw new Error('Downloaded file is empty');
+          }
+          
           // Check if sharing is available
           const canShare = await Sharing.isAvailableAsync();
           if (canShare) {
@@ -230,12 +248,15 @@ export default function TeacherResourcesScreen() {
             Alert.alert('Success', 'PDF downloaded successfully to your device');
           }
         } else {
-          throw new Error('Download failed');
+          throw new Error(`Download failed with status: ${downloadResult.status}`);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Download error:', error);
-      Alert.alert('Error', 'Failed to download PDF. Please try again.');
+      Alert.alert(
+        'Download Error', 
+        `Failed to download PDF: ${error.message || 'Unknown error'}. Please check your internet connection.`
+      );
     } finally {
       setDownloading(false);
     }
