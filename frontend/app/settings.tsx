@@ -7,10 +7,10 @@ import { useApp } from '../src/context/AppContext';
 import { translationsApi, subscriptionApi } from '../src/utils/api';
 
 const LANGUAGES = [
-  { code: 'en', name: 'English', flag: '🇺🇸' },
+  { code: 'en', name: 'English', flag: '🇦🇺' },
   { code: 'es', name: 'Español', flag: '🇪🇸' },
   { code: 'fr', name: 'Français', flag: '🇫🇷' },
-  { code: 'pt', name: 'Português', flag: '🇧🇷' },
+  { code: 'pt', name: 'Português', flag: '🇵🇹' },
   { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
   { code: 'it', name: 'Italiano', flag: '🇮🇹' },
 ];

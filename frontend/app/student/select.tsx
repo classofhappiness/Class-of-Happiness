@@ -302,18 +302,20 @@ const styles = StyleSheet.create({
   },
   creaturesButton: {
     marginTop: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 12,
     backgroundColor: '#FFF3E0',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
+    borderWidth: 2,
+    borderColor: '#333',
   },
   creaturesButtonText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#FF9800',
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   // Creature icons styles
   creatureIconsContainer: {

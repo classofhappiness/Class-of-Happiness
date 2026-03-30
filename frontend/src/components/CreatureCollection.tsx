@@ -79,7 +79,7 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
               onPress={() => setActiveTab('items')}
             >
               <Text style={[styles.tabText, activeTab === 'items' && styles.tabTextActive]}>
-                {t('unlocked_items') || 'Items'}
+                {t('bonus_items') || 'Bonus Items'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -190,7 +190,8 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
                     const isUnlocked = unlockedMoves.includes(move.id);
                     return (
                       <View key={move.id} style={[styles.itemCard, !isUnlocked && styles.itemLocked]}>
-                        <Text style={styles.itemEmoji}>{isUnlocked ? move.emoji : '🔒'}</Text>
+                        <Text style={[styles.itemEmoji, !isUnlocked && styles.itemEmojiLocked]}>{move.emoji}</Text>
+                        {!isUnlocked && <Text style={styles.lockIcon}>🔒</Text>}
                         <Text style={[styles.itemName, !isUnlocked && styles.itemNameLocked]}>
                           {isUnlocked ? move.name : `Stage ${move.unlocks_at_stage}`}
                         </Text>
@@ -206,7 +207,8 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
                     const isUnlocked = unlockedOutfits.includes(outfit.id);
                     return (
                       <View key={outfit.id} style={[styles.itemCard, !isUnlocked && styles.itemLocked]}>
-                        <Text style={styles.itemEmoji}>{isUnlocked ? outfit.emoji : '🔒'}</Text>
+                        <Text style={[styles.itemEmoji, !isUnlocked && styles.itemEmojiLocked]}>{outfit.emoji}</Text>
+                        {!isUnlocked && <Text style={styles.lockIcon}>🔒</Text>}
                         <Text style={[styles.itemName, !isUnlocked && styles.itemNameLocked]}>
                           {isUnlocked ? outfit.name : `Stage ${outfit.unlocks_at_stage}`}
                         </Text>
@@ -222,7 +224,8 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
                     const isUnlocked = unlockedFoods.includes(food.id);
                     return (
                       <View key={food.id} style={[styles.itemCard, !isUnlocked && styles.itemLocked]}>
-                        <Text style={styles.itemEmoji}>{isUnlocked ? food.emoji : '🔒'}</Text>
+                        <Text style={[styles.itemEmoji, !isUnlocked && styles.itemEmojiLocked]}>{food.emoji}</Text>
+                        {!isUnlocked && <Text style={styles.lockIcon}>🔒</Text>}
                         <Text style={[styles.itemName, !isUnlocked && styles.itemNameLocked]}>
                           {isUnlocked ? food.name : `Stage ${food.unlocks_at_stage}`}
                         </Text>
@@ -238,7 +241,8 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
                     const isUnlocked = unlockedHomes.includes(home.id);
                     return (
                       <View key={home.id} style={[styles.itemCard, !isUnlocked && styles.itemLocked]}>
-                        <Text style={styles.itemEmoji}>{isUnlocked ? home.emoji : '🔒'}</Text>
+                        <Text style={[styles.itemEmoji, !isUnlocked && styles.itemEmojiLocked]}>{home.emoji}</Text>
+                        {!isUnlocked && <Text style={styles.lockIcon}>🔒</Text>}
                         <Text style={[styles.itemName, !isUnlocked && styles.itemNameLocked]}>
                           {isUnlocked ? home.name : `Stage ${home.unlocks_at_stage}`}
                         </Text>
@@ -490,13 +494,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E0E0E0',
+    position: 'relative',
   },
   itemLocked: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F8F8F8',
+    opacity: 0.7,
   },
   itemEmoji: {
     fontSize: 28,
     marginBottom: 4,
+  },
+  itemEmojiLocked: {
+    opacity: 0.3,
+  },
+  lockIcon: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    fontSize: 12,
   },
   itemName: {
     fontSize: 10,

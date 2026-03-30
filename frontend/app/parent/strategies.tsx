@@ -19,7 +19,7 @@ import { customStrategiesApi, strategiesApi, CustomStrategy, Strategy } from '..
 export default function ParentStrategiesScreen() {
   const router = useRouter();
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
-  const { user, students, presetAvatars, t } = useApp();
+  const { user, students, presetAvatars, t, language } = useApp();
   
   const student = students.find(s => s.id === studentId);
   
@@ -47,7 +47,7 @@ export default function ParentStrategiesScreen() {
     if (!studentId) return;
     try {
       const [defaultStrats, customStrats] = await Promise.all([
-        strategiesApi.getByZone(selectedZone),
+        strategiesApi.getByZone(selectedZone, studentId, language),
         customStrategiesApi.getAll(studentId),
       ]);
       setStrategies(defaultStrats);
@@ -59,7 +59,7 @@ export default function ParentStrategiesScreen() {
 
   useEffect(() => {
     fetchStrategies();
-  }, [studentId, selectedZone]);
+  }, [studentId, selectedZone, language]);
 
   const onRefresh = async () => {
     setRefreshing(true);

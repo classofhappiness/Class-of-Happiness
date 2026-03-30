@@ -107,38 +107,72 @@ export default function ResourcesScreen() {
     setDownloading(true);
     
     try {
-      // Use appropriate download endpoint
-      let pdfUrl: string;
-      if (isTeacherResource) {
-        pdfUrl = `${BACKEND_URL}/api/teacher-resources/${(resource as TeacherResource).id}/download`;
-      } else {
-        pdfUrl = `${BACKEND_URL}/api/resources/${(resource as Resource).id}/download`;
-      }
+      // For mobile, we need to fetch the PDF content from the API that includes auth
+      const resourceId = isTeacherResource 
+        ? (resource as TeacherResource).id 
+        : (resource as Resource).id;
       
       const filename = resource.pdf_filename || `${resource.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
       
       if (Platform.OS === 'web') {
-        // Web: Open in new tab
+        // Web: Use direct URL with backend
+        const pdfUrl = isTeacherResource
+          ? `${BACKEND_URL}/api/teacher-resources/${resourceId}/download`
+          : `${BACKEND_URL}/api/resources/${resourceId}/download`;
         Linking.openURL(pdfUrl);
       } else {
-        // Mobile: Download and share
-        const fileUri = `${FileSystem.documentDirectory}${filename}`;
-        
-        const downloadResult = await FileSystem.downloadAsync(pdfUrl, fileUri);
-        
-        if (downloadResult.status === 200) {
-          // Check if sharing is available
+        // Mobile: Fetch via API and save locally
+        try {
+          const endpoint = isTeacherResource
+            ? `/teacher-resources/${resourceId}/download`
+            : `/resources/${resourceId}/download`;
+          
+          // Use fetch with proper headers
+          const response = await fetch(`${BACKEND_URL}/api${endpoint}`, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/pdf',
+            },
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Download failed: ${response.status}`);
+          }
+          
+          // Get the PDF as blob and convert to base64
+          const blob = await response.blob();
+          const reader = new FileReader();
+          
+          const base64Data = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => {
+              const base64 = reader.result as string;
+              // Extract just the base64 part after the data URI prefix
+              const base64Content = base64.split(',')[1] || base64;
+              resolve(base64Content);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          
+          // Save to file system
+          const fileUri = `${FileSystem.documentDirectory}${filename}`;
+          await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          
+          // Share the file
           const canShare = await Sharing.isAvailableAsync();
           if (canShare) {
-            await Sharing.shareAsync(downloadResult.uri, {
+            await Sharing.shareAsync(fileUri, {
               mimeType: 'application/pdf',
               dialogTitle: `Share ${resource.title}`,
             });
           } else {
             Alert.alert('Success', 'PDF downloaded successfully');
           }
-        } else {
-          throw new Error('Download failed');
+        } catch (fetchError) {
+          console.error('Fetch error:', fetchError);
+          throw fetchError;
         }
       }
     } catch (error) {

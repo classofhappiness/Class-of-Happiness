@@ -435,7 +435,7 @@ export default function StudentDetailScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { maxHeight: '85%' }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('share_with_teacher') || 'Share with Parent'}</Text>
+              <Text style={styles.modalTitle}>{t('share_student_tracking') || "Share Student's Emotion Tracking"}</Text>
               <TouchableOpacity
                 onPress={() => {
                   setShowLinkCodeModal(false);
