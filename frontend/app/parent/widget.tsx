@@ -27,11 +27,11 @@ interface EmotionSummary {
   emotionEmoji: string;
 }
 
-const ZONE_CONFIG: Record<string, { color: string; emoji: string; label: string }> = {
-  blue: { color: '#4A90D9', emoji: '😢', label: 'Sad/Tired' },
-  green: { color: '#4CAF50', emoji: '😊', label: 'Calm/Happy' },
-  yellow: { color: '#FFC107', emoji: '😰', label: 'Anxious' },
-  red: { color: '#F44336', emoji: '😠', label: 'Angry' },
+const ZONE_CONFIG: Record<string, { color: string; emoji: string; labelKey: string }> = {
+  blue: { color: '#4A90D9', emoji: '😢', labelKey: 'blue_desc_short' },
+  green: { color: '#4CAF50', emoji: '😊', labelKey: 'green_desc_short' },
+  yellow: { color: '#FFC107', emoji: '😰', labelKey: 'yellow_desc_short' },
+  red: { color: '#F44336', emoji: '😠', labelKey: 'red_desc_short' },
 };
 
 export default function ParentWidgetScreen() {
@@ -41,6 +41,13 @@ export default function ParentWidgetScreen() {
   const [loading, setLoading] = useState(true);
   const [familySummary, setFamilySummary] = useState<EmotionSummary[]>([]);
   const [overallMood, setOverallMood] = useState<string>('green');
+  
+  // Helper to get translated zone label
+  const getZoneLabel = (zone: string) => {
+    const config = ZONE_CONFIG[zone];
+    if (!config) return zone;
+    return t(config.labelKey) || config.labelKey;
+  };
 
   useEffect(() => {
     fetchWidgetData();
@@ -104,7 +111,7 @@ export default function ParentWidgetScreen() {
   };
 
   const formatLastCheckIn = (dateStr: string | null) => {
-    if (!dateStr) return 'No check-in yet';
+    if (!dateStr) return t('no_checkin_yet') || 'No check-in yet';
     const date = new Date(dateStr);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -112,19 +119,19 @@ export default function ParentWidgetScreen() {
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
     
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${diffDays}d ago`;
+    if (diffMins < 1) return t('just_now') || 'Just now';
+    if (diffMins < 60) return `${diffMins}${t('minutes_ago') || 'm ago'}`;
+    if (diffHours < 24) return `${diffHours}${t('hours_ago') || 'h ago'}`;
+    return `${diffDays}${t('days_ago') || 'd ago'}`;
   };
 
   const handleAddToHomeScreen = () => {
     Alert.alert(
-      'Add Widget to Home Screen',
+      t('add_widget_title') || 'Add Widget to Home Screen',
       Platform.OS === 'ios' 
-        ? 'To add this widget:\n\n1. Long press on your home screen\n2. Tap the + button (top left)\n3. Search for "Class of Happiness"\n4. Choose a widget size\n5. Tap "Add Widget"'
-        : 'To add this widget:\n\n1. Long press on your home screen\n2. Tap "Widgets"\n3. Find "Class of Happiness"\n4. Long press and drag to home screen',
-      [{ text: 'Got it!' }]
+        ? t('add_widget_ios') || 'To add this widget:\n\n1. Long press on your home screen\n2. Tap the + button (top left)\n3. Search for "Class of Happiness"\n4. Choose a widget size\n5. Tap "Add Widget"'
+        : t('add_widget_android') || 'To add this widget:\n\n1. Long press on your home screen\n2. Tap "Widgets"\n3. Find "Class of Happiness"\n4. Long press and drag to home screen',
+      [{ text: t('got_it') || 'Got it!' }]
     );
   };
 
@@ -135,7 +142,7 @@ export default function ParentWidgetScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Family Widget</Text>
+        <Text style={styles.headerTitle}>{t('family_widget') || 'Family Widget'}</Text>
         <TouchableOpacity onPress={handleAddToHomeScreen} style={styles.infoButton}>
           <MaterialIcons name="add-to-home-screen" size={24} color="#5C6BC0" />
         </TouchableOpacity>
@@ -146,28 +153,28 @@ export default function ParentWidgetScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Widget Preview Section */}
-        <Text style={styles.sectionTitle}>Widget Preview</Text>
-        <Text style={styles.sectionSubtitle}>This is how your home screen widget will look</Text>
+        <Text style={styles.sectionTitle}>{t('widget_preview') || 'Widget Preview'}</Text>
+        <Text style={styles.sectionSubtitle}>{t('widget_preview_desc') || 'This is how your home screen widget will look'}</Text>
 
         {/* Small Widget Preview */}
         <View style={styles.widgetPreviewContainer}>
-          <Text style={styles.widgetSize}>Small Widget</Text>
+          <Text style={styles.widgetSize}>{t('small_widget') || 'Small Widget'}</Text>
           <View style={[styles.smallWidget, { backgroundColor: ZONE_CONFIG[overallMood].color + '20', borderColor: ZONE_CONFIG[overallMood].color }]}>
             <Text style={styles.smallWidgetEmoji}>{ZONE_CONFIG[overallMood].emoji}</Text>
-            <Text style={styles.smallWidgetTitle}>Family</Text>
+            <Text style={styles.smallWidgetTitle}>{t('family') || 'Family'}</Text>
             <Text style={[styles.smallWidgetStatus, { color: ZONE_CONFIG[overallMood].color }]}>
-              {ZONE_CONFIG[overallMood].label}
+              {getZoneLabel(overallMood)}
             </Text>
           </View>
         </View>
 
         {/* Medium Widget Preview */}
         <View style={styles.widgetPreviewContainer}>
-          <Text style={styles.widgetSize}>Medium Widget</Text>
+          <Text style={styles.widgetSize}>{t('medium_widget') || 'Medium Widget'}</Text>
           <View style={styles.mediumWidget}>
             <View style={styles.mediumWidgetHeader}>
-              <Text style={styles.mediumWidgetTitle}>🏠 Family Emotions</Text>
-              <Text style={styles.mediumWidgetTime}>Updated just now</Text>
+              <Text style={styles.mediumWidgetTitle}>🏠 {t('family_emotions') || 'Family Emotions'}</Text>
+              <Text style={styles.mediumWidgetTime}>{t('updated_just_now') || 'Updated just now'}</Text>
             </View>
             <View style={styles.mediumWidgetContent}>
               {familySummary.slice(0, 4).map((member, index) => (
@@ -187,10 +194,10 @@ export default function ParentWidgetScreen() {
 
         {/* Large Widget Preview */}
         <View style={styles.widgetPreviewContainer}>
-          <Text style={styles.widgetSize}>Large Widget</Text>
+          <Text style={styles.widgetSize}>{t('large_widget') || 'Large Widget'}</Text>
           <View style={styles.largeWidget}>
             <View style={styles.largeWidgetHeader}>
-              <Text style={styles.largeWidgetTitle}>🏠 Family Emotional Status</Text>
+              <Text style={styles.largeWidgetTitle}>🏠 {t('family_emotional_status') || 'Family Emotional Status'}</Text>
             </View>
             <View style={styles.largeWidgetGrid}>
               {familySummary.map((member) => (

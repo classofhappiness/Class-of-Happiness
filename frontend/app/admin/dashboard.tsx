@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -11,171 +10,543 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Dimensions,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useApp } from '../../src/context/AppContext';
-import { adminApi, AdminStats, Resource, resourcesApi } from '../../src/utils/api';
+import { adminApi, AdminStats, AdminAnalytics, classroomsApi, Classroom } from '../../src/utils/api';
 import * as DocumentPicker from 'expo-document-picker';
-import { File } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Resource categories matching Teacher/Parent resource pages
+const RESOURCE_CATEGORIES = [
+  { id: 'emotions', name: 'Emotions', icon: 'mood', color: '#4CAF50' },
+  { id: 'healthy_relationships', name: 'Healthy Relationships', icon: 'favorite', color: '#E91E63' },
+  { id: 'leader_online', name: 'Leader Online', icon: 'computer', color: '#2196F3' },
+  { id: 'you_are_what_you_eat', name: 'You Are What You Eat', icon: 'restaurant', color: '#FF9800' },
+  { id: 'special_needs_education', name: 'Special Needs Education', icon: 'accessibility', color: '#9C27B0' },
+  { id: 'general', name: 'General Resources', icon: 'folder', color: '#607D8B' },
+];
+
+const TARGET_AUDIENCES = [
+  { id: 'teachers', name: 'Teachers', icon: 'school' },
+  { id: 'parents', name: 'Parents', icon: 'family-restroom' },
+  { id: 'both', name: 'Both', icon: 'groups' },
+];
+
+const PERIOD_OPTIONS = [
+  { value: '1', label: 'Today' },
+  { value: '7', label: '7 Days' },
+  { value: '14', label: '14 Days' },
+  { value: '30', label: '30 Days' },
+];
+
+const ZONE_COLORS: Record<string, string> = {
+  blue: '#2196F3',
+  green: '#4CAF50',
+  yellow: '#FFC107',
+  red: '#F44336',
+};
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const { user, t } = useApp();
+  const { user, t, logout } = useApp();
+  
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'resources' | 'users'>('overview');
+  
+  // Data states
   const [stats, setStats] = useState<AdminStats | null>(null);
-  const [resources, setResources] = useState<Resource[]>([]);
+  const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [creating, setCreating] = useState(false);
+  
+  // Filters
+  const [selectedPeriod, setSelectedPeriod] = useState('30');
+  const [selectedClassroom, setSelectedClassroom] = useState<string | null>(null);
+  
+  // Resource upload
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadData, setUploadData] = useState({
+    title: '',
+    description: '',
+    content_type: 'text' as 'text' | 'pdf',
+    content: '',
+    pdf_filename: '',
+    pdf_data: '',
+    category: 'emotions',
+    target_audience: 'both',
+  });
+  const [uploading, setUploading] = useState(false);
+  
+  // Export state
+  const [exporting, setExporting] = useState(false);
 
-  // New resource form
-  const [newTitle, setNewTitle] = useState('');
-  const [newDescription, setNewDescription] = useState('');
-  const [newContentType, setNewContentType] = useState<'text' | 'pdf'>('text');
-  const [newContent, setNewContent] = useState('');
-  const [newCategory, setNewCategory] = useState('general');
-  const [selectedPdf, setSelectedPdf] = useState<{ name: string; base64: string } | null>(null);
-
-  const categories = [
-    { id: 'general', name: 'General', icon: 'folder' },
-    { id: 'emotions', name: 'Emotions', icon: 'emoji-emotions' },
-    { id: 'strategies', name: 'Strategies', icon: 'lightbulb' },
-    { id: 'parents', name: 'For Parents', icon: 'family-restroom' },
-    { id: 'teachers', name: 'For Teachers', icon: 'school' },
-  ];
-
-  useEffect(() => {
-    if (user?.role !== 'admin') {
-      Alert.alert('Access Denied', 'Admin access required');
-      router.back();
-      return;
-    }
-    fetchData();
-  }, [user]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const [statsData, resourcesData] = await Promise.all([
+      const [statsData, analyticsData, classroomsData] = await Promise.all([
         adminApi.getStats(),
-        adminApi.getResources(),
+        adminApi.getAnalytics(selectedPeriod, selectedClassroom || undefined),
+        classroomsApi.getAll(),
       ]);
       setStats(statsData);
-      setResources(resourcesData);
+      setAnalytics(analyticsData);
+      setClassrooms(classroomsData);
     } catch (error) {
       console.error('Error fetching admin data:', error);
-      Alert.alert('Error', 'Failed to load admin data');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [selectedPeriod, selectedClassroom]);
 
-  const onRefresh = async () => {
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const onRefresh = () => {
     setRefreshing(true);
-    await fetchData();
-    setRefreshing(false);
+    fetchData();
   };
 
-  const pickPdf = async () => {
+  const handlePickPDF = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: 'application/pdf',
         copyToCacheDirectory: true,
       });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const fileAsset = result.assets[0];
-        // Use new File API to read base64
-        const file = new File(fileAsset.uri);
-        const base64 = await file.base64();
-        setSelectedPdf({ name: fileAsset.name, base64 });
-        setNewContentType('pdf');
+      
+      if (!result.canceled && result.assets?.[0]) {
+        const file = result.assets[0];
+        const base64 = await FileSystem.readAsStringAsync(file.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        
+        setUploadData(prev => ({
+          ...prev,
+          content_type: 'pdf',
+          pdf_filename: file.name,
+          pdf_data: base64,
+        }));
       }
     } catch (error) {
-      console.error('Error picking PDF:', error);
-      Alert.alert('Error', 'Failed to select PDF');
+      Alert.alert('Error', 'Failed to pick PDF file');
     }
   };
 
-  const createResource = async () => {
-    if (!newTitle.trim()) {
+  const handleUpload = async () => {
+    if (!uploadData.title.trim()) {
       Alert.alert('Error', 'Please enter a title');
       return;
     }
-    if (!newDescription.trim()) {
-      Alert.alert('Error', 'Please enter a description');
-      return;
-    }
-    if (newContentType === 'text' && !newContent.trim()) {
+    
+    if (uploadData.content_type === 'text' && !uploadData.content.trim()) {
       Alert.alert('Error', 'Please enter content');
       return;
     }
-    if (newContentType === 'pdf' && !selectedPdf) {
+    
+    if (uploadData.content_type === 'pdf' && !uploadData.pdf_data) {
       Alert.alert('Error', 'Please select a PDF file');
       return;
     }
-
-    setCreating(true);
+    
+    setUploading(true);
     try {
       await adminApi.createResource({
-        title: newTitle.trim(),
-        description: newDescription.trim(),
-        content_type: newContentType,
-        content: newContentType === 'pdf' ? selectedPdf?.base64 : newContent.trim(),
-        pdf_filename: selectedPdf?.name,
-        category: newCategory,
+        title: uploadData.title,
+        description: uploadData.description,
+        content_type: uploadData.content_type,
+        content: uploadData.content_type === 'text' ? uploadData.content : undefined,
+        pdf_filename: uploadData.pdf_filename || undefined,
+        pdf_data: uploadData.pdf_data || undefined,
+        category: uploadData.category,
+        target_audience: uploadData.target_audience,
+        topic: uploadData.category, // Also set topic for Teacher Resources compatibility
       });
-
-      Alert.alert('Success', 'Resource created successfully');
-      setShowCreateModal(false);
-      resetForm();
+      
+      Alert.alert('Success', 'Resource uploaded successfully!');
+      setShowUploadModal(false);
+      setUploadData({
+        title: '',
+        description: '',
+        content_type: 'text',
+        content: '',
+        pdf_filename: '',
+        pdf_data: '',
+        category: 'emotions',
+        target_audience: 'both',
+      });
       fetchData();
     } catch (error: any) {
-      console.error('Error creating resource:', error);
-      Alert.alert('Error', error.message || 'Failed to create resource');
+      Alert.alert('Error', error.message || 'Failed to upload resource');
     } finally {
-      setCreating(false);
+      setUploading(false);
     }
   };
 
-  const deleteResource = async (resourceId: string) => {
-    Alert.alert(
-      'Delete Resource',
-      'Are you sure you want to delete this resource?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await resourcesApi.delete(resourceId);
-              Alert.alert('Success', 'Resource deleted');
-              fetchData();
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete resource');
-            }
-          },
-        },
-      ]
-    );
+  const handleExport = async (type: string) => {
+    setExporting(true);
+    try {
+      const data = await adminApi.exportData(type, 'json');
+      Alert.alert(
+        'Export Complete',
+        `Exported ${data.count || data.data?.length || 0} ${type} records.\n\nIn a production app, this would download as a file.`
+      );
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to export data');
+    } finally {
+      setExporting(false);
+    }
   };
 
-  const resetForm = () => {
-    setNewTitle('');
-    setNewDescription('');
-    setNewContentType('text');
-    setNewContent('');
-    setNewCategory('general');
-    setSelectedPdf(null);
-  };
+  // Simple bar chart component
+  const BarChart = ({ data, maxValue, color = '#4CAF50' }: { data: { label: string; value: number }[]; maxValue: number; color?: string }) => (
+    <View style={styles.barChart}>
+      {data.map((item, index) => (
+        <View key={index} style={styles.barContainer}>
+          <View style={styles.barWrapper}>
+            <View
+              style={[
+                styles.bar,
+                {
+                  height: `${Math.max((item.value / maxValue) * 100, 2)}%`,
+                  backgroundColor: color,
+                },
+              ]}
+            />
+          </View>
+          <Text style={styles.barLabel} numberOfLines={1}>{item.label}</Text>
+          <Text style={styles.barValue}>{item.value}</Text>
+        </View>
+      ))}
+    </View>
+  );
+
+  const renderOverviewTab = () => (
+    <View style={styles.tabContent}>
+      {/* Stats Cards */}
+      <View style={styles.statsGrid}>
+        <View style={[styles.statCard, { backgroundColor: '#E3F2FD' }]}>
+          <MaterialIcons name="people" size={32} color="#1976D2" />
+          <Text style={styles.statValue}>{stats?.total_users || 0}</Text>
+          <Text style={styles.statLabel}>Total Users</Text>
+        </View>
+        <View style={[styles.statCard, { backgroundColor: '#E8F5E9' }]}>
+          <MaterialIcons name="school" size={32} color="#388E3C" />
+          <Text style={styles.statValue}>{stats?.total_teachers || 0}</Text>
+          <Text style={styles.statLabel}>Teachers</Text>
+        </View>
+        <View style={[styles.statCard, { backgroundColor: '#FFF3E0' }]}>
+          <MaterialIcons name="family-restroom" size={32} color="#F57C00" />
+          <Text style={styles.statValue}>{stats?.total_parents || 0}</Text>
+          <Text style={styles.statLabel}>Parents</Text>
+        </View>
+        <View style={[styles.statCard, { backgroundColor: '#F3E5F5' }]}>
+          <MaterialIcons name="child-care" size={32} color="#7B1FA2" />
+          <Text style={styles.statValue}>{stats?.total_students || 0}</Text>
+          <Text style={styles.statLabel}>Students</Text>
+        </View>
+        <View style={[styles.statCard, { backgroundColor: '#FFEBEE' }]}>
+          <MaterialIcons name="check-circle" size={32} color="#D32F2F" />
+          <Text style={styles.statValue}>{stats?.total_checkins || 0}</Text>
+          <Text style={styles.statLabel}>Check-ins</Text>
+        </View>
+        <View style={[styles.statCard, { backgroundColor: '#E0F7FA' }]}>
+          <MaterialIcons name="library-books" size={32} color="#0097A7" />
+          <Text style={styles.statValue}>{stats?.total_resources || 0}</Text>
+          <Text style={styles.statLabel}>Resources</Text>
+        </View>
+      </View>
+
+      {/* Quick Actions */}
+      <Text style={styles.sectionTitle}>Quick Actions</Text>
+      <View style={styles.quickActions}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => setShowUploadModal(true)}
+        >
+          <MaterialIcons name="cloud-upload" size={24} color="#fff" />
+          <Text style={styles.actionButtonText}>Upload Resource</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, { backgroundColor: '#FF9800' }]}
+          onPress={() => setActiveTab('analytics')}
+        >
+          <MaterialIcons name="analytics" size={24} color="#fff" />
+          <Text style={styles.actionButtonText}>View Analytics</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Summary Cards */}
+      {analytics && (
+        <>
+          <Text style={styles.sectionTitle}>Period Summary ({selectedPeriod} days)</Text>
+          <View style={styles.summaryCards}>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryValue}>{analytics.summary.active_students}</Text>
+              <Text style={styles.summaryLabel}>Active Students</Text>
+            </View>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryValue}>{analytics.summary.avg_checkins_per_student}</Text>
+              <Text style={styles.summaryLabel}>Avg Check-ins/Student</Text>
+            </View>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryValue}>{analytics.summary.retention_rate}%</Text>
+              <Text style={styles.summaryLabel}>Retention Rate</Text>
+            </View>
+          </View>
+        </>
+      )}
+    </View>
+  );
+
+  const renderAnalyticsTab = () => (
+    <View style={styles.tabContent}>
+      {/* Period Filter */}
+      <View style={styles.filterRow}>
+        <Text style={styles.filterLabel}>Period:</Text>
+        <View style={styles.periodButtons}>
+          {PERIOD_OPTIONS.map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={[
+                styles.periodButton,
+                selectedPeriod === option.value && styles.periodButtonActive,
+              ]}
+              onPress={() => setSelectedPeriod(option.value)}
+            >
+              <Text
+                style={[
+                  styles.periodButtonText,
+                  selectedPeriod === option.value && styles.periodButtonTextActive,
+                ]}
+              >
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* Classroom Filter */}
+      <View style={styles.filterRow}>
+        <Text style={styles.filterLabel}>Classroom:</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.classroomScroll}>
+          <TouchableOpacity
+            style={[
+              styles.classroomChip,
+              !selectedClassroom && styles.classroomChipActive,
+            ]}
+            onPress={() => setSelectedClassroom(null)}
+          >
+            <Text style={[styles.classroomChipText, !selectedClassroom && styles.classroomChipTextActive]}>
+              All
+            </Text>
+          </TouchableOpacity>
+          {classrooms.map((classroom) => (
+            <TouchableOpacity
+              key={classroom.id}
+              style={[
+                styles.classroomChip,
+                selectedClassroom === classroom.id && styles.classroomChipActive,
+              ]}
+              onPress={() => setSelectedClassroom(classroom.id)}
+            >
+              <Text style={[styles.classroomChipText, selectedClassroom === classroom.id && styles.classroomChipTextActive]}>
+                {classroom.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {analytics && (
+        <>
+          {/* Zone Distribution */}
+          <Text style={styles.chartTitle}>Zone Distribution</Text>
+          <View style={styles.zoneDistribution}>
+            {Object.entries(analytics.zone_distribution).map(([zone, count]) => (
+              <View key={zone} style={styles.zoneItem}>
+                <View style={[styles.zoneDot, { backgroundColor: ZONE_COLORS[zone] || '#999' }]} />
+                <Text style={styles.zoneText}>{zone}: {count}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Daily Check-ins Chart */}
+          <Text style={styles.chartTitle}>Daily Check-ins</Text>
+          <View style={styles.chartContainer}>
+            <BarChart
+              data={analytics.daily_checkins.slice(-7).map((d) => ({
+                label: d.date.split('-').slice(1).join('/'),
+                value: d.count,
+              }))}
+              maxValue={Math.max(...analytics.daily_checkins.map((d) => d.count), 1)}
+              color="#4CAF50"
+            />
+          </View>
+
+          {/* Classroom Comparison */}
+          {analytics.classroom_stats.length > 0 && (
+            <>
+              <Text style={styles.chartTitle}>Classroom Comparison</Text>
+              <View style={styles.classroomStatsContainer}>
+                {analytics.classroom_stats.slice(0, 5).map((cls) => (
+                  <View key={cls.id} style={styles.classroomStatRow}>
+                    <View style={styles.classroomStatInfo}>
+                      <Text style={styles.classroomStatName}>{cls.name}</Text>
+                      <Text style={styles.classroomStatDetail}>
+                        {cls.student_count} students · {cls.checkin_count} check-ins
+                      </Text>
+                    </View>
+                    <View style={styles.classroomStatBar}>
+                      <View
+                        style={[
+                          styles.classroomStatBarFill,
+                          {
+                            width: `${Math.min((cls.avg_per_student / 10) * 100, 100)}%`,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.classroomStatAvg}>{cls.avg_per_student}</Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
+
+          {/* Top Strategies */}
+          {analytics.top_strategies.length > 0 && (
+            <>
+              <Text style={styles.chartTitle}>Top Strategies Used</Text>
+              <View style={styles.strategiesList}>
+                {analytics.top_strategies.slice(0, 5).map((strategy, index) => (
+                  <View key={index} style={styles.strategyItem}>
+                    <Text style={styles.strategyRank}>#{index + 1}</Text>
+                    <Text style={styles.strategyName} numberOfLines={1}>{strategy.strategy}</Text>
+                    <Text style={styles.strategyCount}>{strategy.count}</Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
+
+          {/* Export Section */}
+          <Text style={styles.chartTitle}>Export Data</Text>
+          <View style={styles.exportButtons}>
+            <TouchableOpacity
+              style={styles.exportButton}
+              onPress={() => handleExport('checkins')}
+              disabled={exporting}
+            >
+              <MaterialIcons name="download" size={20} color="#fff" />
+              <Text style={styles.exportButtonText}>Check-ins</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.exportButton}
+              onPress={() => handleExport('users')}
+              disabled={exporting}
+            >
+              <MaterialIcons name="download" size={20} color="#fff" />
+              <Text style={styles.exportButtonText}>Users</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.exportButton}
+              onPress={() => handleExport('resources')}
+              disabled={exporting}
+            >
+              <MaterialIcons name="download" size={20} color="#fff" />
+              <Text style={styles.exportButtonText}>Resources</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+    </View>
+  );
+
+  const renderResourcesTab = () => (
+    <View style={styles.tabContent}>
+      <TouchableOpacity
+        style={styles.uploadButton}
+        onPress={() => setShowUploadModal(true)}
+      >
+        <MaterialIcons name="add" size={24} color="#fff" />
+        <Text style={styles.uploadButtonText}>Upload New Resource</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.sectionTitle}>Resource Categories</Text>
+      <View style={styles.categoriesGrid}>
+        {RESOURCE_CATEGORIES.map((category) => (
+          <View key={category.id} style={[styles.categoryCard, { borderLeftColor: category.color }]}>
+            <MaterialIcons name={category.icon as any} size={28} color={category.color} />
+            <Text style={styles.categoryName}>{category.name}</Text>
+          </View>
+        ))}
+      </View>
+
+      <Text style={styles.sectionTitle}>Target Audiences</Text>
+      <View style={styles.audienceInfo}>
+        {TARGET_AUDIENCES.map((audience) => (
+          <View key={audience.id} style={styles.audienceItem}>
+            <MaterialIcons name={audience.icon as any} size={24} color="#666" />
+            <Text style={styles.audienceText}>{audience.name}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderUsersTab = () => (
+    <View style={styles.tabContent}>
+      <Text style={styles.sectionTitle}>User Breakdown</Text>
+      <View style={styles.userBreakdown}>
+        <View style={styles.userTypeCard}>
+          <MaterialIcons name="school" size={40} color="#1976D2" />
+          <Text style={styles.userTypeCount}>{stats?.total_teachers || 0}</Text>
+          <Text style={styles.userTypeLabel}>Teachers</Text>
+        </View>
+        <View style={styles.userTypeCard}>
+          <MaterialIcons name="family-restroom" size={40} color="#388E3C" />
+          <Text style={styles.userTypeCount}>{stats?.total_parents || 0}</Text>
+          <Text style={styles.userTypeLabel}>Parents</Text>
+        </View>
+        <View style={styles.userTypeCard}>
+          <MaterialIcons name="child-care" size={40} color="#F57C00" />
+          <Text style={styles.userTypeCount}>{stats?.total_students || 0}</Text>
+          <Text style={styles.userTypeLabel}>Students</Text>
+        </View>
+      </View>
+
+      {analytics && analytics.user_growth.length > 0 && (
+        <>
+          <Text style={styles.sectionTitle}>User Growth (Last {selectedPeriod} days)</Text>
+          <View style={styles.chartContainer}>
+            <BarChart
+              data={analytics.user_growth.slice(-7).map((d) => ({
+                label: d.date.split('-').slice(1).join('/'),
+                value: d.new_users,
+              }))}
+              maxValue={Math.max(...analytics.user_growth.map((d) => d.new_users), 1)}
+              color="#2196F3"
+            />
+          </View>
+        </>
+      )}
+    </View>
+  );
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#5C6BC0" />
+          <ActivityIndicator size="large" color="#4CAF50" />
           <Text style={styles.loadingText}>Loading admin dashboard...</Text>
         </View>
       </SafeAreaView>
@@ -184,205 +555,165 @@ export default function AdminDashboard() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <MaterialIcons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Admin Dashboard</Text>
+        <TouchableOpacity onPress={logout} style={styles.logoutButton}>
+          <MaterialIcons name="logout" size={24} color="#F44336" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Tabs */}
+      <View style={styles.tabBar}>
+        {[
+          { id: 'overview', icon: 'dashboard', label: 'Overview' },
+          { id: 'analytics', icon: 'analytics', label: 'Analytics' },
+          { id: 'resources', icon: 'folder', label: 'Resources' },
+          { id: 'users', icon: 'people', label: 'Users' },
+        ].map((tab) => (
+          <TouchableOpacity
+            key={tab.id}
+            style={[styles.tab, activeTab === tab.id && styles.tabActive]}
+            onPress={() => setActiveTab(tab.id as any)}
+          >
+            <MaterialIcons
+              name={tab.icon as any}
+              size={20}
+              color={activeTab === tab.id ? '#4CAF50' : '#999'}
+            />
+            <Text style={[styles.tabText, activeTab === tab.id && styles.tabTextActive]}>
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Content */}
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        style={styles.content}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={24} color="#333" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Admin Dashboard</Text>
-          <View style={styles.adminBadge}>
-            <MaterialIcons name="admin-panel-settings" size={16} color="#fff" />
-            <Text style={styles.adminBadgeText}>Admin</Text>
-          </View>
-        </View>
-
-        {/* Stats Cards */}
-        <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { backgroundColor: '#E3F2FD' }]}>
-            <MaterialIcons name="people" size={32} color="#1976D2" />
-            <Text style={styles.statValue}>{stats?.total_users || 0}</Text>
-            <Text style={styles.statLabel}>Total Users</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: '#FFF8E1' }]}>
-            <MaterialIcons name="school" size={32} color="#FFA000" />
-            <Text style={styles.statValue}>{stats?.total_teachers || 0}</Text>
-            <Text style={styles.statLabel}>Teachers</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: '#E8F5E9' }]}>
-            <MaterialIcons name="family-restroom" size={32} color="#388E3C" />
-            <Text style={styles.statValue}>{stats?.total_parents || 0}</Text>
-            <Text style={styles.statLabel}>Parents</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: '#FCE4EC' }]}>
-            <MaterialIcons name="child-care" size={32} color="#C2185B" />
-            <Text style={styles.statValue}>{stats?.total_students || 0}</Text>
-            <Text style={styles.statLabel}>Students</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: '#F3E5F5' }]}>
-            <MaterialIcons name="check-circle" size={32} color="#7B1FA2" />
-            <Text style={styles.statValue}>{stats?.total_checkins || 0}</Text>
-            <Text style={styles.statLabel}>Check-ins</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: '#E0F7FA' }]}>
-            <MaterialIcons name="library-books" size={32} color="#00838F" />
-            <Text style={styles.statValue}>{stats?.total_resources || 0}</Text>
-            <Text style={styles.statLabel}>Resources</Text>
-          </View>
-        </View>
-
-        {/* Global Resources Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Global Resources</Text>
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={() => setShowCreateModal(true)}
-            >
-              <MaterialIcons name="add" size={20} color="#fff" />
-              <Text style={styles.addButtonText}>Add Resource</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.sectionSubtitle}>
-            These resources appear in the "General" tab for all teachers and parents
-          </Text>
-
-          {resources.length === 0 ? (
-            <View style={styles.emptyState}>
-              <MaterialIcons name="folder-open" size={48} color="#CCC" />
-              <Text style={styles.emptyText}>No global resources yet</Text>
-              <Text style={styles.emptySubtext}>
-                Add resources for teachers and parents to access
-              </Text>
-            </View>
-          ) : (
-            resources.map((resource) => (
-              <View key={resource.id} style={styles.resourceCard}>
-                <View style={styles.resourceIcon}>
-                  <MaterialIcons
-                    name={resource.content_type === 'pdf' ? 'picture-as-pdf' : 'article'}
-                    size={24}
-                    color={resource.content_type === 'pdf' ? '#E53935' : '#5C6BC0'}
-                  />
-                </View>
-                <View style={styles.resourceInfo}>
-                  <Text style={styles.resourceTitle}>{resource.title}</Text>
-                  <Text style={styles.resourceDescription} numberOfLines={2}>
-                    {resource.description}
-                  </Text>
-                  <View style={styles.resourceMeta}>
-                    <Text style={styles.resourceType}>
-                      {resource.content_type === 'pdf' ? 'PDF' : 'Text'}
-                    </Text>
-                  </View>
-                </View>
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={() => deleteResource(resource.id)}
-                >
-                  <MaterialIcons name="delete" size={20} color="#E53935" />
-                </TouchableOpacity>
-              </View>
-            ))
-          )}
-        </View>
+        {activeTab === 'overview' && renderOverviewTab()}
+        {activeTab === 'analytics' && renderAnalyticsTab()}
+        {activeTab === 'resources' && renderResourcesTab()}
+        {activeTab === 'users' && renderUsersTab()}
       </ScrollView>
 
-      {/* Create Resource Modal */}
+      {/* Upload Modal */}
       <Modal
-        visible={showCreateModal}
+        visible={showUploadModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowCreateModal(false)}
+        onRequestClose={() => setShowUploadModal(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create Global Resource</Text>
-              <TouchableOpacity onPress={() => setShowCreateModal(false)}>
+              <Text style={styles.modalTitle}>Upload Resource</Text>
+              <TouchableOpacity onPress={() => setShowUploadModal(false)}>
                 <MaterialIcons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              {/* Title */}
+            <ScrollView style={styles.modalScroll}>
               <Text style={styles.inputLabel}>Title *</Text>
               <TextInput
-                style={styles.textInput}
-                value={newTitle}
-                onChangeText={setNewTitle}
+                style={styles.input}
+                value={uploadData.title}
+                onChangeText={(text) => setUploadData((prev) => ({ ...prev, title: text }))}
                 placeholder="Enter resource title"
-                placeholderTextColor="#999"
               />
 
-              {/* Description */}
-              <Text style={styles.inputLabel}>Description *</Text>
+              <Text style={styles.inputLabel}>Description</Text>
               <TextInput
-                style={[styles.textInput, styles.textArea]}
-                value={newDescription}
-                onChangeText={setNewDescription}
-                placeholder="Enter a brief description"
-                placeholderTextColor="#999"
+                style={[styles.input, styles.textArea]}
+                value={uploadData.description}
+                onChangeText={(text) => setUploadData((prev) => ({ ...prev, description: text }))}
+                placeholder="Enter description"
                 multiline
                 numberOfLines={3}
               />
 
-              {/* Category */}
-              <Text style={styles.inputLabel}>Category</Text>
-              <View style={styles.categoryGrid}>
-                {categories.map((cat) => (
+              <Text style={styles.inputLabel}>Category *</Text>
+              <View style={styles.categorySelector}>
+                {RESOURCE_CATEGORIES.map((category) => (
                   <TouchableOpacity
-                    key={cat.id}
+                    key={category.id}
                     style={[
-                      styles.categoryChip,
-                      newCategory === cat.id && styles.categoryChipActive,
+                      styles.categorySelectorItem,
+                      uploadData.category === category.id && styles.categorySelectorItemActive,
                     ]}
-                    onPress={() => setNewCategory(cat.id)}
+                    onPress={() => setUploadData((prev) => ({ ...prev, category: category.id }))}
                   >
                     <MaterialIcons
-                      name={cat.icon as any}
-                      size={16}
-                      color={newCategory === cat.id ? '#fff' : '#666'}
+                      name={category.icon as any}
+                      size={20}
+                      color={uploadData.category === category.id ? '#fff' : category.color}
                     />
                     <Text
                       style={[
-                        styles.categoryChipText,
-                        newCategory === cat.id && styles.categoryChipTextActive,
+                        styles.categorySelectorText,
+                        uploadData.category === category.id && styles.categorySelectorTextActive,
                       ]}
+                      numberOfLines={1}
                     >
-                      {cat.name}
+                      {category.name}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
 
-              {/* Content Type Toggle */}
-              <Text style={styles.inputLabel}>Content Type</Text>
-              <View style={styles.toggleRow}>
+              <Text style={styles.inputLabel}>Target Audience *</Text>
+              <View style={styles.audienceSelector}>
+                {TARGET_AUDIENCES.map((audience) => (
+                  <TouchableOpacity
+                    key={audience.id}
+                    style={[
+                      styles.audienceSelectorItem,
+                      uploadData.target_audience === audience.id && styles.audienceSelectorItemActive,
+                    ]}
+                    onPress={() => setUploadData((prev) => ({ ...prev, target_audience: audience.id }))}
+                  >
+                    <MaterialIcons
+                      name={audience.icon as any}
+                      size={20}
+                      color={uploadData.target_audience === audience.id ? '#fff' : '#666'}
+                    />
+                    <Text
+                      style={[
+                        styles.audienceSelectorText,
+                        uploadData.target_audience === audience.id && styles.audienceSelectorTextActive,
+                      ]}
+                    >
+                      {audience.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.inputLabel}>Content Type *</Text>
+              <View style={styles.contentTypeSelector}>
                 <TouchableOpacity
                   style={[
-                    styles.toggleButton,
-                    newContentType === 'text' && styles.toggleButtonActive,
+                    styles.contentTypeButton,
+                    uploadData.content_type === 'text' && styles.contentTypeButtonActive,
                   ]}
-                  onPress={() => {
-                    setNewContentType('text');
-                    setSelectedPdf(null);
-                  }}
+                  onPress={() => setUploadData((prev) => ({ ...prev, content_type: 'text' }))}
                 >
                   <MaterialIcons
                     name="article"
                     size={20}
-                    color={newContentType === 'text' ? '#fff' : '#666'}
+                    color={uploadData.content_type === 'text' ? '#fff' : '#666'}
                   />
                   <Text
                     style={[
-                      styles.toggleText,
-                      newContentType === 'text' && styles.toggleTextActive,
+                      styles.contentTypeText,
+                      uploadData.content_type === 'text' && styles.contentTypeTextActive,
                     ]}
                   >
                     Text
@@ -390,20 +721,20 @@ export default function AdminDashboard() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[
-                    styles.toggleButton,
-                    newContentType === 'pdf' && styles.toggleButtonActive,
+                    styles.contentTypeButton,
+                    uploadData.content_type === 'pdf' && styles.contentTypeButtonActive,
                   ]}
-                  onPress={() => setNewContentType('pdf')}
+                  onPress={() => setUploadData((prev) => ({ ...prev, content_type: 'pdf' }))}
                 >
                   <MaterialIcons
                     name="picture-as-pdf"
                     size={20}
-                    color={newContentType === 'pdf' ? '#fff' : '#666'}
+                    color={uploadData.content_type === 'pdf' ? '#fff' : '#666'}
                   />
                   <Text
                     style={[
-                      styles.toggleText,
-                      newContentType === 'pdf' && styles.toggleTextActive,
+                      styles.contentTypeText,
+                      uploadData.content_type === 'pdf' && styles.contentTypeTextActive,
                     ]}
                   >
                     PDF
@@ -411,16 +742,14 @@ export default function AdminDashboard() {
                 </TouchableOpacity>
               </View>
 
-              {/* Content based on type */}
-              {newContentType === 'text' ? (
+              {uploadData.content_type === 'text' ? (
                 <>
                   <Text style={styles.inputLabel}>Content *</Text>
                   <TextInput
-                    style={[styles.textInput, styles.contentArea]}
-                    value={newContent}
-                    onChangeText={setNewContent}
-                    placeholder="Enter the resource content..."
-                    placeholderTextColor="#999"
+                    style={[styles.input, styles.contentArea]}
+                    value={uploadData.content}
+                    onChangeText={(text) => setUploadData((prev) => ({ ...prev, content: text }))}
+                    placeholder="Enter content text..."
                     multiline
                     numberOfLines={6}
                   />
@@ -428,43 +757,39 @@ export default function AdminDashboard() {
               ) : (
                 <>
                   <Text style={styles.inputLabel}>PDF File *</Text>
-                  <TouchableOpacity style={styles.pdfPicker} onPress={pickPdf}>
-                    {selectedPdf ? (
-                      <View style={styles.pdfSelected}>
-                        <MaterialIcons name="picture-as-pdf" size={24} color="#E53935" />
-                        <Text style={styles.pdfName} numberOfLines={1}>
-                          {selectedPdf.name}
-                        </Text>
-                        <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
-                      </View>
-                    ) : (
-                      <View style={styles.pdfPlaceholder}>
-                        <MaterialIcons name="upload-file" size={32} color="#999" />
-                        <Text style={styles.pdfPlaceholderText}>
-                          Tap to select PDF file
-                        </Text>
-                      </View>
-                    )}
+                  <TouchableOpacity style={styles.pdfPicker} onPress={handlePickPDF}>
+                    <MaterialIcons
+                      name={uploadData.pdf_filename ? 'check-circle' : 'cloud-upload'}
+                      size={32}
+                      color={uploadData.pdf_filename ? '#4CAF50' : '#999'}
+                    />
+                    <Text style={styles.pdfPickerText}>
+                      {uploadData.pdf_filename || 'Tap to select PDF file'}
+                    </Text>
                   </TouchableOpacity>
                 </>
               )}
+            </ScrollView>
 
-              {/* Create Button */}
+            <View style={styles.modalActions}>
               <TouchableOpacity
-                style={[styles.createButton, creating && styles.createButtonDisabled]}
-                onPress={createResource}
-                disabled={creating}
+                style={styles.cancelButton}
+                onPress={() => setShowUploadModal(false)}
               >
-                {creating ? (
-                  <ActivityIndicator color="#fff" />
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.submitButton, uploading && styles.submitButtonDisabled]}
+                onPress={handleUpload}
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <>
-                    <MaterialIcons name="add-circle" size={20} color="#fff" />
-                    <Text style={styles.createButtonText}>Create Resource</Text>
-                  </>
+                  <Text style={styles.submitButtonText}>Upload</Text>
                 )}
               </TouchableOpacity>
-            </ScrollView>
+            </View>
           </View>
         </View>
       </Modal>
@@ -475,7 +800,7 @@ export default function AdminDashboard() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#f5f5f5',
   },
   loadingContainer: {
     flex: 1,
@@ -483,42 +808,61 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 12,
+    marginTop: 16,
     fontSize: 16,
     color: '#666',
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
   backButton: {
-    padding: 8,
-    marginRight: 12,
+    padding: 4,
   },
   headerTitle: {
-    flex: 1,
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
   },
-  adminBadge: {
+  logoutButton: {
+    padding: 4,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  tab: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#5C6BC0',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    justifyContent: 'center',
+    paddingVertical: 12,
     gap: 4,
   },
-  adminBadgeText: {
-    color: '#fff',
-    fontWeight: '600',
+  tabActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: '#4CAF50',
+  },
+  tabText: {
     fontSize: 12,
+    color: '#999',
+  },
+  tabTextActive: {
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  content: {
+    flex: 1,
+  },
+  tabContent: {
+    padding: 16,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -527,9 +871,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   statCard: {
-    width: '31%',
-    padding: 16,
-    borderRadius: 16,
+    width: (SCREEN_WIDTH - 56) / 3,
+    padding: 12,
+    borderRadius: 12,
     alignItems: 'center',
   },
   statValue: {
@@ -539,107 +883,348 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#666',
     marginTop: 4,
     textAlign: 'center',
-  },
-  section: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: '#333',
+    marginBottom: 12,
   },
-  sectionSubtitle: {
-    fontSize: 13,
-    color: '#888',
-    marginBottom: 16,
+  quickActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
   },
-  addButton: {
+  actionButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#4CAF50',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 4,
+    padding: 16,
+    borderRadius: 12,
+    gap: 8,
   },
-  addButtonText: {
+  actionButtonText: {
     color: '#fff',
+    fontSize: 14,
     fontWeight: '600',
-    fontSize: 13,
   },
-  emptyState: {
+  summaryCards: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
     alignItems: 'center',
-    paddingVertical: 40,
   },
-  emptyText: {
-    fontSize: 16,
-    color: '#999',
-    marginTop: 12,
+  summaryValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#4CAF50',
   },
-  emptySubtext: {
-    fontSize: 13,
-    color: '#BBB',
+  summaryLabel: {
+    fontSize: 12,
+    color: '#666',
     marginTop: 4,
     textAlign: 'center',
   },
-  resourceCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
+  filterRow: {
+    marginBottom: 16,
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
     marginBottom: 8,
   },
-  resourceIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
+  periodButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  periodButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
     backgroundColor: '#fff',
-    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  periodButtonActive: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  periodButtonText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  periodButtonTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  classroomScroll: {
+    flexGrow: 0,
+  },
+  classroomChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    marginRight: 8,
+  },
+  classroomChipActive: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  classroomChipText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  classroomChipTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  chartTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  zoneDistribution: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+  },
+  zoneItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 12,
+    gap: 8,
   },
-  resourceInfo: {
+  zoneDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+  },
+  zoneText: {
+    fontSize: 14,
+    color: '#333',
+    textTransform: 'capitalize',
+  },
+  chartContainer: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+    height: 200,
+  },
+  barChart: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-around',
   },
-  resourceTitle: {
-    fontSize: 15,
+  barContainer: {
+    flex: 1,
+    alignItems: 'center',
+    height: '100%',
+  },
+  barWrapper: {
+    flex: 1,
+    width: '60%',
+    justifyContent: 'flex-end',
+  },
+  bar: {
+    width: '100%',
+    borderRadius: 4,
+    minHeight: 4,
+  },
+  barLabel: {
+    fontSize: 10,
+    color: '#666',
+    marginTop: 4,
+  },
+  barValue: {
+    fontSize: 10,
     fontWeight: '600',
     color: '#333',
   },
-  resourceDescription: {
+  classroomStatsContainer: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+  },
+  classroomStatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  classroomStatInfo: {
+    flex: 1,
+  },
+  classroomStatName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  classroomStatDetail: {
     fontSize: 12,
     color: '#666',
-    marginTop: 2,
   },
-  resourceMeta: {
-    flexDirection: 'row',
-    marginTop: 4,
-    gap: 8,
+  classroomStatBar: {
+    width: 80,
+    height: 8,
+    backgroundColor: '#eee',
+    borderRadius: 4,
+    marginHorizontal: 12,
+    overflow: 'hidden',
   },
-  resourceType: {
-    fontSize: 11,
-    color: '#888',
-    backgroundColor: '#E0E0E0',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  classroomStatBarFill: {
+    height: '100%',
+    backgroundColor: '#4CAF50',
     borderRadius: 4,
   },
-  deleteButton: {
-    padding: 8,
+  classroomStatAvg: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4CAF50',
+    width: 40,
+    textAlign: 'right',
+  },
+  strategiesList: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+  },
+  strategyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  strategyRank: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#999',
+    width: 30,
+  },
+  strategyName: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
+  },
+  strategyCount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4CAF50',
+  },
+  exportButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  exportButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2196F3',
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  exportButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  uploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#4CAF50',
+    padding: 16,
+    borderRadius: 12,
+    gap: 8,
+    marginBottom: 24,
+  },
+  uploadButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  categoriesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 24,
+  },
+  categoryCard: {
+    width: (SCREEN_WIDTH - 56) / 2,
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  categoryName: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
+  },
+  audienceInfo: {
+    flexDirection: 'row',
+    gap: 16,
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+  },
+  audienceItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 8,
+  },
+  audienceText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  userBreakdown: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  userTypeCard: {
+    flex: 1,
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  userTypeCount: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 8,
+  },
+  userTypeLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
   },
   modalOverlay: {
     flex: 1,
@@ -654,19 +1239,20 @@ const styles = StyleSheet.create({
   },
   modalHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    justifyContent: 'space-between',
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
+    borderBottomColor: '#eee',
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: '#333',
   },
-  modalBody: {
-    padding: 20,
+  modalScroll: {
+    padding: 16,
+    maxHeight: 500,
   },
   inputLabel: {
     fontSize: 14,
@@ -675,14 +1261,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginTop: 16,
   },
-  textInput: {
-    borderWidth: 1,
-    borderColor: '#DDD',
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 15,
+  input: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
     color: '#333',
-    backgroundColor: '#FAFAFA',
   },
   textArea: {
     height: 80,
@@ -692,98 +1276,124 @@ const styles = StyleSheet.create({
     height: 120,
     textAlignVertical: 'top',
   },
-  categoryGrid: {
+  categorySelector: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  categoryChip: {
+  categorySelectorItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#F0F0F0',
-    gap: 4,
+    backgroundColor: '#f5f5f5',
+    gap: 6,
   },
-  categoryChipActive: {
-    backgroundColor: '#5C6BC0',
+  categorySelectorItemActive: {
+    backgroundColor: '#4CAF50',
   },
-  categoryChipText: {
-    fontSize: 13,
+  categorySelectorText: {
+    fontSize: 12,
     color: '#666',
   },
-  categoryChipTextActive: {
+  categorySelectorTextActive: {
     color: '#fff',
   },
-  toggleRow: {
+  audienceSelector: {
     flexDirection: 'row',
     gap: 12,
   },
-  toggleButton: {
+  audienceSelectorItem: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: '#F0F0F0',
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
     gap: 8,
   },
-  toggleButtonActive: {
-    backgroundColor: '#5C6BC0',
+  audienceSelectorItemActive: {
+    backgroundColor: '#4CAF50',
   },
-  toggleText: {
-    fontSize: 15,
-    fontWeight: '600',
+  audienceSelectorText: {
+    fontSize: 14,
     color: '#666',
   },
-  toggleTextActive: {
+  audienceSelectorTextActive: {
     color: '#fff',
   },
-  pdfPicker: {
-    borderWidth: 2,
-    borderColor: '#DDD',
-    borderStyle: 'dashed',
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-  },
-  pdfPlaceholder: {
-    alignItems: 'center',
-  },
-  pdfPlaceholderText: {
-    fontSize: 14,
-    color: '#999',
-    marginTop: 8,
-  },
-  pdfSelected: {
+  contentTypeSelector: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
-  pdfName: {
+  contentTypeButton: {
     flex: 1,
-    fontSize: 14,
-    color: '#333',
-  },
-  createButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#4CAF50',
-    paddingVertical: 16,
-    borderRadius: 12,
-    marginTop: 24,
-    marginBottom: 40,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
     gap: 8,
   },
-  createButtonDisabled: {
-    backgroundColor: '#CCC',
+  contentTypeButtonActive: {
+    backgroundColor: '#4CAF50',
   },
-  createButtonText: {
+  contentTypeText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  contentTypeTextActive: {
     color: '#fff',
+  },
+  pdfPicker: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#ddd',
+    borderStyle: 'dashed',
+  },
+  pdfPickerText: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 8,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    padding: 16,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+    alignItems: 'center',
+  },
+  cancelButtonText: {
     fontSize: 16,
+    color: '#666',
+    fontWeight: '600',
+  },
+  submitButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    backgroundColor: '#4CAF50',
+    alignItems: 'center',
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+  submitButtonText: {
+    fontSize: 16,
+    color: '#fff',
     fontWeight: '600',
   },
 });

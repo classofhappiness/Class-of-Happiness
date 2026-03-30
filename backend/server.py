@@ -588,6 +588,37 @@ TRANSLATIONS = {
         "per_month": "/month",
         "save": "Save",
         "dashboard": "Dashboard",
+        "family_widget": "Family Widget",
+        "widget_preview": "Widget Preview",
+        "widget_preview_desc": "This is how your home screen widget will look",
+        "small_widget": "Small Widget",
+        "medium_widget": "Medium Widget",
+        "large_widget": "Large Widget",
+        "family": "Family",
+        "family_emotions": "Family Emotions",
+        "family_emotional_status": "Family Emotional Status",
+        "updated_just_now": "Updated just now",
+        "no_checkin_yet": "No check-in yet",
+        "just_now": "Just now",
+        "minutes_ago": "m ago",
+        "hours_ago": "h ago",
+        "days_ago": "d ago",
+        "add_widget_title": "Add Widget to Home Screen",
+        "add_widget_ios": "To add this widget:\n\n1. Long press on your home screen\n2. Tap the + button (top left)\n3. Search for \"Class of Happiness\"\n4. Choose a widget size\n5. Tap \"Add Widget\"",
+        "add_widget_android": "To add this widget:\n\n1. Long press on your home screen\n2. Tap \"Widgets\"\n3. Find \"Class of Happiness\"\n4. Long press and drag to home screen",
+        "got_it": "Got it!",
+        "blue_desc_short": "Sad/Tired",
+        "green_desc_short": "Calm/Happy",
+        "yellow_desc_short": "Anxious",
+        "red_desc_short": "Angry",
+        "widget_settings": "Widget Settings",
+        "classroom_widget": "Classroom Widget",
+        "classroom_emotions": "Classroom Emotions",
+        "classroom_emotional_status": "Classroom Emotional Status",
+        "widget_preview_desc_teacher": "Quick classroom emotional status at a glance",
+        "classroom": "Classroom",
+        "today_check_ins": "Today's Check-ins",
+        "emotion_breakdown": "Emotion Breakdown",
         "students": "Students",
         "classrooms": "Classrooms",
         "teacher_resources": "Teacher Resources",
@@ -1037,6 +1068,37 @@ TRANSLATIONS = {
         "per_month": "/mes",
         "save": "Guardar",
         "dashboard": "Panel",
+        "family_widget": "Widget Familiar",
+        "widget_preview": "Vista Previa del Widget",
+        "widget_preview_desc": "Así se verá tu widget en la pantalla de inicio",
+        "small_widget": "Widget Pequeño",
+        "medium_widget": "Widget Mediano",
+        "large_widget": "Widget Grande",
+        "family": "Familia",
+        "family_emotions": "Emociones Familiares",
+        "family_emotional_status": "Estado Emocional Familiar",
+        "updated_just_now": "Actualizado ahora",
+        "no_checkin_yet": "Sin registro aún",
+        "just_now": "Ahora mismo",
+        "minutes_ago": "m atrás",
+        "hours_ago": "h atrás",
+        "days_ago": "d atrás",
+        "add_widget_title": "Agregar Widget a Inicio",
+        "add_widget_ios": "Para agregar este widget:\n\n1. Mantén presionada la pantalla de inicio\n2. Toca el botón + (arriba a la izquierda)\n3. Busca \"Class of Happiness\"\n4. Elige un tamaño de widget\n5. Toca \"Agregar Widget\"",
+        "add_widget_android": "Para agregar este widget:\n\n1. Mantén presionada la pantalla de inicio\n2. Toca \"Widgets\"\n3. Busca \"Class of Happiness\"\n4. Mantén presionado y arrastra a la pantalla de inicio",
+        "got_it": "¡Entendido!",
+        "blue_desc_short": "Triste/Cansado",
+        "green_desc_short": "Calmado/Feliz",
+        "yellow_desc_short": "Ansioso",
+        "red_desc_short": "Enojado",
+        "widget_settings": "Configuración del Widget",
+        "classroom_widget": "Widget del Aula",
+        "classroom_emotions": "Emociones del Aula",
+        "classroom_emotional_status": "Estado Emocional del Aula",
+        "widget_preview_desc_teacher": "Estado emocional del aula de un vistazo",
+        "classroom": "Aula",
+        "today_check_ins": "Registros de Hoy",
+        "emotion_breakdown": "Desglose de Emociones",
         "students": "Estudiantes",
         "classrooms": "Aulas",
         "teacher_resources": "Recursos para Maestros",
@@ -4444,6 +4506,12 @@ async def create_admin_resource(request: Request):
     
     body = await request.json()
     
+    # Handle PDF data if present
+    pdf_content = None
+    if body.get("pdf_data"):
+        import base64
+        pdf_content = base64.b64decode(body["pdf_data"])
+    
     resource_obj = Resource(
         id=str(uuid.uuid4()),
         title=body.get("title", ""),
@@ -4455,7 +4523,38 @@ async def create_admin_resource(request: Request):
         is_global=True,  # Mark as global resource
         created_by=user.user_id
     )
-    await db.resources.insert_one(resource_obj.dict())
+    
+    resource_dict = resource_obj.dict()
+    
+    # Store PDF content separately if present
+    if pdf_content:
+        resource_dict["pdf_content"] = pdf_content
+    
+    # Also add topic for Teacher Resources compatibility
+    resource_dict["topic"] = body.get("topic") or body.get("category", "general")
+    resource_dict["target_audience"] = body.get("target_audience", "both")
+    
+    await db.resources.insert_one(resource_dict)
+    
+    # Also create in teacher_resources collection if target includes teachers
+    target_audience = body.get("target_audience", "both")
+    if target_audience in ["teachers", "both"]:
+        teacher_resource = {
+            "id": str(uuid.uuid4()),
+            "teacher_id": user.user_id,
+            "topic": body.get("category", "general"),
+            "title": body.get("title", ""),
+            "description": body.get("description", ""),
+            "content_type": body.get("content_type", "text"),
+            "content": body.get("content"),
+            "pdf_filename": body.get("pdf_filename"),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "is_global": True,
+            "created_by_admin": True,
+        }
+        if pdf_content:
+            teacher_resource["pdf_content"] = pdf_content
+        await db.teacher_resources.insert_one(teacher_resource)
     
     logger.info(f"Admin {user.email} created global resource: {resource_obj.title}")
     return resource_obj
@@ -4487,7 +4586,218 @@ async def get_admin_stats(request: Request):
         "total_resources": total_resources,
     }
 
-# ---- Family Members (for Parent home tracking) ----
+@api_router.get("/admin/analytics")
+async def get_admin_analytics(
+    request: Request,
+    period: str = "30",  # days: 1, 7, 14, 30
+    school_id: Optional[str] = None,
+    classroom_id: Optional[str] = None
+):
+    """Get comprehensive analytics data for admin dashboard"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    days = int(period)
+    start_date = datetime.now(timezone.utc) - timedelta(days=days)
+    
+    # Build query filters
+    checkin_filter = {"timestamp": {"$gte": start_date.isoformat()}}
+    student_filter = {}
+    
+    if classroom_id:
+        student_filter["classroom_id"] = classroom_id
+    
+    # Get students matching filter
+    if student_filter:
+        matching_students = await db.students.find(student_filter, {"student_id": 1}).to_list(1000)
+        student_ids = [s["student_id"] for s in matching_students]
+        checkin_filter["student_id"] = {"$in": student_ids}
+    
+    # Daily check-in trends
+    daily_checkins = []
+    for i in range(days):
+        day_start = start_date + timedelta(days=i)
+        day_end = day_start + timedelta(days=1)
+        count = await db.zone_logs.count_documents({
+            "timestamp": {"$gte": day_start.isoformat(), "$lt": day_end.isoformat()},
+            **({"student_id": {"$in": student_ids}} if student_filter else {})
+        })
+        daily_checkins.append({
+            "date": day_start.strftime("%Y-%m-%d"),
+            "count": count
+        })
+    
+    # Zone distribution
+    zone_pipeline = [
+        {"$match": checkin_filter},
+        {"$group": {"_id": "$zone", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}}
+    ]
+    zone_results = await db.zone_logs.aggregate(zone_pipeline).to_list(10)
+    zone_distribution = {r["_id"]: r["count"] for r in zone_results}
+    
+    # User activity (unique students who checked in)
+    active_students_pipeline = [
+        {"$match": checkin_filter},
+        {"$group": {"_id": "$student_id"}},
+        {"$count": "total"}
+    ]
+    active_result = await db.zone_logs.aggregate(active_students_pipeline).to_list(1)
+    active_students = active_result[0]["total"] if active_result else 0
+    
+    # Average check-ins per student
+    total_checkins_period = await db.zone_logs.count_documents(checkin_filter)
+    avg_checkins_per_student = round(total_checkins_period / max(active_students, 1), 2)
+    
+    # Top strategies used
+    strategy_pipeline = [
+        {"$match": {**checkin_filter, "strategy_used": {"$exists": True, "$ne": None}}},
+        {"$group": {"_id": "$strategy_used", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 10}
+    ]
+    strategy_results = await db.zone_logs.aggregate(strategy_pipeline).to_list(10)
+    top_strategies = [{"strategy": r["_id"], "count": r["count"]} for r in strategy_results]
+    
+    # Peak check-in hours
+    hour_pipeline = [
+        {"$match": checkin_filter},
+        {"$addFields": {
+            "hour": {"$hour": {"$dateFromString": {"dateString": "$timestamp"}}}
+        }},
+        {"$group": {"_id": "$hour", "count": {"$sum": 1}}},
+        {"$sort": {"_id": 1}}
+    ]
+    hour_results = await db.zone_logs.aggregate(hour_pipeline).to_list(24)
+    hourly_distribution = {r["_id"]: r["count"] for r in hour_results}
+    
+    # Classroom comparison (if no filter)
+    classroom_stats = []
+    if not classroom_id:
+        classrooms = await db.classrooms.find({}).to_list(100)
+        for classroom in classrooms:
+            cls_students = await db.students.find({"classroom_id": classroom["id"]}, {"student_id": 1}).to_list(100)
+            cls_student_ids = [s["student_id"] for s in cls_students]
+            if cls_student_ids:
+                cls_checkins = await db.zone_logs.count_documents({
+                    "timestamp": {"$gte": start_date.isoformat()},
+                    "student_id": {"$in": cls_student_ids}
+                })
+                classroom_stats.append({
+                    "id": classroom["id"],
+                    "name": classroom["name"],
+                    "student_count": len(cls_student_ids),
+                    "checkin_count": cls_checkins,
+                    "avg_per_student": round(cls_checkins / max(len(cls_student_ids), 1), 2)
+                })
+    
+    # Resource engagement
+    resource_downloads = await db.resources.aggregate([
+        {"$project": {"title": 1, "download_count": {"$ifNull": ["$download_count", 0]}}},
+        {"$sort": {"download_count": -1}},
+        {"$limit": 10}
+    ]).to_list(10)
+    
+    # User growth (new users per day)
+    user_growth = []
+    for i in range(min(days, 30)):  # Limit to 30 days for performance
+        day_start = start_date + timedelta(days=i)
+        day_end = day_start + timedelta(days=1)
+        new_users = await db.users.count_documents({
+            "created_at": {"$gte": day_start.isoformat(), "$lt": day_end.isoformat()}
+        })
+        user_growth.append({
+            "date": day_start.strftime("%Y-%m-%d"),
+            "new_users": new_users
+        })
+    
+    # Retention metrics (users who checked in more than once)
+    retention_pipeline = [
+        {"$match": checkin_filter},
+        {"$group": {"_id": "$student_id", "checkin_count": {"$sum": 1}}},
+        {"$match": {"checkin_count": {"$gt": 1}}},
+        {"$count": "total"}
+    ]
+    retention_result = await db.zone_logs.aggregate(retention_pipeline).to_list(1)
+    returning_students = retention_result[0]["total"] if retention_result else 0
+    retention_rate = round((returning_students / max(active_students, 1)) * 100, 1)
+    
+    return {
+        "period_days": days,
+        "summary": {
+            "total_checkins": total_checkins_period,
+            "active_students": active_students,
+            "avg_checkins_per_student": avg_checkins_per_student,
+            "retention_rate": retention_rate,
+        },
+        "daily_checkins": daily_checkins,
+        "zone_distribution": zone_distribution,
+        "hourly_distribution": hourly_distribution,
+        "top_strategies": top_strategies,
+        "classroom_stats": classroom_stats,
+        "resource_engagement": resource_downloads,
+        "user_growth": user_growth,
+    }
+
+@api_router.get("/admin/schools")
+async def get_schools(request: Request):
+    """Get all schools/organizations"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Get unique schools from classrooms
+    schools = await db.classrooms.aggregate([
+        {"$group": {"_id": "$school_name", "classroom_count": {"$sum": 1}}},
+        {"$match": {"_id": {"$ne": None}}},
+        {"$sort": {"classroom_count": -1}}
+    ]).to_list(100)
+    
+    return [{"name": s["_id"], "classroom_count": s["classroom_count"]} for s in schools if s["_id"]]
+
+@api_router.get("/admin/export")
+async def export_analytics(
+    request: Request,
+    type: str = "checkins",  # checkins, users, resources
+    format: str = "json"  # json or csv
+):
+    """Export analytics data"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    if type == "checkins":
+        data = await db.zone_logs.find({}).sort("timestamp", -1).to_list(10000)
+    elif type == "users":
+        data = await db.users.find({}, {"_id": 0, "user_id": 1, "email": 1, "role": 1, "created_at": 1}).to_list(10000)
+    elif type == "resources":
+        data = await db.resources.find({}, {"_id": 0}).to_list(1000)
+    else:
+        raise HTTPException(status_code=400, detail="Invalid export type")
+    
+    if format == "csv":
+        if not data:
+            return {"csv": ""}
+        
+        import csv
+        import io
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=data[0].keys())
+        writer.writeheader()
+        writer.writerows(data)
+        return {"csv": output.getvalue(), "filename": f"{type}_export.csv"}
+    
+    return {"data": data, "count": len(data)}
 @api_router.get("/family/members")
 async def get_family_members(request: Request):
     """Get all family members for the current parent"""

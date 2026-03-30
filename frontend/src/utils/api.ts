@@ -402,6 +402,29 @@ export interface AdminStats {
   total_resources: number;
 }
 
+export interface AdminAnalytics {
+  period_days: number;
+  summary: {
+    total_checkins: number;
+    active_students: number;
+    avg_checkins_per_student: number;
+    retention_rate: number;
+  };
+  daily_checkins: Array<{ date: string; count: number }>;
+  zone_distribution: Record<string, number>;
+  hourly_distribution: Record<string, number>;
+  top_strategies: Array<{ strategy: string; count: number }>;
+  classroom_stats: Array<{
+    id: string;
+    name: string;
+    student_count: number;
+    checkin_count: number;
+    avg_per_student: number;
+  }>;
+  resource_engagement: Array<{ title: string; download_count: number }>;
+  user_growth: Array<{ date: string; new_users: number }>;
+}
+
 export const adminApi = {
   getStats: (): Promise<AdminStats> =>
     apiRequest('/admin/stats'),
@@ -415,9 +438,21 @@ export const adminApi = {
     content_type: string;
     content?: string;
     pdf_filename?: string;
+    pdf_data?: string;
     category?: string;
+    target_audience?: string;
+    topic?: string;
   }): Promise<Resource> =>
     apiRequest('/admin/resources', { method: 'POST', body: JSON.stringify(data) }),
+  
+  getAnalytics: (period: string = '30', classroomId?: string): Promise<AdminAnalytics> =>
+    apiRequest(`/admin/analytics?period=${period}${classroomId ? `&classroom_id=${classroomId}` : ''}`),
+  
+  getSchools: (): Promise<Array<{ name: string; classroom_count: number }>> =>
+    apiRequest('/admin/schools'),
+  
+  exportData: (type: string, format: string = 'json'): Promise<any> =>
+    apiRequest(`/admin/export?type=${type}&format=${format}`),
 };
 
 // Family Member types and API

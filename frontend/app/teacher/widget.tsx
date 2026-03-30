@@ -26,11 +26,11 @@ interface ClassroomSummary {
   lastUpdate: string;
 }
 
-const ZONE_CONFIG: Record<string, { color: string; emoji: string; label: string }> = {
-  blue: { color: '#4A90D9', emoji: '😢', label: 'Sad' },
-  green: { color: '#4CAF50', emoji: '😊', label: 'Calm' },
-  yellow: { color: '#FFC107', emoji: '😰', label: 'Anxious' },
-  red: { color: '#F44336', emoji: '😠', label: 'Angry' },
+const ZONE_CONFIG: Record<string, { color: string; emoji: string; labelKey: string }> = {
+  blue: { color: '#4A90D9', emoji: '😢', labelKey: 'blue_desc_short' },
+  green: { color: '#4CAF50', emoji: '😊', labelKey: 'green_desc_short' },
+  yellow: { color: '#FFC107', emoji: '😰', labelKey: 'yellow_desc_short' },
+  red: { color: '#F44336', emoji: '😠', labelKey: 'red_desc_short' },
 };
 
 export default function TeacherWidgetScreen() {
@@ -42,6 +42,13 @@ export default function TeacherWidgetScreen() {
   const [totalStudents, setTotalStudents] = useState(0);
   const [todayCheckIns, setTodayCheckIns] = useState(0);
   const [overallCounts, setOverallCounts] = useState({ blue: 0, green: 0, yellow: 0, red: 0 });
+  
+  // Helper to get translated zone label
+  const getZoneLabel = (zone: string) => {
+    const config = ZONE_CONFIG[zone];
+    if (!config) return zone;
+    return t(config.labelKey) || config.labelKey;
+  };
 
   useEffect(() => {
     fetchWidgetData();
@@ -104,11 +111,11 @@ export default function TeacherWidgetScreen() {
 
   const handleAddToHomeScreen = () => {
     Alert.alert(
-      'Add Widget to Home Screen',
+      t('add_widget_title') || 'Add Widget to Home Screen',
       Platform.OS === 'ios' 
-        ? 'To add this widget:\n\n1. Long press on your home screen\n2. Tap the + button (top left)\n3. Search for "Class of Happiness"\n4. Choose a widget size\n5. Tap "Add Widget"'
-        : 'To add this widget:\n\n1. Long press on your home screen\n2. Tap "Widgets"\n3. Find "Class of Happiness"\n4. Long press and drag to home screen',
-      [{ text: 'Got it!' }]
+        ? t('add_widget_ios') || 'To add this widget:\n\n1. Long press on your home screen\n2. Tap the + button (top left)\n3. Search for "Class of Happiness"\n4. Choose a widget size\n5. Tap "Add Widget"'
+        : t('add_widget_android') || 'To add this widget:\n\n1. Long press on your home screen\n2. Tap "Widgets"\n3. Find "Class of Happiness"\n4. Long press and drag to home screen',
+      [{ text: t('got_it') || 'Got it!' }]
     );
   };
 
@@ -131,7 +138,7 @@ export default function TeacherWidgetScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Classroom Widget</Text>
+        <Text style={styles.headerTitle}>{t('classroom_widget') || 'Classroom Widget'}</Text>
         <TouchableOpacity onPress={handleAddToHomeScreen} style={styles.infoButton}>
           <MaterialIcons name="add-to-home-screen" size={24} color="#FFC107" />
         </TouchableOpacity>
@@ -142,24 +149,24 @@ export default function TeacherWidgetScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Widget Preview Section */}
-        <Text style={styles.sectionTitle}>Widget Preview</Text>
-        <Text style={styles.sectionSubtitle}>Quick classroom emotional status at a glance</Text>
+        <Text style={styles.sectionTitle}>{t('widget_preview') || 'Widget Preview'}</Text>
+        <Text style={styles.sectionSubtitle}>{t('widget_preview_desc_teacher') || 'Quick classroom emotional status at a glance'}</Text>
 
         {/* Small Widget Preview */}
         <View style={styles.widgetPreviewContainer}>
-          <Text style={styles.widgetSize}>Small Widget</Text>
+          <Text style={styles.widgetSize}>{t('small_widget') || 'Small Widget'}</Text>
           <View style={[styles.smallWidget, { backgroundColor: ZONE_CONFIG[dominantEmotion].color + '20', borderColor: ZONE_CONFIG[dominantEmotion].color }]}>
             <Text style={styles.smallWidgetEmoji}>{ZONE_CONFIG[dominantEmotion].emoji}</Text>
-            <Text style={styles.smallWidgetTitle}>Classroom</Text>
+            <Text style={styles.smallWidgetTitle}>{t('classroom') || 'Classroom'}</Text>
             <Text style={[styles.smallWidgetStatus, { color: ZONE_CONFIG[dominantEmotion].color }]}>
-              {totalStudents} Students
+              {totalStudents} {t('students') || 'Students'}
             </Text>
           </View>
         </View>
 
         {/* Medium Widget Preview - Emotion Bar */}
         <View style={styles.widgetPreviewContainer}>
-          <Text style={styles.widgetSize}>Medium Widget</Text>
+          <Text style={styles.widgetSize}>{t('medium_widget') || 'Medium Widget'}</Text>
           <View style={styles.mediumWidget}>
             <View style={styles.mediumWidgetHeader}>
               <Text style={styles.mediumWidgetTitle}>🏫 Classroom Emotions</Text>
