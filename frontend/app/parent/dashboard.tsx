@@ -569,10 +569,10 @@ export default function ParentDashboard() {
           <View style={styles.actionsRow}>
             <TouchableOpacity
               style={styles.actionButton}
-              onPress={() => router.push('/parent/strategies')}
+              onPress={() => router.push('/parent/family-strategies')}
             >
               <MaterialIcons name="lightbulb" size={24} color="#FFC107" />
-              <Text style={styles.actionButtonText}>{t('strategies')}</Text>
+              <Text style={styles.actionButtonText}>{t('strategies') || 'Helpful Strategies'}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
@@ -914,11 +914,9 @@ export default function ParentDashboard() {
                 onPress={() => setEditMember({ ...editMember, avatar_type: 'preset', avatar_custom: '' })}
               >
                 <View style={styles.presetAvatarPreview}>
-                  <MaterialIcons 
-                    name={editMember.relationship === 'self' ? 'person' : editMember.relationship === 'partner' ? 'favorite' : 'child-care'} 
-                    size={40} 
-                    color="#5C6BC0" 
-                  />
+                  <Text style={{ fontSize: 32 }}>
+                    {presetAvatars?.find(a => a.id === editMember.avatar_preset)?.emoji || '⭐'}
+                  </Text>
                 </View>
                 <Text style={styles.avatarOptionText}>{t('use_icon') || 'Use Icon'}</Text>
               </TouchableOpacity>
@@ -943,6 +941,29 @@ export default function ParentDashboard() {
                 <Text style={styles.avatarOptionText}>{t('upload_photo') || 'Upload Photo'}</Text>
               </TouchableOpacity>
             </View>
+            
+            {/* Icon Selection (when preset is selected) */}
+            {editMember.avatar_type === 'preset' && (
+              <>
+                <Text style={styles.inputLabel}>{t('choose_icon') || 'Choose Icon'}</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.iconScrollView}>
+                  <View style={styles.iconGrid}>
+                    {(presetAvatars || []).map((avatar) => (
+                      <TouchableOpacity
+                        key={avatar.id}
+                        style={[
+                          styles.iconOption,
+                          editMember.avatar_preset === avatar.id && styles.iconOptionSelected
+                        ]}
+                        onPress={() => setEditMember({ ...editMember, avatar_preset: avatar.id })}
+                      >
+                        <Text style={styles.iconEmoji}>{avatar.emoji}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+              </>
+            )}
             
             <Text style={styles.inputLabel}>{t('name')}</Text>
             <TextInput
@@ -1525,5 +1546,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginTop: 8,
     paddingBottom: 20,
+  },
+  // Icon selection styles
+  iconScrollView: {
+    marginBottom: 16,
+  },
+  iconGrid: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingVertical: 8,
+  },
+  iconOption: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+  },
+  iconOptionSelected: {
+    borderColor: '#5C6BC0',
+    backgroundColor: '#E8EAF6',
+  },
+  iconEmoji: {
+    fontSize: 28,
   },
 });
