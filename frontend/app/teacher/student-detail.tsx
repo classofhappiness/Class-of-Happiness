@@ -17,7 +17,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
 import { useApp } from '../../src/context/AppContext';
-import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy, reportsApi, parentApi } from '../../src/utils/api';
+import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy, reportsApi, teacherApi } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 
 const { width } = Dimensions.get('window');
@@ -480,7 +480,7 @@ export default function StudentDetailScreen() {
                     onPress={async () => {
                       setGeneratingCode(true);
                       try {
-                        const result = await parentApi.generateLinkCode(student.id);
+                        const result = await teacherApi.generateLinkCode(student.id);
                         setLinkCode(result.link_code);
                       } catch (error: any) {
                         console.error('Generate link code error:', error);

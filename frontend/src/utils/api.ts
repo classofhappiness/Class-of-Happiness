@@ -300,7 +300,7 @@ export const reportsApi = {
     apiRequest(`/reports/available-months/${studentId}`),
   
   getPdfUrl: (studentId: string, year: number, month: number): string =>
-    `${API_URL}/reports/pdf/student/${studentId}/month/${year}/${month}`,
+    `/api/reports/pdf/student/${studentId}/month/${year}/${month}`,
 };
 
 // Avatars API
@@ -316,7 +316,11 @@ export const parentApi = {
   
   linkChild: (linkCode: string): Promise<{ message: string; student_id: string; student_name: string }> =>
     apiRequest('/students/link', { method: 'POST', body: JSON.stringify({ link_code: linkCode }) }),
-  
+};
+
+// Teacher API
+export const teacherApi = {
+  // Teacher generates code to share student with parent
   generateLinkCode: (studentId: string): Promise<{ link_code: string; expires_at: string }> =>
     apiRequest(`/students/${studentId}/generate-link-code`, { method: 'POST' }),
 };
@@ -484,7 +488,7 @@ export const classroomReportsApi = {
     apiRequest(`/reports/classroom/${classroomId}/available-months`),
   
   getPdfUrl: (classroomId: string, year: number, month: number): string =>
-    `${API_URL}/reports/classroom/${classroomId}/pdf?year=${year}&month=${month}`,
+    `/api/reports/classroom/${classroomId}/pdf?year=${year}&month=${month}`,
 };
 
 // ================== CREATURE REWARDS API ==================
