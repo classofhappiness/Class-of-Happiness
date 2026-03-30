@@ -3235,8 +3235,8 @@ async def start_trial(request: Request):
 # Special promotional trial codes - CONFIDENTIAL
 # Generate a unique code for the owner to share
 PROMO_TRIAL_CODES = {
-    "HAPPYCLASS2025": {"duration_days": 30, "description": "1-month free trial"},
-    "CLASSOFHAPPINESS": {"duration_days": 30, "description": "1-month free trial"},
+    "HAPPYCLASS2026": {"duration_days": 30, "description": "1-month free trial"},
+    "CLASSOFHAPPINESS2026": {"duration_days": 30, "description": "1-month free trial"},
 }
 
 @api_router.post("/subscription/redeem-trial-code")
@@ -4380,7 +4380,7 @@ async def update_user_role(request: Request):
     return {"role": role}
 
 # ---- Admin Role Promotion ----
-ADMIN_CODES = ["ADMINCLASS2025", "HAPPYADMIN2025"]
+ADMIN_CODES = ["ADMINCLASS2026", "HAPPYADMIN2026"]
 
 @api_router.post("/auth/promote-admin")
 async def promote_to_admin(request: Request):
