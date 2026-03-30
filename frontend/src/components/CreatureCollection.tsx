@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { Creature } from '../utils/api';
+import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../utils/sounds';
 
 interface CreatureCollectionProps {
   visible: boolean;
@@ -15,7 +16,17 @@ interface CreatureCollectionProps {
   unlockedHomes: string[];
   t: (key: string) => string;
   onClose: () => void;
+  allCreatures?: Creature[]; // All available creatures for filtering
 }
+
+// Element filter configuration
+const ELEMENT_FILTERS = [
+  { id: 'all', name: 'All', color: '#9C27B0', emoji: '🌟' },
+  { id: 'blue', name: 'Aqua', color: '#4FC3F7', emoji: '💧' },
+  { id: 'green', name: 'Leaf', color: '#81C784', emoji: '🌱' },
+  { id: 'yellow', name: 'Spark', color: '#FFD54F', emoji: '⚡' },
+  { id: 'red', name: 'Blaze', color: '#FF7043', emoji: '🔥' },
+];
 
 export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
   visible,
@@ -30,8 +41,15 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
   unlockedHomes = [],
   t,
   onClose,
+  allCreatures = [],
 }) => {
   const [activeTab, setActiveTab] = useState<'creature' | 'items'>('creature');
+  const [selectedElement, setSelectedElement] = useState<string>('all');
+  
+  // Preload sounds when component mounts
+  useEffect(() => {
+    preloadSounds();
+  }, []);
   
   // Get next evolution threshold
   const nextThreshold = currentStage < 3 ? currentCreature.stages[currentStage + 1]?.required_points || 0 : null;
@@ -47,42 +65,94 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
   const creatureZone = currentCreature.zone || 'blue';
   const zoneColor = zoneColors[creatureZone] || '#4FC3F7';
 
+  // Filter collected creatures by element
+  const filteredCollectedCreatures = selectedElement === 'all' 
+    ? collectedCreatures 
+    : collectedCreatures.filter(c => c.zone === selectedElement);
+
+  // Check if current creature matches filter
+  const showCurrentCreature = selectedElement === 'all' || currentCreature.zone === selectedElement;
+
+  // Handle tab change with sound
+  const handleTabChange = (tab: 'creature' | 'items') => {
+    playButtonFeedback();
+    setActiveTab(tab);
+  };
+
+  // Handle element filter change with sound
+  const handleElementFilter = (elementId: string) => {
+    playSelectFeedback();
+    setSelectedElement(elementId);
+  };
+
+  // Handle close with sound
+  const handleClose = () => {
+    playButtonFeedback();
+    onClose();
+  };
+
   return (
     <Modal
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <View style={styles.overlay}>
         <View style={styles.container}>
           {/* Header */}
           <View style={[styles.header, { backgroundColor: zoneColor + '20' }]}>
             <Text style={styles.title}>{t('creature_collection') || 'My Creatures'}</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
               <Text style={styles.closeText}>✕</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Tabs */}
+          {/* Main Tabs */}
           <View style={styles.tabs}>
             <TouchableOpacity
               style={[styles.tab, activeTab === 'creature' && { backgroundColor: zoneColor }]}
-              onPress={() => setActiveTab('creature')}
+              onPress={() => handleTabChange('creature')}
             >
               <Text style={[styles.tabText, activeTab === 'creature' && styles.tabTextActive]}>
-                {t('your_creature') || 'Your Creature'}
+                {t('your_creature') || 'Your Creatures'}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.tab, activeTab === 'items' && { backgroundColor: zoneColor }]}
-              onPress={() => setActiveTab('items')}
+              onPress={() => handleTabChange('items')}
             >
               <Text style={[styles.tabText, activeTab === 'items' && styles.tabTextActive]}>
                 {t('bonus_items') || 'Bonus Items'}
               </Text>
             </TouchableOpacity>
           </View>
+
+          {/* Element Filter Tabs (only show in creatures tab) */}
+          {activeTab === 'creature' && (
+            <View style={styles.elementFilters}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.elementScrollContent}>
+                {ELEMENT_FILTERS.map((filter) => (
+                  <TouchableOpacity
+                    key={filter.id}
+                    style={[
+                      styles.elementChip,
+                      selectedElement === filter.id && { backgroundColor: filter.color, borderColor: filter.color },
+                    ]}
+                    onPress={() => handleElementFilter(filter.id)}
+                  >
+                    <Text style={styles.elementEmoji}>{filter.emoji}</Text>
+                    <Text style={[
+                      styles.elementText,
+                      selectedElement === filter.id && styles.elementTextActive,
+                    ]}>
+                      {filter.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
           <ScrollView 
             style={styles.scrollView} 
@@ -91,94 +161,123 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
           >
             {activeTab === 'creature' ? (
               <>
-                {/* Current Creature */}
-                <View style={[styles.currentCreatureCard, { borderColor: zoneColor }]}>
-                  <View style={[styles.creatureAvatar, { backgroundColor: zoneColor + '30' }]}>
-                    <Text style={styles.creatureEmoji}>
-                      {currentCreature.stages[currentStage].emoji}
-                    </Text>
-                  </View>
-                  <Text style={styles.creatureName}>{currentCreature.stages[currentStage].name}</Text>
-                  <Text style={styles.creatureDesc}>{currentCreature.description}</Text>
-                  
-                  {/* Stage Progress */}
-                  <View style={styles.stageProgress}>
-                    <Text style={styles.stageLabel}>
-                      {t('stage') || 'Stage'} {currentStage + 1}/4
-                    </Text>
-                    <View style={styles.stageIndicator}>
-                      {currentCreature.stages.map((stage, index) => (
-                        <View
-                          key={index}
-                          style={[
-                            styles.stageDot,
-                            { backgroundColor: index <= currentStage ? zoneColor : '#DDD' },
-                          ]}
-                        >
-                          <Text style={styles.stageDotEmoji}>{stage.emoji}</Text>
-                        </View>
-                      ))}
+                {/* Current Creature (if matches filter) */}
+                {showCurrentCreature && (
+                  <View style={[styles.currentCreatureCard, { borderColor: zoneColor }]}>
+                    <View style={styles.currentBadge}>
+                      <Text style={styles.currentBadgeText}>Current</Text>
                     </View>
-                  </View>
-
-                  {/* Points Progress */}
-                  {currentStage < 3 && (
-                    <View style={styles.progressSection}>
-                      <Text style={styles.progressLabel}>
-                        {t('next_evolution') || 'Next Evolution'}: {currentPoints}/{nextThreshold} {t('points_needed') || 'points'}
+                    <View style={[styles.creatureAvatar, { backgroundColor: zoneColor + '30' }]}>
+                      <Text style={styles.creatureEmoji}>
+                        {currentCreature.stages[currentStage].emoji}
                       </Text>
-                      <View style={styles.progressBar}>
-                        <View style={[styles.progressFill, { width: `${progressPercent}%`, backgroundColor: zoneColor }]} />
+                    </View>
+                    <Text style={styles.creatureName}>{currentCreature.stages[currentStage].name}</Text>
+                    <Text style={styles.creatureDesc}>{currentCreature.description}</Text>
+                    
+                    {/* Stage Progress */}
+                    <View style={styles.stageProgress}>
+                      <Text style={styles.stageLabel}>
+                        {t('stage') || 'Stage'} {currentStage + 1}/4
+                      </Text>
+                      <View style={styles.stageIndicator}>
+                        {currentCreature.stages.map((stage, index) => (
+                          <View
+                            key={index}
+                            style={[
+                              styles.stageDot,
+                              { backgroundColor: index <= currentStage ? zoneColor : '#DDD' },
+                            ]}
+                          >
+                            <Text style={styles.stageDotEmoji}>{stage.emoji}</Text>
+                          </View>
+                        ))}
                       </View>
                     </View>
-                  )}
-                  {currentStage >= 3 && (
-                    <View style={[styles.fullyEvolvedBadge, { backgroundColor: zoneColor }]}>
-                      <Text style={styles.fullyEvolvedText}>{t('fully_evolved') || 'Fully Evolved!'}</Text>
-                    </View>
-                  )}
-                </View>
 
-                {/* Collected Creatures */}
-                {collectedCreatures.length > 0 && (
+                    {/* Points Progress */}
+                    {currentStage < 3 && (
+                      <View style={styles.progressSection}>
+                        <Text style={styles.progressLabel}>
+                          {t('next_evolution') || 'Next Evolution'}: {currentPoints}/{nextThreshold} {t('points_needed') || 'points'}
+                        </Text>
+                        <View style={styles.progressBar}>
+                          <View style={[styles.progressFill, { width: `${progressPercent}%`, backgroundColor: zoneColor }]} />
+                        </View>
+                      </View>
+                    )}
+                    {currentStage >= 3 && (
+                      <View style={[styles.fullyEvolvedBadge, { backgroundColor: zoneColor }]}>
+                        <Text style={styles.fullyEvolvedText}>{t('fully_evolved') || 'Fully Evolved!'}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Collected Creatures - Grid View */}
+                {filteredCollectedCreatures.length > 0 && (
                   <>
-                    <Text style={styles.sectionTitle}>{t('collected_creatures') || 'Collected'}</Text>
+                    <Text style={styles.sectionTitle}>
+                      {selectedElement === 'all' 
+                        ? t('collected_creatures') || 'Collected Creatures' 
+                        : `${ELEMENT_FILTERS.find(f => f.id === selectedElement)?.name} Creatures`}
+                      {' '}({filteredCollectedCreatures.length})
+                    </Text>
                     <View style={styles.collectionGrid}>
-                      {collectedCreatures.map((creature) => {
+                      {filteredCollectedCreatures.map((creature) => {
                         const cZone = creature.zone || 'blue';
                         const cColor = zoneColors[cZone] || '#4FC3F7';
                         return (
-                          <View key={creature.id} style={[styles.collectedCard, { borderColor: cColor }]}>
+                          <TouchableOpacity 
+                            key={creature.id} 
+                            style={[styles.collectedCard, { borderColor: cColor }]}
+                            onPress={() => playButtonFeedback()}
+                            activeOpacity={0.7}
+                          >
                             <View style={[styles.collectedAvatar, { backgroundColor: cColor + '30' }]}>
                               <Text style={styles.collectedEmoji}>{creature.stages[3].emoji}</Text>
                             </View>
                             <Text style={styles.collectedName}>{creature.stages[3].name}</Text>
-                          </View>
+                            <View style={[styles.elementBadge, { backgroundColor: cColor }]}>
+                              <Text style={styles.elementBadgeText}>
+                                {ELEMENT_FILTERS.find(f => f.id === cZone)?.emoji}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
                         );
                       })}
                     </View>
                   </>
                 )}
 
-                {/* All 4 Creatures Preview */}
-                <Text style={styles.sectionTitle}>All Creatures</Text>
+                {/* Empty state for filtered view */}
+                {selectedElement !== 'all' && filteredCollectedCreatures.length === 0 && !showCurrentCreature && (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyEmoji}>
+                      {ELEMENT_FILTERS.find(f => f.id === selectedElement)?.emoji}
+                    </Text>
+                    <Text style={styles.emptyText}>
+                      No {ELEMENT_FILTERS.find(f => f.id === selectedElement)?.name} creatures yet!
+                    </Text>
+                    <Text style={styles.emptySubtext}>
+                      Keep checking in to discover more creatures
+                    </Text>
+                  </View>
+                )}
+
+                {/* All 4 Elements Preview */}
+                <Text style={styles.sectionTitle}>All Element Types</Text>
                 <View style={styles.allCreaturesRow}>
-                  <View style={[styles.previewCreature, { borderColor: '#4FC3F7' }]}>
-                    <Text style={styles.previewEmoji}>💧</Text>
-                    <Text style={styles.previewName}>Aqua</Text>
-                  </View>
-                  <View style={[styles.previewCreature, { borderColor: '#81C784' }]}>
-                    <Text style={styles.previewEmoji}>🌱</Text>
-                    <Text style={styles.previewName}>Leaf</Text>
-                  </View>
-                  <View style={[styles.previewCreature, { borderColor: '#FFD54F' }]}>
-                    <Text style={styles.previewEmoji}>⚡</Text>
-                    <Text style={styles.previewName}>Spark</Text>
-                  </View>
-                  <View style={[styles.previewCreature, { borderColor: '#FF7043' }]}>
-                    <Text style={styles.previewEmoji}>🔥</Text>
-                    <Text style={styles.previewName}>Blaze</Text>
-                  </View>
+                  {ELEMENT_FILTERS.filter(f => f.id !== 'all').map((element) => (
+                    <TouchableOpacity 
+                      key={element.id}
+                      style={[styles.previewCreature, { borderColor: element.color }]}
+                      onPress={() => handleElementFilter(element.id)}
+                    >
+                      <Text style={styles.previewEmoji}>{element.emoji}</Text>
+                      <Text style={[styles.previewName, { color: element.color }]}>{element.name}</Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
               </>
             ) : (
@@ -189,13 +288,18 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
                   {(currentCreature.moves || []).map((move: any) => {
                     const isUnlocked = unlockedMoves.includes(move.id);
                     return (
-                      <View key={move.id} style={[styles.itemCard, !isUnlocked && styles.itemLocked]}>
+                      <TouchableOpacity 
+                        key={move.id} 
+                        style={[styles.itemCard, !isUnlocked && styles.itemLocked]}
+                        onPress={() => isUnlocked && playButtonFeedback()}
+                        activeOpacity={isUnlocked ? 0.7 : 1}
+                      >
                         <Text style={[styles.itemEmoji, !isUnlocked && styles.itemEmojiLocked]}>{move.emoji}</Text>
                         {!isUnlocked && <Text style={styles.lockIcon}>🔒</Text>}
                         <Text style={[styles.itemName, !isUnlocked && styles.itemNameLocked]}>
                           {isUnlocked ? move.name : `Stage ${move.unlocks_at_stage}`}
                         </Text>
-                      </View>
+                      </TouchableOpacity>
                     );
                   })}
                 </View>
@@ -206,13 +310,18 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
                   {(currentCreature.outfits || []).map((outfit: any) => {
                     const isUnlocked = unlockedOutfits.includes(outfit.id);
                     return (
-                      <View key={outfit.id} style={[styles.itemCard, !isUnlocked && styles.itemLocked]}>
+                      <TouchableOpacity 
+                        key={outfit.id} 
+                        style={[styles.itemCard, !isUnlocked && styles.itemLocked]}
+                        onPress={() => isUnlocked && playButtonFeedback()}
+                        activeOpacity={isUnlocked ? 0.7 : 1}
+                      >
                         <Text style={[styles.itemEmoji, !isUnlocked && styles.itemEmojiLocked]}>{outfit.emoji}</Text>
                         {!isUnlocked && <Text style={styles.lockIcon}>🔒</Text>}
                         <Text style={[styles.itemName, !isUnlocked && styles.itemNameLocked]}>
                           {isUnlocked ? outfit.name : `Stage ${outfit.unlocks_at_stage}`}
                         </Text>
-                      </View>
+                      </TouchableOpacity>
                     );
                   })}
                 </View>
@@ -223,13 +332,18 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
                   {(currentCreature.foods || []).map((food: any) => {
                     const isUnlocked = unlockedFoods.includes(food.id);
                     return (
-                      <View key={food.id} style={[styles.itemCard, !isUnlocked && styles.itemLocked]}>
+                      <TouchableOpacity 
+                        key={food.id} 
+                        style={[styles.itemCard, !isUnlocked && styles.itemLocked]}
+                        onPress={() => isUnlocked && playButtonFeedback()}
+                        activeOpacity={isUnlocked ? 0.7 : 1}
+                      >
                         <Text style={[styles.itemEmoji, !isUnlocked && styles.itemEmojiLocked]}>{food.emoji}</Text>
                         {!isUnlocked && <Text style={styles.lockIcon}>🔒</Text>}
                         <Text style={[styles.itemName, !isUnlocked && styles.itemNameLocked]}>
                           {isUnlocked ? food.name : `Stage ${food.unlocks_at_stage}`}
                         </Text>
-                      </View>
+                      </TouchableOpacity>
                     );
                   })}
                 </View>
@@ -240,13 +354,18 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
                   {(currentCreature.homes || []).map((home: any) => {
                     const isUnlocked = unlockedHomes.includes(home.id);
                     return (
-                      <View key={home.id} style={[styles.itemCard, !isUnlocked && styles.itemLocked]}>
+                      <TouchableOpacity 
+                        key={home.id} 
+                        style={[styles.itemCard, !isUnlocked && styles.itemLocked]}
+                        onPress={() => isUnlocked && playButtonFeedback()}
+                        activeOpacity={isUnlocked ? 0.7 : 1}
+                      >
                         <Text style={[styles.itemEmoji, !isUnlocked && styles.itemEmojiLocked]}>{home.emoji}</Text>
                         {!isUnlocked && <Text style={styles.lockIcon}>🔒</Text>}
                         <Text style={[styles.itemName, !isUnlocked && styles.itemNameLocked]}>
                           {isUnlocked ? home.name : `Stage ${home.unlocks_at_stage}`}
                         </Text>
-                      </View>
+                      </TouchableOpacity>
                     );
                   })}
                 </View>
@@ -278,7 +397,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 24,
     width: '100%',
-    maxHeight: '85%',
+    maxHeight: '90%',
     minHeight: 400,
     overflow: 'hidden',
   },
@@ -311,6 +430,7 @@ const styles = StyleSheet.create({
   tabs: {
     flexDirection: 'row',
     padding: 12,
+    paddingBottom: 8,
     gap: 8,
   },
   tab: {
@@ -329,6 +449,36 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: 'white',
   },
+  elementFilters: {
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+  },
+  elementScrollContent: {
+    gap: 8,
+    paddingRight: 12,
+  },
+  elementChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: '#F5F5F5',
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    gap: 4,
+  },
+  elementEmoji: {
+    fontSize: 14,
+  },
+  elementText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+  },
+  elementTextActive: {
+    color: 'white',
+  },
   scrollView: {
     flexGrow: 1,
     flexShrink: 1,
@@ -344,6 +494,21 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     alignItems: 'center',
     marginBottom: 20,
+    position: 'relative',
+  },
+  currentBadge: {
+    position: 'absolute',
+    top: -10,
+    right: 16,
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  currentBadgeText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: 'bold',
   },
   creatureAvatar: {
     width: 100,
@@ -436,12 +601,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   collectedCard: {
-    width: 80,
+    width: 85,
     backgroundColor: 'white',
     borderRadius: 12,
     padding: 8,
     borderWidth: 2,
     alignItems: 'center',
+    position: 'relative',
   },
   collectedAvatar: {
     width: 50,
@@ -460,6 +626,39 @@ const styles = StyleSheet.create({
     color: '#333',
     textAlign: 'center',
   },
+  elementBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  elementBadgeText: {
+    fontSize: 10,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  emptyEmoji: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 4,
+  },
+  emptySubtext: {
+    fontSize: 13,
+    color: '#999',
+  },
   allCreaturesRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -467,16 +666,17 @@ const styles = StyleSheet.create({
   },
   previewCreature: {
     alignItems: 'center',
-    padding: 8,
+    padding: 10,
     borderRadius: 12,
     borderWidth: 2,
     backgroundColor: 'white',
+    minWidth: 70,
   },
   previewEmoji: {
     fontSize: 24,
   },
   previewName: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
     marginTop: 4,
   },

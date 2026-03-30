@@ -15,6 +15,7 @@ import { rewardsApi, Creature, AddPointsResponse } from '../../src/utils/api';
 import { CreatureDisplay } from '../../src/components/CreatureDisplay';
 import { EvolutionAnimation } from '../../src/components/EvolutionAnimation';
 import { CreatureCollection } from '../../src/components/CreatureCollection';
+import { playButtonFeedback, playRewardFeedback, playEvolutionSound, preloadSounds } from '../../src/utils/sounds';
 
 export default function RewardsScreen() {
   const router = useRouter();
@@ -37,6 +38,7 @@ export default function RewardsScreen() {
   const bounceAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    preloadSounds(); // Preload sounds
     if (currentStudent) {
       addPointsAndFetchRewards();
     }
@@ -74,10 +76,16 @@ export default function RewardsScreen() {
 
       // Start animations
       startAnimations(response);
+      
+      // Play reward sound
+      playRewardFeedback();
 
       // Check if evolved
       if (response.evolved && response.current_stage > previousStage) {
-        setTimeout(() => setShowEvolution(true), 1500);
+        setTimeout(() => {
+          playEvolutionSound(); // Play evolution sound
+          setShowEvolution(true);
+        }, 1500);
       }
 
     } catch (error) {
@@ -132,6 +140,7 @@ export default function RewardsScreen() {
   };
 
   const handleContinue = () => {
+    playButtonFeedback(); // Sound effect for button press
     router.replace('/student/select');
   };
 
@@ -202,7 +211,10 @@ export default function RewardsScreen() {
         {/* Collection Button */}
         <TouchableOpacity 
           style={styles.collectionButton}
-          onPress={() => setShowCollection(true)}
+          onPress={() => {
+            playButtonFeedback(); // Sound effect
+            setShowCollection(true);
+          }}
         >
           <MaterialIcons name="pets" size={24} color="#FFD700" />
           <Text style={styles.collectionButtonText}>{t('my_creatures')}</Text>

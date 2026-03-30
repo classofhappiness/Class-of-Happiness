@@ -7,6 +7,7 @@ import { strategiesApi, zoneLogsApi, Strategy } from '../../src/utils/api';
 import { StrategyCard } from '../../src/components/StrategyCard';
 import { ZONE_CONFIG } from '../../src/components/ZoneButton';
 import { CelebrationOverlay } from '../../src/components/CelebrationOverlay';
+import { playButtonFeedback, playSelectFeedback, playSuccessSound, preloadSounds } from '../../src/utils/sounds';
 
 const MAX_COMMENT_LENGTH = 100;
 
@@ -36,6 +37,7 @@ export default function StrategiesScreen() {
   const zoneConfig = zone ? ZONE_CONFIG[zone] : ZONE_CONFIG.green;
 
   useEffect(() => {
+    preloadSounds(); // Preload sounds
     fetchStrategies();
   }, [zone, currentStudent, language]);
 
@@ -55,6 +57,7 @@ export default function StrategiesScreen() {
   };
 
   const toggleStrategy = (strategyId: string) => {
+    playSelectFeedback(); // Play sound when selecting/deselecting
     setSelectedStrategies(prev => 
       prev.includes(strategyId)
         ? prev.filter(id => id !== strategyId)
@@ -65,6 +68,7 @@ export default function StrategiesScreen() {
   const handleDone = async () => {
     if (!currentStudent || !zone) return;
     
+    playSuccessSound(); // Play success sound
     setSaving(true);
     try {
       await zoneLogsApi.create({
@@ -92,6 +96,7 @@ export default function StrategiesScreen() {
   const handleSkip = async () => {
     if (!currentStudent || !zone) return;
     
+    playButtonFeedback(); // Play button sound
     setSaving(true);
     try {
       await zoneLogsApi.create({

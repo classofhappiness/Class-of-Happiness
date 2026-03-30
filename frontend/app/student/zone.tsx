@@ -1,10 +1,11 @@
-import React, { useLayoutEffect, useState } from 'react';
+import React, { useLayoutEffect, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, Dimensions, TouchableOpacity, Modal } from 'react-native';
 import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { ZoneButton } from '../../src/components/ZoneButton';
 import { Avatar } from '../../src/components/Avatar';
+import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../../src/utils/sounds';
 
 const { width } = Dimensions.get('window');
 
@@ -50,6 +51,11 @@ export default function ColourSelectionScreen() {
   const { currentStudent, presetAvatars, t, language, translations } = useApp();
   const [showHelp, setShowHelp] = useState(false);
 
+  // Preload sounds on mount
+  useEffect(() => {
+    preloadSounds();
+  }, []);
+
   // Set translated header title
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -58,10 +64,21 @@ export default function ColourSelectionScreen() {
   }, [navigation, language, translations]);
 
   const handleSelectColour = (colour: 'blue' | 'green' | 'yellow' | 'red') => {
+    playSelectFeedback(); // Play sound when selecting an emotion
     router.push({
       pathname: '/student/strategies',
       params: { zone: colour },
     });
+  };
+
+  const handleShowHelp = () => {
+    playButtonFeedback(); // Play sound for help button
+    setShowHelp(true);
+  };
+
+  const handleCloseHelp = () => {
+    playButtonFeedback(); // Play sound for closing
+    setShowHelp(false);
   };
 
   if (!currentStudent) {
@@ -129,7 +146,7 @@ export default function ColourSelectionScreen() {
         {/* Help Button - Simple for kids */}
         <TouchableOpacity 
           style={styles.helpButton}
-          onPress={() => setShowHelp(true)}
+          onPress={handleShowHelp}
         >
           <MaterialIcons name="help-outline" size={20} color="#5C6BC0" />
           <Text style={styles.helpButtonText}>{t('need_help') || 'Need help? Tap here!'}</Text>
@@ -141,14 +158,14 @@ export default function ColourSelectionScreen() {
         visible={showHelp}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowHelp(false)}
+        onRequestClose={handleCloseHelp}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('what_colours_mean') || 'What do the colours mean?'}</Text>
               <TouchableOpacity 
-                onPress={() => setShowHelp(false)}
+                onPress={handleCloseHelp}
                 style={styles.closeButton}
               >
                 <MaterialIcons name="close" size={28} color="#666" />
@@ -255,7 +272,7 @@ export default function ColourSelectionScreen() {
 
             <TouchableOpacity 
               style={styles.gotItButton}
-              onPress={() => setShowHelp(false)}
+              onPress={handleCloseHelp}
             >
               <Text style={styles.gotItText}>Got it!</Text>
             </TouchableOpacity>

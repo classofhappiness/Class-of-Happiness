@@ -7,6 +7,7 @@ import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { CreatureCollection } from '../../src/components/CreatureCollection';
 import { rewardsApi, StudentCollection, StudentRewards, Creature } from '../../src/utils/api';
+import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../../src/utils/sounds';
 
 interface StudentCreatureData {
   currentCreature: Creature;
@@ -34,6 +35,9 @@ export default function StudentSelectScreen() {
 
   // Fetch creature data for all students
   useEffect(() => {
+    // Preload sounds for the student pages
+    preloadSounds();
+    
     const fetchAllCreatures = async () => {
       const creatureData: Record<string, StudentCreatureData> = {};
       
@@ -60,6 +64,7 @@ export default function StudentSelectScreen() {
   }, [students]);
 
   const handleSelectStudent = (student: typeof students[0]) => {
+    playSelectFeedback(); // Sound effect for selecting student
     setSelectedStudentId(student.id);
     setCurrentStudent(student);
     // Short delay to show selection before navigating
@@ -69,6 +74,7 @@ export default function StudentSelectScreen() {
   };
 
   const handleViewCreatures = async (studentId: string) => {
+    playButtonFeedback(); // Sound effect for button press
     try {
       const collection = await rewardsApi.getCollection(studentId);
       setCollectionData(collection);
@@ -80,6 +86,7 @@ export default function StudentSelectScreen() {
   };
 
   const handleCreateProfile = () => {
+    playButtonFeedback(); // Sound effect for button press
     router.push('/profiles/create');
   };
 
