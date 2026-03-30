@@ -427,19 +427,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } else {
         // Mobile (iOS/Android): use WebBrowser for auth
-        // Use expo-linking to create a proper redirect URL
-        const scheme = Constants.expoConfig?.scheme || 'classofhappiness';
-        
-        // For Expo Go, we need to use the Expo scheme
-        // For standalone builds, use the app scheme
-        let redirectUrl: string;
-        if (Constants.executionEnvironment === 'storeClient' || Constants.appOwnership === 'expo') {
-          // Running in Expo Go
-          redirectUrl = ExpoLinking.createURL('auth/callback');
-        } else {
-          // Standalone build
-          redirectUrl = `${scheme}://auth/callback`;
-        }
+        // Use expo-linking to create a proper redirect URL that works in both Expo Go and standalone builds
+        const redirectUrl = ExpoLinking.createURL('auth/callback');
         
         console.log('[Login] Redirect URL:', redirectUrl);
         
