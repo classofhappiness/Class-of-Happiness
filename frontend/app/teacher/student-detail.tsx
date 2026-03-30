@@ -482,8 +482,9 @@ export default function StudentDetailScreen() {
                       try {
                         const result = await parentApi.generateLinkCode(student.id);
                         setLinkCode(result.link_code);
-                      } catch (error) {
-                        Alert.alert('Error', 'Failed to generate link code');
+                      } catch (error: any) {
+                        console.error('Generate link code error:', error);
+                        Alert.alert('Error', error.message || 'Failed to generate link code. Please try again.');
                       } finally {
                         setGeneratingCode(false);
                       }

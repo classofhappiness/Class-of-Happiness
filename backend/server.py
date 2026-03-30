@@ -300,10 +300,10 @@ CREATURES = [
         "description": "A calm water creature that helps when you feel tired or sad",
         "color": "#4FC3F7",
         "stages": [
-            {"stage": 0, "name": "Water Drop", "emoji": "💧", "description": "A peaceful little drop finding its way", "required_points": 0},
-            {"stage": 1, "name": "Splash", "emoji": "🫧", "description": "Learning to make gentle waves", "required_points": 25},
-            {"stage": 2, "name": "Stream", "emoji": "🌊", "description": "Flowing with calm energy", "required_points": 60},
-            {"stage": 3, "name": "Ocean Spirit", "emoji": "🐋", "description": "A wise ocean guardian!", "required_points": 120}
+            {"stage": 0, "name": "Bubby", "emoji": "🐟", "description": "A friendly little fish friend!", "required_points": 0},
+            {"stage": 1, "name": "Splashy", "emoji": "🐬", "description": "A playful dolphin learning waves!", "required_points": 25},
+            {"stage": 2, "name": "Wavey", "emoji": "🦈", "description": "A cool shark making big splashes!", "required_points": 60},
+            {"stage": 3, "name": "Ocean King", "emoji": "🐋", "description": "The mighty whale guardian of the sea!", "required_points": 120}
         ],
         "moves": [
             {"id": "calm_wave", "name": "Calm Wave", "emoji": "🌊", "unlocks_at_stage": 1},
@@ -330,10 +330,10 @@ CREATURES = [
         "description": "A balanced nature creature that celebrates feeling happy and calm",
         "color": "#81C784",
         "stages": [
-            {"stage": 0, "name": "Little Seed", "emoji": "🌰", "description": "A tiny seed full of potential", "required_points": 0},
-            {"stage": 1, "name": "Sprout", "emoji": "🌱", "description": "Growing stronger every day", "required_points": 25},
-            {"stage": 2, "name": "Blossom", "emoji": "🌸", "description": "Blooming with happiness", "required_points": 60},
-            {"stage": 3, "name": "Forest Guardian", "emoji": "🌳", "description": "A mighty tree of peace!", "required_points": 120}
+            {"stage": 0, "name": "Sproutie", "emoji": "🐸", "description": "A happy little frog friend!", "required_points": 0},
+            {"stage": 1, "name": "Hoppy", "emoji": "🐢", "description": "A wise turtle growing strong!", "required_points": 25},
+            {"stage": 2, "name": "Leafy", "emoji": "🦎", "description": "A cool chameleon with nature powers!", "required_points": 60},
+            {"stage": 3, "name": "Forest King", "emoji": "🦖", "description": "The legendary forest dinosaur!", "required_points": 120}
         ],
         "moves": [
             {"id": "leaf_dance", "name": "Leaf Dance", "emoji": "🍃", "unlocks_at_stage": 1},
@@ -360,10 +360,10 @@ CREATURES = [
         "description": "An energetic electric creature that helps with big feelings of excitement or worry",
         "color": "#FFD54F",
         "stages": [
-            {"stage": 0, "name": "Tiny Spark", "emoji": "✨", "description": "A little spark of energy", "required_points": 0},
-            {"stage": 1, "name": "Zapper", "emoji": "⚡", "description": "Learning to channel energy", "required_points": 25},
-            {"stage": 2, "name": "Bolt", "emoji": "🌟", "description": "Shining bright with power", "required_points": 60},
-            {"stage": 3, "name": "Thunder Star", "emoji": "⭐", "description": "A legendary star of energy!", "required_points": 120}
+            {"stage": 0, "name": "Zippy", "emoji": "🐱", "description": "A bouncy electric kitty!", "required_points": 0},
+            {"stage": 1, "name": "Zappy", "emoji": "🐯", "description": "A stripy tiger with energy!", "required_points": 25},
+            {"stage": 2, "name": "Bolty", "emoji": "🦁", "description": "A powerful lion with lightning mane!", "required_points": 60},
+            {"stage": 3, "name": "Thunder King", "emoji": "🦄", "description": "The magical unicorn of storms!", "required_points": 120}
         ],
         "moves": [
             {"id": "quick_flash", "name": "Quick Flash", "emoji": "💫", "unlocks_at_stage": 1},
@@ -390,10 +390,10 @@ CREATURES = [
         "description": "A powerful fire creature that helps transform big angry or frustrated feelings",
         "color": "#FF7043",
         "stages": [
-            {"stage": 0, "name": "Ember", "emoji": "🔸", "description": "A small but warm ember", "required_points": 0},
-            {"stage": 1, "name": "Flame", "emoji": "🔥", "description": "Growing into a steady flame", "required_points": 25},
-            {"stage": 2, "name": "Blaze", "emoji": "🌋", "description": "Burning bright with passion", "required_points": 60},
-            {"stage": 3, "name": "Phoenix", "emoji": "🐦‍🔥", "description": "A legendary fire phoenix!", "required_points": 120}
+            {"stage": 0, "name": "Flamey", "emoji": "🐕", "description": "A fiery puppy with a warm heart!", "required_points": 0},
+            {"stage": 1, "name": "Blaze", "emoji": "🐺", "description": "A brave wolf with fire spirit!", "required_points": 25},
+            {"stage": 2, "name": "Inferno", "emoji": "🦊", "description": "A clever fox with blazing tail!", "required_points": 60},
+            {"stage": 3, "name": "Fire King", "emoji": "🐉", "description": "The legendary fire dragon!", "required_points": 120}
         ],
         "moves": [
             {"id": "warm_glow", "name": "Warm Glow", "emoji": "🌡️", "unlocks_at_stage": 1},
@@ -4125,13 +4125,18 @@ async def generate_student_link_code(student_id: str, request: Request):
     """Generate a code for parent to link their child (teacher only)"""
     user = await get_current_user(request)
     if not user:
+        logger.error(f"Generate link code failed: Not authenticated")
         raise HTTPException(status_code=401, detail="Not authenticated")
     
+    logger.info(f"Generate link code: user={user.email}, role={user.role}, student_id={student_id}")
+    
     if user.role not in ["teacher", "admin"]:
+        logger.error(f"Generate link code failed: User role {user.role} not authorized")
         raise HTTPException(status_code=403, detail="Only teachers can generate link codes")
     
     student = await db.students.find_one({"id": student_id})
     if not student:
+        logger.error(f"Generate link code failed: Student {student_id} not found")
         raise HTTPException(status_code=404, detail="Student not found")
     
     # Generate new code that expires in 7 days
@@ -4143,6 +4148,7 @@ async def generate_student_link_code(student_id: str, request: Request):
         {"$set": {"link_code": link_code, "link_code_expires": expires}}
     )
     
+    logger.info(f"Link code generated successfully: {link_code} for student {student_id}")
     return {"link_code": link_code, "expires_at": expires.isoformat()}
 
 @api_router.post("/students/link")
