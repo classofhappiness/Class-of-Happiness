@@ -84,6 +84,9 @@ class Student(BaseModel):
     parent_user_id: Optional[str] = None  # Parent linked to this student
     link_code: Optional[str] = None  # Code for parent to link
     link_code_expires: Optional[datetime] = None  # When link code expires
+    # Home-School Data Sharing Permissions
+    home_sharing_enabled: bool = False  # Parent allows teacher to see home data
+    school_sharing_enabled: bool = True  # School data shared with parent by default
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class StudentCreate(BaseModel):
@@ -118,6 +121,7 @@ class ZoneLog(BaseModel):
     strategies_selected: List[str] = []
     comment: Optional[str] = None  # Optional comment from student (max 100 chars)
     logged_by: str = "student"  # "student", "teacher", or "parent"
+    location: str = "school"  # "school" or "home" - where the check-in happened
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 class ZoneLogCreate(BaseModel):
@@ -125,6 +129,7 @@ class ZoneLogCreate(BaseModel):
     zone: str
     strategies_selected: List[str] = []
     comment: Optional[str] = None
+    location: str = "school"  # "school" or "home"
 
 # Custom strategy for specific student
 class CustomStrategy(BaseModel):
@@ -278,6 +283,27 @@ class FamilyZoneLogCreate(BaseModel):
     zone: str
     strategies_selected: List[str] = []
     comment: Optional[str] = None
+
+# Family-assigned strategy for linked children
+class FamilyAssignedStrategy(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    student_id: str  # Linked child
+    parent_user_id: str  # Parent who assigned it
+    strategy_name: str
+    strategy_description: str
+    zone: str  # Which emotional zone this helps with
+    icon: str = "star"
+    share_with_teacher: bool = False  # Parent approves teacher seeing this
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class FamilyAssignedStrategyCreate(BaseModel):
+    student_id: str
+    strategy_name: str
+    strategy_description: str
+    zone: str
+    icon: str = "star"
+    share_with_teacher: bool = False
 
 # Teacher link request from parent (reverse linking)
 class TeacherLinkCode(BaseModel):
@@ -4948,6 +4974,369 @@ async def get_family_analytics(member_id: str, request: Request, days: int = 7):
         "zone_counts": zone_counts,
         "strategy_counts": strategy_counts,
         "total_logs": len(logs)
+    }
+
+# ================== LINKED CHILD HOME-SCHOOL CONNECTION ==================
+
+@api_router.get("/parent/linked-children")
+async def get_parent_linked_children(request: Request):
+    """Get all children linked to this parent from school (teacher-created students)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "parent":
+        raise HTTPException(status_code=403, detail="Only parents can access linked children")
+    
+    # Find all students linked to this parent
+    students = await db.students.find({"parent_user_id": user.user_id}).to_list(100)
+    
+    # Enrich with classroom info
+    result = []
+    for student in students:
+        classroom_name = None
+        if student.get("classroom_id"):
+            classroom = await db.classrooms.find_one({"id": student["classroom_id"]})
+            if classroom:
+                classroom_name = classroom.get("name")
+        
+        result.append({
+            **student,
+            "classroom_name": classroom_name,
+            "is_linked_from_school": True
+        })
+    
+    return result
+
+@api_router.post("/parent/linked-child/{student_id}/check-in")
+async def create_linked_child_home_checkin(student_id: str, log: ZoneLogCreate, request: Request):
+    """Create a home check-in for a linked child"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "parent":
+        raise HTTPException(status_code=403, detail="Only parents can create home check-ins")
+    
+    # Verify this student is linked to this parent
+    student = await db.students.find_one({"id": student_id, "parent_user_id": user.user_id})
+    if not student:
+        raise HTTPException(status_code=404, detail="Linked child not found")
+    
+    # Create the zone log with location = "home"
+    log_dict = log.dict()
+    log_dict["student_id"] = student_id
+    log_dict["location"] = "home"
+    log_dict["logged_by"] = "parent"
+    log_obj = ZoneLog(**log_dict)
+    
+    await db.zone_logs.insert_one(log_obj.dict())
+    return log_obj
+
+@api_router.get("/parent/linked-child/{student_id}/school-strategies")
+async def get_school_strategies_for_parent(student_id: str, request: Request):
+    """Get school/teacher strategies for a linked child (parent view)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "parent":
+        raise HTTPException(status_code=403, detail="Only parents can access this")
+    
+    # Verify child is linked
+    student = await db.students.find_one({"id": student_id, "parent_user_id": user.user_id})
+    if not student:
+        raise HTTPException(status_code=404, detail="Linked child not found")
+    
+    # Check if school sharing is enabled
+    if not student.get("school_sharing_enabled", True):
+        return {"strategies": [], "sharing_disabled": True}
+    
+    # Get custom strategies created by teacher for this student
+    custom_strategies = await db.custom_strategies.find({
+        "student_id": student_id,
+        "is_active": True
+    }).to_list(100)
+    
+    # Also get default strategies
+    default_strategies = await db.strategies.find({"is_active": True}).to_list(100)
+    
+    return {
+        "custom_strategies": custom_strategies,
+        "default_strategies": default_strategies,
+        "sharing_disabled": False
+    }
+
+@api_router.get("/parent/linked-child/{student_id}/school-checkins")
+async def get_school_checkins_for_parent(student_id: str, days: int = 30, request: Request = None):
+    """Get school check-ins for a linked child (parent view)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "parent":
+        raise HTTPException(status_code=403, detail="Only parents can access this")
+    
+    # Verify child is linked
+    student = await db.students.find_one({"id": student_id, "parent_user_id": user.user_id})
+    if not student:
+        raise HTTPException(status_code=404, detail="Linked child not found")
+    
+    # Check if school sharing is enabled
+    if not student.get("school_sharing_enabled", True):
+        return {"checkins": [], "sharing_disabled": True}
+    
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    checkins = await db.zone_logs.find({
+        "student_id": student_id,
+        "location": {"$in": ["school", None]},  # Include old logs without location
+        "timestamp": {"$gte": since}
+    }).sort("timestamp", -1).to_list(500)
+    
+    return {"checkins": checkins, "sharing_disabled": False}
+
+@api_router.get("/parent/linked-child/{student_id}/home-checkins")
+async def get_home_checkins_for_child(student_id: str, days: int = 30, request: Request = None):
+    """Get home check-ins for a linked child"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "parent":
+        raise HTTPException(status_code=403, detail="Only parents can access this")
+    
+    # Verify child is linked
+    student = await db.students.find_one({"id": student_id, "parent_user_id": user.user_id})
+    if not student:
+        raise HTTPException(status_code=404, detail="Linked child not found")
+    
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    checkins = await db.zone_logs.find({
+        "student_id": student_id,
+        "location": "home",
+        "timestamp": {"$gte": since}
+    }).sort("timestamp", -1).to_list(500)
+    
+    return checkins
+
+@api_router.get("/parent/linked-child/{student_id}/all-checkins")
+async def get_all_checkins_for_child(student_id: str, days: int = 30, request: Request = None):
+    """Get both home and school check-ins for a linked child (combined view)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "parent":
+        raise HTTPException(status_code=403, detail="Only parents can access this")
+    
+    # Verify child is linked
+    student = await db.students.find_one({"id": student_id, "parent_user_id": user.user_id})
+    if not student:
+        raise HTTPException(status_code=404, detail="Linked child not found")
+    
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    checkins = await db.zone_logs.find({
+        "student_id": student_id,
+        "timestamp": {"$gte": since}
+    }).sort("timestamp", -1).to_list(500)
+    
+    # Add location for old logs that don't have it
+    for checkin in checkins:
+        if "location" not in checkin:
+            checkin["location"] = "school"
+    
+    return checkins
+
+# ---- Family-Assigned Strategies for Linked Children ----
+
+@api_router.post("/parent/linked-child/{student_id}/family-strategy")
+async def create_family_strategy(student_id: str, strategy: FamilyAssignedStrategyCreate, request: Request):
+    """Parent assigns a family strategy to a linked child"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "parent":
+        raise HTTPException(status_code=403, detail="Only parents can create family strategies")
+    
+    # Verify child is linked
+    student = await db.students.find_one({"id": student_id, "parent_user_id": user.user_id})
+    if not student:
+        raise HTTPException(status_code=404, detail="Linked child not found")
+    
+    strategy_obj = FamilyAssignedStrategy(
+        student_id=student_id,
+        parent_user_id=user.user_id,
+        strategy_name=strategy.strategy_name,
+        strategy_description=strategy.strategy_description,
+        zone=strategy.zone,
+        icon=strategy.icon,
+        share_with_teacher=strategy.share_with_teacher
+    )
+    
+    await db.family_assigned_strategies.insert_one(strategy_obj.dict())
+    return strategy_obj
+
+@api_router.get("/parent/linked-child/{student_id}/family-strategies")
+async def get_family_strategies(student_id: str, request: Request):
+    """Get family-assigned strategies for a linked child"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "parent":
+        raise HTTPException(status_code=403, detail="Only parents can access this")
+    
+    # Verify child is linked
+    student = await db.students.find_one({"id": student_id, "parent_user_id": user.user_id})
+    if not student:
+        raise HTTPException(status_code=404, detail="Linked child not found")
+    
+    strategies = await db.family_assigned_strategies.find({
+        "student_id": student_id,
+        "is_active": True
+    }).to_list(100)
+    
+    return strategies
+
+@api_router.put("/parent/linked-child/{student_id}/family-strategy/{strategy_id}/toggle-sharing")
+async def toggle_strategy_sharing(student_id: str, strategy_id: str, request: Request):
+    """Toggle whether a family strategy is shared with teacher"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "parent":
+        raise HTTPException(status_code=403, detail="Only parents can toggle sharing")
+    
+    # Find and update the strategy
+    strategy = await db.family_assigned_strategies.find_one({
+        "id": strategy_id,
+        "student_id": student_id,
+        "parent_user_id": user.user_id
+    })
+    
+    if not strategy:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    
+    new_share_value = not strategy.get("share_with_teacher", False)
+    await db.family_assigned_strategies.update_one(
+        {"id": strategy_id},
+        {"$set": {"share_with_teacher": new_share_value}}
+    )
+    
+    return {"share_with_teacher": new_share_value}
+
+@api_router.delete("/parent/linked-child/{student_id}/family-strategy/{strategy_id}")
+async def delete_family_strategy(student_id: str, strategy_id: str, request: Request):
+    """Delete a family-assigned strategy"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "parent":
+        raise HTTPException(status_code=403, detail="Only parents can delete family strategies")
+    
+    result = await db.family_assigned_strategies.delete_one({
+        "id": strategy_id,
+        "student_id": student_id,
+        "parent_user_id": user.user_id
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    
+    return {"deleted": True}
+
+# ---- Permission Management ----
+
+@api_router.put("/parent/linked-child/{student_id}/toggle-home-sharing")
+async def toggle_home_sharing(student_id: str, request: Request):
+    """Parent toggles whether teacher can see home check-ins"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "parent":
+        raise HTTPException(status_code=403, detail="Only parents can toggle home sharing")
+    
+    student = await db.students.find_one({"id": student_id, "parent_user_id": user.user_id})
+    if not student:
+        raise HTTPException(status_code=404, detail="Linked child not found")
+    
+    new_value = not student.get("home_sharing_enabled", False)
+    await db.students.update_one(
+        {"id": student_id},
+        {"$set": {"home_sharing_enabled": new_value}}
+    )
+    
+    return {"home_sharing_enabled": new_value}
+
+# ---- Teacher View of Home Data (with permission) ----
+
+@api_router.get("/teacher/student/{student_id}/home-data")
+async def get_student_home_data_for_teacher(student_id: str, days: int = 30, request: Request = None):
+    """Teacher views home check-ins and family strategies (if parent has enabled sharing)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "teacher":
+        raise HTTPException(status_code=403, detail="Only teachers can access this")
+    
+    # Verify teacher owns this student
+    student = await db.students.find_one({"id": student_id, "user_id": user.user_id})
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    # Check if parent has enabled home sharing
+    if not student.get("home_sharing_enabled", False):
+        return {
+            "sharing_enabled": False,
+            "home_checkins": [],
+            "family_strategies": [],
+            "message": "Parent has not enabled home data sharing"
+        }
+    
+    # Get home check-ins
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    home_checkins = await db.zone_logs.find({
+        "student_id": student_id,
+        "location": "home",
+        "timestamp": {"$gte": since}
+    }).sort("timestamp", -1).to_list(500)
+    
+    # Get family strategies that are shared with teacher
+    family_strategies = await db.family_assigned_strategies.find({
+        "student_id": student_id,
+        "share_with_teacher": True,
+        "is_active": True
+    }).to_list(100)
+    
+    return {
+        "sharing_enabled": True,
+        "home_checkins": home_checkins,
+        "family_strategies": family_strategies
+    }
+
+@api_router.get("/teacher/student/{student_id}/sharing-status")
+async def get_student_sharing_status(student_id: str, request: Request):
+    """Get the current sharing status for a student"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "teacher":
+        raise HTTPException(status_code=403, detail="Only teachers can access this")
+    
+    student = await db.students.find_one({"id": student_id, "user_id": user.user_id})
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    return {
+        "is_linked_to_parent": student.get("parent_user_id") is not None,
+        "home_sharing_enabled": student.get("home_sharing_enabled", False),
+        "school_sharing_enabled": student.get("school_sharing_enabled", True)
     }
 
 # ---- Parent to Teacher QR Code Sharing ----

@@ -506,6 +506,94 @@ export const familyApi = {
     apiRequest(`/parent/generate-teacher-code/${studentId}`, { method: 'POST' }),
 };
 
+// Linked Children API (school-linked children in family)
+export interface LinkedChild {
+  id: string;
+  name: string;
+  avatar_type: string;
+  avatar_preset?: string;
+  avatar_custom?: string;
+  classroom_id?: string;
+  classroom_name?: string;
+  home_sharing_enabled: boolean;
+  school_sharing_enabled: boolean;
+  is_linked_from_school: boolean;
+}
+
+export interface FamilyAssignedStrategy {
+  id: string;
+  student_id: string;
+  parent_user_id: string;
+  strategy_name: string;
+  strategy_description: string;
+  zone: string;
+  icon: string;
+  share_with_teacher: boolean;
+  is_active: boolean;
+  created_at: string;
+}
+
+export const linkedChildApi = {
+  // Get all linked children from school
+  getAll: (): Promise<LinkedChild[]> =>
+    apiRequest('/parent/linked-children'),
+  
+  // Home check-ins
+  createCheckIn: (studentId: string, data: { zone: string; strategies_selected: string[]; comment?: string }): Promise<any> =>
+    apiRequest(`/parent/linked-child/${studentId}/check-in`, { 
+      method: 'POST', 
+      body: JSON.stringify({ student_id: studentId, ...data }) 
+    }),
+  
+  getHomeCheckIns: (studentId: string, days: number = 30): Promise<any[]> =>
+    apiRequest(`/parent/linked-child/${studentId}/home-checkins?days=${days}`),
+  
+  getSchoolCheckIns: (studentId: string, days: number = 30): Promise<{ checkins: any[]; sharing_disabled: boolean }> =>
+    apiRequest(`/parent/linked-child/${studentId}/school-checkins?days=${days}`),
+  
+  getAllCheckIns: (studentId: string, days: number = 30): Promise<any[]> =>
+    apiRequest(`/parent/linked-child/${studentId}/all-checkins?days=${days}`),
+  
+  // School strategies
+  getSchoolStrategies: (studentId: string): Promise<{ custom_strategies: any[]; default_strategies: any[]; sharing_disabled: boolean }> =>
+    apiRequest(`/parent/linked-child/${studentId}/school-strategies`),
+  
+  // Family-assigned strategies
+  createFamilyStrategy: (studentId: string, data: { strategy_name: string; strategy_description: string; zone: string; icon?: string; share_with_teacher?: boolean }): Promise<FamilyAssignedStrategy> =>
+    apiRequest(`/parent/linked-child/${studentId}/family-strategy`, { method: 'POST', body: JSON.stringify(data) }),
+  
+  getFamilyStrategies: (studentId: string): Promise<FamilyAssignedStrategy[]> =>
+    apiRequest(`/parent/linked-child/${studentId}/family-strategies`),
+  
+  toggleStrategySharing: (studentId: string, strategyId: string): Promise<{ share_with_teacher: boolean }> =>
+    apiRequest(`/parent/linked-child/${studentId}/family-strategy/${strategyId}/toggle-sharing`, { method: 'PUT' }),
+  
+  deleteFamilyStrategy: (studentId: string, strategyId: string): Promise<void> =>
+    apiRequest(`/parent/linked-child/${studentId}/family-strategy/${strategyId}`, { method: 'DELETE' }),
+  
+  // Permission management
+  toggleHomeSharing: (studentId: string): Promise<{ home_sharing_enabled: boolean }> =>
+    apiRequest(`/parent/linked-child/${studentId}/toggle-home-sharing`, { method: 'PUT' }),
+};
+
+// Teacher API for viewing home data
+export const teacherHomeDataApi = {
+  getStudentHomeData: (studentId: string, days: number = 30): Promise<{
+    sharing_enabled: boolean;
+    home_checkins: any[];
+    family_strategies: any[];
+    message?: string;
+  }> =>
+    apiRequest(`/teacher/student/${studentId}/home-data?days=${days}`),
+  
+  getSharingStatus: (studentId: string): Promise<{
+    is_linked_to_parent: boolean;
+    home_sharing_enabled: boolean;
+    school_sharing_enabled: boolean;
+  }> =>
+    apiRequest(`/teacher/student/${studentId}/sharing-status`),
+};
+
 // Teacher API for linking from parent
 export const teacherLinkApi = {
   linkFromParent: (linkCode: string): Promise<{ message: string; student_id: string; student_name: string }> =>

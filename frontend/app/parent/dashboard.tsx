@@ -530,6 +530,10 @@ export default function ParentDashboard() {
                   selectedMember?.id === child.id && selectedType === 'linked' && styles.memberCardSelected,
                 ]}
                 onPress={() => {
+                  // Navigate to linked child detail screen
+                  router.push(`/parent/linked-child-detail?id=${child.id}`);
+                }}
+                onLongPress={() => {
                   setSelectedMember(child);
                   setSelectedType('linked');
                 }}
@@ -542,10 +546,14 @@ export default function ParentDashboard() {
                   presetAvatars={presetAvatars}
                 />
                 <Text style={styles.memberName}>{child.name}</Text>
-                <Text style={styles.memberRole}>{t('school')}</Text>
+                <View style={styles.linkedBadge}>
+                  <MaterialIcons name="school" size={12} color="#5C6BC0" />
+                  <Text style={styles.linkedBadgeText}>{t('school')}</Text>
+                </View>
                 <TouchableOpacity
                   style={styles.shareToTeacherButton}
-                  onPress={() => {
+                  onPress={(e) => {
+                    e.stopPropagation();
                     setSelectedMember(child);
                     setShowShareModal(true);
                   }}
@@ -1147,6 +1155,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#888',
     textTransform: 'capitalize',
+  },
+  linkedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8EAF6',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    gap: 2,
+    marginTop: 4,
+  },
+  linkedBadgeText: {
+    fontSize: 10,
+    color: '#5C6BC0',
+    fontWeight: '500',
   },
   shareToTeacherButton: {
     position: 'absolute',

@@ -20,7 +20,7 @@ import { BarChart, PieChart } from 'react-native-gifted-charts';
 import { File, Directory, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useApp } from '../../src/context/AppContext';
-import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy, reportsApi, teacherApi } from '../../src/utils/api';
+import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy, reportsApi, teacherApi, teacherHomeDataApi } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 
 const { width } = Dimensions.get('window');
@@ -66,20 +66,49 @@ export default function StudentDetailScreen() {
   const [linkCode, setLinkCode] = useState<string | null>(null);
   const [generatingCode, setGeneratingCode] = useState(false);
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
+  
+  // Home data states
+  const [homeData, setHomeData] = useState<{
+    sharing_enabled: boolean;
+    home_checkins: any[];
+    family_strategies: any[];
+    message?: string;
+  } | null>(null);
+  const [sharingStatus, setSharingStatus] = useState<{
+    is_linked_to_parent: boolean;
+    home_sharing_enabled: boolean;
+    school_sharing_enabled: boolean;
+  } | null>(null);
+  const [showHomeDataTab, setShowHomeDataTab] = useState(false);
 
   const fetchData = async () => {
     if (!studentId) return;
     try {
-      const [analyticsData, logsData, strategiesData, months] = await Promise.all([
+      const [analyticsData, logsData, strategiesData, months, statusData] = await Promise.all([
         analyticsApi.getStudent(studentId, selectedPeriod),
         zoneLogsApi.getByStudent(studentId, selectedPeriod),
         strategiesApi.getAll(),
         reportsApi.getAvailableMonths(studentId),
+        teacherHomeDataApi.getSharingStatus(studentId).catch(() => null),
       ]);
       setAnalytics(analyticsData);
       setLogs(logsData);
       setStrategies(strategiesData);
       setAvailableMonths(months);
+      
+      if (statusData) {
+        setSharingStatus(statusData);
+        
+        // If linked and sharing enabled, fetch home data
+        if (statusData.is_linked_to_parent && statusData.home_sharing_enabled) {
+          try {
+            const homeDataResult = await teacherHomeDataApi.getStudentHomeData(studentId, selectedPeriod);
+            setHomeData(homeDataResult);
+          } catch (error) {
+            console.log('Could not fetch home data:', error);
+          }
+        }
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -419,6 +448,92 @@ export default function StudentDetailScreen() {
             </View>
           )}
         </View>
+        
+        {/* Home Data Section (if parent has enabled sharing) */}
+        {sharingStatus?.is_linked_to_parent && (
+          <View style={styles.homeDataSection}>
+            <View style={styles.homeDataHeader}>
+              <MaterialIcons name="home" size={24} color="#4CAF50" />
+              <Text style={styles.sectionTitle}>{t('home_data') || 'Home Data'}</Text>
+              {sharingStatus.home_sharing_enabled ? (
+                <View style={styles.sharingEnabledBadge}>
+                  <MaterialIcons name="visibility" size={14} color="#4CAF50" />
+                  <Text style={styles.sharingEnabledText}>{t('sharing_on') || 'Sharing On'}</Text>
+                </View>
+              ) : (
+                <View style={styles.sharingDisabledBadge}>
+                  <MaterialIcons name="visibility-off" size={14} color="#999" />
+                  <Text style={styles.sharingDisabledText}>{t('sharing_off') || 'Sharing Off'}</Text>
+                </View>
+              )}
+            </View>
+            
+            {sharingStatus.home_sharing_enabled && homeData ? (
+              <>
+                {/* Home Check-ins */}
+                {homeData.home_checkins.length > 0 && (
+                  <View style={styles.homeCheckinsContainer}>
+                    <Text style={styles.homeSubtitle}>{t('home_checkins') || 'Home Check-ins'}</Text>
+                    {homeData.home_checkins.slice(0, 5).map((checkin: any, index: number) => (
+                      <View key={checkin.id || index} style={styles.homeCheckinItem}>
+                        <View style={[styles.homeCheckinZone, { backgroundColor: ZONE_COLORS[checkin.zone as keyof typeof ZONE_COLORS] || '#999' }]}>
+                          <Text style={styles.homeCheckinEmoji}>
+                            {checkin.zone === 'blue' ? '😢' : checkin.zone === 'green' ? '😊' : checkin.zone === 'yellow' ? '😰' : '😠'}
+                          </Text>
+                        </View>
+                        <View style={styles.homeCheckinDetails}>
+                          <Text style={styles.homeCheckinZoneLabel}>{getZoneLabel(checkin.zone, t)}</Text>
+                          <Text style={styles.homeCheckinTime}>
+                            {new Date(checkin.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </Text>
+                        </View>
+                        <View style={styles.homeBadge}>
+                          <MaterialIcons name="home" size={12} color="#4CAF50" />
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                
+                {/* Family Strategies */}
+                {homeData.family_strategies.length > 0 && (
+                  <View style={styles.familyStrategiesContainer}>
+                    <Text style={styles.homeSubtitle}>{t('family_strategies') || 'Family Strategies'}</Text>
+                    {homeData.family_strategies.map((strategy: any, index: number) => (
+                      <View key={strategy.id || index} style={styles.familyStrategyItem}>
+                        <MaterialIcons name={(strategy.icon || 'star') as any} size={20} color="#4CAF50" />
+                        <View style={styles.familyStrategyInfo}>
+                          <Text style={styles.familyStrategyName}>{strategy.strategy_name}</Text>
+                          <Text style={styles.familyStrategyDesc}>{strategy.strategy_description}</Text>
+                        </View>
+                        <View style={[styles.strategyZoneBadge, { backgroundColor: (ZONE_COLORS[strategy.zone as keyof typeof ZONE_COLORS] || '#999') + '30' }]}>
+                          <Text style={{ color: ZONE_COLORS[strategy.zone as keyof typeof ZONE_COLORS] || '#999', fontSize: 10 }}>{strategy.zone}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                
+                {homeData.home_checkins.length === 0 && homeData.family_strategies.length === 0 && (
+                  <View style={styles.noHomeData}>
+                    <MaterialIcons name="info" size={32} color="#CCC" />
+                    <Text style={styles.noHomeDataText}>{t('no_home_data_yet') || 'No home data yet'}</Text>
+                  </View>
+                )}
+              </>
+            ) : (
+              <View style={styles.sharingNotEnabled}>
+                <MaterialIcons name="lock" size={32} color="#CCC" />
+                <Text style={styles.sharingNotEnabledText}>
+                  {t('parent_sharing_disabled') || 'Parent has not enabled home data sharing'}
+                </Text>
+                <Text style={styles.sharingNotEnabledHint}>
+                  {t('parent_sharing_hint') || 'The parent can enable sharing from their dashboard'}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
       </ScrollView>
 
       {/* Report Month Selection Modal */}
@@ -1007,5 +1122,151 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginTop: 8,
     paddingBottom: 20,
+  },
+  // Home Data Section Styles
+  homeDataSection: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+  },
+  homeDataHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 8,
+  },
+  sharingEnabledBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+    marginLeft: 'auto',
+  },
+  sharingEnabledText: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontWeight: '500',
+  },
+  sharingDisabledBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+    marginLeft: 'auto',
+  },
+  sharingDisabledText: {
+    fontSize: 12,
+    color: '#999',
+  },
+  homeCheckinsContainer: {
+    marginBottom: 16,
+  },
+  homeSubtitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 8,
+  },
+  homeCheckinItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8F9FA',
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 6,
+  },
+  homeCheckinZone: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  homeCheckinEmoji: {
+    fontSize: 16,
+  },
+  homeCheckinDetails: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  homeCheckinZoneLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+  },
+  homeCheckinTime: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 2,
+  },
+  homeBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#E8F5E9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  familyStrategiesContainer: {
+    marginBottom: 8,
+  },
+  familyStrategyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8F9FA',
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 6,
+  },
+  familyStrategyInfo: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  familyStrategyName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+  },
+  familyStrategyDesc: {
+    fontSize: 11,
+    color: '#666',
+    marginTop: 2,
+  },
+  strategyZoneBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  noHomeData: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  noHomeDataText: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
+  },
+  sharingNotEnabled: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  sharingNotEnabledText: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  sharingNotEnabledHint: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 4,
+    textAlign: 'center',
   },
 });
