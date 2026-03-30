@@ -5262,3 +5262,120 @@ logger = logging.getLogger(__name__)
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+# Sample PDF content (base64 encoded simple PDF)
+SAMPLE_PDF_BASE64 = "JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXQogICAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCA+PiA+PgplbmRvYmoKNCAwIG9iago8PCAvTGVuZ3RoIDQ0ID4+CnN0cmVhbQpCVAovRjEgMjQgVGYKMTAwIDcwMCBUZAooVGVzdCBQREYpIFRqCkVUCmVuZHN0cmVhbQplbmRvYmoKeHJlZgowIDUKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAowMDAwMDAwMjE0IDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUgNSAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKMzA2CiUlRU9G"
+
+@app.on_event("startup")
+async def seed_sample_resources():
+    """Seed sample resources if none exist"""
+    # Check if resources exist
+    resources_count = await db.resources.count_documents({})
+    teacher_resources_count = await db.teacher_resources.count_documents({})
+    
+    if resources_count == 0:
+        # Seed general resources
+        sample_resources = [
+            {
+                "id": "sample-resource-1",
+                "title": "Understanding Blue Emotions",
+                "description": "A guide for parents on helping children understand feelings of tiredness, sadness, and low energy.",
+                "content_type": "pdf",
+                "content": SAMPLE_PDF_BASE64,
+                "pdf_filename": "blue_emotions_guide.pdf",
+                "category": "general",
+                "is_active": True,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc)
+            },
+            {
+                "id": "sample-resource-2",
+                "title": "Celebrating Green Emotions",
+                "description": "Tips for reinforcing calm, happy, and balanced emotional states in children.",
+                "content_type": "pdf",
+                "content": SAMPLE_PDF_BASE64,
+                "pdf_filename": "green_emotions_guide.pdf",
+                "category": "general",
+                "is_active": True,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc)
+            },
+            {
+                "id": "sample-resource-3",
+                "title": "Managing Yellow Emotions",
+                "description": "Strategies for helping children with excitement, anxiety, and heightened energy.",
+                "content_type": "pdf",
+                "content": SAMPLE_PDF_BASE64,
+                "pdf_filename": "yellow_emotions_guide.pdf",
+                "category": "general",
+                "is_active": True,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc)
+            },
+            {
+                "id": "sample-resource-4",
+                "title": "Transforming Red Emotions",
+                "description": "Techniques for helping children process anger, frustration, and intense feelings.",
+                "content_type": "pdf",
+                "content": SAMPLE_PDF_BASE64,
+                "pdf_filename": "red_emotions_guide.pdf",
+                "category": "general",
+                "is_active": True,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc)
+            }
+        ]
+        await db.resources.insert_many(sample_resources)
+        logger.info(f"Seeded {len(sample_resources)} general resources")
+    
+    if teacher_resources_count == 0:
+        # Seed teacher resources
+        sample_teacher_resources = [
+            {
+                "id": "teacher-resource-1",
+                "title": "Classroom Emotion Check-In Chart",
+                "description": "A printable chart for daily emotion check-ins with your class.",
+                "topic": "emotions",
+                "content_type": "pdf",
+                "content": SAMPLE_PDF_BASE64,
+                "pdf_filename": "classroom_checkin_chart.pdf",
+                "created_by": "system",
+                "created_by_name": "Class of Happiness",
+                "average_rating": 4.5,
+                "total_ratings": 2,
+                "is_active": True,
+                "created_at": datetime.now(timezone.utc)
+            },
+            {
+                "id": "teacher-resource-2",
+                "title": "Emotion Regulation Strategies Poster",
+                "description": "Visual poster showing different strategies for each emotion colour.",
+                "topic": "strategies",
+                "content_type": "pdf",
+                "content": SAMPLE_PDF_BASE64,
+                "pdf_filename": "strategies_poster.pdf",
+                "created_by": "system",
+                "created_by_name": "Class of Happiness",
+                "average_rating": 5.0,
+                "total_ratings": 1,
+                "is_active": True,
+                "created_at": datetime.now(timezone.utc)
+            },
+            {
+                "id": "teacher-resource-3",
+                "title": "Parent Communication Template",
+                "description": "Email templates for sharing a child's emotional progress with parents.",
+                "topic": "family",
+                "content_type": "pdf",
+                "content": SAMPLE_PDF_BASE64,
+                "pdf_filename": "parent_communication.pdf",
+                "created_by": "system",
+                "created_by_name": "Class of Happiness",
+                "average_rating": 4.0,
+                "total_ratings": 3,
+                "is_active": True,
+                "created_at": datetime.now(timezone.utc)
+            }
+        ]
+        await db.teacher_resources.insert_many(sample_teacher_resources)
+        logger.info(f"Seeded {len(sample_teacher_resources)} teacher resources")
