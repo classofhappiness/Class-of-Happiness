@@ -582,6 +582,14 @@ export default function ParentDashboard() {
               <MaterialIcons name="library-books" size={24} color="#5C6BC0" />
               <Text style={styles.actionButtonText}>{t('resources')}</Text>
             </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => router.push('/parent/widget')}
+            >
+              <MaterialIcons name="widgets" size={24} color="#9C27B0" />
+              <Text style={styles.actionButtonText}>Widget</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
