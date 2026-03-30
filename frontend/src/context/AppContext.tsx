@@ -7,7 +7,7 @@ import Constants from 'expo-constants';
 import { 
   Student, Classroom, User, Translations,
   studentsApi, classroomsApi, avatarsApi, PresetAvatar,
-  authApi, translationsApi, setSessionToken, clearSessionToken
+  authApi, translationsApi, setSessionToken, clearSessionToken, initializeSessionToken
 } from '../utils/api';
 
 // Helper function to wrap any promise with timeout
@@ -538,7 +538,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const abortController = new AbortController();
       
       try {
-        // Step 1: Load language from storage FIRST (fast local operation)
+        // Step 0: Initialize session token from storage FIRST (critical for mobile auth)
+        console.log('[AppContext] Initializing session token...');
+        await initializeSessionToken();
+        console.log('[AppContext] Session token initialized');
+        
+        // Step 1: Load language from storage (fast local operation)
         console.log('[AppContext] Loading saved language...');
         try {
           const savedLang = await getStorageWithTimeout('app_language', 2000);

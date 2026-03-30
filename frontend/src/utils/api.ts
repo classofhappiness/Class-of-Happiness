@@ -10,9 +10,12 @@ const API_URL = `${BACKEND_URL || ''}/api`;
 
 // Store session token for mobile auth
 let sessionToken: string | null = null;
+let tokenInitialized = false;
 
 export async function setSessionToken(token: string | null) {
+  console.log('[API] Setting session token:', token ? 'token present' : 'null');
   sessionToken = token;
+  tokenInitialized = true;
   if (token) {
     await AsyncStorage.setItem('session_token', token);
   } else {
@@ -21,13 +24,36 @@ export async function setSessionToken(token: string | null) {
 }
 
 export async function getSessionToken(): Promise<string | null> {
-  if (sessionToken) return sessionToken;
-  sessionToken = await AsyncStorage.getItem('session_token');
+  // If we have a token in memory, return it
+  if (sessionToken) {
+    return sessionToken;
+  }
+  
+  // If not initialized yet, load from storage
+  if (!tokenInitialized) {
+    try {
+      sessionToken = await AsyncStorage.getItem('session_token');
+      tokenInitialized = true;
+      console.log('[API] Loaded token from storage:', sessionToken ? 'token present' : 'null');
+    } catch (error) {
+      console.error('[API] Error loading token from storage:', error);
+      tokenInitialized = true;
+    }
+  }
+  
   return sessionToken;
 }
 
+// Initialize token on module load (non-blocking)
+export async function initializeSessionToken(): Promise<void> {
+  if (tokenInitialized) return;
+  await getSessionToken();
+}
+
 export async function clearSessionToken() {
+  console.log('[API] Clearing session token');
   sessionToken = null;
+  tokenInitialized = true;
   await AsyncStorage.removeItem('session_token');
 }
 
@@ -126,22 +152,26 @@ async function apiRequest(endpoint: string, options: RequestInit = {}) {
     ...(options.headers as Record<string, string> || {}),
   };
   
-  // On mobile, add Authorization header with session token
-  if (Platform.OS !== 'web') {
-    const token = await getSessionToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+  // Add Authorization header with session token for ALL platforms
+  // This ensures mobile clients always send the token
+  const token = await getSessionToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+    console.log('[API] Request to', endpoint, '- Auth header added');
+  } else {
+    console.log('[API] Request to', endpoint, '- No auth token available');
   }
   
   const response = await fetch(url, {
     ...options,
+    // Include credentials for web (cookies), omit for mobile (we use Bearer token)
     credentials: Platform.OS === 'web' ? 'include' : 'omit',
     headers,
   });
   
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Request failed' }));
+    console.error('[API] Request failed:', endpoint, response.status, error.detail);
     throw new Error(error.detail || 'Request failed');
   }
   

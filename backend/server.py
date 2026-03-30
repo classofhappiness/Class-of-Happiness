@@ -558,6 +558,8 @@ TRANSLATIONS = {
         "tap_to_check_in": "Tap your picture to check in!",
         "add_profile": "Add Profile",
         "strategies": "Helpful Strategies",
+        "family_strategies": "Family Strategies",
+        "family_strategies_edit": "Family Strategies Edit",
         "quick_actions": "Quick Actions",
         "delete_member": "Delete Family Member",
         "confirm_delete_member": "Are you sure you want to remove",
@@ -1005,6 +1007,8 @@ TRANSLATIONS = {
         "tap_to_check_in": "¡Toca tu foto para registrarte!",
         "add_profile": "Agregar Perfil",
         "strategies": "Estrategias Útiles",
+        "family_strategies": "Estrategias Familiares",
+        "family_strategies_edit": "Editar Estrategias Familiares",
         "quick_actions": "Acciones Rápidas",
         "delete_member": "Eliminar Miembro",
         "confirm_delete_member": "¿Estás seguro de eliminar a",
@@ -2987,16 +2991,24 @@ TRANSLATIONS = {
 async def get_current_user(request: Request) -> Optional[User]:
     """Get current user from session token in cookie or Authorization header"""
     session_token = request.cookies.get("session_token")
-    if not session_token:
+    
+    # Log where we're getting the token from for debugging
+    if session_token:
+        logger.debug(f"Auth: Found session_token from cookie")
+    else:
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
             session_token = auth_header[7:]
+            logger.debug(f"Auth: Found session_token from Authorization header")
+        else:
+            logger.debug(f"Auth: No session token found (cookie or header)")
     
     if not session_token:
         return None
     
     session_doc = await db.user_sessions.find_one({"session_token": session_token}, {"_id": 0})
     if not session_doc:
+        logger.debug(f"Auth: Session token not found in database")
         return None
     
     expires_at = session_doc["expires_at"]
@@ -3005,12 +3017,15 @@ async def get_current_user(request: Request) -> Optional[User]:
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
     if expires_at < datetime.now(timezone.utc):
+        logger.debug(f"Auth: Session token expired")
         return None
     
     user_doc = await db.users.find_one({"user_id": session_doc["user_id"]}, {"_id": 0})
     if not user_doc:
+        logger.debug(f"Auth: User not found for session")
         return None
     
+    logger.debug(f"Auth: User authenticated successfully: {user_doc.get('email')}")
     return User(**user_doc)
 
 def check_subscription_active(user: User) -> bool:

@@ -544,9 +544,13 @@ export default function ResourcesScreen() {
               {[1, 2, 3, 4, 5].map((star) => (
                 <TouchableOpacity
                   key={star}
-                  onPress={() => setSelectedRating(star)}
+                  onPress={() => {
+                    console.log('[Rating] Star tapped:', star);
+                    setSelectedRating(star);
+                  }}
                   style={styles.interactiveStar}
                   activeOpacity={0.6}
+                  hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }}
                 >
                   <MaterialIcons
                     name={star <= selectedRating ? 'star' : 'star-border'}

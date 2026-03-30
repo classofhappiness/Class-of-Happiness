@@ -572,7 +572,7 @@ export default function ParentDashboard() {
               onPress={() => router.push('/parent/family-strategies')}
             >
               <MaterialIcons name="lightbulb" size={24} color="#FFC107" />
-              <Text style={styles.actionButtonText}>{t('strategies') || 'Helpful Strategies'}</Text>
+              <Text style={styles.actionButtonText} numberOfLines={2}>{t('family_strategies') || 'Family Strategies'}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
@@ -580,7 +580,7 @@ export default function ParentDashboard() {
               onPress={() => router.push('/parent/resources')}
             >
               <MaterialIcons name="library-books" size={24} color="#5C6BC0" />
-              <Text style={styles.actionButtonText}>{t('resources')}</Text>
+              <Text style={styles.actionButtonText} numberOfLines={2}>{t('resources')}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity

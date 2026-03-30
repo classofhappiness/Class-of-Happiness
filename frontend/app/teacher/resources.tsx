@@ -281,9 +281,15 @@ export default function TeacherResourcesScreen() {
         <TouchableOpacity
           key={i}
           disabled={!interactive}
-          onPress={() => interactive && setUserRating(i)}
+          onPress={() => {
+            if (interactive) {
+              console.log('[Rating] Star tapped:', i);
+              setUserRating(i);
+            }
+          }}
           style={interactive ? styles.interactiveStar : undefined}
           activeOpacity={interactive ? 0.6 : 1}
+          hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }}
         >
           <MaterialIcons
             name={i <= rating ? 'star' : 'star-border'}

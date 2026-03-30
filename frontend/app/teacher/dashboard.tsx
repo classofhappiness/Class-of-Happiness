@@ -30,7 +30,7 @@ export default function TeacherDashboardScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const { students, classrooms, presetAvatars, refreshStudents, refreshClassrooms, t, language, translations } = useApp();
-  const [selectedPeriod, setSelectedPeriod] = useState<7 | 14 | 30>(7);
+  const [selectedPeriod, setSelectedPeriod] = useState<1 | 7 | 14 | 30>(7);
   const [recentLogs, setRecentLogs] = useState<ZoneLog[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -218,20 +218,20 @@ export default function TeacherDashboardScreen() {
 
         {/* Period Selector */}
         <View style={styles.periodSelector}>
-          {[7, 14, 30].map((days) => (
+          {[1, 7, 14, 30].map((days) => (
             <TouchableOpacity
               key={days}
               style={[
                 styles.periodButton,
                 selectedPeriod === days && styles.periodButtonActive
               ]}
-              onPress={() => setSelectedPeriod(days as 7 | 14 | 30)}
+              onPress={() => setSelectedPeriod(days as 1 | 7 | 14 | 30)}
             >
               <Text style={[
                 styles.periodButtonText,
                 selectedPeriod === days && styles.periodButtonTextActive
               ]}>
-                {days === 7 ? t('days_7') : days === 14 ? t('days_14') : t('days_30')}
+                {days === 1 ? 'Day' : days === 7 ? t('days_7') : days === 14 ? t('days_14') : t('days_30')}
               </Text>
             </TouchableOpacity>
           ))}
