@@ -4255,6 +4255,38 @@ async def get_resource(resource_id: str):
         raise HTTPException(status_code=404, detail="Resource not found")
     return Resource(**resource)
 
+@api_router.get("/resources/{resource_id}/download")
+async def download_resource_pdf(resource_id: str):
+    """Download the PDF file for a general resource"""
+    resource = await db.resources.find_one({"id": resource_id, "is_active": True})
+    if not resource:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    
+    if resource.get("content_type") != "pdf" or not resource.get("content"):
+        raise HTTPException(status_code=404, detail="No PDF content available")
+    
+    # Decode base64 PDF content
+    try:
+        import base64
+        # Handle data URI format if present
+        content = resource["content"]
+        if content.startswith("data:"):
+            # Extract base64 data from data URI
+            content = content.split(",", 1)[1] if "," in content else content
+        
+        pdf_content = base64.b64decode(content)
+        filename = resource.get("pdf_filename", f"{resource['title']}.pdf")
+        
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
+
 @api_router.post("/resources")
 async def create_resource(resource: ResourceCreate, request: Request):
     """Create a new resource (teacher/admin only)"""
@@ -4650,7 +4682,13 @@ async def download_teacher_resource_pdf(resource_id: str):
     # Decode base64 PDF content
     try:
         import base64
-        pdf_content = base64.b64decode(resource["content"])
+        # Handle data URI format if present
+        content = resource["content"]
+        if content.startswith("data:"):
+            # Extract base64 data from data URI
+            content = content.split(",", 1)[1] if "," in content else content
+        
+        pdf_content = base64.b64decode(content)
         filename = resource.get("pdf_filename", f"{resource['title']}.pdf")
         
         return Response(

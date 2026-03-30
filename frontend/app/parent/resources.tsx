@@ -94,10 +94,12 @@ export default function ResourcesScreen() {
   };
 
   const handleDownloadPdf = async (resource: Resource | TeacherResource) => {
-    // Check if it's a TeacherResource (has 'id' field and topic)
-    const isTeacherResource = 'topic' in resource && 'id' in resource;
+    // Check if it's a TeacherResource (has 'topic' field)
+    const isTeacherResource = 'topic' in resource;
+    // Check if it's a General Resource (has 'id' and 'content_type')
+    const isGeneralResource = 'content_type' in resource && (resource as Resource).content_type === 'pdf';
     
-    if (!isTeacherResource && !resource.pdf_url) {
+    if (!isTeacherResource && !isGeneralResource) {
       Alert.alert('Error', 'No PDF available for download');
       return;
     }
@@ -105,10 +107,14 @@ export default function ResourcesScreen() {
     setDownloading(true);
     
     try {
-      // Use the teacher-resources download endpoint for teacher resources
-      const pdfUrl = isTeacherResource 
-        ? `${BACKEND_URL}/api/teacher-resources/${(resource as TeacherResource).id}/download`
-        : resource.pdf_url!;
+      // Use appropriate download endpoint
+      let pdfUrl: string;
+      if (isTeacherResource) {
+        pdfUrl = `${BACKEND_URL}/api/teacher-resources/${(resource as TeacherResource).id}/download`;
+      } else {
+        pdfUrl = `${BACKEND_URL}/api/resources/${(resource as Resource).id}/download`;
+      }
+      
       const filename = resource.pdf_filename || `${resource.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
       
       if (Platform.OS === 'web') {
