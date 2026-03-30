@@ -4,7 +4,7 @@ import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../src/context/AppContext';
-import { translationsApi, subscriptionApi } from '../src/utils/api';
+import { translationsApi, subscriptionApi, authApiExtended } from '../src/utils/api';
 
 const LANGUAGES = [
   { code: 'en', name: 'English', flag: '🇦🇺' },
@@ -25,6 +25,9 @@ export default function SettingsScreen() {
   const [showTrialCode, setShowTrialCode] = useState(false);
   const [trialCode, setTrialCode] = useState('');
   const [redeemingCode, setRedeemingCode] = useState(false);
+  const [showAdminCode, setShowAdminCode] = useState(false);
+  const [adminCode, setAdminCode] = useState('');
+  const [promotingAdmin, setPromotingAdmin] = useState(false);
 
   // Set translated header title - depend on language/translations to trigger updates
   useLayoutEffect(() => {
@@ -112,6 +115,32 @@ export default function SettingsScreen() {
       Alert.alert(t('error'), error.message || t('trial_code_invalid'));
     } finally {
       setRedeemingCode(false);
+    }
+  };
+
+  // Handle admin code promotion
+  const handlePromoteAdmin = async () => {
+    if (!adminCode.trim()) {
+      Alert.alert(t('error') || 'Error', 'Please enter an admin code');
+      return;
+    }
+    
+    setPromotingAdmin(true);
+    try {
+      const result = await authApiExtended.promoteToAdmin(adminCode.trim());
+      Alert.alert(
+        '🔐 ' + (t('success') || 'Success'),
+        result.message,
+        [{ text: 'OK' }]
+      );
+      setAdminCode('');
+      setShowAdminCode(false);
+      // Refresh user data to get updated role
+      await checkAuth();
+    } catch (error: any) {
+      Alert.alert(t('error') || 'Error', error.message || 'Invalid admin code');
+    } finally {
+      setPromotingAdmin(false);
     }
   };
 
@@ -254,6 +283,74 @@ export default function SettingsScreen() {
           </View>
           <MaterialIcons name="chevron-right" size={24} color="#CCC" />
         </TouchableOpacity>
+      </View>
+
+      {/* Admin Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Administration</Text>
+        
+        {/* Show Admin Dashboard if already admin */}
+        {user?.role === 'admin' && (
+          <TouchableOpacity
+            style={styles.settingItem}
+            onPress={() => router.push('/admin/dashboard' as any)}
+          >
+            <View style={styles.settingLeft}>
+              <MaterialIcons name="admin-panel-settings" size={24} color="#9C27B0" />
+              <View style={styles.settingText}>
+                <Text style={styles.settingLabel}>Admin Dashboard</Text>
+                <Text style={styles.settingValue}>Manage global resources & stats</Text>
+              </View>
+            </View>
+            <MaterialIcons name="chevron-right" size={24} color="#CCC" />
+          </TouchableOpacity>
+        )}
+        
+        {/* Admin Code Entry (only show if not already admin) */}
+        {user?.role !== 'admin' && (
+          <>
+            <TouchableOpacity
+              style={styles.settingItem}
+              onPress={() => setShowAdminCode(!showAdminCode)}
+            >
+              <View style={styles.settingLeft}>
+                <MaterialIcons name="vpn-key" size={24} color="#9C27B0" />
+                <View style={styles.settingText}>
+                  <Text style={styles.settingLabel}>Admin Access</Text>
+                  <Text style={styles.settingValue}>Enter admin code to unlock</Text>
+                </View>
+              </View>
+              <MaterialIcons 
+                name={showAdminCode ? "expand-less" : "expand-more"} 
+                size={24} 
+                color="#CCC" 
+              />
+            </TouchableOpacity>
+            
+            {showAdminCode && (
+              <View style={styles.trialCodeContainer}>
+                <TextInput
+                  style={styles.trialCodeInput}
+                  placeholder="Enter admin code"
+                  value={adminCode}
+                  onChangeText={setAdminCode}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  secureTextEntry
+                />
+                <TouchableOpacity
+                  style={[styles.redeemButton, { backgroundColor: '#9C27B0' }, promotingAdmin && styles.redeemButtonDisabled]}
+                  onPress={handlePromoteAdmin}
+                  disabled={promotingAdmin}
+                >
+                  <Text style={styles.redeemButtonText}>
+                    {promotingAdmin ? 'Verifying...' : 'Unlock Admin'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
+        )}
       </View>
 
       {/* Logout */}

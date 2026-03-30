@@ -13,6 +13,79 @@ interface CreatureDisplayProps {
   showGrowthIndicator?: boolean;
 }
 
+// Animation configurations for each creature type based on zone
+const getCreatureAnimationConfig = (zone: string, stage: number) => {
+  const baseConfig = {
+    // How far creature moves horizontally (swimming/hopping)
+    horizontalMovement: 0,
+    // How far creature moves vertically (bouncing)
+    verticalMovement: 8,
+    // Rotation amplitude in degrees
+    rotationAmplitude: 5,
+    // Speed multiplier (higher = faster animations)
+    speedMultiplier: 1,
+    // Special effect type
+    effectType: 'none' as 'none' | 'bubbles' | 'leaves' | 'sparks' | 'flames',
+    // Effect emoji
+    effectEmoji: '',
+    // Custom animation style
+    animStyle: 'bounce' as 'bounce' | 'swim' | 'hop' | 'zap' | 'flicker',
+  };
+
+  switch (zone) {
+    case 'blue':
+      // Aqua creatures - swimming motion
+      return {
+        ...baseConfig,
+        horizontalMovement: 15 + (stage * 5), // Swim further as they evolve
+        verticalMovement: 4 + (stage * 2), // Gentle wave motion
+        rotationAmplitude: 8 + (stage * 2), // More fish-like wiggle
+        speedMultiplier: 0.8 + (stage * 0.1), // Get faster
+        effectType: 'bubbles' as const,
+        effectEmoji: '🫧',
+        animStyle: 'swim' as const,
+      };
+    case 'green':
+      // Nature creatures - hopping/swaying motion
+      return {
+        ...baseConfig,
+        horizontalMovement: 3 + (stage * 2),
+        verticalMovement: 12 + (stage * 4), // Big hops!
+        rotationAmplitude: 3,
+        speedMultiplier: 0.7 + (stage * 0.15),
+        effectType: 'leaves' as const,
+        effectEmoji: '🍃',
+        animStyle: 'hop' as const,
+      };
+    case 'yellow':
+      // Electric creatures - quick zappy motions
+      return {
+        ...baseConfig,
+        horizontalMovement: 8 + (stage * 3),
+        verticalMovement: 6 + (stage * 3),
+        rotationAmplitude: 10 + (stage * 3), // Energetic shaking
+        speedMultiplier: 1.2 + (stage * 0.2), // Very quick!
+        effectType: 'sparks' as const,
+        effectEmoji: '⚡',
+        animStyle: 'zap' as const,
+      };
+    case 'red':
+      // Fire creatures - flickering flame motion
+      return {
+        ...baseConfig,
+        horizontalMovement: 5 + (stage * 2),
+        verticalMovement: 10 + (stage * 3),
+        rotationAmplitude: 6 + (stage * 2),
+        speedMultiplier: 1 + (stage * 0.1),
+        effectType: 'flames' as const,
+        effectEmoji: '🔥',
+        animStyle: 'flicker' as const,
+      };
+    default:
+      return baseConfig;
+  }
+};
+
 export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
   creature,
   stage,
@@ -23,12 +96,17 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
   animated = true,
   showGrowthIndicator = true,
 }) => {
+  // Animation values
   const bounceAnim = useRef(new Animated.Value(0)).current;
+  const swimAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
+  const effectAnim = useRef(new Animated.Value(0)).current;
+  const effectOpacity = useRef(new Animated.Value(0)).current;
 
   const stageInfo = creature.stages[stage];
+  const animConfig = getCreatureAnimationConfig(creature.zone, stage);
   
   // Calculate growth progress within current stage (0 to 1)
   const previousThreshold = stage > 0 ? creature.stages[stage].required_points : 0;
@@ -37,7 +115,7 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
     ? Math.min((currentPoints - previousThreshold) / (nextThreshold - previousThreshold), 1)
     : 1;
   
-  // Growth multiplier: creature grows 20% larger as it progresses through stage
+  // Growth multiplier: creature grows 25% larger as it progresses through stage
   const growthMultiplier = 1 + (progressInStage * 0.25);
   
   const sizeConfig = {
@@ -52,20 +130,315 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
   useEffect(() => {
     if (!animated) return;
 
-    // Idle bounce animation - faster when more progress
-    const bounceDuration = 800 - (progressInStage * 200); // 800ms to 600ms
-    const bounceLoop = Animated.loop(
+    const baseDuration = 1000 / animConfig.speedMultiplier;
+
+    // Main creature animation based on type
+    let mainAnimation: Animated.CompositeAnimation;
+
+    switch (animConfig.animStyle) {
+      case 'swim':
+        // Swimming: horizontal wave motion with slight vertical bob
+        mainAnimation = Animated.loop(
+          Animated.parallel([
+            Animated.sequence([
+              Animated.timing(swimAnim, {
+                toValue: animConfig.horizontalMovement,
+                duration: baseDuration,
+                easing: Easing.inOut(Easing.sin),
+                useNativeDriver: true,
+              }),
+              Animated.timing(swimAnim, {
+                toValue: -animConfig.horizontalMovement,
+                duration: baseDuration,
+                easing: Easing.inOut(Easing.sin),
+                useNativeDriver: true,
+              }),
+            ]),
+            Animated.sequence([
+              Animated.timing(bounceAnim, {
+                toValue: -animConfig.verticalMovement,
+                duration: baseDuration / 2,
+                easing: Easing.inOut(Easing.ease),
+                useNativeDriver: true,
+              }),
+              Animated.timing(bounceAnim, {
+                toValue: animConfig.verticalMovement / 2,
+                duration: baseDuration / 2,
+                easing: Easing.inOut(Easing.ease),
+                useNativeDriver: true,
+              }),
+              Animated.timing(bounceAnim, {
+                toValue: -animConfig.verticalMovement / 2,
+                duration: baseDuration / 2,
+                easing: Easing.inOut(Easing.ease),
+                useNativeDriver: true,
+              }),
+              Animated.timing(bounceAnim, {
+                toValue: 0,
+                duration: baseDuration / 2,
+                easing: Easing.inOut(Easing.ease),
+                useNativeDriver: true,
+              }),
+            ]),
+          ])
+        );
+        break;
+
+      case 'hop':
+        // Hopping: strong vertical with slight horizontal
+        mainAnimation = Animated.loop(
+          Animated.sequence([
+            // Prepare to hop
+            Animated.timing(bounceAnim, {
+              toValue: 3,
+              duration: baseDuration * 0.2,
+              easing: Easing.in(Easing.ease),
+              useNativeDriver: true,
+            }),
+            // Big hop up!
+            Animated.parallel([
+              Animated.timing(bounceAnim, {
+                toValue: -animConfig.verticalMovement,
+                duration: baseDuration * 0.3,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true,
+              }),
+              Animated.timing(swimAnim, {
+                toValue: animConfig.horizontalMovement,
+                duration: baseDuration * 0.3,
+                useNativeDriver: true,
+              }),
+            ]),
+            // Land
+            Animated.parallel([
+              Animated.timing(bounceAnim, {
+                toValue: 2,
+                duration: baseDuration * 0.2,
+                easing: Easing.bounce,
+                useNativeDriver: true,
+              }),
+              Animated.timing(swimAnim, {
+                toValue: 0,
+                duration: baseDuration * 0.2,
+                useNativeDriver: true,
+              }),
+            ]),
+            // Settle
+            Animated.timing(bounceAnim, {
+              toValue: 0,
+              duration: baseDuration * 0.3,
+              useNativeDriver: true,
+            }),
+          ])
+        );
+        break;
+
+      case 'zap':
+        // Electric zapping: quick random-like movements
+        mainAnimation = Animated.loop(
+          Animated.sequence([
+            // Quick zap right
+            Animated.parallel([
+              Animated.timing(swimAnim, {
+                toValue: animConfig.horizontalMovement,
+                duration: baseDuration * 0.1,
+                useNativeDriver: true,
+              }),
+              Animated.timing(bounceAnim, {
+                toValue: -animConfig.verticalMovement / 2,
+                duration: baseDuration * 0.1,
+                useNativeDriver: true,
+              }),
+            ]),
+            // Zap back center
+            Animated.parallel([
+              Animated.timing(swimAnim, {
+                toValue: 0,
+                duration: baseDuration * 0.1,
+                useNativeDriver: true,
+              }),
+              Animated.timing(bounceAnim, {
+                toValue: animConfig.verticalMovement / 3,
+                duration: baseDuration * 0.1,
+                useNativeDriver: true,
+              }),
+            ]),
+            // Zap left
+            Animated.parallel([
+              Animated.timing(swimAnim, {
+                toValue: -animConfig.horizontalMovement * 0.7,
+                duration: baseDuration * 0.1,
+                useNativeDriver: true,
+              }),
+              Animated.timing(bounceAnim, {
+                toValue: -animConfig.verticalMovement * 0.8,
+                duration: baseDuration * 0.1,
+                useNativeDriver: true,
+              }),
+            ]),
+            // Quick return
+            Animated.parallel([
+              Animated.timing(swimAnim, {
+                toValue: 0,
+                duration: baseDuration * 0.15,
+                useNativeDriver: true,
+              }),
+              Animated.timing(bounceAnim, {
+                toValue: 0,
+                duration: baseDuration * 0.15,
+                useNativeDriver: true,
+              }),
+            ]),
+            // Pause
+            Animated.delay(baseDuration * 0.3),
+          ])
+        );
+        break;
+
+      case 'flicker':
+        // Fire flickering: vertical flame-like motion
+        mainAnimation = Animated.loop(
+          Animated.sequence([
+            Animated.parallel([
+              Animated.timing(bounceAnim, {
+                toValue: -animConfig.verticalMovement,
+                duration: baseDuration * 0.3,
+                easing: Easing.out(Easing.ease),
+                useNativeDriver: true,
+              }),
+              Animated.timing(swimAnim, {
+                toValue: animConfig.horizontalMovement * 0.5,
+                duration: baseDuration * 0.3,
+                useNativeDriver: true,
+              }),
+            ]),
+            Animated.parallel([
+              Animated.timing(bounceAnim, {
+                toValue: -animConfig.verticalMovement * 0.3,
+                duration: baseDuration * 0.2,
+                useNativeDriver: true,
+              }),
+              Animated.timing(swimAnim, {
+                toValue: -animConfig.horizontalMovement * 0.3,
+                duration: baseDuration * 0.2,
+                useNativeDriver: true,
+              }),
+            ]),
+            Animated.parallel([
+              Animated.timing(bounceAnim, {
+                toValue: -animConfig.verticalMovement * 0.7,
+                duration: baseDuration * 0.25,
+                useNativeDriver: true,
+              }),
+              Animated.timing(swimAnim, {
+                toValue: animConfig.horizontalMovement * 0.2,
+                duration: baseDuration * 0.25,
+                useNativeDriver: true,
+              }),
+            ]),
+            Animated.parallel([
+              Animated.timing(bounceAnim, {
+                toValue: 0,
+                duration: baseDuration * 0.25,
+                useNativeDriver: true,
+              }),
+              Animated.timing(swimAnim, {
+                toValue: 0,
+                duration: baseDuration * 0.25,
+                useNativeDriver: true,
+              }),
+            ]),
+          ])
+        );
+        break;
+
+      default:
+        // Default bounce
+        mainAnimation = Animated.loop(
+          Animated.sequence([
+            Animated.timing(bounceAnim, {
+              toValue: -animConfig.verticalMovement,
+              duration: baseDuration,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(bounceAnim, {
+              toValue: 0,
+              duration: baseDuration,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+          ])
+        );
+    }
+
+    // Rotation animation - wiggle/sway
+    const rotateLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(bounceAnim, {
-          toValue: -8 - (progressInStage * 7), // Bounce higher with more progress
-          duration: bounceDuration,
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: baseDuration * 0.8,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
-        Animated.timing(bounceAnim, {
-          toValue: 0,
-          duration: bounceDuration,
+        Animated.timing(rotateAnim, {
+          toValue: -1,
+          duration: baseDuration * 1.6,
           easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(rotateAnim, {
+          toValue: 0,
+          duration: baseDuration * 0.8,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    // Pulse animation - creature "breathes"
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1 + (progressInStage * 0.08),
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    // Effect animation (bubbles, leaves, sparks, flames)
+    const effectLoop = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(effectAnim, {
+            toValue: 1,
+            duration: baseDuration * 1.5,
+            useNativeDriver: true,
+          }),
+          Animated.sequence([
+            Animated.timing(effectOpacity, {
+              toValue: 1,
+              duration: baseDuration * 0.3,
+              useNativeDriver: true,
+            }),
+            Animated.timing(effectOpacity, {
+              toValue: 0,
+              duration: baseDuration * 1.2,
+              useNativeDriver: true,
+            }),
+          ]),
+        ]),
+        Animated.timing(effectAnim, {
+          toValue: 0,
+          duration: 0,
           useNativeDriver: true,
         }),
       ])
@@ -91,69 +464,63 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
       glowLoop.start();
     }
 
-    // Pulse animation - creature "breathes"
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1 + (progressInStage * 0.08), // Pulse more with progress
-          duration: 1500,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1500,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    // Gentle rotation for life-like movement
-    const rotateLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(rotateAnim, {
-          toValue: 1,
-          duration: 2000 - (progressInStage * 500),
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(rotateAnim, {
-          toValue: -1,
-          duration: 2000 - (progressInStage * 500),
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(rotateAnim, {
-          toValue: 0,
-          duration: 2000 - (progressInStage * 500),
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    bounceLoop.start();
-    pulseLoop.start();
+    mainAnimation.start();
     rotateLoop.start();
+    pulseLoop.start();
+    effectLoop.start();
 
     return () => {
-      bounceLoop.stop();
-      pulseLoop.stop();
+      mainAnimation.stop();
       rotateLoop.stop();
+      pulseLoop.stop();
+      effectLoop.stop();
       if (glowLoop) glowLoop.stop();
     };
-  }, [animated, progressInStage]);
+  }, [animated, progressInStage, animConfig.animStyle, animConfig.speedMultiplier]);
 
   const rotateInterpolate = rotateAnim.interpolate({
     inputRange: [-1, 0, 1],
-    outputRange: ['-5deg', '0deg', '5deg'],
+    outputRange: [`-${animConfig.rotationAmplitude}deg`, '0deg', `${animConfig.rotationAmplitude}deg`],
+  });
+
+  const effectTranslateY = effectAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -40],
   });
 
   const progress = pointsForNext ? (currentPoints / pointsForNext) * 100 : 100;
   
   // Glow intensity based on progress
   const glowOpacity = progressInStage > 0.7 ? glowAnim : new Animated.Value(0);
+
+  // Render effect particles
+  const renderEffects = () => {
+    if (animConfig.effectType === 'none') return null;
+
+    return (
+      <View style={styles.effectsContainer}>
+        {[0, 1, 2].map((i) => (
+          <Animated.Text
+            key={i}
+            style={[
+              styles.effectEmoji,
+              {
+                opacity: effectOpacity,
+                transform: [
+                  { translateY: effectTranslateY },
+                  { translateX: (i - 1) * 15 },
+                ],
+                left: '50%',
+                marginLeft: -10 + (i - 1) * 15,
+              },
+            ]}
+          >
+            {animConfig.effectEmoji}
+          </Animated.Text>
+        ))}
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -163,7 +530,7 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
         height: sizeConfig.container,
         backgroundColor: creature.color + '20',
         borderColor: creature.color,
-        borderWidth: 3 + (progressInStage * 2), // Border gets thicker with progress
+        borderWidth: 3 + (progressInStage * 2),
       }]}>
         {/* Glow effect when close to evolution */}
         {progressInStage > 0.7 && (
@@ -178,12 +545,16 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
           />
         )}
         
+        {/* Effect particles */}
+        {renderEffects()}
+        
         <Animated.View
           style={[
             styles.emojiContainer,
             {
               transform: [
                 { translateY: bounceAnim },
+                { translateX: swimAnim },
                 { rotate: rotateInterpolate },
                 { scale: pulseAnim },
               ],
@@ -300,6 +671,18 @@ const styles = StyleSheet.create({
     width: '120%',
     height: '120%',
     borderRadius: 100,
+  },
+  effectsContainer: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  effectEmoji: {
+    position: 'absolute',
+    fontSize: 16,
+    top: '20%',
   },
   emojiContainer: {
     justifyContent: 'center',

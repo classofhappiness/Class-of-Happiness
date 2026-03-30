@@ -182,6 +182,8 @@ class Resource(BaseModel):
     pdf_filename: Optional[str] = None  # Original PDF filename
     created_by: str  # user_id of teacher/admin who created
     is_active: bool = True
+    is_global: bool = False  # True if created by admin for all users
+    category: str = "general"  # Category for organization
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class ResourceCreate(BaseModel):
@@ -4376,6 +4378,99 @@ async def update_user_role(request: Request):
     )
     
     return {"role": role}
+
+# ---- Admin Role Promotion ----
+ADMIN_CODES = ["ADMINCLASS2025", "HAPPYADMIN2025"]
+
+@api_router.post("/auth/promote-admin")
+async def promote_to_admin(request: Request):
+    """Promote user to admin role with valid admin code"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    body = await request.json()
+    admin_code = body.get("admin_code", "").upper().strip()
+    
+    if admin_code not in ADMIN_CODES:
+        raise HTTPException(status_code=403, detail="Invalid admin code")
+    
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"role": "admin"}}
+    )
+    
+    logger.info(f"User {user.email} promoted to admin role")
+    return {"role": "admin", "message": "Successfully promoted to admin"}
+
+# ---- Admin Resource Management ----
+@api_router.get("/admin/resources")
+async def get_admin_resources(request: Request):
+    """Get all global resources (admin view)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    resources = await db.resources.find().to_list(100)
+    return [Resource(**r) for r in resources]
+
+@api_router.post("/admin/resources")
+async def create_admin_resource(request: Request):
+    """Create a global resource (admin only)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    body = await request.json()
+    
+    resource_obj = Resource(
+        id=str(uuid.uuid4()),
+        title=body.get("title", ""),
+        description=body.get("description", ""),
+        content_type=body.get("content_type", "text"),
+        content=body.get("content"),
+        pdf_filename=body.get("pdf_filename"),
+        category=body.get("category", "general"),
+        is_global=True,  # Mark as global resource
+        created_by=user.user_id
+    )
+    await db.resources.insert_one(resource_obj.dict())
+    
+    logger.info(f"Admin {user.email} created global resource: {resource_obj.title}")
+    return resource_obj
+
+@api_router.get("/admin/stats")
+async def get_admin_stats(request: Request):
+    """Get admin dashboard statistics"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Gather statistics
+    total_users = await db.users.count_documents({})
+    total_teachers = await db.users.count_documents({"role": "teacher"})
+    total_parents = await db.users.count_documents({"role": "parent"})
+    total_students = await db.students.count_documents({})
+    total_checkins = await db.zone_logs.count_documents({})
+    total_resources = await db.resources.count_documents({})
+    
+    return {
+        "total_users": total_users,
+        "total_teachers": total_teachers,
+        "total_parents": total_parents,
+        "total_students": total_students,
+        "total_checkins": total_checkins,
+        "total_resources": total_resources,
+    }
 
 # ---- Family Members (for Parent home tracking) ----
 @api_router.get("/family/members")
