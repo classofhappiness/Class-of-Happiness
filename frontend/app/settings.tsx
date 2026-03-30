@@ -25,9 +25,11 @@ export default function SettingsScreen() {
   const [showTrialCode, setShowTrialCode] = useState(false);
   const [trialCode, setTrialCode] = useState('');
   const [redeemingCode, setRedeemingCode] = useState(false);
+  const [showTrialCodeText, setShowTrialCodeText] = useState(false);
   const [showAdminCode, setShowAdminCode] = useState(false);
   const [adminCode, setAdminCode] = useState('');
   const [promotingAdmin, setPromotingAdmin] = useState(false);
+  const [showAdminCodeText, setShowAdminCodeText] = useState(false);
 
   // Set translated header title - depend on language/translations to trigger updates
   useLayoutEffect(() => {
@@ -203,14 +205,27 @@ export default function SettingsScreen() {
         
         {showTrialCode && (
           <View style={styles.trialCodeContainer}>
-            <TextInput
-              style={styles.trialCodeInput}
-              placeholder={t('trial_code_placeholder')}
-              value={trialCode}
-              onChangeText={setTrialCode}
-              autoCapitalize="characters"
-              autoCorrect={false}
-            />
+            <View style={styles.codeInputWrapper}>
+              <TextInput
+                style={styles.trialCodeInputWithIcon}
+                placeholder={t('trial_code_placeholder')}
+                value={trialCode}
+                onChangeText={setTrialCode}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                secureTextEntry={!showTrialCodeText}
+              />
+              <TouchableOpacity
+                style={styles.eyeIconButton}
+                onPress={() => setShowTrialCodeText(!showTrialCodeText)}
+              >
+                <MaterialIcons 
+                  name={showTrialCodeText ? "visibility" : "visibility-off"} 
+                  size={22} 
+                  color="#888" 
+                />
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity
               style={[styles.redeemButton, redeemingCode && styles.redeemButtonDisabled]}
               onPress={handleRedeemCode}
@@ -329,15 +344,27 @@ export default function SettingsScreen() {
             
             {showAdminCode && (
               <View style={styles.trialCodeContainer}>
-                <TextInput
-                  style={styles.trialCodeInput}
-                  placeholder="Enter admin code"
-                  value={adminCode}
-                  onChangeText={setAdminCode}
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  secureTextEntry
-                />
+                <View style={styles.codeInputWrapper}>
+                  <TextInput
+                    style={styles.trialCodeInputWithIcon}
+                    placeholder="Enter admin code"
+                    value={adminCode}
+                    onChangeText={setAdminCode}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    secureTextEntry={!showAdminCodeText}
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeIconButton}
+                    onPress={() => setShowAdminCodeText(!showAdminCodeText)}
+                  >
+                    <MaterialIcons 
+                      name={showAdminCodeText ? "visibility" : "visibility-off"} 
+                      size={22} 
+                      color="#888" 
+                    />
+                  </TouchableOpacity>
+                </View>
                 <TouchableOpacity
                   style={[styles.redeemButton, { backgroundColor: '#9C27B0' }, promotingAdmin && styles.redeemButtonDisabled]}
                   onPress={handlePromoteAdmin}
@@ -509,6 +536,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 2,
     fontWeight: '600',
+  },
+  codeInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#FFD54F',
+    borderRadius: 8,
+  },
+  trialCodeInputWithIcon: {
+    flex: 1,
+    padding: 12,
+    fontSize: 16,
+    textAlign: 'center',
+    letterSpacing: 2,
+    fontWeight: '600',
+  },
+  eyeIconButton: {
+    padding: 12,
+    paddingLeft: 0,
   },
   redeemButton: {
     backgroundColor: '#FF9800',
