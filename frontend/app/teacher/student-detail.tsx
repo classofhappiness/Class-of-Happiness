@@ -515,7 +515,7 @@ export default function StudentDetailScreen() {
                 <>
                   <MaterialIcons name="family-restroom" size={64} color="#4A90D9" />
                   <Text style={styles.linkCodeDescription}>
-                    {t('generate_teacher_code') || `Generate a code that ${student.name}'s parent can use to link their account and view check-ins from home.`}
+                    Generate a code for the parent/caregiver. They will enter this code in the Parent section of the app to view {student.name}'s emotion check-ins at home.
                   </Text>
                   <TouchableOpacity
                     style={[styles.generateCodeButton, generatingCode && styles.generateCodeButtonDisabled]}
@@ -526,7 +526,16 @@ export default function StudentDetailScreen() {
                         setLinkCode(result.link_code);
                       } catch (error: any) {
                         console.error('Generate link code error:', error);
-                        Alert.alert('Error', error.message || 'Failed to generate link code. Please try again.');
+                        // Show more helpful error message
+                        let errorMessage = 'Failed to generate link code.';
+                        if (error.message?.includes('Not authenticated') || error.message?.includes('401')) {
+                          errorMessage = 'Your session has expired. Please go back, log out from Settings, and log back in as a Teacher.';
+                        } else if (error.message?.includes('teacher') || error.message?.includes('403')) {
+                          errorMessage = 'Only teachers can generate parent link codes. Please make sure you selected "Teacher" when you logged in.';
+                        } else {
+                          errorMessage = error.message || 'Please try again.';
+                        }
+                        Alert.alert('Error', errorMessage);
                       } finally {
                         setGeneratingCode(false);
                       }
@@ -535,7 +544,7 @@ export default function StudentDetailScreen() {
                   >
                     <MaterialIcons name="vpn-key" size={24} color="white" />
                     <Text style={styles.generateCodeButtonText}>
-                      {generatingCode ? (t('generating') || 'Generating...') : (t('generate_code') || 'Generate Code')}
+                      {generatingCode ? (t('generating') || 'Generating...') : (t('generate_code') || 'Generate Parent Code')}
                     </Text>
                   </TouchableOpacity>
                 </>

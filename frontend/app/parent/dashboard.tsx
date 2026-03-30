@@ -696,19 +696,20 @@ export default function ParentDashboard() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('link_child_school')}</Text>
+              <Text style={styles.modalTitle}>{t('link_child_school') || 'Link Child from School'}</Text>
               <TouchableOpacity onPress={() => setShowLinkModal(false)}>
                 <MaterialIcons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
             <Text style={styles.modalText}>
-              {t('enter_code')}
+              {t('enter_code') || "Enter the 6-character code that your child's teacher provided. This will let you see your child's emotion check-ins from school."}
             </Text>
             <TextInput
               style={styles.codeInput}
               value={linkCode}
               onChangeText={(text) => setLinkCode(text.toUpperCase())}
               placeholder="ABC123"
+              placeholderTextColor="#999"
               autoCapitalize="characters"
               maxLength={6}
             />
@@ -718,7 +719,7 @@ export default function ParentDashboard() {
               disabled={linking || linkCode.length !== 6}
             >
               <Text style={styles.submitButtonText}>
-                {linking ? t('linking') : t('link_child')}
+                {linking ? (t('linking') || 'Linking...') : (t('link_child') || 'Link Child')}
               </Text>
             </TouchableOpacity>
           </View>
