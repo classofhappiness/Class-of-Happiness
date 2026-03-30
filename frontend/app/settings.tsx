@@ -25,11 +25,11 @@ export default function SettingsScreen() {
   const [showTrialCode, setShowTrialCode] = useState(false);
   const [trialCode, setTrialCode] = useState('');
   const [redeemingCode, setRedeemingCode] = useState(false);
-  const [showTrialCodeText, setShowTrialCodeText] = useState(false);
+  const [showTrialCodeText, setShowTrialCodeText] = useState(true);  // Show text by default
   const [showAdminCode, setShowAdminCode] = useState(false);
   const [adminCode, setAdminCode] = useState('');
   const [promotingAdmin, setPromotingAdmin] = useState(false);
-  const [showAdminCodeText, setShowAdminCodeText] = useState(false);
+  const [showAdminCodeText, setShowAdminCodeText] = useState(true);  // Show text by default
 
   // Set translated header title - depend on language/translations to trigger updates
   useLayoutEffect(() => {
@@ -208,7 +208,8 @@ export default function SettingsScreen() {
             <View style={styles.codeInputWrapper}>
               <TextInput
                 style={styles.trialCodeInputWithIcon}
-                placeholder={t('trial_code_placeholder')}
+                placeholder={t('trial_code_placeholder') || 'Enter code'}
+                placeholderTextColor="#999"
                 value={trialCode}
                 onChangeText={setTrialCode}
                 autoCapitalize="characters"
@@ -344,10 +345,16 @@ export default function SettingsScreen() {
             
             {showAdminCode && (
               <View style={styles.trialCodeContainer}>
+                {!user && (
+                  <Text style={styles.loginRequiredText}>
+                    ⚠️ You must be logged in as Teacher or Parent first
+                  </Text>
+                )}
                 <View style={styles.codeInputWrapper}>
                   <TextInput
                     style={styles.trialCodeInputWithIcon}
                     placeholder="Enter admin code"
+                    placeholderTextColor="#999"
                     value={adminCode}
                     onChangeText={setAdminCode}
                     autoCapitalize="characters"
@@ -366,9 +373,9 @@ export default function SettingsScreen() {
                   </TouchableOpacity>
                 </View>
                 <TouchableOpacity
-                  style={[styles.redeemButton, { backgroundColor: '#9C27B0' }, promotingAdmin && styles.redeemButtonDisabled]}
+                  style={[styles.redeemButton, { backgroundColor: '#9C27B0' }, (promotingAdmin || !user) && styles.redeemButtonDisabled]}
                   onPress={handlePromoteAdmin}
-                  disabled={promotingAdmin}
+                  disabled={promotingAdmin || !user}
                 >
                   <Text style={styles.redeemButtonText}>
                     {promotingAdmin ? 'Verifying...' : 'Unlock Admin'}
@@ -552,6 +559,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 2,
     fontWeight: '600',
+    color: '#333',
   },
   eyeIconButton: {
     padding: 12,
@@ -571,5 +579,14 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  loginRequiredText: {
+    fontSize: 13,
+    color: '#E65100',
+    textAlign: 'center',
+    marginBottom: 12,
+    backgroundColor: '#FFF3E0',
+    padding: 8,
+    borderRadius: 6,
   },
 });
