@@ -179,6 +179,12 @@ export const subscriptionApi = {
   
   getPaymentStatus: (sessionId: string): Promise<{ status: string; plan?: string; expires_at?: string }> =>
     apiRequest(`/subscription/status/${sessionId}`),
+    
+  redeemTrialCode: (code: string): Promise<{ message: string; trial_days: number; trial_ends_at: string }> =>
+    apiRequest('/subscription/redeem-trial-code', { 
+      method: 'POST', 
+      body: JSON.stringify({ code }) 
+    }),
 };
 
 // Translations API

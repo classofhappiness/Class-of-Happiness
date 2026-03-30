@@ -1,10 +1,10 @@
 import React, { useState, useLayoutEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput } from 'react-native';
 import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../src/context/AppContext';
-import { translationsApi } from '../src/utils/api';
+import { translationsApi, subscriptionApi } from '../src/utils/api';
 
 const LANGUAGES = [
   { code: 'en', name: 'English', flag: '🇺🇸' },
@@ -19,9 +19,12 @@ export default function SettingsScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { user, language, setLanguage, logout, t, hasActiveSubscription, translations } = useApp();
+  const { user, language, setLanguage, logout, t, hasActiveSubscription, translations, checkAuth } = useApp();
   const [showLanguages, setShowLanguages] = useState(false);
   const [pendingLanguage, setPendingLanguage] = useState<string | null>(null);
+  const [showTrialCode, setShowTrialCode] = useState(false);
+  const [trialCode, setTrialCode] = useState('');
+  const [redeemingCode, setRedeemingCode] = useState(false);
 
   // Set translated header title - depend on language/translations to trigger updates
   useLayoutEffect(() => {
@@ -86,6 +89,32 @@ export default function SettingsScreen() {
 
   const currentLang = LANGUAGES.find(l => l.code === language) || LANGUAGES[0];
 
+  // Handle trial code redemption
+  const handleRedeemCode = async () => {
+    if (!trialCode.trim()) {
+      Alert.alert(t('error'), t('trial_code_placeholder') || 'Please enter a trial code');
+      return;
+    }
+    
+    setRedeemingCode(true);
+    try {
+      const result = await subscriptionApi.redeemTrialCode(trialCode.trim());
+      Alert.alert(
+        '🎉 ' + (t('success') || 'Success'),
+        result.message,
+        [{ text: 'OK' }]
+      );
+      setTrialCode('');
+      setShowTrialCode(false);
+      // Refresh user data to get updated subscription status
+      await checkAuth();
+    } catch (error: any) {
+      Alert.alert(t('error'), error.message || t('trial_code_invalid'));
+    } finally {
+      setRedeemingCode(false);
+    }
+  };
+
   return (
     <ScrollView 
       style={[styles.container, { paddingTop: insets.top }]}
@@ -124,6 +153,46 @@ export default function SettingsScreen() {
           </View>
           <MaterialIcons name="chevron-right" size={24} color="#CCC" />
         </TouchableOpacity>
+        
+        {/* Trial Code Section */}
+        <TouchableOpacity
+          style={styles.settingItem}
+          onPress={() => setShowTrialCode(!showTrialCode)}
+        >
+          <View style={styles.settingLeft}>
+            <MaterialIcons name="card-giftcard" size={24} color="#FF9800" />
+            <View style={styles.settingText}>
+              <Text style={styles.settingLabel}>{t('have_trial_code')}</Text>
+            </View>
+          </View>
+          <MaterialIcons 
+            name={showTrialCode ? "expand-less" : "expand-more"} 
+            size={24} 
+            color="#CCC" 
+          />
+        </TouchableOpacity>
+        
+        {showTrialCode && (
+          <View style={styles.trialCodeContainer}>
+            <TextInput
+              style={styles.trialCodeInput}
+              placeholder={t('trial_code_placeholder')}
+              value={trialCode}
+              onChangeText={setTrialCode}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+            <TouchableOpacity
+              style={[styles.redeemButton, redeemingCode && styles.redeemButtonDisabled]}
+              onPress={handleRedeemCode}
+              disabled={redeemingCode}
+            >
+              <Text style={styles.redeemButtonText}>
+                {redeemingCode ? t('redeeming') : t('redeem_code')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* Language */}
@@ -325,5 +394,38 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#F44336',
+  },
+  trialCodeContainer: {
+    backgroundColor: '#FFF8E1',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 8,
+    marginHorizontal: 4,
+  },
+  trialCodeInput: {
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#FFD54F',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    textAlign: 'center',
+    letterSpacing: 2,
+    fontWeight: '600',
+  },
+  redeemButton: {
+    backgroundColor: '#FF9800',
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  redeemButtonDisabled: {
+    backgroundColor: '#FFCC80',
+  },
+  redeemButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

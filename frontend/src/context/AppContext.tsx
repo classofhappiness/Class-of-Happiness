@@ -281,6 +281,12 @@ const defaultTranslations: Translations = {
   as_default_language: "as your default language?",
   language_changed: "Language Changed",
   is_now_default: "is now your default language. The app will remember this choice.",
+  // Sharing disclaimer
+  sharing_disclaimer_title: "Consent to Share Access",
+  sharing_disclaimer_text: "By choosing to generate and share an access code, you acknowledge and agree to the following:\n\nThe access code you share allows the receiving parent, teacher, or therapist to view the child's emotional Colour of Emotion information within the app. This access is provided solely for the purpose of supporting the child's emotional understanding, identifying patterns, and coordinating strategies across home, school, and therapeutic environments.\n\nThe access code may be used only for the purposes described above. It may not be shared, transferred, or used for any unrelated purpose, including evaluation, discipline, or decision-making outside the child's emotional and behavioral support.\n\nAccess granted through this code is time-limited and will automatically expire after one month unless you request earlier revocation. You may withdraw access at any time, for any reason. Once access is revoked or expired, the receiving party will no longer be able to view the child's information.\n\nBy proceeding, you confirm that you have the authority to share this information, that you understand the nature of the access being granted, and that you consent to provide this limited, temporary access to the child's emotional data.",
+  i_agree_and_continue: "I Agree & Continue",
+  cancel: "Cancel",
+  access_expires_30_days: "Access expires in 30 days",
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);

@@ -590,7 +590,7 @@ TRANSLATIONS = {
         "which_zone": "What colour are you feeling?",
         "tap_colour": "Tap the colour that matches your feeling",
         "need_help": "Need help? Tap here!",
-        "tap_zone_help": "Tap the color that matches how you feel",
+        "tap_zone_help": "Tap the colour that matches how you feel",
         "choose_strategies": "Choose helpful strategies",
         "want_to_say": "Want to say how you feel?",
         "write_sentence": "Write one sentence about how you feel...",
@@ -602,11 +602,20 @@ TRANSLATIONS = {
         "active": "Active",
         "inactive": "Inactive",
         "free_trial": "Free Trial",
+        # Trial code translations
+        "have_trial_code": "Have a trial code?",
+        "enter_trial_code": "Enter Trial Code",
+        "trial_code_placeholder": "Enter your code here",
+        "redeem_code": "Redeem Code",
+        "redeeming": "Redeeming...",
+        "trial_code_success": "Trial code redeemed successfully!",
+        "trial_code_invalid": "Invalid trial code",
+        "trial_code_already_used": "You have already redeemed a trial code",
         # New comprehensive translations
         "no_profiles_yet": "No profiles yet!",
         "create_first_profile": "Create your first profile to get started",
         "loading_strategies": "Loading strategies...",
-        "green_zone_help": "Great! Here are ways to stay feeling green:",
+        "green_zone_help": "Great! Here are ways to stay feeling happy:",
         "other_zone_help": "Here are some strategies that might help:",
         "tap_strategies_green": "Tap any strategies you'd like to try:",
         "tap_strategies_other": "Tap to select strategies that might help:",
@@ -620,7 +629,7 @@ TRANSLATIONS = {
         "search_students": "Search students...",
         "add_new_student": "Add New Student",
         "delete_student": "Delete Student",
-        "delete_student_confirm": "Are you sure you want to delete this student? This will also delete all their zone logs.",
+        "delete_student_confirm": "Are you sure you want to delete this student? This will also delete all their check-in history.",
         "no_students_found": "No students found",
         "no_students_yet": "No students yet",
         "try_different_search": "Try a different search",
@@ -689,7 +698,7 @@ TRANSLATIONS = {
         "create_profile": "Create Profile",
         "save_changes": "Save Changes",
         "delete_profile": "Delete Profile",
-        "delete_profile_confirm": "Are you sure you want to delete this profile? This will also delete all their zone logs.",
+        "delete_profile_confirm": "Are you sure you want to delete this profile? This will also delete all their check-in history.",
         "avatar": "Avatar",
         "classroom": "Classroom",
         "profile_created": "Profile Created!",
@@ -1003,6 +1012,15 @@ TRANSLATIONS = {
         "active": "Activo",
         "inactive": "Inactivo",
         "free_trial": "Prueba Gratuita",
+        # Trial code translations
+        "have_trial_code": "¿Tienes un código de prueba?",
+        "enter_trial_code": "Ingresar Código de Prueba",
+        "trial_code_placeholder": "Ingresa tu código aquí",
+        "redeem_code": "Canjear Código",
+        "redeeming": "Canjeando...",
+        "trial_code_success": "¡Código de prueba canjeado exitosamente!",
+        "trial_code_invalid": "Código de prueba inválido",
+        "trial_code_already_used": "Ya has canjeado un código de prueba",
         "no_profiles_yet": "¡No hay perfiles todavía!",
         "create_first_profile": "Crea tu primer perfil para comenzar",
         "loading_strategies": "Cargando estrategias...",
@@ -1361,6 +1379,15 @@ TRANSLATIONS = {
         "active": "Actif",
         "inactive": "Inactif",
         "free_trial": "Essai Gratuit",
+        # Trial code translations
+        "have_trial_code": "Avez-vous un code d'essai?",
+        "enter_trial_code": "Entrer le Code d'Essai",
+        "trial_code_placeholder": "Entrez votre code ici",
+        "redeem_code": "Utiliser le Code",
+        "redeeming": "Utilisation...",
+        "trial_code_success": "Code d'essai utilisé avec succès!",
+        "trial_code_invalid": "Code d'essai invalide",
+        "trial_code_already_used": "Vous avez déjà utilisé un code d'essai",
         "no_profiles_yet": "Pas encore de profils!",
         "create_first_profile": "Crée ton premier profil pour commencer",
         "loading_strategies": "Chargement des stratégies...",
@@ -1761,6 +1788,15 @@ TRANSLATIONS = {
         "active": "Ativo",
         "inactive": "Inativo",
         "free_trial": "Teste Gratuito",
+        # Trial code translations
+        "have_trial_code": "Tem um código de teste?",
+        "enter_trial_code": "Inserir Código de Teste",
+        "trial_code_placeholder": "Digite seu código aqui",
+        "redeem_code": "Resgatar Código",
+        "redeeming": "Resgatando...",
+        "trial_code_success": "Código de teste resgatado com sucesso!",
+        "trial_code_invalid": "Código de teste inválido",
+        "trial_code_already_used": "Você já resgatou um código de teste",
         "no_profiles_yet": "Ainda não há perfis!",
         "create_first_profile": "Crie seu primeiro perfil para começar",
         "loading_strategies": "Carregando estratégias...",
@@ -2161,6 +2197,15 @@ TRANSLATIONS = {
         "active": "Aktiv",
         "inactive": "Inaktiv",
         "free_trial": "Kostenlose Testversion",
+        # Trial code translations
+        "have_trial_code": "Haben Sie einen Testcode?",
+        "enter_trial_code": "Testcode eingeben",
+        "trial_code_placeholder": "Geben Sie Ihren Code hier ein",
+        "redeem_code": "Code einlösen",
+        "redeeming": "Einlösen...",
+        "trial_code_success": "Testcode erfolgreich eingelöst!",
+        "trial_code_invalid": "Ungültiger Testcode",
+        "trial_code_already_used": "Sie haben bereits einen Testcode eingelöst",
         "no_profiles_yet": "Noch keine Profile!",
         "create_first_profile": "Erstelle dein erstes Profil, um zu beginnen",
         "loading_strategies": "Strategien werden geladen...",
@@ -2510,6 +2555,16 @@ TRANSLATIONS = {
         "success": "Successo",
         "logout": "Esci",
         "login": "Accedi",
+        "free_trial": "Prova Gratuita",
+        # Trial code translations
+        "have_trial_code": "Hai un codice di prova?",
+        "enter_trial_code": "Inserisci Codice di Prova",
+        "trial_code_placeholder": "Inserisci il tuo codice qui",
+        "redeem_code": "Riscatta Codice",
+        "redeeming": "Riscatto...",
+        "trial_code_success": "Codice di prova riscattato con successo!",
+        "trial_code_invalid": "Codice di prova non valido",
+        "trial_code_already_used": "Hai già riscattato un codice di prova",
         "are_you_sure": "Sei sicuro?",
         "language": "Lingua",
         "back": "Indietro",
@@ -2969,6 +3024,56 @@ async def start_trial(request: Request):
     )
     
     return {"message": "Trial started", "trial_days": TRIAL_DURATION_DAYS}
+
+# Special promotional trial codes - CONFIDENTIAL
+# Generate a unique code for the owner to share
+PROMO_TRIAL_CODES = {
+    "HAPPYCLASS2025": {"duration_days": 30, "description": "1-month free trial"},
+    "CLASSOFHAPPINESS": {"duration_days": 30, "description": "1-month free trial"},
+}
+
+@api_router.post("/subscription/redeem-trial-code")
+async def redeem_trial_code(request: Request):
+    """Redeem a special trial code for extended free access"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    body = await request.json()
+    code = body.get("code", "").upper().strip()
+    
+    if not code:
+        raise HTTPException(status_code=400, detail="Please enter a trial code")
+    
+    if code not in PROMO_TRIAL_CODES:
+        raise HTTPException(status_code=400, detail="Invalid trial code")
+    
+    promo = PROMO_TRIAL_CODES[code]
+    duration_days = promo["duration_days"]
+    
+    # Check if user already used a promo code
+    existing_user = await db.users.find_one({"user_id": user.user_id})
+    if existing_user and existing_user.get("promo_code_used"):
+        raise HTTPException(status_code=400, detail="You have already redeemed a trial code")
+    
+    # Set subscription with promo trial
+    trial_end = datetime.now(timezone.utc) + timedelta(days=duration_days)
+    
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {
+            "subscription_status": "trial",
+            "trial_started_at": datetime.now(timezone.utc),
+            "promo_code_used": code,
+            "promo_trial_ends_at": trial_end
+        }}
+    )
+    
+    return {
+        "message": f"Trial code redeemed! You now have {duration_days} days of free access.",
+        "trial_days": duration_days,
+        "trial_ends_at": trial_end.isoformat()
+    }
 
 @api_router.post("/subscription/checkout")
 async def create_checkout(request: Request):
