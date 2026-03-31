@@ -249,6 +249,10 @@ export default function FamilyCheckInScreen() {
           setShowCelebration(false);
           router.back();
         }}
+        translations={{
+          well_done: t('well_done') || 'Well Done!',
+          support_message: t('family_support_message') || 'You can always ask for support!'
+        }}
       />
     </SafeAreaView>
   );

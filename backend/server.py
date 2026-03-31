@@ -713,6 +713,7 @@ TRANSLATIONS = {
         "write_sentence": "Write one sentence about how you feel...",
         "save_checkin": "Save Check-in",
         "well_done": "Well Done!",
+        "family_support_message": "You can always ask for support!",
         "great_job": "Great job choosing strategies!",
         "confirm_logout": "Are you sure you want to sign out?",
         "status": "Status",
@@ -1182,6 +1183,7 @@ TRANSLATIONS = {
         "write_sentence": "Escribe una frase sobre cómo te sientes...",
         "save_checkin": "Guardar Registro",
         "well_done": "¡Bien Hecho!",
+        "family_support_message": "¡Siempre puedes pedir apoyo!",
         "great_job": "¡Buen trabajo eligiendo estrategias!",
         "confirm_logout": "¿Estás seguro de que deseas cerrar sesión?",
         "status": "Estado",
@@ -4989,6 +4991,202 @@ async def get_family_analytics(member_id: str, request: Request, days: int = 7):
         "strategy_counts": strategy_counts,
         "total_logs": len(logs)
     }
+
+# ================== FAMILY STRATEGIES (for all family members) ==================
+
+class FamilyStrategyModel(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    parent_user_id: str
+    name: str
+    description: str
+    emoji: str = "⭐"
+    icon: Optional[str] = None  # Material icon name
+    photo_base64: Optional[str] = None  # Base64 encoded photo
+    zone: str  # blue, green, yellow, red
+    assigned_member_ids: List[str] = []  # Empty = all members
+    is_default: bool = False  # True if it's a preset strategy
+    is_active: bool = True
+    share_with_teacher: bool = False  # Can linked teacher see this?
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+# Default strategies to show for all users
+DEFAULT_FAMILY_STRATEGIES = [
+    {"name": "Deep Breathing", "emoji": "🌊", "description": "Take 5 slow deep breaths", "zone": "blue"},
+    {"name": "Talk to Someone", "emoji": "💬", "description": "Share your feelings with someone you trust", "zone": "blue"},
+    {"name": "Listen to Music", "emoji": "🎵", "description": "Put on calming or happy music", "zone": "blue"},
+    {"name": "Gentle Movement", "emoji": "🚶", "description": "Take a slow walk or stretch", "zone": "blue"},
+    {"name": "Quiet Time", "emoji": "🤫", "description": "Find a quiet place to rest", "zone": "blue"},
+    {"name": "Stay Focused", "emoji": "🎯", "description": "Keep doing what you're doing well!", "zone": "green"},
+    {"name": "Help Others", "emoji": "🤝", "description": "Offer to help someone", "zone": "green"},
+    {"name": "Practice Gratitude", "emoji": "🙏", "description": "Think of 3 things you're thankful for", "zone": "green"},
+    {"name": "Learn Something", "emoji": "📚", "description": "Read or learn something new", "zone": "green"},
+    {"name": "Creative Time", "emoji": "🎨", "description": "Draw, write, or create something", "zone": "green"},
+    {"name": "Physical Activity", "emoji": "🏃", "description": "Run, jump, or dance it out!", "zone": "yellow"},
+    {"name": "Squeeze Ball", "emoji": "🔴", "description": "Squeeze a stress ball or pillow", "zone": "yellow"},
+    {"name": "Count Backwards", "emoji": "🔢", "description": "Count from 10 to 1 slowly", "zone": "yellow"},
+    {"name": "Get Fresh Air", "emoji": "🌳", "description": "Step outside for a moment", "zone": "yellow"},
+    {"name": "Drink Water", "emoji": "💧", "description": "Have a glass of cold water", "zone": "yellow"},
+    {"name": "STOP & Breathe", "emoji": "🛑", "description": "Stop, close eyes, breathe deeply", "zone": "red"},
+    {"name": "Safe Space", "emoji": "🏠", "description": "Go to your calm down spot", "zone": "red"},
+    {"name": "Muscle Squeeze", "emoji": "💪", "description": "Squeeze and release your muscles", "zone": "red"},
+    {"name": "Cool Down", "emoji": "❄️", "description": "Splash cold water on your face", "zone": "red"},
+    {"name": "Ask for Help", "emoji": "🆘", "description": "Tell an adult you need help", "zone": "red"},
+]
+
+@api_router.get("/family/strategies")
+async def get_family_strategies_all(request: Request):
+    """Get all family strategies for the current user, including defaults"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Get user's custom strategies
+    custom_strategies = await db.family_strategies.find(
+        {"parent_user_id": user.user_id}
+    ).to_list(200)
+    
+    # Check if user has any strategies initialized
+    if len(custom_strategies) == 0:
+        # Initialize with defaults for this user
+        for idx, default in enumerate(DEFAULT_FAMILY_STRATEGIES):
+            strategy = FamilyStrategyModel(
+                parent_user_id=user.user_id,
+                name=default["name"],
+                description=default["description"],
+                emoji=default["emoji"],
+                zone=default["zone"],
+                is_default=True,
+                assigned_member_ids=[],  # Assigned to all by default
+            )
+            await db.family_strategies.insert_one(strategy.dict())
+            custom_strategies.append(strategy.dict())
+    
+    return custom_strategies
+
+@api_router.post("/family/strategies")
+async def create_family_strategy(request: Request):
+    """Create a new family strategy"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    body = await request.json()
+    
+    strategy = FamilyStrategyModel(
+        parent_user_id=user.user_id,
+        name=body.get("name", ""),
+        description=body.get("description", ""),
+        emoji=body.get("emoji", "⭐"),
+        icon=body.get("icon"),
+        photo_base64=body.get("photo_base64"),
+        zone=body.get("zone", "green"),
+        assigned_member_ids=body.get("assigned_member_ids", []),
+        is_default=False,
+        share_with_teacher=body.get("share_with_teacher", False),
+    )
+    
+    await db.family_strategies.insert_one(strategy.dict())
+    return strategy
+
+@api_router.put("/family/strategies/{strategy_id}")
+async def update_family_strategy(strategy_id: str, request: Request):
+    """Update a family strategy"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    body = await request.json()
+    
+    # Find the strategy
+    strategy = await db.family_strategies.find_one({
+        "id": strategy_id,
+        "parent_user_id": user.user_id
+    })
+    
+    if not strategy:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    
+    # Update fields
+    update_data = {}
+    for field in ["name", "description", "emoji", "icon", "photo_base64", "zone", 
+                  "assigned_member_ids", "is_active", "share_with_teacher"]:
+        if field in body:
+            update_data[field] = body[field]
+    
+    if update_data:
+        await db.family_strategies.update_one(
+            {"id": strategy_id},
+            {"$set": update_data}
+        )
+    
+    # Return updated strategy
+    updated = await db.family_strategies.find_one({"id": strategy_id})
+    return updated
+
+@api_router.delete("/family/strategies/{strategy_id}")
+async def delete_family_strategy(strategy_id: str, request: Request):
+    """Delete a family strategy"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    result = await db.family_strategies.delete_one({
+        "id": strategy_id,
+        "parent_user_id": user.user_id
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    
+    return {"deleted": True}
+
+@api_router.put("/family/strategies/{strategy_id}/toggle-member/{member_id}")
+async def toggle_strategy_member(strategy_id: str, member_id: str, request: Request):
+    """Toggle a family member's assignment to a strategy"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    strategy = await db.family_strategies.find_one({
+        "id": strategy_id,
+        "parent_user_id": user.user_id
+    })
+    
+    if not strategy:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    
+    assigned = strategy.get("assigned_member_ids", [])
+    
+    if member_id in assigned:
+        assigned.remove(member_id)
+    else:
+        assigned.append(member_id)
+    
+    await db.family_strategies.update_one(
+        {"id": strategy_id},
+        {"$set": {"assigned_member_ids": assigned}}
+    )
+    
+    return {"assigned_member_ids": assigned}
+
+@api_router.get("/family/strategies/shared")
+async def get_shared_family_strategies(request: Request, parent_user_id: str):
+    """Get family strategies shared with teacher (for teacher view)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role != "teacher":
+        raise HTTPException(status_code=403, detail="Only teachers can access this")
+    
+    # Get strategies that are shared with teacher
+    strategies = await db.family_strategies.find({
+        "parent_user_id": parent_user_id,
+        "share_with_teacher": True,
+        "is_active": True
+    }).to_list(100)
+    
+    return strategies
 
 # ================== LINKED CHILD HOME-SCHOOL CONNECTION ==================
 

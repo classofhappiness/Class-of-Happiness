@@ -506,6 +506,49 @@ export const familyApi = {
     apiRequest(`/parent/generate-teacher-code/${studentId}`, { method: 'POST' }),
 };
 
+// Family Strategies API
+export interface FamilyStrategyData {
+  id: string;
+  parent_user_id: string;
+  name: string;
+  description: string;
+  emoji: string;
+  icon?: string;
+  photo_base64?: string;
+  zone: string;
+  assigned_member_ids: string[];
+  is_default: boolean;
+  is_active: boolean;
+  share_with_teacher: boolean;
+  created_at: string;
+}
+
+export const familyStrategiesApi = {
+  getAll: (): Promise<FamilyStrategyData[]> =>
+    apiRequest('/family/strategies'),
+  
+  create: (data: {
+    name: string;
+    description: string;
+    emoji?: string;
+    icon?: string;
+    photo_base64?: string;
+    zone: string;
+    assigned_member_ids?: string[];
+    share_with_teacher?: boolean;
+  }): Promise<FamilyStrategyData> =>
+    apiRequest('/family/strategies', { method: 'POST', body: JSON.stringify(data) }),
+  
+  update: (id: string, data: Partial<FamilyStrategyData>): Promise<FamilyStrategyData> =>
+    apiRequest(`/family/strategies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  
+  delete: (id: string): Promise<void> =>
+    apiRequest(`/family/strategies/${id}`, { method: 'DELETE' }),
+  
+  toggleMember: (strategyId: string, memberId: string): Promise<{ assigned_member_ids: string[] }> =>
+    apiRequest(`/family/strategies/${strategyId}/toggle-member/${memberId}`, { method: 'PUT' }),
+};
+
 // Linked Children API (school-linked children in family)
 export interface LinkedChild {
   id: string;
