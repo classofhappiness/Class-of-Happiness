@@ -353,6 +353,10 @@ export const teacherApi = {
   // Teacher generates code to share student with parent
   generateLinkCode: (studentId: string): Promise<{ link_code: string; expires_at: string }> =>
     apiRequest(`/students/${studentId}/generate-link-code`, { method: 'POST' }),
+  
+  // Unlink student from parent
+  unlinkStudent: (studentId: string): Promise<{ message: string }> =>
+    apiRequest(`/students/${studentId}/unlink`, { method: 'DELETE' }),
 };
 
 // Resources API

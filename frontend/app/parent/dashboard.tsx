@@ -21,7 +21,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
 import { 
   parentApi, Student, zoneLogsApi, ZoneLog, analyticsApi,
-  familyApi, FamilyMember, FamilyZoneLog, authApiExtended
+  familyApi, FamilyMember, FamilyZoneLog, authApiExtended, teacherApi
 } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 
@@ -473,6 +473,12 @@ export default function ParentDashboard() {
                       source={{ uri: member.avatar_custom }} 
                       style={styles.memberAvatarImage} 
                     />
+                  ) : member.avatar_type === 'preset' && member.avatar_preset ? (
+                    <View style={[styles.memberAvatar, { backgroundColor: getRelationshipColor(member.relationship) + '20' }]}>
+                      <Text style={styles.memberAvatarEmoji}>
+                        {presetAvatars?.find(a => a.id === member.avatar_preset)?.emoji || '⭐'}
+                      </Text>
+                    </View>
                   ) : (
                     <View style={[styles.memberAvatar, { backgroundColor: getRelationshipColor(member.relationship) + '20' }]}>
                       <MaterialIcons 
@@ -534,11 +540,39 @@ export default function ParentDashboard() {
                   console.log('[Dashboard] Navigating to linked child:', child.id);
                   router.push(`/parent/linked-child/${child.id}`);
                 }}
-                onLongPress={() => {
-                  setSelectedMember(child);
-                  setSelectedType('linked');
-                }}
               >
+                {/* Unlink Button (X) */}
+                <TouchableOpacity
+                  style={styles.unlinkButton}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    Alert.alert(
+                      t('unlink_child') || 'Unlink Child',
+                      t('confirm_unlink_child') || `Are you sure you want to unlink ${child.name}? You will need a new code from the teacher to reconnect.`,
+                      [
+                        { text: t('cancel') || 'Cancel', style: 'cancel' },
+                        {
+                          text: t('unlink') || 'Unlink',
+                          style: 'destructive',
+                          onPress: async () => {
+                            try {
+                              await teacherApi.unlinkStudent(child.id);
+                              Alert.alert(t('success') || 'Success', t('child_unlinked') || 'Child has been unlinked');
+                              // Refresh data
+                              const children = await parentApi.getChildren();
+                              setLinkedChildren(children);
+                            } catch (error: any) {
+                              Alert.alert(t('error') || 'Error', error.message || 'Failed to unlink');
+                            }
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                >
+                  <MaterialIcons name="close" size={14} color="#F44336" />
+                </TouchableOpacity>
+                
                 <Avatar
                   type={child.avatar_type}
                   preset={child.avatar_preset}
@@ -551,16 +585,6 @@ export default function ParentDashboard() {
                   <MaterialIcons name="school" size={12} color="#5C6BC0" />
                   <Text style={styles.linkedBadgeText}>{t('school')}</Text>
                 </View>
-                <TouchableOpacity
-                  style={styles.shareToTeacherButton}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    setSelectedMember(child);
-                    setShowShareModal(true);
-                  }}
-                >
-                  <MaterialIcons name="qr-code" size={16} color="#4A90D9" />
-                </TouchableOpacity>
               </TouchableOpacity>
             ))}
 
@@ -1172,6 +1196,18 @@ const styles = StyleSheet.create({
     color: '#5C6BC0',
     fontWeight: '500',
   },
+  unlinkButton: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FFEBEE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
   shareToTeacherButton: {
     position: 'absolute',
     top: 4,
@@ -1291,22 +1327,25 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
+    flexWrap: 'wrap',
   },
   actionButton: {
     flex: 1,
-    flexDirection: 'row',
+    minWidth: 100,
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'white',
-    padding: 16,
+    padding: 12,
     borderRadius: 16,
-    gap: 8,
+    gap: 6,
   },
   actionButtonText: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '600',
     color: '#333',
+    textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,
@@ -1441,6 +1480,9 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
+  },
+  memberAvatarEmoji: {
+    fontSize: 28,
   },
   bigCheckinButton: {
     backgroundColor: '#4CAF50',

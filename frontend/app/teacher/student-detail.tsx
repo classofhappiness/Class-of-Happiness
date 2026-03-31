@@ -606,7 +606,62 @@ export default function StudentDetailScreen() {
             </View>
             
             <View style={styles.linkCodeContent}>
-              {!disclaimerAccepted ? (
+              {/* Already Linked State */}
+              {sharingStatus?.is_linked_to_parent ? (
+                <View style={styles.linkedStateContainer}>
+                  <MaterialIcons name="link" size={64} color="#4CAF50" />
+                  <Text style={styles.linkedStateTitle}>{t('student_linked') || 'Student is Linked'}</Text>
+                  <Text style={styles.linkedStateDesc}>
+                    {t('student_linked_desc') || 'This student is connected to a parent account. The parent can view check-ins from home.'}
+                  </Text>
+                  
+                  <View style={styles.sharingStatusRow}>
+                    <MaterialIcons 
+                      name={sharingStatus.home_sharing_enabled ? 'visibility' : 'visibility-off'} 
+                      size={20} 
+                      color={sharingStatus.home_sharing_enabled ? '#4CAF50' : '#999'} 
+                    />
+                    <Text style={styles.sharingStatusText}>
+                      {sharingStatus.home_sharing_enabled 
+                        ? (t('home_sharing_on') || 'Home data sharing is ON') 
+                        : (t('home_sharing_off') || 'Home data sharing is OFF')
+                      }
+                    </Text>
+                  </View>
+                  
+                  <TouchableOpacity
+                    style={styles.unlinkStudentButton}
+                    onPress={() => {
+                      Alert.alert(
+                        t('unlink_student') || 'Unlink Student',
+                        t('confirm_unlink_student') || 'Are you sure you want to unlink this student from the parent? They will need a new code to reconnect.',
+                        [
+                          { text: t('cancel') || 'Cancel', style: 'cancel' },
+                          {
+                            text: t('unlink') || 'Unlink',
+                            style: 'destructive',
+                            onPress: async () => {
+                              try {
+                                await teacherApi.unlinkStudent(student.id);
+                                Alert.alert(t('success') || 'Success', t('student_unlinked') || 'Student has been unlinked');
+                                setShowLinkCodeModal(false);
+                                // Refresh sharing status
+                                const newStatus = await teacherHomeDataApi.getSharingStatus(student.id);
+                                setSharingStatus(newStatus);
+                              } catch (error: any) {
+                                Alert.alert(t('error') || 'Error', error.message || 'Failed to unlink');
+                              }
+                            },
+                          },
+                        ]
+                      );
+                    }}
+                  >
+                    <MaterialIcons name="link-off" size={20} color="#F44336" />
+                    <Text style={styles.unlinkStudentButtonText}>{t('unlink_student') || 'Unlink Student'}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : !disclaimerAccepted ? (
                 // Disclaimer step
                 <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={true}>
                   <Text style={styles.disclaimerTitle}>{t('sharing_disclaimer_title') || 'Consent to Share Access'}</Text>
@@ -1268,5 +1323,50 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 4,
     textAlign: 'center',
+  },
+  linkedStateContainer: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  linkedStateTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+    marginTop: 12,
+  },
+  linkedStateDesc: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 20,
+  },
+  sharingStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 16,
+    gap: 8,
+  },
+  sharingStatusText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  unlinkStudentButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFEBEE',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    marginTop: 20,
+    gap: 8,
+  },
+  unlinkStudentButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#F44336',
   },
 });

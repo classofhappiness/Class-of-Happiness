@@ -4329,6 +4329,39 @@ async def link_student_to_parent(request: Request):
     
     return {"message": "Child linked successfully", "student_id": student["id"], "student_name": student["name"], "access_expires": access_expires.isoformat()}
 
+@api_router.delete("/students/{student_id}/unlink")
+async def unlink_student(student_id: str, request: Request):
+    """Unlink a student from parent (can be called by teacher or parent)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    student = await db.students.find_one({"id": student_id})
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    # Allow unlink if:
+    # 1. User is the teacher who created this student
+    # 2. User is the parent who is linked to this student
+    is_teacher = user.role == "teacher" and student.get("user_id") == user.user_id
+    is_parent = student.get("parent_user_id") == user.user_id
+    
+    if not is_teacher and not is_parent:
+        raise HTTPException(status_code=403, detail="Not authorized to unlink this student")
+    
+    # Remove parent link
+    await db.students.update_one(
+        {"id": student_id},
+        {"$unset": {
+            "parent_user_id": "",
+            "parent_access_expires": "",
+            "home_sharing_enabled": ""
+        }}
+    )
+    
+    logger.info(f"Student {student_id} unlinked by {user.email} (role: {user.role})")
+    return {"message": "Student unlinked successfully"}
+
 @api_router.get("/parent/children")
 async def get_parent_children(request: Request):
     """Get all children linked to the current user (with valid access)"""
