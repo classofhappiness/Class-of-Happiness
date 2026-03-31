@@ -15,8 +15,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useApp } from '../../src/context/AppContext';
-import { linkedChildApi, LinkedChild, FamilyAssignedStrategy } from '../../src/utils/api';
+import { useApp } from '../../../src/context/AppContext';
+import { linkedChildApi, LinkedChild, FamilyAssignedStrategy } from '../../../src/utils/api';
 
 const ZONE_CONFIG: Record<string, { color: string; emoji: string; label: string }> = {
   blue: { color: '#4A90D9', emoji: '😢', label: 'Blue Zone' },

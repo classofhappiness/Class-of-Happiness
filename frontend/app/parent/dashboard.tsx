@@ -531,7 +531,8 @@ export default function ParentDashboard() {
                 ]}
                 onPress={() => {
                   // Navigate to linked child detail screen
-                  router.push(`/parent/linked-child-detail?id=${child.id}`);
+                  console.log('[Dashboard] Navigating to linked child:', child.id);
+                  router.push(`/parent/linked-child/${child.id}`);
                 }}
                 onLongPress={() => {
                   setSelectedMember(child);
