@@ -645,6 +645,7 @@ TRANSLATIONS = {
         "classroom": "Classroom",
         "today_check_ins": "Today's Check-ins",
         "emotion_breakdown": "Emotion Breakdown",
+        "add_widget_to_home": "Add quick status to home screen",
         "students": "Students",
         "classrooms": "Classrooms",
         "teacher_resources": "Teacher Resources",
@@ -1125,6 +1126,7 @@ TRANSLATIONS = {
         "classroom": "Aula",
         "today_check_ins": "Registros de Hoy",
         "emotion_breakdown": "Desglose de Emociones",
+        "add_widget_to_home": "Agregar estado rápido a pantalla de inicio",
         "students": "Estudiantes",
         "classrooms": "Aulas",
         "teacher_resources": "Recursos para Maestros",
@@ -4192,25 +4194,37 @@ async def generate_student_monthly_pdf(student_id: str, year: int, month: int):
         ]))
         elements.append(log_table)
     
-    # Top strategies
+    # Top strategies with frequencies
     if strategy_counts:
         elements.append(Spacer(1, 20))
         elements.append(Paragraph("Most Used Strategies", styles['Heading3']))
-        sorted_strategies = sorted(strategy_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-        strat_data = [['Strategy', 'Times Used']]
-        for strat, count in sorted_strategies:
-            strat_data.append([strat, str(count)])
         
-        strat_table = Table(strat_data, colWidths=[250, 80])
+        total_strategy_uses = sum(strategy_counts.values())
+        sorted_strategies = sorted(strategy_counts.items(), key=lambda x: x[1], reverse=True)[:10]  # Top 10
+        
+        strat_data = [['Strategy', 'Times Used', 'Frequency']]
+        for strat, count in sorted_strategies:
+            percentage = round((count / total_strategy_uses) * 100, 1) if total_strategy_uses > 0 else 0
+            strat_data.append([strat, str(count), f"{percentage}%"])
+        
+        strat_table = Table(strat_data, colWidths=[220, 80, 80])
         strat_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#FFC107')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E0E0E0')),
             ('PADDING', (0, 0), (-1, -1), 8),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#FFF8E1')]),
         ]))
         elements.append(strat_table)
+        
+        # Total strategy summary
+        elements.append(Spacer(1, 8))
+        total_strategies_text = f"Total strategy selections: {total_strategy_uses} | Unique strategies used: {len(strategy_counts)}"
+        elements.append(Paragraph(total_strategies_text, styles['Normal']))
     
     # Footer
     elements.append(Spacer(1, 30))
@@ -4315,15 +4329,15 @@ async def link_student_to_parent(request: Request):
 
 @api_router.get("/parent/children")
 async def get_parent_children(request: Request):
-    """Get all children linked to the current parent (with valid access)"""
+    """Get all children linked to the current user (with valid access)"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role != "parent":
-        raise HTTPException(status_code=403, detail="Only parents can access this")
+    # Allow any authenticated user to see linked children (they might have linked as parent earlier)
+    # This supports users who switch between teacher and parent roles
     
-    # Get all students linked to this parent
+    # Get all students linked to this user
     students = await db.students.find({"parent_user_id": user.user_id}).to_list(100)
     
     # Filter out students with expired access and remove expired links
@@ -4980,15 +4994,15 @@ async def get_family_analytics(member_id: str, request: Request, days: int = 7):
 
 @api_router.get("/parent/linked-children")
 async def get_parent_linked_children(request: Request):
-    """Get all children linked to this parent from school (teacher-created students)"""
+    """Get all children linked to this user from school (teacher-created students)"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role != "parent":
-        raise HTTPException(status_code=403, detail="Only parents can access linked children")
+    # Allow any authenticated user to see linked children
+    # This supports users who switch between teacher and parent roles
     
-    # Find all students linked to this parent
+    # Find all students linked to this user
     students = await db.students.find({"parent_user_id": user.user_id}).to_list(100)
     
     # Enrich with classroom info
@@ -5015,10 +5029,7 @@ async def create_linked_child_home_checkin(student_id: str, log: ZoneLogCreate, 
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role != "parent":
-        raise HTTPException(status_code=403, detail="Only parents can create home check-ins")
-    
-    # Verify this student is linked to this parent
+    # Verify this student is linked to this user (removed role check for flexibility)
     student = await db.students.find_one({"id": student_id, "parent_user_id": user.user_id})
     if not student:
         raise HTTPException(status_code=404, detail="Linked child not found")
@@ -5040,10 +5051,7 @@ async def get_school_strategies_for_parent(student_id: str, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role != "parent":
-        raise HTTPException(status_code=403, detail="Only parents can access this")
-    
-    # Verify child is linked
+    # Verify child is linked (removed role check for flexibility)
     student = await db.students.find_one({"id": student_id, "parent_user_id": user.user_id})
     if not student:
         raise HTTPException(status_code=404, detail="Linked child not found")
@@ -5074,10 +5082,7 @@ async def get_school_checkins_for_parent(student_id: str, days: int = 30, reques
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role != "parent":
-        raise HTTPException(status_code=403, detail="Only parents can access this")
-    
-    # Verify child is linked
+    # Verify child is linked (removed role check for flexibility)
     student = await db.students.find_one({"id": student_id, "parent_user_id": user.user_id})
     if not student:
         raise HTTPException(status_code=404, detail="Linked child not found")
@@ -5102,10 +5107,7 @@ async def get_home_checkins_for_child(student_id: str, days: int = 30, request: 
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role != "parent":
-        raise HTTPException(status_code=403, detail="Only parents can access this")
-    
-    # Verify child is linked
+    # Verify child is linked (removed role check for flexibility)
     student = await db.students.find_one({"id": student_id, "parent_user_id": user.user_id})
     if not student:
         raise HTTPException(status_code=404, detail="Linked child not found")
@@ -5126,10 +5128,7 @@ async def get_all_checkins_for_child(student_id: str, days: int = 30, request: R
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role != "parent":
-        raise HTTPException(status_code=403, detail="Only parents can access this")
-    
-    # Verify child is linked
+    # Verify child is linked (removed role check for flexibility)
     student = await db.students.find_one({"id": student_id, "parent_user_id": user.user_id})
     if not student:
         raise HTTPException(status_code=404, detail="Linked child not found")
@@ -5156,10 +5155,7 @@ async def create_family_strategy(student_id: str, strategy: FamilyAssignedStrate
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role != "parent":
-        raise HTTPException(status_code=403, detail="Only parents can create family strategies")
-    
-    # Verify child is linked
+    # Role check removed - linked children accessible to any user who linked them
     student = await db.students.find_one({"id": student_id, "parent_user_id": user.user_id})
     if not student:
         raise HTTPException(status_code=404, detail="Linked child not found")
@@ -5184,10 +5180,7 @@ async def get_family_strategies(student_id: str, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role != "parent":
-        raise HTTPException(status_code=403, detail="Only parents can access this")
-    
-    # Verify child is linked
+    # Verify child is linked (removed role check for flexibility)
     student = await db.students.find_one({"id": student_id, "parent_user_id": user.user_id})
     if not student:
         raise HTTPException(status_code=404, detail="Linked child not found")
@@ -5206,10 +5199,7 @@ async def toggle_strategy_sharing(student_id: str, strategy_id: str, request: Re
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role != "parent":
-        raise HTTPException(status_code=403, detail="Only parents can toggle sharing")
-    
-    # Find and update the strategy
+    # Role check removed - linked children accessible to any user who linked them the strategy
     strategy = await db.family_assigned_strategies.find_one({
         "id": strategy_id,
         "student_id": student_id,
@@ -5234,8 +5224,7 @@ async def delete_family_strategy(student_id: str, strategy_id: str, request: Req
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role != "parent":
-        raise HTTPException(status_code=403, detail="Only parents can delete family strategies")
+    # Role check removed - linked children accessible to any user who linked them
     
     result = await db.family_assigned_strategies.delete_one({
         "id": strategy_id,
@@ -5257,8 +5246,7 @@ async def toggle_home_sharing(student_id: str, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role != "parent":
-        raise HTTPException(status_code=403, detail="Only parents can toggle home sharing")
+    # Role check removed - linked children accessible to any user who linked them
     
     student = await db.students.find_one({"id": student_id, "parent_user_id": user.user_id})
     if not student:
@@ -5347,10 +5335,9 @@ async def generate_teacher_link_code(student_id: str, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role != "parent":
-        raise HTTPException(status_code=403, detail="Only parents can generate teacher codes")
+    # Role check removed - any user who has linked a child can generate teacher codes
     
-    # Verify parent has this child linked
+    # Verify user has this child linked
     student = await db.students.find_one({"id": student_id, "parent_user_id": user.user_id})
     if not student:
         # Also check family members

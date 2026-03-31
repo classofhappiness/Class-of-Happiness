@@ -167,19 +167,6 @@ export default function TeacherDashboardScreen() {
           <MaterialIcons name="chevron-right" size={24} color="white" />
         </TouchableOpacity>
 
-        {/* Widget Button */}
-        <TouchableOpacity
-          style={[styles.resourcesButton, { backgroundColor: '#9C27B0', marginTop: 12 }]}
-          onPress={() => router.push('/teacher/widget')}
-        >
-          <MaterialIcons name="widgets" size={24} color="white" />
-          <View style={styles.resourcesButtonContent}>
-            <Text style={styles.resourcesButtonTitle}>Classroom Widget</Text>
-            <Text style={styles.resourcesButtonSubtitle}>Add quick status to home screen</Text>
-          </View>
-          <MaterialIcons name="chevron-right" size={24} color="white" />
-        </TouchableOpacity>
-
         {/* Classroom Filter */}
         {classrooms.length > 0 && (
           <View style={styles.filterSection}>
@@ -348,6 +335,19 @@ export default function TeacherDashboardScreen() {
             </View>
           )}
         </View>
+
+        {/* Widget Button - At Bottom */}
+        <TouchableOpacity
+          style={[styles.resourcesButton, { backgroundColor: '#9C27B0', marginTop: 16, marginBottom: 24 }]}
+          onPress={() => router.push('/teacher/widget')}
+        >
+          <MaterialIcons name="widgets" size={24} color="white" />
+          <View style={styles.resourcesButtonContent}>
+            <Text style={styles.resourcesButtonTitle}>{t('classroom_widget') || 'Classroom Widget'}</Text>
+            <Text style={styles.resourcesButtonSubtitle}>{t('add_widget_to_home') || 'Add quick status to home screen'}</Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={24} color="white" />
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
