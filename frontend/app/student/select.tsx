@@ -1,5 +1,5 @@
-import React, { useLayoutEffect, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Animated } from 'react-native';
+import React, { useLayoutEffect, useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Animated, Pressable } from 'react-native';
 import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
@@ -63,7 +63,7 @@ export default function StudentSelectScreen() {
     }
   }, [students]);
 
-  const handleSelectStudent = (student: typeof students[0]) => {
+  const handleSelectStudent = useCallback((student: typeof students[0]) => {
     playSelectFeedback(); // Sound effect for selecting student
     setSelectedStudentId(student.id);
     setCurrentStudent(student);
@@ -71,7 +71,7 @@ export default function StudentSelectScreen() {
     setTimeout(() => {
       router.push('/student/zone');
     }, 200);
-  };
+  }, [setCurrentStudent, router]);
 
   const handleViewCreatures = async (studentId: string) => {
     playButtonFeedback(); // Sound effect for button press
@@ -160,18 +160,19 @@ export default function StudentSelectScreen() {
 
         <View style={styles.studentsGrid}>
           {students.map((student) => (
-            <View 
-              key={student.id} 
-              style={[
+            <Pressable
+              key={student.id}
+              style={({ pressed }) => [
                 styles.studentCard, 
-                selectedStudentId === student.id && styles.studentCardSelected
+                selectedStudentId === student.id && styles.studentCardSelected,
+                pressed && styles.studentCardPressed
               ]}
+              onPress={() => handleSelectStudent(student)}
+              android_ripple={{ color: 'rgba(76, 175, 80, 0.2)' }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              delayLongPress={200}
             >
-              <TouchableOpacity
-                style={styles.studentMain}
-                onPress={() => handleSelectStudent(student)}
-                activeOpacity={0.7}
-              >
+              <View style={styles.studentMain}>
                 {/* Selection indicator */}
                 {selectedStudentId === student.id && (
                   <View style={styles.selectionIndicator}>
@@ -182,13 +183,13 @@ export default function StudentSelectScreen() {
                   type={student.avatar_type}
                   preset={student.avatar_preset}
                   custom={student.avatar_custom}
-                  size={55}
+                  size={60}
                   presetAvatars={presetAvatars}
                 />
                 <Text style={styles.studentName} numberOfLines={1}>
                   {student.name}
                 </Text>
-              </TouchableOpacity>
+              </View>
               
               {/* Mini Creature Display */}
               {renderCreatureIcons(student.id)}
@@ -196,11 +197,12 @@ export default function StudentSelectScreen() {
               <TouchableOpacity
                 style={styles.creaturesButton}
                 onPress={() => handleViewCreatures(student.id)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <MaterialIcons name="pets" size={14} color="#FF9800" />
                 <Text style={styles.creaturesButtonText}>{t('my_creatures') || 'My Creatures'}</Text>
               </TouchableOpacity>
-            </View>
+            </Pressable>
           ))}
 
           {/* Add New Profile Button */}
@@ -287,6 +289,10 @@ const styles = StyleSheet.create({
   studentCardSelected: {
     borderColor: '#4CAF50',
     backgroundColor: '#E8F5E9',
+  },
+  studentCardPressed: {
+    backgroundColor: '#F0F0F0',
+    transform: [{ scale: 0.98 }],
   },
   selectionIndicator: {
     position: 'absolute',

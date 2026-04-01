@@ -23,6 +23,7 @@ export default function RewardsScreen() {
   const params = useLocalSearchParams<{ 
     strategiesUsed?: string; 
     hasComment?: string;
+    zone?: string;  // Zone parameter to know which creature to feed
   }>();
 
   const [rewardsData, setRewardsData] = useState<AddPointsResponse | null>(null);
@@ -48,6 +49,9 @@ export default function RewardsScreen() {
     if (!currentStudent) return;
 
     try {
+      // Get the zone from params - this determines which creature gets the points!
+      const zone = params.zone || 'blue';
+      
       // First get current stage to track evolution
       const currentRewards = await rewardsApi.getStudentRewards(currentStudent.id);
       setPreviousStage(currentRewards.current_stage);
@@ -55,17 +59,17 @@ export default function RewardsScreen() {
       const strategiesCount = params.strategiesUsed ? parseInt(params.strategiesUsed) : 0;
       const hasComment = params.hasComment === 'true';
 
-      // Always add points for checking in!
-      let response: AddPointsResponse = await rewardsApi.addPoints(currentStudent.id, 'checkin');
+      // Always add points for checking in - WITH THE ZONE to feed correct creature!
+      let response: AddPointsResponse = await rewardsApi.addPoints(currentStudent.id, 'checkin', 1, zone);
 
-      // Add bonus points for strategies used
+      // Add bonus points for strategies used - same zone
       if (strategiesCount > 0) {
-        response = await rewardsApi.addPoints(currentStudent.id, 'strategy', strategiesCount);
+        response = await rewardsApi.addPoints(currentStudent.id, 'strategy', strategiesCount, zone);
       }
 
-      // Add bonus points for comment if present
+      // Add bonus points for comment if present - same zone
       if (hasComment) {
-        response = await rewardsApi.addPoints(currentStudent.id, 'comment');
+        response = await rewardsApi.addPoints(currentStudent.id, 'comment', 1, zone);
       }
 
       setRewardsData(response);

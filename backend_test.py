@@ -444,6 +444,202 @@ def test_reports_endpoints():
         print_test_result("Reports endpoints testing", False, f"Exception: {str(e)}")
         return False
 
+def test_zone_based_creature_rewards():
+    """Test zone-based creature rewards system - NEW FEATURE"""
+    print("=== Testing Zone-Based Creature Rewards System ===")
+    
+    # Create test student
+    test_student_data = {
+        "name": "Creature Test Student",
+        "avatar_type": "preset",
+        "avatar_preset": "cat",
+        "classroom_id": None
+    }
+    
+    try:
+        # Create student for testing
+        response = requests.post(f"{BASE_URL}/students", json=test_student_data, timeout=10)
+        if response.status_code != 200:
+            print_test_result("Create test student for creature rewards", False, f"Status: {response.status_code}")
+            return False
+        
+        student_data = response.json()
+        student_id = student_data["id"]
+        print(f"Created test student: {student_id}")
+        
+        # Test 1: Blue zone feeds Aqua Buddy creature only
+        blue_request = {
+            "points_type": "checkin",
+            "zone": "blue"
+        }
+        
+        response = requests.post(f"{BASE_URL}/rewards/{student_id}/add-points", json=blue_request, timeout=10)
+        blue_success = response.status_code == 200
+        
+        if blue_success:
+            blue_result = response.json()
+            correct_creature = blue_result.get("current_creature_id") == "aqua_buddy"
+            has_zone = blue_result.get("zone") == "blue"
+            has_all_creatures = "all_creatures_progress" in blue_result
+            
+            # Verify only aqua_buddy has points
+            all_creatures = blue_result.get("all_creatures_progress", {})
+            aqua_points = all_creatures.get("aqua_buddy", {}).get("points", 0)
+            other_creatures_zero = all(
+                all_creatures.get(cid, {}).get("points", 0) == 0 
+                for cid in ["leaf_friend", "spark_pal", "blaze_heart"]
+            )
+            
+            blue_success = correct_creature and has_zone and has_all_creatures and aqua_points > 0 and other_creatures_zero
+            details = f"Status: {response.status_code}, Creature: {blue_result.get('current_creature_id')}, Zone: {blue_result.get('zone')}, Aqua points: {aqua_points}, Others zero: {other_creatures_zero}"
+        else:
+            details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+        
+        print_test_result("POST /api/rewards/{student_id}/add-points - Blue zone → Aqua Buddy", blue_success, details)
+        
+        # Test 2: Green zone feeds Leaf Friend creature only
+        green_request = {
+            "points_type": "checkin", 
+            "zone": "green"
+        }
+        
+        response = requests.post(f"{BASE_URL}/rewards/{student_id}/add-points", json=green_request, timeout=10)
+        green_success = response.status_code == 200
+        
+        if green_success:
+            green_result = response.json()
+            correct_creature = green_result.get("current_creature_id") == "leaf_friend"
+            has_zone = green_result.get("zone") == "green"
+            
+            # Verify leaf_friend has points and aqua_buddy kept its points
+            all_creatures = green_result.get("all_creatures_progress", {})
+            leaf_points = all_creatures.get("leaf_friend", {}).get("points", 0)
+            aqua_points = all_creatures.get("aqua_buddy", {}).get("points", 0)
+            other_creatures_zero = all(
+                all_creatures.get(cid, {}).get("points", 0) == 0 
+                for cid in ["spark_pal", "blaze_heart"]
+            )
+            
+            green_success = correct_creature and has_zone and leaf_points > 0 and aqua_points > 0 and other_creatures_zero
+            details = f"Status: {response.status_code}, Creature: {green_result.get('current_creature_id')}, Zone: {green_result.get('zone')}, Leaf points: {leaf_points}, Aqua points: {aqua_points}"
+        else:
+            details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+        
+        print_test_result("POST /api/rewards/{student_id}/add-points - Green zone → Leaf Friend", green_success, details)
+        
+        # Test 3: Yellow zone feeds Spark Pal creature only
+        yellow_request = {
+            "points_type": "checkin",
+            "zone": "yellow"
+        }
+        
+        response = requests.post(f"{BASE_URL}/rewards/{student_id}/add-points", json=yellow_request, timeout=10)
+        yellow_success = response.status_code == 200
+        
+        if yellow_success:
+            yellow_result = response.json()
+            correct_creature = yellow_result.get("current_creature_id") == "spark_pal"
+            has_zone = yellow_result.get("zone") == "yellow"
+            
+            # Verify spark_pal has points and others kept their points
+            all_creatures = yellow_result.get("all_creatures_progress", {})
+            spark_points = all_creatures.get("spark_pal", {}).get("points", 0)
+            aqua_points = all_creatures.get("aqua_buddy", {}).get("points", 0)
+            leaf_points = all_creatures.get("leaf_friend", {}).get("points", 0)
+            blaze_points = all_creatures.get("blaze_heart", {}).get("points", 0)
+            
+            yellow_success = correct_creature and has_zone and spark_points > 0 and aqua_points > 0 and leaf_points > 0 and blaze_points == 0
+            details = f"Status: {response.status_code}, Creature: {yellow_result.get('current_creature_id')}, Zone: {yellow_result.get('zone')}, Spark points: {spark_points}"
+        else:
+            details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+        
+        print_test_result("POST /api/rewards/{student_id}/add-points - Yellow zone → Spark Pal", yellow_success, details)
+        
+        # Test 4: Red zone feeds Blaze Heart creature only
+        red_request = {
+            "points_type": "checkin",
+            "zone": "red"
+        }
+        
+        response = requests.post(f"{BASE_URL}/rewards/{student_id}/add-points", json=red_request, timeout=10)
+        red_success = response.status_code == 200
+        
+        if red_success:
+            red_result = response.json()
+            correct_creature = red_result.get("current_creature_id") == "blaze_heart"
+            has_zone = red_result.get("zone") == "red"
+            
+            # Verify blaze_heart has points and all others kept their points
+            all_creatures = red_result.get("all_creatures_progress", {})
+            blaze_points = all_creatures.get("blaze_heart", {}).get("points", 0)
+            aqua_points = all_creatures.get("aqua_buddy", {}).get("points", 0)
+            leaf_points = all_creatures.get("leaf_friend", {}).get("points", 0)
+            spark_points = all_creatures.get("spark_pal", {}).get("points", 0)
+            
+            red_success = correct_creature and has_zone and blaze_points > 0 and aqua_points > 0 and leaf_points > 0 and spark_points > 0
+            details = f"Status: {response.status_code}, Creature: {red_result.get('current_creature_id')}, Zone: {red_result.get('zone')}, Blaze points: {blaze_points}"
+        else:
+            details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+        
+        print_test_result("POST /api/rewards/{student_id}/add-points - Red zone → Blaze Heart", red_success, details)
+        
+        # Test 5: Multiple blue zone check-ins accumulate only on Aqua Buddy
+        blue_request2 = {
+            "points_type": "checkin",
+            "zone": "blue"
+        }
+        
+        response = requests.post(f"{BASE_URL}/rewards/{student_id}/add-points", json=blue_request2, timeout=10)
+        accumulate_success = response.status_code == 200
+        
+        if accumulate_success:
+            accumulate_result = response.json()
+            all_creatures = accumulate_result.get("all_creatures_progress", {})
+            aqua_points_after = all_creatures.get("aqua_buddy", {}).get("points", 0)
+            
+            # Aqua points should have increased from previous test
+            aqua_increased = aqua_points_after > aqua_points
+            accumulate_success = aqua_increased
+            details = f"Status: {response.status_code}, Aqua points increased: {aqua_increased} (from {aqua_points} to {aqua_points_after})"
+        else:
+            details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+        
+        print_test_result("POST /api/rewards/{student_id}/add-points - Blue zone accumulation test", accumulate_success, details)
+        
+        # Test 6: Verify response structure includes all required fields
+        structure_test = True
+        required_fields = ["current_creature", "all_creatures_progress", "zone", "points_added", "current_points"]
+        
+        if red_success:  # Use the last successful response
+            missing_fields = [field for field in required_fields if field not in red_result]
+            structure_test = len(missing_fields) == 0
+            
+            # Verify all_creatures_progress has all 4 creatures
+            all_creatures = red_result.get("all_creatures_progress", {})
+            expected_creatures = {"aqua_buddy", "leaf_friend", "spark_pal", "blaze_heart"}
+            actual_creatures = set(all_creatures.keys())
+            has_all_creatures = expected_creatures == actual_creatures
+            
+            structure_test = structure_test and has_all_creatures
+            details = f"Missing fields: {missing_fields}, Has all creatures: {has_all_creatures}, Creatures: {actual_creatures}"
+        else:
+            details = "Cannot test structure - no successful response"
+            structure_test = False
+        
+        print_test_result("Response structure validation", structure_test, details)
+        
+        # Clean up: delete test student
+        requests.delete(f"{BASE_URL}/students/{student_id}", timeout=10)
+        
+        # Return overall success
+        overall_success = blue_success and green_success and yellow_success and red_success and accumulate_success and structure_test
+        print(f"\n🎮 Zone-based creature rewards testing {'PASSED' if overall_success else 'FAILED'}")
+        return overall_success
+        
+    except Exception as e:
+        print_test_result("Zone-based creature rewards system", False, f"Exception: {str(e)}")
+        return False
+
 def run_comprehensive_test_suite():
     """Run all backend API tests for new features"""
     print("=" * 60)
@@ -471,6 +667,9 @@ def run_comprehensive_test_suite():
     
     print("\n=== REPORTS ENDPOINTS ===")
     results["reports_endpoints"] = test_reports_endpoints()
+    
+    print("\n=== ZONE-BASED CREATURE REWARDS SYSTEM ===")
+    results["zone_creature_rewards"] = test_zone_based_creature_rewards()
     
     # Summary
     print("\n" + "=" * 60)

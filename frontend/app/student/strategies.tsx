@@ -78,12 +78,13 @@ export default function StrategiesScreen() {
         comment: comment.trim() || undefined,
       });
       
-      // Navigate to rewards screen with points info
+      // Navigate to rewards screen with points info AND the zone
       router.replace({
         pathname: '/student/rewards',
         params: {
           strategiesUsed: selectedStrategies.length.toString(),
           hasComment: comment.trim() ? 'true' : 'false',
+          zone: zone,  // Pass the zone so rewards knows which creature to feed!
         },
       });
     } catch (error) {
@@ -105,12 +106,13 @@ export default function StrategiesScreen() {
         strategies_selected: [],
       });
       
-      // Still go to rewards to show creature, but no points earned
+      // Still go to rewards to show creature, with the zone
       router.replace({
         pathname: '/student/rewards',
         params: {
           strategiesUsed: '0',
           hasComment: 'false',
+          zone: zone,  // Pass the zone so rewards knows which creature to feed!
         },
       });
     } catch (error) {

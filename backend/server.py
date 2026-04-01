@@ -452,13 +452,35 @@ POINTS_CONFIG = {
     "evolution_thresholds": [0, 25, 60, 120]  # Matches creature stage requirements
 }
 
-# Student Rewards Model
+# Zone to Creature mapping - each emotion zone feeds its corresponding creature only
+ZONE_CREATURE_MAP = {
+    "blue": "aqua_buddy",
+    "green": "leaf_friend", 
+    "yellow": "spark_pal",
+    "red": "blaze_heart"
+}
+
+# Student Rewards Model - now tracks points per creature for zone-based progression
 class StudentRewards(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     student_id: str
-    current_creature_id: str = "aqua_buddy"  # Default starting creature (blue)
-    current_stage: int = 0  # 0=start, 1=growing, 2=evolved, 3=final
-    current_points: int = 0  # Points towards current evolution
+    # Per-creature tracking: each creature has its own points and stage
+    creature_points: dict = Field(default_factory=lambda: {
+        "aqua_buddy": 0,
+        "leaf_friend": 0,
+        "spark_pal": 0,
+        "blaze_heart": 0
+    })
+    creature_stages: dict = Field(default_factory=lambda: {
+        "aqua_buddy": 0,
+        "leaf_friend": 0,
+        "spark_pal": 0,
+        "blaze_heart": 0
+    })
+    # Legacy fields for backwards compatibility
+    current_creature_id: str = "aqua_buddy"  # Last creature interacted with
+    current_stage: int = 0
+    current_points: int = 0
     total_points_earned: int = 0
     collected_creatures: List[str] = []  # List of fully evolved creature IDs
     unlocked_moves: List[str] = []  # List of unlocked move IDs
@@ -473,8 +495,9 @@ class StudentRewards(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 class AddPointsRequest(BaseModel):
-    points_type: str  # "strategy", "comment", "streak"
+    points_type: str  # "strategy", "comment", "streak", "checkin"
     strategy_count: int = 1  # Number of strategies used
+    zone: Optional[str] = None  # The emotion zone - required to know which creature to feed
 
 # ================== PRESET AVATARS ==================
 PRESET_AVATARS = [
@@ -6081,16 +6104,51 @@ async def get_student_rewards(student_id: str):
 
 @api_router.post("/rewards/{student_id}/add-points")
 async def add_points_to_student(student_id: str, request: AddPointsRequest):
-    """Add points to a student's rewards and handle evolution"""
+    """Add points to a student's rewards - points go to the creature matching the emotion zone"""
     rewards = await db.student_rewards.find_one({"student_id": student_id})
+    
+    # Initialize default creature tracking
+    default_creature_points = {
+        "aqua_buddy": 0,
+        "leaf_friend": 0,
+        "spark_pal": 0,
+        "blaze_heart": 0
+    }
+    default_creature_stages = {
+        "aqua_buddy": 0,
+        "leaf_friend": 0,
+        "spark_pal": 0,
+        "blaze_heart": 0
+    }
     
     if not rewards:
         # Create default rewards for new student
         new_rewards = StudentRewards(student_id=student_id).dict()
+        new_rewards["creature_points"] = default_creature_points
+        new_rewards["creature_stages"] = default_creature_stages
         await db.student_rewards.insert_one(new_rewards)
         rewards = new_rewards
+    else:
+        # Migrate old rewards data if needed (backwards compatibility)
+        if "creature_points" not in rewards:
+            rewards["creature_points"] = default_creature_points.copy()
+            # If there's existing progress, put it in the current creature
+            if rewards.get("current_points", 0) > 0:
+                old_creature_id = rewards.get("current_creature_id", "aqua_buddy")
+                if old_creature_id in rewards["creature_points"]:
+                    rewards["creature_points"][old_creature_id] = rewards.get("current_points", 0)
+        if "creature_stages" not in rewards:
+            rewards["creature_stages"] = default_creature_stages.copy()
+            if rewards.get("current_stage", 0) > 0:
+                old_creature_id = rewards.get("current_creature_id", "aqua_buddy")
+                if old_creature_id in rewards["creature_stages"]:
+                    rewards["creature_stages"][old_creature_id] = rewards.get("current_stage", 0)
     
-    # Calculate points to add
+    # Determine which creature gets the points based on zone
+    zone = request.zone or "blue"  # Default to blue if no zone specified
+    target_creature_id = ZONE_CREATURE_MAP.get(zone, "aqua_buddy")
+    
+    # Calculate base points to add
     points_to_add = 0
     if request.points_type == "strategy":
         points_to_add = POINTS_CONFIG["strategy_used"] * request.strategy_count
@@ -6101,7 +6159,7 @@ async def add_points_to_student(student_id: str, request: AddPointsRequest):
     elif request.points_type == "checkin":
         points_to_add = POINTS_CONFIG["zone_checkin"]
     
-    # Update streak
+    # Update streak (only once per day, not per creature)
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     last_checkin = rewards.get("last_checkin_date")
     streak_days = rewards.get("streak_days", 0)
@@ -6117,32 +6175,36 @@ async def add_points_to_student(student_id: str, request: AddPointsRequest):
     else:
         streak_days = 1
     
-    # Add streak bonus
-    points_to_add += streak_bonus
+    # Add streak bonus only for checkin type
+    if request.points_type == "checkin":
+        points_to_add += streak_bonus
     
-    # Calculate new totals
-    current_points = rewards.get("current_points", 0) + points_to_add
+    # Get creature's current points and stage
+    creature_points = rewards.get("creature_points", default_creature_points)
+    creature_stages = rewards.get("creature_stages", default_creature_stages)
+    
+    current_creature_points = creature_points.get(target_creature_id, 0) + points_to_add
+    current_creature_stage = creature_stages.get(target_creature_id, 0)
+    
+    # Update total points earned
     total_points = rewards.get("total_points_earned", 0) + points_to_add
-    current_stage = rewards.get("current_stage", 0)
-    current_creature_id = rewards.get("current_creature_id", "bubbles")
-    collected_creatures = rewards.get("collected_creatures", [])
     
-    # Check for evolution
+    # Check for evolution on this specific creature
     evolved = False
     evolution_info = None
     completed_creature = False
-    new_creature_started = False
+    collected_creatures = rewards.get("collected_creatures", [])
     
     thresholds = POINTS_CONFIG["evolution_thresholds"]
+    creature = next((c for c in CREATURES if c["id"] == target_creature_id), CREATURES[0])
     
-    while current_stage < 3 and current_points >= thresholds[current_stage + 1]:
-        current_stage += 1
+    while current_creature_stage < 3 and current_creature_points >= thresholds[current_creature_stage + 1]:
+        current_creature_stage += 1
         evolved = True
         
-        creature = next((c for c in CREATURES if c["id"] == current_creature_id), CREATURES[0])
         evolution_info = {
-            "new_stage": current_stage,
-            "stage_info": creature["stages"][current_stage],
+            "new_stage": current_creature_stage,
+            "stage_info": creature["stages"][current_creature_stage],
             "creature": creature
         }
         
@@ -6156,25 +6218,25 @@ async def add_points_to_student(student_id: str, request: AddPointsRequest):
         
         # Check moves
         for move in creature.get("moves", []):
-            if move["unlocks_at_stage"] == current_stage and move["id"] not in unlocked_moves:
+            if move["unlocks_at_stage"] == current_creature_stage and move["id"] not in unlocked_moves:
                 unlocked_moves.append(move["id"])
                 new_unlocks.append({"type": "move", "item": move})
         
         # Check outfits
         for outfit in creature.get("outfits", []):
-            if outfit["unlocks_at_stage"] == current_stage and outfit["id"] not in unlocked_outfits:
+            if outfit["unlocks_at_stage"] == current_creature_stage and outfit["id"] not in unlocked_outfits:
                 unlocked_outfits.append(outfit["id"])
                 new_unlocks.append({"type": "outfit", "item": outfit})
         
         # Check foods
         for food in creature.get("foods", []):
-            if food["unlocks_at_stage"] == current_stage and food["id"] not in unlocked_foods:
+            if food["unlocks_at_stage"] == current_creature_stage and food["id"] not in unlocked_foods:
                 unlocked_foods.append(food["id"])
                 new_unlocks.append({"type": "food", "item": food})
         
         # Check homes
         for home in creature.get("homes", []):
-            if home["unlocks_at_stage"] == current_stage and home["id"] not in unlocked_homes:
+            if home["unlocks_at_stage"] == current_creature_stage and home["id"] not in unlocked_homes:
                 unlocked_homes.append(home["id"])
                 new_unlocks.append({"type": "home", "item": home})
         
@@ -6186,32 +6248,26 @@ async def add_points_to_student(student_id: str, request: AddPointsRequest):
         rewards["unlocked_foods"] = unlocked_foods
         rewards["unlocked_homes"] = unlocked_homes
     
-    # Check if creature is fully evolved
-    if current_stage >= 3 and current_creature_id not in collected_creatures:
-        collected_creatures.append(current_creature_id)
+    # Check if this creature is now fully evolved
+    if current_creature_stage >= 3 and target_creature_id not in collected_creatures:
+        collected_creatures.append(target_creature_id)
         completed_creature = True
-        
-        # Start a new random creature (that hasn't been collected yet)
-        available_creatures = [c["id"] for c in CREATURES if c["id"] not in collected_creatures]
-        if available_creatures:
-            import random
-            current_creature_id = random.choice(available_creatures)
-            current_stage = 0
-            current_points = 0  # Reset points for new creature
-            new_creature_started = True
-            
-            new_creature = next((c for c in CREATURES if c["id"] == current_creature_id), None)
-            evolution_info = {
-                "new_creature": new_creature,
-                "message": "You completed a creature! Starting a new adventure!"
-            }
+        evolution_info = evolution_info or {}
+        evolution_info["completed"] = True
+        evolution_info["message"] = f"You fully evolved {creature['name']}! Keep going to evolve others!"
+    
+    # Update the creature-specific tracking
+    creature_points[target_creature_id] = current_creature_points
+    creature_stages[target_creature_id] = current_creature_stage
     
     # Update database
     update_data = {
-        "current_points": current_points,
+        "creature_points": creature_points,
+        "creature_stages": creature_stages,
+        "current_creature_id": target_creature_id,  # Track last interacted creature
+        "current_points": current_creature_points,  # For backwards compatibility
+        "current_stage": current_creature_stage,  # For backwards compatibility
         "total_points_earned": total_points,
-        "current_stage": current_stage,
-        "current_creature_id": current_creature_id,
         "collected_creatures": collected_creatures,
         "last_checkin_date": today,
         "streak_days": streak_days,
@@ -6232,58 +6288,122 @@ async def add_points_to_student(student_id: str, request: AddPointsRequest):
     )
     
     # Get updated creature info
-    creature = next((c for c in CREATURES if c["id"] == current_creature_id), CREATURES[0])
-    current_stage_info = creature["stages"][current_stage]
-    next_stage = current_stage + 1
+    current_stage_info = creature["stages"][current_creature_stage]
+    next_stage = current_creature_stage + 1
     points_for_next = thresholds[next_stage] if next_stage < 4 else None
     
     return {
         "points_added": points_to_add,
-        "streak_bonus": streak_bonus,
-        "current_points": current_points,
+        "streak_bonus": streak_bonus if request.points_type == "checkin" else 0,
+        "current_points": current_creature_points,
         "total_points_earned": total_points,
-        "current_stage": current_stage,
+        "current_stage": current_creature_stage,
         "current_creature": creature,
+        "current_creature_id": target_creature_id,
         "current_stage_info": current_stage_info,
         "points_for_next_evolution": points_for_next,
         "evolved": evolved,
         "evolution_info": evolution_info,
         "completed_creature": completed_creature,
-        "new_creature_started": new_creature_started,
+        "new_creature_started": False,  # No longer randomly assigning new creatures
         "collected_creatures": collected_creatures,
-        "streak_days": streak_days
+        "streak_days": streak_days,
+        "zone": zone,
+        # Return all creature progress
+        "all_creatures_progress": {
+            cid: {
+                "points": creature_points.get(cid, 0),
+                "stage": creature_stages.get(cid, 0),
+                "creature": next((c for c in CREATURES if c["id"] == cid), None),
+                "collected": cid in collected_creatures
+            }
+            for cid in ZONE_CREATURE_MAP.values()
+        }
     }
 
 @api_router.get("/rewards/{student_id}/collection")
 async def get_student_collection(student_id: str):
-    """Get all creatures a student has collected"""
+    """Get all creatures a student has collected and their progress"""
     rewards = await db.student_rewards.find_one({"student_id": student_id})
     
+    # Initialize default creature tracking
+    default_creature_points = {
+        "aqua_buddy": 0,
+        "leaf_friend": 0,
+        "spark_pal": 0,
+        "blaze_heart": 0
+    }
+    default_creature_stages = {
+        "aqua_buddy": 0,
+        "leaf_friend": 0,
+        "spark_pal": 0,
+        "blaze_heart": 0
+    }
+    
     if not rewards:
+        # Return all creatures with zero progress
+        all_progress = {}
+        for creature in CREATURES:
+            all_progress[creature["id"]] = {
+                "creature": creature,
+                "points": 0,
+                "stage": 0,
+                "collected": False
+            }
+        
         return {
             "collected_creatures": [],
             "current_creature": CREATURES[0],
             "current_stage": 0,
-            "total_creatures": len(CREATURES)
+            "current_points": 0,
+            "total_creatures": len(CREATURES),
+            "all_creatures_progress": all_progress
         }
     
+    # Get creature-specific tracking (with backwards compatibility)
+    creature_points = rewards.get("creature_points", default_creature_points)
+    creature_stages = rewards.get("creature_stages", default_creature_stages)
     collected_ids = rewards.get("collected_creatures", [])
-    current_creature_id = rewards.get("current_creature_id", "bubbles")
+    current_creature_id = rewards.get("current_creature_id", "aqua_buddy")
     
+    # Migrate old data if needed
+    if not creature_points or all(v == 0 for v in creature_points.values()):
+        # Check if there's old progress to migrate
+        if rewards.get("current_points", 0) > 0:
+            old_creature_id = rewards.get("current_creature_id", "aqua_buddy")
+            if old_creature_id in default_creature_points:
+                creature_points[old_creature_id] = rewards.get("current_points", 0)
+                creature_stages[old_creature_id] = rewards.get("current_stage", 0)
+    
+    # Build full creatures list with progress
     collected = [c for c in CREATURES if c["id"] in collected_ids]
     current = next((c for c in CREATURES if c["id"] == current_creature_id), CREATURES[0])
+    
+    # Build progress for all creatures
+    all_progress = {}
+    for creature in CREATURES:
+        cid = creature["id"]
+        all_progress[cid] = {
+            "creature": creature,
+            "points": creature_points.get(cid, 0),
+            "stage": creature_stages.get(cid, 0),
+            "collected": cid in collected_ids
+        }
     
     return {
         "collected_creatures": collected,
         "current_creature": current,
-        "current_stage": rewards.get("current_stage", 0),
-        "current_points": rewards.get("current_points", 0),
+        "current_stage": creature_stages.get(current_creature_id, 0),
+        "current_points": creature_points.get(current_creature_id, 0),
         "total_creatures": len(CREATURES),
         "total_collected": len(collected_ids),
         "unlocked_moves": rewards.get("unlocked_moves", []),
         "unlocked_outfits": rewards.get("unlocked_outfits", []),
         "unlocked_foods": rewards.get("unlocked_foods", []),
-        "unlocked_homes": rewards.get("unlocked_homes", [])
+        "unlocked_homes": rewards.get("unlocked_homes", []),
+        "all_creatures_progress": all_progress,
+        "creature_points": creature_points,
+        "creature_stages": creature_stages
     }
 
 # Include the router in the main app

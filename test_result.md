@@ -375,6 +375,21 @@ backend:
         agent: "testing"
         comment: "✅ VERIFIED: Admin promotion endpoint exists and properly requires authentication. Returns 401 Unauthorized for unauthenticated requests as expected. Endpoint should accept admin_code 'ADMINCLASS2025' and promote authenticated users to admin role. Endpoint is correctly implemented with proper admin code validation (ADMINCLASS2025, HAPPYADMIN2025)."
 
+  - task: "POST /api/rewards/{student_id}/add-points - Zone-based creature points"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "NEWLY IMPLEMENTED: Zone-to-creature mapping - Blue emotions feed Aqua creature only, Green emotions feed Leaf creature, Yellow emotions feed Spark creature, Red emotions feed Blaze creature. Points are tracked per-creature. Testing verified: blue→aqua_buddy, green→leaf_friend, yellow→spark_pal, red→blaze_heart."
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED: Zone-based creature rewards system working perfectly! All zone mappings correct: blue→aqua_buddy, green→leaf_friend, yellow→spark_pal, red→blaze_heart. Points accumulate independently per creature. Response includes current_creature matching zone, all_creatures_progress with all 4 creatures, and zone field. Tested point accumulation - multiple blue zone check-ins only increase aqua_buddy points while preserving other creatures' progress. All required response fields present and structured correctly."
+
 frontend:
   - task: "Home screen with role selection"
     implemented: true
@@ -504,7 +519,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Admin endpoints testing complete"
+    - "Zone-based creature rewards system testing complete"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -530,3 +545,5 @@ agent_communication:
     message: "✅ ADMIN ENDPOINTS TESTING COMPLETE: All 3 new admin endpoints PASSED successfully. Tested GET /api/admin/stats (admin dashboard statistics), GET /api/admin/resources (admin resources management), and POST /api/auth/promote-admin (admin promotion with code). All endpoints exist and properly require authentication, returning 401 Unauthorized for unauthenticated requests as expected. Admin code 'ADMINCLASS2025' is correctly configured in the backend. Endpoints are properly implemented with admin role verification and should function correctly when accessed by authenticated admin users. All admin functionality is secure and operational within authentication constraints."
   - agent: "main"
     message: "AUTH FIX IMPLEMENTED: Fixed mobile session token handling in api.ts and AppContext.tsx. Changes: (1) Added token initialization on app startup via initializeSessionToken(), (2) Now passing Authorization Bearer token on ALL platforms (not just mobile), (3) Added debugging logs to track token flow, (4) Backend get_current_user already properly reads from both cookie AND Authorization header. The fix ensures session tokens are loaded from AsyncStorage before any API calls are made. This should resolve the 401 Unauthorized errors on Teacher code generation and Parent link child features."
+  - agent: "testing"
+    message: "✅ ZONE-BASED CREATURE REWARDS SYSTEM TESTING COMPLETE: NEW FEATURE fully verified and working perfectly! Comprehensive testing of POST /api/rewards/{student_id}/add-points endpoint with zone parameter. VERIFIED: Blue zone feeds Aqua Buddy creature only (blue→aqua_buddy), Green zone feeds Leaf Friend creature only (green→leaf_friend), Yellow zone feeds Spark Pal creature only (yellow→spark_pal), Red zone feeds Blaze Heart creature only (red→blaze_heart). Response structure includes current_creature matching zone, all_creatures_progress showing all 4 creatures with independent points/stages, and zone field matching request. Points accumulate correctly per-creature - multiple blue zone check-ins only increase aqua_buddy points while preserving other creatures' progress. All required response fields present and structured correctly. Zone-to-creature mapping system is fully operational and ready for production use."
