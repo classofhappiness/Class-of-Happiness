@@ -157,6 +157,7 @@ export default function HomeScreen() {
 
       {/* About & Legal Footer */}
       <View style={styles.footerSection}>
+        <Text style={styles.copyrightText}>© 2025 Class of Happiness</Text>
         <TouchableOpacity
           style={styles.aboutButton}
           onPress={() => router.push('/about' as any)}
@@ -348,6 +349,11 @@ const styles = StyleSheet.create({
     marginTop: 32,
     alignItems: 'center',
     paddingBottom: 40,
+  },
+  copyrightText: {
+    fontSize: 12,
+    color: '#999',
+    marginBottom: 4,
   },
   aboutButton: {
     flexDirection: 'row',

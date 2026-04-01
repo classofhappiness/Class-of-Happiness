@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -13,6 +13,7 @@ import {
   Modal,
   Share,
   Platform,
+  Animated,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -80,6 +81,34 @@ export default function StudentDetailScreen() {
     school_sharing_enabled: boolean;
   } | null>(null);
   const [showHomeDataTab, setShowHomeDataTab] = useState(false);
+
+  // Tooltip fade animation states
+  const [showStrategiesTooltip, setShowStrategiesTooltip] = useState(true);
+  const [showFamilyTooltip, setShowFamilyTooltip] = useState(true);
+  const strategiesOpacity = useRef(new Animated.Value(1)).current;
+  const familyOpacity = useRef(new Animated.Value(1)).current;
+
+  // Auto-fade tooltips after 5 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(strategiesOpacity, {
+          toValue: 0,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(familyOpacity, {
+          toValue: 0,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setShowStrategiesTooltip(false);
+        setShowFamilyTooltip(false);
+      });
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const fetchData = async () => {
     if (!studentId) return;
@@ -265,21 +294,41 @@ export default function StudentDetailScreen() {
           >
             <MaterialIcons name="edit" size={20} color="#5C6BC0" />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.strategiesButton}
-            onPress={() => router.push({
-              pathname: '/teacher/strategies',
-              params: { studentId: student.id }
-            })}
-          >
-            <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.shareParentButton}
-            onPress={() => setShowLinkCodeModal(true)}
-          >
-            <MaterialIcons name="family-restroom" size={20} color="#4A90D9" />
-          </TouchableOpacity>
+          
+          {/* Strategies Button with Tooltip */}
+          <View style={styles.tooltipContainer}>
+            <TouchableOpacity
+              style={styles.strategiesButton}
+              onPress={() => router.push({
+                pathname: '/teacher/strategies',
+                params: { studentId: student.id }
+              })}
+            >
+              <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
+            </TouchableOpacity>
+            {showStrategiesTooltip && (
+              <Animated.View style={[styles.tooltip, { opacity: strategiesOpacity }]}>
+                <Text style={styles.tooltipText}>{t('manage_strategies') || 'Manage strategies'}</Text>
+                <View style={styles.tooltipArrow} />
+              </Animated.View>
+            )}
+          </View>
+          
+          {/* Family Button with Tooltip */}
+          <View style={styles.tooltipContainer}>
+            <TouchableOpacity
+              style={styles.shareParentButton}
+              onPress={() => setShowLinkCodeModal(true)}
+            >
+              <MaterialIcons name="family-restroom" size={20} color="#4A90D9" />
+            </TouchableOpacity>
+            {showFamilyTooltip && (
+              <Animated.View style={[styles.tooltip, styles.tooltipRight, { opacity: familyOpacity }]}>
+                <Text style={styles.tooltipText}>{t('share_with_family') || 'Share with family'}</Text>
+                <View style={[styles.tooltipArrow, styles.tooltipArrowRight]} />
+              </Animated.View>
+            )}
+          </View>
         </View>
 
         {/* Period Selector */}
@@ -1368,5 +1417,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#F44336',
+  },
+  // Tooltip styles
+  tooltipContainer: {
+    position: 'relative',
+  },
+  tooltip: {
+    position: 'absolute',
+    top: -45,
+    left: '50%',
+    transform: [{ translateX: -60 }],
+    backgroundColor: '#333',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    zIndex: 100,
+    minWidth: 120,
+  },
+  tooltipRight: {
+    left: 'auto',
+    right: -10,
+    transform: [],
+  },
+  tooltipText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  tooltipArrow: {
+    position: 'absolute',
+    bottom: -6,
+    left: '50%',
+    marginLeft: -6,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 6,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#333',
+  },
+  tooltipArrowRight: {
+    left: 'auto',
+    right: 15,
+    marginLeft: 0,
   },
 });

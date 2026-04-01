@@ -246,7 +246,7 @@ export default function SubscriptionScreen() {
             if (typeof navigator !== 'undefined' && navigator.share) {
               navigator.share({
                 title: 'Class of Happiness App',
-                text: 'Try this amazing emotional regulation app for students!',
+                text: 'Try this amazing emotional wellness app for students!',
                 url: url
               });
             } else {
