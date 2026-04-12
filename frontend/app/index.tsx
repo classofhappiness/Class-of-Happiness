@@ -29,8 +29,14 @@ export default function HomeScreen() {
       style={[styles.container, { paddingTop: insets.top }]}
       contentContainerStyle={styles.scrollContent}
     >
-      {/* Header with Login */}
+      {/* Header with Settings + Login */}
       <View style={styles.topBar}>
+        <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={() => router.push('/settings')}
+        >
+          <MaterialIcons name="settings" size={26} color="#666" />
+        </TouchableOpacity>
         {isAuthenticated ? (
           <TouchableOpacity
             style={styles.settingsButton}

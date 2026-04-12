@@ -249,7 +249,7 @@ export default function RewardsScreen() {
       {collectionData && (
         <CreatureCollection
           visible={showCollection}
-          collectedCreatures={collectionData.collected_creatures}
+          collectedCreatures={collectionData.collected_creatures || []}
           currentCreature={rewardsData.current_creature}
           currentStage={rewardsData.current_stage}
           currentPoints={rewardsData.current_points}
@@ -258,6 +258,7 @@ export default function RewardsScreen() {
           unlockedOutfits={collectionData.unlocked_outfits || []}
           unlockedFoods={collectionData.unlocked_foods || []}
           unlockedHomes={collectionData.unlocked_homes || []}
+          allCreatures={collectionData.all_creatures || []}
           t={t}
           onClose={() => setShowCollection(false)}
         />

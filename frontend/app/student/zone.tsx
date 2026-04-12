@@ -14,7 +14,7 @@ const getColourInfo = (t: (key: string) => string) => ({
   blue: {
     color: '#5DADE2',
     icon: 'battery-charging-full',
-    title: t('blue_zone') || 'Blue Emotions',
+    title: t('blue_feelings') || 'Blue Feelings',
     feeling: t('blue_feeling') || 'Quiet Energy',
     examples: [t('tired') || 'Tired', t('sad') || 'Sad', t('lonely') || 'Lonely', t('need_rest') || 'Need Rest'],
     description: t('blue_description') || 'Your body is moving slowly. This might mean you are feeling tired, a bit lonely, or just need some rest to recharge.',
@@ -22,7 +22,7 @@ const getColourInfo = (t: (key: string) => string) => ({
   green: {
     color: '#58D68D',
     icon: 'waves',
-    title: t('green_zone') || 'Green Emotions',
+    title: t('green_feelings') || 'Green Feelings',
     feeling: t('green_feeling') || 'Balanced Energy',
     examples: [t('calm') || 'Calm', t('happy') || 'Happy', t('focused') || 'Focused', t('ready_to_learn') || 'Ready to Learn'],
     description: t('green_description') || 'You are ready to learn, listen, and play fairly. This is the steady state where you feel comfortable and focused.',
@@ -30,7 +30,7 @@ const getColourInfo = (t: (key: string) => string) => ({
   yellow: {
     color: '#F4D03F',
     icon: 'flash-on',
-    title: t('yellow_zone') || 'Yellow Emotions',
+    title: t('yellow_feelings') || 'Yellow Feelings',
     feeling: t('yellow_feeling') || 'Fizzing Energy',
     examples: [t('silly') || 'Silly', t('frustrated') || 'Frustrated', t('worried') || 'Worried', t('butterflies') || 'Butterflies'],
     description: t('yellow_description') || 'You are starting to lose focus or feeling wobbly. This covers being silly, frustrated, or having butterflies in your stomach.',
@@ -38,7 +38,7 @@ const getColourInfo = (t: (key: string) => string) => ({
   red: {
     color: '#EC7063',
     icon: 'local-fire-department',
-    title: t('red_zone') || 'Red Emotions',
+    title: t('red_feelings') || 'Red Feelings',
     feeling: t('red_feeling') || 'Fire Energy',
     examples: [t('super_charged') || 'Super-Charged', t('very_upset') || 'Very Upset', t('out_of_control') || 'Out of Control', t('explosive') || 'Explosive'],
     description: t('red_description') || 'This is when your body feels like it\'s moving too fast—think of feelings like being super-charged, extremely upset, or out of control.',
@@ -59,7 +59,7 @@ export default function ColourSelectionScreen() {
   // Set translated header title
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: 'How are you feeling?',
+      title: t('how_are_you_feeling') || 'How are you feeling?',
     });
   }, [navigation, language, translations]);
 

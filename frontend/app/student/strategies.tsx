@@ -26,10 +26,10 @@ export default function StrategiesScreen() {
   // Get translated zone label
   const getZoneLabel = () => {
     const labels: Record<string, string> = {
-      blue: t('blue_zone') || 'Blue Emotions',
-      green: t('green_zone') || 'Green Emotions',
-      yellow: t('yellow_zone') || 'Yellow Emotions',
-      red: t('red_zone') || 'Red Emotions',
+      blue: t('blue_feelings') || 'Blue Feelings',
+      green: t('green_feelings') || 'Green Feelings',
+      yellow: t('yellow_feelings') || 'Yellow Feelings',
+      red: t('red_feelings') || 'Red Feelings',
     };
     return zone ? labels[zone] : labels.green;
   };
@@ -175,8 +175,8 @@ export default function StrategiesScreen() {
           <Text style={styles.headerTitle}>{getZoneLabel()}</Text>
           <Text style={styles.headerSubtitle}>
             {zone === 'green' 
-              ? t('green_zone_help')
-              : t('other_zone_help')}
+              ? t('loading_helpers')
+              : t('loading_helpers')}
           </Text>
         </View>
       </View>
@@ -192,13 +192,13 @@ export default function StrategiesScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {loading ? (
-          <Text style={styles.loadingText}>{t('loading_strategies')}</Text>
+          <Text style={styles.loadingText}>{t('loading_helpers')}</Text>
         ) : (
           <>
             <Text style={styles.instruction}>
               {zone === 'green' 
-                ? t('tap_strategies_green')
-                : t('tap_strategies_help')}
+                ? t('tap_helpers_green')
+                : t('tap_helpers_other')}
             </Text>
             
             {strategies.map((strategy) => (

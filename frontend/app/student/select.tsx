@@ -49,7 +49,8 @@ export default function StudentSelectScreen() {
             currentStage: collection.current_stage,
             collectedCreatures: collection.collected_creatures,
             totalPoints: collection.current_points,
-          };
+            allCreatures: collection.all_creatures || [],
+          } as any;
         } catch (error) {
           console.error(`Error fetching creatures for ${student.id}:`, error);
         }
@@ -96,6 +97,44 @@ export default function StudentSelectScreen() {
     if (!data) return null;
 
     const { currentCreature, currentStage, collectedCreatures } = data;
+    
+    // Get ALL 4 creatures with progress from collection data
+    const allCreatures = (data as any).allCreatures || [];
+    
+    // If we have all creatures data, show all 4
+    if (allCreatures.length > 0) {
+      return (
+        <View style={styles.creatureIconsContainer}>
+          <View style={styles.collectedIcons}>
+            {allCreatures.slice(0, 4).map((creature: any) => {
+              const cStage = creature.current_stage || 0;
+              const cColor = creature.color || '#CCC';
+              const cEmoji = creature.stages?.[cStage]?.emoji || '🥚';
+              const hasPoints = (creature.current_points || 0) > 0;
+              return (
+                <View
+                  key={creature.id}
+                  style={[styles.collectedCreatureIcon, { 
+                    backgroundColor: hasPoints ? cColor + '30' : '#F0F0F0',
+                    borderWidth: 1,
+                    borderColor: hasPoints ? cColor : '#DDD',
+                  }]}
+                >
+                  <Text style={[styles.collectedEmoji, { opacity: hasPoints ? 1 : 0.4 }]}>
+                    {cEmoji}
+                  </Text>
+                  {cStage >= 3 && (
+                    <View style={[styles.completeBadge, { backgroundColor: cColor }]}>
+                      <Text style={styles.completeBadgeText}>✓</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      );
+    }
 
     return (
       <View style={styles.creatureIconsContainer}>
@@ -104,15 +143,11 @@ export default function StudentSelectScreen() {
           <Text style={styles.miniCreatureEmoji}>
             {currentCreature.stages[currentStage].emoji}
           </Text>
-          {/* Stage indicator dots */}
           <View style={styles.stageDots}>
             {[0, 1, 2, 3].map((s) => (
               <View 
                 key={s} 
-                style={[
-                  styles.stageDot,
-                  { backgroundColor: s <= currentStage ? currentCreature.color : '#DDD' }
-                ]} 
+                style={[styles.stageDot, { backgroundColor: s <= currentStage ? currentCreature.color : '#DDD' }]} 
               />
             ))}
           </View>
@@ -240,6 +275,7 @@ export default function StudentSelectScreen() {
           unlockedOutfits={collectionData.unlocked_outfits || []}
           unlockedFoods={collectionData.unlocked_foods || []}
           unlockedHomes={collectionData.unlocked_homes || []}
+          allCreatures={collectionData?.all_creatures || []}
           t={t}
           onClose={() => setShowCollection(false)}
         />

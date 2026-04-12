@@ -171,7 +171,6 @@ async function apiRequest(endpoint: string, options: RequestInit = {}) {
   
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Request failed' }));
-    console.error('[API] Request failed:', endpoint, response.status, error.detail);
     throw new Error(error.detail || 'Request failed');
   }
   
