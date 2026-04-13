@@ -11,3 +11,4 @@ build/
 *.wav
 ios/
 android/
+frontend/.metro-cache/
