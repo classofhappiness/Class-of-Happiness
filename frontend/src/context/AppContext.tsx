@@ -456,8 +456,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const loginWithEmail = async (email: string) => {
     try {
       setIsLoading(true);
-      const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://class-of-happiness-production.up.railway.app';
-      const response = await fetch(`${API_BASE}/auth/email-login`, {
+      const response = await fetch('https://class-of-happiness-production.up.railway.app/api/auth/email-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
