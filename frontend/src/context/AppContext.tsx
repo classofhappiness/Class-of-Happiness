@@ -473,6 +473,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       await AsyncStorage.setItem('session_token', session_token);
       await AsyncStorage.setItem('user_data', JSON.stringify(user));
       
+      // IMPORTANT: Set token in API module so all requests are authenticated
+      const { setSessionToken } = require('../utils/api');
+      await setSessionToken(session_token);
+      
       setUser(user);
       setIsAuthenticated(true);
       
