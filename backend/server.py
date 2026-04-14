@@ -2180,63 +2180,53 @@ async def promote_admin(request: Request):
 
 @api_router.post("/auth/email-login")
 async def email_login(request: Request):
-    """Simple email-based login - creates or finds user account"""
-    body = await request.json()
-    email = body.get("email", "").strip().lower()
-    if not email or "@" not in email:
-        raise HTTPException(status_code=400, detail="Valid email required")
-    
-    # Find or create user
-    existing = supabase.table("users").select("*").eq("email", email).execute()
-    if existing.data:
-        user = existing.data[0]
-        # Update last seen
-        supabase.table("users").update({
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }).eq("email", email).execute()
-    else:
-        # Create new user
-        name = email.split("@")[0].replace(".", " ").title()
-        user_id = f"user_{uuid.uuid4().hex[:12]}"
-        new_user = {
-            "user_id": user_id,
-            "email": email,
-            "name": name,
-            "role": "teacher",
-            "language": "en",
-            "subscription_status": "none",
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        result = supabase.table("users").insert(new_user).execute()
-        user = result.data[0] if result.data else new_user
-    
-    # Create session token
-    session_token = str(uuid.uuid4())
-    expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+    """Simple email-based login"""
     try:
-        supabase.table("user_sessions").insert({
-            "session_token": session_token,
-            "user_id": user["user_id"],
-            "expires_at": expires_at.isoformat(),
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }).execute()
-    except Exception as e:
-        logger.warning(f"Session insert error (non-fatal): {e}")
-        # Store session in users table as fallback
+        body = await request.json()
+        email = body.get("email", "").strip().lower()
+        if not email or "@" not in email:
+            raise HTTPException(status_code=400, detail="Valid email required")
+        
+        # Find or create user
         try:
-            supabase.table("users").update({
-                "session_token": session_token
-            }).eq("user_id", user["user_id"]).execute()
-        except Exception as e2:
-            logger.warning(f"Fallback session error: {e2}")
-    
-    return {"user": user, "session_token": session_token}
+            existing = supabase.table("users").select("*").eq("email", email).execute()
+            if existing.data:
+                user = existing.data[0]
+            else:
+                name = email.split("@")[0].replace(".", " ").title()
+                user_id = f"user_{uuid.uuid4().hex[:12]}"
+                new_user = {
+                    "user_id": user_id,
+                    "email": email,
+                    "name": name,
+                    "role": "teacher",
+                    "language": "en",
+                    "subscription_status": "none",
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }
+                result = supabase.table("users").insert(new_user).execute()
+                user = result.data[0] if result.data else new_user
+        except Exception as e:
+            logger.error(f"User lookup error: {e}")
+            raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        
+        # Create session token - try user_sessions table first, fallback to simple token
+        session_token = str(uuid.uuid4())
+        try:
+            supabase.table("user_sessions").insert({
+                "session_token": session_token,
+                "user_id": user["user_id"],
+                "expires_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }).execute()
+        except Exception as e:
+            logger.warning(f"user_sessions insert failed: {e} - using token only")
+        
+        return {"user": user, "session_token": session_token}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Email login error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-# ================== MOUNT ROUTER ==================
-app.include_router(api_router)
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("server:app", host="0.0.0.0", port=8001, reload=True)
-# Updated Tue Apr 14 03:45:53 WEST 2026
-# Updated Tue Apr 14 03:47:23 WEST 2026
