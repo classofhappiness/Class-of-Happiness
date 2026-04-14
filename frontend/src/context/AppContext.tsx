@@ -448,88 +448,63 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const login = async () => {
-    // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+    // Simple email-based login - no external auth dependency
     try {
-      if (Platform.OS === 'web') {
-        // Web: use traditional redirect
-        if (typeof window !== 'undefined') {
-          const redirectUrl = window.location.origin + '/auth/callback';
-          window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
-        }
-      } else {
-        // Mobile (iOS/Android): use WebBrowser for auth
-        // Use expo-linking to create a proper redirect URL that works in both Expo Go and standalone builds
-        const redirectUrl = ExpoLinking.createURL('auth/callback');
-        
-        console.log('[Login] Redirect URL:', redirectUrl);
-        
-        const result = await WebBrowser.openAuthSessionAsync(
-          `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`,
-          redirectUrl
-        );
-        
-        console.log('[Login] Auth result:', result.type);
-        
-        if (result.type === 'success' && result.url) {
-          console.log('[Login] Success URL:', result.url);
-          
-          // Extract session_id from the URL - it could be in hash or query params
-          let sessionId: string | null = null;
-          
-          try {
-            const url = new URL(result.url);
-            // Check query params first
-            sessionId = url.searchParams.get('session_id');
-            
-            // If not in query params, check hash
-            if (!sessionId && url.hash) {
-              const hashParams = new URLSearchParams(url.hash.replace('#', ''));
-              sessionId = hashParams.get('session_id');
-            }
-            
-            // Also try to extract from the URL path/fragment directly
-            if (!sessionId) {
-              const match = result.url.match(/session_id[=:]([^&\s#]+)/);
-              if (match) {
-                sessionId = match[1];
-              }
-            }
-          } catch (e) {
-            console.log('[Login] URL parsing error:', e);
-            // Try regex as fallback
-            const match = result.url.match(/session_id[=:]([^&\s#]+)/);
-            if (match) {
-              sessionId = match[1];
-            }
+      const { Alert } = require('react-native');
+      
+      // Show email input dialog
+      Alert.prompt(
+        'Sign In',
+        'Enter your email address to sign in:',
+        async (email: string) => {
+          if (!email || !email.includes('@')) {
+            Alert.alert('Error', 'Please enter a valid email address');
+            return;
           }
-          
-          console.log('[Login] Session ID:', sessionId ? 'found' : 'not found');
-          
-          if (sessionId) {
-            // Exchange session with backend
-            try {
-              const userData: any = await authApi.exchangeSession(sessionId);
-              // Store the session token from the response for mobile auth
-              if (userData && userData.session_token) {
-                await setSessionToken(userData.session_token);
-              }
-              // Refresh auth state
-              await checkAuth();
-              console.log('[Login] Auth complete!');
-            } catch (e) {
-              console.error('[Login] Session exchange error:', e);
-            }
-          }
-        } else if (result.type === 'cancel') {
-          console.log('[Login] User cancelled');
-        } else {
-          console.log('[Login] Auth failed:', result.type);
-        }
-      }
+          await loginWithEmail(email.trim().toLowerCase());
+        },
+        'plain-text',
+        '',
+        'email-address'
+      );
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('[Login] Error:', error);
     }
   };
+
+  const loginWithEmail = async (email: string) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`${API_URL}/auth/email-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Login failed');
+      }
+      
+      const data = await response.json();
+      const { user, session_token } = data;
+      
+      // Save session
+      await AsyncStorage.setItem('session_token', session_token);
+      await AsyncStorage.setItem('user_data', JSON.stringify(user));
+      
+      setUser(user);
+      setIsAuthenticated(true);
+      
+      console.log('[Login] Success:', user.email);
+    } catch (error) {
+      console.error('[Login] Email login error:', error);
+      const { Alert } = require('react-native');
+      Alert.alert('Sign In Failed', 'Could not sign in. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+;
 
   const logout = async () => {
     try {

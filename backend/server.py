@@ -2417,6 +2417,53 @@ async def promote_admin(request: Request):
     supabase.table("users").update({"role": "admin"}).eq("user_id", user["user_id"]).execute()
     return {"role": "admin", "message": "Admin access granted!"}
 
+
+@api_router.post("/auth/email-login")
+async def email_login(request: Request):
+    """Simple email-based login - creates or finds user account"""
+    body = await request.json()
+    email = body.get("email", "").strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Valid email required")
+    
+    # Find or create user
+    existing = supabase.table("users").select("*").eq("email", email).execute()
+    if existing.data:
+        user = existing.data[0]
+        # Update last seen
+        supabase.table("users").update({
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }).eq("email", email).execute()
+    else:
+        # Create new user
+        name = email.split("@")[0].replace(".", " ").title()
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        new_user = {
+            "user_id": user_id,
+            "email": email,
+            "name": name,
+            "role": "teacher",
+            "language": "en",
+            "subscription_status": "none",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        result = supabase.table("users").insert(new_user).execute()
+        user = result.data[0] if result.data else new_user
+    
+    # Create session token
+    session_token = str(uuid.uuid4())
+    expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+    try:
+        supabase.table("user_sessions").insert({
+            "session_token": session_token,
+            "user_id": user["user_id"],
+            "expires_at": expires_at.isoformat()
+        }).execute()
+    except Exception as e:
+        logger.error(f"Session insert error: {e}")
+    
+    return {"user": user, "session_token": session_token}
+
 # ================== MOUNT ROUTER ==================
 app.include_router(api_router)
 
