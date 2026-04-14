@@ -1202,7 +1202,7 @@ async def health():
 async def get_translations(lang: str):
     translations = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
     # Always fill missing keys from English
-    result = {**TRANSLATIONS["en"], **translations}
+    result = {**translations, **{k: v for k, v in TRANSLATIONS["en"].items() if k not in translations}}
     return result
 
 # ================== AVATARS ==================
