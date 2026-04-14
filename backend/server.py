@@ -2376,6 +2376,47 @@ async def get_admin_stats(request: Request):
         "total_checkins": len(logs.data or []),
     }
 
+
+@api_router.post("/subscription/redeem-trial-code")
+async def redeem_trial_code(request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    code = body.get("code", "").upper().strip()
+    if code not in PROMO_CODES:
+        raise HTTPException(status_code=400, detail="Invalid trial code")
+    promo = PROMO_CODES[code]
+    now = datetime.now(timezone.utc)
+    if promo.get("type") == "admin":
+        supabase.table("users").update({"role": "admin"}).eq("user_id", user["user_id"]).execute()
+        return {"message": "Admin access granted!", "trial_days": 0, "trial_ends_at": ""}
+    days = promo.get("days", 30)
+    trial_ends = now + timedelta(days=days)
+    supabase.table("users").update({
+        "subscription_status": "trial",
+        "trial_started_at": now.isoformat(),
+        "subscription_expires_at": trial_ends.isoformat()
+    }).eq("user_id", user["user_id"]).execute()
+    return {
+        "message": f"Trial activated! {days} days free access.",
+        "trial_days": days,
+        "trial_ends_at": trial_ends.isoformat()
+    }
+
+@api_router.post("/auth/promote-admin")
+async def promote_admin(request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    code = body.get("admin_code", "").upper().strip()
+    admin_codes = [k for k,v in PROMO_CODES.items() if v.get("type") == "admin"]
+    if code not in admin_codes:
+        raise HTTPException(status_code=400, detail="Invalid admin code")
+    supabase.table("users").update({"role": "admin"}).eq("user_id", user["user_id"]).execute()
+    return {"role": "admin", "message": "Admin access granted!"}
+
 # ================== MOUNT ROUTER ==================
 app.include_router(api_router)
 
