@@ -38,7 +38,8 @@ interface AppContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: () => Promise<void>;
+  login: () => void;
+  loginWithEmail: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   
@@ -447,29 +448,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
-  const login = async () => {
-    // Simple email-based login - no external auth dependency
-    try {
-      const { Alert } = require('react-native');
-      
-      // Show email input dialog
-      Alert.prompt(
-        'Sign In',
-        'Enter your email address to sign in:',
-        async (email: string) => {
-          if (!email || !email.includes('@')) {
-            Alert.alert('Error', 'Please enter a valid email address');
-            return;
-          }
-          await loginWithEmail(email.trim().toLowerCase());
-        },
-        'plain-text',
-        '',
-        'email-address'
-      );
-    } catch (error) {
-      console.error('[Login] Error:', error);
-    }
+  const login = () => {
+    const { router } = require('expo-router');
+    router.push('/auth/login');
   };
 
   const loginWithEmail = async (email: string) => {
@@ -628,6 +609,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         isAuthenticated,
         isLoading: isAppLoading,
         login,
+        loginWithEmail,
         logout,
         checkAuth,
         
