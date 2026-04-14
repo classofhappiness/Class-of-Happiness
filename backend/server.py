@@ -2217,10 +2217,18 @@ async def email_login(request: Request):
         supabase.table("user_sessions").insert({
             "session_token": session_token,
             "user_id": user["user_id"],
-            "expires_at": expires_at.isoformat()
+            "expires_at": expires_at.isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat()
         }).execute()
     except Exception as e:
-        logger.error(f"Session insert error: {e}")
+        logger.warning(f"Session insert error (non-fatal): {e}")
+        # Store session in users table as fallback
+        try:
+            supabase.table("users").update({
+                "session_token": session_token
+            }).eq("user_id", user["user_id"]).execute()
+        except Exception as e2:
+            logger.warning(f"Fallback session error: {e2}")
     
     return {"user": user, "session_token": session_token}
 
