@@ -485,7 +485,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setIsLoading(false);
     }
   };
-;
 
   const logout = async () => {
     try {
