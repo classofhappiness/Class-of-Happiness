@@ -2230,3 +2230,11 @@ async def email_login(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
+
+# ================== MOUNT ROUTER ==================
+app.include_router(api_router)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("server:app", host="0.0.0.0", port=8001, reload=True)
