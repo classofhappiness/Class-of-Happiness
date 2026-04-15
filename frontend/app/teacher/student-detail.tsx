@@ -91,13 +91,13 @@ export default function StudentDetailScreen() {
   // Auto-fade tooltips after 5 seconds
   useEffect(() => {
     const timer = setTimeout(() => {
-      Animated.parallel([
+      Animated.sequence([Animated.timing(strategiesOpacity, { toValue: 0, duration: 800, useNativeDriver: true }), Animated.delay(600), Animated.delay(1500), Animated.timing(familyOpacity, { toValue: 0, duration: 800, useNativeDriver: true })]).start(() => { setShowStrategiesTooltip(false); setShowFamilyTooltip(false); }); // replaced - Animated.sequence([
         Animated.timing(strategiesOpacity, {
           toValue: 0,
           duration: 1000,
           useNativeDriver: true,
         }),
-        Animated.timing(familyOpacity, {
+        Animated.delay(1500), Animated.timing(familyOpacity, {
           toValue: 0,
           duration: 1000,
           useNativeDriver: true,
@@ -280,7 +280,7 @@ export default function StudentDetailScreen() {
             presetAvatars={presetAvatars}
           />
           <View style={styles.studentInfo}>
-            <Text style={styles.studentName}>{student.name}</Text>
+            <Text style={styles.studentName} numberOfLines={1} adjustsFontSizeToFit>{student.name}</Text>
             <Text style={styles.studentClassroom}>
               {getClassroomName(student.classroom_id)}
             </Text>
@@ -831,7 +831,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 16,
   },
-  studentName: {
+  studentName: { flexShrink: 1,
     fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
