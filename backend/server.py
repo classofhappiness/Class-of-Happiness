@@ -1943,3 +1943,60 @@ async def get_family_zone_logs(member_id: str, request: Request, days: int = 7):
     start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     result = supabase.table("family_zone_logs").select("*").eq("family_member_id", member_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
     return result.data or []
+
+# ================== REWARDS COLLECTION ==================
+@api_router.get("/rewards/{student_id}/collection")
+async def get_collection(student_id: str):
+    result = supabase.table("student_rewards").select("*").eq("student_id", student_id).execute()
+    if result.data:
+        rewards = result.data[0]
+    else:
+        rewards = {
+            "student_id": student_id,
+            "total_points_earned": 0,
+            "streak_days": 0,
+            "creature_points": {"aqua_buddy": 0, "leaf_friend": 0, "spark_pal": 0, "blaze_heart": 0},
+            "creature_stages": {"aqua_buddy": 0, "leaf_friend": 0, "spark_pal": 0, "blaze_heart": 0},
+            "collected_creatures": [],
+            "current_creature_id": "aqua_buddy",
+            "current_stage": 0,
+            "current_points": 0
+        }
+
+    CREATURES = {
+        "aqua_buddy": {"id": "aqua_buddy", "name": "Aqua Buddy", "color": "#4A90D9", "stages": [{"emoji": "🥚"}, {"emoji": "🐣"}, {"emoji": "🐥"}, {"emoji": "🐬"}]},
+        "leaf_friend": {"id": "leaf_friend", "name": "Leaf Friend", "color": "#4CAF50", "stages": [{"emoji": "🌱"}, {"emoji": "🌿"}, {"emoji": "🍀"}, {"emoji": "🌳"}]},
+        "spark_pal":   {"id": "spark_pal",   "name": "Spark Pal",   "color": "#FFC107", "stages": [{"emoji": "✨"}, {"emoji": "⚡"}, {"emoji": "🌟"}, {"emoji": "🌈"}]},
+        "blaze_heart": {"id": "blaze_heart", "name": "Blaze Heart", "color": "#F44336", "stages": [{"emoji": "🔥"}, {"emoji": "💫"}, {"emoji": "❤️"}, {"emoji": "🦁"}]},
+    }
+
+    creature_points = rewards.get("creature_points") or {}
+    creature_stages = rewards.get("creature_stages") or {}
+    collected = rewards.get("collected_creatures") or []
+    current_id = rewards.get("current_creature_id", "aqua_buddy")
+    current_stage = rewards.get("current_stage", 0)
+    current_points = rewards.get("current_points", 0)
+
+    all_creatures = []
+    for cid, cdata in CREATURES.items():
+        all_creatures.append({
+            **cdata,
+            "current_points": creature_points.get(cid, 0),
+            "current_stage": creature_stages.get(cid, 0),
+        })
+
+    current_creature = CREATURES.get(current_id, CREATURES["aqua_buddy"])
+    collected_creatures = [CREATURES[c] for c in collected if c in CREATURES]
+
+    return {
+        "current_creature": {**current_creature, "current_points": current_points, "current_stage": current_stage},
+        "current_stage": current_stage,
+        "current_points": current_points,
+        "collected_creatures": collected_creatures,
+        "total_creatures": len(CREATURES),
+        "all_creatures": all_creatures,
+        "unlocked_moves": [],
+        "unlocked_outfits": [],
+        "unlocked_foods": [],
+        "unlocked_homes": [],
+    }
