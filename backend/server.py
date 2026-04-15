@@ -1908,3 +1908,38 @@ app.include_router(api_router)
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("server:app", host="0.0.0.0", port=8001, reload=True)
+
+# ================== FAMILY ZONE LOGS ==================
+@api_router.post("/family/zone-logs")
+async def create_family_zone_log(request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    data = await request.json()
+    member_id = data.get("family_member_id")
+    if not member_id:
+        raise HTTPException(status_code=400, detail="family_member_id required")
+    # Verify member belongs to this user
+    member = supabase.table("family_members").select("*").eq("id", member_id).eq("user_id", user["user_id"]).execute()
+    if not member.data:
+        raise HTTPException(status_code=404, detail="Family member not found")
+    new_log = {
+        "id": str(uuid.uuid4()),
+        "family_member_id": member_id,
+        "user_id": user["user_id"],
+        "zone": data.get("zone"),
+        "strategies_selected": data.get("strategies_selected", []),
+        "comment": data.get("comment"),
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    result = supabase.table("family_zone_logs").insert(new_log).execute()
+    return result.data[0] if result.data else new_log
+
+@api_router.get("/family/zone-logs/{member_id}")
+async def get_family_zone_logs(member_id: str, request: Request, days: int = 7):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    result = supabase.table("family_zone_logs").select("*").eq("family_member_id", member_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
+    return result.data or []
