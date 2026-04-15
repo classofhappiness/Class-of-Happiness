@@ -27,7 +27,7 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
   };
 
   return (
-    <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? insets.top : 12 }]}>
+    <View style={[styles.header, { paddingTop: (Platform.OS === "ios" ? insets.top : 12) + 8 }]}>
       <View style={styles.headerContent}>
         {showBack && (
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginRight: 8,
-    padding: 4,
+    padding: 10,
   },
   logo: {
     width: 28,
