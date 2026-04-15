@@ -15,7 +15,6 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { familyApi, FamilyMember, strategiesApi, Strategy } from '../../src/utils/api';
-import { CelebrationOverlay } from '../../src/components/CelebrationOverlay';
 
 const ZONES = [
   { id: 'blue', name: 'Blue', color: '#4A90D9', desc: 'Sad, Tired, Bored', face: '😢' },
@@ -37,7 +36,6 @@ export default function FamilyCheckInScreen() {
   const [comment, setComment] = useState('');
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [showCelebration, setShowCelebration] = useState(false);
   const [step, setStep] = useState<'zone' | 'strategies'>('zone');
 
   useEffect(() => {
@@ -70,7 +68,14 @@ export default function FamilyCheckInScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!selectedZone || !memberId) return;
+    if (!selectedZone) {
+      Alert.alert('Oops', 'Please select a zone first');
+      return;
+    }
+    if (!memberId) {
+      Alert.alert('Error', 'Family member not found. Please go back and try again.');
+      return;
+    }
     
     setLoading(true);
     try {
@@ -79,15 +84,28 @@ export default function FamilyCheckInScreen() {
         zone: selectedZone,
         strategies_selected: selectedStrategies,
         comment: comment.trim() || undefined,
+        profile_type: 'family',    // tells backend this is a family check-in
+        is_home_checkin: true,     // tells backend this is a home check-in
       });
       
-      if (selectedStrategies.length > 0) {
-        setShowCelebration(true);
-      } else {
-        router.back();
-      }
+      // Family/adult check-ins: no creature reward, just go back with a success message
+      Alert.alert(
+        t('checkin_saved') || 'Check-in Saved! ✅',
+        t('checkin_saved_message') || 'Great job checking in today!',
+        [{ text: t('done') || 'Done', onPress: () => router.back() }]
+      );
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to save check-in');
+      const errorMessage = error.message || 'Failed to save check-in';
+      // Give a friendlier message if family member not found
+      if (errorMessage.toLowerCase().includes('not found')) {
+        Alert.alert(
+          'Error',
+          'This family member could not be found. Please go back and try again.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -238,22 +256,6 @@ export default function FamilyCheckInScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* Celebration Overlay */}
-      <CelebrationOverlay
-        visible={showCelebration}
-        studentName={memberName || 'Family Member'}
-        avatarType="preset"
-        avatarPreset="cat"
-        onComplete={() => {
-          setShowCelebration(false);
-          router.back();
-        }}
-        translations={{
-          well_done: t('well_done') || 'Well Done!',
-          support_message: t('family_support_message') || 'You can always ask for support!'
-        }}
-      />
     </SafeAreaView>
   );
 }
