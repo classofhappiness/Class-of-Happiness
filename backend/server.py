@@ -1903,7 +1903,6 @@ async def email_login(request: Request):
 
 
 # ================== MOUNT ROUTER ==================
-app.include_router(api_router)
 
 if __name__ == "__main__":
     import uvicorn
@@ -2000,3 +1999,5 @@ async def get_collection(student_id: str):
         "unlocked_foods": [],
         "unlocked_homes": [],
     }
+
+app.include_router(api_router)
