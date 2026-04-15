@@ -94,7 +94,7 @@ export default function ColourSelectionScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Greeting */}
         <View style={styles.greetingRow}>
           <Avatar
@@ -110,32 +110,30 @@ export default function ColourSelectionScreen() {
           </View>
         </View>
 
-        {/* 2x2 Colour Grid */}
-        <View style={styles.zonesGrid}>
+        {/* Full-width Zone Buttons */}
+        <View style={styles.zonesStack}>
           {(['blue', 'green', 'yellow', 'red'] as const).map((zone) => {
             const info = colourInfo[zone];
             return (
               <TouchableOpacity
                 key={zone}
-                style={[styles.zoneCard, { backgroundColor: info.color }]}
+                style={[styles.zoneButton, { backgroundColor: info.color }]}
                 onPress={() => handleZoneSelect(zone)}
                 activeOpacity={0.85}
               >
-                {/* Left side: title and feeling */}
-                <View style={styles.zoneLeft}>
-                  <Text style={styles.zoneEmoji}>{info.emoji}</Text>
+                {/* Big emoji on left */}
+                <Text style={styles.zoneEmoji}>{info.emoji}</Text>
+
+                {/* Centre: title + feeling words */}
+                <View style={styles.zoneCenter}>
                   <Text style={styles.zoneTitle}>{info.title}</Text>
-                  <Text style={styles.zoneFeeling}>{info.feeling}</Text>
+                  <Text style={styles.zoneWords}>
+                    {info.words.map(w => w.label).join('  ·  ')}
+                  </Text>
                 </View>
-                {/* Right side: emoji words */}
-                <View style={styles.zoneRight}>
-                  {info.words.map((w, i) => (
-                    <View key={i} style={styles.wordChip}>
-                      <Text style={styles.wordEmoji}>{w.emoji}</Text>
-                      <Text style={styles.wordLabel}>{w.label}</Text>
-                    </View>
-                  ))}
-                </View>
+
+                {/* Arrow on right */}
+                <MaterialIcons name="chevron-right" size={28} color="rgba(255,255,255,0.8)" />
               </TouchableOpacity>
             );
           })}
@@ -149,7 +147,7 @@ export default function ColourSelectionScreen() {
           <MaterialIcons name="help-outline" size={16} color="#5C6BC0" />
           <Text style={styles.helpButtonText}>{t('need_help') || 'Need help? Tap here!'}</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
 
       {/* Help Modal */}
       <Modal visible={showHelp} transparent animationType="slide" onRequestClose={() => setShowHelp(false)}>
@@ -190,26 +188,35 @@ export default function ColourSelectionScreen() {
   );
 }
 
-const CARD_HEIGHT = (Dimensions.get('window').height - 280) / 2;
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  content: { flex: 1, padding: 10 },
-  greetingRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', padding: 10, borderRadius: 14, marginBottom: 8, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
+  content: { padding: 12, paddingBottom: 32 },
+  greetingRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', padding: 10, borderRadius: 14, marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
   greetingText: { flex: 1, marginLeft: 10 },
   greetingHi: { fontSize: 15, fontWeight: 'bold', color: '#333' },
   greetingSub: { fontSize: 12, color: '#888', marginTop: 1 },
-  zonesGrid: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  zoneCard: { width: (width - 28) / 2, height: CARD_HEIGHT, borderRadius: 18, padding: 10, flexDirection: 'row', elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4 },
-  zoneLeft: { flex: 1, justifyContent: 'center' },
-  zoneEmoji: { fontSize: 24, marginBottom: 4 },
-  zoneTitle: { fontSize: 13, fontWeight: 'bold', color: 'white', marginBottom: 2 },
-  zoneFeeling: { fontSize: 10, color: 'rgba(255,255,255,0.85)' },
-  zoneRight: { width: 80, justifyContent: 'center', gap: 4 },
-  wordChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 8, paddingHorizontal: 4, paddingVertical: 2, gap: 3 },
-  wordEmoji: { fontSize: 12 },
-  wordLabel: { fontSize: 9, color: 'white', fontWeight: '600', flexShrink: 1 },
-  helpButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8, padding: 8, backgroundColor: 'white', borderRadius: 12 },
+
+  // Full-width stacked buttons
+  zonesStack: { gap: 10 },
+  zoneButton: {
+    width: '100%',
+    paddingVertical: 20,
+    paddingHorizontal: 18,
+    borderRadius: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  zoneEmoji: { fontSize: 36, marginRight: 14 },
+  zoneCenter: { flex: 1 },
+  zoneTitle: { fontSize: 20, fontWeight: 'bold', color: 'white', marginBottom: 4 },
+  zoneWords: { fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: '500' },
+
+  helpButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, padding: 8, backgroundColor: 'white', borderRadius: 12 },
   helpButtonText: { fontSize: 12, color: '#5C6BC0', fontWeight: '600' },
   errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   errorText: { fontSize: 18, color: '#666' },
