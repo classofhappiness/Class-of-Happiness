@@ -645,6 +645,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
+    paddingTop: 8,
   },
   tabsContainer: {
     paddingHorizontal: 12,
