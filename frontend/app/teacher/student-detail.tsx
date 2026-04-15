@@ -91,17 +91,10 @@ export default function StudentDetailScreen() {
   // Auto-fade tooltips after 5 seconds
   useEffect(() => {
     const timer = setTimeout(() => {
-      Animated.sequence([Animated.timing(strategiesOpacity, { toValue: 0, duration: 800, useNativeDriver: true }), Animated.delay(600), Animated.delay(1500), Animated.timing(familyOpacity, { toValue: 0, duration: 800, useNativeDriver: true })]).start(() => { setShowStrategiesTooltip(false); setShowFamilyTooltip(false); }); // replaced - Animated.sequence([
-        Animated.timing(strategiesOpacity, {
-          toValue: 0,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.delay(1500), Animated.timing(familyOpacity, {
-          toValue: 0,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
+      Animated.sequence([
+        Animated.timing(strategiesOpacity, { toValue: 0, duration: 800, useNativeDriver: true }),
+        Animated.delay(1500),
+        Animated.timing(familyOpacity, { toValue: 0, duration: 800, useNativeDriver: true }),
       ]).start(() => {
         setShowStrategiesTooltip(false);
         setShowFamilyTooltip(false);
