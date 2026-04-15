@@ -11,8 +11,8 @@ import {
   TouchableOpacity,
   SafeAreaView,
 } from 'react-native';
-import { useTranslation } from '../hooks/useTranslation'; // adjust path as needed
-import { API_URL } from '../config'; // your hardcoded Railway URL
+import { useApp } from '../../src/context/AppContext';
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 interface Creature {
   id: string;
@@ -33,7 +33,7 @@ export default function CreatureCollectionScreen({ studentId, authToken, onBack 
   const [creatures, setCreatures] = useState<Creature[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { t } = useTranslation();
+  const { t } = useApp();
 
   useEffect(() => {
     fetchCreatures();

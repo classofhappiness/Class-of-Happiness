@@ -84,8 +84,8 @@ export default function FamilyCheckInScreen() {
         zone: selectedZone,
         strategies_selected: selectedStrategies,
         comment: comment.trim() || undefined,
-        profile_type: 'family',    // tells backend this is a family check-in
-        is_home_checkin: true,     // tells backend this is a home check-in
+        
+        
       });
       
       // Family/adult check-ins: no creature reward, just go back with a success message
