@@ -144,7 +144,18 @@ export default function StrategiesScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <CelebrationOverlay visible={showCelebration} />
+      <CelebrationOverlay
+        visible={showCelebration}
+        studentName={currentStudent?.name || ''}
+        avatarType={currentStudent?.avatar_type || 'preset'}
+        avatarPreset={currentStudent?.avatar_preset}
+        avatarCustom={currentStudent?.avatar_custom}
+        onComplete={() => setShowCelebration(false)}
+        translations={{
+          well_done: t('well_done') || 'Well Done!',
+          support_message: t('support_message') || 'Keep going!'
+        }}
+      />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={[styles.zoneHeader, { backgroundColor: zoneColor + '20', borderColor: zoneColor }]}>

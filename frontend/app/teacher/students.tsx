@@ -220,7 +220,7 @@ export default function ManageStudentsScreen() {
         {!selectionMode && (
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => router.push('/profiles/create')}
+            onPress={() => router.push({ pathname: '/profiles/create', params: { classroomId: filterClassroom || '' } })}
           >
             <MaterialIcons name="person-add" size={24} color="white" />
             <Text style={styles.addButtonText}>{t('add_new_student')}</Text>

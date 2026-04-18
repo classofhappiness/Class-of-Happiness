@@ -12,7 +12,7 @@ import {
   Platform,
   Image
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
@@ -37,7 +37,8 @@ export default function CreateProfileScreen() {
   const [avatarType, setAvatarType] = useState<'preset' | 'custom'>('preset');
   const [selectedPreset, setSelectedPreset] = useState('cat');
   const [customImage, setCustomImage] = useState<string | null>(null);
-  const [selectedClassroom, setSelectedClassroom] = useState<string | null>(null);
+  const params = useLocalSearchParams<{ classroomId?: string }>();
+  const [selectedClassroom, setSelectedClassroom] = useState<string | null>(params.classroomId || null);
   const [saving, setSaving] = useState(false);
 
   const pickImage = async () => {
