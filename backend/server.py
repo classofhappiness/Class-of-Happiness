@@ -10,6 +10,7 @@ import logging
 import httpx
 import io
 import calendar
+import base64
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -88,48 +89,140 @@ CREATURES = [
     {
         "id": "aqua_buddy",
         "name": "Aqua Buddy",
+        "zone": "blue",
+        "description": "Water creature that grows stronger with calm check-ins.",
+        "color": "#4A90D9",
         "feeling_colour": "blue",
-        "emoji_stages": ["🥚", "🐣", "🐧", "🦋"],
+        "emoji_stages": ["🐟", "🐬", "🦈", "🐋"],
+        "moves": [
+            {"id": "aqua_wave", "name": "Wave Spin", "emoji": "🌊", "unlocks_at_stage": 1},
+            {"id": "aqua_dive", "name": "Deep Dive", "emoji": "💦", "unlocks_at_stage": 2},
+            {"id": "aqua_splash", "name": "Mega Splash", "emoji": "🫧", "unlocks_at_stage": 3},
+        ],
+        "outfits": [
+            {"id": "aqua_hat", "name": "Captain Hat", "emoji": "🧢", "unlocks_at_stage": 1},
+            {"id": "aqua_armor", "name": "Ocean Armor", "emoji": "🛡️", "unlocks_at_stage": 2},
+            {"id": "aqua_crown", "name": "Sea Crown", "emoji": "👑", "unlocks_at_stage": 3},
+        ],
+        "foods": [
+            {"id": "aqua_snack", "name": "Sea Snack", "emoji": "🦐", "unlocks_at_stage": 1},
+            {"id": "aqua_feast", "name": "Reef Feast", "emoji": "🐠", "unlocks_at_stage": 2},
+            {"id": "aqua_royal_meal", "name": "Royal Current Meal", "emoji": "🍣", "unlocks_at_stage": 3},
+        ],
+        "homes": [
+            {"id": "aqua_home_1", "name": "Coral Cave", "emoji": "🪸", "unlocks_at_stage": 1},
+            {"id": "aqua_home_2", "name": "Ocean Arch", "emoji": "🌉", "unlocks_at_stage": 2},
+            {"id": "aqua_home_3", "name": "Whale Bay", "emoji": "🏝️", "unlocks_at_stage": 3},
+        ],
         "stages": [
-            {"stage": 0, "name": "Egg", "emoji": "🥚", "description": "A mysterious egg...", "required_points": 0},
-            {"stage": 1, "name": "Hatchling", "emoji": "🐣", "description": "A curious hatchling!", "required_points": 25},
-            {"stage": 2, "name": "Penguin", "emoji": "🐧", "description": "A cool penguin friend!", "required_points": 60},
-            {"stage": 3, "name": "Butterfly", "emoji": "🦋", "description": "A beautiful butterfly!", "required_points": 120}
+            {"stage": 0, "name": "Fish", "emoji": "🐟", "description": "A tiny fish friend is ready to grow.", "required_points": 0},
+            {"stage": 1, "name": "Dolphin", "emoji": "🐬", "description": "A playful dolphin joins your team!", "required_points": 25},
+            {"stage": 2, "name": "Shark", "emoji": "🦈", "description": "A strong shark swims with confidence.", "required_points": 60},
+            {"stage": 3, "name": "Whale", "emoji": "🐋", "description": "A mighty whale leads the ocean crew!", "required_points": 120}
         ]
     },
     {
         "id": "leaf_friend",
         "name": "Leaf Friend",
+        "zone": "green",
+        "description": "Grass/nature creature that grows with steady choices.",
+        "color": "#4CAF50",
         "feeling_colour": "green",
-        "emoji_stages": ["🥚", "🌱", "🌿", "🌳"],
+        "emoji_stages": ["🐸", "🦕", "🦖", "🐊"],
+        "moves": [
+            {"id": "leaf_vine", "name": "Vine Whip", "emoji": "🌿", "unlocks_at_stage": 1},
+            {"id": "leaf_roar", "name": "Forest Roar", "emoji": "🌳", "unlocks_at_stage": 2},
+            {"id": "leaf_guard", "name": "Jungle Guard", "emoji": "🛡️", "unlocks_at_stage": 3},
+        ],
+        "outfits": [
+            {"id": "leaf_cap", "name": "Leaf Cap", "emoji": "🍃", "unlocks_at_stage": 1},
+            {"id": "leaf_cloak", "name": "Moss Cloak", "emoji": "🧥", "unlocks_at_stage": 2},
+            {"id": "leaf_crown", "name": "Nature Crown", "emoji": "🌼", "unlocks_at_stage": 3},
+        ],
+        "foods": [
+            {"id": "leaf_snack", "name": "Berry Mix", "emoji": "🫐", "unlocks_at_stage": 1},
+            {"id": "leaf_feast", "name": "Garden Plate", "emoji": "🥗", "unlocks_at_stage": 2},
+            {"id": "leaf_royal_meal", "name": "Dino Feast", "emoji": "🌽", "unlocks_at_stage": 3},
+        ],
+        "homes": [
+            {"id": "leaf_home_1", "name": "Grass Nest", "emoji": "🌱", "unlocks_at_stage": 1},
+            {"id": "leaf_home_2", "name": "Fern Den", "emoji": "🌿", "unlocks_at_stage": 2},
+            {"id": "leaf_home_3", "name": "Dino Grove", "emoji": "🏕️", "unlocks_at_stage": 3},
+        ],
         "stages": [
-            {"stage": 0, "name": "Seed", "emoji": "🥚", "description": "A tiny seed...", "required_points": 0},
-            {"stage": 1, "name": "Sprout", "emoji": "🌱", "description": "A tiny sprout!", "required_points": 25},
-            {"stage": 2, "name": "Plant", "emoji": "🌿", "description": "A healthy plant!", "required_points": 60},
-            {"stage": 3, "name": "Tree", "emoji": "🌳", "description": "A magnificent tree!", "required_points": 120}
+            {"stage": 0, "name": "Frog", "emoji": "🐸", "description": "A little frog ready to grow.", "required_points": 0},
+            {"stage": 1, "name": "Dino Buddy", "emoji": "🦕", "description": "A friendly dinosaur appears.", "required_points": 25},
+            {"stage": 2, "name": "Dino Hero", "emoji": "🦖", "description": "A brave dinosaur keeps growing.", "required_points": 60},
+            {"stage": 3, "name": "Dino Legend", "emoji": "🐊", "description": "Your dinosaur is fully evolved!", "required_points": 120}
         ]
     },
     {
         "id": "spark_pal",
         "name": "Spark Pal",
+        "zone": "yellow",
+        "description": "Electric creature that channels energetic check-ins.",
+        "color": "#FFC107",
         "feeling_colour": "yellow",
-        "emoji_stages": ["🥚", "⭐", "🌟", "✨"],
+        "emoji_stages": ["🐱", "🐈", "🐆", "🐯"],
+        "moves": [
+            {"id": "spark_dash", "name": "Zap Dash", "emoji": "⚡", "unlocks_at_stage": 1},
+            {"id": "spark_burst", "name": "Static Burst", "emoji": "💥", "unlocks_at_stage": 2},
+            {"id": "spark_storm", "name": "Thunder Storm", "emoji": "🌩️", "unlocks_at_stage": 3},
+        ],
+        "outfits": [
+            {"id": "spark_band", "name": "Power Band", "emoji": "🟨", "unlocks_at_stage": 1},
+            {"id": "spark_visor", "name": "Voltage Visor", "emoji": "🕶️", "unlocks_at_stage": 2},
+            {"id": "spark_cape", "name": "Lightning Cape", "emoji": "🦸", "unlocks_at_stage": 3},
+        ],
+        "foods": [
+            {"id": "spark_snack", "name": "Energy Bite", "emoji": "🍌", "unlocks_at_stage": 1},
+            {"id": "spark_feast", "name": "Charge Bowl", "emoji": "🍯", "unlocks_at_stage": 2},
+            {"id": "spark_royal_meal", "name": "Storm Meal", "emoji": "🍍", "unlocks_at_stage": 3},
+        ],
+        "homes": [
+            {"id": "spark_home_1", "name": "Spark Pod", "emoji": "🔋", "unlocks_at_stage": 1},
+            {"id": "spark_home_2", "name": "Neon Base", "emoji": "🏙️", "unlocks_at_stage": 2},
+            {"id": "spark_home_3", "name": "Thunder Tower", "emoji": "🗼", "unlocks_at_stage": 3},
+        ],
         "stages": [
-            {"stage": 0, "name": "Spark", "emoji": "🥚", "description": "A tiny spark...", "required_points": 0},
-            {"stage": 1, "name": "Star", "emoji": "⭐", "description": "A bright star!", "required_points": 25},
-            {"stage": 2, "name": "Glow", "emoji": "🌟", "description": "A glowing star!", "required_points": 60},
-            {"stage": 3, "name": "Shimmer", "emoji": "✨", "description": "A dazzling shimmer!", "required_points": 120}
+            {"stage": 0, "name": "Kitten", "emoji": "🐱", "description": "A playful little kitten.", "required_points": 0},
+            {"stage": 1, "name": "Cat", "emoji": "🐈", "description": "A curious cat on the prowl!", "required_points": 25},
+            {"stage": 2, "name": "Leopard", "emoji": "🐆", "description": "A swift leopard on the move!", "required_points": 60},
+            {"stage": 3, "name": "Tiger", "emoji": "🐯", "description": "A mighty tiger!", "required_points": 120}
         ]
     },
     {
         "id": "blaze_heart",
         "name": "Blaze Heart",
+        "zone": "red",
+        "description": "Fire creature that transforms intense feelings into strength.",
+        "color": "#F44336",
         "feeling_colour": "red",
-        "emoji_stages": ["🥚", "🔥", "🦊", "🐉"],
+        "emoji_stages": ["🔥", "🦊", "🐲", "🐉"],
+        "moves": [
+            {"id": "blaze_breath", "name": "Fire Breath", "emoji": "🔥", "unlocks_at_stage": 1},
+            {"id": "blaze_leap", "name": "Flare Leap", "emoji": "🦊", "unlocks_at_stage": 2},
+            {"id": "blaze_roar", "name": "Dragon Roar", "emoji": "🐉", "unlocks_at_stage": 3},
+        ],
+        "outfits": [
+            {"id": "blaze_helm", "name": "Flame Helm", "emoji": "⛑️", "unlocks_at_stage": 1},
+            {"id": "blaze_armor", "name": "Inferno Armor", "emoji": "🥋", "unlocks_at_stage": 2},
+            {"id": "blaze_crown", "name": "Dragon Crown", "emoji": "👑", "unlocks_at_stage": 3},
+        ],
+        "foods": [
+            {"id": "blaze_snack", "name": "Spicy Snack", "emoji": "🌶️", "unlocks_at_stage": 1},
+            {"id": "blaze_feast", "name": "Lava Soup", "emoji": "🍲", "unlocks_at_stage": 2},
+            {"id": "blaze_royal_meal", "name": "Dragon Feast", "emoji": "🍖", "unlocks_at_stage": 3},
+        ],
+        "homes": [
+            {"id": "blaze_home_1", "name": "Ember Den", "emoji": "🏕️", "unlocks_at_stage": 1},
+            {"id": "blaze_home_2", "name": "Flame Cave", "emoji": "🌋", "unlocks_at_stage": 2},
+            {"id": "blaze_home_3", "name": "Dragon Peak", "emoji": "🏰", "unlocks_at_stage": 3},
+        ],
         "stages": [
-            {"stage": 0, "name": "Ember", "emoji": "🥚", "description": "A warm ember...", "required_points": 0},
+            {"stage": 0, "name": "Ember", "emoji": "🔥", "description": "A warm ember glowing with energy.", "required_points": 0},
             {"stage": 1, "name": "Flame", "emoji": "🔥", "description": "A brave flame!", "required_points": 25},
-            {"stage": 2, "name": "Fox", "emoji": "🦊", "description": "A clever fox!", "required_points": 60},
+            {"stage": 2, "name": "Dragon Pup", "emoji": "🐲", "description": "A young dragon growing strong!", "required_points": 60},
             {"stage": 3, "name": "Dragon", "emoji": "🐉", "description": "A mighty dragon!", "required_points": 120}
         ]
     }
@@ -945,8 +1038,10 @@ class ClassroomCreate(BaseModel):
 
 class FeelingLogCreate(BaseModel):
     student_id: str
-    feeling_colour: str  # blue/green/yellow/red
+    feeling_colour: Optional[str] = None  # blue/green/yellow/red
+    zone: Optional[str] = None  # frontend compatibility alias
     helpers_selected: List[str] = []
+    strategies_selected: List[str] = []  # frontend compatibility alias
     comment: Optional[str] = None
     location: str = "school"
 
@@ -954,6 +1049,7 @@ class AddPointsRequest(BaseModel):
     points_type: str = "checkin"
     strategy_count: int = 0
     feeling_colour: Optional[str] = "blue"
+    zone: Optional[str] = None  # frontend compatibility alias
 
 class ResourceCreate(BaseModel):
     title: str
@@ -1281,11 +1377,13 @@ async def delete_classroom(classroom_id: str, request: Request):
 # ================== FEELING LOGS (was zone_logs) ==================
 @api_router.post("/feeling-logs")
 async def create_feeling_log(log: FeelingLogCreate, request: Request):
+    feeling_colour = log.feeling_colour or log.zone or "blue"
+    selected_helpers = log.helpers_selected or log.strategies_selected or []
     new_log = {
         "id": str(uuid.uuid4()),
         "student_id": log.student_id,
-        "feeling_colour": log.feeling_colour,
-        "helpers_selected": log.helpers_selected,
+        "feeling_colour": feeling_colour,
+        "helpers_selected": selected_helpers,
         "comment": log.comment,
         "location": log.location,
         "timestamp": datetime.now(timezone.utc).isoformat()
@@ -1302,12 +1400,63 @@ async def create_zone_log(log: FeelingLogCreate, request: Request):
 async def get_feeling_logs(student_id: str, days: int = 7):
     start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     result = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
-    return result.data or []
+    logs = result.data or []
+    return [{
+        **log,
+        "zone": log.get("feeling_colour", log.get("zone")),
+        "strategies_selected": log.get("helpers_selected", log.get("strategies_selected", [])),
+    } for log in logs]
 
 # Keep old endpoint name for frontend compatibility
 @api_router.get("/zone-logs/{student_id}")
 async def get_zone_logs(student_id: str, days: int = 7):
     return await get_feeling_logs(student_id, days)
+
+# Frontend compatibility route
+@api_router.get("/zone-logs/student/{student_id}")
+async def get_zone_logs_by_student(student_id: str, days: int = 7):
+    return await get_feeling_logs(student_id, days)
+
+@api_router.get("/zone-logs")
+async def get_zone_logs_all(
+    request: Request,
+    student_id: Optional[str] = None,
+    classroom_id: Optional[str] = None,
+    days: int = 7
+):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    query = supabase.table("feeling_logs").select("*").gte("timestamp", start_date).order("timestamp", desc=True)
+
+    # Specific student filter
+    if student_id:
+        query = query.eq("student_id", student_id)
+        result = query.execute()
+        return result.data or []
+
+    # Resolve visible students for the teacher context
+    students_query = supabase.table("students").select("id")
+    if classroom_id:
+        students_query = students_query.eq("classroom_id", classroom_id)
+    students_result = students_query.execute()
+    visible_student_ids = [s["id"] for s in (students_result.data or [])]
+    if not visible_student_ids:
+        return []
+
+    # Supabase python client doesn't always support .in_ on all setups; aggregate safely.
+    logs: List[dict] = []
+    for sid in visible_student_ids:
+        sid_result = supabase.table("feeling_logs").select("*").eq("student_id", sid).gte("timestamp", start_date).order("timestamp", desc=True).execute()
+        logs.extend(sid_result.data or [])
+    logs.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+    return [{
+        **log,
+        "zone": log.get("feeling_colour", log.get("zone")),
+        "strategies_selected": log.get("helpers_selected", log.get("strategies_selected", [])),
+    } for log in logs]
 
 # ================== HELPERS / STRATEGIES ==================
 @api_router.get("/helpers")
@@ -1378,6 +1527,10 @@ async def get_rewards(student_id: str):
         "creature_points": {"aqua_buddy": 0, "leaf_friend": 0, "spark_pal": 0, "blaze_heart": 0},
         "creature_stages": {"aqua_buddy": 0, "leaf_friend": 0, "spark_pal": 0, "blaze_heart": 0},
         "collected_creatures": [],
+        "unlocked_moves": [],
+        "unlocked_outfits": [],
+        "unlocked_foods": [],
+        "unlocked_homes": [],
         "current_creature_id": "aqua_buddy",
         "current_stage": 0,
         "current_points": 0
@@ -1400,13 +1553,17 @@ async def add_points(student_id: str, req: AddPointsRequest):
             "creature_points": {"aqua_buddy": 0, "leaf_friend": 0, "spark_pal": 0, "blaze_heart": 0},
             "creature_stages": {"aqua_buddy": 0, "leaf_friend": 0, "spark_pal": 0, "blaze_heart": 0},
             "collected_creatures": [],
+            "unlocked_moves": [],
+            "unlocked_outfits": [],
+            "unlocked_foods": [],
+            "unlocked_homes": [],
             "current_creature_id": "aqua_buddy",
             "current_stage": 0,
             "current_points": 0
         }
 
     # Which creature gets the points
-    feeling_colour = req.feeling_colour or "blue"
+    feeling_colour = req.feeling_colour or req.zone or "blue"
     target_creature = FEELING_COLOUR_MAP.get(feeling_colour, "aqua_buddy")
 
     # Calculate points
@@ -1626,6 +1783,22 @@ async def add_family_member(member: FamilyMemberCreate, request: Request):
     result = supabase.table("family_members").insert(new_member).execute()
     return result.data[0] if result.data else new_member
 
+@api_router.put("/family/members/{member_id}")
+async def update_family_member(member_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    allowed = ["name", "relationship", "avatar_type", "avatar_preset", "avatar_custom"]
+    update_data = {k: v for k, v in body.items() if k in allowed and v is not None}
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+    supabase.table("family_members").update(update_data).eq("id", member_id).eq("user_id", user["user_id"]).execute()
+    updated = supabase.table("family_members").select("*").eq("id", member_id).eq("user_id", user["user_id"]).execute()
+    if not updated.data:
+        raise HTTPException(status_code=404, detail="Family member not found")
+    return updated.data[0]
+
 @api_router.delete("/family/members/{member_id}")
 async def delete_family_member(member_id: str, request: Request):
     user = await get_current_user(request)
@@ -1656,6 +1829,11 @@ async def link_child(body: LinkChildRequest, request: Request):
         "expires_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
     }).execute()
     return {"message": "Child linked successfully", "student": student}
+
+@api_router.post("/students/link")
+async def link_child_compat(body: LinkChildRequest, request: Request):
+    # Frontend compatibility alias
+    return await link_child(body, request)
 
 @api_router.get("/parent/children")
 async def get_linked_children(request: Request):
@@ -1797,11 +1975,211 @@ async def get_admin_stats(request: Request):
     users = supabase.table("users").select("*").execute()
     students = supabase.table("students").select("*").execute()
     logs = supabase.table("feeling_logs").select("*").execute()
+    resources = supabase.table("resources").select("*").execute()
+    users_data = users.data or []
+    teachers = [u for u in users_data if u.get("role") == "teacher"]
+    parents = [u for u in users_data if u.get("role") == "parent"]
     return {
-        "total_users": len(users.data or []),
+        "total_users": len(users_data),
+        "total_teachers": len(teachers),
+        "total_parents": len(parents),
         "total_students": len(students.data or []),
         "total_checkins": len(logs.data or []),
+        "total_resources": len(resources.data or []),
     }
+
+
+def _resource_to_teacher_resource(resource: dict, ratings: List[dict]):
+    relevant = [r for r in ratings if r.get("resource_id") == resource.get("id")]
+    avg = 0.0
+    if relevant:
+        avg = sum([int(r.get("rating", 0)) for r in relevant]) / len(relevant)
+    return {
+        "id": resource.get("id"),
+        "title": resource.get("title", ""),
+        "description": resource.get("description", ""),
+        "topic": resource.get("topic") or resource.get("category") or "general",
+        "content_type": resource.get("content_type", "text"),
+        "content": resource.get("content"),
+        "pdf_filename": resource.get("pdf_filename"),
+        "created_by": resource.get("user_id", "system"),
+        "created_by_name": resource.get("created_by_name") or "Class of Happiness",
+        "average_rating": round(avg, 1),
+        "total_ratings": len(relevant),
+        "created_at": resource.get("created_at", datetime.now(timezone.utc).isoformat()),
+    }
+
+
+@api_router.get("/admin/resources")
+async def get_admin_resources(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    result = supabase.table("resources").select("*").order("created_at", desc=True).execute()
+    return result.data or []
+
+
+@api_router.post("/admin/resources")
+async def create_admin_resource(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    body = await request.json()
+    title = (body.get("title") or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title is required")
+
+    content_type = body.get("content_type", "text")
+    target_audience = body.get("target_audience", "both")
+    topic = body.get("topic") or body.get("category") or "general"
+    resource_data = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["user_id"],
+        "title": title,
+        "description": body.get("description", ""),
+        "content_type": content_type,
+        # Store text content OR base64 PDF payload
+        "content": body.get("content") if content_type == "text" else body.get("pdf_data") or body.get("content"),
+        "pdf_filename": body.get("pdf_filename"),
+        "category": body.get("category", topic),
+        "topic": topic,
+        "target_audience": target_audience,
+        "is_global": True,
+        "is_active": True,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    try:
+        result = supabase.table("resources").insert(resource_data).execute()
+    except Exception:
+        # Backward-compatible fallback if new columns are missing in DB schema.
+        fallback_data = {
+            "id": resource_data["id"],
+            "user_id": resource_data["user_id"],
+            "title": resource_data["title"],
+            "description": resource_data["description"],
+            "content_type": resource_data["content_type"],
+            "content": resource_data["content"],
+            "pdf_filename": resource_data["pdf_filename"],
+            "category": resource_data["category"],
+            "is_global": resource_data["is_global"],
+            "is_active": resource_data["is_active"],
+            "created_at": resource_data["created_at"],
+        }
+        result = supabase.table("resources").insert(fallback_data).execute()
+
+    return result.data[0] if result.data else resource_data
+
+
+@api_router.get("/admin/analytics")
+async def get_admin_analytics(request: Request, period: int = 30, classroom_id: Optional[str] = None):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    days = max(1, min(period, 365))
+    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+    logs_result = supabase.table("feeling_logs").select("*").gte("timestamp", start_date).execute()
+    users_result = supabase.table("users").select("*").execute()
+    students_result = supabase.table("students").select("*").execute()
+    classrooms_result = supabase.table("classrooms").select("*").execute()
+    resources_result = supabase.table("resources").select("*").execute()
+
+    logs = logs_result.data or []
+    users = users_result.data or []
+    students = students_result.data or []
+    classrooms = classrooms_result.data or []
+    resources = resources_result.data or []
+
+    if classroom_id:
+        student_ids = {s["id"] for s in students if s.get("classroom_id") == classroom_id}
+        logs = [l for l in logs if l.get("student_id") in student_ids]
+
+    zone_distribution = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+    daily_counts = {}
+    hourly_distribution = {str(h): 0 for h in range(24)}
+    strategy_counts = {}
+    for log in logs:
+        zone = log.get("feeling_colour") or log.get("zone")
+        if zone in zone_distribution:
+            zone_distribution[zone] += 1
+        ts = log.get("timestamp", "")
+        if len(ts) >= 13:
+            day = ts[:10]
+            hour = str(int(ts[11:13]))
+            daily_counts[day] = daily_counts.get(day, 0) + 1
+            hourly_distribution[hour] = hourly_distribution.get(hour, 0) + 1
+        strategies = log.get("helpers_selected", log.get("strategies_selected", [])) or []
+        for strategy in strategies:
+            strategy_counts[strategy] = strategy_counts.get(strategy, 0) + 1
+
+    daily_checkins = [{"date": k, "count": v} for k, v in sorted(daily_counts.items())]
+    top_strategies = [{"strategy": k, "count": v} for k, v in sorted(strategy_counts.items(), key=lambda i: i[1], reverse=True)[:10]]
+
+    classroom_stats = []
+    for cls in classrooms:
+        cls_students = [s for s in students if s.get("classroom_id") == cls.get("id")]
+        cls_ids = {s["id"] for s in cls_students}
+        cls_logs = [l for l in logs if l.get("student_id") in cls_ids]
+        student_count = len(cls_students)
+        checkin_count = len(cls_logs)
+        avg = round(checkin_count / student_count, 2) if student_count else 0
+        classroom_stats.append({
+            "id": cls.get("id"),
+            "name": cls.get("name", "Classroom"),
+            "student_count": student_count,
+            "checkin_count": checkin_count,
+            "avg_per_student": avg,
+        })
+
+    user_growth_map = {}
+    for u in users:
+        created = (u.get("created_at") or "")[:10]
+        if created:
+            user_growth_map[created] = user_growth_map.get(created, 0) + 1
+    user_growth = [{"date": k, "new_users": v} for k, v in sorted(user_growth_map.items()) if k >= start_date[:10]]
+
+    active_students = len({l.get("student_id") for l in logs if l.get("student_id")})
+    total_students = len(students) if not classroom_id else len([s for s in students if s.get("classroom_id") == classroom_id])
+    retention = round((active_students / total_students) * 100, 1) if total_students else 0
+
+    return {
+        "period_days": days,
+        "summary": {
+            "total_checkins": len(logs),
+            "active_students": active_students,
+            "avg_checkins_per_student": round(len(logs) / total_students, 2) if total_students else 0,
+            "retention_rate": retention,
+        },
+        "daily_checkins": daily_checkins,
+        "zone_distribution": zone_distribution,
+        "hourly_distribution": hourly_distribution,
+        "top_strategies": top_strategies,
+        "classroom_stats": classroom_stats,
+        "resource_engagement": [{"title": r.get("title", ""), "download_count": int(r.get("download_count", 0) or 0)} for r in resources[:20]],
+        "user_growth": user_growth,
+    }
+
+
+@api_router.get("/admin/schools")
+async def get_admin_schools(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    classrooms = supabase.table("classrooms").select("*").execute().data or []
+    return [{"name": c.get("name", "Classroom"), "classroom_count": 1} for c in classrooms]
+
+
+@api_router.get("/admin/export")
+async def export_admin_data(request: Request, type: str = "checkins", format: str = "json"):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    table_map = {"checkins": "feeling_logs", "users": "users", "resources": "resources", "students": "students"}
+    table = table_map.get(type, "feeling_logs")
+    data = supabase.table(table).select("*").execute().data or []
+    return {"type": type, "format": format, "count": len(data), "data": data}
 
 
 @api_router.post("/subscription/redeem-trial-code")
@@ -1897,6 +2275,222 @@ async def email_login(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@api_router.get("/resources/{resource_id}")
+async def get_resource(resource_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    result = supabase.table("resources").select("*").eq("id", resource_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    return result.data[0]
+
+
+@api_router.put("/resources/{resource_id}")
+async def update_resource(resource_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    allowed = ["title", "description", "content_type", "content", "pdf_filename", "category", "topic", "target_audience", "is_active"]
+    update_data = {k: v for k, v in body.items() if k in allowed}
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+    supabase.table("resources").update(update_data).eq("id", resource_id).execute()
+    updated = supabase.table("resources").select("*").eq("id", resource_id).execute()
+    return updated.data[0] if updated.data else {}
+
+
+@api_router.get("/resources/{resource_id}/download")
+async def download_resource_pdf(resource_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    result = supabase.table("resources").select("*").eq("id", resource_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    resource = result.data[0]
+    if resource.get("content_type") != "pdf":
+        raise HTTPException(status_code=400, detail="Resource is not a PDF")
+
+    raw_content = resource.get("content") or ""
+    try:
+        pdf_bytes = base64.b64decode(raw_content)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Stored PDF data is invalid")
+
+    filename = resource.get("pdf_filename") or f"{resource.get('title', 'resource')}.pdf"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return StreamingResponse(io.BytesIO(pdf_bytes), media_type="application/pdf", headers=headers)
+
+
+@api_router.get("/teacher-resources/topics")
+async def get_teacher_resource_topics():
+    return [
+        {"id": "emotions", "name": "Emotions"},
+        {"id": "healthy_relationships", "name": "Healthy Relationships"},
+        {"id": "leader_online", "name": "Leader Online"},
+        {"id": "you_are_what_you_eat", "name": "You Are What You Eat"},
+        {"id": "special_needs_education", "name": "Special Needs Education"},
+        {"id": "general", "name": "General"},
+    ]
+
+
+@api_router.get("/teacher-resources")
+async def get_teacher_resources(request: Request, topic: Optional[str] = None):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    resources_result = supabase.table("resources").select("*").eq("is_active", True).execute()
+    all_resources = resources_result.data or []
+
+    visible = []
+    for r in all_resources:
+        audience = r.get("target_audience", "both")
+        if audience not in ["teachers", "both", None, ""]:
+            continue
+        resource_topic = r.get("topic") or r.get("category") or "general"
+        if topic and topic != "all" and resource_topic != topic:
+            continue
+        visible.append(r)
+
+    try:
+        ratings_result = supabase.table("teacher_resource_ratings").select("*").execute()
+        ratings = ratings_result.data or []
+    except Exception:
+        ratings = []
+
+    return [_resource_to_teacher_resource(r, ratings) for r in visible]
+
+
+@api_router.get("/teacher-resources/{resource_id}")
+async def get_teacher_resource(resource_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    result = supabase.table("resources").select("*").eq("id", resource_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    resource = result.data[0]
+    try:
+        ratings_result = supabase.table("teacher_resource_ratings").select("*").eq("resource_id", resource_id).execute()
+        ratings = ratings_result.data or []
+    except Exception:
+        ratings = []
+    return _resource_to_teacher_resource(resource, ratings)
+
+
+@api_router.post("/teacher-resources")
+async def create_teacher_resource(request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    title = (body.get("title") or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title is required")
+
+    topic = body.get("topic") or body.get("category") or "general"
+    resource_data = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["user_id"],
+        "title": title,
+        "description": body.get("description", ""),
+        "content_type": body.get("content_type", "pdf"),
+        "content": body.get("content"),
+        "pdf_filename": body.get("pdf_filename"),
+        "category": topic,
+        "topic": topic,
+        "target_audience": "teachers",
+        "is_global": False,
+        "is_active": True,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        result = supabase.table("resources").insert(resource_data).execute()
+    except Exception:
+        fallback = {k: v for k, v in resource_data.items() if k not in ["topic", "target_audience"]}
+        result = supabase.table("resources").insert(fallback).execute()
+    return result.data[0] if result.data else resource_data
+
+
+@api_router.delete("/teacher-resources/{resource_id}")
+async def delete_teacher_resource(resource_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    existing = supabase.table("resources").select("*").eq("id", resource_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    resource = existing.data[0]
+    if user.get("role") != "admin" and resource.get("user_id") != user.get("user_id"):
+        raise HTTPException(status_code=403, detail="Not allowed")
+    supabase.table("resources").delete().eq("id", resource_id).execute()
+    return {"message": "Resource deleted"}
+
+
+@api_router.get("/teacher-resources/{resource_id}/download")
+async def download_teacher_resource(resource_id: str, request: Request):
+    return await download_resource_pdf(resource_id, request)
+
+
+@api_router.post("/teacher-resources/{resource_id}/rate")
+async def rate_teacher_resource(resource_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    rating = int(body.get("rating", 0))
+    comment = (body.get("comment") or "").strip() or None
+    if rating < 1 or rating > 5:
+        raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
+    rating_row = {
+        "id": str(uuid.uuid4()),
+        "resource_id": resource_id,
+        "user_id": user["user_id"],
+        "rating": rating,
+        "comment": comment,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        existing = supabase.table("teacher_resource_ratings").select("*").eq("resource_id", resource_id).eq("user_id", user["user_id"]).execute()
+        if existing.data:
+            supabase.table("teacher_resource_ratings").update({
+                "rating": rating,
+                "comment": comment,
+                "created_at": rating_row["created_at"],
+            }).eq("id", existing.data[0]["id"]).execute()
+        else:
+            supabase.table("teacher_resource_ratings").insert(rating_row).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not save rating: {str(e)}")
+    return {"message": "Rating saved"}
+
+
+@api_router.get("/teacher-resources/{resource_id}/ratings")
+async def get_teacher_resource_ratings(resource_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        result = supabase.table("teacher_resource_ratings").select("*").eq("resource_id", resource_id).order("created_at", desc=True).execute()
+        ratings = result.data or []
+    except Exception:
+        return []
+
+    user_ids = list({r.get("user_id") for r in ratings if r.get("user_id")})
+    user_names = {}
+    if user_ids:
+        users_result = supabase.table("users").select("user_id,name").in_("user_id", user_ids).execute()
+        for u in users_result.data or []:
+            user_names[u.get("user_id")] = u.get("name")
+
+    return [{
+        **r,
+        "user_name": user_names.get(r.get("user_id"), "Teacher")
+    } for r in ratings]
+
+
 
 
 
@@ -1943,6 +2537,31 @@ async def get_family_zone_logs(member_id: str, request: Request, days: int = 7):
     result = supabase.table("family_zone_logs").select("*").eq("family_member_id", member_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
     return result.data or []
 
+@api_router.get("/family/analytics/{member_id}")
+async def get_family_analytics(member_id: str, request: Request, days: int = 7):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    member = supabase.table("family_members").select("*").eq("id", member_id).eq("user_id", user["user_id"]).execute()
+    if not member.data:
+        raise HTTPException(status_code=404, detail="Family member not found")
+    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    result = supabase.table("family_zone_logs").select("*").eq("family_member_id", member_id).gte("timestamp", start_date).execute()
+    logs = result.data or []
+    zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+    strategy_counts: Dict[str, int] = {}
+    for log in logs:
+        zone = log.get("zone")
+        if zone in zone_counts:
+            zone_counts[zone] += 1
+        for strategy in (log.get("strategies_selected") or []):
+            strategy_counts[strategy] = strategy_counts.get(strategy, 0) + 1
+    return {
+        "zone_counts": zone_counts,
+        "strategy_counts": strategy_counts,
+        "total_logs": len(logs),
+    }
+
 # ================== REWARDS COLLECTION ==================
 @api_router.get("/rewards/{student_id}/collection")
 async def get_collection(student_id: str):
@@ -1962,12 +2581,7 @@ async def get_collection(student_id: str):
             "current_points": 0
         }
 
-    CREATURES = {
-        "aqua_buddy": {"id": "aqua_buddy", "name": "Aqua Buddy", "color": "#4A90D9", "stages": [{"emoji": "🥚"}, {"emoji": "🐣"}, {"emoji": "🐥"}, {"emoji": "🐬"}]},
-        "leaf_friend": {"id": "leaf_friend", "name": "Leaf Friend", "color": "#4CAF50", "stages": [{"emoji": "🌱"}, {"emoji": "🌿"}, {"emoji": "🍀"}, {"emoji": "🌳"}]},
-        "spark_pal":   {"id": "spark_pal",   "name": "Spark Pal",   "color": "#FFC107", "stages": [{"emoji": "✨"}, {"emoji": "⚡"}, {"emoji": "🌟"}, {"emoji": "🌈"}]},
-        "blaze_heart": {"id": "blaze_heart", "name": "Blaze Heart", "color": "#F44336", "stages": [{"emoji": "🔥"}, {"emoji": "💫"}, {"emoji": "❤️"}, {"emoji": "🦁"}]},
-    }
+    creatures_map = {c["id"]: c for c in CREATURES}
 
     creature_points = rewards.get("creature_points") or {}
     creature_stages = rewards.get("creature_stages") or {}
@@ -1977,27 +2591,48 @@ async def get_collection(student_id: str):
     current_points = rewards.get("current_points", 0)
 
     all_creatures = []
-    for cid, cdata in CREATURES.items():
+    for cid, cdata in creatures_map.items():
         all_creatures.append({
             **cdata,
             "current_points": creature_points.get(cid, 0),
             "current_stage": creature_stages.get(cid, 0),
         })
 
-    current_creature = CREATURES.get(current_id, CREATURES["aqua_buddy"])
-    collected_creatures = [CREATURES[c] for c in collected if c in CREATURES]
+    current_creature = creatures_map.get(current_id, CREATURES[0])
+    collected_creatures = [creatures_map[c] for c in collected if c in creatures_map]
+    unlocked_moves: List[str] = []
+    unlocked_outfits: List[str] = []
+    unlocked_foods: List[str] = []
+    unlocked_homes: List[str] = []
+
+    for cid, cstage in creature_stages.items():
+        creature = creatures_map.get(cid)
+        if not creature:
+            continue
+        for move in creature.get("moves", []):
+            if cstage >= move.get("unlocks_at_stage", 999):
+                unlocked_moves.append(move.get("id"))
+        for outfit in creature.get("outfits", []):
+            if cstage >= outfit.get("unlocks_at_stage", 999):
+                unlocked_outfits.append(outfit.get("id"))
+        for food in creature.get("foods", []):
+            if cstage >= food.get("unlocks_at_stage", 999):
+                unlocked_foods.append(food.get("id"))
+        for home in creature.get("homes", []):
+            if cstage >= home.get("unlocks_at_stage", 999):
+                unlocked_homes.append(home.get("id"))
 
     return {
         "current_creature": {**current_creature, "current_points": current_points, "current_stage": current_stage},
         "current_stage": current_stage,
         "current_points": current_points,
         "collected_creatures": collected_creatures,
-        "total_creatures": len(CREATURES),
+        "total_creatures": len(creatures_map),
         "all_creatures": all_creatures,
-        "unlocked_moves": [],
-        "unlocked_outfits": [],
-        "unlocked_foods": [],
-        "unlocked_homes": [],
+        "unlocked_moves": unlocked_moves,
+        "unlocked_outfits": unlocked_outfits,
+        "unlocked_foods": unlocked_foods,
+        "unlocked_homes": unlocked_homes,
     }
 
 app.include_router(api_router)

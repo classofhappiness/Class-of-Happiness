@@ -218,7 +218,7 @@ export default function ParentDashboard() {
     recentLogs.forEach(log => {
       const day = getDayOfWeek(log.timestamp);
       if (weekData[day]) {
-        const time = new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const time = new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
         weekData[day].logs.push(log);
         weekData[day].times.push(time);
       }
@@ -304,6 +304,8 @@ export default function ParentDashboard() {
       }
     } catch (error) {
       console.error('Error fetching member data:', error);
+      setRecentLogs([]);
+      setAnalytics({ zone_counts: { blue: 0, green: 0, yellow: 0, red: 0 } });
     }
   };
 
@@ -384,13 +386,7 @@ export default function ParentDashboard() {
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
-    return date.toLocaleString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   };
 
   // Prepare pie chart data
@@ -605,7 +601,7 @@ export default function ParentDashboard() {
               onPress={() => router.push('/parent/family-strategies')}
             >
               <MaterialIcons name="lightbulb" size={24} color="#FFC107" />
-              <Text style={styles.actionButtonText} numberOfLines={2}>{t('family_strategies') || 'Family Strategies'}</Text>
+              <Text style={styles.actionButtonText} numberOfLines={1}>{t('family_strategies') || 'Family Strategies'}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
@@ -613,7 +609,7 @@ export default function ParentDashboard() {
               onPress={() => router.push('/parent/resources')}
             >
               <MaterialIcons name="library-books" size={24} color="#5C6BC0" />
-              <Text style={styles.actionButtonText} numberOfLines={2}>{t('resources')}</Text>
+              <Text style={styles.actionButtonText} numberOfLines={1}>{t('resources')}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity

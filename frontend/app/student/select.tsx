@@ -107,10 +107,10 @@ export default function StudentSelectScreen() {
         <View style={styles.creatureIconsContainer}>
           <View style={styles.collectedIcons}>
             {allCreatures.slice(0, 4).map((creature: any) => {
-              const cStage = creature.current_stage || 0;
+              const cStage = Number(creature.current_stage || 0);
               const cColor = creature.color || '#CCC';
               const cEmoji = creature.stages?.[cStage]?.emoji || '🥚';
-              const hasPoints = (creature.current_points || 0) > 0;
+              const hasPoints = Number(creature.current_points || 0) > 0;
               return (
                 <View
                   key={creature.id}

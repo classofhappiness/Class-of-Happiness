@@ -118,15 +118,13 @@ export default function AdminDashboard() {
   const handlePickPDF = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: 'application/pdf',
+        type: ['application/pdf', 'com.adobe.pdf', '.pdf'],
         copyToCacheDirectory: true,
       });
       
       if (!result.canceled && result.assets?.[0]) {
         const file = result.assets[0];
-        const base64 = await FileSystem.readAsStringAsync(file.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
+        const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: 'base64' as any });
         
         setUploadData(prev => ({
           ...prev,
@@ -136,7 +134,8 @@ export default function AdminDashboard() {
         }));
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to pick PDF file');
+      console.error('PDF picker error:', error);
+      Alert.alert('Error', 'Failed to pick PDF file. Please try selecting a .pdf document again.');
     }
   };
 

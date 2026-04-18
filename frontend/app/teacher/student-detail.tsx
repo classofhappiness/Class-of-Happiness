@@ -83,25 +83,27 @@ export default function StudentDetailScreen() {
   const [showHomeDataTab, setShowHomeDataTab] = useState(false);
 
   // Tooltip fade animation states
-  const [showStrategiesTooltip, setShowStrategiesTooltip] = useState(true);
-  const [showFamilyTooltip, setShowFamilyTooltip] = useState(true);
-  const strategiesOpacity = useRef(new Animated.Value(1)).current;
-  const familyOpacity = useRef(new Animated.Value(1)).current;
+  const [activeTooltip, setActiveTooltip] = useState<'strategies' | 'family' | null>('strategies');
+  const tooltipOpacity = useRef(new Animated.Value(1)).current;
 
-  // Auto-fade tooltips after 5 seconds
+  // Show tooltips one at a time, then hide all.
   useEffect(() => {
-    const timer = setTimeout(() => {
-      Animated.sequence([
-        Animated.timing(strategiesOpacity, { toValue: 0, duration: 800, useNativeDriver: true }),
-        Animated.delay(1500),
-        Animated.timing(familyOpacity, { toValue: 0, duration: 800, useNativeDriver: true }),
-      ]).start(() => {
-        setShowStrategiesTooltip(false);
-        setShowFamilyTooltip(false);
+    const firstTimer = setTimeout(() => {
+      Animated.timing(tooltipOpacity, { toValue: 0, duration: 350, useNativeDriver: true }).start(() => {
+        setActiveTooltip('family');
+        tooltipOpacity.setValue(1);
       });
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, []);
+    }, 2600);
+    const secondTimer = setTimeout(() => {
+      Animated.timing(tooltipOpacity, { toValue: 0, duration: 350, useNativeDriver: true }).start(() => {
+        setActiveTooltip(null);
+      });
+    }, 5200);
+    return () => {
+      clearTimeout(firstTimer);
+      clearTimeout(secondTimer);
+    };
+  }, [tooltipOpacity]);
 
   const fetchData = async () => {
     if (!studentId) return;
@@ -274,7 +276,7 @@ export default function StudentDetailScreen() {
           />
           <View style={styles.studentInfo}>
             <Text style={styles.studentName} numberOfLines={1} adjustsFontSizeToFit>{student.name}</Text>
-            <Text style={styles.studentClassroom}>
+            <Text style={styles.studentClassroom} numberOfLines={1}>
               {getClassroomName(student.classroom_id)}
             </Text>
           </View>
@@ -299,8 +301,8 @@ export default function StudentDetailScreen() {
             >
               <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
             </TouchableOpacity>
-            {showStrategiesTooltip && (
-              <Animated.View style={[styles.tooltip, { opacity: strategiesOpacity }]}>
+            {activeTooltip === 'strategies' && (
+              <Animated.View style={[styles.tooltip, { opacity: tooltipOpacity }]}>
                 <Text style={styles.tooltipText}>{t('manage_strategies') || 'Manage strategies'}</Text>
                 <View style={styles.tooltipArrow} />
               </Animated.View>
@@ -315,8 +317,8 @@ export default function StudentDetailScreen() {
             >
               <MaterialIcons name="family-restroom" size={20} color="#4A90D9" />
             </TouchableOpacity>
-            {showFamilyTooltip && (
-              <Animated.View style={[styles.tooltip, styles.tooltipRight, { opacity: familyOpacity }]}>
+            {activeTooltip === 'family' && (
+              <Animated.View style={[styles.tooltip, styles.tooltipRight, { opacity: tooltipOpacity }]}>
                 <Text style={styles.tooltipText}>{t('share_with_family') || 'Share with family'}</Text>
                 <View style={[styles.tooltipArrow, styles.tooltipArrowRight]} />
               </Animated.View>
@@ -833,6 +835,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginTop: 4,
+    flexShrink: 1,
   },
   editButton: {
     padding: 8,

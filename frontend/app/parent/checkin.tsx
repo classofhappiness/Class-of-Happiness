@@ -134,8 +134,8 @@ export default function FamilyCheckInScreen() {
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {step === 'zone' ? (
-            /* Zone Selection */
-            <View style={styles.zonesGrid}>
+            /* Zone Selection - aligned with student full-width color cards */
+            <View style={styles.zonesStack}>
               {ZONES.map((zone) => (
                 <TouchableOpacity
                   key={zone.id}
@@ -147,8 +147,11 @@ export default function FamilyCheckInScreen() {
                   onPress={() => handleZoneSelect(zone.id)}
                 >
                   <Text style={styles.zoneFace}>{zone.face}</Text>
-                  <Text style={styles.zoneName}>{zone.name}</Text>
-                  <Text style={styles.zoneDesc}>{zone.desc}</Text>
+                  <View style={styles.zoneCenter}>
+                    <Text style={styles.zoneName}>{zone.name}</Text>
+                    <Text style={styles.zoneDesc}>{zone.desc}</Text>
+                  </View>
+                  <MaterialIcons name="chevron-right" size={26} color="rgba(255,255,255,0.85)" />
                 </TouchableOpacity>
               ))}
             </View>
@@ -294,13 +297,14 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
-  zonesGrid: {
+  zonesStack: {
     gap: 12,
   },
   zoneCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 20,
     borderRadius: 16,
-    alignItems: 'center',
     marginBottom: 12,
   },
   zoneCardSelected: {
@@ -308,19 +312,21 @@ const styles = StyleSheet.create({
     borderColor: 'white',
   },
   zoneFace: {
-    fontSize: 48,
-    marginBottom: 8,
+    fontSize: 40,
+    marginRight: 12,
+  },
+  zoneCenter: {
+    flex: 1,
   },
   zoneName: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: 'white',
-    marginBottom: 4,
   },
   zoneDesc: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.9)',
-    textAlign: 'center',
+    marginTop: 2,
   },
   selectedZoneBadge: {
     flexDirection: 'row',

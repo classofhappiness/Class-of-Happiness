@@ -12,8 +12,9 @@ import {
 import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BarChart } from 'react-native-gifted-charts';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
-import { analyticsApi, zoneLogsApi, ZoneLog } from '../../src/utils/api';
+import { zoneLogsApi, ZoneLog } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 
@@ -29,12 +30,14 @@ const ZONE_COLORS = {
 export default function TeacherDashboardScreen() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { students, classrooms, presetAvatars, refreshStudents, refreshClassrooms, t, language, translations } = useApp();
+  const { user, students, classrooms, presetAvatars, refreshStudents, refreshClassrooms, t, language, translations } = useApp();
   const [selectedPeriod, setSelectedPeriod] = useState<1 | 7 | 14 | 30>(7);
   const [recentLogs, setRecentLogs] = useState<ZoneLog[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedClassroom, setSelectedClassroom] = useState<string | null>(null);
+  const [todaySnapshot, setTodaySnapshot] = useState({ blue: 0, green: 0, yellow: 0, red: 0, total: 0 });
+  const [teacherCheckins, setTeacherCheckins] = useState<Array<{ id: string; zone: string; timestamp: string }>>([]);
 
   // Hide default header
   useLayoutEffect(() => {
@@ -57,6 +60,24 @@ export default function TeacherDashboardScreen() {
         }
       });
       setAnalytics({ zone_counts: zoneCounts, total_logs: logs.length });
+
+      // Today's class mood snapshot (one-tap quick view)
+      const todayKey = new Date().toISOString().split('T')[0];
+      const todayCounts = { blue: 0, green: 0, yellow: 0, red: 0 };
+      logs.forEach((log: ZoneLog) => {
+        if (!log.timestamp?.startsWith(todayKey)) return;
+        if (log.zone in todayCounts) {
+          todayCounts[log.zone as keyof typeof todayCounts]++;
+        }
+      });
+      const todayTotal = Object.values(todayCounts).reduce((sum, value) => sum + value, 0);
+      setTodaySnapshot({ ...todayCounts, total: todayTotal });
+
+      if (user?.user_id) {
+        const teacherCheckinRaw = await AsyncStorage.getItem(`teacher_checkins_${user.user_id}`);
+        const teacherCheckinData = teacherCheckinRaw ? JSON.parse(teacherCheckinRaw) : [];
+        setTeacherCheckins(teacherCheckinData.slice(0, 5));
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -83,38 +104,7 @@ export default function TeacherDashboardScreen() {
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor(diff / (1000 * 60));
-
-    if (minutes < 60) return `${String(date.getHours()).padStart(2,"0")}:${String(date.getMinutes()).padStart(2,"0")}`;
-    if (hours < 24) return `${String(date.getHours()).padStart(2,"0")}:${String(date.getMinutes()).padStart(2,"0")}`;
-    return `${date.toLocaleDateString()} ${String(date.getHours()).padStart(2,"0")}:${String(date.getMinutes()).padStart(2,"0")}`;
-  };
-
-  // Helper to get day of week
-  const getDayOfWeek = (dateStr: string): string => {
-    const date = new Date(dateStr);
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    return days[date.getDay()];
-  };
-
-  // Group logs by day for weekly view - all 7 days
-  const getWeeklyLogs = () => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const weekData: Record<string, { logs: ZoneLog[], times: string[] }> = {};
-    days.forEach(day => { weekData[day] = { logs: [], times: [] }; });
-    
-    recentLogs.forEach(log => {
-      const day = getDayOfWeek(log.timestamp);
-      if (weekData[day]) {
-        const time = new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        weekData[day].logs.push(log);
-        weekData[day].times.push(time);
-      }
-    });
-    return weekData;
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   };
 
   const chartData = analytics ? [
@@ -140,7 +130,7 @@ export default function TeacherDashboardScreen() {
             onPress={() => router.push('/teacher/students')}
           >
             <MaterialIcons name="people" size={28} color="#5C6BC0" />
-            <Text style={styles.actionText}>{t('students')}</Text>
+            <Text style={styles.actionText} numberOfLines={1}>{t('students')}</Text>
             <Text style={styles.actionCount}>{students.length}</Text>
           </TouchableOpacity>
 
@@ -149,9 +139,58 @@ export default function TeacherDashboardScreen() {
             onPress={() => router.push('/teacher/classrooms')}
           >
             <MaterialIcons name="school" size={28} color="#5C6BC0" />
-            <Text style={styles.actionText}>{t('classrooms')}</Text>
+            <Text style={styles.actionText} numberOfLines={1}>{t('classrooms')}</Text>
             <Text style={styles.actionCount}>{classrooms.length}</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push('/teacher/checkin')}
+          >
+            <MaterialIcons name="self-improvement" size={28} color="#5C6BC0" />
+            <Text style={styles.actionText} numberOfLines={1}>Teacher Check-in</Text>
+            <Text style={styles.actionCount}>Now</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Teacher self check-ins */}
+        <View style={styles.recentSection}>
+          <Text style={styles.sectionTitle}>Your Check-ins</Text>
+          {teacherCheckins.length > 0 ? (
+            teacherCheckins.map((checkin) => (
+              <View key={checkin.id} style={styles.logItem}>
+                <View style={[styles.zoneIndicator, { backgroundColor: ZONE_COLORS[checkin.zone as keyof typeof ZONE_COLORS] || '#999' }]}>
+                  <Text style={styles.zoneText}>{checkin.zone}</Text>
+                </View>
+                <View style={[styles.logInfo, { marginLeft: 10 }]}>
+                  <Text style={styles.logName}>Teacher</Text>
+                  <Text style={styles.logTime}>{formatTime(checkin.timestamp)}</Text>
+                </View>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyLogs}>
+              <MaterialIcons name="self-improvement" size={42} color="#CCC" />
+              <Text style={styles.emptyLogsText}>No self check-ins yet</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Class mood snapshot */}
+        <View style={styles.snapshotCard}>
+          <View style={styles.snapshotHeader}>
+            <Text style={styles.sectionTitle}>Class Mood Snapshot (Today)</Text>
+            <Text style={styles.snapshotTotal}>{todaySnapshot.total} check-ins</Text>
+          </View>
+          <View style={styles.snapshotRow}>
+            {(['blue', 'green', 'yellow', 'red'] as const).map((zone) => (
+              <View key={zone} style={styles.snapshotItem}>
+                <View style={[styles.snapshotDot, { backgroundColor: ZONE_COLORS[zone] }]} />
+                <Text style={styles.snapshotZoneText}>{zone}</Text>
+                <Text style={styles.snapshotValue}>{todaySnapshot[zone]}</Text>
+              </View>
+            ))}
+          </View>
         </View>
 
         {/* Resources Button */}
@@ -260,38 +299,6 @@ export default function TeacherDashboardScreen() {
         <View style={styles.recentSection}>
           <Text style={styles.sectionTitle}>{t('recent_check_ins')}</Text>
           
-          {/* Weekly Table View - All 7 days */}
-          <View style={styles.weeklyTable}>
-            <View style={styles.weeklyHeader}>
-              {[t('day_sun') || 'Sun', t('day_mon') || 'Mon', t('day_tue') || 'Tue', t('day_wed') || 'Wed', t('day_thu') || 'Thu', t('day_fri') || 'Fri', t('day_sat') || 'Sat'].map((day) => (
-                <View key={day} style={styles.weeklyDayHeader}>
-                  <Text style={styles.weeklyDayText}>{day}</Text>
-                </View>
-              ))}
-            </View>
-            <View style={styles.weeklyBody}>
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => {
-                const dayData = getWeeklyLogs()[day];
-                return (
-                  <View key={day} style={styles.weeklyDayCell}>
-                    {dayData.logs.length > 0 ? (
-                      dayData.logs.slice(0, 3).map((log, idx) => (
-                        <View key={idx} style={styles.weeklyLogItem}>
-                          <View style={[styles.weeklyZoneDot, { backgroundColor: ZONE_COLORS[log.zone] }]} />
-                        </View>
-                      ))
-                    ) : (
-                      <Text style={styles.weeklyNoData}>-</Text>
-                    )}
-                    {dayData.logs.length > 0 && (
-                      <Text style={styles.weeklyCount}>{dayData.logs.length}</Text>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-          
           {/* Recent logs list */}
           {recentLogs.length > 0 ? (
             recentLogs.slice(0, 10).map((log) => {
@@ -319,12 +326,6 @@ export default function TeacherDashboardScreen() {
                   <View style={[styles.zoneIndicator, { backgroundColor: ZONE_COLORS[log.zone] }]}>
                     <Text style={styles.zoneText}>{log.zone}</Text>
                   </View>
-                  {log.strategies_selected.length > 0 && (
-                    <View style={styles.strategyBadge}>
-                      <MaterialIcons name="lightbulb" size={16} color="#FFC107" />
-                      <Text style={styles.strategyCount}>{log.strategies_selected.length}</Text>
-                    </View>
-                  )}
                 </TouchableOpacity>
               );
             })
@@ -379,10 +380,54 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
   },
+  snapshotCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+  },
+  snapshotHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 10,
+  },
+  snapshotTotal: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '600',
+  },
+  snapshotRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  snapshotItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  snapshotDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    marginBottom: 4,
+  },
+  snapshotZoneText: {
+    fontSize: 12,
+    color: '#666',
+    textTransform: 'capitalize',
+  },
+  snapshotValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginTop: 2,
+  },
   actionText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
     marginTop: 8,
+    textAlign: 'center',
   },
   actionCount: {
     fontSize: 20,
@@ -529,21 +574,6 @@ const styles = StyleSheet.create({
     color: 'white',
     textTransform: 'capitalize',
   },
-  strategyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 8,
-    backgroundColor: '#FFF8E1',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  strategyCount: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#F9A825',
-    marginLeft: 4,
-  },
   emptyLogs: {
     alignItems: 'center',
     paddingVertical: 40,
@@ -552,53 +582,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#999',
     marginTop: 12,
-  },
-  weeklyTable: {
-    marginBottom: 20,
-    borderRadius: 12,
-    backgroundColor: '#F8F9FA',
-    overflow: 'hidden',
-  },
-  weeklyHeader: {
-    flexDirection: 'row',
-    backgroundColor: '#5C6BC0',
-  },
-  weeklyDayHeader: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  weeklyDayText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: 'white',
-  },
-  weeklyBody: {
-    flexDirection: 'row',
-  },
-  weeklyDayCell: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 12,
-    minHeight: 70,
-    borderRightWidth: 1,
-    borderRightColor: '#E0E0E0',
-  },
-  weeklyLogItem: {
-    marginVertical: 2,
-  },
-  weeklyZoneDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-  },
-  weeklyNoData: {
-    fontSize: 16,
-    color: '#CCC',
-  },
-  weeklyCount: {
-    fontSize: 10,
-    color: '#666',
-    marginTop: 4,
   },
 });

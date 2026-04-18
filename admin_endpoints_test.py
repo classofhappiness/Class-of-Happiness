@@ -76,7 +76,7 @@ def test_admin_endpoints():
     print("-" * 50)
     
     try:
-        payload = {"admin_code": "ADMINCLASS2025"}
+        payload = {"admin_code": "ADMINCLASS2026"}
         response = requests.post(
             f"{BACKEND_URL}/api/auth/promote-admin", 
             json=payload,
@@ -169,7 +169,7 @@ def test_admin_endpoints():
     if passed == total:
         print("🎉 ALL ADMIN ENDPOINT TESTS PASSED!")
         print("✅ All endpoints exist and properly require authentication")
-        print("✅ Admin code 'ADMINCLASS2025' is configured correctly")
+        print("✅ Admin code 'ADMINCLASS2026' is configured correctly")
         print("✅ Endpoints return appropriate 401/403 status codes for unauthenticated requests")
     else:
         print("⚠️  Some admin endpoint tests failed - see details above")

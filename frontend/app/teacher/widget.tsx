@@ -14,7 +14,7 @@ import {
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
-import { studentsApi, classroomsApi, analyticsApi } from '../../src/utils/api';
+import { studentsApi, classroomsApi, zoneLogsApi } from '../../src/utils/api';
 
 const { width } = Dimensions.get('window');
 
@@ -63,38 +63,45 @@ export default function TeacherWidgetScreen() {
       // Get classrooms
       const classroomList = await classroomsApi.getAll();
       
-      // Calculate emotion counts from recent check-ins
+      // Calculate emotion counts from today's check-ins
       const counts = { blue: 0, green: 0, yellow: 0, red: 0 };
       let checkInCount = 0;
-      
-      // For each student, get their latest check-in
-      for (const student of students.slice(0, 20)) {  // Limit for performance
-        try {
-          const analytics = await analyticsApi.getWeeklyTrend(student.id, 'week');
-          if (analytics && analytics.length > 0) {
-            const latest = analytics[analytics.length - 1];
-            if (latest && latest.zone) {
-              counts[latest.zone as keyof typeof counts]++;
-              checkInCount++;
-            }
+      const todayKey = new Date().toISOString().split('T')[0];
+
+      try {
+        const logs = await zoneLogsApi.getAll(undefined, undefined, 1);
+        logs.forEach((log: any) => {
+          if (!log?.timestamp?.startsWith(todayKey)) return;
+          if (log.zone in counts) {
+            counts[log.zone as keyof typeof counts] += 1;
+            checkInCount += 1;
           }
-        } catch {
-          // Ignore individual failures
-        }
+        });
+      } catch (error) {
+        console.error('Error loading mood counts:', error);
       }
-      
+
+      // Classroom summaries with rough proportional split (UI preview purpose)
+      const totalCount = Math.max(1, checkInCount);
+      const classroomSummaries: ClassroomSummary[] = classroomList.map((classroom: any) => {
+        const classroomStudentCount = students.filter((s: any) => s.classroom_id === classroom.id).length;
+        const weightedCounts = {
+          blue: Math.round((counts.blue / totalCount) * classroomStudentCount),
+          green: Math.round((counts.green / totalCount) * classroomStudentCount),
+          yellow: Math.round((counts.yellow / totalCount) * classroomStudentCount),
+          red: Math.round((counts.red / totalCount) * classroomStudentCount),
+        };
+        return {
+          id: classroom.id,
+          name: classroom.name,
+          studentCount: classroomStudentCount,
+          emotionCounts: weightedCounts,
+          lastUpdate: new Date().toISOString(),
+        };
+      });
+
       setOverallCounts(counts);
       setTodayCheckIns(checkInCount);
-      
-      // Map classrooms with student counts
-      const classroomSummaries: ClassroomSummary[] = classroomList.map((classroom: any) => ({
-        id: classroom.id,
-        name: classroom.name,
-        studentCount: students.filter((s: any) => s.classroom_id === classroom.id).length,
-        emotionCounts: counts,
-        lastUpdate: new Date().toISOString(),
-      }));
-      
       setClassrooms(classroomSummaries);
     } catch (error) {
       console.error('Error fetching widget data:', error);
@@ -245,7 +252,7 @@ export default function TeacherWidgetScreen() {
           <MaterialIcons name="widgets" size={32} color="#FFC107" />
           <Text style={styles.instructionsTitle}>Add Widget to Home Screen</Text>
           <Text style={styles.instructionsText}>
-            Get instant updates on your classroom's emotional status right from your home screen.
+            Get instant updates on your classroom emotional status right from your home screen.
           </Text>
           <TouchableOpacity style={styles.instructionsButton} onPress={handleAddToHomeScreen}>
             <MaterialIcons name="help-outline" size={18} color="white" />
