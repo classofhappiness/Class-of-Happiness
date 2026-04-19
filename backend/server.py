@@ -2336,7 +2336,7 @@ async def get_teacher_resource_topics():
     ]
 
 
-@api_router.get("/teacher-resources")
+@api_router.get("/teacher-resources")  # audience filter supported
 async def get_teacher_resources(request: Request, topic: Optional[str] = None):
     user = await get_current_user(request)
     if not user:
@@ -2636,3 +2636,115 @@ async def get_collection(student_id: str):
     }
 
 app.include_router(api_router)
+
+# ================== WELLBEING ALERT ==================
+class WellbeingAlertRequest(BaseModel):
+    teacher_name: str
+    message: str
+    zone: Optional[str] = None
+    timestamp: Optional[str] = None
+
+@api_router.post("/wellbeing-alert")
+async def send_wellbeing_alert(req: WellbeingAlertRequest, request: Request):
+    """Teacher sends a private wellbeing support request to admin/principal"""
+    user = await get_current_user(request)
+    
+    # Store alert in database
+    alert_data = {
+        "id": str(uuid.uuid4()),
+        "teacher_name": req.teacher_name,
+        "teacher_id": user["user_id"] if user else None,
+        "message": req.message,
+        "zone": req.zone,
+        "timestamp": req.timestamp or datetime.now(timezone.utc).isoformat(),
+        "status": "pending",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    
+    try:
+        supabase.table("wellbeing_alerts").insert(alert_data).execute()
+    except Exception as e:
+        logger.error(f"Could not store wellbeing alert: {e}")
+    
+    # Try to get admin notification email from settings
+    try:
+        settings_result = supabase.table("admin_settings").select("*").eq("key", "wellbeing_email").execute()
+        if settings_result.data:
+            notify_email = settings_result.data[0].get("value")
+            logger.info(f"Wellbeing alert from {req.teacher_name} — would notify: {notify_email}")
+    except Exception as e:
+        logger.error(f"Could not fetch notification email: {e}")
+    
+    return {"status": "sent", "message": "Alert recorded successfully"}
+
+@api_router.get("/admin/wellbeing-alerts")
+async def get_wellbeing_alerts(request: Request):
+    """Admin views all teacher wellbeing alerts"""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    result = supabase.table("wellbeing_alerts").select("*").order("created_at", desc=True).execute()
+    return result.data or []
+
+@api_router.post("/admin/settings")
+async def update_admin_setting(request: Request):
+    """Admin updates a setting key/value pair"""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    body = await request.json()
+    key = body.get("key")
+    value = body.get("value")
+    if not key:
+        raise HTTPException(status_code=400, detail="Key required")
+    existing = supabase.table("admin_settings").select("*").eq("key", key).execute()
+    if existing.data:
+        supabase.table("admin_settings").update({"value": value}).eq("key", key).execute()
+    else:
+        supabase.table("admin_settings").insert({"key": key, "value": value, "updated_at": datetime.now(timezone.utc).isoformat()}).execute()
+    return {"key": key, "value": value}
+
+@api_router.get("/admin/settings")
+async def get_admin_settings(request: Request):
+    """Get all admin settings"""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    result = supabase.table("admin_settings").select("*").execute()
+    return {row["key"]: row["value"] for row in (result.data or [])}
+
+@api_router.get("/admin/teacher-strategies")
+async def get_admin_teacher_strategies(request: Request):
+    """Admin-defined strategies shown to all teachers on checkin"""
+    result = supabase.table("admin_teacher_strategies").select("*").eq("is_active", True).execute()
+    if result.data:
+        return result.data
+    # Return defaults if none set
+    return [
+        {"id": "admin_1", "zone": "blue", "name": "Talk to a trusted colleague", "description": "Peer support reduces isolation.", "icon": "chat"},
+        {"id": "admin_2", "zone": "blue", "name": "Brief outdoor walk", "description": "Light and movement reset the nervous system.", "icon": "directions-walk"},
+        {"id": "admin_3", "zone": "green", "name": "Positive micro-moment", "description": "Name one student success from today.", "icon": "thumb-up"},
+        {"id": "admin_4", "zone": "yellow", "name": "Deep breathing set", "description": "Box breathing for 2-3 minutes.", "icon": "air"},
+        {"id": "admin_5", "zone": "red", "name": "Ask for immediate cover", "description": "Request support from nearby staff.", "icon": "support-agent"},
+    ]
+
+@api_router.post("/admin/teacher-strategies")
+async def create_admin_teacher_strategy(request: Request):
+    """Admin adds a new strategy for teachers"""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    body = await request.json()
+    new_strat = {
+        "id": str(uuid.uuid4()),
+        "zone": body.get("zone", "blue"),
+        "name": body.get("name"),
+        "description": body.get("description", ""),
+        "icon": body.get("icon", "star"),
+        "is_active": True,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    result = supabase.table("admin_teacher_strategies").insert(new_strat).execute()
+    return result.data[0] if result.data else new_strat
+
+

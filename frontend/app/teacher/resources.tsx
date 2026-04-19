@@ -53,6 +53,7 @@ export default function TeacherResourcesScreen() {
     description: '',
     content: '',
     pdf_filename: '',
+    audience: 'teachers',
   });
   const [uploading, setUploading] = useState(false);
   
@@ -163,28 +164,45 @@ export default function TeacherResourcesScreen() {
       Alert.alert('Error', 'Please enter a description');
       return;
     }
-    if (!uploadData.content) {
-      Alert.alert('Error', 'Please select a PDF file');
-      return;
-    }
-    
+
     setUploading(true);
     try {
-      await teacherResourcesApi.create({
+      // If PDF selected, upload as base64 content
+      // If no PDF, upload as text resource
+      const payload: any = {
         title: uploadData.title,
         description: uploadData.description,
         topic: selectedTopic,
-        content_type: 'pdf',
-        content: uploadData.content,
-        pdf_filename: uploadData.pdf_filename,
-      });
-      
-      Alert.alert('Success', 'Resource uploaded successfully!');
+        audience: uploadData.audience || 'teachers',
+      };
+
+      if (uploadData.content && uploadData.pdf_filename) {
+        // Limit PDF size to 1.5MB base64 (~1MB file)
+        if (uploadData.content.length > 2000000) {
+          Alert.alert('File Too Large', 'Please use a PDF under 1MB. Tip: compress it at smallpdf.com first.');
+          setUploading(false);
+          return;
+        }
+        payload.content_type = 'pdf';
+        payload.content = uploadData.content;
+        payload.pdf_filename = uploadData.pdf_filename;
+      } else {
+        payload.content_type = 'text';
+        payload.content = uploadData.description;
+      }
+
+      await teacherResourcesApi.create(payload);
+      Alert.alert('✅ Success', 'Resource uploaded successfully!');
       setShowUploadModal(false);
-      setUploadData({ title: '', description: '', content: '', pdf_filename: '' });
+      setUploadData({ title: '', description: '', content: '', pdf_filename: '', audience: 'teachers' });
       fetchResources();
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to upload resource');
+      const msg = error.message || 'Failed to upload resource';
+      if (msg.includes('too large') || msg.includes('413')) {
+        Alert.alert('File Too Large', 'Please compress your PDF first at smallpdf.com');
+      } else {
+        Alert.alert('Upload Failed', msg);
+      }
     } finally {
       setUploading(false);
     }
@@ -460,6 +478,31 @@ export default function TeacherResourcesScreen() {
                   {uploadData.pdf_filename || 'Select PDF file'}
                 </Text>
               </TouchableOpacity>
+
+              {/* Audience Selector */}
+              <Text style={styles.inputLabel}>Share With</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                {[
+                  { id: 'teachers', label: '👩‍🏫 Teachers' },
+                  { id: 'parents', label: '👨‍👩‍👧 Parents' },
+                  { id: 'both', label: '🌐 Both' },
+                  { id: 'admin', label: '🔐 Admin Review' },
+                ].map(opt => (
+                  <TouchableOpacity
+                    key={opt.id}
+                    style={{
+                      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
+                      backgroundColor: uploadData.audience === opt.id ? '#5C6BC0' : '#F0F0F0',
+                      borderWidth: 1, borderColor: uploadData.audience === opt.id ? '#5C6BC0' : '#E0E0E0',
+                    }}
+                    onPress={() => setUploadData({ ...uploadData, audience: opt.id })}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '500', color: uploadData.audience === opt.id ? 'white' : '#666' }}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
               <Text style={styles.topicLabel}>
                 Topic: <Text style={styles.topicValue}>{currentTopic?.name}</Text>
