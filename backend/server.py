@@ -2681,8 +2681,12 @@ async def get_wellbeing_alerts(request: Request):
     user = await get_current_user(request)
     if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
-    result = supabase.table("wellbeing_alerts").select("*").order("created_at", desc=True).execute()
-    return result.data or []
+    try:
+        result = supabase.table("wellbeing_alerts").select("*").order("created_at", desc=True).execute()
+        return result.data or []
+    except Exception as e:
+        logger.error(f"wellbeing_alerts table error: {e}")
+        return []
 
 @api_router.post("/admin/settings")
 async def update_admin_setting(request: Request):
@@ -2708,8 +2712,12 @@ async def get_admin_settings(request: Request):
     user = await get_current_user(request)
     if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
-    result = supabase.table("admin_settings").select("*").execute()
-    return {row["key"]: row["value"] for row in (result.data or [])}
+    try:
+        result = supabase.table("admin_settings").select("*").execute()
+        return {row["key"]: row["value"] for row in (result.data or [])}
+    except Exception as e:
+        logger.error(f"admin_settings table error: {e}")
+        return {}
 
 @api_router.get("/admin/teacher-strategies")
 async def get_admin_teacher_strategies(request: Request):
