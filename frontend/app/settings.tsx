@@ -329,7 +329,7 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>Administration</Text>
         
         {/* Show Admin Dashboard if already admin */}
-        {user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'school_admin' && (
+        {(user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'school_admin') && (
           <TouchableOpacity
             style={styles.settingItem}
             onPress={() => router.push('/admin/dashboard' as any)}
