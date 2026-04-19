@@ -2635,8 +2635,6 @@ async def get_collection(student_id: str):
         "unlocked_homes": unlocked_homes,
     }
 
-app.include_router(api_router)
-
 # ================== WELLBEING ALERT ==================
 class WellbeingAlertRequest(BaseModel):
     teacher_name: str
@@ -2797,3 +2795,4 @@ async def get_school_admin_stats(request: Request):
         "school_name": user.get("school_name", "My School"),
     }
 
+app.include_router(api_router)
