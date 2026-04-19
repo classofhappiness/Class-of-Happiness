@@ -346,7 +346,7 @@ export default function SettingsScreen() {
         )}
         
         {/* Admin Code Entry (only show if not already admin) */}
-        {user?.role !== 'admin' && (
+        {user?.role !== 'admin' && user?.role !== 'superadmin' && (
           <>
             <TouchableOpacity
               style={styles.settingItem}
