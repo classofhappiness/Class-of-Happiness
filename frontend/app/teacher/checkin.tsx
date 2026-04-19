@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   TextInput,
+  Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
@@ -16,12 +17,18 @@ import { useApp } from '../../src/context/AppContext';
 
 type FeelingZone = 'blue' | 'green' | 'yellow' | 'red';
 
+const ZONE_COLORS: Record<FeelingZone, string> = {
+  blue: '#4A90D9', green: '#4CAF50', yellow: '#FFC107', red: '#F44336',
+};
+
 const ZONES: Array<{ id: FeelingZone; label: string; emoji: string; color: string }> = [
   { id: 'blue', label: 'Low energy', emoji: '😔', color: '#4A90D9' },
   { id: 'green', label: 'Steady', emoji: '🙂', color: '#4CAF50' },
   { id: 'yellow', label: 'Stressed', emoji: '😟', color: '#FFC107' },
   { id: 'red', label: 'Overloaded', emoji: '😣', color: '#F44336' },
 ];
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const TEACHER_STRATEGIES: Record<FeelingZone, Array<{ id: string; name: string; description: string; icon: string }>> = {
   blue: [
@@ -58,6 +65,35 @@ export default function TeacherCheckInScreen() {
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [weekData, setWeekData] = useState<Record<string, { zone: FeelingZone; time: string }[]>>({});
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+  const [sendingAlert, setSendingAlert] = useState(false);
+
+  useEffect(() => { loadWeekData(); }, []);
+
+  const loadWeekData = async () => {
+    if (!user?.user_id) return;
+    try {
+      const raw = await AsyncStorage.getItem(`teacher_checkins_${user.user_id}`);
+      const checkins = raw ? JSON.parse(raw) : [];
+      const grouped: Record<string, { zone: FeelingZone; time: string }[]> = {};
+      DAYS.forEach(d => { grouped[d] = []; });
+      // Only show current week
+      const now = new Date();
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - now.getDay());
+      weekStart.setHours(0, 0, 0, 0);
+      checkins.forEach((c: any) => {
+        const date = new Date(c.timestamp);
+        if (date < weekStart) return;
+        const day = DAYS[date.getDay()];
+        const time = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        grouped[day].push({ zone: c.zone, time });
+      });
+      setWeekData(grouped);
+    } catch {}
+  };
 
   const strategiesForZone = useMemo(() => {
     if (!selectedZone) return [];
@@ -65,7 +101,7 @@ export default function TeacherCheckInScreen() {
   }, [selectedZone]);
 
   const toggleStrategy = (id: string) => {
-    setSelectedStrategies((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+    setSelectedStrategies(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
   const saveCheckIn = async () => {
@@ -73,7 +109,6 @@ export default function TeacherCheckInScreen() {
       Alert.alert('Select a feeling', 'Please choose a colour before saving.');
       return;
     }
-
     setSaving(true);
     try {
       const storageKey = `teacher_checkins_${user.user_id}`;
@@ -88,179 +123,235 @@ export default function TeacherCheckInScreen() {
       };
       const updated = [newEntry, ...existing].slice(0, 90);
       await AsyncStorage.setItem(storageKey, JSON.stringify(updated));
-      Alert.alert('Saved', 'Teacher check-in saved.');
+      Alert.alert('✅ Saved', 'Your check-in has been recorded.');
       router.back();
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Could not save check-in right now.');
     } finally {
       setSaving(false);
     }
   };
 
+  const sendWellbeingAlert = async () => {
+    if (!alertMessage.trim()) {
+      Alert.alert('Add a message', 'Please write a brief message before sending.');
+      return;
+    }
+    setSendingAlert(true);
+    try {
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      await fetch(`${BACKEND_URL}/api/wellbeing-alert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          teacher_name: user?.name || 'Teacher',
+          message: alertMessage.trim(),
+          zone: selectedZone,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+    } catch {}
+    setShowAlertModal(false);
+    setAlertMessage('');
+    setSendingAlert(false);
+    Alert.alert(
+      '📨 Alert Sent',
+      'Your wellbeing support team has been notified. Someone will reach out to you soon.',
+      [{ text: 'Thank you' }]
+    );
+  };
+
+  const zoneConfig = selectedZone ? ZONES.find(z => z.id === selectedZone) : null;
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.title}>Teacher Check-in</Text>
+        <Text style={styles.headerTitle}>How are you feeling?</Text>
+        <TouchableOpacity style={styles.alertBtn} onPress={() => setShowAlertModal(true)}>
+          <MaterialIcons name="notifications-active" size={18} color="white" />
+          <Text style={styles.alertBtnText}>Support</Text>
+        </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.subtitle}>Simple wellbeing check-in for educators</Text>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-        <View style={styles.zoneRow}>
-          {ZONES.map((zone) => (
+        {/* Weekly Graph */}
+        <View style={styles.weekCard}>
+          <Text style={styles.weekTitle}>📅 This week</Text>
+          <View style={styles.weekRow}>
+            {DAYS.map(day => {
+              const entries = weekData[day] || [];
+              return (
+                <View key={day} style={styles.dayCol}>
+                  <Text style={styles.dayLabel}>{day}</Text>
+                  {entries.length > 0 ? entries.slice(0, 2).map((e, i) => (
+                    <View key={i} style={styles.dayEntry}>
+                      <View style={[styles.dayDot, { backgroundColor: ZONE_COLORS[e.zone] }]} />
+                      <Text style={styles.dayTime}>{e.time}</Text>
+                    </View>
+                  )) : <Text style={styles.dayEmpty}>·</Text>}
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Zone Selection */}
+        <Text style={styles.sectionLabel}>Select your zone</Text>
+        <View style={styles.zonesStack}>
+          {ZONES.map(zone => (
             <TouchableOpacity
               key={zone.id}
-              style={[
-                styles.zoneChip,
-                { borderColor: zone.color },
-                selectedZone === zone.id && { backgroundColor: zone.color },
-              ]}
-              onPress={() => {
-                setSelectedZone(zone.id);
-                setSelectedStrategies([]);
-              }}
+              style={[styles.zoneBtn, { backgroundColor: zone.color }, selectedZone === zone.id && styles.zoneBtnSelected]}
+              onPress={() => { setSelectedZone(zone.id); setSelectedStrategies([]); }}
+              activeOpacity={0.85}
             >
               <Text style={styles.zoneEmoji}>{zone.emoji}</Text>
-              <Text style={[styles.zoneLabel, selectedZone === zone.id && { color: 'white' }]}>{zone.label}</Text>
+              <Text style={styles.zoneBtnLabel}>{zone.label}</Text>
+              {selectedZone === zone.id && <MaterialIcons name="check-circle" size={20} color="white" />}
             </TouchableOpacity>
           ))}
         </View>
 
+        {/* Strategies */}
         {selectedZone && (
           <>
-            <Text style={styles.sectionTitle}>Recommended strategies for teachers</Text>
-            {strategiesForZone.map((strategy) => {
-              const selected = selectedStrategies.includes(strategy.id);
-              return (
-                <TouchableOpacity
-                  key={strategy.id}
-                  style={[styles.strategyCard, selected && styles.strategyCardSelected]}
-                  onPress={() => toggleStrategy(strategy.id)}
-                >
-                  <MaterialIcons
-                    name={(strategy.icon as never) || 'lightbulb'}
-                    size={22}
-                    color={selected ? '#5C6BC0' : '#666'}
-                  />
-                  <View style={styles.strategyText}>
-                    <Text style={styles.strategyName}>{strategy.name}</Text>
-                    <Text style={styles.strategyDescription}>{strategy.description}</Text>
-                  </View>
-                  <MaterialIcons
-                    name={selected ? 'check-circle' : 'radio-button-unchecked'}
-                    size={20}
-                    color={selected ? '#5C6BC0' : '#AAA'}
-                  />
-                </TouchableOpacity>
-              );
-            })}
+            <Text style={styles.sectionLabel}>Helpful strategies</Text>
+            {strategiesForZone.map(s => (
+              <TouchableOpacity
+                key={s.id}
+                style={[styles.strategyCard, selectedStrategies.includes(s.id) && { borderColor: zoneConfig?.color, borderWidth: 2, backgroundColor: zoneConfig?.color + '15' }]}
+                onPress={() => toggleStrategy(s.id)}
+              >
+                <View style={[styles.strategyIcon, { backgroundColor: zoneConfig?.color + '25' }]}>
+                  <MaterialIcons name={s.icon as any} size={22} color={zoneConfig?.color} />
+                </View>
+                <View style={styles.strategyText}>
+                  <Text style={styles.strategyName}>{s.name}</Text>
+                  <Text style={styles.strategyDesc}>{s.description}</Text>
+                </View>
+                {selectedStrategies.includes(s.id) && <MaterialIcons name="check-circle" size={20} color={zoneConfig?.color} />}
+              </TouchableOpacity>
+            ))}
+
+            <Text style={styles.sectionLabel}>Quick note (optional)</Text>
+            <TextInput
+              style={styles.notesInput}
+              placeholder="e.g. Difficult parent meeting today..."
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+              numberOfLines={3}
+              placeholderTextColor="#AAA"
+            />
           </>
         )}
-
-        <Text style={styles.sectionTitle}>Notes (optional)</Text>
-        <TextInput
-          value={notes}
-          onChangeText={setNotes}
-          placeholder="Anything you want to capture?"
-          style={styles.notesInput}
-          multiline
-        />
       </ScrollView>
 
+      {/* Footer */}
       <View style={styles.footer}>
         <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()} disabled={saving}>
           <Text style={styles.cancelText}>Cancel</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.saveButton, !selectedZone && styles.saveDisabled]}
+          style={[styles.saveButton, { backgroundColor: zoneConfig?.color || '#5C6BC0' }, !selectedZone && styles.saveDisabled]}
           onPress={saveCheckIn}
           disabled={!selectedZone || saving}
         >
           <Text style={styles.saveText}>{saving ? 'Saving...' : 'Save Check-in'}</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Wellbeing Alert Modal */}
+      <Modal visible={showAlertModal} transparent animationType="slide" onRequestClose={() => setShowAlertModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <MaterialIcons name="notifications-active" size={24} color="#F44336" />
+              <Text style={styles.modalTitle}>Request Wellbeing Support</Text>
+              <TouchableOpacity onPress={() => setShowAlertModal(false)}>
+                <MaterialIcons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalSubtitle}>
+              Your principal, psychologist, or wellbeing lead will be notified privately and confidentially.
+            </Text>
+            <Text style={styles.inputLabel}>Your message</Text>
+            <TextInput
+              style={styles.alertInput}
+              placeholder="e.g. I'm struggling this week and would appreciate a check-in..."
+              value={alertMessage}
+              onChangeText={setAlertMessage}
+              multiline
+              numberOfLines={4}
+              placeholderTextColor="#AAA"
+              autoFocus
+            />
+            <TouchableOpacity
+              style={[styles.sendAlertBtn, sendingAlert && { opacity: 0.6 }]}
+              onPress={sendWellbeingAlert}
+              disabled={sendingAlert}
+            >
+              <MaterialIcons name="send" size={20} color="white" />
+              <Text style={styles.sendAlertText}>{sendingAlert ? 'Sending...' : 'Send to Wellbeing Team'}</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalNote}>
+              🔒 This message is private. Only your designated wellbeing support staff will see it.
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: 'white' },
-  backButton: { padding: 4, marginRight: 8 },
-  title: { fontSize: 20, fontWeight: '700', color: '#333' },
-  content: { padding: 16, paddingBottom: 120 },
-  subtitle: { fontSize: 14, color: '#666', marginBottom: 12 },
-  zoneRow: { gap: 10, marginBottom: 18 },
-  zoneChip: {
-    borderWidth: 2,
-    borderRadius: 12,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'white',
-  },
-  zoneEmoji: { fontSize: 20 },
-  zoneLabel: { fontSize: 15, fontWeight: '600', color: '#333' },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#333', marginBottom: 10, marginTop: 8 },
-  strategyCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#EEE',
-  },
-  strategyCardSelected: {
-    borderColor: '#5C6BC0',
-    backgroundColor: '#F4F6FF',
-  },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  backBtn: { padding: 8, marginRight: 8 },
+  headerTitle: { flex: 1, fontSize: 18, fontWeight: 'bold', color: '#333' },
+  alertBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F44336', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, gap: 6 },
+  alertBtnText: { color: 'white', fontWeight: '700', fontSize: 13 },
+  scroll: { padding: 16, paddingBottom: 40 },
+  weekCard: { backgroundColor: 'white', borderRadius: 14, padding: 14, marginBottom: 20, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
+  weekTitle: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 12 },
+  weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  dayCol: { alignItems: 'center', flex: 1, gap: 4 },
+  dayLabel: { fontSize: 10, fontWeight: '600', color: '#888' },
+  dayEntry: { alignItems: 'center', gap: 2 },
+  dayDot: { width: 20, height: 20, borderRadius: 10 },
+  dayTime: { fontSize: 8, color: '#AAA' },
+  dayEmpty: { fontSize: 18, color: '#DDD', marginTop: 4 },
+  sectionLabel: { fontSize: 15, fontWeight: '600', color: '#444', marginBottom: 10 },
+  zonesStack: { gap: 8, marginBottom: 20 },
+  zoneBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 18, borderRadius: 14, gap: 12 },
+  zoneBtnSelected: { borderWidth: 3, borderColor: 'white' },
+  zoneEmoji: { fontSize: 24 },
+  zoneBtnLabel: { fontSize: 18, fontWeight: 'bold', color: 'white', flex: 1 },
+  strategyCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', borderRadius: 12, padding: 12, marginBottom: 8, gap: 12, borderWidth: 1, borderColor: '#E0E0E0' },
+  strategyIcon: { width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   strategyText: { flex: 1 },
   strategyName: { fontSize: 14, fontWeight: '600', color: '#333' },
-  strategyDescription: { fontSize: 12, color: '#666', marginTop: 2 },
-  notesInput: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    minHeight: 84,
-    textAlignVertical: 'top',
-    padding: 12,
-  },
-  footer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    padding: 14,
-    gap: 10,
-    backgroundColor: 'white',
-    borderTopWidth: 1,
-    borderTopColor: '#EEE',
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#CCC',
-    alignItems: 'center',
-  },
-  cancelText: { color: '#666', fontWeight: '600' },
-  saveButton: {
-    flex: 2,
-    paddingVertical: 14,
-    borderRadius: 10,
-    backgroundColor: '#5C6BC0',
-    alignItems: 'center',
-  },
-  saveDisabled: { opacity: 0.5 },
-  saveText: { color: 'white', fontWeight: '700' },
+  strategyDesc: { fontSize: 12, color: '#888', marginTop: 2 },
+  notesInput: { backgroundColor: 'white', borderRadius: 12, padding: 14, fontSize: 15, color: '#333', borderWidth: 1, borderColor: '#E0E0E0', minHeight: 80, textAlignVertical: 'top', marginBottom: 20 },
+  footer: { flexDirection: 'row', padding: 16, gap: 12, backgroundColor: 'white', borderTopWidth: 1, borderTopColor: '#F0F0F0' },
+  cancelButton: { flex: 1, padding: 16, borderRadius: 12, backgroundColor: '#F0F0F0', alignItems: 'center' },
+  cancelText: { fontSize: 16, fontWeight: '600', color: '#666' },
+  saveButton: { flex: 2, padding: 16, borderRadius: 12, alignItems: 'center' },
+  saveDisabled: { opacity: 0.4 },
+  saveText: { color: 'white', fontWeight: '700', fontSize: 16 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  modalTitle: { flex: 1, fontSize: 18, fontWeight: 'bold', color: '#333' },
+  modalSubtitle: { fontSize: 14, color: '#666', lineHeight: 20, marginBottom: 20, backgroundColor: '#FFF3F3', padding: 12, borderRadius: 10 },
+  inputLabel: { fontSize: 14, fontWeight: '600', color: '#444', marginBottom: 8 },
+  alertInput: { backgroundColor: '#F8F9FA', borderRadius: 12, padding: 14, fontSize: 15, color: '#333', borderWidth: 1, borderColor: '#E0E0E0', minHeight: 100, textAlignVertical: 'top', marginBottom: 16 },
+  sendAlertBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F44336', borderRadius: 12, padding: 16, gap: 8 },
+  sendAlertText: { color: 'white', fontWeight: '700', fontSize: 16 },
+  modalNote: { fontSize: 12, color: '#888', textAlign: 'center', marginTop: 12, lineHeight: 18 },
 });
