@@ -16,7 +16,7 @@ import {
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import { File, Directory, Paths } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useApp } from '../../src/context/AppContext';
 import { 
@@ -114,15 +114,8 @@ export default function TeacherResourcesScreen() {
         const file = result.assets[0];
         
         // Read file as base64 using fetch API (compatible with Expo SDK 54+)
-        const response = await fetch(file.uri);
-        const blob = await response.blob();
-        const base64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const result = reader.result as string;
-            resolve(result.split(',')[1] || '');
-          };
-          reader.readAsDataURL(blob);
+        const base64 = await FileSystem.readAsStringAsync(file.uri, {
+          encoding: FileSystem.EncodingType.Base64,
         });
         
         setUploadData({
@@ -214,26 +207,23 @@ export default function TeacherResourcesScreen() {
         // Web: Open in new tab
         Linking.openURL(pdfUrl);
       } else {
-        // Mobile (Expo Go SDK 54+): Use new File/Directory API
-        // Use cache directory directly to avoid create() issues
-        const cacheDir = new Directory(Paths.cache);
+        // Use unique filename to avoid 'destination already exists' error
+        const timestamp = Date.now();
+        const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const localUri = `${FileSystem.cacheDirectory}${timestamp}_${safeFilename}`;
         
-        console.log('Downloading to cache directory');
+        console.log('Downloading to:', localUri);
         
-        // Download file directly to cache
-        const downloadedFile = await File.downloadFileAsync(pdfUrl, cacheDir);
+        const downloadResult = await FileSystem.downloadAsync(pdfUrl, localUri);
         
-        console.log('Download result - exists:', downloadedFile.exists);
-        console.log('Download result - uri:', downloadedFile.uri);
-        
-        if (!downloadedFile.exists) {
-          throw new Error('Downloaded file does not exist');
+        if (downloadResult.status !== 200) {
+          throw new Error(`Download failed with status ${downloadResult.status}`);
         }
         
         // Check if sharing is available
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
-          await Sharing.shareAsync(downloadedFile.uri, {
+          await Sharing.shareAsync(downloadResult.uri, {
             mimeType: 'application/pdf',
             dialogTitle: `Share ${resource.title}`,
             UTI: 'com.adobe.pdf',
