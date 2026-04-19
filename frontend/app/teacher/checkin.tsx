@@ -337,32 +337,7 @@ export default function TeacherCheckInScreen() {
               </View>
             </TouchableOpacity>
 
-            {/* Share with wellbeing toggle */}
-            <TouchableOpacity
-              style={styles.shareToggle}
-              onPress={() => setShareWithWellbeing(!shareWithWellbeing)}
-            >
-              <MaterialIcons
-                name={shareWithWellbeing ? 'notifications-active' : 'notifications-off'}
-                size={20}
-                color={shareWithWellbeing ? '#F44336' : '#CCC'}
-              />
-              <View style={styles.shareToggleText}>
-                <Text style={styles.shareToggleTitle}>
-                  {shareWithWellbeing ? '📨 Share with wellbeing support' : '🔒 Keep private (default)'}
-                </Text>
-                <Text style={styles.shareToggleDesc}>
-                  {shareWithWellbeing
-                    ? 'Your principal/psychologist will be notified of this check-in'
-                    : 'Only you can see this check-in'}
-                </Text>
-              </View>
-              <View style={[styles.toggleSwitch, shareWithWellbeing && styles.toggleSwitchOn]}>
-                <View style={[styles.toggleKnob, shareWithWellbeing && styles.toggleKnobOn]} />
-              </View>
-            </TouchableOpacity>
-
-            {/* Save button */}
+            {/* Save button */}            {/* Save button */}
             <TouchableOpacity
               style={[styles.saveButton, { backgroundColor: zoneConfig?.color }]}
               onPress={saveCheckIn}
