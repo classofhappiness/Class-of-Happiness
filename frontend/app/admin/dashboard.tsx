@@ -82,7 +82,7 @@ export default function AdminDashboardScreen() {
     if (!wellbeingEmail.trim()) return;
     setSavingEmail(true);
     try {
-      await apiCall('/admin/settings', {
+      await apiCall('/admin/settings', authToken, {
         method: 'POST',
         body: JSON.stringify({ key: 'wellbeing_email', value: wellbeingEmail.trim() }),
       });
@@ -100,7 +100,7 @@ export default function AdminDashboardScreen() {
       return;
     }
     try {
-      await apiCall('/admin/teacher-strategies', {
+      await apiCall('/admin/teacher-strategies', authToken, {
         method: 'POST',
         body: JSON.stringify({ name: newStratName.trim(), description: newStratDesc.trim(), zone: newStratZone, icon: newStratIcon }),
       });
