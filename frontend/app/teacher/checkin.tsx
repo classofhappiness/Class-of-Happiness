@@ -66,6 +66,10 @@ export default function TeacherCheckInScreen() {
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [sendingAlert, setSendingAlert] = useState(false);
+  const [customStrategies, setCustomStrategies] = useState<Array<{id: string; name: string; description: string}>>([]);
+  const [showAddStrategy, setShowAddStrategy] = useState(false);
+  const [newStrategyName, setNewStrategyName] = useState('');
+  const [newStrategyDesc, setNewStrategyDesc] = useState('');
 
   useEffect(() => { loadData(); }, []);
 
@@ -91,7 +95,22 @@ export default function TeacherCheckInScreen() {
         grouped[day].push({ zone: c.zone, time });
       });
       setWeekData(grouped);
+      // Load custom teacher strategies
+      const customRaw = await AsyncStorage.getItem(`teacher_custom_strategies_${user.user_id}`);
+      if (customRaw) setCustomStrategies(JSON.parse(customRaw));
     } catch {}
+  };
+
+  const saveCustomStrategy = async () => {
+    if (!newStrategyName.trim()) return;
+    const newS = { id: `custom_${Date.now()}`, name: newStrategyName.trim(), description: newStrategyDesc.trim() };
+    const updated = [...customStrategies, newS];
+    setCustomStrategies(updated);
+    await AsyncStorage.setItem(`teacher_custom_strategies_${user?.user_id}`, JSON.stringify(updated));
+    setNewStrategyName('');
+    setNewStrategyDesc('');
+    setShowAddStrategy(false);
+    Alert.alert('✅ Added', 'Your personal strategy has been saved.');
   };
 
   const strategiesForZone = useMemo(() => {
@@ -176,7 +195,7 @@ export default function TeacherCheckInScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>How are you feeling?</Text>
+        <Text style={styles.headerTitle}>Teacher Check-In</Text>
         <TouchableOpacity style={styles.alertBtn} onPress={() => setShowAlertModal(true)}>
           <MaterialIcons name="notifications-active" size={18} color="white" />
           <Text style={styles.alertBtnText}>Support</Text>
@@ -222,6 +241,42 @@ export default function TeacherCheckInScreen() {
                 {selectedStrategies.includes(s.id) && <MaterialIcons name="check-circle" size={20} color={zoneConfig?.color} />}
               </TouchableOpacity>
             ))}
+
+            {/* Custom personal strategies */}
+            {customStrategies.length > 0 && (
+              <>
+                <Text style={styles.customStratLabel}>Your personal strategies</Text>
+                {customStrategies.map(s => (
+                  <TouchableOpacity
+                    key={s.id}
+                    style={[styles.strategyCard, selectedStrategies.includes(s.id) && { borderColor: zoneConfig?.color, borderWidth: 2, backgroundColor: zoneConfig?.color + '15' }]}
+                    onPress={() => toggleStrategy(s.id)}
+                  >
+                    <View style={[styles.strategyIcon, { backgroundColor: '#E8EAF6' }]}>
+                      <MaterialIcons name="star" size={22} color="#5C6BC0" />
+                    </View>
+                    <View style={styles.strategyText}>
+                      <Text style={styles.strategyName}>{s.name}</Text>
+                      {s.description ? <Text style={styles.strategyDesc}>{s.description}</Text> : null}
+                    </View>
+                    {selectedStrategies.includes(s.id) && <MaterialIcons name="check-circle" size={20} color={zoneConfig?.color} />}
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
+            <TouchableOpacity style={styles.addStrategyBtn} onPress={() => setShowAddStrategy(!showAddStrategy)}>
+              <MaterialIcons name="add-circle-outline" size={20} color="#5C6BC0" />
+              <Text style={styles.addStrategyText}>Add your own strategy</Text>
+            </TouchableOpacity>
+            {showAddStrategy && (
+              <View style={styles.addStrategyForm}>
+                <TextInput style={styles.addStrategyInput} placeholder="Strategy name..." value={newStrategyName} onChangeText={setNewStrategyName} placeholderTextColor="#AAA" />
+                <TextInput style={styles.addStrategyInput} placeholder="Description (optional)..." value={newStrategyDesc} onChangeText={setNewStrategyDesc} placeholderTextColor="#AAA" />
+                <TouchableOpacity style={styles.addStrategySubmit} onPress={saveCustomStrategy}>
+                  <Text style={styles.addStrategySubmitText}>Save Strategy</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Notes */}
             <Text style={styles.sectionLabel}>Add a note (optional)</Text>
@@ -395,4 +450,11 @@ const styles = StyleSheet.create({
   sendAlertBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F44336', borderRadius: 12, padding: 16, gap: 8 },
   sendAlertText: { color: 'white', fontWeight: '700', fontSize: 16 },
   modalNote: { fontSize: 12, color: '#888', textAlign: 'center', marginTop: 12, lineHeight: 18 },
+  customStratLabel: { fontSize: 13, fontWeight: '600', color: '#5C6BC0', marginBottom: 8, marginTop: 4 },
+  addStrategyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, marginBottom: 8 },
+  addStrategyText: { fontSize: 14, color: '#5C6BC0', fontWeight: '600' },
+  addStrategyForm: { backgroundColor: 'white', borderRadius: 12, padding: 12, marginBottom: 12, gap: 8, borderWidth: 1, borderColor: '#E8EAF6' },
+  addStrategyInput: { backgroundColor: '#F5F5F5', borderRadius: 8, padding: 10, fontSize: 14, color: '#333' },
+  addStrategySubmit: { backgroundColor: '#5C6BC0', borderRadius: 8, padding: 10, alignItems: 'center' },
+  addStrategySubmitText: { color: 'white', fontWeight: '600', fontSize: 14 },
 });
