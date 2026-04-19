@@ -120,6 +120,23 @@ export default function SettingsScreen() {
     }
   };
 
+  // Handle superadmin promotion (Jono only)
+  const handleSuperAdminCode = async () => {
+    const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+    try {
+      const token = await AsyncStorage.getItem('session_token');
+      const res = await fetch(`${BACKEND_URL}/api/auth/promote-superadmin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ code: adminCode.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        Alert.alert('✅ Superadmin', 'You now have full superadmin access!');
+      }
+    } catch {}
+  };
+
   // Handle admin code promotion
   const handlePromoteAdmin = async () => {
     if (!adminCode.trim()) {
@@ -129,6 +146,12 @@ export default function SettingsScreen() {
     
     setPromotingAdmin(true);
     try {
+      // Try superadmin first, fall back to school admin
+      if (['JONO_SUPERADMIN_2026', 'CLASS_CREATOR_2026'].includes(adminCode.trim())) {
+        await handleSuperAdminCode();
+        setAdminCode('');
+        return;
+      }
       const result = await authApiExtended.promoteToAdmin(adminCode.trim());
       Alert.alert(
         '🔐 ' + (t('success') || 'Success'),

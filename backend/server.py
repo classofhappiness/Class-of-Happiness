@@ -1970,7 +1970,7 @@ async def get_subscription_status(request: Request):
 @api_router.get("/admin/stats")
 async def get_admin_stats(request: Request):
     user = await get_current_user(request)
-    if not user or user.get("role") != "admin":
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="Admin only")
     users = supabase.table("users").select("*").execute()
     students = supabase.table("students").select("*").execute()
@@ -2013,7 +2013,7 @@ def _resource_to_teacher_resource(resource: dict, ratings: List[dict]):
 @api_router.get("/admin/resources")
 async def get_admin_resources(request: Request):
     user = await get_current_user(request)
-    if not user or user.get("role") != "admin":
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="Admin only")
     result = supabase.table("resources").select("*").order("created_at", desc=True).execute()
     return result.data or []
@@ -2022,7 +2022,7 @@ async def get_admin_resources(request: Request):
 @api_router.post("/admin/resources")
 async def create_admin_resource(request: Request):
     user = await get_current_user(request)
-    if not user or user.get("role") != "admin":
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="Admin only")
     body = await request.json()
     title = (body.get("title") or "").strip()
@@ -2074,7 +2074,7 @@ async def create_admin_resource(request: Request):
 @api_router.get("/admin/analytics")
 async def get_admin_analytics(request: Request, period: int = 30, classroom_id: Optional[str] = None):
     user = await get_current_user(request)
-    if not user or user.get("role") != "admin":
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="Admin only")
 
     days = max(1, min(period, 365))
@@ -2165,7 +2165,7 @@ async def get_admin_analytics(request: Request, period: int = 30, classroom_id: 
 @api_router.get("/admin/schools")
 async def get_admin_schools(request: Request):
     user = await get_current_user(request)
-    if not user or user.get("role") != "admin":
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="Admin only")
     classrooms = supabase.table("classrooms").select("*").execute().data or []
     return [{"name": c.get("name", "Classroom"), "classroom_count": 1} for c in classrooms]
@@ -2174,7 +2174,7 @@ async def get_admin_schools(request: Request):
 @api_router.get("/admin/export")
 async def export_admin_data(request: Request, type: str = "checkins", format: str = "json"):
     user = await get_current_user(request)
-    if not user or user.get("role") != "admin":
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="Admin only")
     table_map = {"checkins": "feeling_logs", "users": "users", "resources": "resources", "students": "students"}
     table = table_map.get(type, "feeling_logs")
@@ -2681,7 +2681,7 @@ async def send_wellbeing_alert(req: WellbeingAlertRequest, request: Request):
 async def get_wellbeing_alerts(request: Request):
     """Admin views all teacher wellbeing alerts"""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin"]:
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     result = supabase.table("wellbeing_alerts").select("*").order("created_at", desc=True).execute()
     return result.data or []
@@ -2690,7 +2690,7 @@ async def get_wellbeing_alerts(request: Request):
 async def update_admin_setting(request: Request):
     """Admin updates a setting key/value pair"""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin"]:
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     body = await request.json()
     key = body.get("key")
@@ -2708,7 +2708,7 @@ async def update_admin_setting(request: Request):
 async def get_admin_settings(request: Request):
     """Get all admin settings"""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin"]:
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     result = supabase.table("admin_settings").select("*").execute()
     return {row["key"]: row["value"] for row in (result.data or [])}
@@ -2732,7 +2732,7 @@ async def get_admin_teacher_strategies(request: Request):
 async def create_admin_teacher_strategy(request: Request):
     """Admin adds a new strategy for teachers"""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin"]:
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     body = await request.json()
     new_strat = {
@@ -2747,4 +2747,53 @@ async def create_admin_teacher_strategy(request: Request):
     result = supabase.table("admin_teacher_strategies").insert(new_strat).execute()
     return result.data[0] if result.data else new_strat
 
+# ================== SUPER ADMIN (App Creator) ==================
+@api_router.post("/auth/promote-superadmin")
+async def promote_superadmin(request: Request):
+    """Jono only - grants superadmin access to see all schools"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    code = body.get("code", "")
+    # Secret code only Jono knows
+    if code not in ["JONO_SUPERADMIN_2026", "CLASS_CREATOR_2026"]:
+        raise HTTPException(status_code=403, detail="Invalid superadmin code")
+    supabase.table("users").update({"role": "superadmin"}).eq("user_id", user["user_id"]).execute()
+    return {"role": "superadmin", "message": "Superadmin access granted!"}
+
+# ================== SCHOOL ADMIN ==================
+@api_router.post("/auth/promote-school-admin")
+async def promote_school_admin(request: Request):
+    """Grants school_admin access - purchased by schools"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    code = body.get("code", "")
+    school_name = body.get("school_name", "")
+    if code not in ["ADMINCLASS2026", "HAPPYADMIN2026", "SCHOOLADMIN2026"]:
+        raise HTTPException(status_code=403, detail="Invalid school admin code")
+    supabase.table("users").update({
+        "role": "school_admin",
+        "school_name": school_name or "My School",
+    }).eq("user_id", user["user_id"]).execute()
+    return {"role": "school_admin", "message": "School admin access granted!"}
+
+@api_router.get("/school-admin/stats")
+async def get_school_admin_stats(request: Request):
+    """School admin sees their school's stats"""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin", "admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    user_id = user["user_id"]
+    # Get all students for this school admin's teachers
+    teachers = supabase.table("users").select("user_id, name, email").eq("school_admin_id", user_id).execute()
+    teacher_ids = [t["user_id"] for t in (teachers.data or [])]
+    students = supabase.table("students").select("*").in_("user_id", teacher_ids).execute() if teacher_ids else type("obj", (object,), {"data": []})()
+    return {
+        "total_teachers": len(teacher_ids),
+        "total_students": len(students.data or []),
+        "school_name": user.get("school_name", "My School"),
+    }
 

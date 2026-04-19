@@ -124,6 +124,9 @@ export default function AdminDashboardScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Admin Dashboard</Text>
         {user && <Text style={styles.headerSub}>{user.name || user.email}</Text>}
+        {user && <Text style={[styles.headerSub, {fontSize: 11, opacity: 0.7}]}>
+          {user.role === 'superadmin' ? '👑 Super Admin (All Schools)' : user.role === 'school_admin' ? '🏫 School Admin' : '⚙️ Admin'}
+        </Text>}
       </View>
 
       {/* Tab bar */}
