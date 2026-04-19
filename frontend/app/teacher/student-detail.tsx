@@ -111,7 +111,7 @@ export default function StudentDetailScreen() {
       const [analyticsData, logsData, strategiesData, months, statusData] = await Promise.all([
         analyticsApi.getStudent(studentId, selectedPeriod),
         zoneLogsApi.getByStudent(studentId, selectedPeriod),
-        strategiesApi.getAll(),
+        strategiesApi.getAll(studentId),
         reportsApi.getAvailableMonths(studentId),
         teacherHomeDataApi.getSharingStatus(studentId).catch(() => null),
       ]);

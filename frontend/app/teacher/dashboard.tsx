@@ -93,6 +93,27 @@ export default function TeacherDashboardScreen() {
     setRefreshing(false);
   };
 
+  const getDayOfWeek = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return days[date.getDay()];
+  };
+
+  const getWeeklyLogs = () => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const weekData: Record<string, { logs: ZoneLog[], times: string[] }> = {};
+    days.forEach(day => { weekData[day] = { logs: [], times: [] }; });
+    recentLogs.forEach(log => {
+      const day = getDayOfWeek(log.timestamp);
+      if (weekData[day]) {
+        const time = new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        weekData[day].logs.push(log);
+        weekData[day].times.push(time);
+      }
+    });
+    return weekData;
+  };
+
   const getStudentName = (studentId: string) => {
     const student = students.find(s => s.id === studentId);
     return student?.name || 'Unknown';
@@ -293,6 +314,39 @@ export default function TeacherDashboardScreen() {
               <Text style={styles.emptyChartText}>{t('no_data_yet')}</Text>
             </View>
           )}
+        </View>
+
+        {/* Mon-Sun Weekly Overview Table */}
+        <View style={styles.chartSection}>
+          <Text style={styles.sectionTitle}>📅 Week at a Glance</Text>
+          <View style={styles.weeklyTable}>
+            <View style={styles.weeklyHeader}>
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                <View key={day} style={styles.weeklyDayHeader}>
+                  <Text style={styles.weeklyDayText}>{day}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={styles.weeklyBody}>
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => {
+                const dayData = getWeeklyLogs()[day];
+                return (
+                  <View key={day} style={styles.weeklyDayCell}>
+                    {dayData.logs.length > 0 ? (
+                      dayData.logs.slice(0, 3).map((log, idx) => (
+                        <View key={idx} style={styles.weeklyLogItem}>
+                          <View style={[styles.weeklyZoneDot, { backgroundColor: ZONE_COLORS[log.zone] }]} />
+                          <Text style={styles.weeklyTime}>{dayData.times[idx]}</Text>
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={styles.weeklyNoData}>-</Text>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
         </View>
 
         {/* Recent Check-ins */}
@@ -583,4 +637,14 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 12,
   },
+  weeklyTable: { backgroundColor: 'white', borderRadius: 12, padding: 12, marginTop: 8 },
+  weeklyHeader: { flexDirection: 'row', marginBottom: 8 },
+  weeklyDayHeader: { flex: 1, alignItems: 'center' },
+  weeklyDayText: { fontSize: 11, fontWeight: '600', color: '#888' },
+  weeklyBody: { flexDirection: 'row' },
+  weeklyDayCell: { flex: 1, alignItems: 'center', minHeight: 60, gap: 4 },
+  weeklyLogItem: { alignItems: 'center', gap: 2 },
+  weeklyZoneDot: { width: 18, height: 18, borderRadius: 9 },
+  weeklyTime: { fontSize: 8, color: '#999' },
+  weeklyNoData: { fontSize: 16, color: '#DDD', marginTop: 12 },
 });
