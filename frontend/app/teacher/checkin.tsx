@@ -69,7 +69,6 @@ export default function TeacherCheckInScreen() {
   const [alertMessage, setAlertMessage] = useState('');
   const [sendingAlert, setSendingAlert] = useState(false);
   const [shareWithWellbeing, setShareWithWellbeing] = useState(false);
-  const [shareWithWellbeing, setShareWithWellbeing] = useState(false);
   const [customStrategies, setCustomStrategies] = useState<Array<{id: string; name: string; description: string}>>([]);
   const [showAddStrategy, setShowAddStrategy] = useState(false);
   const [newStrategyName, setNewStrategyName] = useState('');
