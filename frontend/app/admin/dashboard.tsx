@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -13,10 +14,11 @@ const ZONE_COLORS: Record<string, string> = {
 };
 const ZONES = ['blue', 'green', 'yellow', 'red'];
 
-async function apiCall(endpoint: string, options: any = {}) {
+async function apiCall(endpoint: string, token: string | null, options: any = {}) {
+  const headers: any = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(`${BACKEND_URL}/api${endpoint}`, {
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
+    headers,
     ...options,
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -27,6 +29,11 @@ export default function AdminDashboardScreen() {
   const router = useRouter();
   const { user, t } = useApp();
   const [activeTab, setActiveTab] = useState<'overview' | 'alerts' | 'strategies' | 'settings'>('overview');
+  const [authToken, setAuthToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem('session_token').then(t => setAuthToken(t));
+  }, []);
   const [loading, setLoading] = useState(false);
 
   // Stats
@@ -52,16 +59,16 @@ export default function AdminDashboardScreen() {
     setLoading(true);
     try {
       if (activeTab === 'overview') {
-        const data = await apiCall('/admin/stats');
+        const data = await apiCall('/admin/stats', authToken);
         setStats(data);
       } else if (activeTab === 'alerts') {
-        const data = await apiCall('/admin/wellbeing-alerts');
+        const data = await apiCall('/admin/wellbeing-alerts', authToken);
         setAlerts(data);
       } else if (activeTab === 'strategies') {
-        const data = await apiCall('/admin/teacher-strategies');
+        const data = await apiCall('/admin/teacher-strategies', authToken);
         setTeacherStrategies(data);
       } else if (activeTab === 'settings') {
-        const data = await apiCall('/admin/settings');
+        const data = await apiCall('/admin/settings', authToken);
         setWellbeingEmail(data.wellbeing_email || '');
       }
     } catch (e) {
