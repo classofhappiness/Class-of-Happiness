@@ -1,14 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  TextInput,
-  Modal,
+  View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
+  ScrollView, Alert, TextInput, Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
@@ -58,6 +51,9 @@ const TEACHER_STRATEGIES: Record<FeelingZone, Array<{ id: string; name: string; 
   ],
 };
 
+// All strategies flat for lookup
+const ALL_STRATEGIES = Object.values(TEACHER_STRATEGIES).flat();
+
 export default function TeacherCheckInScreen() {
   const router = useRouter();
   const { user } = useApp();
@@ -66,20 +62,23 @@ export default function TeacherCheckInScreen() {
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [weekData, setWeekData] = useState<Record<string, { zone: FeelingZone; time: string }[]>>({});
+  const [history, setHistory] = useState<any[]>([]);
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [sendingAlert, setSendingAlert] = useState(false);
 
-  useEffect(() => { loadWeekData(); }, []);
+  useEffect(() => { loadData(); }, []);
 
-  const loadWeekData = async () => {
+  const loadData = async () => {
     if (!user?.user_id) return;
     try {
       const raw = await AsyncStorage.getItem(`teacher_checkins_${user.user_id}`);
       const checkins = raw ? JSON.parse(raw) : [];
+      setHistory(checkins.slice(0, 10));
+
+      // Build this week's data
       const grouped: Record<string, { zone: FeelingZone; time: string }[]> = {};
       DAYS.forEach(d => { grouped[d] = []; });
-      // Only show current week
       const now = new Date();
       const weekStart = new Date(now);
       weekStart.setDate(now.getDate() - now.getDay());
@@ -106,7 +105,7 @@ export default function TeacherCheckInScreen() {
 
   const saveCheckIn = async () => {
     if (!selectedZone || !user?.user_id) {
-      Alert.alert('Select a feeling', 'Please choose a colour before saving.');
+      Alert.alert('Select a colour', 'Please choose an emotion colour before saving.');
       return;
     }
     setSaving(true);
@@ -123,8 +122,12 @@ export default function TeacherCheckInScreen() {
       };
       const updated = [newEntry, ...existing].slice(0, 90);
       await AsyncStorage.setItem(storageKey, JSON.stringify(updated));
+      await loadData();
+      // Reset form
+      setSelectedZone(null);
+      setSelectedStrategies([]);
+      setNotes('');
       Alert.alert('✅ Saved', 'Your check-in has been recorded.');
-      router.back();
     } catch {
       Alert.alert('Error', 'Could not save check-in right now.');
     } finally {
@@ -154,11 +157,14 @@ export default function TeacherCheckInScreen() {
     setShowAlertModal(false);
     setAlertMessage('');
     setSendingAlert(false);
-    Alert.alert(
-      '📨 Alert Sent',
-      'Your wellbeing support team has been notified. Someone will reach out to you soon.',
-      [{ text: 'Thank you' }]
-    );
+    Alert.alert('📨 Alert Sent', 'Your wellbeing support team has been notified. Someone will reach out to you soon.', [{ text: 'Thank you' }]);
+  };
+
+  const getStrategyName = (id: string) => ALL_STRATEGIES.find(s => s.id === id)?.name || id;
+
+  const formatDate = (iso: string) => {
+    const d = new Date(iso);
+    return `${DAYS[d.getDay()]} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
   };
 
   const zoneConfig = selectedZone ? ZONES.find(z => z.id === selectedZone) : null;
@@ -179,7 +185,69 @@ export default function TeacherCheckInScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* Weekly Graph */}
+        {/* STEP 1: Colour Selection */}
+        <Text style={styles.sectionLabel}>Select your emotion colour</Text>
+        <View style={styles.zonesStack}>
+          {ZONES.map(zone => (
+            <TouchableOpacity
+              key={zone.id}
+              style={[styles.zoneBtn, { backgroundColor: zone.color }, selectedZone === zone.id && styles.zoneBtnSelected]}
+              onPress={() => { setSelectedZone(zone.id); setSelectedStrategies([]); }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.zoneEmoji}>{zone.emoji}</Text>
+              <Text style={styles.zoneBtnLabel}>{zone.label}</Text>
+              {selectedZone === zone.id && <MaterialIcons name="check-circle" size={22} color="white" />}
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* STEP 2: Strategies (only after colour selected) */}
+        {selectedZone && (
+          <>
+            <Text style={styles.sectionLabel}>Helpful strategies — tap to select</Text>
+            {strategiesForZone.map(s => (
+              <TouchableOpacity
+                key={s.id}
+                style={[styles.strategyCard, selectedStrategies.includes(s.id) && { borderColor: zoneConfig?.color, borderWidth: 2, backgroundColor: zoneConfig?.color + '15' }]}
+                onPress={() => toggleStrategy(s.id)}
+              >
+                <View style={[styles.strategyIcon, { backgroundColor: zoneConfig?.color + '25' }]}>
+                  <MaterialIcons name={s.icon as any} size={22} color={zoneConfig?.color} />
+                </View>
+                <View style={styles.strategyText}>
+                  <Text style={styles.strategyName}>{s.name}</Text>
+                  <Text style={styles.strategyDesc}>{s.description}</Text>
+                </View>
+                {selectedStrategies.includes(s.id) && <MaterialIcons name="check-circle" size={20} color={zoneConfig?.color} />}
+              </TouchableOpacity>
+            ))}
+
+            {/* Notes */}
+            <Text style={styles.sectionLabel}>Add a note (optional)</Text>
+            <TextInput
+              style={styles.notesInput}
+              placeholder="e.g. Difficult parent meeting today..."
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+              numberOfLines={3}
+              placeholderTextColor="#AAA"
+            />
+
+            {/* Save button */}
+            <TouchableOpacity
+              style={[styles.saveButton, { backgroundColor: zoneConfig?.color }]}
+              onPress={saveCheckIn}
+              disabled={saving}
+            >
+              <MaterialIcons name="check" size={22} color="white" />
+              <Text style={styles.saveText}>{saving ? 'Saving...' : 'Save Check-in'}</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {/* STEP 3: Weekly Calendar — always visible at bottom */}
         <View style={styles.weekCard}>
           <Text style={styles.weekTitle}>📅 This week</Text>
           <View style={styles.weekRow}>
@@ -200,71 +268,38 @@ export default function TeacherCheckInScreen() {
           </View>
         </View>
 
-        {/* Zone Selection */}
-        <Text style={styles.sectionLabel}>Select your zone</Text>
-        <View style={styles.zonesStack}>
-          {ZONES.map(zone => (
-            <TouchableOpacity
-              key={zone.id}
-              style={[styles.zoneBtn, { backgroundColor: zone.color }, selectedZone === zone.id && styles.zoneBtnSelected]}
-              onPress={() => { setSelectedZone(zone.id); setSelectedStrategies([]); }}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.zoneEmoji}>{zone.emoji}</Text>
-              <Text style={styles.zoneBtnLabel}>{zone.label}</Text>
-              {selectedZone === zone.id && <MaterialIcons name="check-circle" size={20} color="white" />}
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Strategies */}
-        {selectedZone && (
-          <>
-            <Text style={styles.sectionLabel}>Helpful strategies</Text>
-            {strategiesForZone.map(s => (
-              <TouchableOpacity
-                key={s.id}
-                style={[styles.strategyCard, selectedStrategies.includes(s.id) && { borderColor: zoneConfig?.color, borderWidth: 2, backgroundColor: zoneConfig?.color + '15' }]}
-                onPress={() => toggleStrategy(s.id)}
-              >
-                <View style={[styles.strategyIcon, { backgroundColor: zoneConfig?.color + '25' }]}>
-                  <MaterialIcons name={s.icon as any} size={22} color={zoneConfig?.color} />
+        {/* STEP 4: Check-in History */}
+        {history.length > 0 && (
+          <View style={styles.historySection}>
+            <Text style={styles.sectionLabel}>Your recent check-ins</Text>
+            {history.map((entry, i) => (
+              <View key={entry.id || i} style={styles.historyCard}>
+                <View style={[styles.historyDot, { backgroundColor: ZONE_COLORS[entry.zone as FeelingZone] || '#CCC' }]}>
+                  <Text style={styles.historyEmoji}>
+                    {ZONES.find(z => z.id === entry.zone)?.emoji || '🙂'}
+                  </Text>
                 </View>
-                <View style={styles.strategyText}>
-                  <Text style={styles.strategyName}>{s.name}</Text>
-                  <Text style={styles.strategyDesc}>{s.description}</Text>
+                <View style={styles.historyInfo}>
+                  <View style={styles.historyRow}>
+                    <Text style={[styles.historyZone, { color: ZONE_COLORS[entry.zone as FeelingZone] }]}>
+                      {ZONES.find(z => z.id === entry.zone)?.label || entry.zone}
+                    </Text>
+                    <Text style={styles.historyTime}>{formatDate(entry.timestamp)}</Text>
+                  </View>
+                  {entry.strategies_selected?.length > 0 && (
+                    <Text style={styles.historyStrategies}>
+                      ✅ {entry.strategies_selected.map(getStrategyName).join(', ')}
+                    </Text>
+                  )}
+                  {entry.notes && (
+                    <Text style={styles.historyNote}>💬 {entry.notes}</Text>
+                  )}
                 </View>
-                {selectedStrategies.includes(s.id) && <MaterialIcons name="check-circle" size={20} color={zoneConfig?.color} />}
-              </TouchableOpacity>
+              </View>
             ))}
-
-            <Text style={styles.sectionLabel}>Quick note (optional)</Text>
-            <TextInput
-              style={styles.notesInput}
-              placeholder="e.g. Difficult parent meeting today..."
-              value={notes}
-              onChangeText={setNotes}
-              multiline
-              numberOfLines={3}
-              placeholderTextColor="#AAA"
-            />
-          </>
+          </View>
         )}
       </ScrollView>
-
-      {/* Footer */}
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()} disabled={saving}>
-          <Text style={styles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.saveButton, { backgroundColor: zoneConfig?.color || '#5C6BC0' }, !selectedZone && styles.saveDisabled]}
-          onPress={saveCheckIn}
-          disabled={!selectedZone || saving}
-        >
-          <Text style={styles.saveText}>{saving ? 'Saving...' : 'Save Check-in'}</Text>
-        </TouchableOpacity>
-      </View>
 
       {/* Wellbeing Alert Modal */}
       <Modal visible={showAlertModal} transparent animationType="slide" onRequestClose={() => setShowAlertModal(false)}>
@@ -317,33 +352,39 @@ const styles = StyleSheet.create({
   alertBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F44336', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, gap: 6 },
   alertBtnText: { color: 'white', fontWeight: '700', fontSize: 13 },
   scroll: { padding: 16, paddingBottom: 40 },
-  weekCard: { backgroundColor: 'white', borderRadius: 14, padding: 14, marginBottom: 20, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
-  weekTitle: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 12 },
-  weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  dayCol: { alignItems: 'center', flex: 1, gap: 4 },
-  dayLabel: { fontSize: 10, fontWeight: '600', color: '#888' },
-  dayEntry: { alignItems: 'center', gap: 2 },
-  dayDot: { width: 20, height: 20, borderRadius: 10 },
-  dayTime: { fontSize: 8, color: '#AAA' },
-  dayEmpty: { fontSize: 18, color: '#DDD', marginTop: 4 },
-  sectionLabel: { fontSize: 15, fontWeight: '600', color: '#444', marginBottom: 10 },
+  sectionLabel: { fontSize: 15, fontWeight: '600', color: '#444', marginBottom: 10, marginTop: 8 },
   zonesStack: { gap: 8, marginBottom: 20 },
-  zoneBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 18, borderRadius: 14, gap: 12 },
+  zoneBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 18, borderRadius: 14, gap: 12 },
   zoneBtnSelected: { borderWidth: 3, borderColor: 'white' },
-  zoneEmoji: { fontSize: 24 },
+  zoneEmoji: { fontSize: 26 },
   zoneBtnLabel: { fontSize: 18, fontWeight: 'bold', color: 'white', flex: 1 },
   strategyCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', borderRadius: 12, padding: 12, marginBottom: 8, gap: 12, borderWidth: 1, borderColor: '#E0E0E0' },
   strategyIcon: { width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   strategyText: { flex: 1 },
   strategyName: { fontSize: 14, fontWeight: '600', color: '#333' },
   strategyDesc: { fontSize: 12, color: '#888', marginTop: 2 },
-  notesInput: { backgroundColor: 'white', borderRadius: 12, padding: 14, fontSize: 15, color: '#333', borderWidth: 1, borderColor: '#E0E0E0', minHeight: 80, textAlignVertical: 'top', marginBottom: 20 },
-  footer: { flexDirection: 'row', padding: 16, gap: 12, backgroundColor: 'white', borderTopWidth: 1, borderTopColor: '#F0F0F0' },
-  cancelButton: { flex: 1, padding: 16, borderRadius: 12, backgroundColor: '#F0F0F0', alignItems: 'center' },
-  cancelText: { fontSize: 16, fontWeight: '600', color: '#666' },
-  saveButton: { flex: 2, padding: 16, borderRadius: 12, alignItems: 'center' },
-  saveDisabled: { opacity: 0.4 },
-  saveText: { color: 'white', fontWeight: '700', fontSize: 16 },
+  notesInput: { backgroundColor: 'white', borderRadius: 12, padding: 14, fontSize: 15, color: '#333', borderWidth: 1, borderColor: '#E0E0E0', minHeight: 80, textAlignVertical: 'top', marginBottom: 16 },
+  saveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 14, padding: 16, gap: 8, marginBottom: 24 },
+  saveText: { color: 'white', fontWeight: '700', fontSize: 17 },
+  weekCard: { backgroundColor: 'white', borderRadius: 14, padding: 14, marginTop: 8, marginBottom: 20, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
+  weekTitle: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 12 },
+  weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  dayCol: { alignItems: 'center', flex: 1, gap: 4 },
+  dayLabel: { fontSize: 10, fontWeight: '600', color: '#888' },
+  dayEntry: { alignItems: 'center', gap: 2 },
+  dayDot: { width: 22, height: 22, borderRadius: 11 },
+  dayTime: { fontSize: 8, color: '#AAA' },
+  dayEmpty: { fontSize: 18, color: '#DDD', marginTop: 4 },
+  historySection: { marginTop: 4 },
+  historyCard: { flexDirection: 'row', backgroundColor: 'white', borderRadius: 12, padding: 12, marginBottom: 8, gap: 12, borderWidth: 1, borderColor: '#F0F0F0' },
+  historyDot: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  historyEmoji: { fontSize: 22 },
+  historyInfo: { flex: 1 },
+  historyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  historyZone: { fontSize: 14, fontWeight: '600' },
+  historyTime: { fontSize: 12, color: '#999' },
+  historyStrategies: { fontSize: 12, color: '#555', marginTop: 2, lineHeight: 18 },
+  historyNote: { fontSize: 12, color: '#777', marginTop: 4, fontStyle: 'italic' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
   modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
