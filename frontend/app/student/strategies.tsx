@@ -2,6 +2,7 @@ import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { zoneLogsApi, Strategy } from '../../src/utils/api';
 import { StrategyCard } from '../../src/components/StrategyCard';
@@ -28,6 +29,15 @@ export default function StrategiesScreen() {
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [customSupportMessage, setCustomSupportMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (currentStudent?.id) {
+      AsyncStorage.getItem(`support_message_${currentStudent.id}`).then(msg => {
+        if (msg) setCustomSupportMessage(msg);
+      });
+    }
+  }, [currentStudent?.id]);
   const [showCelebration, setShowCelebration] = useState(false);
   const [comment, setComment] = useState('');
   const [showCommentInput, setShowCommentInput] = useState(false);
@@ -153,7 +163,14 @@ export default function StrategiesScreen() {
         onComplete={() => setShowCelebration(false)}
         translations={{
           well_done: t('well_done') || 'Well Done!',
-          support_message: t('support_message') || 'Keep going!'
+          support_message: customSupportMessage || (() => {
+            const GENERIC_MESSAGES = [
+              'Well done for owning your emotions! 🌟',
+              'Excellent — you are a leader in your life! 👑',
+              'Always tell an adult or a trusted friend 💙',
+            ];
+            return GENERIC_MESSAGES[Math.floor(Date.now() / 1000) % 3];
+          })()
         }}
       />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>

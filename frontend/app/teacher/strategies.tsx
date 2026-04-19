@@ -7,6 +7,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { strategiesApi, customStrategiesApi, strategySyncApi, CustomStrategy, Strategy } from '../../src/utils/api';
 import { ZONE_CONFIG } from '../../src/components/ZoneButton';
@@ -46,6 +47,23 @@ export default function ManageStrategiesScreen() {
   const [selectedIcon, setSelectedIcon] = useState('star');
   const [customImage, setCustomImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [supportMessage, setSupportMessage] = useState('');
+  const [loadingMessage, setLoadingMessage] = useState(false);
+
+  // Load existing support message for this student
+  useEffect(() => {
+    if (studentId) {
+      AsyncStorage.getItem(`support_message_${studentId}`).then(msg => {
+        if (msg) setSupportMessage(msg);
+      });
+    }
+  }, [studentId]);
+
+  const saveSupportMessage = async () => {
+    if (!studentId) return;
+    await AsyncStorage.setItem(`support_message_${studentId}`, supportMessage.trim());
+    Alert.alert('✅ Saved', 'Support message saved for ' + student?.name);
+  };
 
   useEffect(() => {
     fetchStrategies();
@@ -211,6 +229,27 @@ export default function ManageStrategiesScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Support Message */}
+        <View style={styles.supportMessageBox}>
+          <Text style={styles.supportMessageLabel}>💬 Personal Support Message for {student?.name}</Text>
+          <TextInput
+            style={styles.supportMessageInput}
+            placeholder="e.g. You are a star! Keep going!"
+            value={supportMessage}
+            onChangeText={setSupportMessage}
+            multiline
+            numberOfLines={2}
+            placeholderTextColor="#AAA"
+          />
+          <TouchableOpacity style={styles.saveMessageBtn} onPress={saveSupportMessage}>
+            <Text style={styles.saveMessageText}>Save Message</Text>
+          </TouchableOpacity>
+          <Text style={styles.supportMessageHint}>
+            This message will appear on {student?.name}'s reward screen after checking in.
+            If empty, a rotating motivational message will show instead.
+          </Text>
+        </View>
+
         {/* Add Button */}
         <TouchableOpacity style={styles.addButton} onPress={openAddModal}>
           <MaterialIcons name="add" size={24} color="white" />
@@ -705,6 +744,12 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: '#9C27B0',
   },
+  supportMessageBox: { backgroundColor: 'white', borderRadius: 14, padding: 16, marginBottom: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
+  supportMessageLabel: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8 },
+  supportMessageInput: { backgroundColor: '#F5F5F5', borderRadius: 10, padding: 12, fontSize: 15, color: '#333', minHeight: 60 },
+  saveMessageBtn: { backgroundColor: '#5C6BC0', borderRadius: 10, padding: 10, alignItems: 'center', marginTop: 8 },
+  saveMessageText: { color: 'white', fontWeight: '600', fontSize: 14 },
+  supportMessageHint: { fontSize: 11, color: '#AAA', marginTop: 6, lineHeight: 16 },
   syncBadge: {
     flexDirection: 'row',
     alignItems: 'center',

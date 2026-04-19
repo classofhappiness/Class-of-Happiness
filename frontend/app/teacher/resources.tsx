@@ -113,10 +113,31 @@ export default function TeacherResourcesScreen() {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const file = result.assets[0];
         
-        // Read file as base64 using fetch API (compatible with Expo SDK 54+)
-        const base64 = await FileSystem.readAsStringAsync(file.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
+        let base64 = '';
+        try {
+          // Try FileSystem first (most reliable)
+          base64 = await FileSystem.readAsStringAsync(file.uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+        } catch (fsError) {
+          // Fallback: use fetch + blob
+          const response = await fetch(file.uri);
+          const blob = await response.blob();
+          base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const result = reader.result as string;
+              resolve(result.split(',')[1] || '');
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        }
+
+        if (!base64) {
+          Alert.alert('Error', 'Could not read PDF file. Please try again.');
+          return;
+        }
         
         setUploadData({
           ...uploadData,
@@ -125,7 +146,7 @@ export default function TeacherResourcesScreen() {
           title: uploadData.title || file.name.replace('.pdf', ''),
         });
         
-        Alert.alert('Success', `Selected: ${file.name}`);
+        Alert.alert('✅ Selected', `Ready to upload: ${file.name}`);
       }
     } catch (error) {
       console.error('Error picking document:', error);
