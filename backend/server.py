@@ -198,7 +198,7 @@ CREATURES = [
         "description": "Fire creature that transforms intense feelings into strength.",
         "color": "#F44336",
         "feeling_colour": "red",
-        "emoji_stages": ["🔥", "🦊", "🐲", "🐉"],
+        "emoji_stages": ["🐕", "🦊", "🐲", "🐉"],
         "moves": [
             {"id": "blaze_breath", "name": "Fire Breath", "emoji": "🔥", "unlocks_at_stage": 1},
             {"id": "blaze_leap", "name": "Flare Leap", "emoji": "🦊", "unlocks_at_stage": 2},
@@ -220,8 +220,8 @@ CREATURES = [
             {"id": "blaze_home_3", "name": "Dragon Peak", "emoji": "🏰", "unlocks_at_stage": 3},
         ],
         "stages": [
-            {"stage": 0, "name": "Ember", "emoji": "🔥", "description": "A warm ember glowing with energy.", "required_points": 0},
-            {"stage": 1, "name": "Flame", "emoji": "🔥", "description": "A brave flame!", "required_points": 25},
+            {"stage": 0, "name": "Fire Pup", "emoji": "🐕", "description": "A brave little fire pup full of energy.", "required_points": 0},
+            {"stage": 1, "name": "Fox", "emoji": "🦊", "description": "A clever fox with a fiery spirit!", "required_points": 25},
             {"stage": 2, "name": "Dragon Pup", "emoji": "🐲", "description": "A young dragon growing strong!", "required_points": 60},
             {"stage": 3, "name": "Dragon", "emoji": "🐉", "description": "A mighty dragon!", "required_points": 120}
         ]
