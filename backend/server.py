@@ -1562,8 +1562,8 @@ async def add_points(student_id: str, req: AddPointsRequest):
             "current_points": 0
         }
 
-    # Which creature gets the points
-    feeling_colour = req.feeling_colour or req.zone or "blue"
+    # Which creature gets the points - zone takes priority over feeling_colour default
+    feeling_colour = req.zone or (req.feeling_colour if req.feeling_colour != "blue" else None) or "blue"
     target_creature = FEELING_COLOUR_MAP.get(feeling_colour, "aqua_buddy")
 
     # Calculate points
