@@ -68,6 +68,8 @@ export default function TeacherCheckInScreen() {
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [sendingAlert, setSendingAlert] = useState(false);
+  const [shareWithWellbeing, setShareWithWellbeing] = useState(false);
+  const [shareWithWellbeing, setShareWithWellbeing] = useState(false);
   const [customStrategies, setCustomStrategies] = useState<Array<{id: string; name: string; description: string}>>([]);
   const [showAddStrategy, setShowAddStrategy] = useState(false);
   const [newStrategyName, setNewStrategyName] = useState('');
@@ -140,15 +142,34 @@ export default function TeacherCheckInScreen() {
         zone: selectedZone,
         strategies_selected: selectedStrategies,
         notes: notes.trim() || null,
+        shared: shareWithWellbeing,
       };
       const updated = [newEntry, ...existing].slice(0, 90);
       await AsyncStorage.setItem(storageKey, JSON.stringify(updated));
+
+      // If teacher chose to share, notify wellbeing support
+      if (shareWithWellbeing) {
+        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        try {
+          await fetch(`${BACKEND_URL}/api/wellbeing-alert`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              teacher_name: user?.name || 'Teacher',
+              message: `Teacher check-in shared: ${selectedZone} zone. ${notes.trim() ? 'Note: ' + notes.trim() : ''} Strategies used: ${selectedStrategies.join(', ') || 'none'}`,
+              zone: selectedZone,
+              timestamp: new Date().toISOString(),
+            }),
+          });
+        } catch {}
+      }
+
       await loadData();
-      // Reset form
       setSelectedZone(null);
       setSelectedStrategies([]);
       setNotes('');
-      Alert.alert('✅ Saved', 'Your check-in has been recorded.');
+      setShareWithWellbeing(false);
+      Alert.alert('✅ Saved', shareWithWellbeing ? 'Check-in saved and shared with your wellbeing support team.' : 'Your check-in has been recorded privately.');
     } catch {
       Alert.alert('Error', 'Could not save check-in right now.');
     } finally {
@@ -291,6 +312,56 @@ export default function TeacherCheckInScreen() {
               numberOfLines={3}
               placeholderTextColor="#AAA"
             />
+
+            {/* Share with wellbeing toggle */}
+            <TouchableOpacity
+              style={styles.shareToggle}
+              onPress={() => setShareWithWellbeing(!shareWithWellbeing)}
+            >
+              <MaterialIcons
+                name={shareWithWellbeing ? 'notifications-active' : 'notifications-off'}
+                size={20}
+                color={shareWithWellbeing ? '#F44336' : '#CCC'}
+              />
+              <View style={styles.shareToggleText}>
+                <Text style={styles.shareToggleTitle}>
+                  {shareWithWellbeing ? '📨 Share with wellbeing support' : '🔒 Keep private (default)'}
+                </Text>
+                <Text style={styles.shareToggleDesc}>
+                  {shareWithWellbeing
+                    ? 'Your principal/psychologist will be notified of this check-in'
+                    : 'Only you can see this check-in'}
+                </Text>
+              </View>
+              <View style={[styles.toggleSwitch, shareWithWellbeing && styles.toggleSwitchOn]}>
+                <View style={[styles.toggleKnob, shareWithWellbeing && styles.toggleKnobOn]} />
+              </View>
+            </TouchableOpacity>
+
+            {/* Share with wellbeing toggle */}
+            <TouchableOpacity
+              style={styles.shareToggle}
+              onPress={() => setShareWithWellbeing(!shareWithWellbeing)}
+            >
+              <MaterialIcons
+                name={shareWithWellbeing ? 'notifications-active' : 'notifications-off'}
+                size={20}
+                color={shareWithWellbeing ? '#F44336' : '#CCC'}
+              />
+              <View style={styles.shareToggleText}>
+                <Text style={styles.shareToggleTitle}>
+                  {shareWithWellbeing ? '📨 Share with wellbeing support' : '🔒 Keep private (default)'}
+                </Text>
+                <Text style={styles.shareToggleDesc}>
+                  {shareWithWellbeing
+                    ? 'Your principal/psychologist will be notified of this check-in'
+                    : 'Only you can see this check-in'}
+                </Text>
+              </View>
+              <View style={[styles.toggleSwitch, shareWithWellbeing && styles.toggleSwitchOn]}>
+                <View style={[styles.toggleKnob, shareWithWellbeing && styles.toggleKnobOn]} />
+              </View>
+            </TouchableOpacity>
 
             {/* Save button */}
             <TouchableOpacity
@@ -452,6 +523,22 @@ const styles = StyleSheet.create({
   sendAlertBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F44336', borderRadius: 12, padding: 16, gap: 8 },
   sendAlertText: { color: 'white', fontWeight: '700', fontSize: 16 },
   modalNote: { fontSize: 12, color: '#888', textAlign: 'center', marginTop: 12, lineHeight: 18 },
+  shareToggle: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', borderRadius: 12, padding: 14, marginBottom: 12, gap: 12, borderWidth: 1, borderColor: '#E0E0E0' },
+  shareToggleText: { flex: 1 },
+  shareToggleTitle: { fontSize: 14, fontWeight: '600', color: '#333' },
+  shareToggleDesc: { fontSize: 11, color: '#888', marginTop: 2 },
+  toggleSwitch: { width: 44, height: 24, borderRadius: 12, backgroundColor: '#E0E0E0', justifyContent: 'center', padding: 2 },
+  toggleSwitchOn: { backgroundColor: '#F44336' },
+  toggleKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: 'white' },
+  toggleKnobOn: { alignSelf: 'flex-end' },
+  shareToggle: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', borderRadius: 12, padding: 14, marginBottom: 12, gap: 12, borderWidth: 1, borderColor: '#E0E0E0' },
+  shareToggleText: { flex: 1 },
+  shareToggleTitle: { fontSize: 14, fontWeight: '600', color: '#333' },
+  shareToggleDesc: { fontSize: 11, color: '#888', marginTop: 2 },
+  toggleSwitch: { width: 44, height: 24, borderRadius: 12, backgroundColor: '#E0E0E0', justifyContent: 'center', padding: 2 },
+  toggleSwitchOn: { backgroundColor: '#F44336' },
+  toggleKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: 'white' },
+  toggleKnobOn: { alignSelf: 'flex-end' },
   customStratLabel: { fontSize: 13, fontWeight: '600', color: '#5C6BC0', marginBottom: 8, marginTop: 4 },
   addStrategyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, marginBottom: 8 },
   addStrategyText: { fontSize: 14, color: '#5C6BC0', fontWeight: '600' },
