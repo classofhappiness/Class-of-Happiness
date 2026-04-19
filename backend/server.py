@@ -2336,7 +2336,7 @@ async def get_teacher_resource_topics():
     ]
 
 
-@api_router.get("/teacher-resources")  # audience filter supported
+@api_router.get("/teacher-resources")  # audience filter supported  # audience filter supported
 async def get_teacher_resources(request: Request, topic: Optional[str] = None):
     user = await get_current_user(request)
     if not user:
