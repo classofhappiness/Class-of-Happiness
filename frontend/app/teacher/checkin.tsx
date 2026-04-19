@@ -4,7 +4,7 @@ import {
   ScrollView, Alert, TextInput, Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 
@@ -57,6 +57,8 @@ const ALL_STRATEGIES = Object.values(TEACHER_STRATEGIES).flat();
 export default function TeacherCheckInScreen() {
   const router = useRouter();
   const { user } = useApp();
+  const navigation = useNavigation();
+  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const [selectedZone, setSelectedZone] = useState<FeelingZone | null>(null);
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
