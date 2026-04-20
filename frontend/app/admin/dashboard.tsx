@@ -88,8 +88,18 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken:string|null, i
         const d = await apiCall('/admin/teacher-strategies', authToken);
         setStrats(Array.isArray(d) ? d : []);
       } else {
-        const all = await Promise.all(ZONES.map(z => apiCall(`/strategies/${z}`, authToken).catch(()=>[])));
-        setStrats(all.flat());
+        // Load all zones using correct endpoint format
+        const all = await Promise.all(ZONES.map(z =>
+          apiCall(`/strategies?zone=${z}`, authToken).catch(()=>[])
+        ));
+        // Flatten and deduplicate
+        const flat = all.flat();
+        const seen = new Set();
+        setStrats(flat.filter((s:any) => {
+          if (seen.has(s.id)) return false;
+          seen.add(s.id);
+          return true;
+        }));
       }
     } catch { setStrats([]); }
     finally { setLoading(false); }
@@ -168,7 +178,7 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken:string|null, i
               <View style={[styles.zonePill,{backgroundColor:(ZONE_COLORS[s.zone]||'#999')+'25'}]}>
                 <Text style={[styles.zonePillText,{color:ZONE_COLORS[s.zone]||'#999'}]}>{s.zone}</Text>
               </View>
-              {isSuperAdmin && (
+              {isSuperAdmin ? (
                 <>
                   <TouchableOpacity onPress={()=>{setEditing(s);setName(s.name);setDesc(s.description||'');setZone(s.zone||'blue');}} style={{marginLeft:8}}>
                     <MaterialIcons name="edit" size={18} color="#5C6BC0"/>
@@ -177,6 +187,10 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken:string|null, i
                     <MaterialIcons name="delete" size={18} color="#F44336"/>
                   </TouchableOpacity>
                 </>
+              ) : (
+                <View style={{marginLeft:8,opacity:0.3}}>
+                  <MaterialIcons name="lock" size={16} color="#999"/>
+                </View>
               )}
             </View>
           ))}
