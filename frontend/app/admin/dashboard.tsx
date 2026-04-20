@@ -563,3 +563,4 @@ const styles = StyleSheet.create({
   noAccess: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   noAccessText: { fontSize: 15, color: '#999', textAlign: 'center', marginTop: 16, lineHeight: 22 },
 });
+
