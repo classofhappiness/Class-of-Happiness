@@ -19,7 +19,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { user, language, setLanguage, logout, t, hasActiveSubscription, translations, checkAuth } = useApp();
+  const { user, language, setLanguage, logout, t, hasActiveSubscription, translations, checkAuth, isAuthenticated } = useApp();
   const [showLanguages, setShowLanguages] = useState(false);
   const [pendingLanguage, setPendingLanguage] = useState<string | null>(null);
   const [showTrialCode, setShowTrialCode] = useState(false);

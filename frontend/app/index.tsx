@@ -143,12 +143,12 @@ const styles = StyleSheet.create({
   logoContainer: { alignItems: 'center', marginBottom: 4 },
   mainLogo: { width: 130, height: 130 },
 
-  subtitle: { fontSize: 16, color: '#888', textAlign: 'center', marginBottom: 12, fontWeight: '500' },
+  subtitle: { fontSize: 16, color: '#333', textAlign: 'center', marginBottom: 12, fontWeight: '500' },
 
   zonePreviewRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 6 },
   zoneFaceContainer: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 3 },
   zoneFace: { fontSize: 22 },
-  zoneTip: { fontSize: 12, color: '#BBB', textAlign: 'center', marginBottom: 16 },
+  zoneTip: { fontSize: 12, color: '#555', textAlign: 'center', marginBottom: 16 },
 
   // Student — hero button
   studentButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#4CAF50', borderRadius: 22, paddingVertical: 20, paddingHorizontal: 20, marginBottom: 12, elevation: 5, shadowColor: '#4CAF50', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
