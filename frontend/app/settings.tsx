@@ -169,6 +169,92 @@ export default function SettingsScreen() {
     }
   };
 
+
+  // Join school with invite code
+  const [schoolInviteCode, setSchoolInviteCode] = useState('');
+  const [joiningSchool, setJoiningSchool] = useState(false);
+
+  const handleJoinSchool = async () => {
+    if (!schoolInviteCode.trim()) {
+      Alert.alert('Enter invite code', 'Please enter the invite code from your school admin.');
+      return;
+    }
+    setJoiningSchool(true);
+    try {
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const token = await AsyncStorage.getItem('session_token');
+      const res = await fetch(`${BACKEND_URL}/api/school/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ code: schoolInviteCode.trim().toUpperCase() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        Alert.alert('Welcome! 🎉', data.message || 'You have joined your school!');
+        setSchoolInviteCode('');
+      } else {
+        Alert.alert('Error', data.detail || 'Invalid invite code');
+      }
+    } catch {
+      Alert.alert('Error', 'Could not join school. Please try again.');
+    } finally {
+      setJoiningSchool(false);
+    }
+  };
+
+  // Generate school invite code (school admin only)
+  const [generatedCode, setGeneratedCode] = useState('');
+  const [generatingCode, setGeneratingCode] = useState(false);
+
+  const handleGenerateInviteCode = async () => {
+    setGeneratingCode(true);
+    try {
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const token = await AsyncStorage.getItem('session_token');
+      const res = await fetch(`${BACKEND_URL}/api/school/generate-invite-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setGeneratedCode(data.code);
+        Alert.alert('Invite Code Generated! 🎉',
+          `Share this code with your teachers:\n\n${data.code}\n\nValid for 90 days.`);
+      }
+    } catch {
+      Alert.alert('Error', 'Could not generate code.');
+    } finally {
+      setGeneratingCode(false);
+    }
+  };
+
+  // Start trial
+  const [startingTrial, setStartingTrial] = useState(false);
+
+  const handleStartTrial = async (trialType: string) => {
+    setStartingTrial(true);
+    try {
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const token = await AsyncStorage.getItem('session_token');
+      const res = await fetch(`${BACKEND_URL}/api/trial/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ type: trialType }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        Alert.alert('Trial Started! 🌟', data.message);
+        await checkAuth();
+      } else {
+        Alert.alert('Error', data.detail || 'Could not start trial.');
+      }
+    } catch {
+      Alert.alert('Error', 'Could not start trial.');
+    } finally {
+      setStartingTrial(false);
+    }
+  };
+
   return (
     <ScrollView 
       style={[styles.container, { paddingTop: insets.top }]}
@@ -345,6 +431,116 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         )}
         
+
+        {/* Trial Section - show for free teachers and parents */}
+        {isAuthenticated && user?.subscription_status === 'free' && (user?.role === 'teacher' || user?.role === 'parent') && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <MaterialIcons name="star" size={20} color="#FF9800" />
+              <Text style={styles.sectionTitle}>Free Trial</Text>
+            </View>
+            <View style={[styles.settingItem, { backgroundColor: '#FFF8E1', borderRadius: 12, margin: 8 }]}>
+              <View style={styles.settingLeft}>
+                <View style={styles.settingText}>
+                  <Text style={styles.settingLabel}>Start Your 7-Day Free Trial</Text>
+                  <Text style={styles.settingValue}>
+                    Full access to all {user?.role} features. No credit card needed.
+                  </Text>
+                </View>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[styles.settingItem, { backgroundColor: '#FF9800', borderRadius: 12, margin: 8, justifyContent: 'center' }]}
+              onPress={() => handleStartTrial(user?.role || 'teacher')}
+              disabled={startingTrial}
+            >
+              <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16, textAlign: 'center' }}>
+                {startingTrial ? 'Starting...' : '🌟 Start Free Trial'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Trial Status - show days remaining */}
+        {isAuthenticated && user?.subscription_status === 'trial' && (
+          <View style={styles.section}>
+            <View style={[styles.settingItem, { backgroundColor: '#E8F5E9', borderRadius: 12, margin: 8 }]}>
+              <View style={styles.settingLeft}>
+                <MaterialIcons name="check-circle" size={24} color="#4CAF50" />
+                <View style={styles.settingText}>
+                  <Text style={styles.settingLabel}>✅ Free Trial Active</Text>
+                  <Text style={styles.settingValue}>
+                    Enjoy full access during your trial period.
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Join School - show for teachers without a school */}
+        {isAuthenticated && (user?.role === 'teacher') && !user?.school_name && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <MaterialIcons name="school" size={20} color="#5C6BC0" />
+              <Text style={styles.sectionTitle}>Join Your School</Text>
+            </View>
+            <View style={[styles.settingItem, { flexDirection: 'column', padding: 16 }]}>
+              <Text style={[styles.settingValue, { marginBottom: 8 }]}>
+                Enter the invite code from your school admin to connect to your school.
+              </Text>
+              <TextInput
+                style={[styles.trialCodeInputWithIcon, { borderRadius: 10, padding: 12, backgroundColor: '#F5F5F5', marginBottom: 8 }]}
+                placeholder="e.g. SCH-X7K2-M9P4"
+                value={schoolInviteCode}
+                onChangeText={setSchoolInviteCode}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                placeholderTextColor="#999"
+              />
+              <TouchableOpacity
+                style={[styles.settingItem, { backgroundColor: '#5C6BC0', borderRadius: 10, justifyContent: 'center', padding: 12 }]}
+                onPress={handleJoinSchool}
+                disabled={joiningSchool}
+              >
+                <Text style={{ color: 'white', fontWeight: 'bold', textAlign: 'center' }}>
+                  {joiningSchool ? 'Joining...' : '🏫 Join School'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* School Invite Code Generator - for school admins */}
+        {isAuthenticated && (user?.role === 'school_admin' || user?.role === 'admin') && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <MaterialIcons name="vpn-key" size={20} color="#5C6BC0" />
+              <Text style={styles.sectionTitle}>School Invite Code</Text>
+            </View>
+            <View style={[styles.settingItem, { flexDirection: 'column', padding: 16 }]}>
+              <Text style={[styles.settingValue, { marginBottom: 12 }]}>
+                Generate a code to share with your teachers so they can join your school.
+              </Text>
+              {generatedCode ? (
+                <View style={{ backgroundColor: '#E8EAF6', borderRadius: 10, padding: 16, alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#3949AB', letterSpacing: 2 }}>{generatedCode}</Text>
+                  <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>Share this with your teachers</Text>
+                </View>
+              ) : null}
+              <TouchableOpacity
+                style={[styles.settingItem, { backgroundColor: '#5C6BC0', borderRadius: 10, justifyContent: 'center', padding: 12 }]}
+                onPress={handleGenerateInviteCode}
+                disabled={generatingCode}
+              >
+                <Text style={{ color: 'white', fontWeight: 'bold', textAlign: 'center' }}>
+                  {generatingCode ? 'Generating...' : '🔑 Generate Invite Code'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Admin Code Entry (only show if not already admin) */}
         {user?.role !== 'admin' && user?.role !== 'superadmin' && (
           <>

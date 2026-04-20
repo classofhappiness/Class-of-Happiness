@@ -182,7 +182,14 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken:string|null, i
               </View>
               {isSuperAdmin ? (
                 <>
-                  <TouchableOpacity onPress={()=>{setEditing(s);setName(s.name);setDesc(s.description||'');setZone(s.zone||'blue');}} style={{marginLeft:8}}>
+                  <TouchableOpacity onPress={()=>{
+                    setEditing(s);
+                    setName(s.name||'');
+                    setDesc(s.description||'');
+                    setZone(s.zone||s.feeling_colour||'blue');
+                    // Scroll hint
+                    Alert.alert('Edit Mode', `Editing "${s.name}" — update the form above and tap Save.`);
+                  }} style={{marginLeft:8}}>
                     <MaterialIcons name="edit" size={18} color="#5C6BC0"/>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={()=>del(s)} style={{marginLeft:8}}>

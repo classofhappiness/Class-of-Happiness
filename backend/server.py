@@ -2944,4 +2944,153 @@ async def unlink_user(request: Request):
         logger.error(f"Unlink error: {e}")
         raise HTTPException(status_code=500, detail="Failed to unlink user")
 
+# ================== SCHOOL INVITE CODE SYSTEM ==================
+
+import secrets
+import string
+
+def generate_invite_code(prefix="SCH"):
+    """Generate a readable invite code like SCH-X7K2-M9P4"""
+    chars = string.ascii_uppercase + string.digits
+    part1 = ''.join(secrets.choice(chars) for _ in range(4))
+    part2 = ''.join(secrets.choice(chars) for _ in range(4))
+    return f"{prefix}-{part1}-{part2}"
+
+@api_router.post("/school/generate-invite-code")
+async def generate_school_invite_code(request: Request):
+    """School admin generates an invite code for their teachers"""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    
+    code = generate_invite_code("SCH")
+    expires_at = (datetime.now(timezone.utc) + timedelta(days=90)).isoformat()
+    
+    invite_data = {
+        "id": str(uuid.uuid4()),
+        "code": code,
+        "school_admin_id": user["user_id"],
+        "school_name": user.get("school_name", "My School"),
+        "type": "school",
+        "expires_at": expires_at,
+        "uses": 0,
+        "max_uses": 999,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        supabase.table("invite_codes").insert(invite_data).execute()
+    except Exception as e:
+        logger.error(f"Could not store invite code: {e}")
+    
+    return {"code": code, "expires_at": expires_at, "school_name": invite_data["school_name"]}
+
+@api_router.post("/school/join")
+async def join_school_with_invite(request: Request):
+    """Teacher joins a school using invite code"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Must be logged in")
+    body = await request.json()
+    code = (body.get("code") or "").strip().upper()
+    if not code:
+        raise HTTPException(status_code=400, detail="Invite code required")
+    
+    try:
+        result = supabase.table("invite_codes").select("*").eq("code", code).execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Invalid invite code. Check the code and try again.")
+        invite = result.data[0]
+        
+        # Check expiry
+        expires = datetime.fromisoformat(invite["expires_at"].replace("Z", "+00:00"))
+        if datetime.now(timezone.utc) > expires:
+            raise HTTPException(status_code=400, detail="This invite code has expired. Ask your school admin for a new one.")
+        
+        # Link teacher to school
+        supabase.table("users").update({
+            "school_admin_id": invite["school_admin_id"],
+            "school_name": invite["school_name"],
+        }).eq("user_id", user["user_id"]).execute()
+        
+        # Increment uses
+        supabase.table("invite_codes").update({"uses": invite.get("uses", 0) + 1}).eq("code", code).execute()
+        
+        return {
+            "status": "joined",
+            "school_name": invite["school_name"],
+            "message": f"Welcome! You've joined {invite['school_name']}."
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Join school error: {e}")
+        raise HTTPException(status_code=500, detail="Could not join school. Try again.")
+
+@api_router.get("/school/invite-codes")
+async def get_school_invite_codes(request: Request):
+    """School admin views their invite codes"""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    try:
+        result = supabase.table("invite_codes").select("*").eq("school_admin_id", user["user_id"]).execute()
+        return result.data or []
+    except:
+        return []
+
+# ================== TRIAL SYSTEM ==================
+
+@api_router.post("/trial/start")
+async def start_trial(request: Request):
+    """Start a trial for a user based on their role"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Must be logged in")
+    body = await request.json()
+    trial_type = body.get("type", "teacher")  # teacher, parent, school
+    
+    # Trial lengths
+    trial_days = {"teacher": 7, "parent": 7, "school": 30}.get(trial_type, 7)
+    expires_at = (datetime.now(timezone.utc) + timedelta(days=trial_days)).isoformat()
+    
+    supabase.table("users").update({
+        "subscription_status": "trial",
+        "trial_type": trial_type,
+        "trial_expires_at": expires_at,
+    }).eq("user_id", user["user_id"]).execute()
+    
+    return {
+        "status": "trial_started",
+        "trial_type": trial_type,
+        "expires_at": expires_at,
+        "days": trial_days,
+        "message": f"Your {trial_days}-day free trial has started!"
+    }
+
+@api_router.get("/trial/status")
+async def get_trial_status(request: Request):
+    """Get current user trial status"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    sub_status = user.get("subscription_status", "free")
+    trial_expires = user.get("trial_expires_at")
+    trial_type = user.get("trial_type", "")
+    
+    if sub_status == "trial" and trial_expires:
+        try:
+            expires = datetime.fromisoformat(trial_expires.replace("Z", "+00:00"))
+            now = datetime.now(timezone.utc)
+            days_left = max(0, (expires - now).days)
+            if days_left == 0:
+                # Trial expired
+                supabase.table("users").update({"subscription_status": "free"}).eq("user_id", user["user_id"]).execute()
+                return {"status": "expired", "days_left": 0, "trial_type": trial_type}
+            return {"status": "trial", "days_left": days_left, "expires_at": trial_expires, "trial_type": trial_type}
+        except:
+            pass
+    
+    return {"status": sub_status, "days_left": None, "trial_type": trial_type}
+
 
