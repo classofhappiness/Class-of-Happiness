@@ -651,4 +651,8 @@ const styles = StyleSheet.create({
   quickBtn: { flex: 1, backgroundColor: 'white', borderRadius: 16, paddingVertical: 16, alignItems: 'center', gap: 6, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4 },
   quickBtnEmoji: { fontSize: 28 },
   quickBtnLabel: { fontSize: 13, fontWeight: '600', color: '#444' },
+  quickActions: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  quickBtn: { flex: 1, backgroundColor: 'white', borderRadius: 16, paddingVertical: 16, alignItems: 'center', gap: 6, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4 },
+  quickBtnEmoji: { fontSize: 28 },
+  quickBtnLabel: { fontSize: 13, fontWeight: '600', color: '#444' },
 });
