@@ -338,7 +338,7 @@ export default function SettingsScreen() {
               <MaterialIcons name="admin-panel-settings" size={24} color="#9C27B0" />
               <View style={styles.settingText}>
                 <Text style={styles.settingLabel}>Admin Dashboard</Text>
-                <Text style={styles.settingValue}>Manage global resources & stats</Text>
+                <Text style={styles.settingValue}>Super Admin — manage all schools & global app</Text>
               </View>
             </View>
             <MaterialIcons name="chevron-right" size={24} color="#CCC" />
