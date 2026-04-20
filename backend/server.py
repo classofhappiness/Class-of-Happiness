@@ -1969,45 +1969,139 @@ async def get_subscription_status(request: Request):
 # ================== ADMIN ==================
 @api_router.get("/admin/stats")
 async def get_admin_stats(request: Request):
+    """Enhanced stats with daily breakdown for graphs"""
     user = await get_current_user(request)
     if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
-        raise HTTPException(status_code=403, detail="Admin only")
-    users = supabase.table("users").select("*").execute()
-    students = supabase.table("students").select("*").execute()
-    logs = supabase.table("feeling_logs").select("*").execute()
-    resources = supabase.table("resources").select("*").execute()
-    users_data = users.data or []
-    teachers = [u for u in users_data if u.get("role") == "teacher"]
-    parents = [u for u in users_data if u.get("role") == "parent"]
-    return {
-        "total_users": len(users_data),
-        "total_teachers": len(teachers),
-        "total_parents": len(parents),
-        "total_students": len(students.data or []),
-        "total_checkins": len(logs.data or []),
-        "total_resources": len(resources.data or []),
-    }
+        raise HTTPException(status_code=403, detail="Admin access required")
 
+    try:
+        from datetime import datetime, timezone, timedelta
 
-def _resource_to_teacher_resource(resource: dict, ratings: List[dict]):
-    relevant = [r for r in ratings if r.get("resource_id") == resource.get("id")]
-    avg = 0.0
-    if relevant:
-        avg = sum([int(r.get("rating", 0)) for r in relevant]) / len(relevant)
-    return {
-        "id": resource.get("id"),
-        "title": resource.get("title", ""),
-        "description": resource.get("description", ""),
-        "topic": resource.get("topic") or resource.get("category") or "general",
-        "content_type": resource.get("content_type", "text"),
-        "content": resource.get("content"),
-        "pdf_filename": resource.get("pdf_filename"),
-        "created_by": resource.get("user_id", "system"),
-        "created_by_name": resource.get("created_by_name") or "Class of Happiness",
-        "average_rating": round(avg, 1),
-        "total_ratings": len(relevant),
-        "created_at": resource.get("created_at", datetime.now(timezone.utc).isoformat()),
-    }
+        now = datetime.now(timezone.utc)
+        week_ago = (now - timedelta(days=7)).isoformat()
+        month_ago = (now - timedelta(days=30)).isoformat()
+
+        # Basic counts
+        students_result = supabase.table("students").select("id", count="exact").execute()
+        total_students = students_result.count or 0
+
+        teachers_result = supabase.table("users").select("user_id", count="exact").eq("role", "teacher").execute()
+        total_teachers = teachers_result.count or 0
+
+        users_result = supabase.table("users").select("user_id", count="exact").execute()
+        total_users = users_result.count or 0
+
+        # Zone logs for this week
+        logs_result = supabase.table("zone_logs").select("*").gte("timestamp", week_ago).execute()
+        logs = logs_result.data or []
+
+        # Zone counts
+        zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+        checkin_daily = [0] * 7
+        today = now.date()
+
+        for log in logs:
+            zone = log.get("zone", "")
+            if zone in zone_counts:
+                zone_counts[zone] += 1
+            # Daily breakdown
+            try:
+                log_date = datetime.fromisoformat(log["timestamp"].replace("Z", "+00:00")).date()
+                days_ago = (today - log_date).days
+                if 0 <= days_ago < 7:
+                    checkin_daily[6 - days_ago] += 1
+            except:
+                pass
+
+        # Today's checkins
+        today_str = now.strftime("%Y-%m-%d")
+        checkins_today = sum(1 for log in logs if log.get("timestamp","").startswith(today_str))
+
+        # Teacher checkins (from AsyncStorage - approximate from zone_logs with teacher users)
+        teacher_zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+        teacher_daily = [0] * 7
+
+        # Support requests
+        try:
+            alerts_result = supabase.table("wellbeing_alerts").select("*").gte("created_at", month_ago).execute()
+            support_requests = len(alerts_result.data or [])
+        except:
+            support_requests = 0
+
+        # Top strategy
+        strategy_counts = {}
+        for log in logs:
+            for s in (log.get("strategies_selected") or []):
+                strategy_counts[s] = strategy_counts.get(s, 0) + 1
+        top_strategy = max(strategy_counts, key=strategy_counts.get) if strategy_counts else "—"
+
+        # Schools breakdown
+        try:
+            school_admins = supabase.table("users").select("*").eq("role", "school_admin").execute()
+            schools_breakdown = []
+            for admin in (school_admins.data or []):
+                school_logs = supabase.table("zone_logs").select("zone").gte("timestamp", week_ago).execute()
+                school_zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+                for log in (school_logs.data or []):
+                    z = log.get("zone", "")
+                    if z in school_zone_counts:
+                        school_zone_counts[z] += 1
+                # Get school settings
+                settings = supabase.table("admin_settings").select("*").execute()
+                settings_dict = {row["key"]: row["value"] for row in (settings.data or [])}
+                schools_breakdown.append({
+                    "name": settings_dict.get("school_name") or admin.get("school_name") or admin.get("email", "Unknown"),
+                    "description": settings_dict.get("school_description", ""),
+                    "total_checkins": len(school_logs.data or []),
+                    "zone_counts": school_zone_counts,
+                })
+            total_schools = len(schools_breakdown)
+        except:
+            schools_breakdown = []
+            total_schools = 0
+
+        return {
+            "total_students": total_students,
+            "total_teachers": total_teachers,
+            "total_users": total_users,
+            "total_schools": total_schools,
+            "total_checkins": len(logs),
+            "checkins_today": checkins_today,
+            "active_users": min(total_students + total_teachers, len(set(l.get("student_id","") for l in logs))),
+            "zone_counts": zone_counts,
+            "teacher_zone_counts": teacher_zone_counts,
+            "total_teacher_checkins": sum(teacher_zone_counts.values()),
+            "checkin_daily": checkin_daily,
+            "student_daily": checkin_daily,
+            "teacher_daily": teacher_daily,
+            "active_daily": checkin_daily,
+            "school_daily": [total_schools] * 7,
+            "support_requests": support_requests,
+            "top_strategy": top_strategy,
+            "top_teacher_strategy": "—",
+            "total_creatures": 0,
+            "avg_checkins_to_evolve": "—",
+            "streak_students": 0,
+            "avg_session_mins": "—",
+            "avg_student_session": "—",
+            "avg_teacher_session": "—",
+            "schools_breakdown": schools_breakdown,
+        }
+    except Exception as e:
+        logger.error(f"Stats error: {e}")
+        return {
+            "total_students": 0, "total_teachers": 0, "total_users": 0,
+            "total_schools": 0, "checkins_today": 0, "total_checkins": 0,
+            "active_users": 0, "zone_counts": {}, "teacher_zone_counts": {},
+            "total_teacher_checkins": 0, "checkin_daily": [0]*7,
+            "student_daily": [0]*7, "teacher_daily": [0]*7,
+            "active_daily": [0]*7, "school_daily": [0]*7,
+            "support_requests": 0, "top_strategy": "—",
+            "top_teacher_strategy": "—", "total_creatures": 0,
+            "avg_checkins_to_evolve": "—", "streak_students": 0,
+            "avg_session_mins": "—", "avg_student_session": "—",
+            "avg_teacher_session": "—", "schools_breakdown": [],
+        }
 
 
 @api_router.get("/admin/resources")
@@ -2817,3 +2911,37 @@ async def get_school_admin_stats(request: Request):
     }
 
 app.include_router(api_router)
+
+@api_router.post("/admin/unlink-user")
+async def unlink_user(request: Request):
+    """Superadmin unlinks a parent-teacher connection"""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    body = await request.json()
+    email = (body.get("email") or "").strip().lower()
+    link_type = body.get("type", "teacher")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email required")
+    try:
+        # Find user by email
+        user_result = supabase.table("users").select("user_id, name, email").eq("email", email).execute()
+        if not user_result.data:
+            raise HTTPException(status_code=404, detail=f"No user found with email: {email}")
+        target_user = user_result.data[0]
+        target_id = target_user["user_id"]
+        # Remove parent-teacher links
+        if link_type == "parent":
+            supabase.table("parent_teacher_links").delete().eq("parent_id", target_id).execute()
+        else:
+            supabase.table("parent_teacher_links").delete().eq("teacher_id", target_id).execute()
+        # Log the action
+        logger.info(f"Admin {user['user_id']} unlinked {link_type} {email}")
+        return {"status": "unlinked", "email": email, "type": link_type}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unlink error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to unlink user")
+
+

@@ -86,11 +86,13 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken:string|null, i
     try {
       if (type === 'teacher') {
         const d = await apiCall('/admin/teacher-strategies', authToken);
-        setStrats(Array.isArray(d) ? d : []);
+        setStrats(Array.isArray(d) ? d.map((s:any)=>({...s,zone:s.zone||'blue'})) : []);
       } else {
         // Load all zones using correct endpoint format
         const all = await Promise.all(ZONES.map(z =>
-          apiCall(`/strategies?zone=${z}`, authToken).catch(()=>[])
+          apiCall(`/strategies?zone=${z}`, authToken)
+            .then((d:any[]) => (Array.isArray(d)?d:[]).map(s => ({...s, zone: s.zone||s.feeling_colour||z})))
+            .catch(()=>[])
         ));
         // Flatten and deduplicate
         const flat = all.flat();
