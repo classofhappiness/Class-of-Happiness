@@ -2385,34 +2385,47 @@ async def create_teacher_resource(request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid request body")
     title = (body.get("title") or "").strip()
     if not title:
         raise HTTPException(status_code=400, detail="Title is required")
-
     topic = body.get("topic") or body.get("category") or "general"
+    audience = body.get("audience") or "teachers"
+    content = body.get("content") or ""
+    if len(content) > 800000:
+        raise HTTPException(status_code=413, detail="File too large. Please use a PDF under 500KB.")
     resource_data = {
         "id": str(uuid.uuid4()),
         "user_id": user["user_id"],
         "title": title,
         "description": body.get("description", ""),
-        "content_type": body.get("content_type", "pdf"),
-        "content": body.get("content"),
+        "content_type": body.get("content_type", "text"),
+        "content": content,
         "pdf_filename": body.get("pdf_filename"),
         "category": topic,
         "topic": topic,
-        "target_audience": "teachers",
+        "target_audience": audience,
         "is_global": False,
         "is_active": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     try:
         result = supabase.table("resources").insert(resource_data).execute()
-    except Exception:
-        fallback = {k: v for k, v in resource_data.items() if k not in ["topic", "target_audience"]}
-        result = supabase.table("resources").insert(fallback).execute()
-    return result.data[0] if result.data else resource_data
-
+        return result.data[0] if result.data else resource_data
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Resource insert failed: {error_msg}")
+        if "too large" in error_msg.lower() or "payload" in error_msg.lower():
+            raise HTTPException(status_code=413, detail="File too large. Please compress your PDF.")
+        try:
+            fallback = {k: v for k, v in resource_data.items() if k not in ["topic", "target_audience", "pdf_filename"]}
+            result = supabase.table("resources").insert(fallback).execute()
+            return result.data[0] if result.data else resource_data
+        except Exception as e2:
+            raise HTTPException(status_code=500, detail="Failed to save resource")
 
 @api_router.delete("/teacher-resources/{resource_id}")
 async def delete_teacher_resource(resource_id: str, request: Request):
