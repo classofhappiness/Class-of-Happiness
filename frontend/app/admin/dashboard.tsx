@@ -486,7 +486,7 @@ function SchoolSettingsTab({ authToken, user, wellbeingEmail, setWellbeingEmail,
       });
       // Also save wellbeing email
       await apiCall('/admin/settings', authToken, {method:'POST',body:JSON.stringify({key:'wellbeing_email',value:wellbeingEmail})});
-      Alert.alert('Profile Saved!', 'Your school profile has been updated. It''s now visible to the Class of Happiness team.');
+      Alert.alert('Profile Saved!', 'Your school profile has been updated. Now visible to the Class of Happiness team.');
     } catch { Alert.alert('Error', 'Could not save profile.'); }
     finally { setSaving(false); }
   };
