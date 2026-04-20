@@ -3093,4 +3093,120 @@ async def get_trial_status(request: Request):
     
     return {"status": sub_status, "days_left": None, "trial_type": trial_type}
 
+# ================== SCHOOL PROFILE & REGISTRATION ==================
+
+@api_router.post("/school/register")
+async def register_school(request: Request):
+    """School admin registers their school with full profile"""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    body = await request.json()
+
+    required = ["school_name", "country", "city"]
+    for field in required:
+        if not body.get(field):
+            raise HTTPException(status_code=400, detail=f"{field} is required")
+
+    profile = {
+        "school_name": body.get("school_name", "").strip(),
+        "country": body.get("country", "").strip(),
+        "city": body.get("city", "").strip(),
+        "school_type": body.get("school_type", "private"),
+        "curriculum": body.get("curriculum", "National"),
+        "student_count": body.get("student_count", ""),
+        "contact_name": body.get("contact_name", "").strip(),
+        "contact_email": body.get("contact_email", user.get("email", "")).strip(),
+        "how_heard": body.get("how_heard", "").strip(),
+        "country_flag": body.get("country_flag", "🌍"),
+        "registered_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # Save to admin_settings
+    settings_to_save = [
+        {"key": "school_name", "value": profile["school_name"]},
+        {"key": "school_country", "value": profile["country"]},
+        {"key": "school_city", "value": profile["city"]},
+        {"key": "school_type", "value": profile["school_type"]},
+        {"key": "school_curriculum", "value": profile["curriculum"]},
+        {"key": "school_student_count", "value": str(profile["student_count"])},
+        {"key": "school_contact_name", "value": profile["contact_name"]},
+        {"key": "school_contact_email", "value": profile["contact_email"]},
+        {"key": "school_how_heard", "value": profile["how_heard"]},
+        {"key": "school_country_flag", "value": profile["country_flag"]},
+        {"key": "school_registered_at", "value": profile["registered_at"]},
+    ]
+
+    for setting in settings_to_save:
+        try:
+            existing = supabase.table("admin_settings").select("*").eq("key", setting["key"]).execute()
+            if existing.data:
+                supabase.table("admin_settings").update({"value": setting["value"]}).eq("key", setting["key"]).execute()
+            else:
+                supabase.table("admin_settings").insert({**setting, "school_admin_id": user["user_id"]}).execute()
+        except:
+            pass
+
+    # Also update user record
+    supabase.table("users").update({
+        "school_name": profile["school_name"],
+        "school_country": profile["country"],
+    }).eq("user_id", user["user_id"]).execute()
+
+    return {"status": "registered", "profile": profile}
+
+@api_router.get("/school/profile")
+async def get_school_profile(request: Request):
+    """Get school admin's own profile"""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    try:
+        result = supabase.table("admin_settings").select("*").execute()
+        settings = {row["key"]: row["value"] for row in (result.data or [])}
+        return {
+            "school_name": settings.get("school_name", user.get("school_name", "")),
+            "country": settings.get("school_country", ""),
+            "city": settings.get("school_city", ""),
+            "school_type": settings.get("school_type", ""),
+            "curriculum": settings.get("school_curriculum", ""),
+            "student_count": settings.get("school_student_count", ""),
+            "contact_name": settings.get("school_contact_name", ""),
+            "contact_email": settings.get("school_contact_email", ""),
+            "how_heard": settings.get("school_how_heard", ""),
+            "country_flag": settings.get("school_country_flag", "🌍"),
+            "registered_at": settings.get("school_registered_at", ""),
+        }
+    except Exception as e:
+        return {}
+
+@api_router.get("/schools/world-wall")
+async def get_schools_world_wall(request: Request):
+    """Public endpoint - returns schools for the world wall (no sensitive data)"""
+    try:
+        # Get all school admins who have registered
+        school_admins = supabase.table("users").select("user_id, school_name, school_country").neq("school_name", None).execute()
+        schools = []
+        for admin in (school_admins.data or []):
+            if admin.get("school_name"):
+                # Get flag from settings
+                try:
+                    settings = supabase.table("admin_settings").select("key, value").eq("school_admin_id", admin["user_id"]).execute()
+                    settings_dict = {row["key"]: row["value"] for row in (settings.data or [])}
+                    flag = settings_dict.get("school_country_flag", "🌍")
+                    city = settings_dict.get("school_city", "")
+                except:
+                    flag = "🌍"
+                    city = ""
+                schools.append({
+                    "name": admin["school_name"],
+                    "country": admin.get("school_country", ""),
+                    "city": city,
+                    "flag": flag,
+                })
+        return schools
+    except Exception as e:
+        logger.error(f"World wall error: {e}")
+        return []
+
 

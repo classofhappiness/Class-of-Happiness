@@ -209,6 +209,51 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken:string|null, i
   );
 }
 
+
+// ── World Wall ───────────────────────────────────────────────────────────────
+function WorldWall({ authToken }: { authToken:string|null }) {
+  const [schools, setSchools] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    apiCall('/schools/world-wall', authToken)
+      .then(d => setSchools(Array.isArray(d)?d:[]))
+      .catch(()=>setSchools([]))
+      .finally(()=>setLoading(false));
+  }, []);
+
+  if (loading) return <ActivityIndicator color="#5C6BC0" style={{marginVertical:12}}/>;
+
+  if (schools.length === 0) return (
+    <View style={[styles.infoBox,{backgroundColor:'#F3E5F5'}]}>
+      <Text style={{fontSize:24}}>🌱</Text>
+      <Text style={[styles.infoText,{color:'#7B1FA2'}]}>
+        Be the first school to join! Schools appear here once they register their profile in Settings.
+      </Text>
+    </View>
+  );
+
+  return (
+    <View style={{backgroundColor:'white',borderRadius:14,padding:14,marginBottom:8}}>
+      <Text style={{fontSize:12,color:'#888',marginBottom:10}}>
+        {schools.length} school{schools.length!==1?'s':''} using Class of Happiness 🎉
+      </Text>
+      <View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>
+        {schools.map((s,i)=>(
+          <View key={i} style={{
+            backgroundColor:'#F8F9FA',borderRadius:12,padding:10,
+            alignItems:'center',minWidth:80,borderWidth:1,borderColor:'#E8EAF6'
+          }}>
+            <Text style={{fontSize:28}}>{s.flag||'🌍'}</Text>
+            <Text style={{fontSize:11,fontWeight:'600',color:'#333',textAlign:'center',marginTop:4}}>{s.name}</Text>
+            {s.city ? <Text style={{fontSize:10,color:'#888',textAlign:'center'}}>{s.city}</Text> : null}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:any }) {
   const [tab, setTab] = useState<'analytics'|'strategies'|'settings'>('analytics');
   const [loading, setLoading] = useState(false);
@@ -300,12 +345,16 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
               ))}
             </View>
 
+            <Text style={[styles.sectionTitle,{marginTop:16}]}>🌍 Schools Around the World</Text>
+            <Text style={styles.sectionSubtitle}>Every school using Class of Happiness. Tap a school to see their data.</Text>
+            <WorldWall authToken={authToken}/>
+
             <Text style={[styles.sectionTitle,{marginTop:16}]}>Schools Breakdown</Text>
-            <Text style={styles.sectionSubtitle}>Which schools are most active and their emotion colour data.</Text>
+            <Text style={styles.sectionSubtitle}>Emotion colour data per school this week.</Text>
             {(stats?.schools_breakdown||[]).length===0 ? (
               <View style={styles.infoBox}>
                 <MaterialIcons name="info" size={16} color="#5C6BC0"/>
-                <Text style={styles.infoText}>School breakdown data appears here as schools register and add their profile in Settings.</Text>
+                <Text style={styles.infoText}>School breakdown appears here as schools register their profile in Settings.</Text>
               </View>
             ) : (stats?.schools_breakdown||[]).map((school:any,i:number)=>(
               <View key={i} style={styles.schoolCard}>
@@ -385,6 +434,176 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
         </View>
       </Modal>
     </>
+  );
+}
+
+
+// ── School Settings Tab ────────────────────────────────────────────────────
+const COUNTRY_FLAGS = [
+  {flag:'🇵🇹',name:'Portugal'},{flag:'🇦🇺',name:'Australia'},
+  {flag:'🇬🇧',name:'United Kingdom'},{flag:'🇺🇸',name:'United States'},
+  {flag:'🇪🇸',name:'Spain'},{flag:'🇫🇷',name:'France'},
+  {flag:'🇩🇪',name:'Germany'},{flag:'🇮🇹',name:'Italy'},
+  {flag:'🇳🇿',name:'New Zealand'},{flag:'🇮🇪',name:'Ireland'},
+  {flag:'🇿🇦',name:'South Africa'},{flag:'🇨🇦',name:'Canada'},
+  {flag:'🇧🇷',name:'Brazil'},{flag:'🇯🇵',name:'Japan'},
+  {flag:'🌍',name:'Other'},
+];
+const SCHOOL_TYPES = ['International','Public','Private','Charter','Faith-based'];
+const CURRICULA = ['IB (International Baccalaureate)','National','Cambridge','Montessori','Mixed/Other'];
+
+function SchoolSettingsTab({ authToken, user, wellbeingEmail, setWellbeingEmail, saveSettings, savingSettings }: any) {
+  const [profile, setProfile] = useState({
+    school_name: user?.school_name || '',
+    country: '', city: '', school_type: 'International',
+    curriculum: 'National', student_count: '',
+    contact_name: '', contact_email: user?.email || '',
+    how_heard: '', country_flag: '🌍',
+  });
+  const [saving, setSaving] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
+  const [generatingCode, setGeneratingCode] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+
+  useEffect(() => {
+    apiCall('/school/profile', authToken)
+      .then(d => {
+        if (d && d.school_name) setProfile(prev => ({...prev,...d}));
+      })
+      .catch(()=>{})
+      .finally(()=>setLoadingProfile(false));
+  }, []);
+
+  const saveProfile = async () => {
+    if (!profile.school_name || !profile.country || !profile.city) {
+      Alert.alert('Required fields', 'Please fill in school name, country and city.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiCall('/school/register', authToken, {
+        method: 'POST', body: JSON.stringify({...profile, contact_email: wellbeingEmail||profile.contact_email})
+      });
+      // Also save wellbeing email
+      await apiCall('/admin/settings', authToken, {method:'POST',body:JSON.stringify({key:'wellbeing_email',value:wellbeingEmail})});
+      Alert.alert('Profile Saved!', 'Your school profile has been updated. It''s now visible to the Class of Happiness team.');
+    } catch { Alert.alert('Error', 'Could not save profile.'); }
+    finally { setSaving(false); }
+  };
+
+  const generateCode = async () => {
+    setGeneratingCode(true);
+    try {
+      const d = await apiCall('/school/generate-invite-code', authToken, { method: 'POST' });
+      setInviteCode(d.code);
+      Alert.alert('Invite Code Ready!',
+        `Share this unique code with your teachers:\n\n${d.code}\n\nValid for 90 days. Each teacher enters this in their Settings to join your school.`
+      );
+    } catch { Alert.alert('Error', 'Could not generate code.'); }
+    finally { setGeneratingCode(false); }
+  };
+
+  if (loadingProfile) return <ActivityIndicator color="#5C6BC0" style={{marginTop:40}}/>;
+
+  return (
+    <ScrollView contentContainerStyle={{padding:16,paddingBottom:40}}>
+      <Text style={styles.sectionTitle}>School Profile</Text>
+      <Text style={styles.sectionSubtitle}>
+        This information helps the Class of Happiness team support your school. 
+        Your school also appears on the global schools wall in the app. 🌍
+      </Text>
+
+      {/* Country Flag selector */}
+      <Text style={styles.inputLabel}>Country</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom:12}}>
+        <View style={{flexDirection:'row',gap:8}}>
+          {COUNTRY_FLAGS.map(c => (
+            <TouchableOpacity key={c.flag}
+              style={{alignItems:'center',padding:8,borderRadius:10,
+                backgroundColor: profile.country_flag===c.flag ? '#E8EAF6' : '#F5F5F5',
+                borderWidth: profile.country_flag===c.flag ? 2 : 0,
+                borderColor:'#5C6BC0'}}
+              onPress={()=>setProfile(p=>({...p,country_flag:c.flag,country:c.name}))}>
+              <Text style={{fontSize:28}}>{c.flag}</Text>
+              <Text style={{fontSize:9,color:'#666',marginTop:2,textAlign:'center'}}>{c.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
+
+      <Text style={styles.inputLabel}>School Name *</Text>
+      <TextInput style={styles.input} placeholder="e.g. St Patrick's International School"
+        value={profile.school_name} onChangeText={v=>setProfile(p=>({...p,school_name:v}))} placeholderTextColor="#AAA"/>
+
+      <Text style={styles.inputLabel}>City *</Text>
+      <TextInput style={styles.input} placeholder="e.g. Lisbon"
+        value={profile.city} onChangeText={v=>setProfile(p=>({...p,city:v}))} placeholderTextColor="#AAA"/>
+
+      <Text style={styles.inputLabel}>School Type</Text>
+      <View style={{flexDirection:'row',flexWrap:'wrap',gap:6,marginBottom:12}}>
+        {SCHOOL_TYPES.map(t=>(
+          <TouchableOpacity key={t}
+            style={{paddingHorizontal:12,paddingVertical:6,borderRadius:16,
+              backgroundColor: profile.school_type===t ? '#5C6BC0' : '#F0F0F0'}}
+            onPress={()=>setProfile(p=>({...p,school_type:t}))}>
+            <Text style={{fontSize:12,color:profile.school_type===t?'white':'#666',fontWeight:'500'}}>{t}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <Text style={styles.inputLabel}>Curriculum</Text>
+      <View style={{flexDirection:'row',flexWrap:'wrap',gap:6,marginBottom:12}}>
+        {CURRICULA.map(c=>(
+          <TouchableOpacity key={c}
+            style={{paddingHorizontal:12,paddingVertical:6,borderRadius:16,
+              backgroundColor: profile.curriculum===c ? '#5C6BC0' : '#F0F0F0'}}
+            onPress={()=>setProfile(p=>({...p,curriculum:c}))}>
+            <Text style={{fontSize:12,color:profile.curriculum===c?'white':'#666',fontWeight:'500'}}>{c}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <Text style={styles.inputLabel}>Approximate Number of Students</Text>
+      <TextInput style={styles.input} placeholder="e.g. 450" keyboardType="numeric"
+        value={profile.student_count} onChangeText={v=>setProfile(p=>({...p,student_count:v}))} placeholderTextColor="#AAA"/>
+
+      <Text style={styles.inputLabel}>Your Name (Principal / Wellbeing Lead)</Text>
+      <TextInput style={styles.input} placeholder="e.g. Dr Sarah Murphy"
+        value={profile.contact_name} onChangeText={v=>setProfile(p=>({...p,contact_name:v}))} placeholderTextColor="#AAA"/>
+
+      <Text style={styles.inputLabel}>Wellbeing Alert Email</Text>
+      <TextInput style={styles.input} placeholder="principal@school.edu"
+        value={wellbeingEmail} onChangeText={setWellbeingEmail}
+        keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#AAA"/>
+
+      <Text style={styles.inputLabel}>How did you hear about Class of Happiness?</Text>
+      <TextInput style={styles.input} placeholder="e.g. Teacher Facebook group, colleague recommendation..."
+        value={profile.how_heard} onChangeText={v=>setProfile(p=>({...p,how_heard:v}))} placeholderTextColor="#AAA"/>
+
+      <TouchableOpacity style={[styles.addBtn,saving&&{opacity:0.6},{marginBottom:20}]} onPress={saveProfile} disabled={saving}>
+        <MaterialIcons name="save" size={18} color="white"/>
+        <Text style={styles.addBtnText}>{saving?'Saving...':'Save School Profile'}</Text>
+      </TouchableOpacity>
+
+      {/* Invite Code Section */}
+      <Text style={styles.sectionTitle}>Teacher Invite Code</Text>
+      <Text style={styles.sectionSubtitle}>
+        Generate a unique code for YOUR school. Share it with your teachers so they can join your school in the app.
+        Each school gets a different code.
+      </Text>
+      {inviteCode ? (
+        <View style={{backgroundColor:'#E8EAF6',borderRadius:12,padding:16,alignItems:'center',marginBottom:12}}>
+          <Text style={{fontSize:28,fontWeight:'bold',color:'#3949AB',letterSpacing:3}}>{inviteCode}</Text>
+          <Text style={{fontSize:12,color:'#666',marginTop:6,textAlign:'center'}}>
+            Share this with your teachers. Valid for 90 days.{'\n'}They enter it in Settings → Join School.
+          </Text>
+        </View>
+      ) : null}
+      <TouchableOpacity style={[styles.addBtn,generatingCode&&{opacity:0.6}]} onPress={generateCode} disabled={generatingCode}>
+        <MaterialIcons name="vpn-key" size={18} color="white"/>
+        <Text style={styles.addBtnText}>{generatingCode?'Generating...':inviteCode?'Generate New Code':'Generate Invite Code'}</Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
 }
 
@@ -556,25 +775,14 @@ function SchoolAdminDashboard({ authToken, user }: { authToken:string|null, user
         {!loading && tab==='strategies' && <StrategyManager authToken={authToken} isSuperAdmin={false}/>}
 
         {!loading && tab==='settings' && (
-          <View>
-            <Text style={styles.sectionTitle}>School Settings</Text>
-            <Text style={styles.sectionSubtitle}>Your school profile is visible to the app super admin to help support your school.</Text>
-            <View style={styles.addStratBox}>
-              <Text style={styles.addStratTitle}>School Profile</Text>
-              <Text style={styles.inputLabel}>School Name</Text>
-              <TextInput style={styles.input} placeholder="e.g. St Patrick's International School" value={schoolName} onChangeText={setSchoolName} placeholderTextColor="#AAA"/>
-              <Text style={styles.inputLabel}>School Description</Text>
-              <TextInput style={[styles.input,{minHeight:70,textAlignVertical:'top'}]}
-                placeholder="e.g. K-12 international school in Lisbon, 450 students, IB curriculum."
-                value={schoolDesc} onChangeText={setSchoolDesc} multiline placeholderTextColor="#AAA"/>
-              <Text style={styles.inputLabel}>Wellbeing Alert Email</Text>
-              <TextInput style={styles.input} placeholder="principal@school.edu" value={wellbeingEmail} onChangeText={setWellbeingEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#AAA"/>
-              <TouchableOpacity style={[styles.addBtn,savingSettings&&{opacity:0.6}]} onPress={saveSettings} disabled={savingSettings}>
-                <MaterialIcons name="save" size={18} color="white"/>
-                <Text style={styles.addBtnText}>{savingSettings?'Saving...':'Save All Settings'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          <SchoolSettingsTab
+            authToken={authToken}
+            user={user}
+            wellbeingEmail={wellbeingEmail}
+            setWellbeingEmail={setWellbeingEmail}
+            saveSettings={saveSettings}
+            savingSettings={savingSettings}
+          />
         )}
       </ScrollView>
     </>
