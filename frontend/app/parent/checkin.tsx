@@ -47,7 +47,7 @@ export default function FamilyCheckInScreen() {
   const fetchStrategies = async () => {
     if (!selectedZone) return;
     try {
-      const data = await strategiesApi.getByZone(selectedZone);
+      const data = await strategiesApi.getByZone(selectedZone, undefined, language || 'en');
       setStrategies(data);
     } catch (error) {
       console.error('Error fetching strategies:', error);
