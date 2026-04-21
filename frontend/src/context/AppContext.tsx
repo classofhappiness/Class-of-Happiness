@@ -394,7 +394,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         await authApi.updateLanguage(lang);
       } catch (error) {
-        console.error('Error updating language:', error);
+        // Non-critical - language is saved locally regardless
       }
     }
   };
