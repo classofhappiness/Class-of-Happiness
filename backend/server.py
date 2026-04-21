@@ -1992,8 +1992,19 @@ async def get_admin_stats(request: Request):
         total_users = users_result.count or 0
 
         # Zone logs for this week
-        logs_result = supabase.table("zone_logs").select("*").gte("timestamp", week_ago).execute()
-        logs = logs_result.data or []
+        # Try multiple table names and timestamp field names
+        logs = []
+        for table in ["zone_logs", "checkins", "logs"]:
+            for ts_field in ["timestamp", "created_at", "checked_at"]:
+                try:
+                    result = supabase.table(table).select("*").gte(ts_field, week_ago).execute()
+                    if result.data:
+                        logs = result.data
+                        break
+                except:
+                    continue
+            if logs:
+                break
 
         # Zone counts
         zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}

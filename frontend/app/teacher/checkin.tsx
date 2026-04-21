@@ -68,13 +68,31 @@ export default function TeacherCheckInScreen() {
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [sendingAlert, setSendingAlert] = useState(false);
+  const [adminStrategies, setAdminStrategies] = useState<any[]>([]);
   const [shareWithWellbeing, setShareWithWellbeing] = useState(false);
   const [customStrategies, setCustomStrategies] = useState<Array<{id: string; name: string; description: string}>>([]);
   const [showAddStrategy, setShowAddStrategy] = useState(false);
   const [newStrategyName, setNewStrategyName] = useState('');
   const [newStrategyDesc, setNewStrategyDesc] = useState('');
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); loadAdminStrategies(); }, []);
+
+  const loadAdminStrategies = async () => {
+    try {
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const token = await AsyncStorage.getItem('session_token');
+      const res = await fetch(`${BACKEND_URL}/api/admin/teacher-strategies`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          // Merge DB strategies with hardcoded ones
+          setAdminStrategies(data);
+        }
+      }
+    } catch {}
+  };
 
   const loadData = async () => {
     if (!user?.user_id) return;
@@ -118,8 +136,13 @@ export default function TeacherCheckInScreen() {
 
   const strategiesForZone = useMemo(() => {
     if (!selectedZone) return [];
-    return TEACHER_STRATEGIES[selectedZone];
-  }, [selectedZone]);
+    const hardcoded = TEACHER_STRATEGIES[selectedZone] || [];
+    const fromDB = adminStrategies.filter(s => (s.zone || s.feeling_colour) === selectedZone);
+    // Merge - avoid duplicates by name
+    const hardcodedNames = new Set(hardcoded.map((s:any) => s.name.toLowerCase()));
+    const newFromDB = fromDB.filter(s => !hardcodedNames.has(s.name.toLowerCase()));
+    return [...hardcoded, ...newFromDB.map(s => ({...s, id: s.id, icon: s.icon || 'star'}))];
+  }, [selectedZone, adminStrategies]);
 
   const toggleStrategy = (id: string) => {
     setSelectedStrategies(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);

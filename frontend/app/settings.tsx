@@ -541,6 +541,58 @@ export default function SettingsScreen() {
           </View>
         )}
 
+
+        {/* Generate Invite Code - school admin only */}
+        {isAuthenticated && (user?.role === 'school_admin' || user?.role === 'admin') && (
+          <View style={styles.section}>
+            <TouchableOpacity style={styles.settingItem} onPress={handleGenerateInviteCode} disabled={generatingCode}>
+              <View style={styles.settingLeft}>
+                <MaterialIcons name="vpn-key" size={24} color="#5C6BC0" />
+                <View style={styles.settingText}>
+                  <Text style={styles.settingLabel}>Generate Teacher Invite Code</Text>
+                  <Text style={styles.settingValue}>
+                    {generatedCode ? generatedCode : (generatingCode ? 'Generating...' : 'Tap to generate a unique code for your teachers')}
+                  </Text>
+                </View>
+              </View>
+              <MaterialIcons name="chevron-right" size={24} color="#CCC" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Join School - teachers without school */}
+        {isAuthenticated && user?.role === 'teacher' && !user?.school_name && (
+          <View style={styles.section}>
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <MaterialIcons name="school" size={24} color="#5C6BC0" />
+                <View style={styles.settingText}>
+                  <Text style={styles.settingLabel}>Join Your School</Text>
+                  <Text style={styles.settingValue}>Enter the invite code from your school admin</Text>
+                </View>
+              </View>
+            </View>
+            <View style={{ paddingHorizontal: 16, paddingBottom: 12, gap: 8 }}>
+              <TextInput
+                style={[styles.trialCodeInputWithIcon, { borderRadius: 10, padding: 12, backgroundColor: '#F5F5F5' }]}
+                placeholder="e.g. SCH-X7K2-M9P4"
+                value={schoolInviteCode}
+                onChangeText={setSchoolInviteCode}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                placeholderTextColor="#999"
+              />
+              <TouchableOpacity
+                style={{ backgroundColor: '#5C6BC0', borderRadius: 10, padding: 12, alignItems: 'center' }}
+                onPress={handleJoinSchool}
+                disabled={joiningSchool}
+              >
+                <Text style={{ color: 'white', fontWeight: 'bold' }}>{joiningSchool ? 'Joining...' : 'Join School'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Admin Code Entry (only show if not already admin) */}
         {user?.role !== 'admin' && user?.role !== 'superadmin' && (
           <>
