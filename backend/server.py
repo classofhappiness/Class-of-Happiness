@@ -3239,7 +3239,6 @@ async def create_global_strategy(request: Request):
         "name": name,
         "description": body.get("description", ""),
         "feeling_colour": body.get("zone", "blue"),
-        "zone": body.get("zone", "blue"),
         "icon": body.get("icon", "star"),
         "is_custom": False,
         "is_active": True,
