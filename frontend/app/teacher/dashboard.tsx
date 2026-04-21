@@ -169,7 +169,7 @@ export default function TeacherDashboardScreen() {
             onPress={() => router.push('/teacher/checkin')}
           >
             <MaterialIcons name="self-improvement" size={28} color="#5C6BC0" />
-            <Text style={styles.actionText} numberOfLines={1}>Teacher Check-in</Text>
+            <Text style={styles.actionText} numberOfLines={1}>{t('teacher_checkin')||'Teacher Check-in'}</Text>
             <Text style={styles.actionCount}>Now</Text>
           </TouchableOpacity>
         </View>
@@ -200,7 +200,7 @@ export default function TeacherDashboardScreen() {
         {/* Class mood snapshot */}
         <View style={styles.snapshotCard}>
           <View style={styles.snapshotHeader}>
-            <Text style={styles.sectionTitle}>Class Mood Snapshot (Today)</Text>
+            <Text style={styles.sectionTitle}>{t('class_mood_graph')||'Class Mood Snapshot'}</Text>
             <Text style={styles.snapshotTotal}>{todaySnapshot.total} check-ins</Text>
           </View>
           <View style={styles.snapshotRow}>
@@ -318,7 +318,7 @@ export default function TeacherDashboardScreen() {
 
         {/* Mon-Sun Weekly Overview Table */}
         <View style={styles.chartSection}>
-          <Text style={styles.sectionTitle}>📅 Week at a Glance</Text>
+          <Text style={styles.sectionTitle}>{t('week_at_a_glance')||'Week at a Glance'}</Text>
           <View style={styles.weeklyTable}>
             <View style={styles.weeklyHeader}>
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
