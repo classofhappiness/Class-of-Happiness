@@ -1,3 +1,4 @@
+import * as LANG_TRANSLATIONS from '../translations';
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';

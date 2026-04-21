@@ -1,0 +1,19 @@
+{
+  "student": "Schüler",
+  "teacher": "Lehrer",
+  "parent": "Elternteil / Familie",
+  "login": "Anmelden",
+  "settings": "Einstellungen",
+  "how_are_you_feeling": "Wie fühlst du dich heute?",
+  "blue_label": "Wenig Energie",
+  "green_label": "Ruhig und bereit",
+  "yellow_label": "Gestresst",
+  "red_label": "Überwältigt",
+  "strategies": "Strategien",
+  "save": "Speichern",
+  "cancel": "Abbrechen",
+  "well_done": "Sehr gut!",
+  "classrooms": "Klassen",
+  "students": "Schüler",
+  "save_checkin": "Check-in speichern"
+}
