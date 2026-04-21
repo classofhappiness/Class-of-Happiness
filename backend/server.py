@@ -1180,7 +1180,9 @@ async def health():
 # ================== TRANSLATIONS ==================
 @api_router.get("/translations/{lang}")
 async def get_translations(lang: str):
-    translations = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
+    # Normalize language code
+    lang = lang.lower().split("-")[0].split("_")[0]
+    translations = TRANSLATIONS.get(lang, TRANSLATIONS.get("en", {}))
     # Always fill missing keys from English
     result = {**translations, **{k: v for k, v in TRANSLATIONS["en"].items() if k not in translations}}
     return result
@@ -2036,19 +2038,16 @@ async def get_admin_stats(request: Request):
         total_users = users_result.count or 0
 
         # Zone logs for this week
-        # Try multiple table names and timestamp field names
+        # Query both zone_logs and feeling_logs
         logs = []
-        for table in ["zone_logs", "checkins", "logs"]:
-            for ts_field in ["timestamp", "created_at", "checked_at"]:
-                try:
-                    result = supabase.table(table).select("*").gte(ts_field, week_ago).execute()
-                    if result.data:
-                        logs = result.data
-                        break
-                except:
-                    continue
-            if logs:
-                break
+        try:
+            r1 = supabase.table("zone_logs").select("*").gte("timestamp", week_ago).execute()
+            logs.extend(r1.data or [])
+        except: pass
+        try:
+            r2 = supabase.table("feeling_logs").select("*").gte("timestamp", week_ago).execute()
+            logs.extend(r2.data or [])
+        except: pass
 
         # Zone counts
         zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
@@ -2056,12 +2055,14 @@ async def get_admin_stats(request: Request):
         today = now.date()
 
         for log in logs:
-            zone = log.get("zone", "")
+            zone = log.get("zone") or log.get("feeling_colour") or log.get("color", "")
             if zone in zone_counts:
                 zone_counts[zone] += 1
             # Daily breakdown
             try:
-                log_date = datetime.fromisoformat(log["timestamp"].replace("Z", "+00:00")).date()
+                ts = log.get("timestamp") or log.get("created_at") or ""
+                if not ts: continue
+                log_date = datetime.fromisoformat(ts.replace("Z", "+00:00")).date()
                 days_ago = (today - log_date).days
                 if 0 <= days_ago < 7:
                     checkin_daily[6 - days_ago] += 1
@@ -2070,7 +2071,9 @@ async def get_admin_stats(request: Request):
 
         # Today's checkins
         today_str = now.strftime("%Y-%m-%d")
-        checkins_today = sum(1 for log in logs if log.get("timestamp","").startswith(today_str))
+        checkins_today = sum(1 for log in logs if (
+            log.get("timestamp","") or log.get("created_at","")
+        ).startswith(today_str))
 
         # Teacher checkins (from AsyncStorage - approximate from zone_logs with teacher users)
         teacher_zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
