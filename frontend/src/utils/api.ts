@@ -189,7 +189,7 @@ export const authApi = {
     apiRequest('/auth/logout', { method: 'POST' }),
   
   updateLanguage: (language: string): Promise<{ language: string }> =>
-    apiRequest('/auth/language', { method: 'PUT', body: JSON.stringify({ language }) }),
+    apiRequest('/auth/update-language', { method: 'POST', body: JSON.stringify({ language }) }),
 };
 
 // Subscription API
