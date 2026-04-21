@@ -2790,7 +2790,24 @@ async def get_wellbeing_alerts(request: Request):
         raise HTTPException(status_code=403, detail="Admin access required")
     try:
         result = supabase.table("wellbeing_alerts").select("*").order("created_at", desc=True).execute()
-        return result.data or []
+        alerts = result.data or []
+        # Resolve strategy IDs to names
+        STRATEGY_NAMES = {
+            "blue_1":"Talk to a trusted colleague","blue_2":"Brief outdoor walk",
+            "blue_3":"Safe staff space reset","blue_4":"Hydrate and breathe",
+            "green_1":"Protect what works","green_2":"Positive micro-moment",
+            "green_3":"Prep buffer time","green_4":"Boundary reminder",
+            "yellow_1":"Movement break","yellow_2":"Guided meditation",
+            "yellow_3":"Challenge log","yellow_4":"Deep breathing set",
+            "yellow_5":"Quick yoga stretch","red_1":"Ask for immediate cover",
+            "red_2":"Grounding routine","red_3":"Pause before response",
+            "red_4":"De-escalation script",
+        }
+        for alert in alerts:
+            if isinstance(alert.get("message"), str):
+                for sid, sname in STRATEGY_NAMES.items():
+                    alert["message"] = alert["message"].replace(sid, sname)
+        return alerts
     except Exception as e:
         logger.error(f"wellbeing_alerts table error: {e}")
         return []
@@ -3208,5 +3225,65 @@ async def get_schools_world_wall(request: Request):
     except Exception as e:
         logger.error(f"World wall error: {e}")
         return []
+
+@api_router.post("/strategies")
+async def create_global_strategy(request: Request):
+    """Admin adds a global student strategy"""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    body = await request.json()
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name required")
+    new_strat = {
+        "id": str(uuid.uuid4()),
+        "name": name,
+        "description": body.get("description", ""),
+        "feeling_colour": body.get("zone", "blue"),
+        "zone": body.get("zone", "blue"),
+        "icon": body.get("icon", "star"),
+        "is_custom": False,
+        "is_active": True,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        result = supabase.table("helpers").insert(new_strat).execute()
+        return result.data[0] if result.data else new_strat
+    except Exception as e:
+        logger.error(f"Strategy create error: {e}")
+        raise HTTPException(status_code=500, detail="Could not save strategy")
+
+@api_router.put("/strategies/{strategy_id}")
+async def update_global_strategy(strategy_id: str, request: Request):
+    """Admin updates a global student strategy"""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    body = await request.json()
+    update_data = {k:v for k,v in {
+        "name": body.get("name"),
+        "description": body.get("description"),
+        "feeling_colour": body.get("zone"),
+        "zone": body.get("zone"),
+        "icon": body.get("icon"),
+    }.items() if v is not None}
+    try:
+        supabase.table("helpers").update(update_data).eq("id", strategy_id).execute()
+        return {"status": "updated"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Could not update strategy")
+
+@api_router.delete("/strategies/{strategy_id}")
+async def delete_global_strategy(strategy_id: str, request: Request):
+    """Superadmin deletes a global student strategy"""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    try:
+        supabase.table("helpers").delete().eq("id", strategy_id).execute()
+        return {"status": "deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Could not delete strategy")
 
 
