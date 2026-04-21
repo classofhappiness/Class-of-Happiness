@@ -3379,3 +3379,5 @@ async def update_user_language(request: Request):
     return {"status": "ok", "language": lang}
 
 app.include_router(api_router)
+
+# Translation cache buster - v2
