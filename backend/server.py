@@ -2883,6 +2883,8 @@ async def create_admin_teacher_strategy(request: Request):
         "description": body.get("description", ""),
         "icon": body.get("icon", "star"),
         "is_active": True,
+        "created_by": user["user_id"],
+        "created_by_role": user.get("role", "admin"),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     result = supabase.table("admin_teacher_strategies").insert(new_strat).execute()
@@ -3291,6 +3293,26 @@ async def delete_global_strategy(strategy_id: str, request: Request):
     try:
         supabase.table("helpers").delete().eq("id", strategy_id).execute()
         return {"status": "deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Could not delete strategy")
+
+
+@api_router.delete("/admin/teacher-strategies/{strategy_id}")
+async def delete_admin_teacher_strategy(strategy_id: str, request: Request):
+    """Delete a teacher strategy - superadmin can delete any, school_admin only their own"""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    try:
+        # Check ownership for school_admin
+        if user.get("role") == "school_admin":
+            existing = supabase.table("admin_teacher_strategies").select("*").eq("id", strategy_id).execute()
+            if existing.data and existing.data[0].get("created_by") != user["user_id"]:
+                raise HTTPException(status_code=403, detail="You can only delete strategies you created")
+        supabase.table("admin_teacher_strategies").delete().eq("id", strategy_id).execute()
+        return {"status": "deleted"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail="Could not delete strategy")
 
