@@ -3363,4 +3363,19 @@ async def delete_admin_teacher_strategy(strategy_id: str, request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail="Could not delete strategy")
 
+
+@api_router.post("/auth/update-language")
+async def update_user_language(request: Request):
+    """Update user preferred language"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    lang = body.get("language", "en")
+    try:
+        supabase.table("users").update({"language": lang}).eq("user_id", user["user_id"]).execute()
+    except:
+        pass
+    return {"status": "ok", "language": lang}
+
 app.include_router(api_router)
