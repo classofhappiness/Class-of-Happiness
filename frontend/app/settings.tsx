@@ -394,7 +394,7 @@ export default function SettingsScreen() {
 
       {/* About & Legal */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Legal</Text>
+        <Text style={styles.sectionTitle}>{t('legal') || 'Legal'}</Text>
         <TouchableOpacity
           style={styles.settingItem}
           onPress={() => router.push('/about' as any)}
@@ -587,7 +587,7 @@ export default function SettingsScreen() {
                 onPress={handleJoinSchool}
                 disabled={joiningSchool}
               >
-                <Text style={{ color: 'white', fontWeight: 'bold' }}>{joiningSchool ? 'Joining...' : 'Join School'}</Text>
+                <Text style={{ color: 'white', fontWeight: 'bold' }}>{joiningSchool ? 'Joining...' : {t('join_school') || 'Join School'}}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -603,7 +603,7 @@ export default function SettingsScreen() {
               <View style={styles.settingLeft}>
                 <MaterialIcons name="vpn-key" size={24} color="#9C27B0" />
                 <View style={styles.settingText}>
-                  <Text style={styles.settingLabel}>Admin Access</Text>
+                  <Text style={styles.settingLabel}>{t('admin_access') || 'Admin Access'}</Text>
                   <Text style={styles.settingValue}>Enter admin code to unlock</Text>
                 </View>
               </View>
