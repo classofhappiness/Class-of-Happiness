@@ -371,8 +371,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const fetchTranslations = async (lang: string) => {
     try {
+      // Clear any cached translations first
+      setTranslationsLoaded(false);
       const data = await translationsApi.get(lang);
-      setTranslations(data);
+      if (data && Object.keys(data).length > 5) {
+        setTranslations(data);
+      } else {
+        console.warn('Translation response too small, keeping current');
+      }
       setTranslationsLoaded(true);
     } catch (error) {
       console.error('Error fetching translations:', error);
