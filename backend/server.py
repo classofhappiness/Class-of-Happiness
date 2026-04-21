@@ -2927,8 +2927,6 @@ async def get_school_admin_stats(request: Request):
         "school_name": user.get("school_name", "My School"),
     }
 
-app.include_router(api_router)
-
 @api_router.post("/admin/unlink-user")
 async def unlink_user(request: Request):
     """Superadmin unlinks a parent-teacher connection"""
@@ -3286,4 +3284,4 @@ async def delete_global_strategy(strategy_id: str, request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail="Could not delete strategy")
 
-
+app.include_router(api_router)
