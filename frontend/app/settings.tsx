@@ -1,5 +1,6 @@
 import React, { useState, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -479,7 +480,7 @@ export default function SettingsScreen() {
         )}
 
         {/* Join School - show for teachers without a school */}
-        {isAuthenticated && (user?.role === 'teacher') && !user?.school_name && (
+        {isAuthenticated && (user?.role === 'teacher') && !(user as any)?.school_name && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="school" size={20} color="#5C6BC0" />
@@ -561,7 +562,7 @@ export default function SettingsScreen() {
         )}
 
         {/* Join School - teachers without school */}
-        {isAuthenticated && user?.role === 'teacher' && !user?.school_name && (
+        {isAuthenticated && user?.role === 'teacher' && !(user as any)?.school_name && (
           <View style={styles.section}>
             <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
@@ -716,6 +717,7 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2,
   },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 4 },
   section: {
     marginBottom: 24,
   },

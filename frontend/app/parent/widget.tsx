@@ -14,7 +14,7 @@ import {
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
-import { familyMembersApi, zoneLogsApi } from '../../src/utils/api';
+import { familyApi, zoneLogsApi } from '../../src/utils/api';
 
 const { width } = Dimensions.get('window');
 
@@ -55,14 +55,14 @@ export default function ParentWidgetScreen() {
 
   const fetchWidgetData = async () => {
     try {
-      const members = await familyMembersApi.getAll();
+      const members = await familyApi.getAll();
       
       // Get recent check-ins for each member
       const summaries: EmotionSummary[] = await Promise.all(
         members.map(async (member: any) => {
           try {
             // Get recent zone logs for this family member
-            const logs = await zoneLogsApi.getRecent(member.id, 1);
+            const logs = await zoneLogsApi.getAll(member.id, 1);
             const lastLog = logs[0];
             
             return {

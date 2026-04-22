@@ -212,6 +212,7 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken:string|null, i
 
 // ── World Wall ───────────────────────────────────────────────────────────────
 function WorldWall({ authToken }: { authToken:string|null }) {
+  const { t } = useApp();
   const [schools, setSchools] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -455,7 +456,7 @@ const CURRICULA = ['IB (International Baccalaureate)','National','Cambridge','Mo
 function SchoolSettingsTab({ authToken, user, wellbeingEmail, setWellbeingEmail, saveSettings, savingSettings }: any) {
   const { t } = useApp();
   const [profile, setProfile] = useState({
-    school_name: user?.school_name as string || '',
+    school_name: (user as any)?.school_name || '',
     country: '', city: '', school_type: 'International',
     curriculum: 'National', student_count: '',
     contact_name: '', contact_email: user?.email || '',
@@ -615,7 +616,7 @@ function SchoolAdminDashboard({ authToken, user }: { authToken:string|null, user
   const [alerts, setAlerts] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [wellbeingEmail, setWellbeingEmail] = useState('');
-  const [schoolName, setSchoolName] = useState(user?.school_name as string||'');
+  const [schoolName, setSchoolName] = useState((user as any)?.school_name||'');
   const [schoolDesc, setSchoolDesc] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -633,7 +634,7 @@ function SchoolAdminDashboard({ authToken, user }: { authToken:string|null, user
         try {
           const d = await apiCall('/admin/settings', authToken);
           setWellbeingEmail(d.wellbeing_email||'');
-          setSchoolName(d.school_name||user?.school_name as string||'');
+          setSchoolName(d.school_name||(user as any)?.school_name||'');
           setSchoolDesc(d.school_description||'');
         } catch {}
       }
@@ -798,7 +799,7 @@ export default function AdminDashboardScreen() {
   const isSuperAdmin = user?.role==='superadmin';
   const isSchoolAdmin = user?.role==='school_admin'||user?.role==='admin';
   const headerColor = isSuperAdmin ? '#3949AB' : '#5C6BC0';
-  const headerLabel = isSuperAdmin ? '👑 Super Admin — All Schools' : '🏫 School Admin — '+(user?.school_name as string||'My School');
+  const headerLabel = isSuperAdmin ? '👑 Super Admin — All Schools' : '🏫 School Admin — '+((user as any)?.school_name||'My School');
 
   return (
     <SafeAreaView style={styles.container}>
