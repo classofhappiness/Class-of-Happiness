@@ -16,11 +16,11 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { familyApi, FamilyMember, strategiesApi, Strategy } from '../../src/utils/api';
 
-const ZONES = [
-  { id: 'blue', name: 'Blue', color: '#4A90D9', desc: 'Sad, Tired, Bored', face: '😢' },
-  { id: 'green', name: 'Green', color: '#4CAF50', desc: 'Calm, Happy, Focused', face: '😊' },
-  { id: 'yellow', name: 'Yellow', color: '#FFC107', desc: 'Worried, Frustrated, Silly', face: '😐' },
-  { id: 'red', name: 'Red', color: '#F44336', desc: 'Angry, Scared, Out of Control', face: '🤯' },
+const getZones = (t: (key: string) => string) => [
+  { id: 'blue', name: t('blue_label')||'Blue', color: '#4A90D9', desc: t('blue_words')||'Sad, Tired, Bored', face: '😢' },
+  { id: 'green', name: t('green_label')||'Green', color: '#4CAF50', desc: t('green_words')||'Calm, Happy, Focused', face: '😊' },
+  { id: 'yellow', name: t('yellow_label')||'Yellow', color: '#FFC107', desc: t('yellow_words')||'Worried, Frustrated, Silly', face: '😐' },
+  { id: 'red', name: t('red_label')||'Red', color: '#F44336', desc: t('red_words')||'Angry, Scared, Out of Control', face: '🤯' },
 ];
 
 const MAX_COMMENT_LENGTH = 100;
@@ -111,7 +111,7 @@ export default function FamilyCheckInScreen() {
     }
   };
 
-  const zoneConfig = selectedZone ? ZONES.find(z => z.id === selectedZone) : null;
+  const zoneConfig = selectedZone ? getZones(t).find(z => z.id === selectedZone) : null;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -136,7 +136,7 @@ export default function FamilyCheckInScreen() {
           {step === 'zone' ? (
             /* Zone Selection - aligned with student full-width color cards */
             <View style={styles.zonesStack}>
-              {ZONES.map((zone) => (
+              {getZones(t).map((zone) => (
                 <TouchableOpacity
                   key={zone.id}
                   style={[

@@ -393,7 +393,7 @@ export default function SettingsScreen() {
         )}
       </View>
 
-      {/* About & Legal */}
+      {/* {t('about_app')||'About'} & {t('legal')||'Legal'} */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('legal') || 'Legal'}</Text>
         <TouchableOpacity
@@ -535,7 +535,7 @@ export default function SettingsScreen() {
                 disabled={generatingCode}
               >
                 <Text style={{ color: 'white', fontWeight: 'bold', textAlign: 'center' }}>
-                  {generatingCode ? 'Generating...' : '🔑 Generate Invite Code'}
+                  {generatingCode ? t('loading')||'Generating...' : '🔑 ' + (t('generate_invite_code')||'Generate Invite Code')}
                 </Text>
               </TouchableOpacity>
             </View>
