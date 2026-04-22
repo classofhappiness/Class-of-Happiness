@@ -647,3 +647,4 @@ const styles = StyleSheet.create({
   weeklyZoneDot: { width: 18, height: 18, borderRadius: 9 },
   weeklyTime: { fontSize: 8, color: '#999' },
   weeklyNoData: { fontSize: 16, color: '#DDD', marginTop: 12 },
+});
