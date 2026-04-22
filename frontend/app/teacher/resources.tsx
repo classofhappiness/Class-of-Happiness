@@ -249,7 +249,7 @@ export default function TeacherResourcesScreen() {
         // Use unique filename to avoid 'destination already exists' error
         const timestamp = Date.now();
         const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const localUri = `${FileSystem.documentDirectory}${timestamp}_${safeFilename}`;
+        const localUri = `${(FileSystem as any).cacheDirectory || (FileSystem as any).documentDirectory}${timestamp}_${safeFilename}`;
         
         console.log('Downloading to:', localUri);
         

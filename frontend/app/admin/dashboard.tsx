@@ -211,8 +211,7 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken:string|null, i
 
 
 // ── World Wall ───────────────────────────────────────────────────────────────
-function WorldWall({ authToken }: { authToken:string|null }) {
-  const { t } = useApp();
+function WorldWall({ authToken, t }: { authToken:string|null, t: (key:string)=>string }) {
   const [schools, setSchools] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -348,7 +347,7 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
 
             <Text style={[styles.sectionTitle,{marginTop:16}]}>🌍 Schools Around the World</Text>
             <Text style={styles.sectionSubtitle}>Every school using Class of Happiness. Tap a school to see their data.</Text>
-            <WorldWall authToken={authToken}/>
+            <WorldWall authToken={authToken} t={t}/>
 
             <Text style={[styles.sectionTitle,{marginTop:16}]}>Schools Breakdown</Text>
             <Text style={styles.sectionSubtitle}>Emotion colour data per school this week.</Text>

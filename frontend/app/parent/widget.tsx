@@ -62,14 +62,14 @@ export default function ParentWidgetScreen() {
         members.map(async (member: any) => {
           try {
             // Get recent zone logs for this family member
-            const logs = await zoneLogsApi.getAll(member.id, 1);
+            const logs = await zoneLogsApi.getAll(member.id, undefined, undefined, 1);
             const lastLog = logs[0];
             
             return {
               memberId: member.id,
               memberName: member.name,
               lastEmotion: lastLog?.zone || null,
-              lastCheckIn: lastLog?.created_at || null,
+              lastCheckIn: (lastLog as any)?.created_at || (lastLog as any)?.timestamp || null,
               emotionColor: lastLog ? ZONE_CONFIG[lastLog.zone]?.color || '#999' : '#999',
               emotionEmoji: lastLog ? ZONE_CONFIG[lastLog.zone]?.emoji || '❓' : '❓',
             };

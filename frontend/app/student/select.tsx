@@ -275,7 +275,7 @@ export default function StudentSelectScreen() {
           unlockedOutfits={collectionData.unlocked_outfits || []}
           unlockedFoods={collectionData.unlocked_foods || []}
           unlockedHomes={collectionData.unlocked_homes || []}
-          allCreatures={collectionData?.total_creatures || []}
+          allCreatures={(collectionData as any)?.all_creatures || []}
           t={t}
           onClose={() => setShowCollection(false)}
         />

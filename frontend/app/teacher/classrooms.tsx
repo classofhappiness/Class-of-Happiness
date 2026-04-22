@@ -126,7 +126,7 @@ export default function ManageClassroomsScreen() {
 
   const handleMoveStudent = async (studentId: string, classroomId: string | null) => {
     try {
-      await studentsApi.update(studentId, { classroom_id: classroomId });
+      await studentsApi.update(studentId, { classroom_id: classroomId || undefined });
       await refreshStudents();
     } catch {
       Alert.alert('Error', 'Failed to update student.');
