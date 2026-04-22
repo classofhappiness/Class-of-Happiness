@@ -453,8 +453,9 @@ const SCHOOL_TYPES = ['International','Public','Private','Charter','Faith-based'
 const CURRICULA = ['IB (International Baccalaureate)','National','Cambridge','Montessori','Mixed/Other'];
 
 function SchoolSettingsTab({ authToken, user, wellbeingEmail, setWellbeingEmail, saveSettings, savingSettings }: any) {
+  const { t } = useApp();
   const [profile, setProfile] = useState({
-    school_name: user?.school_name || '',
+    school_name: user?.school_name as string || '',
     country: '', city: '', school_type: 'International',
     curriculum: 'National', student_count: '',
     contact_name: '', contact_email: user?.email || '',
@@ -614,7 +615,7 @@ function SchoolAdminDashboard({ authToken, user }: { authToken:string|null, user
   const [alerts, setAlerts] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [wellbeingEmail, setWellbeingEmail] = useState('');
-  const [schoolName, setSchoolName] = useState(user?.school_name||'');
+  const [schoolName, setSchoolName] = useState(user?.school_name as string||'');
   const [schoolDesc, setSchoolDesc] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -632,7 +633,7 @@ function SchoolAdminDashboard({ authToken, user }: { authToken:string|null, user
         try {
           const d = await apiCall('/admin/settings', authToken);
           setWellbeingEmail(d.wellbeing_email||'');
-          setSchoolName(d.school_name||user?.school_name||'');
+          setSchoolName(d.school_name||user?.school_name as string||'');
           setSchoolDesc(d.school_description||'');
         } catch {}
       }
@@ -797,7 +798,7 @@ export default function AdminDashboardScreen() {
   const isSuperAdmin = user?.role==='superadmin';
   const isSchoolAdmin = user?.role==='school_admin'||user?.role==='admin';
   const headerColor = isSuperAdmin ? '#3949AB' : '#5C6BC0';
-  const headerLabel = isSuperAdmin ? '👑 Super Admin — All Schools' : '🏫 School Admin — '+(user?.school_name||'My School');
+  const headerLabel = isSuperAdmin ? '👑 Super Admin — All Schools' : '🏫 School Admin — '+(user?.school_name as string||'My School');
 
   return (
     <SafeAreaView style={styles.container}>

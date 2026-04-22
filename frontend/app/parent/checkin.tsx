@@ -28,7 +28,7 @@ const MAX_COMMENT_LENGTH = 100;
 export default function FamilyCheckInScreen() {
   const router = useRouter();
   const { memberId, memberName } = useLocalSearchParams<{ memberId: string; memberName: string }>();
-  const { t } = useApp();
+  const { t, language } = useApp();
   
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
   const [strategies, setStrategies] = useState<Strategy[]>([]);
