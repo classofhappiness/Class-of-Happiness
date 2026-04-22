@@ -601,7 +601,7 @@ function SchoolSettingsTab({ authToken, user, wellbeingEmail, setWellbeingEmail,
       ) : null}
       <TouchableOpacity style={[styles.addBtn,generatingCode&&{opacity:0.6}]} onPress={generateCode} disabled={generatingCode}>
         <MaterialIcons name="vpn-key" size={18} color="white"/>
-        <Text style={styles.addBtnText}>{generatingCode?'Generating...':inviteCode?'Generate New Code': t('generate_invite_code') || 'Generate Invite Code'}}</Text>
+        <Text style={styles.addBtnText}>{generatingCode?'Generating...':inviteCode?'Generate New Code': t('generate_invite_code') || 'Generate Invite Code'}</Text>
       </TouchableOpacity>
     </ScrollView>
   );

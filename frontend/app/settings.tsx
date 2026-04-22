@@ -587,7 +587,7 @@ export default function SettingsScreen() {
                 onPress={handleJoinSchool}
                 disabled={joiningSchool}
               >
-                <Text style={{ color: 'white', fontWeight: 'bold' }}>{joiningSchool ? 'Joining...' : {t('join_school') || 'Join School'}}</Text>
+                <Text style={{ color: 'white', fontWeight: 'bold' }}>{joiningSchool ? 'Joining...' : t('join_school') || 'Join School'}</Text>
               </TouchableOpacity>
             </View>
           </View>
