@@ -69,7 +69,7 @@ export default function ParentWidgetScreen() {
               memberId: member.id,
               memberName: member.name,
               lastEmotion: lastLog?.zone || null,
-              lastCheckIn: lastLog?.(created_at as any) || null,
+              lastCheckIn: lastLog?.created_at || null,
               emotionColor: lastLog ? ZONE_CONFIG[lastLog.zone]?.color || '#999' : '#999',
               emotionEmoji: lastLog ? ZONE_CONFIG[lastLog.zone]?.emoji || '❓' : '❓',
             };

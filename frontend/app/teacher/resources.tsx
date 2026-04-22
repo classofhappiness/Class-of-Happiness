@@ -118,7 +118,7 @@ export default function TeacherResourcesScreen() {
         try {
           // Try FileSystem first (most reliable)
           base64 = await FileSystem.readAsStringAsync(file.uri, {
-            encoding: FileSystem.EncodingType.Base64,
+            encoding: 'base64',
           });
         } catch (fsError) {
           // Fallback: use fetch + blob
@@ -249,7 +249,7 @@ export default function TeacherResourcesScreen() {
         // Use unique filename to avoid 'destination already exists' error
         const timestamp = Date.now();
         const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const localUri = `${FileSystem.cacheDirectory}${timestamp}_${safeFilename}`;
+        const localUri = `${FileSystem.documentDirectory}${timestamp}_${safeFilename}`;
         
         console.log('Downloading to:', localUri);
         

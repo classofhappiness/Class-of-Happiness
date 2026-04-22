@@ -647,8 +647,3 @@ const styles = StyleSheet.create({
   weeklyZoneDot: { width: 18, height: 18, borderRadius: 9 },
   weeklyTime: { fontSize: 8, color: '#999' },
   weeklyNoData: { fontSize: 16, color: '#DDD', marginTop: 12 },
-  quickActions: { flexDirection: 'row', gap: 10, marginBottom: 20 },
-  quickBtn: { flex: 1, backgroundColor: 'white', borderRadius: 16, paddingVertical: 16, alignItems: 'center', gap: 6, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4 },
-  quickBtnEmoji: { fontSize: 28 },
-  quickBtnLabel: { fontSize: 13, fontWeight: '600', color: '#444' },
-});
