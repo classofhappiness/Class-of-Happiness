@@ -497,7 +497,7 @@ export default function ParentDashboard() {
                   })}
                 >
                   <Text style={styles.bigCheckinEmoji}>😊</Text>
-                  <Text style={styles.bigCheckinText}>{t('check_in') || 'Check In'}</Text>
+                  <Text style={styles.bigCheckinText}>{t('check_in') || t('check_in')||'Check In'}</Text>
                 </TouchableOpacity>
               </View>
             ))}
@@ -601,7 +601,7 @@ export default function ParentDashboard() {
               onPress={() => router.push('/parent/family-strategies')}
             >
               <MaterialIcons name="lightbulb" size={24} color="#FFC107" />
-              <Text style={styles.actionButtonText} numberOfLines={1}>{t('family_strategies') || 'Family Strategies'}</Text>
+              <Text style={styles.actionButtonText} numberOfLines={1}>{t('family_strategies') || t('family_strategies')||'Family Strategies'}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity

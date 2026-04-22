@@ -367,7 +367,7 @@ export default function TeacherCheckInScreen() {
               disabled={saving}
             >
               <MaterialIcons name="check" size={22} color="white" />
-              <Text style={styles.saveText}>{saving ? 'Saving...' : 'Save Check-in'}</Text>
+              <Text style={styles.saveText}>{saving ? 'Saving...' : t('save_checkin')||'Save Check-in'}</Text>
             </TouchableOpacity>
           </>
         )}

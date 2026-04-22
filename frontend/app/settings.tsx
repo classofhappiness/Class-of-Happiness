@@ -285,7 +285,7 @@ export default function SettingsScreen() {
             <View style={styles.settingText}>
               <Text style={styles.settingLabel}>Status</Text>
               <Text style={[styles.settingValue, { color: hasActiveSubscription ? '#4CAF50' : '#F44336' }]}>
-                {user?.subscription_status === 'trial' ? 'Free Trial' :
+                {user?.subscription_status === 'trial' ? t('free_trial')||'Free Trial' :
                  user?.subscription_status === 'active' ? `${user.subscription_plan || 'Active'}` :
                  'Inactive'}
               </Text>
