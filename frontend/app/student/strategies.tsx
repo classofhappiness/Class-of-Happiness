@@ -162,7 +162,7 @@ export default function StrategiesScreen() {
         avatarCustom={currentStudent?.avatar_custom}
         onComplete={() => setShowCelebration(false)}
         translations={{
-          well_done: t('well_done') || 'Well Done!',
+          well_done: t('well_done') || t('well_done')||'Well Done',
           support_message: customSupportMessage || (() => {
             const GENERIC_MESSAGES = [
               'Well done for owning your emotions! 🌟',
