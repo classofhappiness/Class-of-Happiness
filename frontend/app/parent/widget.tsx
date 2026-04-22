@@ -62,7 +62,7 @@ export default function ParentWidgetScreen() {
         members.map(async (member: any) => {
           try {
             // Get recent zone logs for this family member
-            const logs = await zoneLogsApi.getAll(member.id, undefined, undefined, 1);
+            const logs = await zoneLogsApi.getAll(member.id, undefined, undefined);
             const lastLog = logs[0];
             
             return {

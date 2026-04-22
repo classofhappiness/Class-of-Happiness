@@ -81,7 +81,7 @@ export const playSound = async (soundName: keyof typeof sounds) => {
     } else {
       // Try to play directly if not preloaded
       const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: SOUND_URLS[soundName] },
+        { uri: (SOUND_URLS as any)[soundName] },
         { shouldPlay: true, volume: 0.5 }
       );
       // Clean up after playing

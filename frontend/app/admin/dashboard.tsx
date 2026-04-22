@@ -71,6 +71,7 @@ function ColourRow({ zone, count, total }: { zone:string, count:number, total:nu
 }
 
 function StrategyManager({ authToken, isSuperAdmin }: { authToken:string|null, isSuperAdmin:boolean }) {
+  const { t } = useApp();
   const [type, setType] = useState<'teacher'|'student'>('teacher');
   const [strats, setStrats] = useState<any[]>([]);
   const [zone, setZone] = useState('blue');
@@ -255,6 +256,7 @@ function WorldWall({ authToken, t }: { authToken:string|null, t: (key:string)=>s
 }
 
 function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:any }) {
+  const { t } = useApp();
   const [tab, setTab] = useState<'analytics'|'strategies'|'settings'>('analytics');
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<any>(null);
