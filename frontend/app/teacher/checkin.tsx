@@ -56,7 +56,7 @@ const ALL_STRATEGIES = Object.values(TEACHER_STRATEGIES).flat();
 
 export default function TeacherCheckInScreen() {
   const router = useRouter();
-  const { user } = useApp();
+  const { user , t} = useApp();
   const navigation = useNavigation();
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const [selectedZone, setSelectedZone] = useState<FeelingZone | null>(null);
@@ -528,14 +528,14 @@ const styles = StyleSheet.create({
   toggleSwitchOn: { backgroundColor: '#F44336' },
   toggleKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: 'white' },
   toggleKnobOn: { alignSelf: 'flex-end' },
-  shareToggle: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', borderRadius: 12, padding: 14, marginBottom: 12, gap: 12, borderWidth: 1, borderColor: '#E0E0E0' },
-  shareToggleText: { flex: 1 },
-  shareToggleTitle: { fontSize: 14, fontWeight: '600', color: '#333' },
-  shareToggleDesc: { fontSize: 11, color: '#888', marginTop: 2 },
-  toggleSwitch: { width: 44, height: 24, borderRadius: 12, backgroundColor: '#E0E0E0', justifyContent: 'center', padding: 2 },
-  toggleSwitchOn: { backgroundColor: '#F44336' },
-  toggleKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: 'white' },
-  toggleKnobOn: { alignSelf: 'flex-end' },
+  // duplicate shareToggle removed
+  // duplicate shareToggleText removed
+  // duplicate shareToggleTitle removed
+  // duplicate shareToggleDesc removed
+  // duplicate toggleSwitch removed
+  // duplicate toggleSwitchOn removed
+  // duplicate toggleKnob removed
+  // duplicate toggleKnobOn removed
   customStratLabel: { fontSize: 13, fontWeight: '600', color: '#5C6BC0', marginBottom: 8, marginTop: 4 },
   addStrategyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, marginBottom: 8 },
   addStrategyText: { fontSize: 14, color: '#5C6BC0', fontWeight: '600' },

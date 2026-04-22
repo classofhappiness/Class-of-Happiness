@@ -49,7 +49,7 @@ export default function StudentSelectScreen() {
             currentStage: collection.current_stage,
             collectedCreatures: collection.collected_creatures,
             totalPoints: collection.current_points,
-            allCreatures: collection.all_creatures || [],
+            allCreatures: collection.total_creatures || [],
           } as any;
         } catch (error) {
           console.error(`Error fetching creatures for ${student.id}:`, error);
@@ -275,7 +275,7 @@ export default function StudentSelectScreen() {
           unlockedOutfits={collectionData.unlocked_outfits || []}
           unlockedFoods={collectionData.unlocked_foods || []}
           unlockedHomes={collectionData.unlocked_homes || []}
-          allCreatures={collectionData?.all_creatures || []}
+          allCreatures={collectionData?.total_creatures || []}
           t={t}
           onClose={() => setShowCollection(false)}
         />

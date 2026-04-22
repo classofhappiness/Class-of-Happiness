@@ -55,7 +55,7 @@ export default function ParentWidgetScreen() {
 
   const fetchWidgetData = async () => {
     try {
-      const members = await familyApi.getAll();
+      const members = await familyApi.getMembers();
       
       // Get recent check-ins for each member
       const summaries: EmotionSummary[] = await Promise.all(
@@ -69,7 +69,7 @@ export default function ParentWidgetScreen() {
               memberId: member.id,
               memberName: member.name,
               lastEmotion: lastLog?.zone || null,
-              lastCheckIn: lastLog?.created_at || null,
+              lastCheckIn: lastLog?.(created_at as any) || null,
               emotionColor: lastLog ? ZONE_CONFIG[lastLog.zone]?.color || '#999' : '#999',
               emotionEmoji: lastLog ? ZONE_CONFIG[lastLog.zone]?.emoji || '❓' : '❓',
             };
