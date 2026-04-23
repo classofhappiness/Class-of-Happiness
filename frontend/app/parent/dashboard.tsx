@@ -458,6 +458,49 @@ export default function ParentDashboard() {
                     >
                       <MaterialIcons name="edit" size={14} color="#5C6BC0" />
                     </TouchableOpacity>
+                    {/* Link to School button */}
+                    {!(member as any).student_id && (
+                      <TouchableOpacity
+                        style={[styles.editButton, {backgroundColor:'#E8EAF6'}]}
+                        onPress={async () => {
+                          try {
+                            const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+                            const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+                            const token = await AsyncStorage.getItem('session_token');
+                            const res = await fetch(`${BACKEND_URL}/api/family/linkable-students`, {
+                              headers: { 'Authorization': `Bearer ${token}` }
+                            });
+                            const students = await res.json().catch(() => []);
+                            if (!students.length) {
+                              Alert.alert(
+                                t('link_child')||'Link to School',
+                                'Ask your child's teacher for a link code first. This connects school and home check-ins.'
+                              );
+                            } else {
+                              Alert.alert(
+                                t('link_child')||'Link to School Profile',
+                                'Select your child's school profile:',
+                                [...students.map((s: any) => ({
+                                  text: s.name,
+                                  onPress: async () => {
+                                    const linkRes = await fetch(`${BACKEND_URL}/api/family/members/${member.id}/link-student`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                      body: JSON.stringify({ student_id: s.id })
+                                    });
+                                    if (linkRes.ok) {
+                                      Alert.alert('Linked', `${member.name} linked to school profile.`);
+                                    }
+                                  }
+                                })), { text: t('cancel')||'Cancel', style: 'cancel' }]
+                              );
+                            }
+                          } catch { Alert.alert('Error', 'Could not load students'); }
+                        }}
+                      >
+                        <MaterialIcons name="link" size={14} color="#5C6BC0" />
+                      </TouchableOpacity>
+                    )}
                     {/* Delete button */}
                     <TouchableOpacity
                       style={styles.deleteButton}
