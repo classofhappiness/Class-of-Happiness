@@ -543,23 +543,7 @@ export default function SettingsScreen() {
         )}
 
 
-        {/* Generate Invite Code - school admin only */}
-        {isAuthenticated && (user?.role === 'school_admin' || user?.role === 'admin') && (
-          <View style={styles.section}>
-            <TouchableOpacity style={styles.settingItem} onPress={handleGenerateInviteCode} disabled={generatingCode}>
-              <View style={styles.settingLeft}>
-                <MaterialIcons name="vpn-key" size={24} color="#5C6BC0" />
-                <View style={styles.settingText}>
-                  <Text style={styles.settingLabel}>Generate Teacher Invite Code</Text>
-                  <Text style={styles.settingValue}>
-                    {generatedCode ? generatedCode : (generatingCode ? 'Generating...' : 'Tap to generate a unique code for your teachers')}
-                  </Text>
-                </View>
-              </View>
-              <MaterialIcons name="chevron-right" size={24} color="#CCC" />
-            </TouchableOpacity>
-          </View>
-        )}
+        
 
         {/* Join School - teachers without school */}
         {isAuthenticated && user?.role === 'teacher' && !(user as any)?.school_name && (

@@ -79,14 +79,22 @@ export default function FamilyCheckInScreen() {
     
     setLoading(true);
     try {
-      await familyApi.createZoneLog({
-        family_member_id: memberId,
-        zone: selectedZone,
-        strategies_selected: selectedStrategies,
-        comment: comment.trim() || undefined,
-        
-        
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      const token = await AsyncStorage.getItem('session_token');
+      const res = await fetch(`${BACKEND_URL}/api/family/members/${memberId}/checkin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          zone: selectedZone,
+          helpers_selected: selectedStrategies,
+          comment: comment.trim() || undefined,
+        }),
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Could not save check-in');
+      }
       
       // Family/adult check-ins: no creature reward, just go back with a success message
       Alert.alert(

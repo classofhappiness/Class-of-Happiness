@@ -1232,6 +1232,34 @@ TRANSLATIONS = {
         "contact": "Contacto",
         "how_heard_us": "Como soube de nós",
         "save_profile": "Guardar Perfil",
+        "link_school_profile": "Ligar ao Perfil Escolar",
+        "link_child_school": "Ligar Criança à Escola",
+        "linked_to_school": "Ligado à Escola",
+        "track_emotional_wellness": "Acompanhar o Bem-estar Emocional",
+        "children_school": "Escola das Crianças",
+        "link_children_school": "Ligar Crianças à Escola",
+        "no_recent_activity": "Sem atividade recente",
+        "recent_activity": "Atividade Recente",
+        "today": "Hoje",
+        "days_ago": "dias atrás",
+        "view_details": "Ver Detalhes",
+        "close": "Fechar",
+        "delete": "Eliminar",
+        "confirm_delete": "Confirmar eliminação",
+        "are_you_sure": "Tens a certeza?",
+        "yes": "Sim",
+        "no": "Não",
+        "error": "Erro",
+        "success": "Sucesso",
+        "family_check_in_title": "Check-in da Família",
+        "how_is_member": "Como está",
+        "select_emotion": "Seleciona uma emoção",
+        "strategies_helped": "Estratégias que ajudaram",
+        "add_note": "Adicionar nota",
+        "submit": "Submeter",
+        "checkin_complete": "Check-in Completo",
+        "well_done_family": "Muito bem por fazer o check-in",
+
         "profile_saved": "Perfil guardado com sucesso",
         "quick_actions": "Ações Rápidas",
         "no_recent_activity": "Sem atividade recente",
@@ -3727,6 +3755,186 @@ async def update_user_language(request: Request):
     except:
         pass
     return {"status": "ok", "language": lang}
+
+
+@api_router.get("/family/members/{member_id}/checkins")
+async def get_family_member_checkins(member_id: str, request: Request, days: int = 7):
+    """Get check-ins for a family member - from feeling_logs if linked to student"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    try:
+        # Get family member to check if linked to student
+        member_result = supabase.table("family_members").select("*").eq("id", member_id).execute()
+        if not member_result.data:
+            raise HTTPException(status_code=404, detail="Family member not found")
+        
+        member = member_result.data[0]
+        student_id = member.get("student_id")
+        
+        start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        
+        if student_id:
+            # Get from feeling_logs (student check-ins)
+            result = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
+            logs = result.data or []
+            # Normalize field names
+            for log in logs:
+                log["zone"] = log.get("feeling_colour", log.get("zone", ""))
+                log["member_id"] = member_id
+        else:
+            # Get from family_zone_logs
+            result = supabase.table("family_zone_logs").select("*").eq("family_member_id", member_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
+            logs = result.data or []
+        
+        return logs
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Family checkins error: {e}")
+        return []
+
+@api_router.post("/family/members/{member_id}/checkin")
+async def family_member_checkin(member_id: str, request: Request):
+    """Check in on behalf of family member - saves to student feeling_logs if linked"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    body = await request.json()
+    zone = body.get("zone", "")
+    strategies = body.get("helpers_selected", body.get("strategies_selected", []))
+    comment = body.get("comment", "")
+    
+    try:
+        member_result = supabase.table("family_members").select("*").eq("id", member_id).execute()
+        if not member_result.data:
+            raise HTTPException(status_code=404, detail="Family member not found")
+        
+        member = member_result.data[0]
+        student_id = member.get("student_id")
+        
+        if student_id:
+            # Save to feeling_logs so teacher AND parent can see it
+            log = {
+                "id": str(uuid.uuid4()),
+                "student_id": student_id,
+                "feeling_colour": zone,
+                "helpers_selected": strategies,
+                "comment": comment,
+                "logged_by": "parent",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            result = supabase.table("feeling_logs").insert(log).execute()
+        else:
+            # Save to family_zone_logs
+            log = {
+                "id": str(uuid.uuid4()),
+                "family_member_id": member_id,
+                "user_id": user["user_id"],
+                "zone": zone,
+                "strategies_selected": strategies,
+                "comment": comment,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            result = supabase.table("family_zone_logs").insert(log).execute()
+        
+        return {"status": "saved", "log": result.data[0] if result.data else log}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Family checkin error: {e}")
+        raise HTTPException(status_code=500, detail=f"Could not save check-in: {str(e)}")
+
+@api_router.get("/family/students")
+async def get_linkable_students(request: Request):
+    """Get students that parent can link to family - from linked teacher"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    try:
+        # Get students from parent-teacher links
+        links = supabase.table("parent_teacher_links").select("*").eq("parent_id", user["user_id"]).execute()
+        
+        students = []
+        for link in (links.data or []):
+            teacher_id = link.get("teacher_id")
+            if teacher_id:
+                # Get students from this teacher
+                teacher_students = supabase.table("students").select("*").eq("user_id", teacher_id).execute()
+                for s in (teacher_students.data or []):
+                    students.append({
+                        "id": s["id"],
+                        "name": s["name"],
+                        "teacher_id": teacher_id,
+                        "avatar_preset": s.get("avatar_preset", ""),
+                    })
+        
+        return students
+    except Exception as e:
+        logger.error(f"Get linkable students error: {e}")
+        return []
+
+
+# ================== STUDENT-FAMILY LINK SYSTEM ==================
+
+@api_router.post("/family/members/{member_id}/link-student")
+async def link_family_member_to_student(member_id: str, request: Request):
+    """Link a family member to an existing student profile"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    student_id = body.get("student_id", "").strip()
+    
+    if not student_id:
+        raise HTTPException(status_code=400, detail="student_id required")
+    
+    try:
+        # Verify student exists
+        student = supabase.table("students").select("*").eq("id", student_id).execute()
+        if not student.data:
+            raise HTTPException(status_code=404, detail="Student not found")
+        
+        # Update family member with student_id
+        supabase.table("family_members").update({"student_id": student_id}).eq("id", member_id).execute()
+        
+        return {"status": "linked", "student_id": student_id, "student_name": student.data[0].get("name")}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not link: {str(e)}")
+
+@api_router.get("/family/linkable-students")
+async def get_linkable_students(request: Request):
+    """Get students that this parent can link to - via teacher link codes"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    try:
+        # Get students from parent-teacher links
+        links = supabase.table("parent_teacher_links").select("*").eq("parent_id", user["user_id"]).execute()
+        
+        all_students = []
+        for link in (links.data or []):
+            teacher_id = link.get("teacher_id")
+            if teacher_id:
+                students = supabase.table("students").select("id, name, avatar_preset, avatar_type").eq("user_id", teacher_id).execute()
+                for s in (students.data or []):
+                    all_students.append({
+                        "id": s["id"],
+                        "name": s["name"],
+                        "avatar_preset": s.get("avatar_preset", ""),
+                        "avatar_type": s.get("avatar_type", "preset"),
+                    })
+        
+        return all_students
+    except Exception as e:
+        logger.error(f"Linkable students error: {e}")
+        return []
 
 app.include_router(api_router)
 
