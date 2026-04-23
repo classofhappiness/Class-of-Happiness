@@ -296,7 +296,17 @@ export default function ParentDashboard() {
       } else {
         // Fetch family data
         const [logsData, analyticsData] = await Promise.all([
-          familyApi.getZoneLogs((selectedMember as FamilyMember).id, 7),
+          (async () => {
+            try {
+              const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+              const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+              const token = await AsyncStorage.getItem('session_token');
+              const r = await fetch(`${BACKEND_URL}/api/family/zone-logs/${(selectedMember as FamilyMember).id}?days=7`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              return r.ok ? r.json() : [];
+            } catch { return []; }
+          })(),
           (async () => {
           const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
           const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
