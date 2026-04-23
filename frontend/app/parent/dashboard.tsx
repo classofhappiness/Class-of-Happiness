@@ -474,12 +474,12 @@ export default function ParentDashboard() {
                             if (!students.length) {
                               Alert.alert(
                                 t('link_child')||'Link to School',
-                                'Ask your child's teacher for a link code first. This connects school and home check-ins.'
+                                'Ask your child\'s teacher for a link code first. This connects school and home check-ins.'
                               );
                             } else {
                               Alert.alert(
                                 t('link_child')||'Link to School Profile',
-                                'Select your child's school profile:',
+                                'Select your child\'s school profile:',
                                 [...students.map((s: any) => ({
                                   text: s.name,
                                   onPress: async () => {
