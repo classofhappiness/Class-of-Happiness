@@ -497,7 +497,7 @@ export default function ParentDashboard() {
                   })}
                 >
                   <Text style={styles.bigCheckinEmoji}>😊</Text>
-                  <Text style={styles.bigCheckinText}>{t('check_in') || t('check_in')||'Check In'}</Text>
+                  <Text style={styles.bigCheckinText}>{t('check_in') || t('check_in')||t('check_in')||'Check In'}</Text>
                 </TouchableOpacity>
               </View>
             ))}
@@ -594,7 +594,7 @@ export default function ParentDashboard() {
 
         {/* Quick Actions - Always visible */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('quick_actions') || 'Quick Actions'}</Text>
+          <Text style={styles.sectionTitle}>{t('quick_actions') || t('quick_actions')||'Quick Actions'}</Text>
           <View style={styles.actionsRow}>
             <TouchableOpacity
               style={styles.actionButton}
@@ -756,7 +756,7 @@ export default function ParentDashboard() {
               disabled={linking || linkCode.length !== 6}
             >
               <Text style={styles.submitButtonText}>
-                {linking ? (t('linking') || 'Linking...') : (t('link_child') || 'Link Child')}
+                {linking ? (t('linking') || 'Linking...') : (t('link_child') || t('link_child')||'Link Child')}
               </Text>
             </TouchableOpacity>
           </View>
