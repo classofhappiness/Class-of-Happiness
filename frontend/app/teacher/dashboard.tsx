@@ -284,7 +284,7 @@ export default function TeacherDashboardScreen() {
           ))}
         </View>
 
-        {/* Zone Distribution Chart */}
+        {/* Emotion Distribution Chart */}
         <View style={styles.chartSection}>
           <Text style={styles.sectionTitle}>{t('week_overview')}</Text>
           {analytics && analytics.total_logs > 0 ? (

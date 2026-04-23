@@ -367,7 +367,7 @@ export default function StudentDetailScreen() {
           </View>
         </View>
 
-        {/* Zone Distribution */}
+        {/* Emotion Distribution */}
         <View style={styles.chartSection}>
           <Text style={styles.sectionTitle}>{t('zone_distribution')}</Text>
           {pieData.length > 0 ? (

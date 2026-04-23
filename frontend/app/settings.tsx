@@ -791,6 +791,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   trialCodeInput: {
+    color: '#333',
     backgroundColor: 'white',
     borderWidth: 1,
     borderColor: '#FFD54F',

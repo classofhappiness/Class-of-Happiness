@@ -1277,6 +1277,21 @@ TRANSLATIONS = {
         "creature_points": "Pontos de Criatura",
         "next_evolution": "Próxima Evolução",
         "add_classroom": "Adicionar Turma",
+        "emotion_distribution": "Distribuição de Emoções",
+        "emotion_trends": "Tendências de Emoções",
+        "your_checkins": "Os teus Check-ins",
+        "create_new_classroom": "Criar Nova Turma",
+        "classroom_name_placeholder": "Nome da turma...",
+        "student_details": "Detalhes do Aluno",
+        "manage_strategies": "Gerir Estratégias",
+        "edit_profile": "Editar Perfil",
+        "days": "Dias",
+        "strategies_used": "Estratégias Usadas",
+        "frequency": "Frequência",
+        "about_privacy": "Sobre e Privacidade",
+        "disclaimer": "Aviso Legal",
+        "class_of_happiness": "Class of Happiness",
+
         "no_classrooms_yet": "Sem turmas ainda",
         "edit_classroom": "Editar Turma",
         "delete_classroom": "Eliminar Turma",
@@ -2567,9 +2582,15 @@ async def get_admin_stats(request: Request):
             "schools_breakdown": schools_breakdown,
         }
     except Exception as e:
-        logger.error(f"Stats error: {e}")
-        return {
-            "total_students": 0, "total_teachers": 0, "total_users": 0,
+        logger.error(f"Stats error: {e}", exc_info=True)
+        # Try to get at least basic counts
+        try:
+            basic_students = supabase.table("students").select("id", count="exact").execute()
+            basic_teachers = supabase.table("users").select("user_id", count="exact").eq("role", "teacher").execute()
+            return {
+                "total_students": basic_students.count or 0,
+                "total_teachers": basic_teachers.count or 0,
+                "total_users": 0,
             "total_schools": 0, "checkins_today": 0, "total_checkins": 0,
             "active_users": 0, "zone_counts": {}, "teacher_zone_counts": {},
             "total_teacher_checkins": 0, "checkin_daily": [0]*7,
