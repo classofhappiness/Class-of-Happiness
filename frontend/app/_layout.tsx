@@ -263,6 +263,13 @@ function AppContent() {
             title: 'Admin Dashboard',
           }}
         />
+        <Stack.Screen
+          name="teacher/bulk-checkin"
+          options={{
+            headerShown: false,
+            title: 'Quick Class Check-in',
+          }}
+        />
       </Stack>
     </>
   );

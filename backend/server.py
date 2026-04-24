@@ -4174,6 +4174,42 @@ async def get_parent_resources(request: Request, topic: Optional[str] = None):
         logger.error(f"get_parent_resources error: {e}")
         return []
 
+
+@api_router.post("/checkins/bulk")
+async def bulk_checkin(request: Request):
+    """Bulk check-in for an entire class at once. No points awarded."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        body = await request.json()
+        logs = body.get("logs", [])
+        if not logs:
+            raise HTTPException(status_code=400, detail="No logs provided")
+        results = []
+        for log in logs:
+            entry = {
+                "id": str(uuid.uuid4()),
+                "student_id": log.get("student_id"),
+                "feeling_colour": log.get("feeling_colour", ""),
+                "helpers_selected": log.get("helpers_selected", []),
+                "comment": log.get("comment"),
+                "logged_by": "teacher_bulk",
+                "timestamp": log.get("timestamp") or datetime.now(timezone.utc).isoformat(),
+                # No points awarded for bulk check-in
+            }
+            if not entry["student_id"]:
+                continue
+            result = supabase.table("feeling_logs").insert(entry).execute()
+            if result.data:
+                results.append(result.data[0])
+        return {"saved": len(results), "logs": results}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Bulk checkin error: {e}")
+        raise HTTPException(status_code=500, detail=f"Bulk checkin failed: {str(e)}")
+
 app.include_router(api_router)
 
 # Translation cache buster - v2

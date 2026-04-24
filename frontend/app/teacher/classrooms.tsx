@@ -206,6 +206,16 @@ export default function ManageClassroomsScreen() {
                 <Text style={styles.studentCount}>{count} student{count !== 1 ? 's' : ''}</Text>
               </View>
               <View style={styles.cardActions}>
+                {/* Bulk check-in - quick B/G/Y/R */}
+                <TouchableOpacity
+                  style={[styles.iconButton, styles.bulkCheckinBtn]}
+                  onPress={() => router.push({
+                    pathname: '/teacher/bulk-checkin',
+                    params: { classroomId: classroom.id, classroomName: classroom.name }
+                  })}
+                >
+                  <MaterialIcons name="how-to-reg" size={22} color="white" />
+                </TouchableOpacity>
                 {/* Edit / manage students */}
                 <TouchableOpacity
                   style={styles.iconButton}
@@ -455,4 +465,5 @@ const styles = StyleSheet.create({
   strategyOptionText: { flex: 1, fontSize: 14, color: '#333', fontWeight: '500' },
   selectAllButton: { alignSelf: 'flex-end', marginBottom: 8 },
   selectAllText: { fontSize: 13, color: '#5C6BC0', fontWeight: '600' },
+  bulkCheckinBtn: { backgroundColor: '#4CAF50', borderRadius: 8, padding: 6 },
 });
