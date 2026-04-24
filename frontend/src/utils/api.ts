@@ -618,30 +618,7 @@ export const linkedChildApi = {
   
   getSchoolCheckIns: (studentId: string, days: number = 30): Promise<{ checkins: any[]; sharing_disabled: boolean }> =>
     apiRequest(`/parent/linked-child/${studentId}/school-checkins?days=${days}`),
-  
-  getAllCheckIns: (studentId: string, days: number = 30): Promise<any[]> =>
-    apiRequest(`/parent/linked-child/${studentId}/all-checkins?days=${days}`),
-  
-  // School strategies
-  getSchoolStrategies: (studentId: string): Promise<{ custom_strategies: any[]; default_strategies: any[]; sharing_disabled: boolean }> =>
-    apiRequest(`/parent/linked-child/${studentId}/school-strategies`),
-  
-  // Family-assigned strategies
-  createFamilyStrategy: (studentId: string, data: { strategy_name: string; strategy_description: string; zone: string; icon?: string; share_with_teacher?: boolean }): Promise<FamilyAssignedStrategy> =>
-    apiRequest(`/parent/linked-child/${studentId}/family-strategy`, { method: 'POST', body: JSON.stringify(data) }),
-  
-  getFamilyStrategies: (studentId: string): Promise<FamilyAssignedStrategy[]> =>
-    apiRequest(`/parent/linked-child/${studentId}/family-strategies`),
-  
-  toggleStrategySharing: (studentId: string, strategyId: string): Promise<{ share_with_teacher: boolean }> =>
-    apiRequest(`/parent/linked-child/${studentId}/family-strategy/${strategyId}/toggle-sharing`, { method: 'PUT' }),
-  
-  deleteFamilyStrategy: (studentId: string, strategyId: string): Promise<void> =>
-    apiRequest(`/parent/linked-child/${studentId}/family-strategy/${strategyId}`, { method: 'DELETE' }),
-  
-  // Permission management
-  toggleHomeSharing: (studentId: string): Promise<{ home_sharing_enabled: boolean }> =>
-    apiRequest(`/parent/linked-child/${studentId}/toggle-home-sharing`, { method: 'PUT' }),
+ 
 };
 
 // Teacher API for viewing home data

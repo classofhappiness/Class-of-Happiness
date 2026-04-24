@@ -363,6 +363,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     gap: 8,
   },
+  headerSpacer: { height: 20 },
   continueText: {
     color: 'white',
     fontSize: 18,

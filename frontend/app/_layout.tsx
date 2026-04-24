@@ -89,6 +89,13 @@ function AppContent() {
           }}
         />
         <Stack.Screen
+          name="auth/login"
+          options={{
+            headerShown: false,
+            title: 'Sign In',
+          }}
+        />
+        <Stack.Screen
           name="settings"
           options={{
             title: 'Settings',
@@ -142,6 +149,13 @@ function AppContent() {
           options={{
             headerShown: false,
             title: 'Rewards',
+          }}
+        />
+        <Stack.Screen
+          name="student/creatures"
+          options={{
+            headerShown: false,
+            title: 'My Creatures',
           }}
         />
         <Stack.Screen
@@ -246,6 +260,20 @@ function AppContent() {
           name="parent/checkin"
           options={{
             title: 'Check-in',
+            headerBackTitle: 'Dashboard',
+          }}
+        />
+        <Stack.Screen
+          name="parent/widget"
+          options={{
+            headerShown: false,
+            title: 'Family Widget',
+          }}
+        />
+        <Stack.Screen
+          name="parent/strategies"
+          options={{
+            title: 'Family Strategies',
             headerBackTitle: 'Dashboard',
           }}
         />

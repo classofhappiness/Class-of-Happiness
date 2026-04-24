@@ -57,12 +57,19 @@ export default function ResourcesScreen() {
       const [generalData, parentResourcesData] = await Promise.all([
         resourcesApi.getAll(),
         // Fetch resources shared with parents (audience=parents or both)
-        fetch(`${BACKEND_URL}/api/parent/resources`, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${(await import('../../src/utils/api')).getSessionTokenValue?.() || ''}`,
-          }
-        }).then(r => r.ok ? r.json() : []).catch(() => []),
+        (async () => {
+          try {
+            const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+            const token = await AsyncStorage.getItem('session_token');
+            const r = await fetch(`${BACKEND_URL}/api/parent/resources`, {
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token || ''}`,
+              }
+            });
+            return r.ok ? r.json() : [];
+          } catch { return []; }
+        })(),
       ]);
       setResources(generalData);
       setParentTeacherResources(parentResourcesData);
