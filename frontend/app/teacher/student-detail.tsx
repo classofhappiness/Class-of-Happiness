@@ -108,17 +108,23 @@ export default function StudentDetailScreen() {
   const fetchData = async () => {
     if (!studentId) return;
     try {
-      const [analyticsData, logsData, strategiesData, months, statusData] = await Promise.all([
+      const [analyticsData, logsData, months, statusData] = await Promise.all([
         analyticsApi.getStudent(studentId, selectedPeriod),
         zoneLogsApi.getByStudent(studentId, selectedPeriod),
-        strategiesApi.getAll(studentId),
-        reportsApi.getAvailableMonths(studentId),
+        reportsApi.getAvailableMonths(studentId).catch(() => []),
         teacherHomeDataApi.getSharingStatus(studentId).catch(() => null),
       ]);
       setAnalytics(analyticsData);
       setLogs(logsData);
-      setStrategies(strategiesData);
       setAvailableMonths(months);
+      // Fetch strategies separately so errors don't block main data
+      try {
+        const strategiesData = await strategiesApi.getAll(studentId);
+        setStrategies(strategiesData || []);
+      } catch (stratErr) {
+        console.log('Strategies not available:', stratErr);
+        setStrategies([]);
+      }
       
       if (statusData) {
         setSharingStatus(statusData);

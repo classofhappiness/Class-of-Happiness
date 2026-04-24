@@ -335,6 +335,15 @@ export default function TeacherResourcesScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header with back button */}
+      <View style={styles.resourcesTopBar}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.resourcesBackBtn}>
+          <MaterialIcons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.resourcesTopBarTitle}>{t('teacher_resources') || 'Teacher Resources'}</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
       {/* Topic Tabs */}
       <View style={styles.tabsWrapper}>
         <ScrollView 
@@ -720,11 +729,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FA',
   },
+  resourcesTopBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12, paddingTop: 20,
+    backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
+  },
+  resourcesBackBtn: { padding: 4 },
+  resourcesTopBarTitle: { fontSize: 17, fontWeight: '600', color: '#333' },
   tabsWrapper: {
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
-    paddingTop: 8,
+    paddingTop: 4,
   },
   tabsContainer: {
     paddingHorizontal: 12,

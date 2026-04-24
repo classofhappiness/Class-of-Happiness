@@ -161,8 +161,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
   topBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: 'white',
-    borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
+    paddingHorizontal: 16, paddingVertical: 12, paddingTop: 20,
+    backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
   },
   backButton: { flexDirection: 'row', alignItems: 'center', gap: 4, width: 60 },
   backText: { fontSize: 14, color: '#333' },

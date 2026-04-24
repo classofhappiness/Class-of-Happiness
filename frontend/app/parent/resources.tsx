@@ -469,6 +469,7 @@ export default function ResourcesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
   topBar: {
+    paddingTop: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

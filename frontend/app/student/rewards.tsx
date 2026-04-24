@@ -166,8 +166,9 @@ export default function RewardsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
+      {/* Header - pushed down from top */}
       <View style={styles.header}>
+        <View style={styles.headerSpacer} />
         <Text style={styles.headerTitle}>🎉 {t('great_job_title')}</Text>
         <Text style={styles.headerSubtitle}>
           {rewardsData.streak_days > 1 
