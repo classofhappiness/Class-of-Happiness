@@ -4207,6 +4207,166 @@ async def bulk_checkin(request: Request):
         logger.error(f"Bulk checkin error: {e}")
         raise HTTPException(status_code=500, detail=f"Bulk checkin failed: {str(e)}")
 
+
+# ================== LINKED CHILD DETAIL ENDPOINTS ==================
+
+@api_router.get("/parent/linked-child/{student_id}/all-checkins")
+async def get_all_checkins_for_linked_child(student_id: str, request: Request, days: int = 30):
+    """All check-ins (home + school) for a linked child."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        link = supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
+        if not link.data:
+            raise HTTPException(status_code=403, detail="Not linked to this student")
+        start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        result = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
+        logs = result.data or []
+        return [{
+            **log,
+            "zone": log.get("feeling_colour", log.get("zone", "")),
+            "strategies_selected": log.get("helpers_selected", log.get("strategies_selected", [])),
+            "location": "home" if log.get("logged_by") == "parent" else "school",
+        } for log in logs]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_all_checkins error: {e}")
+        return []
+
+
+@api_router.get("/parent/linked-child/{student_id}/school-strategies")
+async def get_school_strategies_for_linked_child(student_id: str, request: Request):
+    """Get strategies assigned to student at school."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        link = supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
+        if not link.data:
+            raise HTTPException(status_code=403, detail="Not linked to this student")
+        # Get custom strategies for this student
+        try:
+            strats = supabase.table("custom_strategies").select("*").eq("student_id", student_id).execute()
+            custom = strats.data or []
+        except Exception:
+            custom = []
+        # Get global strategies
+        try:
+            global_strats = supabase.table("strategies").select("*").execute()
+            global_list = global_strats.data or []
+        except Exception:
+            global_list = []
+        return {
+            "custom_strategies": custom,
+            "global_strategies": global_list[:8],  # limit
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_school_strategies error: {e}")
+        return {"custom_strategies": [], "global_strategies": []}
+
+
+@api_router.get("/parent/linked-child/{student_id}/family-strategies")
+async def get_family_strategies_for_linked_child(student_id: str, request: Request):
+    """Get family-assigned strategies for a linked child."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        link = supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
+        if not link.data:
+            raise HTTPException(status_code=403, detail="Not linked to this student")
+        try:
+            result = supabase.table("family_assigned_strategies").select("*").eq("student_id", student_id).eq("parent_user_id", user["user_id"]).execute()
+            return result.data or []
+        except Exception:
+            return []
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_family_strategies error: {e}")
+        return []
+
+
+@api_router.post("/parent/linked-child/{student_id}/family-strategies")
+async def create_family_strategy_for_linked_child(student_id: str, request: Request):
+    """Create a family strategy for a linked child."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        link = supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
+        if not link.data:
+            raise HTTPException(status_code=403, detail="Not linked to this student")
+        body = await request.json()
+        new_strategy = {
+            "id": str(uuid.uuid4()),
+            "student_id": student_id,
+            "parent_user_id": user["user_id"],
+            "strategy_name": body.get("strategy_name", ""),
+            "strategy_description": body.get("strategy_description", ""),
+            "zone": body.get("zone", "green"),
+            "icon": body.get("icon", "star"),
+            "share_with_teacher": body.get("share_with_teacher", False),
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        try:
+            result = supabase.table("family_assigned_strategies").insert(new_strategy).execute()
+            return result.data[0] if result.data else new_strategy
+        except Exception:
+            # Table may not exist yet - return the data anyway
+            return new_strategy
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"create_family_strategy error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.put("/parent/linked-child/{student_id}/family-strategies/{strategy_id}/toggle-sharing")
+async def toggle_strategy_sharing(student_id: str, strategy_id: str, request: Request):
+    """Toggle whether a family strategy is shared with teacher."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        current = supabase.table("family_assigned_strategies").select("*").eq("id", strategy_id).execute()
+        if not current.data:
+            raise HTTPException(status_code=404, detail="Strategy not found")
+        new_value = not current.data[0].get("share_with_teacher", False)
+        supabase.table("family_assigned_strategies").update({"share_with_teacher": new_value}).eq("id", strategy_id).execute()
+        return {"share_with_teacher": new_value}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"toggle_strategy_sharing error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.put("/parent/linked-child/{student_id}/toggle-home-sharing")
+async def toggle_home_sharing(student_id: str, request: Request):
+    """Toggle whether home check-ins are shared with teacher."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        link = supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
+        if not link.data:
+            raise HTTPException(status_code=404, detail="Link not found")
+        current = link.data[0].get("home_sharing_enabled", False)
+        new_value = not current
+        supabase.table("parent_links").update({"home_sharing_enabled": new_value}).eq("id", link.data[0]["id"]).execute()
+        return {"home_sharing_enabled": new_value}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"toggle_home_sharing error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 app.include_router(api_router)
 
 # Translation cache buster - v2

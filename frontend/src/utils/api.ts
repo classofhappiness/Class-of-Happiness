@@ -583,6 +583,28 @@ export const linkedChildApi = {
   // Get all linked children from school
   getAll: (): Promise<LinkedChild[]> =>
     apiRequest('/parent/linked-children'),
+
+  getAllCheckIns: (studentId: string, days: number = 30): Promise<any[]> =>
+    apiRequest(`/parent/linked-child/${studentId}/all-checkins?days=${days}`),
+
+  getSchoolStrategies: (studentId: string): Promise<any> =>
+    apiRequest(`/parent/linked-child/${studentId}/school-strategies`),
+
+  getFamilyStrategies: (studentId: string): Promise<any[]> =>
+    apiRequest(`/parent/linked-child/${studentId}/family-strategies`),
+
+  createFamilyStrategy: (studentId: string, data: any): Promise<any> =>
+    apiRequest(`/parent/linked-child/${studentId}/family-strategies`, {
+      method: 'POST', body: JSON.stringify(data)
+    }),
+
+  toggleStrategySharing: (studentId: string, strategyId: string): Promise<any> =>
+    apiRequest(`/parent/linked-child/${studentId}/family-strategies/${strategyId}/toggle-sharing`, {
+      method: 'PUT'
+    }),
+
+  toggleHomeSharing: (studentId: string): Promise<any> =>
+    apiRequest(`/parent/linked-child/${studentId}/toggle-home-sharing`, { method: 'PUT' }),
   
   // Home check-ins
   createCheckIn: (studentId: string, data: { zone: string; strategies_selected: string[]; comment?: string }): Promise<any> =>
