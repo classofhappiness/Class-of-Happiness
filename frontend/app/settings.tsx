@@ -425,7 +425,7 @@ export default function SettingsScreen() {
               <MaterialIcons name="admin-panel-settings" size={24} color="#9C27B0" />
               <View style={styles.settingText}>
                 <Text style={styles.settingLabel}>Admin Dashboard</Text>
-                <Text style={styles.settingValue}>{user?.role === 'superadmin' ? 'Super Admin — manage all schools' : 'School Admin — manage and support your school'}</Text>
+                <Text style={styles.settingValue} numberOfLines={2}>{user?.role === 'superadmin' ? 'Super Admin' : 'School Admin'}</Text>
               </View>
             </View>
             <MaterialIcons name="chevron-right" size={24} color="#CCC" />
@@ -513,7 +513,7 @@ export default function SettingsScreen() {
         )}
 
         {/* School Invite Code Generator - for school admins */}
-        {isAuthenticated && (user?.role === 'school_admin' || user?.role === 'admin') && (
+        {isAuthenticated && (user?.role === 'school_admin' || user?.role === 'admin' || user?.role === 'superadmin') && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="vpn-key" size={20} color="#5C6BC0" />
@@ -545,38 +545,7 @@ export default function SettingsScreen() {
 
         
 
-        {/* Join School - teachers without school */}
-        {isAuthenticated && user?.role === 'teacher' && !(user as any)?.school_name && (
-          <View style={styles.section}>
-            <View style={styles.settingItem}>
-              <View style={styles.settingLeft}>
-                <MaterialIcons name="school" size={24} color="#5C6BC0" />
-                <View style={styles.settingText}>
-                  <Text style={styles.settingLabel}>Join Your School</Text>
-                  <Text style={styles.settingValue}>Enter the invite code from your school admin</Text>
-                </View>
-              </View>
-            </View>
-            <View style={{ paddingHorizontal: 16, paddingBottom: 12, gap: 8 }}>
-              <TextInput
-                style={[styles.trialCodeInputWithIcon, { borderRadius: 10, padding: 12, backgroundColor: '#F5F5F5' }]}
-                placeholder="e.g. SCH-X7K2-M9P4"
-                value={schoolInviteCode}
-                onChangeText={setSchoolInviteCode}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                placeholderTextColor="#999"
-              />
-              <TouchableOpacity
-                style={{ backgroundColor: '#5C6BC0', borderRadius: 10, padding: 12, alignItems: 'center' }}
-                onPress={handleJoinSchool}
-                disabled={joiningSchool}
-              >
-                <Text style={{ color: 'white', fontWeight: 'bold' }}>{joiningSchool ? 'Joining...' : t('join_school') || 'Join School'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+        {/* Join School section consolidated above */}
 
         {/* Admin Code Entry (only show if not already admin) */}
         {user?.role !== 'admin' && user?.role !== 'superadmin' && (
@@ -791,7 +760,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   trialCodeInput: {
-    color: '#333',
     color: '#333',
     backgroundColor: 'white',
     borderWidth: 1,
