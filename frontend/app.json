@@ -13,7 +13,8 @@
       "bundleIdentifier": "com.classofhappiness.app",
       "infoPlist": {
         "NSCameraUsageDescription": "Take profile photos for student avatars",
-        "NSPhotoLibraryUsageDescription": "Upload photos for student avatars and strategies"
+        "NSPhotoLibraryUsageDescription": "Upload photos for student avatars and strategies",
+        "UIViewControllerBasedStatusBarAppearance": false
       }
     },
     "android": {

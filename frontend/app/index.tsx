@@ -15,7 +15,7 @@ export default function HomeScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.appTitle}>Class of Happiness</Text>
+          <Text style={styles.appTitle} allowFontScaling={false}>Class of Happiness</Text>
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
       </View>
@@ -45,7 +45,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Subtitle */}
-        <Text style={styles.subtitle}>{t('how_are_you_feeling') || 'How are you feeling today?'}</Text>
+        <Text style={styles.subtitle} allowFontScaling={false}>{t('how_are_you_feeling') || 'How are you feeling today?'}</Text>
 
         {/* Zone emoji faces — decorative, sets the tone */}
         <View style={styles.zonePreviewRow}>
@@ -70,7 +70,7 @@ export default function HomeScreen() {
         >
           <MaterialIcons name="child-care" size={44} color="white" />
           <View style={styles.studentButtonText}>
-            <Text style={styles.studentButtonTitle}>{t('student') || 'Student'}</Text>
+            <Text style={styles.studentButtonTitle} allowFontScaling={false}>{t('student') || 'Student'}</Text>
             <Text style={styles.studentButtonSub}>{t('check_in_feelings') || 'Check in my feelings'}</Text>
           </View>
           <MaterialIcons name="chevron-right" size={28} color="rgba(255,255,255,0.7)" />
