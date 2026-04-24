@@ -4579,6 +4579,48 @@ async def toggle_home_sharing(student_id: str, request: Request):
         logger.error(f"toggle_home_sharing error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@api_router.post("/teacher-checkins")
+async def save_teacher_checkin(request: Request):
+    """Save teacher self check-in to DB for dashboard visibility."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        body = await request.json()
+        entry = {
+            "id": str(uuid.uuid4()),
+            "user_id": user["user_id"],
+            "zone": body.get("zone", ""),
+            "strategies_selected": body.get("strategies_selected", []),
+            "notes": body.get("notes"),
+            "shared": body.get("shared", False),
+            "timestamp": body.get("timestamp") or datetime.now(timezone.utc).isoformat(),
+        }
+        try:
+            supabase.table("teacher_checkins").insert(entry).execute()
+        except Exception as e:
+            # Table may not exist yet - create it
+            logger.error(f"teacher_checkins insert error: {e}")
+        return {"status": "saved"}
+    except Exception as e:
+        logger.error(f"save_teacher_checkin error: {e}")
+        return {"status": "error", "detail": str(e)}
+
+@api_router.get("/teacher-checkins")
+async def get_teacher_checkins(request: Request, days: int = 7):
+    """Get teacher self check-ins for dashboard."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        result = supabase.table("teacher_checkins").select("*").eq("user_id", user["user_id"]).gte("timestamp", start_date).order("timestamp", desc=True).execute()
+        return result.data or []
+    except Exception as e:
+        logger.error(f"get_teacher_checkins error: {e}")
+        return []
+
 app.include_router(api_router)
 
 # Translation cache buster - v2

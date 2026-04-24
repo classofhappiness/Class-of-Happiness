@@ -140,8 +140,13 @@ export default function TeacherCheckInScreen() {
     const fromDB = adminStrategies.filter(s => (s.zone || s.feeling_colour) === selectedZone);
     // Merge - avoid duplicates by name
     const hardcodedNames = new Set(hardcoded.map((s:any) => s.name.toLowerCase()));
-    const newFromDB = fromDB.filter(s => !hardcodedNames.has(s.name.toLowerCase()));
-    return [...hardcoded, ...newFromDB.map(s => ({...s, id: s.id, icon: s.icon || 'star'}))];
+    const newFromDB = fromDB.filter(s => s.name && !hardcodedNames.has(s.name.toLowerCase()));
+    return [...hardcoded, ...newFromDB.map(s => ({
+      id: s.id || String(Math.random()),
+      name: s.name || 'Strategy',
+      description: s.description || '',
+      icon: s.icon || 'star',
+    }))];
   }, [selectedZone, adminStrategies]);
 
   const toggleStrategy = (id: string) => {
@@ -168,6 +173,28 @@ export default function TeacherCheckInScreen() {
       };
       const updated = [newEntry, ...existing].slice(0, 90);
       await AsyncStorage.setItem(storageKey, JSON.stringify(updated));
+
+      // Also save to backend so it appears in dashboard stats
+      try {
+        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        await fetch(`${BACKEND_URL}/api/teacher-checkins`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${await AsyncStorage.getItem('session_token')}`,
+          },
+          body: JSON.stringify({
+            zone: selectedZone,
+            strategies_selected: selectedStrategies,
+            notes: notes.trim() || null,
+            shared: shareWithWellbeing,
+            timestamp: newEntry.timestamp,
+          }),
+        });
+      } catch (e) {
+        // Non-critical - local storage already saved
+        console.log('Could not sync teacher checkin to server:', e);
+      }
 
       // If teacher chose to share, notify wellbeing support
       if (shareWithWellbeing) {
@@ -276,14 +303,14 @@ export default function TeacherCheckInScreen() {
                 style={[styles.strategyCard, selectedStrategies.includes(s.id) && { borderColor: zoneConfig?.color, borderWidth: 2, backgroundColor: zoneConfig?.color + '15' }]}
                 onPress={() => toggleStrategy(s.id)}
               >
-                <View style={[styles.strategyIcon, { backgroundColor: zoneConfig?.color + '25' }]}>
-                  <MaterialIcons name={s.icon as any} size={22} color={zoneConfig?.color} />
+                <View style={[styles.strategyIcon, { backgroundColor: (zoneConfig?.color || '#5C6BC0') + '25' }]}>
+                  <MaterialIcons name={s.icon as any} size={22} color={zoneConfig?.color || '#5C6BC0'} />
                 </View>
                 <View style={styles.strategyText}>
                   <Text style={styles.strategyName}>{s.name}</Text>
                   <Text style={styles.strategyDesc}>{s.description}</Text>
                 </View>
-                {selectedStrategies.includes(s.id) && <MaterialIcons name="check-circle" size={20} color={zoneConfig?.color} />}
+                {selectedStrategies.includes(s.id) && <MaterialIcons name="check-circle" size={20} color={zoneConfig?.color || '#5C6BC0'} />}
               </TouchableOpacity>
             ))}
 
@@ -362,7 +389,7 @@ export default function TeacherCheckInScreen() {
 
             {/* Save button */}
             <TouchableOpacity
-              style={[styles.saveButton, { backgroundColor: zoneConfig?.color }]}
+              style={[styles.saveButton, { backgroundColor: zoneConfig?.color || '#5C6BC0' }]}
               onPress={saveCheckIn}
               disabled={saving}
             >

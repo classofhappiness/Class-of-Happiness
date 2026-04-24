@@ -9,7 +9,8 @@ import { useApp } from '../../src/context/AppContext';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const ZONE_COLORS: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
-const ZONE_LABELS: Record<string,string> = { blue:'Low Energy', green:'Steady', yellow:'Stressed', red:'Overloaded' };
+const ZONE_LABELS: Record<string,string> = { blue:'Blue Zone', green:'Green Zone', yellow:'Yellow Zone', red:'Red Zone' };
+const TEACHER_ZONE_LABELS: Record<string,string> = { blue:'Low Energy', green:'Steady', yellow:'Stressed', red:'Overloaded' };
 const ZONES = ['blue','green','yellow','red'];
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
