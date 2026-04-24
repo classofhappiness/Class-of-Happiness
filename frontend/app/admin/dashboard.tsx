@@ -797,17 +797,18 @@ export default function AdminDashboardScreen() {
   const [authToken, setAuthToken] = useState<string|null>(null);
   useEffect(() => { AsyncStorage.getItem('session_token').then(t=>setAuthToken(t)); }, []);
 
+  const { t } = useApp();
   const isSuperAdmin = user?.role==='superadmin';
   const isSchoolAdmin = user?.role==='school_admin'||user?.role==='admin';
   const headerColor = isSuperAdmin ? '#3949AB' : '#5C6BC0';
-  const headerLabel = isSuperAdmin ? '👑 Super Admin — All Schools' : '🏫 School Admin — '+((user as any)?.school_name||'My School');
+  const headerLabel = isSuperAdmin ? '👑 Super Admin' : '🏫 '+((user as any)?.school_name||'School Admin');
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={[styles.header,{backgroundColor:headerColor}]}>
-        <Text style={styles.headerTitle}>Admin Dashboard</Text>
+        <Text style={styles.headerTitle}>{isSuperAdmin ? 'Super Admin' : (t('school_admin_dashboard') || 'Admin Dashboard')}</Text>
         <Text style={styles.headerSub}>{user?.name||user?.email}</Text>
-        <Text style={styles.headerRole}>{headerLabel}</Text>
+        <Text style={styles.headerRole} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>{headerLabel}</Text>
       </View>
       {isSuperAdmin && <SuperAdminDashboard authToken={authToken} user={user}/>}
       {isSchoolAdmin && !isSuperAdmin && <SchoolAdminDashboard authToken={authToken} user={user}/>}
@@ -825,7 +826,7 @@ const styles = StyleSheet.create({
   container:{flex:1,backgroundColor:'#F8F9FA'},
   header:{padding:20,paddingBottom:16},
   headerTitle:{fontSize:22,fontWeight:'bold',color:'white'},
-  headerSub:{fontSize:13,color:'rgba(255,255,255,0.8)',marginTop:2},
+  headerSub:{fontSize:13,color:'rgba(255,255,255,0.8)',marginTop:2,flexShrink:1},
   headerRole:{fontSize:12,color:'rgba(255,255,255,0.7)',marginTop:2},
   tabBar:{flexDirection:'row',backgroundColor:'white',borderBottomWidth:1,borderBottomColor:'#E0E0E0'},
   tab:{flex:1,alignItems:'center',paddingVertical:10,gap:3},

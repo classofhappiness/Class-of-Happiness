@@ -57,7 +57,7 @@ const getRelationshipColor = (relationship: string) => {
 
 export default function ParentDashboard() {
   const router = useRouter();
-  const { user, presetAvatars, t } = useApp();
+  const { user, presetAvatars, t, language } = useApp();
   
   // Linked children from school
   const [linkedChildren, setLinkedChildren] = useState<Student[]>([]);
@@ -558,7 +558,7 @@ export default function ParentDashboard() {
                   })}
                 >
                   <Text style={styles.bigCheckinEmoji}>😊</Text>
-                  <Text style={styles.bigCheckinText}>{t('check_in') || t('check_in')||t('check_in')||'Check In'}</Text>
+                  <Text style={styles.bigCheckinText}>{t('check_in') || t('checkin') || 'Check In'}</Text>
                 </TouchableOpacity>
               </View>
             ))}
@@ -662,7 +662,7 @@ export default function ParentDashboard() {
               onPress={() => router.push('/parent/family-strategies')}
             >
               <MaterialIcons name="lightbulb" size={24} color="#FFC107" />
-              <Text style={styles.actionButtonText} numberOfLines={1}>{t('family_strategies') || t('family_strategies')||'Family Strategies'}</Text>
+              <Text style={styles.actionButtonText} numberOfLines={1}>{t('family_strategies') || 'Family Strategies'}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
@@ -732,7 +732,10 @@ export default function ParentDashboard() {
               {/* Weekly Table View - All 7 days */}
               <View style={styles.weeklyTable}>
                 <View style={styles.weeklyHeader}>
-                  {[t('day_sun') || 'Sun', t('day_mon') || 'Mon', t('day_tue') || 'Tue', t('day_wed') || 'Wed', t('day_thu') || 'Thu', t('day_fri') || 'Fri', t('day_sat') || 'Sat'].map((day) => (
+                  {(language === 'pt'
+                    ? ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
+                    : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+                  ).map((day) => (
                     <View key={day} style={styles.weeklyDayHeader}>
                       <Text style={styles.weeklyDayText}>{day}</Text>
                     </View>
