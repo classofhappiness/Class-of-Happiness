@@ -258,7 +258,8 @@ function WorldWall({ authToken, t }: { authToken:string|null, t: (key:string)=>s
 
 function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:any }) {
   const { t } = useApp();
-  const [tab, setTab] = useState<'analytics'|'strategies'|'settings'>('analytics');
+  const [tab, setTab] = useState<'analytics'|'strategies'|'resources'|'settings'>('analytics');
+  const [statsPeriod, setStatsPeriod] = useState<7|30|90>(7);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<any>(null);
   const [showUnlink, setShowUnlink] = useState(false);
@@ -269,7 +270,7 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
 
   const loadStats = async () => {
     setLoading(true);
-    try { const d = await apiCall('/admin/stats', authToken); setStats(d); } catch { setStats(null); }
+    try { const d = await apiCall(`/admin/stats?days=${statsPeriod}`, authToken); setStats(d); } catch { setStats(null); }
     finally { setLoading(false); }
   };
 
@@ -290,7 +291,7 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
   return (
     <>
       <View style={styles.tabBar}>
-        {[{id:'analytics',icon:'bar-chart',label:'Analytics'},{id:'strategies',icon:'lightbulb',label:'Strategies'},{id:'settings',icon:'settings',label:'App Info'}].map(t=>(
+        {[{id:'analytics',icon:'bar-chart',label:'Analytics'},{id:'strategies',icon:'lightbulb',label:'Strategies'},{id:'resources',icon:'cloud-upload',label:'Resources'},{id:'settings',icon:'settings',label:'App Info'}].map(t=>(
           <TouchableOpacity key={t.id} style={[styles.tab,tab===t.id&&styles.tabActive]} onPress={()=>setTab(t.id as any)}>
             <MaterialIcons name={t.icon as any} size={20} color={tab===t.id?'#3949AB':'#999'}/>
             <Text style={[styles.tabLabel,tab===t.id&&{color:'#3949AB',fontWeight:'700'}]}>{t.label}</Text>
@@ -304,6 +305,20 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
           <View>
             <Text style={styles.sectionTitle}>Global Analytics</Text>
             <Text style={styles.sectionSubtitle}>Tap any card to expand. No individual names or comments shown.</Text>
+
+            {/* Period Toggle */}
+            <View style={{flexDirection:'row',gap:8,marginBottom:12}}>
+              {([7,30,90] as const).map(p=>(
+                <TouchableOpacity key={p}
+                  style={{flex:1,paddingVertical:8,borderRadius:8,alignItems:'center',
+                    backgroundColor:statsPeriod===p?'#3949AB':'#F0F0F0'}}
+                  onPress={()=>{ setStatsPeriod(p); loadStats(); }}>
+                  <Text style={{fontSize:12,fontWeight:'600',color:statsPeriod===p?'white':'#666'}}>
+                    {p===7?'7 Days':p===30?'30 Days':'3 Months'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <View style={styles.statsGrid}>
               <StatCard label="Students" value={stats?.total_students??'—'} icon="child-care" color="#4CAF50"
                 graphData={stats?.student_daily||[0,0,0,0,0,0,0]}
@@ -319,12 +334,14 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
                 detail={`Avg session: ${stats?.avg_session_mins??'—'} mins`}/>
             </View>
 
-            <Text style={[styles.sectionTitle,{marginTop:20}]}>Student Emotion Colours — All Schools</Text>
+            <Text style={[styles.sectionTitle,{marginTop:20}]}>Student Emotion Zones — All Schools</Text>
+            <Text style={styles.sectionSubtitle}>Zone distribution as % of all student check-ins in selected period</Text>
             <View style={styles.colourTrends}>
               {ZONES.map(z=><ColourRow key={z} zone={z} count={zc[z]??0} total={tzc}/>)}
             </View>
 
-            <Text style={[styles.sectionTitle,{marginTop:16}]}>Teacher Emotion Colours — All Schools</Text>
+            <Text style={[styles.sectionTitle,{marginTop:16}]}>Teacher Wellbeing Zones — All Schools</Text>
+            <Text style={styles.sectionSubtitle}>Zone distribution as % of all teacher self check-ins in selected period</Text>
             <View style={styles.colourTrends}>
               {ZONES.map(z=><ColourRow key={z} zone={z} count={tc[z]??0} total={ttc}/>)}
             </View>
@@ -380,6 +397,8 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
         )}
 
         {!loading && tab==='strategies' && <StrategyManager authToken={authToken} isSuperAdmin={true}/>}
+
+        {!loading && tab==='resources' && <AdminResourceUpload authToken={authToken}/>}
 
         {!loading && tab==='settings' && (
           <View>
