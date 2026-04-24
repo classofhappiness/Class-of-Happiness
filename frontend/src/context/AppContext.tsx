@@ -444,6 +444,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     router.push('/auth/login');
   };
 
+  // ✅ FIXED: Now surfaces the real error message from the server
   const loginWithEmail = async (email: string) => {
     try {
       setIsLoading(true);
@@ -452,12 +453,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
-      
+
+      // Read body first so we can show the real error message
+      const data = await response.json().catch(() => null);
+
       if (!response.ok) {
-        throw new Error('Login failed');
+        const message =
+          data?.detail ||
+          data?.message ||
+          data?.error ||
+          `Server error (${response.status})`;
+        throw new Error(message);
       }
-      
-      const data = await response.json();
+
       const { user, session_token } = data;
       
       // Save session
@@ -474,7 +482,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (error) {
       console.error('[Login] Email login error:', error);
       const { Alert } = require('react-native');
-      Alert.alert('Sign In Failed', 'Could not sign in. Please try again.');
+      const message = error instanceof Error ? error.message : 'Could not sign in. Please try again.';
+      Alert.alert('Sign In Failed', message);
     } finally {
       setIsLoading(false);
     }
