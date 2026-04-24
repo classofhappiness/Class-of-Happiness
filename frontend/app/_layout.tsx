@@ -271,13 +271,6 @@ function AppContent() {
           }}
         />
         <Stack.Screen
-          name="parent/strategies"
-          options={{
-            title: 'Family Strategies',
-            headerBackTitle: 'Dashboard',
-          }}
-        />
-        <Stack.Screen
           name="parent/linked-child/[id]"
           options={{
             title: 'Child Details',
