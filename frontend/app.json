@@ -14,7 +14,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Take profile photos for student avatars",
         "NSPhotoLibraryUsageDescription": "Upload photos for student avatars and strategies",
-        "UIViewControllerBasedStatusBarAppearance": false
+        "UIViewControllerBasedStatusBarAppearance": false,
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -28,7 +29,8 @@
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.INTERNET"
+        "android.permission.INTERNET",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -59,9 +61,11 @@
       "typedRoutes": true
     },
     "extra": {
+      "router": {},
       "eas": {
-        "projectId": "class-of-happiness"
+        "projectId": "671f7f5a-f522-4a75-8d37-5d7113e2c5bb"
       }
-    }
+    },
+    "owner": "jwacarey"
   }
 }

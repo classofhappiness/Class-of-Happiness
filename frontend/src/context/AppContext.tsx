@@ -327,20 +327,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [translations, setTranslations] = useState<Translations>(defaultTranslations);
 
   const refreshStudents = async () => {
+    if (!isAuthenticated) return; // ✅ Don't fetch if not logged in
     try {
       const data = await studentsApi.getAll();
       setStudents(data);
     } catch (error) {
-      console.error('Error fetching students:', error);
+      // Silently ignore auth errors - user may not be logged in
+      if (!String(error).includes('401') && !String(error).includes('authenticated')) {
+        console.error('Error fetching students:', error);
+      }
     }
   };
 
   const refreshClassrooms = async () => {
+    if (!isAuthenticated) return; // ✅ Don't fetch if not logged in
     try {
       const data = await classroomsApi.getAll();
       setClassrooms(data);
     } catch (error) {
-      console.error('Error fetching classrooms:', error);
+      // Silently ignore auth errors
+      if (!String(error).includes('401') && !String(error).includes('authenticated')) {
+        console.error('Error fetching classrooms:', error);
+      }
     }
   };
 
@@ -584,11 +592,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (abortController.signal.aborted) return;
         console.log('[AppContext] Loading background data...');
         try {
-          await Promise.allSettled([
-            refreshStudents(),
-            refreshClassrooms(), 
-            fetchPresetAvatars(),
-          ]);
+          // ✅ Only fetch user data if authenticated
+          const authChecks = [fetchPresetAvatars()];
+          const token = await AsyncStorage.getItem('session_token');
+          if (token) {
+            authChecks.push(refreshStudents(), refreshClassrooms());
+          }
+          await Promise.allSettled(authChecks);
           console.log('[AppContext] Background data loaded');
         } catch (e) {
           console.log('[AppContext] Background data load failed:', e);

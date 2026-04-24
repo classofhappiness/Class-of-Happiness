@@ -205,38 +205,46 @@ export default function ManageClassroomsScreen() {
                 )}
                 <Text style={styles.studentCount}>{count} student{count !== 1 ? 's' : ''}</Text>
               </View>
-              <View style={styles.cardActions}>
-                {/* Bulk check-in - quick B/G/Y/R */}
-                <TouchableOpacity
-                  style={[styles.iconButton, styles.bulkCheckinBtn]}
-                  onPress={() => router.push({
-                    pathname: '/teacher/bulk-checkin',
-                    params: { classroomId: classroom.id, classroomName: classroom.name }
-                  })}
-                >
-                  <MaterialIcons name="how-to-reg" size={22} color="white" />
-                </TouchableOpacity>
-                {/* Edit / manage students */}
-                <TouchableOpacity
-                  style={styles.iconButton}
-                  onPress={() => { setEditingClassroom(classroom); setEditModalVisible(true); }}
-                >
-                  <MaterialIcons name="edit" size={22} color="#5C6BC0" />
-                </TouchableOpacity>
-                {/* Add strategy to all students */}
-                <TouchableOpacity
-                  style={styles.iconButton}
-                  onPress={() => { setEditingClassroom(classroom); setStrategyModalVisible(true); }}
-                >
-                  <MaterialIcons name="lightbulb" size={22} color="#FFC107" />
-                </TouchableOpacity>
-                {/* Delete */}
-                <TouchableOpacity
-                  style={styles.iconButton}
-                  onPress={() => handleDeleteClassroom(classroom)}
-                >
-                  <MaterialIcons name="delete" size={22} color="#F44336" />
-                </TouchableOpacity>
+              <View style={styles.cardActionsCol}>
+                <View style={styles.cardActions}>
+                  {/* Bulk check-in */}
+                  <TouchableOpacity
+                    style={[styles.iconButton, styles.bulkCheckinBtn]}
+                    onPress={() => router.push({
+                      pathname: '/teacher/bulk-checkin',
+                      params: { classroomId: classroom.id, classroomName: classroom.name }
+                    })}
+                  >
+                    <MaterialIcons name="how-to-reg" size={20} color="white" />
+                  </TouchableOpacity>
+                  {/* Edit */}
+                  <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={() => { setEditingClassroom(classroom); setEditModalVisible(true); }}
+                  >
+                    <MaterialIcons name="edit" size={20} color="#5C6BC0" />
+                  </TouchableOpacity>
+                  {/* Strategies */}
+                  <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={() => { setEditingClassroom(classroom); setStrategyModalVisible(true); }}
+                  >
+                    <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
+                  </TouchableOpacity>
+                  {/* Delete */}
+                  <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={() => handleDeleteClassroom(classroom)}
+                  >
+                    <MaterialIcons name="delete" size={20} color="#F44336" />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.iconLabels}>
+                  <Text style={[styles.iconLabel, {color:'#4CAF50'}]}>Check-in</Text>
+                  <Text style={[styles.iconLabel, {color:'#5C6BC0'}]}>Edit</Text>
+                  <Text style={[styles.iconLabel, {color:'#FFC107'}]}>Strategy</Text>
+                  <Text style={[styles.iconLabel, {color:'#F44336'}]}>Delete</Text>
+                </View>
               </View>
             </View>
           );
@@ -466,4 +474,7 @@ const styles = StyleSheet.create({
   selectAllButton: { alignSelf: 'flex-end', marginBottom: 8 },
   selectAllText: { fontSize: 13, color: '#5C6BC0', fontWeight: '600' },
   bulkCheckinBtn: { backgroundColor: '#4CAF50', borderRadius: 8, padding: 6 },
+  cardActionsCol: { alignItems: 'center', gap: 2 },
+  iconLabels: { flexDirection: 'row', gap: 4 },
+  iconLabel: { fontSize: 8, fontWeight: '600', width: 34, textAlign: 'center' },
 });

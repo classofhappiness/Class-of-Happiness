@@ -347,7 +347,7 @@ export default function TeacherCheckInScreen() {
               />
               <View style={styles.shareToggleText}>
                 <Text style={styles.shareToggleTitle}>
-                  {shareWithWellbeing ? '📨 Share with wellbeing support' : '🔒 Keep private (default)'}
+                  {shareWithWellbeing ? '📨 Share with wellbeing support' : '🔒 Keep private'}
                 </Text>
                 <Text style={styles.shareToggleDesc}>
                   {shareWithWellbeing
@@ -360,7 +360,7 @@ export default function TeacherCheckInScreen() {
               </View>
             </TouchableOpacity>
 
-            {/* Save button */}            {/* Save button */}
+            {/* Save button */}
             <TouchableOpacity
               style={[styles.saveButton, { backgroundColor: zoneConfig?.color }]}
               onPress={saveCheckIn}
@@ -471,7 +471,7 @@ export default function TeacherCheckInScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, paddingTop: 16, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   backBtn: { padding: 8, marginRight: 8 },
   headerTitle: { flex: 1, fontSize: 18, fontWeight: 'bold', color: '#333' },
   alertBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F44336', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, gap: 6 },
