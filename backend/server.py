@@ -2945,18 +2945,29 @@ async def get_teacher_resource_topics():
     ]
 
 
-@api_router.get("/teacher-resources")  # audience filter supported  # audience filter supported
-async def get_teacher_resources(request: Request, topic: Optional[str] = None):
+@api_router.get("/teacher-resources")  # audience filter supported
+async def get_teacher_resources(request: Request, topic: Optional[str] = None, audience: Optional[str] = None):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     resources_result = supabase.table("resources").select("*").eq("is_active", True).execute()
     all_resources = resources_result.data or []
 
+    # Determine which audiences to show
+    # If caller specifies audience=parents, show parents+both
+    # If caller specifies audience=teachers (default), show teachers+both
+    # If no audience specified, show all
+    if audience == "parents":
+        allowed_audiences = ["parents", "both", None, ""]
+    elif audience == "teachers":
+        allowed_audiences = ["teachers", "both", None, ""]
+    else:
+        allowed_audiences = ["teachers", "parents", "both", None, ""]
+
     visible = []
     for r in all_resources:
-        audience = r.get("target_audience", "both")
-        if audience not in ["teachers", "both", None, ""]:
+        r_audience = r.get("target_audience", "both")
+        if r_audience not in allowed_audiences:
             continue
         resource_topic = r.get("topic") or r.get("category") or "general"
         if topic and topic != "all" and resource_topic != topic:
@@ -4123,6 +4134,36 @@ async def get_school_checkins(student_id: str, request: Request, days: int = 30)
     except Exception as e:
         logger.error(f"get_school_checkins error: {e}")
         return {"checkins": [], "sharing_disabled": False}
+
+
+@api_router.get("/parent/resources")
+async def get_parent_resources(request: Request, topic: Optional[str] = None):
+    """Resources visible to parents — those uploaded with audience=parents or both."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        resources_result = supabase.table("resources").select("*").eq("is_active", True).execute()
+        all_resources = resources_result.data or []
+        allowed_audiences = ["parents", "both", None, ""]
+        visible = []
+        for r in all_resources:
+            r_audience = r.get("target_audience", "both")
+            if r_audience not in allowed_audiences:
+                continue
+            resource_topic = r.get("topic") or r.get("category") or "general"
+            if topic and topic != "all" and resource_topic != topic:
+                continue
+            try:
+                ratings_result = supabase.table("teacher_resource_ratings").select("*").eq("resource_id", r["id"]).execute()
+                ratings = ratings_result.data or []
+            except Exception:
+                ratings = []
+            visible.append(_resource_to_teacher_resource(r, ratings))
+        return visible
+    except Exception as e:
+        logger.error(f"get_parent_resources error: {e}")
+        return []
 
 app.include_router(api_router)
 
