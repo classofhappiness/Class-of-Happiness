@@ -3024,8 +3024,8 @@ async def create_teacher_resource(request: Request):
     topic = body.get("topic") or body.get("category") or "general"
     audience = body.get("audience") or "teachers"
     content = body.get("content") or ""
-    if len(content) > 800000:
-        raise HTTPException(status_code=413, detail="File too large. Please use a PDF under 500KB.")
+    if len(content) > 4000000:
+        raise HTTPException(status_code=413, detail="File too large. Please use a PDF under 2MB.")
     resource_data = {
         "id": str(uuid.uuid4()),
         "user_id": user["user_id"],
@@ -3049,12 +3049,9 @@ async def create_teacher_resource(request: Request):
         logger.error(f"Resource insert failed: {error_msg}")
         if "too large" in error_msg.lower() or "payload" in error_msg.lower():
             raise HTTPException(status_code=413, detail="File too large. Please compress your PDF.")
-        try:
-            fallback = {k: v for k, v in resource_data.items() if k not in ["topic", "target_audience", "pdf_filename"]}
-            result = supabase.table("resources").insert(fallback).execute()
-            return result.data[0] if result.data else resource_data
-        except Exception as e2:
-            raise HTTPException(status_code=500, detail="Failed to save resource")
+        # Log full error for debugging
+        logger.error(f"Resource insert error detail: {error_msg}")
+        raise HTTPException(status_code=500, detail=f"Failed to save resource: {error_msg[:100]}")
 
 @api_router.delete("/teacher-resources/{resource_id}")
 async def delete_teacher_resource(resource_id: str, request: Request):
