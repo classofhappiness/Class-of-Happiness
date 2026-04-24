@@ -1,5 +1,6 @@
 import React, { useState, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -135,7 +136,7 @@ export default function SettingsScreen() {
       if (res.ok) {
         Alert.alert('✅ Superadmin', 'You now have full superadmin access!');
       }
-    } catch {}
+    } catch (e) { console.log("[silent]", e); }
   };
 
   // Handle admin code promotion
@@ -257,8 +258,9 @@ export default function SettingsScreen() {
   };
 
   return (
+    <SafeAreaView style={styles.safeArea}>
     <ScrollView 
-      style={[styles.container, { paddingTop: insets.top }]}
+      style={styles.container}
       contentContainerStyle={styles.scrollContent}
     >
       {/* User Info */}
@@ -618,10 +620,12 @@ export default function SettingsScreen() {
         <Text style={styles.logoutText}>{t('logout')}</Text>
       </TouchableOpacity>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: '#F8F9FA' },
   container: {
     flex: 1,
     backgroundColor: '#F8F9FA',

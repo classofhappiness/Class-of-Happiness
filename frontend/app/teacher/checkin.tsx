@@ -91,7 +91,7 @@ export default function TeacherCheckInScreen() {
           setAdminStrategies(data);
         }
       }
-    } catch {}
+    } catch (e) { console.log("[silent]", e); }
   };
 
   const loadData = async () => {
@@ -119,7 +119,7 @@ export default function TeacherCheckInScreen() {
       // Load custom teacher strategies
       const customRaw = await AsyncStorage.getItem(`teacher_custom_strategies_${user.user_id}`);
       if (customRaw) setCustomStrategies(JSON.parse(customRaw));
-    } catch {}
+    } catch (e) { console.log("[silent]", e); }
   };
 
   const saveCustomStrategy = async () => {
@@ -210,7 +210,7 @@ export default function TeacherCheckInScreen() {
               timestamp: new Date().toISOString(),
             }),
           });
-        } catch {}
+        } catch (e) { console.log("[silent]", e); }
       }
 
       await loadData();
@@ -244,7 +244,7 @@ export default function TeacherCheckInScreen() {
           timestamp: new Date().toISOString(),
         }),
       });
-    } catch {}
+    } catch (e) { console.log("[silent]", e); }
     setShowAlertModal(false);
     setAlertMessage('');
     setSendingAlert(false);

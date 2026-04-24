@@ -776,7 +776,7 @@ function SchoolAdminDashboard({ authToken, user }: { authToken:string|null, user
     setLoading(true);
     try {
       if (tab==='overview') {
-        try { const d = await apiCall(`/admin/stats?days=${statsPeriod}`, authToken); setStats(d); } catch {}
+        try { const d = await apiCall(`/admin/stats?days=${statsPeriod}`, authToken); setStats(d); } catch (e) { console.log("[silent]", e); }
         try { const d = await apiCall('/students', authToken); setStudents(Array.isArray(d)?d:[]); } catch { setStudents([]); }
       } else if (tab==='alerts') {
         try { const d = await apiCall('/admin/wellbeing-alerts', authToken); setAlerts(Array.isArray(d)?d:[]); } catch { setAlerts([]); }
@@ -786,7 +786,7 @@ function SchoolAdminDashboard({ authToken, user }: { authToken:string|null, user
           setWellbeingEmail(d.wellbeing_email||'');
           setSchoolName(d.school_name||(user as any)?.school_name||'');
           setSchoolDesc(d.school_description||'');
-        } catch {}
+        } catch (e) { console.log("[silent]", e); }
       }
     } finally { setLoading(false); }
   };
