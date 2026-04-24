@@ -2591,6 +2591,21 @@ async def get_admin_stats(request: Request):
                 "total_students": basic_students.count or 0,
                 "total_teachers": basic_teachers.count or 0,
                 "total_users": 0,
+                "total_schools": 0, "checkins_today": 0, "total_checkins": 0,
+                "active_users": 0, "zone_counts": {}, "teacher_zone_counts": {},
+                "total_teacher_checkins": 0, "checkin_daily": [0]*7,
+                "student_daily": [0]*7, "teacher_daily": [0]*7,
+                "active_daily": [0]*7, "school_daily": [0]*7,
+                "support_requests": 0, "top_strategy": "—",
+                "top_teacher_strategy": "—", "total_creatures": 0,
+                "avg_checkins_to_evolve": "—", "streak_students": 0,
+                "avg_session_mins": "—", "avg_student_session": "—",
+                "avg_teacher_session": "—", "schools_breakdown": [],
+            }
+        except:
+            pass
+        return {
+            "total_students": 0, "total_teachers": 0, "total_users": 0,
             "total_schools": 0, "checkins_today": 0, "total_checkins": 0,
             "active_users": 0, "zone_counts": {}, "teacher_zone_counts": {},
             "total_teacher_checkins": 0, "checkin_daily": [0]*7,
