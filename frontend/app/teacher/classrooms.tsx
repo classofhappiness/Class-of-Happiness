@@ -182,6 +182,16 @@ export default function ManageClassroomsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header with logo + yellow bar */}
+      <View style={styles.pageHeader}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.pageHeaderBack}>
+          <MaterialIcons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Image source={require('../../assets/images/logo_coh.png')} style={styles.pageHeaderLogo} resizeMode="contain" />
+        <Text style={styles.pageHeaderTitle}>{t('classrooms') || 'Classrooms'}</Text>
+        <View style={{width:32}} />
+      </View>
+      <View style={styles.pageYellowBar} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
 
         {/* Create Button */}
@@ -435,6 +445,11 @@ export default function ManageClassroomsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
+  pageHeader: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:12, paddingVertical:10, backgroundColor:'#F8F9FA' },
+  pageHeaderBack: { padding:4, width:32 },
+  pageHeaderLogo: { width:28, height:28 },
+  pageHeaderTitle: { flex:1, fontSize:17, fontWeight:'bold', color:'#333', textAlign:'center' },
+  pageYellowBar: { height:4, backgroundColor:'#FFC107' },
   scrollContent: { padding: 16 },
   addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#5C6BC0', borderRadius: 12, padding: 16, marginBottom: 20, gap: 8 },
   addButtonText: { fontSize: 16, fontWeight: '600', color: 'white' },

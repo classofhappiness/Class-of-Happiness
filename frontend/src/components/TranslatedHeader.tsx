@@ -27,19 +27,24 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
   };
 
   return (
-    <View style={[styles.header, { paddingTop: (Platform.OS === "ios" ? insets.top : 12) + 8 }]}>
+    <View style={[styles.header, { paddingTop: (Platform.OS === "ios" ? insets.top : 12) + 4 }]}>
       <View style={styles.headerContent}>
-        {showBack && (
-          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={24} color="#333" />
-          </TouchableOpacity>
-        )}
-        <Image
-          source={require('../../assets/images/logo_coh.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        <Text style={styles.title}>{title}</Text>
+        <View style={styles.backSlot}>
+          {showBack && (
+            <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+              <MaterialIcons name="arrow-back" size={24} color="#333" />
+            </TouchableOpacity>
+          )}
+        </View>
+        <View style={styles.centerGroup}>
+          <Image
+            source={require('../../assets/images/logo_coh.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={styles.title} numberOfLines={1}>{title}</Text>
+        </View>
+        <View style={styles.backSlot} />
       </View>
       <View style={styles.yellowBar} />
     </View>
@@ -50,32 +55,44 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#F8F9FA',
     paddingBottom: 0,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 6,
+  },
+  backSlot: {
+    width: 40,
+    alignItems: 'flex-start',
   },
   backButton: {
-    marginRight: 8,
-    padding: 10,
+    padding: 4,
+  },
+  centerGroup: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
   logo: {
-    width: 28,
-    height: 28,
-    marginRight: 8,
+    width: 26,
+    height: 26,
   },
   title: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: 'bold',
     color: '#333',
+    flexShrink: 1,
   },
   yellowBar: {
     height: 4,
     backgroundColor: '#FFC107',
-    marginHorizontal: -16,
-    marginTop: 8,
+    marginHorizontal: -12,
+    marginTop: 4,
   },
 });

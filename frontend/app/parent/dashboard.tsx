@@ -429,10 +429,15 @@ export default function ParentDashboard() {
       >
         {/* Header */}
         <View style={styles.header}>
+          <Image
+            source={require('../../assets/images/logo_coh.png')}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
           <Text style={styles.headerTitle}>{t('family_dashboard')}</Text>
           <Text style={styles.headerSubtitle}>{t('track_emotional_wellness')}</Text>
+          <View style={styles.yellowBar} />
         </View>
-        <View style={styles.yellowBar} />
 
         {/* Family Members Section */}
         <View style={styles.section}>
@@ -1126,16 +1131,20 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
-  yellowBar: { height: 4, backgroundColor: '#FFC107', marginHorizontal: -16, marginBottom: 8 },
+  yellowBar: { height: 4, backgroundColor: '#FFC107', marginHorizontal: -16, marginTop: 8, marginBottom: 0 },
   header: {
+    alignItems: 'center',
     marginBottom: 20,
-    marginTop: 16,
+    marginTop: 8,
+    paddingBottom: 0,
   },
+  headerLogo: { width: 56, height: 56, marginBottom: 4 },
   headerTitle: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 6,
+    marginBottom: 2,
+    textAlign: 'center',
   },
   headerSubtitle: {
     fontSize: 16,

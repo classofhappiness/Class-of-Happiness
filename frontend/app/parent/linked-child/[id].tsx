@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
+  Image,
   Text,
   StyleSheet,
   ScrollView,
@@ -247,14 +248,18 @@ export default function LinkedChildDetailScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{child.name}</Text>
-        <View style={styles.headerBadge}>
-          <MaterialIcons name="school" size={16} color="#5C6BC0" />
-          <Text style={styles.headerBadgeText}>{t('linked') || 'Linked'}</Text>
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <MaterialIcons name="arrow-back" size={24} color="#333" />
+          </TouchableOpacity>
+          <Image source={require('../../../assets/images/logo_coh.png')} style={styles.headerLogo} resizeMode="contain" />
+          <Text style={styles.headerTitle}>{child.name}</Text>
+          <View style={styles.headerBadge}>
+            <MaterialIcons name="link" size={14} color="#5C6BC0" />
+            <Text style={styles.headerBadgeText}>{t('linked') || 'Linked'}</Text>
+          </View>
         </View>
+        <View style={styles.yellowBar} />
       </View>
 
       <ScrollView
@@ -605,9 +610,12 @@ const styles = StyleSheet.create({
   errorText: { marginTop: 16, fontSize: 16, color: '#666', textAlign: 'center' },
   backBtn: { marginTop: 16, padding: 12, backgroundColor: '#4CAF50', borderRadius: 8 },
   backBtnText: { color: '#fff', fontWeight: '600' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
+  header: { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee', paddingTop: 8 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 6, gap: 8 },
+  headerLogo: { width: 26, height: 26 },
   backButton: { padding: 4 },
-  headerTitle: { flex: 1, fontSize: 20, fontWeight: 'bold', color: '#333', marginLeft: 12 },
+  headerTitle: { flex: 1, fontSize: 17, fontWeight: 'bold', color: '#333', textAlign: 'center' },
+  yellowBar: { height: 4, backgroundColor: '#FFC107' },
   headerBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E8EAF6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, gap: 4 },
   headerBadgeText: { fontSize: 12, color: '#5C6BC0', fontWeight: '600' },
   content: { flex: 1 },
