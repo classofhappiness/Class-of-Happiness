@@ -331,6 +331,7 @@ export default function StudentDetailScreen() {
             })}
           >
             <MaterialIcons name="edit" size={20} color="#5C6BC0" />
+            <Text style={styles.iconBtnLabel}>Edit</Text>
           </TouchableOpacity>
           
           {/* Strategies Button with Tooltip */}
