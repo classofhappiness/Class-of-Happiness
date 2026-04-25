@@ -627,16 +627,33 @@ export const teacherHomeDataApi = {
     sharing_enabled: boolean;
     home_checkins: any[];
     family_strategies: any[];
-    message?: string;
+    total_home_checkins: number;
   }> =>
     apiRequest(`/teacher/student/${studentId}/home-data?days=${days}`),
-  
+
   getSharingStatus: (studentId: string): Promise<{
     is_linked_to_parent: boolean;
     home_sharing_enabled: boolean;
     school_sharing_enabled: boolean;
+    parent_name: string | null;
+    link_count: number;
   }> =>
     apiRequest(`/teacher/student/${studentId}/sharing-status`),
+
+  getCombinedCheckins: (studentId: string, days: number = 30): Promise<any[]> =>
+    apiRequest(`/teacher/student/${studentId}/combined-checkins?days=${days}`),
+
+  getAllStrategies: (studentId: string): Promise<{school_strategies: any[]; family_strategies: any[]}> =>
+    apiRequest(`/teacher/student/${studentId}/all-strategies`),
+
+  addStrategy: (studentId: string, data: {name: string; description?: string; zone: string; icon?: string; share_with_parent?: boolean}): Promise<any> =>
+    apiRequest(`/teacher/student/${studentId}/strategies`, { method: 'POST', body: JSON.stringify(data) }),
+
+  deleteStrategy: (studentId: string, strategyId: string): Promise<void> =>
+    apiRequest(`/teacher/student/${studentId}/strategies/${strategyId}`, { method: 'DELETE' }),
+
+  toggleStrategyShare: (studentId: string, strategyId: string): Promise<{is_shared: boolean}> =>
+    apiRequest(`/teacher/student/${studentId}/strategies/${strategyId}/toggle-share`, { method: 'PUT' }),
 };
 
 // Teacher API for linking from parent
