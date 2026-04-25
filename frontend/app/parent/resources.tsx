@@ -206,6 +206,7 @@ export default function ResourcesScreen() {
         <Text style={styles.topBarTitle}>{t('resources') || 'Resources'}</Text>
         <View style={{ width: 60 }} />
       </View>
+      <View style={styles.yellowBar} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -475,6 +476,7 @@ export default function ResourcesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
+  yellowBar: { height: 4, backgroundColor: '#FFC107' },
   topBar: {
     paddingTop: 20,
     flexDirection: 'row',

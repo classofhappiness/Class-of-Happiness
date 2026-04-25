@@ -76,6 +76,7 @@ export default function FamilyStrategiesScreen() {
         <Text style={styles.topBarTitle}>{t('family_strategies') || 'Family Strategies'}</Text>
         <View style={{ width: 60 }} />
       </View>
+      <View style={styles.yellowBar} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -159,6 +160,7 @@ export default function FamilyStrategiesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
+  yellowBar: { height: 4, backgroundColor: '#FFC107' },
   topBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 12, paddingTop: 20,
