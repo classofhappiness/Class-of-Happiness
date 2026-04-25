@@ -4674,8 +4674,31 @@ async def get_student_home_data(student_id: str, request: Request, days: int = 3
 
         start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
-        # Home check-ins (logged_by = parent)
-        home_logs = supabase.table("feeling_logs").select("*").eq("student_id", student_id).eq("logged_by", "parent").gte("timestamp", start_date).order("timestamp", desc=True).execute()
+        # Home check-ins - check feeling_logs (logged_by=parent) AND family_zone_logs
+        home_logs = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
+        all_feeling_logs = home_logs.data or []
+        # Filter for home/parent logs
+        parent_feeling_logs = [l for l in all_feeling_logs if l.get("logged_by") in ("parent", "family")]
+        # Also check family_zone_logs table
+        try:
+            fam_logs_result = supabase.table("family_zone_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
+            fam_zone_logs = [{**l, "logged_by": "parent"} for l in (fam_logs_result.data or [])]
+        except Exception:
+            fam_zone_logs = []
+        combined_home = parent_feeling_logs + fam_zone_logs
+        # deduplicate by timestamp
+        seen = set()
+        home_only = []
+        for l in combined_home:
+            ts = l.get("timestamp","")
+            if ts not in seen:
+                seen.add(ts)
+                home_only.append(l)
+        home_only.sort(key=lambda x: x.get("timestamp",""), reverse=True)
+        # Create mock result object
+        class MockResult:
+            def __init__(self, data): self.data = data
+        home_logs = MockResult(home_only)
 
         # Family strategies
         try:

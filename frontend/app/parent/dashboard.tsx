@@ -1131,7 +1131,7 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
-  yellowBar: { height: 4, backgroundColor: '#FFC107', marginHorizontal: -16, marginTop: 8, marginBottom: 0 },
+  yellowBar: { height: 4, backgroundColor: '#FFC107', marginHorizontal: -16, marginTop: 6, marginBottom: 12 },
   header: {
     alignItems: 'center',
     marginBottom: 20,
@@ -1140,7 +1140,7 @@ const styles = StyleSheet.create({
   },
   headerLogo: { width: 56, height: 56, marginBottom: 4 },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 2,

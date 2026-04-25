@@ -33,6 +33,11 @@ export default function StudentSelectScreen() {
     });
   }, [navigation]);
 
+  // Refresh students every time this screen loads
+  useEffect(() => {
+    refreshStudents();
+  }, []);
+
   // Fetch creature data for all students
   useEffect(() => {
     // Preload sounds for the student pages
@@ -44,15 +49,17 @@ export default function StudentSelectScreen() {
       for (const student of students) {
         try {
           const collection = await rewardsApi.getCollection(student.id);
-          creatureData[student.id] = {
-            currentCreature: collection.current_creature,
-            currentStage: collection.current_stage,
-            collectedCreatures: collection.collected_creatures,
-            totalPoints: collection.current_points,
-            allCreatures: collection.total_creatures || [],
-          } as any;
+          if (collection && collection.current_creature) {
+            creatureData[student.id] = {
+              currentCreature: collection.current_creature,
+              currentStage: collection.current_stage || 0,
+              collectedCreatures: collection.collected_creatures || [],
+              totalPoints: collection.current_points || 0,
+              allCreatures: collection.all_creatures || collection.total_creatures || [],
+            } as any;
+          }
         } catch (error) {
-          console.error(`Error fetching creatures for ${student.id}:`, error);
+          console.log(`Creatures not loaded for ${student.id} - will show when available`);
         }
       }
       
