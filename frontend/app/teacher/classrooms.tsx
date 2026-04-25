@@ -191,7 +191,6 @@ export default function ManageClassroomsScreen() {
         <Text style={styles.pageHeaderTitle}>{t('classrooms') || 'Classrooms'}</Text>
         <View style={{width:32}} />
       </View>
-      <View style={styles.pageYellowBar} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
 
         {/* Create Button */}
@@ -449,7 +448,6 @@ const styles = StyleSheet.create({
   pageHeaderBack: { padding:4, width:32 },
   pageHeaderLogo: { width:28, height:28 },
   pageHeaderTitle: { flex:1, fontSize:17, fontWeight:'bold', color:'#333', textAlign:'center' },
-  pageYellowBar: { height:4, backgroundColor:'#FFC107' },
   scrollContent: { padding: 16 },
   addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#5C6BC0', borderRadius: 12, padding: 16, marginBottom: 20, gap: 8 },
   addButtonText: { fontSize: 16, fontWeight: '600', color: 'white' },

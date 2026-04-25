@@ -457,7 +457,6 @@ export default function ParentDashboard() {
           />
           <Text style={styles.headerTitle}>{t('family_dashboard')}</Text>
           <Text style={styles.headerSubtitle}>{t('track_emotional_wellness')}</Text>
-          <View style={styles.yellowBar} />
         </View>
 
         {/* Family Members Section */}
@@ -1165,12 +1164,11 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
-  yellowBar: { height: 4, backgroundColor: '#FFC107', marginHorizontal: -16, marginTop: 6, marginBottom: 12 },
   header: {
     alignItems: 'center',
     marginBottom: 20,
-    marginTop: 8,
-    paddingBottom: 0,
+    marginTop: 20,
+    paddingBottom: 8,
   },
   headerLogo: { width: 56, height: 56, marginBottom: 4 },
   headerTitle: {

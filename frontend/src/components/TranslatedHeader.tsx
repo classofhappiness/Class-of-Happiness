@@ -27,7 +27,7 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
   };
 
   return (
-    <View style={[styles.header, { paddingTop: Platform.OS === "ios" ? insets.top : 8 }]}>
+    <View style={[styles.header, { paddingTop: (Platform.OS === "ios" ? insets.top : 12) + 4 }]}>
       <View style={styles.headerContent}>
         <View style={styles.backSlot}>
           {showBack && (

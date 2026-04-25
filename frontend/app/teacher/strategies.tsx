@@ -205,7 +205,6 @@ export default function ManageStrategiesScreen() {
           <Text style={styles.title}>Manage Strategies</Text>
           {student && <Text style={styles.subtitle}>for {student.name}</Text>}
         </View>
-      <View style={styles.yellowBar} />
       </View>
 
       {/* Zone Tabs */}
@@ -471,7 +470,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FA',
   },
-  yellowBar: { height: 4, backgroundColor: '#FFC107' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -131,7 +131,6 @@ export default function ManageStudentsScreen() {
         <Text style={styles.pageHeaderTitle}>{t('students') || 'Students'}</Text>
         <View style={{width:32}} />
       </View>
-      <View style={{height:4, backgroundColor:'#FFC107'}} />
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <MaterialIcons name="search" size={24} color="#999" />

@@ -185,7 +185,6 @@ export default function BulkCheckinScreen() {
       </View>
 
       {/* Quick select all row */}
-      <View style={styles.yellowBar} />
       <View style={styles.quickSelectBar}>
         <Text style={styles.quickSelectLabel}>All →</Text>
         {ZONES.map(zone => (
@@ -293,8 +292,6 @@ const styles = StyleSheet.create({
   },
   submitBtnDisabled: { backgroundColor: '#CCC' },
   submitBtnText: { color: 'white', fontWeight: '700', fontSize: 15 },
-
-  yellowBar: { height: 4, backgroundColor: '#FFC107' },
   quickSelectBar: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: 'white', paddingHorizontal: 16, paddingVertical: 10,
