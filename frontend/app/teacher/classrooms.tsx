@@ -71,10 +71,13 @@ export default function ManageClassroomsScreen() {
   const [selectedZone, setSelectedZone] = useState<string>('blue');
   const [selectedStrategy, setSelectedStrategy] = useState<any>(null);
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+  const [customStrategyName, setCustomStrategyName] = useState('');
+  const [customStrategyDesc, setCustomStrategyDesc] = useState('');
+  const [showCustomStrategyInput, setShowCustomStrategyInput] = useState(false);
   const [addingStrategy, setAddingStrategy] = useState(false);
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title: t('classrooms') });
+    navigation.setOptions({ headerShown: false });
   }, [navigation, language, translations]);
 
   const getClassroomStudents = (classroomId: string) =>

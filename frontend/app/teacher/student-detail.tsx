@@ -1121,11 +1121,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 16,
   },
-  studentName: { flexShrink: 1,
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
+  studentName: { fontSize: 22, fontWeight: 'bold', color: '#333', marginTop: 10, textAlign: 'center' },
   studentClassroom: {
     fontSize: 14,
     color: '#666',

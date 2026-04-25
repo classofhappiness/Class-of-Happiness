@@ -264,7 +264,7 @@ export const classroomsApi = {
 // Strategies API
 export const strategiesApi = {
   getAll: (studentId?: string, lang: string = 'en'): Promise<Strategy[]> => 
-    apiRequest(studentId ? `/strategies?student_id=${studentId}&lang=${lang}` : `/strategies?lang=${lang}`),
+    apiRequest(studentId ? `/strategies?student_id=${studentId}&lang=${lang}` : `/strategies?lang=${lang}`).catch(() => []),
   
   getByZone: (zone: string, studentId?: string, lang: string = 'en'): Promise<Strategy[]> => 
     apiRequest(`/strategies?zone=${zone}&lang=${lang}${studentId ? `&student_id=${studentId}` : ''}`),
