@@ -10,7 +10,7 @@ import {
   TextInput,
   Modal,
   KeyboardAvoidingView,
-  Platform,,
+  Platform,
   Image,} from 'react-native';
 import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
