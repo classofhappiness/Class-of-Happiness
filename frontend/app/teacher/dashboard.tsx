@@ -374,7 +374,7 @@ export default function TeacherDashboardScreen() {
                   <View style={styles.logInfo}>
                     <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
                       <Text style={styles.logName}>{getStudentName(log.student_id)}</Text>
-                      {log.logged_by === 'parent' && (
+                      {(log as any).logged_by === 'parent' && (
                         <View style={{backgroundColor:'#E8F5E9',paddingHorizontal:5,paddingVertical:1,borderRadius:6}}>
                           <Text style={{fontSize:9,color:'#4CAF50',fontWeight:'600'}}>HOME</Text>
                         </View>
