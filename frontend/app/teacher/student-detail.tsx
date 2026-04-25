@@ -126,13 +126,29 @@ export default function StudentDetailScreen() {
       setAnalytics(analyticsData);
       setLogs(logsData);
       setAvailableMonths(months);
-      // Fetch strategies separately so errors don't block main data
+      // Fetch all strategies (school custom + admin + family shared)
       try {
-        const strategiesData = await strategiesApi.getAll(studentId);
-        setStrategies(strategiesData || []);
+        const allStrats = await teacherHomeDataApi.getAllStrategies(studentId);
+        // Combine school and family strategies into one list
+        const schoolStrats = (allStrats.school_strategies || []).map((s: any) => ({
+          ...s,
+          source: 'school',
+        }));
+        const familyStrats = (allStrats.family_strategies || []).map((s: any) => ({
+          ...s,
+          name: s.name || s.strategy_name,
+          description: s.description || s.strategy_description,
+          source: 'home',
+        }));
+        setStrategies([...schoolStrats, ...familyStrats] as any);
+        setAllStrategies({ school: schoolStrats, family: familyStrats });
       } catch (stratErr) {
-        console.log('Strategies not available:', stratErr);
-        setStrategies([]);
+        console.log('Strategies fetch error:', stratErr);
+        // Fallback to basic strategies API
+        try {
+          const basic = await strategiesApi.getAll(studentId);
+          setStrategies(basic || []);
+        } catch { setStrategies([]); }
       }
       
       if (statusData) {
