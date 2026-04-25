@@ -221,6 +221,7 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
           </View>
 
           <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            <PointsGuide />
             {activeTab === 'creatures' ? (
               <View style={styles.scrollPad}>
 
