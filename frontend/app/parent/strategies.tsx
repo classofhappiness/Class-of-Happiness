@@ -43,15 +43,48 @@ export default function ParentStrategiesScreen() {
   });
   const [saving, setSaving] = useState(false);
 
+  // Generic family strategies shown when no student linked
+  const GENERIC_STRATEGIES: Record<string, Array<{name:string; description:string; icon:string}>> = {
+    blue: [
+      {name:'Comfort Corner', description:'Find a quiet cosy spot together and sit side by side.', icon:'home'},
+      {name:'Warm Drink Together', description:'Make a hot chocolate and chat gently.', icon:'local-cafe'},
+      {name:'Gentle Hug', description:'Offer a long warm hug without words.', icon:'favorite'},
+      {name:'Nature Walk', description:'Go outside for a slow quiet walk.', icon:'directions-walk'},
+    ],
+    green: [
+      {name:'Gratitude Share', description:'Each person shares one thing they are grateful for today.', icon:'favorite'},
+      {name:'Family Dance', description:'Put on an upbeat song and dance together spontaneously.', icon:'music-note'},
+      {name:'Cook Together', description:'Prepare a simple meal or snack as a team.', icon:'restaurant'},
+      {name:'Play a Game', description:'A card game or board game everyone enjoys.', icon:'sports-esports'},
+    ],
+    yellow: [
+      {name:'Box Breathing', description:'Breathe in 4, hold 4, out 4, hold 4. Do together.', icon:'air'},
+      {name:'Feelings Check-in', description:'Rate how you feel 1-10 and why, as a family.', icon:'chat'},
+      {name:'Shake It Out', description:'Stand and shake your whole body for 30 seconds!', icon:'accessibility'},
+      {name:'Count to 10', description:'Count to 10 slowly as a family before responding to stress.', icon:'format-list-numbered'},
+    ],
+    red: [
+      {name:'Space & Calm', description:'Give each person a few minutes of quiet space.', icon:'self-improvement'},
+      {name:'Cold Water', description:'Drink cold water or hold a cold pack to reset.', icon:'water'},
+      {name:'Safe Word', description:'Agree on a family calm-down word everyone respects.', icon:'record-voice-over'},
+      {name:'Pause & Reconnect', description:'Take a break then come back together with kindness.', icon:'pause-circle-filled'},
+    ],
+  };
+
   const fetchStrategies = async () => {
-    if (!studentId) return;
     try {
-      const [defaultStrats, customStrats] = await Promise.all([
-        strategiesApi.getByZone(selectedZone, studentId, language),
-        customStrategiesApi.getAll(studentId),
-      ]);
-      setStrategies(defaultStrats);
-      setCustomStrategies(customStrats.filter(s => s.zone === selectedZone));
+      if (studentId) {
+        const [defaultStrats, customStrats] = await Promise.all([
+          strategiesApi.getByZone(selectedZone, studentId, language),
+          customStrategiesApi.getAll(studentId),
+        ]);
+        setStrategies(defaultStrats);
+        setCustomStrategies(customStrats.filter((s: any) => s.zone === selectedZone));
+      } else {
+        // Generic mode — show built-in family strategies
+        setStrategies([]);
+        setCustomStrategies([]);
+      }
     } catch (error) {
       console.error('Error fetching strategies:', error);
     }
@@ -116,11 +149,17 @@ export default function ParentStrategiesScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={{flexDirection:'row',alignItems:'center',marginBottom:8,gap:4}}>
+            <MaterialIcons name="arrow-back" size={20} color="#5C6BC0" />
+            <Text style={{color:'#5C6BC0',fontSize:14,fontWeight:'500'}}>Back</Text>
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            My Family's Strategies
+            {student ? `${student.name}'s Strategies` : t('family_strategies') || 'Family Strategies'}
           </Text>
           <Text style={styles.headerSubtitle}>
-            Create and manage coping strategies for your child
+            {student
+              ? 'Strategies to support your child at home'
+              : 'Research-backed strategies for your whole family across all emotion zones'}
           </Text>
         </View>
 
@@ -191,7 +230,21 @@ export default function ParentStrategiesScreen() {
           </View>
         )}
 
-        {/* Default Strategies */}
+        {/* Generic family strategies when no student selected */}
+        {!studentId && (GENERIC_STRATEGIES[selectedZone] || []).map((strategy, index) => (
+          <View key={index} style={styles.strategyCard}>
+            <View style={[styles.strategyIcon, { backgroundColor: zoneConfig.color + '25' }]}>
+              <MaterialIcons name={strategy.icon as any} size={22} color={zoneConfig.color} />
+            </View>
+            <View style={styles.strategyContent}>
+              <Text style={styles.strategyName}>{strategy.name}</Text>
+              <Text style={styles.strategyDesc}>{strategy.description}</Text>
+            </View>
+          </View>
+        ))}
+
+        {/* Default Strategies (when student selected) */}
+        {studentId && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Default Strategies</Text>
           {strategies.map((strategy) => (

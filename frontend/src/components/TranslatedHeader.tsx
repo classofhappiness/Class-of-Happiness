@@ -41,6 +41,7 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
         />
         <Text style={styles.title}>{title}</Text>
       </View>
+      <View style={styles.yellowBar} />
     </View>
   );
 };
@@ -48,7 +49,7 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
 const styles = StyleSheet.create({
   header: {
     backgroundColor: '#F8F9FA',
-    paddingBottom: 12,
+    paddingBottom: 0,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
@@ -70,5 +71,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
+  },
+  yellowBar: {
+    height: 4,
+    backgroundColor: '#FFC107',
+    marginHorizontal: -16,
+    marginTop: 8,
   },
 });
