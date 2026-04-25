@@ -390,7 +390,7 @@ export default function ManageStudentsScreen() {
 }
 
 const styles = StyleSheet.create({
-  pageHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#F8F9FA" },
+  pageHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 16, backgroundColor: "#F8F9FA" },
   pageHeaderTitle: { flex: 1, fontSize: 17, fontWeight: "bold", color: "#333", textAlign: "center" },
   container: {
     flex: 1,

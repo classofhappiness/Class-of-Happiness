@@ -444,7 +444,7 @@ export default function ManageClassroomsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  pageHeader: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:12, paddingVertical:10, backgroundColor:'#F8F9FA' },
+  pageHeader: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:12, paddingVertical:16, backgroundColor:'#F8F9FA' },
   pageHeaderBack: { padding:4, width:32 },
   pageHeaderLogo: { width:28, height:28 },
   pageHeaderTitle: { flex:1, fontSize:17, fontWeight:'bold', color:'#333', textAlign:'center' },
