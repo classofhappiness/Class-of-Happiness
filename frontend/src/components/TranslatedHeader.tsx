@@ -46,7 +46,6 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
         </View>
         <View style={styles.backSlot} />
       </View>
-      <View style={styles.yellowBar} />
     </View>
   );
 };
@@ -88,11 +87,5 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     flexShrink: 1,
-  },
-  yellowBar: {
-    height: 4,
-    backgroundColor: '#FFC107',
-    marginHorizontal: -12,
-    marginTop: 4,
   },
 });
