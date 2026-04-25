@@ -55,7 +55,7 @@ export default function StudentSelectScreen() {
               currentStage: collection.current_stage || 0,
               collectedCreatures: collection.collected_creatures || [],
               totalPoints: collection.current_points || 0,
-              allCreatures: collection.all_creatures || collection.total_creatures || [],
+              allCreatures: collection.total_creatures || collection.total_creatures || [],
             } as any;
           }
         } catch (error) {
