@@ -127,6 +127,26 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
 
   const handleClose = () => { playButtonFeedback(); onClose(); };
 
+  const PointsGuide = () => (
+    <View style={styles.pointsGuide}>
+      <Text style={styles.pointsGuideTitle}>⭐ How to grow your creature:</Text>
+      <View style={styles.pointsGuideRow}>
+        {[
+          {label:'🥚 Hatch', pts: 25},
+          {label:'🐣 Grow', pts: 60},
+          {label:'🐤 Evolve', pts: 120},
+          {label:'✨ Max', pts: 200},
+        ].map((item, i) => (
+          <View key={i} style={styles.pointsGuideItem}>
+            <Text style={styles.pointsGuidePts}>{item.pts}</Text>
+            <Text style={styles.pointsGuideLabel}>{item.label}</Text>
+          </View>
+        ))}
+      </View>
+      <Text style={styles.pointsGuideHint}>Check in + use strategies = earn points!</Text>
+    </View>
+  );
+
   const renderItemGrid = (items: any[], unlockedIds: string[], label: string, emoji: string) => {
     const limitedItems = items.slice(0, 3);
     return (
@@ -342,6 +362,13 @@ const styles = StyleSheet.create({
   categoryBlock: { marginBottom: 16 },
   categoryLabel: { fontSize: 15, fontWeight: 'bold', color: '#444', marginBottom: 10 },
   itemsRow: { flexDirection: 'row', gap: 10 },
+  pointsGuide: { backgroundColor:'#FFF9E6', borderRadius:12, padding:12, marginBottom:12, borderWidth:1, borderColor:'#FFE082' },
+  pointsGuideTitle: { fontSize:12, fontWeight:'700', color:'#F57F17', marginBottom:8, textAlign:'center' },
+  pointsGuideRow: { flexDirection:'row', justifyContent:'space-between', marginBottom:6 },
+  pointsGuideItem: { alignItems:'center', flex:1 },
+  pointsGuidePts: { fontSize:15, fontWeight:'900', color:'#5C6BC0' },
+  pointsGuideLabel: { fontSize:9, color:'#888', textAlign:'center', marginTop:1 },
+  pointsGuideHint: { fontSize:10, color:'#888', textAlign:'center', fontStyle:'italic' },
   itemCard: { flex: 1, backgroundColor: 'white', borderRadius: 14, padding: 10, alignItems: 'center', borderWidth: 1.5, borderColor: '#E8E8E8', position: 'relative', minHeight: 90 },
   itemLocked: { backgroundColor: '#F5F5F5', borderColor: '#DDD' },
   itemEmoji: { fontSize: 30, marginBottom: 4 },
