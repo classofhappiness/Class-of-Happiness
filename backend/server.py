@@ -1768,6 +1768,15 @@ async def get_students(request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     result = supabase.table("students").select("*").eq("user_id", user["user_id"]).execute()
+    students = result.data or []
+    try:
+        links = supabase.table("parent_links").select("student_id,home_sharing_enabled").execute()
+        linked = {l["student_id"]: l for l in (links.data or [])}
+        for s in students:
+            s["is_linked"] = s["id"] in linked
+            s["home_sharing_enabled"] = linked.get(s["id"], {}).get("home_sharing_enabled", False)
+    except Exception: pass
+    return students
     return result.data or []
 
 @api_router.post("/students")
@@ -1823,8 +1832,9 @@ async def generate_link_code(student_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    if user.get("role") not in ["teacher", "admin"]:
-        raise HTTPException(status_code=403, detail="Teachers only")
+    # Allow teachers, admins and school admins to generate codes
+    if user.get("role") not in ["teacher", "admin", "school_admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
     link_code = str(uuid.uuid4())[:6].upper()
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
     supabase.table("students").update({
@@ -2221,8 +2231,9 @@ async def create_resource(resource: ResourceCreate, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    if user.get("role") not in ["teacher", "admin"]:
-        raise HTTPException(status_code=403, detail="Teachers only")
+    # Allow teachers, admins and school admins to generate codes
+    if user.get("role") not in ["teacher", "admin", "school_admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
     new_resource = {
         "id": str(uuid.uuid4()),
         "created_by": user["user_id"],
