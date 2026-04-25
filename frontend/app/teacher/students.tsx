@@ -283,7 +283,12 @@ export default function ManageStudentsScreen() {
                   presetAvatars={presetAvatars}
                 />
                 <View style={styles.studentInfo}>
-                  <Text style={styles.studentName}>{student.name}</Text>
+                  <View style={{flexDirection:'row',alignItems:'center',gap:4}}>
+                    <Text style={styles.studentName}>{student.name}</Text>
+                    {(student as any).is_linked && (
+                      <Text style={{fontSize:10}}>🔗</Text>
+                    )}
+                  </View>
                   <Text style={styles.studentClassroom}>
                     {getClassroomName(student.classroom_id)}
                   </Text>
