@@ -259,6 +259,8 @@ export default function ParentStrategiesScreen() {
             </View>
           ))}
         </View>
+        )}
+
       </ScrollView>
 
       {/* Add Strategy Modal */}
