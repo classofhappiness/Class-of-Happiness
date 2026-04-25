@@ -14,6 +14,7 @@ import {
   Share,
   Platform,
   Animated,
+  TextInput,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -719,7 +720,7 @@ export default function StudentDetailScreen() {
                 <TextInput
                   style={styles.textInput}
                   value={newStrategy.name}
-                  onChangeText={v => setNewStrategy({...newStrategy, name: v})}
+                  onChangeText={(v: string) => setNewStrategy({...newStrategy, name: v})}
                   placeholder="e.g. Deep breathing, Take a walk..."
                   placeholderTextColor="#AAA"
                 />
@@ -727,7 +728,7 @@ export default function StudentDetailScreen() {
                 <TextInput
                   style={[styles.textInput, {height:60, textAlignVertical:'top'}]}
                   value={newStrategy.description}
-                  onChangeText={v => setNewStrategy({...newStrategy, description: v})}
+                  onChangeText={(v: string) => setNewStrategy({...newStrategy, description: v})}
                   placeholder="How to use this strategy..."
                   placeholderTextColor="#AAA"
                   multiline
@@ -1659,9 +1660,9 @@ const styles = StyleSheet.create({
   calendarBadge: { width:12, height:12, borderRadius:6, alignItems:'center', justifyContent:'center' },
   calendarBadgeText: { fontSize:7, color:'white', fontWeight:'700' },
   calendarLegend: { flexDirection:'row', gap:16, marginTop:10, justifyContent:'center' },
-  legendItem: { flexDirection:'row', alignItems:'center', gap:4 },
-  legendDot: { width:8, height:8, borderRadius:4 },
-  legendText: { fontSize:11, color:'#666' },
+
+
+
   zoneDistSection: { backgroundColor:'white', borderRadius:16, padding:16, marginBottom:16 },
   sectionHeader: { flexDirection:'row', alignItems:'center', gap:8, marginBottom:12 },
   dataTabRow: { flexDirection:'row', backgroundColor:'#F5F5F5', borderRadius:10, padding:3, marginBottom:12, gap:3 },
@@ -1677,11 +1678,11 @@ const styles = StyleSheet.create({
   zoneDistBar: { height:10, borderRadius:5 },
   zoneDistPct: { fontSize:12, fontWeight:'600', color:'#333', width:35, textAlign:'right' },
   zoneDistCount: { fontSize:10, color:'#888', width:28 },
-  strategiesSection: { backgroundColor:'white', borderRadius:16, padding:16, marginBottom:16 },
+
   stratSourceLabel: { fontSize:12, fontWeight:'600', color:'#888', marginBottom:8, marginTop:8 },
   strategyRow: { flexDirection:'row', alignItems:'center', backgroundColor:'#F8F9FA', borderRadius:10, padding:10, marginBottom:6, gap:10 },
   strategyInfo: { flex:1 },
-  strategyName: { fontSize:14, fontWeight:'600', color:'#333' },
+
   strategyDesc: { fontSize:11, color:'#888', marginTop:2 },
   shareToggleBtn: { flexDirection:'row', alignItems:'center', gap:3, paddingHorizontal:8, paddingVertical:5, borderRadius:8, backgroundColor:'#F0F0F0' },
   shareToggleBtnActive: { backgroundColor:'#4CAF50' },
@@ -1692,10 +1693,10 @@ const styles = StyleSheet.create({
   addStratBtnText: { fontSize:12, color:'white', fontWeight:'600' },
   emptyStrategies: { alignItems:'center', paddingVertical:24, gap:8 },
   emptyText: { fontSize:13, color:'#999', textAlign:'center' },
-  modalOverlay: { flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'flex-end' },
-  modalContent: { backgroundColor:'white', borderTopLeftRadius:24, borderTopRightRadius:24, padding:20, paddingBottom:40 },
-  modalHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 },
-  modalTitle: { fontSize:18, fontWeight:'bold', color:'#333' },
+
+
+
+
   inputLabel: { fontSize:13, fontWeight:'600', color:'#555', marginBottom:6 },
   textInput: { backgroundColor:'#F5F5F5', borderRadius:10, padding:12, fontSize:15, color:'#333', marginBottom:14 },
   sharingNotEnabled: {
