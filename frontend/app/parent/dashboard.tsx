@@ -21,7 +21,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
 import { 
   parentApi, Student, zoneLogsApi, ZoneLog, analyticsApi,
-  familyApi, FamilyMember, FamilyZoneLog, authApiExtended, teacherApi
+  familyApi, FamilyMember, FamilyZoneLog, authApiExtended, teacherApi, rewardsApi
 } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 
@@ -63,6 +63,7 @@ export default function ParentDashboard() {
   const [linkedChildren, setLinkedChildren] = useState<Student[]>([]);
   // Family members (self, partner, kids at home)
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  const [memberCreatures, setMemberCreatures] = useState<Record<string, any>>({});
   const [refreshing, setRefreshing] = useState(false);
   
   // Selected member for viewing
@@ -265,6 +266,26 @@ export default function ParentDashboard() {
       // Fetch family members
       const members = await familyApi.getMembers();
       setFamilyMembers(members);
+      // Fetch creatures for members who are linked to school students
+      const creatureMap: Record<string, any> = {};
+      for (const m of members) {
+        const linkedId = (m as any).student_id;
+        if (linkedId) {
+          try {
+            const collection = await rewardsApi.getCollection(linkedId);
+            if (collection?.current_creature) {
+              creatureMap[m.id] = {
+                emoji: collection.current_creature.stages?.[collection.current_stage]?.emoji || '🥚',
+                color: collection.current_creature.color || '#CCC',
+                points: collection.current_points || 0,
+                stage: collection.current_stage || 0,
+                name: collection.current_creature.name || '',
+              };
+            }
+          } catch { /* no creature yet */ }
+        }
+      }
+      setMemberCreatures(creatureMap);
       
       // Auto-select first member if none selected
       if (!selectedMember) {
@@ -553,6 +574,15 @@ export default function ParentDashboard() {
                   )}
                   <Text style={styles.memberName} numberOfLines={1}>{member.name}</Text>
                   <Text style={styles.memberRole}>{t(member.relationship)}</Text>
+                  {/* Creature display if linked to school */}
+                  {memberCreatures[member.id] && (
+                    <View style={styles.memberCreatureRow}>
+                      <Text style={styles.memberCreatureEmoji}>
+                        {memberCreatures[member.id].emoji}
+                      </Text>
+                      <View style={[styles.memberCreatureDot, {backgroundColor: memberCreatures[member.id].color}]} />
+                    </View>
+                  )}
                 </TouchableOpacity>
                 
                 {/* Big kid-friendly check-in button */}
@@ -560,7 +590,11 @@ export default function ParentDashboard() {
                   style={styles.bigCheckinButton}
                   onPress={() => router.push({
                     pathname: '/parent/checkin',
-                    params: { memberId: member.id, memberName: member.name }
+                    params: { 
+                      memberId: member.id, 
+                      memberName: member.name,
+                      studentId: (member as any).student_id || '',
+                    }
                   })}
                 >
                   <Text style={styles.bigCheckinEmoji}>😊</Text>
@@ -1246,6 +1280,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginTop: 8,
+  },
+  memberCreatureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+    gap: 4,
+  },
+  memberCreatureEmoji: {
+    fontSize: 18,
+  },
+  memberCreatureDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   memberRole: {
     fontSize: 11,
