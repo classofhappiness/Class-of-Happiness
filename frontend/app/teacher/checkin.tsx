@@ -273,6 +273,7 @@ export default function TeacherCheckInScreen() {
           <Text style={styles.alertBtnText}>Support</Text>
         </TouchableOpacity>
       </View>
+      <View style={styles.yellowBar} />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
@@ -498,6 +499,7 @@ export default function TeacherCheckInScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
+  yellowBar: { height: 4, backgroundColor: '#FFC107' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, paddingTop: 16, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   backBtn: { padding: 8, marginRight: 8 },
   headerTitle: { flex: 1, fontSize: 18, fontWeight: 'bold', color: '#333' },

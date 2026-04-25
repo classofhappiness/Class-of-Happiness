@@ -343,6 +343,7 @@ export default function TeacherResourcesScreen() {
         <Text style={styles.resourcesTopBarTitle}>{t('teacher_resources') || 'Teacher Resources'}</Text>
         <View style={{ width: 40 }} />
       </View>
+      <View style={styles.yellowBar} />
 
       {/* Topic Tabs */}
       <View style={styles.tabsWrapper}>
@@ -729,6 +730,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FA',
   },
+  yellowBar: { height: 4, backgroundColor: '#FFC107' },
   resourcesTopBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 12, paddingTop: 20,
