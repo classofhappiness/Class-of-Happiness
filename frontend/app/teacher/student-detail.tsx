@@ -1145,6 +1145,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     flexShrink: 1,
   },
+  iconBtnLabel: { fontSize: 9, color: "#5C6BC0", marginTop: 2, fontWeight: "600", textAlign: "center" },
   editButton: {
     padding: 8,
     backgroundColor: '#EDE7F6',
