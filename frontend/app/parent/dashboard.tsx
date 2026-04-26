@@ -21,7 +21,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
 import { 
   parentApi, Student, zoneLogsApi, ZoneLog, analyticsApi,
-  familyApi, FamilyMember, FamilyZoneLog, authApiExtended, teacherApi, rewardsApi
+  familyApi, FamilyMember, FamilyZoneLog, authApiExtended, teacherApi, rewardsApi, linkedChildApi
 } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 
@@ -390,6 +390,17 @@ export default function ParentDashboard() {
 
   const handleLinkChild = async () => {
     if (!linkCode.trim()) return;
+    if (!disclaimerAccepted) {
+      Alert.alert(
+        '📋 Data Sharing Consent',
+        'By linking your child, you agree that:\n\n• Their school check-in data will be visible to you\n• Your home check-ins can be shared with their teacher (you control this)\n• All data is kept confidential to your family and teacher\n\nDo you consent to this data sharing?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'I Agree', onPress: () => { setDisclaimerAccepted(true); handleLinkChild(); } }
+        ]
+      );
+      return;
+    }
     setLinking(true);
     try {
       const result = await parentApi.linkChild(linkCode.trim());
@@ -609,10 +620,10 @@ export default function ParentDashboard() {
                   )}
                 </TouchableOpacity>
                 
-                {/* Action buttons row */}
-                <View style={{flexDirection:'row', gap:6, width:'100%'}}>
+                {/* Check-in button */}
+                <View>
                   <TouchableOpacity
-                    style={[styles.bigCheckinButton, {flex:2}]}
+                    style={styles.bigCheckinButton}
                     onPress={() => router.push({
                       pathname: '/parent/checkin',
                       params: { 
@@ -625,19 +636,7 @@ export default function ParentDashboard() {
                     <Text style={styles.bigCheckinEmoji}>😊</Text>
                     <Text style={styles.bigCheckinText}>{t('check_in') || 'Check In'}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.bigCheckinButton, {flex:1, backgroundColor:'#5C6BC0'}]}
-                    onPress={() => router.push({
-                      pathname: '/parent/strategies',
-                      params: { 
-                        studentId: (member as any).student_id || member.id,
-                        memberName: member.name,
-                      }
-                    })}
-                  >
-                    <Text style={{fontSize:16}}>💡</Text>
-                    <Text style={[styles.bigCheckinText, {fontSize:10}]}>Strategies</Text>
-                  </TouchableOpacity>
+
                 </View>
               </View>
             ))}
@@ -692,8 +691,8 @@ export default function ParentDashboard() {
                           style: 'destructive',
                           onPress: async () => {
                             try {
-                              await teacherApi.unlinkStudent(child.id);
-                              Alert.alert(t('success') || 'Success', t('child_unlinked') || 'Child has been unlinked');
+                              await linkedChildApi.unlink(child.id);
+                              Alert.alert(t('success') || 'Success', t('child_unlinked') || 'Child has been unlinked successfully');
                               // Refresh data
                               const children = await parentApi.getChildren();
                               setLinkedChildren(children);

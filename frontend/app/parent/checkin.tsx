@@ -25,6 +25,39 @@ const getZones = (t: (key: string) => string) => [
 
 const MAX_COMMENT_LENGTH = 100;
 
+// Research-backed parent strategies per zone
+const PARENT_STRATEGIES: Record<string, Array<{id:string; name:string; description:string; icon:string}>> = {
+  blue: [
+    {id:'p_b1', name:'Side-by-Side Presence', description:'Sit quietly together without fixing', icon:'people'},
+    {id:'p_b2', name:'Warm Drink Together', description:'Make a warm drink and chat gently', icon:'local-cafe'},
+    {id:'p_b3', name:'Name It to Tame It', description:'Gently label the feeling out loud', icon:'chat-bubble'},
+    {id:'p_b4', name:'Gentle Movement', description:'A slow walk outside together', icon:'directions-walk'},
+    {id:'p_b5', name:'Comfort & Closeness', description:'A long warm hug, no words needed', icon:'favorite'},
+  ],
+  green: [
+    {id:'p_g1', name:'Gratitude Round', description:'Share one thing each person is grateful for', icon:'favorite'},
+    {id:'p_g2', name:'Strength Spotting', description:'Notice and name a strength you saw today', icon:'star'},
+    {id:'p_g3', name:'Creative Time', description:'Draw, cook or build something together', icon:'palette'},
+    {id:'p_g4', name:'Family Dance', description:'Put on a song and move together', icon:'music-note'},
+    {id:'p_g5', name:'Calm Problem Solving', description:'Plan and solve a challenge together', icon:'lightbulb'},
+  ],
+  yellow: [
+    {id:'p_y1', name:'Box Breathing Together', description:'In 4, hold 4, out 4 — do it together', icon:'air'},
+    {id:'p_y2', name:'Validate First', description:'Say "that makes sense" before solving', icon:'volunteer-activism'},
+    {id:'p_y3', name:'Body Check-In', description:'Where do you feel this in your body?', icon:'accessibility'},
+    {id:'p_y4', name:'Feelings Journal', description:'Write or draw the feeling', icon:'edit'},
+    {id:'p_y5', name:'Give Space with Love', description:'5 mins space, then check back warmly', icon:'timer'},
+  ],
+  red: [
+    {id:'p_r1', name:'Stay Calm Yourself', description:'Your calm regulates theirs — breathe first', icon:'self-improvement'},
+    {id:'p_r2', name:'Safe Space Together', description:'Move to a quieter place together', icon:'home'},
+    {id:'p_r3', name:'Cold Water Reset', description:'Cold water on face reduces heart rate fast', icon:'water'},
+    {id:'p_r4', name:'No Teaching Now', description:'Wait for calm before discussing behaviour', icon:'do-not-disturb'},
+    {id:'p_r5', name:'Reconnect with Warmth', description:'Hug and soft voice before any correction', icon:'favorite-border'},
+  ],
+};
+
+
 export default function FamilyCheckInScreen() {
   const router = useRouter();
   const { memberId, memberName, studentId } = useLocalSearchParams<{ memberId: string; memberName: string; studentId?: string }>();
@@ -46,12 +79,9 @@ export default function FamilyCheckInScreen() {
 
   const fetchStrategies = async () => {
     if (!selectedZone) return;
-    try {
-      const data = await strategiesApi.getByZone(selectedZone, undefined, language || 'en');
-      setStrategies(data);
-    } catch (error) {
-      console.error('Error fetching strategies:', error);
-    }
+    // Use parent-specific research-backed strategies
+    const parentStrats = PARENT_STRATEGIES[selectedZone] || [];
+    setStrategies(parentStrats as any);
   };
 
   const handleZoneSelect = (zoneId: string) => {

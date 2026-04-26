@@ -2355,7 +2355,10 @@ async def link_child(body: LinkChildRequest, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    result = supabase.table("students").select("*").eq("link_code", body.link_code).execute()
+    # Try both field names for compatibility
+    result = supabase.table("students").select("*").eq("parent_link_code", body.link_code).execute()
+    if not result.data:
+        result = supabase.table("students").select("*").eq("link_code", body.link_code).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Invalid link code")
     student = result.data[0]
