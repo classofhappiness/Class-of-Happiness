@@ -8,7 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://emotion-zones-kids.preview.emergentagent.com"
+        "EXPO_PUBLIC_BACKEND_URL": "https://class-of-happiness-production.up.railway.app"
       }
     },
     "preview": {
@@ -17,22 +17,39 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://emotion-zones-kids.preview.emergentagent.com"
+        "EXPO_PUBLIC_BACKEND_URL": "https://class-of-happiness-production.up.railway.app"
       }
     },
     "production": {
+      "ios": {
+        "resourceClass": "m-medium",
+        "distribution": "store"
+      },
       "android": {
         "buildType": "apk"
       },
+      "env": {
+        "EXPO_PUBLIC_BACKEND_URL": "https://class-of-happiness-production.up.railway.app"
+      }
+    },
+    "testflight": {
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "distribution": "store",
+        "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://emotion-zones-kids.preview.emergentagent.com"
+        "EXPO_PUBLIC_BACKEND_URL": "https://class-of-happiness-production.up.railway.app"
       }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "jono@classofhappiness.com",
+        "ascAppId": "",
+        "appleTeamId": ""
+      }
+    }
   }
 }

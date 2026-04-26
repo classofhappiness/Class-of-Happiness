@@ -12,11 +12,13 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.classofhappiness.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "Take profile photos for student avatars",
-        "NSPhotoLibraryUsageDescription": "Upload photos for student avatars and strategies",
+        "NSCameraUsageDescription": "Take photos for student avatars and family check-ins",
+        "NSPhotoLibraryUsageDescription": "Upload photos for student avatars, strategies, and family check-ins",
         "UIViewControllerBasedStatusBarAppearance": false,
-        "ITSAppUsesNonExemptEncryption": false
-      }
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryAddUsageDescription": "Save photos from Class of Happiness"
+      },
+      "buildNumber": "7"
     },
     "android": {
       "package": "com.classofhappiness.app",
