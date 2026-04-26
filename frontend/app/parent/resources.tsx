@@ -129,7 +129,9 @@ export default function ResourcesScreen() {
       } else {
         const timestamp = Date.now();
         const cacheDir = new Directory(Paths.cache);
-        const downloadedFile = await File.downloadFileAsync(downloadUrl, cacheDir);
+        const downloadedFile = await File.downloadFileAsync(downloadUrl, cacheDir, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
 
         if (!downloadedFile.exists) {
           throw new Error('Downloaded file does not exist');
