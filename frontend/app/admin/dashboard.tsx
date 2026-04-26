@@ -995,7 +995,7 @@ export default function AdminDashboardScreen() {
           <TouchableOpacity
             onPress={() => Alert.alert('Logout', 'Are you sure you want to logout?', [
               {text:'Cancel',style:'cancel'},
-              {text:'Logout',style:'destructive',onPress:() => signOut()}
+              {text:"Logout",style:"destructive",onPress:async()=>{const AS=(await import("@react-native-async-storage/async-storage")).default;await AS.clear();router.replace("/"as any);}}
             ])}
             style={{backgroundColor:'rgba(255,255,255,0.2)',padding:10,borderRadius:10,alignItems:'center'}}>
             <MaterialIcons name="logout" size={20} color="white" />
