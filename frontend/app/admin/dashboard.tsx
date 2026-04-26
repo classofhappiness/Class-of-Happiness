@@ -665,7 +665,7 @@ function AdminResourceUpload({ authToken }: { authToken: string | null }) {
       if (!result.canceled && result.assets?.[0]) {
         const file = result.assets[0];
         try {
-          const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.Base64 });
+          const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: "base64" });
           setSelectedFile({ name: file.name, content: base64 });
           if (!title) setTitle(file.name.replace(/\.(pdf|docx|doc)$/i,''));
           Alert.alert('✅ Selected', file.name);
