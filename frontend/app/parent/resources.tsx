@@ -122,7 +122,8 @@ export default function ResourcesScreen() {
       const endpoint = isTeacherResource
         ? `/api/teacher-resources/${resourceId}/download`
         : `/api/resources/${resourceId}/download`;
-      const token2 = await AsyncStorage.getItem("session_token");
+      const AsyncStorage2 = (await import("@react-native-async-storage/async-storage")).default;
+      const token2 = await AsyncStorage2.getItem("session_token");
       const downloadUrl = `${BACKEND_URL}${endpoint}`;
 
       if (Platform.OS === 'web') {
