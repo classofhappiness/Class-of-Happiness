@@ -2110,8 +2110,7 @@ async def create_custom_strategy_alias(request: Request):
             "user_id": user["user_id"],
             "name": body.get("name", ""),
             "description": body.get("description", ""),
-            "zone": body.get("zone", body.get("feeling_colour", "green")),
-            "feeling_colour": body.get("zone", body.get("feeling_colour", "green")),
+            "feeling_colour": body.get("feeling_colour", body.get("zone", "green")),
             "icon": body.get("icon", "star"),
             "is_shared": body.get("is_shared", True),
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -2133,7 +2132,12 @@ async def get_custom_strategies(request: Request, student_id: Optional[str] = No
         if student_id:
             query = query.eq("student_id", student_id)
         result = query.execute()
-        return result.data or []
+        # Normalise: add zone field from feeling_colour for frontend compatibility
+        data = result.data or []
+        for row in data:
+            if "zone" not in row or not row.get("zone"):
+                row["zone"] = row.get("feeling_colour", "green")
+        return data
     except Exception as e:
         return []
 
@@ -4841,6 +4845,10 @@ async def get_school_strategies_for_linked_child(student_id: str, request: Reque
         try:
             strats = supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute()
             custom = strats.data or []
+            # Normalise zone field
+            for row in custom:
+                if not row.get("zone"):
+                    row["zone"] = row.get("feeling_colour", "green")
         except Exception:
             custom = []
         # Get global strategies
@@ -5165,8 +5173,7 @@ async def add_student_strategy(student_id: str, request: Request):
             "user_id": user["user_id"],
             "name": body.get("name", ""),
             "description": body.get("description", ""),
-            "feeling_colour": body.get("zone", body.get("feeling_colour", "green")),
-            "zone": body.get("zone", "green"),
+            "feeling_colour": body.get("feeling_colour", body.get("zone", "green")),
             "icon": body.get("icon", "star"),
             "is_shared": body.get("share_with_parent", False),
             "created_at": datetime.now(timezone.utc).isoformat(),
