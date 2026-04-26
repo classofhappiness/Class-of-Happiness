@@ -79,7 +79,7 @@ export default function StudentDetailScreen() {
   
   const student = students.find(s => s.id === studentId);
   
-  const [selectedPeriod, setSelectedPeriod] = useState<7 | 14 | 30>(7);
+  const [selectedPeriod, setSelectedPeriod] = useState<1 | 7 | 14 | 30>(7);
   const [analytics, setAnalytics] = useState<any>(null);
   const [logs, setLogs] = useState<ZoneLog[]>([]);
   const [strategies, setStrategies] = useState<Strategy[]>([]);
