@@ -154,18 +154,30 @@ export default function ManageClassroomsScreen() {
       const stratDesc = isCustom ? customStrategyDesc.trim() : `Added by teacher for ${selectedZone} zone`;
       const stratIcon = isCustom ? 'star' : selectedStrategy!.icon;
 
-      await Promise.all(
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const AsyncStorageMod = (await import('@react-native-async-storage/async-storage')).default;
+      const token = await AsyncStorageMod.getItem('session_token');
+      const results = await Promise.allSettled(
         Array.from(selectedStudentIds).map(studentId =>
-          customStrategiesApi.create({
-            student_id: studentId,
-            name: stratName,
-            description: stratDesc,
-            zone: selectedZone,
-            icon: stratIcon,
-            is_shared: true,
+          fetch(`${BACKEND_URL}/api/helpers/custom`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              student_id: studentId,
+              name: stratName,
+              description: stratDesc,
+              feeling_colour: selectedZone,
+              icon: stratIcon,
+              is_shared: true,
+            }),
           })
         )
       );
+      const failed = results.filter(r => r.status === 'rejected').length;
+      if (failed > 0) throw new Error(`Failed for ${failed} student(s)`);
       Alert.alert('✅ Done!', `"${stratName}" added to ${selectedStudentIds.size} student(s).`);
       setStrategyModalVisible(false);
       setSelectedStrategy(null);
