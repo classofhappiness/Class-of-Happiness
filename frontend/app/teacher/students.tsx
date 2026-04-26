@@ -23,6 +23,7 @@ export default function ManageStudentsScreen() {
   const { students, classrooms, presetAvatars, refreshStudents, t, language, translations } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterClassroom, setFilterClassroom] = useState<string | null>(null);
+  const [showLinkedOnly, setShowLinkedOnly] = useState(false);
   
   // Bulk selection state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -36,11 +37,19 @@ export default function ManageStudentsScreen() {
     });
   }, [navigation, language, translations]);
 
-  const filteredStudents = students.filter(student => {
-    const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesClassroom = !filterClassroom || student.classroom_id === filterClassroom;
-    return matchesSearch && matchesClassroom;
-  });
+  const filteredStudents = students
+    .filter(student => {
+      const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesClassroom = !filterClassroom || student.classroom_id === filterClassroom;
+      const matchesLinked = !showLinkedOnly || (student as any).is_linked;
+      return matchesSearch && matchesClassroom && matchesLinked;
+    })
+    .sort((a, b) => {
+      // Linked students first
+      const aLinked = (a as any).is_linked ? 1 : 0;
+      const bLinked = (b as any).is_linked ? 1 : 0;
+      return bLinked - aLinked;
+    });
 
   const getClassroomName = (classroomId?: string) => {
     if (!classroomId) return t('no_classroom') || 'No Classroom';
@@ -195,10 +204,10 @@ export default function ManageStudentsScreen() {
           contentContainerStyle={styles.filterContainer}
         >
           <TouchableOpacity
-            style={[styles.filterChip, !filterClassroom && styles.filterChipActive]}
-            onPress={() => setFilterClassroom(null)}
+            style={[styles.filterChip, !filterClassroom && !showLinkedOnly && styles.filterChipActive]}
+            onPress={() => { setFilterClassroom(null); setShowLinkedOnly(false); }}
           >
-            <Text style={[styles.filterChipText, !filterClassroom && styles.filterChipTextActive]}>
+            <Text style={[styles.filterChipText, !filterClassroom && !showLinkedOnly && styles.filterChipTextActive]}>
               {t('all') || 'All'}
             </Text>
           </TouchableOpacity>
@@ -235,6 +244,23 @@ export default function ManageStudentsScreen() {
         )}
 
         {/* Students List */}
+        {/* Linked Students quick tab */}
+        <TouchableOpacity
+          style={[
+            styles.filterChip,
+            showLinkedOnly && styles.filterChipActive,
+            { margin: 8, marginTop: 0, alignSelf: 'flex-start' }
+          ]}
+          onPress={() => { setShowLinkedOnly(!showLinkedOnly); setFilterClassroom(null); }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <MaterialIcons name="link" size={14} color={showLinkedOnly ? 'white' : '#5C6BC0'} />
+            <Text style={[styles.filterChipText, showLinkedOnly && styles.filterChipTextActive]}>
+              Linked Students ({students.filter((s: any) => s.is_linked).length})
+            </Text>
+          </View>
+        </TouchableOpacity>
+
         {filteredStudents.length > 0 ? (
           filteredStudents.map((student) => (
             <Pressable 

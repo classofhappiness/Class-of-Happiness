@@ -188,30 +188,22 @@ export default function TeacherDashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Teacher self check-ins */}
-        <View style={styles.recentSection}>
-          <Text style={styles.sectionTitle}>{t('your_check_ins') || 'Your Check-ins'}</Text>
-          {teacherCheckins.length > 0 ? (
-            teacherCheckins.map((checkin) => (
-              <View key={checkin.id} style={styles.logItem}>
-                <View style={[styles.zoneIndicator, { backgroundColor: ZONE_COLORS[checkin.zone as keyof typeof ZONE_COLORS] || '#999' }]}>
-                  {/* ✅ Fixed: zone name translated */}
-                  <Text style={styles.zoneText}>{getZoneLabel(checkin.zone)}</Text>
-                </View>
-                <View style={[styles.logInfo, { marginLeft: 10 }]}>
-                  <Text style={styles.logName}>{t('teacher') || 'Teacher'}</Text>
-                  <Text style={styles.logTime}>{formatTime(checkin.timestamp)}</Text>
-                </View>
+        {/* Class mood snapshot */}
+        <View style={styles.snapshotCard}>
+          <View style={styles.snapshotHeader}>
+            <Text style={styles.sectionTitle}>{t('class_mood_snapshot') || 'Class Mood Snapshot'}</Text>
+            <Text style={styles.snapshotTotal}>{todaySnapshot.total} {t('check_ins') || 'check-ins'}</Text>
+          </View>
+          <View style={styles.snapshotRow}>
+            {(['blue', 'green', 'yellow', 'red'] as const).map((zone) => (
+              <View key={zone} style={styles.snapshotItem}>
+                <View style={[styles.snapshotDot, { backgroundColor: ZONE_COLORS[zone] }]} />
+                <Text style={styles.snapshotZoneText}>{getZoneLabel(zone)}</Text>
+                <Text style={styles.snapshotValue}>{todaySnapshot[zone]}</Text>
               </View>
-            ))
-          ) : (
-            <View style={styles.emptyLogs}>
-              <MaterialIcons name="self-improvement" size={42} color="#CCC" />
-              <Text style={styles.emptyLogsText}>{t('no_checkins_yet') || 'No self check-ins yet'}</Text>
-            </View>
-          )}
+            ))}
+          </View>
         </View>
-
 
         {/* Resources Button */}
         <TouchableOpacity style={styles.resourcesButton} onPress={() => router.push('/teacher/resources')}>
@@ -252,23 +244,6 @@ export default function TeacherDashboardScreen() {
             </ScrollView>
           </View>
         )}
-
-        {/* Class mood snapshot - shows filtered results */}
-        <View style={styles.snapshotCard}>
-          <View style={styles.snapshotHeader}>
-            <Text style={styles.sectionTitle}>{t('class_mood_snapshot') || 'Class Mood Snapshot'}</Text>
-            <Text style={styles.snapshotTotal}>{todaySnapshot.total} {t('check_ins') || 'check-ins'}</Text>
-          </View>
-          <View style={styles.snapshotRow}>
-            {(['blue', 'green', 'yellow', 'red'] as const).map((zone) => (
-              <View key={zone} style={styles.snapshotItem}>
-                <View style={[styles.snapshotDot, { backgroundColor: ZONE_COLORS[zone] }]} />
-                <Text style={styles.snapshotZoneText}>{getZoneLabel(zone)}</Text>
-                <Text style={styles.snapshotValue}>{todaySnapshot[zone]}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
 
         {/* Period Selector */}
         <View style={styles.periodSelector}>
@@ -363,7 +338,7 @@ export default function TeacherDashboardScreen() {
 
         {/* Recent Check-ins */}
         <View style={styles.recentSection}>
-          <Text style={styles.sectionTitle}>{t('recent_check_ins')}</Text>
+          <Text style={styles.sectionTitle}>{t('recent_check_ins') || 'Recent Check-ins — Students'}</Text>
           {recentLogs.length > 0 ? (
             recentLogs.slice(0, 10).map((log) => {
               const student = getStudent(log.student_id);
@@ -418,7 +393,30 @@ export default function TeacherDashboardScreen() {
           <MaterialIcons name="chevron-right" size={24} color="white" />
         </TouchableOpacity>
 
-        {/* ✅ Fixed: Widget button translated */}
+        {/* Your Check-ins */}
+        <View style={styles.recentSection}>
+          <Text style={styles.sectionTitle}>{t('your_check_ins') || 'Your Check-ins'}</Text>
+          {teacherCheckins.length > 0 ? (
+            teacherCheckins.map((checkin) => (
+              <View key={checkin.id} style={styles.logItem}>
+                <View style={[styles.zoneIndicator, { backgroundColor: ZONE_COLORS[checkin.zone as keyof typeof ZONE_COLORS] || '#999' }]}>
+                  <Text style={styles.zoneText}>{getZoneLabel(checkin.zone)}</Text>
+                </View>
+                <View style={[styles.logInfo, { marginLeft: 10 }]}>
+                  <Text style={styles.logName}>{t('teacher') || 'Teacher'}</Text>
+                  <Text style={styles.logTime}>{formatTime(checkin.timestamp)}</Text>
+                </View>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyLogs}>
+              <MaterialIcons name="self-improvement" size={42} color="#CCC" />
+              <Text style={styles.emptyLogsText}>{t('no_checkins_yet') || 'No self check-ins yet'}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Classroom Widget */}
         <TouchableOpacity
           style={[styles.resourcesButton, { backgroundColor: '#9C27B0', marginTop: 16, marginBottom: 24 }]}
           onPress={() => router.push('/teacher/widget')}
