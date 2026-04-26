@@ -148,29 +148,46 @@ export default function StudentDetailScreen() {
       setAnalytics(analyticsData);
       setLogs(logsData);
       setAvailableMonths(months);
-      // Fetch all strategies (school custom + admin + family shared)
+      // Fetch all strategies from helpers + custom helpers + family
       try {
-        const allStrats = await teacherHomeDataApi.getAllStrategies(studentId);
-        // Combine school and family strategies into one list
-        const schoolStrats = (allStrats.school_strategies || []).map((s: any) => ({
-          ...s,
-          source: 'school',
-        }));
-        const familyStrats = (allStrats.family_strategies || []).map((s: any) => ({
-          ...s,
-          name: s.name || s.strategy_name,
-          description: s.description || s.strategy_description,
-          source: 'home',
-        }));
-        setStrategies([...schoolStrats, ...familyStrats] as any);
-        setAllStrategies({ school: schoolStrats, family: familyStrats });
+        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const token = await AsyncStorage.getItem('session_token');
+        
+        // Load helpers for all zones
+        const helperPromises = ['blue','green','yellow','red'].map(zone =>
+          fetch(`${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=en`)
+            .then(r => r.json()).catch(() => [])
+        );
+        const helperResults = await Promise.all(helperPromises);
+        const allHelpers = helperResults.flat();
+        
+        // Load custom helpers for this student
+        const customRes = await fetch(`${BACKEND_URL}/api/custom-strategies?student_id=${studentId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const customHelpers = customRes.ok ? await customRes.json() : [];
+        
+        // Combine all
+        const combined = [
+          ...allHelpers.map((h: any) => ({ ...h, id: h.id || h.helper_id, source: 'school' })),
+          ...customHelpers.map((h: any) => ({ ...h, source: 'custom', name: h.name || h.helper_name })),
+        ];
+        setStrategies(combined as any);
+        
+        // Also load teacher/family strategies
+        try {
+          const allStrats = await teacherHomeDataApi.getAllStrategies(studentId);
+          const schoolStrats = (allStrats.school_strategies || []).map((s: any) => ({ ...s, source: 'school' }));
+          const familyStrats = (allStrats.family_strategies || []).map((s: any) => ({
+            ...s, name: s.name || s.strategy_name, description: s.description || s.strategy_description, source: 'home',
+          }));
+          setAllStrategies({ school: [...schoolStrats, ...customHelpers], family: familyStrats });
+        } catch { setAllStrategies({ school: customHelpers, family: [] }); }
+        
       } catch (stratErr) {
         console.log('Strategies fetch error:', stratErr);
-        // Fallback to basic strategies API
-        try {
-          const basic = await strategiesApi.getAll(studentId);
-          setStrategies(basic || []);
-        } catch { setStrategies([]); }
+        setStrategies([]);
       }
       
       if (statusData) {
@@ -188,8 +205,8 @@ export default function StudentDetailScreen() {
           setAllStrategies({ school: strats.school_strategies || [], family: strats.family_strategies || [] });
         } catch (e) { console.log('All strategies:', e); }
 
-        // If linked and sharing enabled, fetch home data
-        if (statusData.is_linked_to_parent && statusData.home_sharing_enabled) {
+        // If linked, fetch home data regardless (teacher can see school data always)
+        if (statusData.is_linked_to_parent) {
           try {
             const homeDataResult = await teacherHomeDataApi.getStudentHomeData(studentId, selectedPeriod);
             setHomeData(homeDataResult);

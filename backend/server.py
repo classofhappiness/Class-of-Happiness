@@ -2027,8 +2027,48 @@ async def get_helpers(feeling_colour: Optional[str] = None, student_id: Optional
 
 # Keep old endpoint name for frontend compatibility
 @api_router.get("/strategies")
-async def get_strategies(zone: Optional[str] = None, student_id: Optional[str] = None, lang: str = "en"):
-    return await get_helpers(feeling_colour=zone, student_id=student_id, lang=lang)
+async def get_strategies(zone: Optional[str] = None, feeling_colour: Optional[str] = None, 
+                          student_id: Optional[str] = None, lang: str = "en"):
+    """Returns strategies - delegates to helpers endpoint for consistency."""
+    effective_zone = zone or feeling_colour
+    # Get default helpers for this zone
+    helpers_result = supabase.table("helpers").select("*")
+    if effective_zone:
+        helpers_result = helpers_result.eq("feeling_colour", effective_zone)
+    if lang and lang != "en":
+        helpers_result = helpers_result.eq("lang", lang)
+    else:
+        helpers_result = helpers_result.eq("lang", "en")
+    result = helpers_result.execute()
+    helpers = result.data or []
+    
+    # Also get custom helpers for the student
+    custom = []
+    if student_id:
+        try:
+            custom_result = supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute()
+            for h in (custom_result.data or []):
+                if not effective_zone or h.get("feeling_colour") == effective_zone:
+                    custom.append({
+                        **h,
+                        "zone": h.get("feeling_colour", h.get("zone", effective_zone)),
+                        "is_custom": True,
+                    })
+        except Exception: pass
+    
+    # Normalise helpers to strategy format
+    strategies = []
+    for h in helpers:
+        strategies.append({
+            "id": h.get("id", h.get("helper_id", "")),
+            "name": h.get("name", ""),
+            "description": h.get("description", ""),
+            "icon": h.get("icon", "star"),
+            "zone": h.get("feeling_colour", effective_zone or "green"),
+            "feeling_colour": h.get("feeling_colour", effective_zone or "green"),
+        })
+    return strategies + custom
+
 
 @api_router.post("/custom-strategies")
 async def create_custom_strategy_alias(request: Request):

@@ -179,7 +179,7 @@ export default function FamilyCheckInScreen() {
                   key={zone.id}
                   style={[
                     styles.zoneCard,
-                    { backgroundColor: zone.color },
+                    { backgroundColor: selectedZone === zone.id ? zone.color : zone.color + 'CC' },
                     selectedZone === zone.id && styles.zoneCardSelected,
                   ]}
                   onPress={() => handleZoneSelect(zone.id)}

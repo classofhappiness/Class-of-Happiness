@@ -107,7 +107,13 @@ export default function LinkedChildDetailScreen() {
         linkedChildApi.getFamilyStrategies(id),
       ]);
       
-      setSchoolStrategies(schoolStrats.custom_strategies || []);
+      // Include both custom AND generic helpers
+      const genericRes = await Promise.all(['blue','green','yellow','red'].map(zone =>
+        fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=en`)
+          .then(r => r.json()).catch(() => [])
+      ));
+      const generic = genericRes.flat();
+      setSchoolStrategies([...generic, ...(schoolStrats.custom_strategies || [])]);
       setFamilyStrategies(familyStrats);
       
     } catch (error) {
