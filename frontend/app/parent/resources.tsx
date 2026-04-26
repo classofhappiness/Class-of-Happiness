@@ -122,6 +122,7 @@ export default function ResourcesScreen() {
       const endpoint = isTeacherResource
         ? `/api/teacher-resources/${resourceId}/download`
         : `/api/resources/${resourceId}/download`;
+      const token2 = await AsyncStorage.getItem("session_token");
       const downloadUrl = `${BACKEND_URL}${endpoint}`;
 
       if (Platform.OS === 'web') {
@@ -130,7 +131,7 @@ export default function ResourcesScreen() {
         const timestamp = Date.now();
         const cacheDir = new Directory(Paths.cache);
         const downloadedFile = await File.downloadFileAsync(downloadUrl, cacheDir, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token2}` }
         });
 
         if (!downloadedFile.exists) {
