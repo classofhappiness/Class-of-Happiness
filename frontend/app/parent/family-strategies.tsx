@@ -1,155 +1,169 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, RefreshControl, Alert,
+  TouchableOpacity, RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 
 const ZONE_COLORS: Record<string, string> = {
-  blue: '#4A90D9',
-  green: '#4CAF50',
-  yellow: '#FFC107',
-  red: '#F44336',
+  blue: '#4A90D9', green: '#4CAF50', yellow: '#FFC107', red: '#F44336',
 };
-
 const ZONE_BG: Record<string, string> = {
-  blue: '#E8F0FB',
-  green: '#E8F5E9',
-  yellow: '#FFF8E1',
-  red: '#FFEBEE',
+  blue: '#EBF3FB', green: '#E8F5E9', yellow: '#FFF8E1', red: '#FFEBEE',
+};
+const ZONE_NAMES: Record<string, string> = {
+  blue: 'Blue Zone — Quiet Energy',
+  green: 'Green Zone — Balanced Energy',
+  yellow: 'Yellow Zone — Fizzing Energy',
+  red: 'Red Zone — Big Energy',
+};
+const ZONE_DESC: Record<string, string> = {
+  blue: 'Sad, tired, withdrawn, low motivation',
+  green: 'Calm, happy, focused, ready to connect',
+  yellow: 'Worried, frustrated, silly, losing control',
+  red: 'Angry, scared, overwhelmed, out of control',
 };
 
-// Built-in family strategies — always visible regardless of DB
-const DEFAULT_STRATEGIES: Array<{ zone: string; name: string; description: string; icon: string }> = [
-  { zone: 'green', name: 'Family Walk', description: 'Go for a short walk together outside.', icon: 'directions-walk' },
-  { zone: 'green', name: 'Gratitude Sharing', description: 'Each person shares one thing they are grateful for today.', icon: 'favorite' },
-  { zone: 'green', name: 'Family Dance', description: 'Put on a favourite song and have a dance together.', icon: 'music-note' },
-  { zone: 'blue', name: 'Quiet Time Together', description: 'Sit quietly side by side reading or drawing.', icon: 'book' },
-  { zone: 'blue', name: 'Comfort Hug', description: 'Give a long, warm hug to someone who needs it.', icon: 'child-care' },
-  { zone: 'blue', name: 'Hot Chocolate Moment', description: 'Make a warm drink and chat about your day.', icon: 'local-cafe' },
-  { zone: 'yellow', name: 'Deep Breathing', description: 'Breathe in for 4, hold for 4, out for 4. Do it together.', icon: 'air' },
-  { zone: 'yellow', name: 'Feelings Journal', description: 'Write or draw about how you are feeling right now.', icon: 'edit' },
-  { zone: 'yellow', name: 'Shake It Out', description: 'Stand up and shake your whole body for 30 seconds!', icon: 'accessibility' },
-  { zone: 'red', name: 'Calm Corner', description: 'Go to a quiet space and take 5 slow deep breaths.', icon: 'self-improvement' },
-  { zone: 'red', name: 'Cold Water', description: 'Splash cold water on your face or hold a cold drink.', icon: 'water' },
-  { zone: 'red', name: 'Count to 10', description: 'Slowly count to 10 together before responding.', icon: 'timer' },
+const FAMILY_STRATEGIES = [
+  // BLUE
+  { zone:'blue', name:'Side-by-Side Presence', description:'Sit quietly next to your child without expectation. No screens, no fixing — just presence. Research shows co-regulation starts with felt safety.', icon:'people', research:'Attachment theory (Bowlby)' },
+  { zone:'blue', name:'Warm Drink Ritual', description:'Make a warm drink together. The act of preparing something nourishing activates the caregiving system and signals safety.', icon:'local-cafe', research:'Gottman Emotion Coaching' },
+  { zone:'blue', name:'Name It to Tame It', description:'Gently name what you see: "You seem really low today." Labelling emotions reduces amygdala activation by up to 50%.', icon:'chat-bubble', research:'Siegel & Bryson (2012)' },
+  { zone:'blue', name:'Movement Invitation', description:'Suggest a 5-minute walk outside. Even slow movement increases serotonin and dopamine. Invite — never force.', icon:'directions-walk', research:'Exercise & mood regulation' },
+  { zone:'blue', name:'Comfort Object or Pet', description:'Encourage connection with a pet, soft toy or blanket. Physical comfort activates the parasympathetic nervous system.', icon:'pets', research:'Polyvagal Theory (Porges)' },
+  { zone:'blue', name:'Lowered Expectations Day', description:'Explicitly say "Today we can take it easy." Removing performance pressure allows natural energy to return without shame.', icon:'hotel', research:'Positive Discipline (Nelsen)' },
+  // GREEN
+  { zone:'green', name:'Gratitude Round', description:'Each family member shares one thing they appreciated today. Builds positive neural pathways and strengthens family cohesion over time.', icon:'favorite', research:'Positive Psychology (Seligman)' },
+  { zone:'green', name:'Family Dance Break', description:'Put on a favourite upbeat song and move together. Music + movement + laughter = powerful social bonding.', icon:'music-note', research:'Social rhythm therapy' },
+  { zone:'green', name:'Strength Spotting', description:'Point out a specific strength: "I noticed how patient you were today." Specific praise builds a secure self-concept.', icon:'star', research:'Growth mindset (Dweck)' },
+  { zone:'green', name:'Creative Together Time', description:'Draw, build, cook or make something with no goal in mind. Open-ended play activates curiosity and strengthens connection.', icon:'palette', research:'Play therapy research' },
+  { zone:'green', name:'Calm Problem-Solving', description:'When things are calm, solve problems together: "What could we do differently next time?" Green zone is ideal for collaborative planning.', icon:'lightbulb', research:'Collaborative Problem Solving (Greene)' },
+  { zone:'green', name:'Special One-on-One Time', description:'10-15 minutes of undivided attention where your child leads. Non-negotiable — significantly reduces attention-seeking behaviour.', icon:'child-care', research:'Attachment-based parenting' },
+  // YELLOW
+  { zone:'yellow', name:'Box Breathing Together', description:'Breathe in 4, hold 4, out 4, hold 4. Do it WITH your child — modelling is more powerful than instruction.', icon:'air', research:'HRV & vagal tone research' },
+  { zone:'yellow', name:'Validate First Always', description:'Before solving, say "That makes sense you\'d feel that way." Validation reduces emotional intensity within 90 seconds.', icon:'volunteer-activism', research:'DBT validation (Linehan)' },
+  { zone:'yellow', name:'Body Check-In', description:'Ask "Where do you feel this in your body?" Noticing physical sensations interrupts the spiral and increases interoceptive awareness.', icon:'accessibility', research:'Somatic therapy (Levine)' },
+  { zone:'yellow', name:'Feelings Journal or Drawing', description:'Offer a notebook to write or draw feelings. Externalising emotions reduces intensity and builds long-term emotional literacy.', icon:'edit', research:'Expressive writing research' },
+  { zone:'yellow', name:'Space with Check-Back', description:'Say "I\'ll give you 5 minutes and come back to check on you." Respects autonomy while maintaining warm connection.', icon:'timer', research:'Autonomy-supportive parenting' },
+  { zone:'yellow', name:'Playful Interruption', description:'For younger children — a funny face or ridiculous sound can work. Laughter physically downregulates the stress response.', icon:'mood', research:'Playful parenting (Cohen)' },
+  // RED
+  { zone:'red', name:'Regulate Yourself First', description:'Your nervous system regulates theirs. Take one slow breath before responding. Children co-regulate through adult calm — not words.', icon:'self-improvement', research:'Polyvagal Theory (Porges)' },
+  { zone:'red', name:'Safe Space — Not Isolation', description:'Guide your child to a quiet corner WITH you nearby. Isolation increases shame; proximity while calm reduces it.', icon:'home', research:'Attachment-based discipline' },
+  { zone:'red', name:'Cold Water Reset', description:'Splash cold water on the face or hold a cold drink. This activates the dive reflex, rapidly reducing heart rate.', icon:'water', research:'Physiological self-regulation' },
+  { zone:'red', name:'No Teaching in the Storm', description:'Wait until the red zone passes before discussing what happened. The reasoning brain goes offline during high arousal.', icon:'do-not-disturb', research:'Siegel — Window of Tolerance' },
+  { zone:'red', name:'Reconnect Before Redirect', description:'After the storm, reconnect with warmth first: a hug, eye contact, soft voice. Only then address behaviour — calmly.', icon:'favorite-border', research:'Gottman Emotion Coaching' },
+  { zone:'red', name:'Model Repair', description:'If you lost your cool, model repair: "I\'m sorry I raised my voice. Let\'s try again." Repair is more powerful than perfection.', icon:'handshake', research:'Rupture-repair cycle (Tronick)' },
 ];
 
 export default function FamilyStrategiesScreen() {
   const router = useRouter();
-  const { t, language } = useApp();
+  const { t } = useApp();
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
+  const [expandedStrategy, setExpandedStrategy] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const zones = ['green', 'blue', 'yellow', 'red'];
-
-  const getZoneLabel = (zone: string) => {
-    const key = `${zone}_label`;
-    const labels: Record<string, string> = {
-      blue: language === 'pt' ? 'Azul' : 'Blue',
-      green: language === 'pt' ? 'Verde' : 'Green',
-      yellow: language === 'pt' ? 'Amarelo' : 'Yellow',
-      red: language === 'pt' ? 'Vermelho' : 'Red',
-    };
-    return t(key) || labels[zone] || zone;
-  };
-
   const filteredStrategies = selectedZone
-    ? DEFAULT_STRATEGIES.filter(s => s.zone === selectedZone)
-    : DEFAULT_STRATEGIES;
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 500);
-  };
+    ? FAMILY_STRATEGIES.filter(s => s.zone === selectedZone)
+    : FAMILY_STRATEGIES;
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header with back button */}
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
-          <Text style={styles.backText}>{t('back') || 'Back'}</Text>
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>{t('family_strategies') || 'Family Strategies'}</Text>
-        <View style={{ width: 60 }} />
+        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
       >
-        {/* Subtitle */}
         <Text style={styles.subtitle}>
-          {language === 'pt'
-            ? 'Estratégias para apoiar o bem-estar emocional em casa'
-            : 'Strategies to support emotional wellbeing at home'}
+          Evidence-based strategies for parents. Tap any card to read the full strategy and its research backing.
         </Text>
 
-        {/* Zone Filter */}
-        <View style={styles.zoneFilter}>
+        {/* Zone filter tabs - matching app style */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          style={{ marginBottom: 14, marginHorizontal: -4 }}
+          contentContainerStyle={{ paddingHorizontal: 4, gap: 8, flexDirection: 'row' }}>
           <TouchableOpacity
-            style={[styles.zoneChip, !selectedZone && styles.zoneChipAll]}
-            onPress={() => setSelectedZone(null)}
-          >
-            <Text style={[styles.zoneChipText, !selectedZone && styles.zoneChipTextActive]}>
-              {t('all_students')?.replace('Alunos', '') || 'All'}
-            </Text>
+            style={[styles.zoneChip, !selectedZone && styles.zoneChipActive]}
+            onPress={() => setSelectedZone(null)}>
+            <Text style={[styles.zoneChipText, !selectedZone && styles.zoneChipTextActive]}>All Zones</Text>
           </TouchableOpacity>
           {zones.map(zone => (
-            <TouchableOpacity
-              key={zone}
-              style={[
-                styles.zoneChip,
-                { borderColor: ZONE_COLORS[zone] },
-                selectedZone === zone && { backgroundColor: ZONE_COLORS[zone] },
-              ]}
-              onPress={() => setSelectedZone(selectedZone === zone ? null : zone)}
-            >
-              <View style={[styles.zoneDot, { backgroundColor: ZONE_COLORS[zone] }]} />
-              <Text style={[
-                styles.zoneChipText,
-                selectedZone === zone && { color: 'white' },
-              ]}>
-                {getZoneLabel(zone)}
+            <TouchableOpacity key={zone}
+              style={[styles.zoneChip, selectedZone === zone && { backgroundColor: ZONE_COLORS[zone], borderColor: ZONE_COLORS[zone] }]}
+              onPress={() => setSelectedZone(selectedZone === zone ? null : zone)}>
+              <Text style={[styles.zoneChipText, selectedZone === zone && styles.zoneChipTextActive]}>
+                {zone.charAt(0).toUpperCase() + zone.slice(1)}
               </Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
 
-        {/* Strategy Cards */}
-        {filteredStrategies.map((strategy, index) => (
-          <View key={index} style={[styles.strategyCard, { borderLeftColor: ZONE_COLORS[strategy.zone] }]}>
-            <View style={[styles.iconContainer, { backgroundColor: ZONE_BG[strategy.zone] }]}>
-              <MaterialIcons
-                name={strategy.icon as any}
-                size={28}
-                color={ZONE_COLORS[strategy.zone]}
-              />
-            </View>
-            <View style={styles.strategyContent}>
-              <View style={styles.strategyHeader}>
-                <Text style={styles.strategyName}>{strategy.name}</Text>
-                <View style={[styles.zonePill, { backgroundColor: ZONE_BG[strategy.zone] }]}>
-                  <Text style={[styles.zonePillText, { color: ZONE_COLORS[strategy.zone] }]}>
-                    {getZoneLabel(strategy.zone)}
-                  </Text>
-                </View>
-              </View>
-              <Text style={styles.strategyDesc}>{strategy.description}</Text>
-            </View>
+        {/* Zone info card */}
+        {selectedZone && (
+          <View style={[styles.zoneInfoCard, { borderLeftColor: ZONE_COLORS[selectedZone], backgroundColor: ZONE_BG[selectedZone] }]}>
+            <Text style={[styles.zoneInfoTitle, { color: ZONE_COLORS[selectedZone] }]}>{ZONE_NAMES[selectedZone]}</Text>
+            <Text style={styles.zoneInfoDesc}>{ZONE_DESC[selectedZone]}</Text>
           </View>
-        ))}
+        )}
 
-        {/* Info card */}
-        <View style={styles.infoCard}>
-          <MaterialIcons name="info" size={20} color="#5C6BC0" />
-          <Text style={styles.infoText}>
-            {language === 'pt'
-              ? 'Estas estratégias ajudam as famílias a apoiar o bem-estar emocional em casa.'
-              : 'These strategies help families support emotional wellbeing at home together.'}
+        {/* Strategies grouped by zone */}
+        {(!selectedZone ? zones : [selectedZone]).map(zone => {
+          const strats = filteredStrategies.filter(s => s.zone === zone);
+          if (strats.length === 0) return null;
+          return (
+            <View key={zone}>
+              {!selectedZone && (
+                <TouchableOpacity
+                  style={[styles.zoneSectionHeader, { backgroundColor: ZONE_COLORS[zone] }]}
+                  onPress={() => setSelectedZone(zone)} activeOpacity={0.85}>
+                  <Text style={styles.zoneSectionTitle}>{ZONE_NAMES[zone]}</Text>
+                  <Text style={styles.zoneSectionDesc}>{ZONE_DESC[zone]}</Text>
+                </TouchableOpacity>
+              )}
+              {strats.map((s, i) => {
+                const key = `${zone}-${i}`;
+                const isOpen = expandedStrategy === key;
+                return (
+                  <TouchableOpacity key={key}
+                    style={[styles.stratCard, { borderLeftColor: ZONE_COLORS[zone] }]}
+                    onPress={() => setExpandedStrategy(isOpen ? null : key)}
+                    activeOpacity={0.8}>
+                    <View style={styles.stratHeader}>
+                      <View style={[styles.stratIcon, { backgroundColor: ZONE_BG[zone] }]}>
+                        <MaterialIcons name={s.icon as any} size={22} color={ZONE_COLORS[zone]} />
+                      </View>
+                      <Text style={styles.stratName}>{s.name}</Text>
+                      <MaterialIcons name={isOpen ? 'expand-less' : 'expand-more'} size={20} color="#999" />
+                    </View>
+                    {isOpen && (
+                      <View style={styles.stratBody}>
+                        <Text style={styles.stratDesc}>{s.description}</Text>
+                        <View style={styles.researchBadge}>
+                          <MaterialIcons name="science" size={11} color="#5C6BC0" />
+                          <Text style={styles.researchText}>{s.research}</Text>
+                        </View>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          );
+        })}
+
+        <View style={styles.footer}>
+          <MaterialIcons name="info-outline" size={14} color="#AAA" />
+          <Text style={styles.footerText}>
+            Based on Zones of Regulation, Gottman Emotion Coaching, Collaborative Problem Solving, Attachment Theory, and Polyvagal Theory.
           </Text>
         </View>
       </ScrollView>
@@ -161,51 +175,32 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
   topBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12, paddingTop: 20,
-    backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
+    paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#F8F9FA',
+    borderBottomWidth: 1, borderBottomColor: '#E0E0E0',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 3,
   },
-  backButton: { flexDirection: 'row', alignItems: 'center', gap: 4, width: 60 },
-  backText: { fontSize: 14, color: '#333' },
-  topBarTitle: { fontSize: 18, fontWeight: '600', color: '#333' },
-  scrollContent: { padding: 16, paddingBottom: 40 },
-  subtitle: { fontSize: 14, color: '#666', marginBottom: 16, lineHeight: 20 },
-  zoneFilter: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20,
-  },
-  zoneChip: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14,
-    paddingVertical: 8, borderRadius: 20, borderWidth: 1.5,
-    borderColor: '#E0E0E0', backgroundColor: 'white', gap: 6,
-  },
-  zoneChipAll: { backgroundColor: '#5C6BC0', borderColor: '#5C6BC0' },
-  zoneChipText: { fontSize: 13, fontWeight: '500', color: '#666' },
+  backButton: { padding: 4 },
+  topBarTitle: { fontSize: 17, fontWeight: '700', color: '#333' },
+  scrollContent: { padding: 16, paddingBottom: 50 },
+  subtitle: { fontSize: 13, color: '#888', marginBottom: 14, lineHeight: 18, textAlign: 'center', fontStyle: 'italic' },
+  zoneChip: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, backgroundColor: '#F0F0F0', borderWidth: 1.5, borderColor: '#E0E0E0' },
+  zoneChipActive: { backgroundColor: '#5C6BC0', borderColor: '#5C6BC0' },
+  zoneChipText: { fontSize: 13, fontWeight: '600', color: '#666' },
   zoneChipTextActive: { color: 'white' },
-  zoneDot: { width: 10, height: 10, borderRadius: 5 },
-  strategyCard: {
-    flexDirection: 'row', backgroundColor: 'white', borderRadius: 14,
-    padding: 14, marginBottom: 12, borderLeftWidth: 4,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08, shadowRadius: 3, elevation: 2,
-    alignItems: 'center', gap: 14,
-  },
-  iconContainer: {
-    width: 52, height: 52, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  strategyContent: { flex: 1 },
-  strategyHeader: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', marginBottom: 4, gap: 8,
-  },
-  strategyName: { fontSize: 15, fontWeight: '600', color: '#333', flex: 1 },
-  strategyDesc: { fontSize: 13, color: '#666', lineHeight: 18 },
-  zonePill: {
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, flexShrink: 0,
-  },
-  zonePillText: { fontSize: 11, fontWeight: '600' },
-  infoCard: {
-    flexDirection: 'row', backgroundColor: '#E8EAF6', borderRadius: 12,
-    padding: 14, marginTop: 8, gap: 10, alignItems: 'flex-start',
-  },
-  infoText: { flex: 1, fontSize: 13, color: '#5C6BC0', lineHeight: 18 },
+  zoneInfoCard: { borderLeftWidth: 4, borderRadius: 10, padding: 12, marginBottom: 14 },
+  zoneInfoTitle: { fontSize: 15, fontWeight: '700', marginBottom: 3 },
+  zoneInfoDesc: { fontSize: 13, color: '#555', lineHeight: 18 },
+  zoneSectionHeader: { borderRadius: 12, padding: 14, marginBottom: 8, marginTop: 8 },
+  zoneSectionTitle: { fontSize: 15, fontWeight: '700', color: 'white' },
+  zoneSectionDesc: { fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
+  stratCard: { backgroundColor: 'white', borderRadius: 12, padding: 14, marginBottom: 8, borderLeftWidth: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
+  stratHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stratIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  stratName: { flex: 1, fontSize: 14, fontWeight: '600', color: '#333' },
+  stratBody: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
+  stratDesc: { fontSize: 13, color: '#555', lineHeight: 19, marginBottom: 8 },
+  researchBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EEF2FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start' },
+  researchText: { fontSize: 10, color: '#5C6BC0', fontWeight: '500' },
+  footer: { flexDirection: 'row', gap: 6, marginTop: 24, padding: 12, backgroundColor: '#F0F0F0', borderRadius: 10, alignItems: 'flex-start' },
+  footerText: { fontSize: 11, color: '#999', flex: 1, lineHeight: 16 },
 });
