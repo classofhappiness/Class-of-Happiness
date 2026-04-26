@@ -25,6 +25,53 @@ import {
 } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 
+// Pick image with camera or library choice
+const pickImageWithChoice = (
+  onSelect: (base64: string) => void,
+  setLoading?: (v: boolean) => void
+) => {
+  Alert.alert(
+    'Add Photo',
+    'Choose how to add a photo',
+    [
+      {
+        text: '📷 Take Photo',
+        onPress: async () => {
+          const perm = await ImagePicker.requestCameraPermissionsAsync();
+          if (!perm.granted) { Alert.alert('Permission needed', 'Allow camera access in Settings.'); return; }
+          setLoading?.(true);
+          const result = await ImagePicker.launchCameraAsync({
+            allowsEditing: true, aspect: [1,1], quality: 0.5, base64: true,
+          });
+          setLoading?.(false);
+          if (!result.canceled && result.assets[0].base64) {
+            onSelect(`data:image/jpeg;base64,${result.assets[0].base64}`);
+          }
+        },
+      },
+      {
+        text: '🖼️ Choose from Library',
+        onPress: async () => {
+          const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (!perm.granted) { Alert.alert('Permission needed', 'Allow photo library access in Settings.'); return; }
+          setLoading?.(true);
+          const result = await ImagePicker.launchImageLibraryAsync({
+            allowsEditing: true, aspect: [1,1], quality: 0.5, base64: true,
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          });
+          setLoading?.(false);
+          if (!result.canceled && result.assets[0].base64) {
+            onSelect(`data:image/jpeg;base64,${result.assets[0].base64}`);
+          }
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]
+  );
+};
+
+
+
 const screenWidth = Dimensions.get('window').width;
 
 const ZONE_COLORS: Record<string, string> = {
@@ -148,28 +195,15 @@ export default function ParentDashboard() {
     }
   };
 
-  // Pick image for edit modal
-  const pickImageForEdit = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.5,
-        base64: true,
+  // Pick image for edit modal - camera or library
+  const pickImageForEdit = () => {
+    pickImageWithChoice((base64) => {
+      setEditMember({
+        ...editMember,
+        avatar_type: 'custom',
+        avatar_custom: base64,
       });
-      
-      if (!result.canceled && result.assets[0].base64) {
-        setEditMember({
-          ...editMember,
-          avatar_type: 'custom',
-          avatar_custom: `data:image/jpeg;base64,${result.assets[0].base64}`,
-        });
-      }
-    } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image');
-    }
+    });
   };
 
   // Delete family member
@@ -229,21 +263,14 @@ export default function ParentDashboard() {
 
   const pickImage = async () => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.5,
-        base64: true,
-      });
-      
-      if (!result.canceled && result.assets[0].base64) {
+      pickImageWithChoice((base64) => {
         setNewMember({
           ...newMember,
           avatar_type: 'custom',
-          avatar_custom: `data:image/jpeg;base64,${result.assets[0].base64}`,
+          avatar_custom: base64,
         });
-      }
+      });
+      return; // pickImageWithChoice handles async
     } catch (error) {
       console.error('Error picking image:', error);
       Alert.alert('Error', 'Failed to pick image');

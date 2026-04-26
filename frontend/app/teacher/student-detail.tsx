@@ -865,17 +865,38 @@ export default function StudentDetailScreen() {
             <View style={styles.homeDataHeader}>
               <MaterialIcons name="home" size={24} color="#4CAF50" />
               <Text style={styles.sectionTitle}>{t('home_data') || 'Home Data'}</Text>
-              {sharingStatus.home_sharing_enabled ? (
-                <View style={styles.sharingEnabledBadge}>
-                  <MaterialIcons name="visibility" size={14} color="#4CAF50" />
-                  <Text style={styles.sharingEnabledText}>{t('sharing_on') || 'Sharing On'}</Text>
-                </View>
-              ) : (
-                <View style={styles.sharingDisabledBadge}>
-                  <MaterialIcons name="visibility-off" size={14} color="#999" />
-                  <Text style={styles.sharingDisabledText}>{t('sharing_off') || 'Sharing Off'}</Text>
-                </View>
-              )}
+            </View>
+            <Text style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>
+              {sharingStatus.home_sharing_enabled
+                ? `✅ Parent sharing on · ${sharingStatus.school_sharing_enabled ? '✅ School sharing on' : '⏸ School sharing off'}`
+                : `⏸ Parent sharing off · ${sharingStatus.school_sharing_enabled ? '✅ School sharing on' : '⏸ School sharing off'}`}
+            </Text>
+            {/* Share / No Share tabs */}
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+              <View style={{
+                flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center',
+                backgroundColor: sharingStatus.home_sharing_enabled && sharingStatus.school_sharing_enabled ? '#E8F5E9' : '#F5F5F5',
+                borderWidth: 1.5,
+                borderColor: sharingStatus.home_sharing_enabled && sharingStatus.school_sharing_enabled ? '#4CAF50' : '#E0E0E0',
+              }}>
+                <MaterialIcons name="visibility" size={16} color={sharingStatus.home_sharing_enabled && sharingStatus.school_sharing_enabled ? '#4CAF50' : '#CCC'} />
+                <Text style={{ fontSize: 11, fontWeight: '600', color: sharingStatus.home_sharing_enabled && sharingStatus.school_sharing_enabled ? '#4CAF50' : '#CCC', marginTop: 2 }}>
+                  Share
+                </Text>
+                <Text style={{ fontSize: 9, color: '#999', marginTop: 1 }}>Both enabled</Text>
+              </View>
+              <View style={{
+                flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center',
+                backgroundColor: !sharingStatus.home_sharing_enabled || !sharingStatus.school_sharing_enabled ? '#FFF3E0' : '#F5F5F5',
+                borderWidth: 1.5,
+                borderColor: !sharingStatus.home_sharing_enabled || !sharingStatus.school_sharing_enabled ? '#FF9800' : '#E0E0E0',
+              }}>
+                <MaterialIcons name="visibility-off" size={16} color={!sharingStatus.home_sharing_enabled || !sharingStatus.school_sharing_enabled ? '#FF9800' : '#CCC'} />
+                <Text style={{ fontSize: 11, fontWeight: '600', color: !sharingStatus.home_sharing_enabled || !sharingStatus.school_sharing_enabled ? '#FF9800' : '#CCC', marginTop: 2 }}>
+                  No Share
+                </Text>
+                <Text style={{ fontSize: 9, color: '#999', marginTop: 1 }}>One or both off</Text>
+              </View>
             </View>
             
             {sharingStatus.home_sharing_enabled && homeData ? (
