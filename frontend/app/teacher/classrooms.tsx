@@ -15,7 +15,7 @@ import {
 import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
-import { classroomsApi, studentsApi } from '../../src/utils/api';
+import { classroomsApi, studentsApi, customStrategiesApi } from '../../src/utils/api';
 
 const ZONE_COLORS = {
   blue: '#4A90D9',
