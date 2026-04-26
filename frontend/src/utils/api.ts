@@ -605,6 +605,9 @@ export const linkedChildApi = {
 
   toggleHomeSharing: (studentId: string): Promise<any> =>
     apiRequest(`/parent/linked-child/${studentId}/toggle-home-sharing`, { method: 'PUT' }),
+
+  unlink: (studentId: string): Promise<any> =>
+    apiRequest(`/parent/linked-child/${studentId}/unlink`, { method: 'DELETE' }),
   
   // Home check-ins
   createCheckIn: (studentId: string, data: { zone: string; strategies_selected: string[]; comment?: string }): Promise<any> =>

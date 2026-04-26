@@ -17,10 +17,10 @@ import { useApp } from '../../src/context/AppContext';
 import { familyApi, FamilyMember, strategiesApi, Strategy } from '../../src/utils/api';
 
 const getZones = (t: (key: string) => string) => [
-  { id: 'blue', name: t('blue_label')||'Blue', color: '#4A90D9', desc: t('blue_words')||'Sad, Tired, Bored', face: '😢' },
-  { id: 'green', name: t('green_label')||'Green', color: '#4CAF50', desc: t('green_words')||'Calm, Happy, Focused', face: '😊' },
-  { id: 'yellow', name: t('yellow_label')||'Yellow', color: '#FFC107', desc: t('yellow_words')||'Worried, Frustrated, Silly', face: '😐' },
-  { id: 'red', name: t('red_label')||'Red', color: '#F44336', desc: t('red_words')||'Angry, Scared, Out of Control', face: '🤯' },
+  { id: 'blue', name: t('blue_zone')||'Blue Zone', color: '#4A90D9', desc: t('blue_feeling')||'Quiet Energy — Sad, Tired, Bored', face: '😢', emoji: '😢' },
+  { id: 'green', name: t('green_zone')||'Green Zone', color: '#4CAF50', desc: t('green_feeling')||'Balanced Energy — Calm, Happy, Focused', face: '😊', emoji: '😊' },
+  { id: 'yellow', name: t('yellow_zone')||'Yellow Zone', color: '#FFC107', desc: t('yellow_feeling')||'Fizzing Energy — Worried, Silly, Frustrated', face: '😟', emoji: '😟' },
+  { id: 'red', name: t('red_zone')||'Red Zone', color: '#F44336', desc: t('red_feeling')||'Big Energy — Angry, Scared, Overwhelmed', face: '😣', emoji: '😣' },
 ];
 
 const MAX_COMMENT_LENGTH = 100;
