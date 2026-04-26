@@ -86,6 +86,12 @@ export default function FamilyStrategiesScreen() {
         <Text style={styles.subtitle}>
           Evidence-based strategies for parents. Tap any card to read the full strategy and its research backing.
         </Text>
+        <View style={styles.infoNote}>
+          <MaterialIcons name="info" size={14} color="#5C6BC0" />
+          <Text style={styles.infoNoteText}>
+            For educational purposes only. Not a substitute for professional advice. See disclaimer below.
+          </Text>
+        </View>
 
         {/* Zone filter tabs - matching app style */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
@@ -160,10 +166,29 @@ export default function FamilyStrategiesScreen() {
           );
         })}
 
+        {/* Research attribution */}
         <View style={styles.footer}>
           <MaterialIcons name="info-outline" size={14} color="#AAA" />
           <Text style={styles.footerText}>
             Based on Zones of Regulation, Gottman Emotion Coaching, Collaborative Problem Solving, Attachment Theory, and Polyvagal Theory.
+          </Text>
+        </View>
+
+        {/* Legal disclaimer */}
+        <View style={styles.disclaimer}>
+          <MaterialIcons name="gavel" size={14} color="#999" />
+          <Text style={styles.disclaimerText}>
+            <Text style={styles.disclaimerBold}>Important Notice: </Text>
+            The strategies provided in this section are for general educational and informational purposes only. They are not a substitute for professional psychological, medical, or therapeutic advice, diagnosis, or treatment.{'
+
+'}
+            If you have concerns about your child's emotional, mental, or physical health, please consult a qualified healthcare or mental health professional.{'
+
+'}
+            Class of Happiness is not liable for any outcomes resulting from the application of strategies found in this app. All strategies should be applied with parental judgement and in accordance with your child's individual needs.{'
+
+'}
+            © {new Date().getFullYear()} Class of Happiness. All rights reserved.
           </Text>
         </View>
       </ScrollView>
@@ -203,4 +228,17 @@ const styles = StyleSheet.create({
   researchText: { fontSize: 10, color: '#5C6BC0', fontWeight: '500' },
   footer: { flexDirection: 'row', gap: 6, marginTop: 24, padding: 12, backgroundColor: '#F0F0F0', borderRadius: 10, alignItems: 'flex-start' },
   footerText: { fontSize: 11, color: '#999', flex: 1, lineHeight: 16 },
+  infoNote: {
+    flexDirection: 'row', gap: 6, marginBottom: 14, padding: 10,
+    backgroundColor: '#EEF2FF', borderRadius: 8, alignItems: 'center',
+  },
+  infoNoteText: { fontSize: 11, color: '#5C6BC0', flex: 1, lineHeight: 15 },
+  disclaimer: {
+    flexDirection: 'row', gap: 8, marginTop: 12, padding: 14,
+    backgroundColor: '#FFF8E1', borderRadius: 10,
+    borderWidth: 1, borderColor: '#FFE082',
+    alignItems: 'flex-start',
+  },
+  disclaimerText: { fontSize: 11, color: '#666', flex: 1, lineHeight: 17 },
+  disclaimerBold: { fontWeight: '700', color: '#555' },
 });

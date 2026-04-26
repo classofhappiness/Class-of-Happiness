@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -304,7 +305,12 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
           </TouchableOpacity>
         ))}
       </View>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'android' ? 80 : 0}
+      >
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {loading && <ActivityIndicator size="large" color="#3949AB" style={{marginTop:40}}/>}
 
         {!loading && tab==='analytics' && (
@@ -453,7 +459,7 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
                 </TouchableOpacity>
               ))}
             </View>
-            <TextInput style={styles.input} placeholder="User email..." value={unlinkEmail} onChangeText={setUnlinkEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#AAA"/>
+            <TextInput style={styles.input} placeholder="User email..." value={unlinkEmail} onChangeText={setUnlinkEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#AAA" returnKeyType="done" blurOnSubmit={true}/>
             <TouchableOpacity style={[styles.addBtn,{backgroundColor:'#F44336'}]} onPress={doUnlink}>
               <MaterialIcons name="link-off" size={18} color="white"/>
               <Text style={styles.addBtnText}>Confirm Unlink</Text>
