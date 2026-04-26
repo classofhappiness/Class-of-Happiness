@@ -137,30 +137,34 @@ export default function ManageClassroomsScreen() {
   };
 
   const handleBulkAddStrategy = async () => {
-    if (!selectedStrategy || selectedStudentIds.size === 0) {
-      Alert.alert('Select strategy and at least one student');
+    const isCustom = showCustomStrategyInput && customStrategyName.trim();
+    if (!isCustom && !selectedStrategy) {
+      Alert.alert('Please select a strategy or write a custom one');
+      return;
+    }
+    if (selectedStudentIds.size === 0) {
+      Alert.alert('Please select at least one student');
       return;
     }
     setAddingStrategy(true);
     try {
-      // Add strategy to each selected student
+      const stratName = isCustom ? customStrategyName.trim() : selectedStrategy!.name;
+      const stratDesc = isCustom ? customStrategyDesc.trim() : `Added by teacher for ${selectedZone} zone`;
+      const stratIcon = isCustom ? 'star' : selectedStrategy!.icon;
+
       await Promise.all(
         Array.from(selectedStudentIds).map(studentId =>
-          fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/helpers/custom`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              student_id: studentId,
-              name: selectedStrategy.name,
-              description: `Added by teacher for ${selectedZone} zone`,
-              feeling_colour: selectedZone,
-              icon: selectedStrategy.icon,
-              is_shared: false,
-            }),
+          customStrategiesApi.create({
+            student_id: studentId,
+            name: stratName,
+            description: stratDesc,
+            zone: selectedZone,
+            icon: stratIcon,
+            is_shared: true,
           })
         )
       );
-      Alert.alert('✅ Done!', `"${selectedStrategy.name}" added to ${selectedStudentIds.size} student(s).`);
+      Alert.alert('✅ Done!', `"${stratName}" added to ${selectedStudentIds.size} student(s).`);
       setStrategyModalVisible(false);
       setSelectedStrategy(null);
       setSelectedStudentIds(new Set());
