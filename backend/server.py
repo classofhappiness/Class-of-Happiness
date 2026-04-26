@@ -2030,6 +2030,48 @@ async def get_helpers(feeling_colour: Optional[str] = None, student_id: Optional
 async def get_strategies(zone: Optional[str] = None, student_id: Optional[str] = None, lang: str = "en"):
     return await get_helpers(feeling_colour=zone, student_id=student_id, lang=lang)
 
+@api_router.post("/custom-strategies")
+async def create_custom_strategy_alias(request: Request):
+    """Alias for /helpers/custom - used by classrooms and strategies pages."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        body = await request.json()
+        new_id = str(uuid.uuid4())
+        strategy = {
+            "id": new_id,
+            "student_id": body.get("student_id"),
+            "user_id": user["user_id"],
+            "name": body.get("name", ""),
+            "description": body.get("description", ""),
+            "zone": body.get("zone", body.get("feeling_colour", "green")),
+            "feeling_colour": body.get("zone", body.get("feeling_colour", "green")),
+            "icon": body.get("icon", "star"),
+            "is_shared": body.get("is_shared", True),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        result = supabase.table("custom_strategies").insert(strategy).execute()
+        return result.data[0] if result.data else strategy
+    except Exception as e:
+        logger.error(f"custom_strategies create error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/custom-strategies")
+async def get_custom_strategies(request: Request, student_id: Optional[str] = None):
+    """Get custom strategies for a student."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        query = supabase.table("custom_strategies").select("*")
+        if student_id:
+            query = query.eq("student_id", student_id)
+        result = query.execute()
+        return result.data or []
+    except Exception as e:
+        return []
+
 @api_router.post("/helpers/custom")
 async def create_custom_helper(helper: CustomHelperCreate, request: Request):
     user = await get_current_user(request)

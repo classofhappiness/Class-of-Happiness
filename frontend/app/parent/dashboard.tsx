@@ -484,13 +484,8 @@ export default function ParentDashboard() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Image
-            source={require('../../assets/images/logo_coh.png')}
-            style={styles.headerLogo}
-            resizeMode="contain"
-          />
-          <Text style={styles.headerTitle}>{t('family_dashboard')}</Text>
-          <Text style={styles.headerSubtitle}>{t('track_emotional_wellness')}</Text>
+          <Text style={styles.headerTitle}>{t('family_dashboard') || 'Family Dashboard'}</Text>
+          <Text style={styles.headerSubtitle}>{t('track_emotional_wellness') || 'Track emotional wellness at home'}</Text>
         </View>
 
         {/* Family Members Section */}
