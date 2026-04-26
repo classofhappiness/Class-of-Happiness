@@ -72,7 +72,7 @@ function ColourRow({ zone, count, total }: { zone:string, count:number, total:nu
 }
 
 function StrategyManager({ authToken, isSuperAdmin }: { authToken:string|null, isSuperAdmin:boolean }) {
-  const { t } = useApp();
+  const { t, logout } = useApp();
   const [type, setType] = useState<'teacher'|'student'>('teacher');
   const [strats, setStrats] = useState<any[]>([]);
   const [zone, setZone] = useState('blue');
@@ -257,7 +257,7 @@ function WorldWall({ authToken, t }: { authToken:string|null, t: (key:string)=>s
 }
 
 function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:any }) {
-  const { t } = useApp();
+  const { t, logout } = useApp();
   const [tab, setTab] = useState<'analytics'|'strategies'|'resources'|'settings'>('analytics');
   const [statsPeriod, setStatsPeriod] = useState<7|30|90>(7);
   const [loading, setLoading] = useState(false);
@@ -475,7 +475,7 @@ const SCHOOL_TYPES = ['International','Public','Private','Charter','Faith-based'
 const CURRICULA = ['IB (International Baccalaureate)','National','Cambridge','Montessori','Mixed/Other'];
 
 function SchoolSettingsTab({ authToken, user, wellbeingEmail, setWellbeingEmail, saveSettings, savingSettings }: any) {
-  const { t } = useApp();
+  const { t, logout } = useApp();
   const [profile, setProfile] = useState({
     school_name: (user as any)?.school_name || '',
     country: '', city: '', school_type: 'International',
@@ -633,7 +633,7 @@ function SchoolSettingsTab({ authToken, user, wellbeingEmail, setWellbeingEmail,
 
 // ── Admin Resource Upload Component ──────────────────────────────────────────
 function AdminResourceUpload({ authToken }: { authToken: string | null }) {
-  const { t } = useApp();
+  const { t, logout } = useApp();
   const [resources, setResources] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [uploading, setUploading] = React.useState(false);
@@ -977,7 +977,7 @@ export default function AdminDashboardScreen() {
   const [authToken, setAuthToken] = useState<string|null>(null);
   useEffect(() => { AsyncStorage.getItem('session_token').then(t=>setAuthToken(t)); }, []);
 
-  const { t } = useApp();
+  const { t, logout } = useApp();
   const isSuperAdmin = user?.role==='superadmin';
   const isSchoolAdmin = user?.role==='school_admin'||user?.role==='admin';
   const headerColor = isSuperAdmin ? '#3949AB' : '#5C6BC0';
@@ -995,7 +995,7 @@ export default function AdminDashboardScreen() {
           <TouchableOpacity
             onPress={() => Alert.alert('Logout', 'Are you sure you want to logout?', [
               {text:'Cancel',style:'cancel'},
-              {text:"Logout",style:"destructive",onPress:async()=>{const AS=(await import("@react-native-async-storage/async-storage")).default;await AS.clear();router.replace("/"as any);}}
+              {text:"Logout",style:"destructive",onPress:async()=>{const AS=(await import("@react-native-async-storage/async-storage")).default;await AS.clear(); logout();}}
             ])}
             style={{backgroundColor:'rgba(255,255,255,0.2)',padding:10,borderRadius:10,alignItems:'center'}}>
             <MaterialIcons name="logout" size={20} color="white" />
