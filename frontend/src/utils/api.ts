@@ -824,6 +824,7 @@ export interface StudentCollection {
   current_stage: number;
   current_points: number;
   total_creatures: number;
+  all_creatures: Creature[];
   total_collected: number;
   unlocked_moves: string[];
   unlocked_outfits: string[];
