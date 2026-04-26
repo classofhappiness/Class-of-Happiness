@@ -85,9 +85,14 @@ export default function TeacherResourcesScreen() {
   const fetchResources = async () => {
     try {
       const data = await teacherResourcesApi.getAll(selectedTopic);
-      setResources(data);
+      setResources(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching resources:', error);
+      // Try without topic filter as fallback
+      try {
+        const fallback = await teacherResourcesApi.getAll();
+        setResources(Array.isArray(fallback) ? fallback : []);
+      } catch { setResources([]); }
     } finally {
       setLoading(false);
     }

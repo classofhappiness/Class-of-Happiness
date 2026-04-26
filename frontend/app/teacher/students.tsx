@@ -31,7 +31,7 @@ export default function ManageStudentsScreen() {
 
   // Set translated header title - depend on language/translations to trigger updates
   useLayoutEffect(() => {
-    navigation.setOptions({
+    navigation.setOptions({ headerShown: false,
       title: t('students'),
     });
   }, [navigation, language, translations]);
@@ -473,12 +473,7 @@ const styles = StyleSheet.create({
   filterScroll: {
     maxHeight: 50,
   },
-  filterContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    gap: 8,
-    flexDirection: 'row',
-  },
+  filterContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   filterChip: {
     paddingHorizontal: 16,
     paddingVertical: 8,

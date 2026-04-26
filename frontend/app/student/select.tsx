@@ -19,8 +19,9 @@ interface StudentCreatureData {
 export default function StudentSelectScreen() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { students, presetAvatars, setCurrentStudent, currentStudent, refreshStudents, t, language, translations } = useApp();
+  const { students, classrooms, presetAvatars, setCurrentStudent, currentStudent, refreshStudents, t, language, translations } = useApp();
   const [showCollection, setShowCollection] = useState(false);
+  const [selectedClassroom, setSelectedClassroom] = useState<string | null>(null);
   const [collectionData, setCollectionData] = useState<StudentCollection | null>(null);
   const [selectedStudentForCollection, setSelectedStudentForCollection] = useState<string | null>(null);
   const [studentCreatures, setStudentCreatures] = useState<Record<string, StudentCreatureData>>({});
@@ -56,7 +57,7 @@ export default function StudentSelectScreen() {
             currentStage: c.current_stage || 0,
             collectedCreatures: c.collected_creatures || [],
             totalPoints: c.current_points || 0,
-            allCreatures: c.total_creatures || [],
+            allCreatures: c.all_creatures || [],
           } as any;
         }
       });
@@ -191,10 +192,31 @@ export default function StudentSelectScreen() {
     <View style={styles.container}>
       <TranslatedHeader title={t('select_profile')} backTo="/" />
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Classroom filter tabs */}
+        {classrooms && classrooms.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            style={{marginBottom:8}} contentContainerStyle={{paddingHorizontal:4, gap:8, flexDirection:'row'}}>
+            <TouchableOpacity
+              style={{paddingHorizontal:14,paddingVertical:7,borderRadius:16,
+                backgroundColor: !selectedClassroom ? '#5C6BC0' : '#F0F0F0'}}
+              onPress={() => setSelectedClassroom(null)}>
+              <Text style={{fontSize:13,fontWeight:'600',color: !selectedClassroom ? 'white' : '#666'}}>All</Text>
+            </TouchableOpacity>
+            {classrooms.map((c: any) => (
+              <TouchableOpacity key={c.id}
+                style={{paddingHorizontal:14,paddingVertical:7,borderRadius:16,
+                  backgroundColor: selectedClassroom === c.id ? '#5C6BC0' : '#F0F0F0'}}
+                onPress={() => setSelectedClassroom(c.id)}>
+                <Text style={{fontSize:13,fontWeight:'600',
+                  color: selectedClassroom === c.id ? 'white' : '#666'}}>{c.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
         <Text style={styles.instruction}>{t('tap_to_check_in')}</Text>
 
         <View style={styles.studentsGrid}>
-          {students.map((student) => (
+          {(selectedClassroom ? students.filter(s => s.classroom_id === selectedClassroom) : students).map((student) => (
             <Pressable
               key={student.id}
               style={({ pressed }) => [

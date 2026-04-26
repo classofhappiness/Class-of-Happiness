@@ -337,13 +337,14 @@ export default function StudentDetailScreen() {
           {/* Strategies Button with Tooltip */}
           <View style={styles.tooltipContainer}>
             <TouchableOpacity
-              style={styles.strategiesButton}
+              style={[styles.strategiesButton, {alignItems:'center'}]}
               onPress={() => router.push({
                 pathname: '/teacher/strategies',
                 params: { studentId: student.id }
               })}
             >
               <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
+              <Text style={styles.iconBtnLabel}>Strategies</Text>
             </TouchableOpacity>
             {activeTooltip === 'strategies' && (
               <Animated.View style={[styles.tooltip, { opacity: tooltipOpacity }]}>

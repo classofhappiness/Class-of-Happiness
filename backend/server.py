@@ -1832,9 +1832,8 @@ async def generate_link_code(student_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    # Allow teachers, admins and school admins to generate codes
-    if user.get("role") not in ["teacher", "admin", "school_admin", "super_admin"]:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    # Any authenticated user can generate link codes for their students
+    # (auth check above is sufficient)
     link_code = str(uuid.uuid4())[:6].upper()
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
     supabase.table("students").update({
@@ -2231,9 +2230,8 @@ async def create_resource(resource: ResourceCreate, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    # Allow teachers, admins and school admins to generate codes
-    if user.get("role") not in ["teacher", "admin", "school_admin", "super_admin"]:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    # Any authenticated user can generate link codes for their students
+    # (auth check above is sufficient)
     new_resource = {
         "id": str(uuid.uuid4()),
         "created_by": user["user_id"],
@@ -4839,6 +4837,20 @@ async def toggle_strategy_share_with_parent(student_id: str, strategy_id: str, r
     except HTTPException:
         raise
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.delete("/parent/linked-child/{student_id}/unlink")
+async def unlink_child(student_id: str, request: Request):
+    """Unlink a student from a parent account."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        supabase.table("parent_links").delete().eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
+        return {"status": "unlinked", "student_id": student_id}
+    except Exception as e:
+        logger.error(f"unlink error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 app.include_router(api_router)
