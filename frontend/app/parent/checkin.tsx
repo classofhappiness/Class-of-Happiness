@@ -10,9 +10,11 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
 import { familyApi, FamilyMember, strategiesApi, Strategy } from '../../src/utils/api';
 
@@ -70,6 +72,7 @@ export default function FamilyCheckInScreen() {
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'zone' | 'strategies'>('zone');
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedZone) {
@@ -87,6 +90,54 @@ export default function FamilyCheckInScreen() {
   const handleZoneSelect = (zoneId: string) => {
     setSelectedZone(zoneId);
     setStep('strategies');
+  };
+
+  const handleAddPhoto = () => {
+    Alert.alert(
+      'Add a Photo',
+      'Attach a photo to this check-in (optional)',
+      [
+        {
+          text: '📷 Take Photo',
+          onPress: async () => {
+            const perm = await ImagePicker.requestCameraPermissionsAsync();
+            if (!perm.granted) {
+              Alert.alert('Permission needed', 'Please allow camera access in Settings.');
+              return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.6,
+            });
+            if (!result.canceled && result.assets[0]) {
+              setPhotoUri(result.assets[0].uri);
+            }
+          },
+        },
+        {
+          text: '🖼️ Choose from Library',
+          onPress: async () => {
+            const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!perm.granted) {
+              Alert.alert('Permission needed', 'Please allow photo library access in Settings.');
+              return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.6,
+            });
+            if (!result.canceled && result.assets[0]) {
+              setPhotoUri(result.assets[0].uri);
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
   };
 
   const toggleStrategy = (strategyId: string) => {
@@ -119,6 +170,7 @@ export default function FamilyCheckInScreen() {
           zone: selectedZone,
           helpers_selected: selectedStrategies,
           comment: comment.trim() || undefined,
+          photo_uri: photoUri || undefined,
         }),
       });
       if (!res.ok) {
@@ -273,6 +325,33 @@ export default function FamilyCheckInScreen() {
                     {comment.length}/{MAX_COMMENT_LENGTH}
                   </Text>
                 </View>
+              )}
+
+              {/* Photo Attachment */}
+              <TouchableOpacity
+                style={styles.photoButton}
+                onPress={handleAddPhoto}
+              >
+                <MaterialIcons
+                  name={photoUri ? 'photo' : 'add-a-photo'}
+                  size={24}
+                  color={photoUri ? zoneConfig?.color : '#999'}
+                />
+                <Text style={[styles.photoButtonText, photoUri && { color: zoneConfig?.color }]}>
+                  {photoUri ? '📷 Photo added — tap to change' : '📷 Add a photo (optional)'}
+                </Text>
+                {photoUri && (
+                  <TouchableOpacity onPress={() => setPhotoUri(null)} hitSlop={{top:10,bottom:10,left:10,right:10}}>
+                    <MaterialIcons name="close" size={18} color="#999" />
+                  </TouchableOpacity>
+                )}
+              </TouchableOpacity>
+              {photoUri && (
+                <Image
+                  source={{ uri: photoUri }}
+                  style={styles.photoPreview}
+                  resizeMode="cover"
+                />
               )}
 
               {/* Submit Button */}
@@ -482,5 +561,27 @@ const styles = StyleSheet.create({
   skipButtonText: {
     color: '#999',
     fontSize: 16,
+  },
+  photoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  photoButtonText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#999',
+  },
+  photoPreview: {
+    width: '100%',
+    height: 180,
+    borderRadius: 12,
+    marginBottom: 16,
   },
 });
