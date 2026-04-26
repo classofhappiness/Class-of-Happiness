@@ -198,8 +198,23 @@ export default function StudentDetailScreen() {
   };
 
   const getStrategyName = (strategyId: string) => {
+    // Check loaded strategies first
     const strategy = strategies.find(s => s.id === strategyId);
-    return strategy?.name || strategyId;
+    if (strategy?.name) return strategy.name;
+    // Check allStrategies (school + family)
+    const schoolStrat = allStrategies.school.find((s: any) => s.id === strategyId);
+    if (schoolStrat?.name) return schoolStrat.name;
+    // Clean up ID format: red_1 → Red Strategy 1, p_g1 → Green Strategy
+    if (strategyId.includes('_')) {
+      const parts = strategyId.split('_');
+      const zoneMap: Record<string,string> = {
+        r: 'Red', g: 'Green', b: 'Blue', y: 'Yellow',
+        red: 'Red', green: 'Green', blue: 'Blue', yellow: 'Yellow', p: 'Parent'
+      };
+      const zone = zoneMap[parts[0]] || parts[0];
+      return `${zone} Strategy`;
+    }
+    return strategyId;
   };
 
   const formatDate = (timestamp: string) => {

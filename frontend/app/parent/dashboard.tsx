@@ -390,17 +390,8 @@ export default function ParentDashboard() {
 
   const handleLinkChild = async () => {
     if (!linkCode.trim()) return;
-    if (!disclaimerAccepted) {
-      Alert.alert(
-        '📋 Data Sharing Consent',
-        'By linking your child, you agree that:\n\n• Their school check-in data will be visible to you\n• Your home check-ins can be shared with their teacher (you control this)\n• All data is kept confidential to your family and teacher\n\nDo you consent to this data sharing?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'I Agree', onPress: () => { setDisclaimerAccepted(true); handleLinkChild(); } }
-        ]
-      );
-      return;
-    }
+    // Consent is shown after linking via the sharing prompt
+    // No gate needed here
     setLinking(true);
     try {
       const result = await parentApi.linkChild(linkCode.trim());

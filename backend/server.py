@@ -2051,7 +2051,7 @@ async def create_custom_strategy_alias(request: Request):
             "is_shared": body.get("is_shared", True),
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
-        result = supabase.table("custom_strategies").insert(strategy).execute()
+        result = supabase.table("custom_helpers").insert(strategy).execute()
         return result.data[0] if result.data else strategy
     except Exception as e:
         logger.error(f"custom_strategies create error: {e}")
@@ -2064,7 +2064,7 @@ async def get_custom_strategies(request: Request, student_id: Optional[str] = No
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        query = supabase.table("custom_strategies").select("*")
+        query = supabase.table("custom_helpers").select("*")
         if student_id:
             query = query.eq("student_id", student_id)
         result = query.execute()
@@ -4557,7 +4557,7 @@ async def get_school_strategies_for_linked_child(student_id: str, request: Reque
             raise HTTPException(status_code=403, detail="Not linked to this student")
         # Get custom strategies for this student
         try:
-            strats = supabase.table("custom_strategies").select("*").eq("student_id", student_id).execute()
+            strats = supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute()
             custom = strats.data or []
         except Exception:
             custom = []
@@ -4853,7 +4853,7 @@ async def get_student_all_strategies(student_id: str, request: Request):
     try:
         # School strategies
         try:
-            school = supabase.table("custom_strategies").select("*").eq("student_id", student_id).execute()
+            school = supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute()
             school_strats = [{**s, "source": "school"} for s in (school.data or [])]
         except Exception:
             school_strats = []
@@ -4889,7 +4889,7 @@ async def add_student_strategy(student_id: str, request: Request):
             "is_shared": body.get("share_with_parent", False),
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
-        result = supabase.table("custom_strategies").insert(new_strategy).execute()
+        result = supabase.table("custom_helpers").insert(new_strategy).execute()
         return result.data[0] if result.data else new_strategy
     except Exception as e:
         logger.error(f"add_student_strategy error: {e}")
@@ -4903,7 +4903,7 @@ async def delete_student_strategy(student_id: str, strategy_id: str, request: Re
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        supabase.table("custom_strategies").delete().eq("id", strategy_id).eq("student_id", student_id).execute()
+        supabase.table("custom_helpers").delete().eq("id", strategy_id).eq("student_id", student_id).execute()
         return {"status": "deleted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -4916,11 +4916,11 @@ async def toggle_strategy_share_with_parent(student_id: str, strategy_id: str, r
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        current = supabase.table("custom_strategies").select("is_shared").eq("id", strategy_id).execute()
+        current = supabase.table("custom_helpers").select("is_shared").eq("id", strategy_id).execute()
         if not current.data:
             raise HTTPException(status_code=404, detail="Strategy not found")
         new_val = not current.data[0].get("is_shared", False)
-        supabase.table("custom_strategies").update({"is_shared": new_val}).eq("id", strategy_id).execute()
+        supabase.table("custom_helpers").update({"is_shared": new_val}).eq("id", strategy_id).execute()
         return {"is_shared": new_val}
     except HTTPException:
         raise
