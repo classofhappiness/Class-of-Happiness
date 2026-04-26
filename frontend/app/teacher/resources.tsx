@@ -179,6 +179,7 @@ export default function TeacherResourcesScreen() {
         description: uploadData.description,
         topic: selectedTopic,
         target_audience: 'teachers',  // Teacher uploads go to teacher tab
+        target_audience: 'teachers',  // Teacher uploads go to teacher tab
         audience: uploadData.audience || 'teachers',
       };
 
