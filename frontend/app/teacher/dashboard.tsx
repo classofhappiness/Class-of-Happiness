@@ -78,19 +78,26 @@ export default function TeacherDashboardScreen() {
       const todayTotal = Object.values(todayCounts).reduce((sum, value) => sum + value, 0);
       setTodaySnapshot({ ...todayCounts, total: todayTotal });
 
-      if (user?.user_id) {
-        const teacherCheckinRaw = await AsyncStorage.getItem(`teacher_checkins_${user.user_id}`);
-        const teacherCheckinData = teacherCheckinRaw ? JSON.parse(teacherCheckinRaw) : [];
-        setTeacherCheckins(teacherCheckinData.slice(0, 5));
-      }
     } catch (error) {
       console.error('Error fetching data:', error);
     }
   };
 
+  // Load teacher checkins immediately when user is ready
+  useEffect(() => {
+    if (!user?.user_id) return;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(`teacher_checkins_${user.user_id}`);
+        const data = raw ? JSON.parse(raw) : [];
+        setTeacherCheckins(data.slice(0, 5));
+      } catch {}
+    })();
+  }, [user?.user_id]);
+
   useEffect(() => {
     fetchData();
-  }, [selectedPeriod, selectedClassroom]);
+  }, [selectedPeriod, selectedClassroom, user?.user_id]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -205,23 +212,6 @@ export default function TeacherDashboardScreen() {
           )}
         </View>
 
-        {/* Class mood snapshot */}
-        <View style={styles.snapshotCard}>
-          <View style={styles.snapshotHeader}>
-            <Text style={styles.sectionTitle}>{t('class_mood_snapshot') || 'Class Mood Snapshot'}</Text>
-            <Text style={styles.snapshotTotal}>{todaySnapshot.total} {t('check_ins') || 'check-ins'}</Text>
-          </View>
-          <View style={styles.snapshotRow}>
-            {(['blue', 'green', 'yellow', 'red'] as const).map((zone) => (
-              <View key={zone} style={styles.snapshotItem}>
-                <View style={[styles.snapshotDot, { backgroundColor: ZONE_COLORS[zone] }]} />
-                {/* ✅ Fixed: colour names translated */}
-                <Text style={styles.snapshotZoneText}>{getZoneLabel(zone)}</Text>
-                <Text style={styles.snapshotValue}>{todaySnapshot[zone]}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
 
         {/* Resources Button */}
         <TouchableOpacity style={styles.resourcesButton} onPress={() => router.push('/teacher/resources')}>
@@ -262,6 +252,23 @@ export default function TeacherDashboardScreen() {
             </ScrollView>
           </View>
         )}
+
+        {/* Class mood snapshot - shows filtered results */}
+        <View style={styles.snapshotCard}>
+          <View style={styles.snapshotHeader}>
+            <Text style={styles.sectionTitle}>{t('class_mood_snapshot') || 'Class Mood Snapshot'}</Text>
+            <Text style={styles.snapshotTotal}>{todaySnapshot.total} {t('check_ins') || 'check-ins'}</Text>
+          </View>
+          <View style={styles.snapshotRow}>
+            {(['blue', 'green', 'yellow', 'red'] as const).map((zone) => (
+              <View key={zone} style={styles.snapshotItem}>
+                <View style={[styles.snapshotDot, { backgroundColor: ZONE_COLORS[zone] }]} />
+                <Text style={styles.snapshotZoneText}>{getZoneLabel(zone)}</Text>
+                <Text style={styles.snapshotValue}>{todaySnapshot[zone]}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
 
         {/* Period Selector */}
         <View style={styles.periodSelector}>

@@ -331,7 +331,7 @@ export default function TeacherResourcesScreen() {
           <MaterialIcons
             name={i <= rating ? 'star' : 'star-border'}
             size={size}
-            color={interactive ? (i <= rating ? '#4CAF50' : '#E0E0E0') : '#4CAF50'}
+            color={interactive ? (i <= rating ? '#FFD700' : '#E0E0E0') : '#FFD700'}
           />
         </TouchableOpacity>
       );
@@ -521,30 +521,6 @@ export default function TeacherResourcesScreen() {
                 ))}
               </View>
 
-              {/* Audience Selector */}
-              <Text style={styles.inputLabel}>Share With</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                {[
-                  { id: 'teachers', label: '👩‍🏫 Teachers' },
-                  { id: 'parents', label: '👨‍👩‍👧 Parents' },
-                  { id: 'both', label: '🌐 Both' },
-                  { id: 'admin', label: '🔐 Admin Review' },
-                ].map(opt => (
-                  <TouchableOpacity
-                    key={opt.id}
-                    style={{
-                      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
-                      backgroundColor: uploadData.audience === opt.id ? '#5C6BC0' : '#F0F0F0',
-                      borderWidth: 1, borderColor: uploadData.audience === opt.id ? '#5C6BC0' : '#E0E0E0',
-                    }}
-                    onPress={() => setUploadData({ ...uploadData, audience: opt.id })}
-                  >
-                    <Text style={{ fontSize: 13, fontWeight: '500', color: uploadData.audience === opt.id ? 'white' : '#666' }}>
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
 
               <Text style={styles.topicLabel}>
                 Topic: <Text style={styles.topicValue}>{currentTopic?.name}</Text>
