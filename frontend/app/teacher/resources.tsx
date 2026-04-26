@@ -84,7 +84,7 @@ export default function TeacherResourcesScreen() {
 
   const fetchResources = async () => {
     try {
-      const data = await teacherResourcesApi.getAll(selectedTopic);
+      const data = await teacherResourcesApi.getAll(selectedTopic || undefined);
       setResources(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching resources:', error);
@@ -198,6 +198,8 @@ export default function TeacherResourcesScreen() {
 
       await teacherResourcesApi.create(payload);
       Alert.alert('✅ Success', 'Resource uploaded successfully!');
+      setLoading(true);
+      await fetchResources();
       setShowUploadModal(false);
       setUploadData({ title: '', description: '', content: '', pdf_filename: '', audience: 'teachers' });
       fetchResources();

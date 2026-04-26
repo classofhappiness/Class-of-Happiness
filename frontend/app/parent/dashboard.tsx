@@ -266,23 +266,46 @@ export default function ParentDashboard() {
       // Fetch family members
       const members = await familyApi.getMembers();
       setFamilyMembers(members);
-      // Fetch creatures for members who are linked to school students
+      // Fetch creatures for all family members
       const creatureMap: Record<string, any> = {};
+      // Default creature emojis by relationship for non-linked members
+      const defaultCreatures: Record<string, {emoji:string,color:string}> = {
+        self: {emoji:'🌟', color:'#5C6BC0'},
+        partner: {emoji:'💙', color:'#E91E63'},
+        child: {emoji:'🥚', color:'#4CAF50'},
+        sibling: {emoji:'🌈', color:'#FFC107'},
+        grandparent: {emoji:'🌸', color:'#9C27B0'},
+        other: {emoji:'⭐', color:'#FF9800'},
+      };
       for (const m of members) {
         const linkedId = (m as any).student_id;
         if (linkedId) {
           try {
             const collection = await rewardsApi.getCollection(linkedId);
             if (collection?.current_creature) {
+              const stage = collection.current_stage || 0;
               creatureMap[m.id] = {
-                emoji: collection.current_creature.stages?.[collection.current_stage]?.emoji || '🥚',
-                color: collection.current_creature.color || '#CCC',
+                emoji: collection.current_creature.stages?.[stage]?.emoji || '🥚',
+                color: collection.current_creature.color || '#4CAF50',
                 points: collection.current_points || 0,
-                stage: collection.current_stage || 0,
+                stage,
                 name: collection.current_creature.name || '',
+                hasRealCreature: true,
               };
             }
-          } catch { /* no creature yet */ }
+          } catch { /* no creature yet - use default */ }
+        }
+        // Give non-linked members a default creature
+        if (!creatureMap[m.id]) {
+          const def = defaultCreatures[m.relationship] || defaultCreatures.other;
+          creatureMap[m.id] = {
+            emoji: def.emoji,
+            color: def.color,
+            points: 0,
+            stage: 0,
+            name: 'Start checking in!',
+            hasRealCreature: false,
+          };
         }
       }
       setMemberCreatures(creatureMap);
@@ -573,13 +596,15 @@ export default function ParentDashboard() {
                   )}
                   <Text style={styles.memberName} numberOfLines={1}>{member.name}</Text>
                   <Text style={styles.memberRole}>{t(member.relationship)}</Text>
-                  {/* Creature display if linked to school */}
+                  {/* Creature display for all members */}
                   {memberCreatures[member.id] && (
                     <View style={styles.memberCreatureRow}>
                       <Text style={styles.memberCreatureEmoji}>
                         {memberCreatures[member.id].emoji}
                       </Text>
-                      <View style={[styles.memberCreatureDot, {backgroundColor: memberCreatures[member.id].color}]} />
+                      {memberCreatures[member.id].hasRealCreature && (
+                        <View style={[styles.memberCreatureDot, {backgroundColor: memberCreatures[member.id].color}]} />
+                      )}
                     </View>
                   )}
                 </TouchableOpacity>

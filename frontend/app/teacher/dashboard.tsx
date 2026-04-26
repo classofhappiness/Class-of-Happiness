@@ -119,7 +119,9 @@ export default function TeacherDashboardScreen() {
 
   const getStudentName = (studentId: string) => {
     const student = students.find(s => s.id === studentId);
-    return student?.name || 'Unknown';
+    if (student) return student.name;
+    // Check if it's a linked student we might not have locally
+    return 'Student';
   };
 
   const getStudent = (studentId: string) => {
