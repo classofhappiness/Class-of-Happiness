@@ -137,6 +137,18 @@ export default function ParentStrategiesScreen() {
     }
   };
 
+  const handleDeleteStrategy = async (strategy: CustomStrategy) => {
+    Alert.alert('Delete Strategy', `Delete "${strategy.name}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try {
+          await customStrategiesApi.delete(strategy.id);
+          fetchStrategies();
+        } catch { Alert.alert('Error', 'Could not delete strategy'); }
+      }}
+    ]);
+  };
+
   const zoneConfig = ZONES.find(z => z.id === selectedZone)!;
 
   return (
