@@ -1001,7 +1001,11 @@ export default function StudentDetailScreen() {
                             onPress: async () => {
                               try {
                                 await teacherApi.unlinkStudent(student.id);
-                                Alert.alert(t('success') || 'Success', t('student_unlinked') || 'Student has been unlinked');
+                                Alert.alert(t('success') || 'Success', 'Student has been unlinked from parent. They will need a new code to reconnect.');
+                                setShowLinkCodeModal(false);
+                                setSharingStatus({ is_linked_to_parent: false, home_sharing_enabled: false, school_sharing_enabled: false, parent_name: null, link_count: 0 });
+                                setHomeData(null);
+                                setLinkCode(null);
                                 setShowLinkCodeModal(false);
                                 // Refresh sharing status
                                 const newStatus = await teacherHomeDataApi.getSharingStatus(student.id);

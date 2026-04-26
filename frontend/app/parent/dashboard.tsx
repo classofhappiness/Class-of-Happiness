@@ -687,7 +687,8 @@ export default function ParentDashboard() {
                           onPress: async () => {
                             try {
                               await linkedChildApi.unlink(child.id);
-                              Alert.alert(t('success') || 'Success', t('child_unlinked') || 'Child has been unlinked successfully');
+                              setLinkedChildren(prev => prev.filter(c => c.id !== child.id));
+                              Alert.alert('✅ Unlinked', `${child.name} has been unlinked. You'll need a new code from the teacher to reconnect.`);
                               // Refresh data
                               const children = await parentApi.getChildren();
                               setLinkedChildren(children);

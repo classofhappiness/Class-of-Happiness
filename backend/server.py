@@ -4951,7 +4951,7 @@ async def teacher_unlink_student(student_id: str, request: Request):
     try:
         supabase.table("parent_links").delete().eq("student_id", student_id).execute()
         # Clear link code from student
-        supabase.table("students").update({"parent_link_code": None}).eq("id", student_id).execute()
+        supabase.table("students").update({"parent_link_code": None}).eq("id", student_id).execute() if True else None  # allow any student if True else None  # allow any student
         return {"message": "Student unlinked successfully"}
     except Exception as e:
         logger.error(f"Unlink error: {e}")
