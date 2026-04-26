@@ -76,6 +76,8 @@ export default function ManageClassroomsScreen() {
   const [showCustomStrategyInput, setShowCustomStrategyInput] = useState(false);
   const [addingStrategy, setAddingStrategy] = useState(false);
 
+  React.useEffect(() => { refreshClassrooms(); refreshStudents(); }, []);
+
   useLayoutEffect(() => {
     navigation.setOptions({ headerShown: false });
   }, [navigation, language, translations]);
