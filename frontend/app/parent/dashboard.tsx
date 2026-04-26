@@ -410,7 +410,7 @@ export default function ParentDashboard() {
               text: '📤 Share with Teacher',
               onPress: async () => {
                 try {
-                  await linkedChildApi.toggleHomeSharing(result.student_id || result.id);
+                  await linkedChildApi.toggleHomeSharing(result.student_id);
                   Alert.alert('✅ Sharing On', 'Teacher can now see home check-ins. Turn off anytime in the linked student section.');
                 } catch (e) { console.log('Sharing toggle error:', e); }
               }
