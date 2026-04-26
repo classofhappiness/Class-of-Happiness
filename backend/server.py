@@ -3033,7 +3033,7 @@ async def get_subscription_status(request: Request):
 
 # ================== ADMIN ==================
 @api_router.get("/admin/stats")
-async def get_admin_stats(request: Request):
+async def get_admin_stats(request: Request, days: int = 7):
     """Enhanced stats with daily breakdown for graphs"""
     user = await get_current_user(request)
     if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
@@ -3043,7 +3043,8 @@ async def get_admin_stats(request: Request):
         from datetime import datetime, timezone, timedelta
 
         now = datetime.now(timezone.utc)
-        week_ago = (now - timedelta(days=7)).isoformat()
+        days = max(1, min(days, 90))  # clamp 1-90
+        week_ago = (now - timedelta(days=days)).isoformat()
         month_ago = (now - timedelta(days=30)).isoformat()
 
         # Basic counts
@@ -3094,12 +3095,8 @@ async def get_admin_stats(request: Request):
         teacher_zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
         teacher_daily = [0] * 7
 
-        # Support requests
-        try:
-            alerts_result = supabase.table("wellbeing_alerts").select("*").gte("created_at", month_ago).execute()
-            support_requests = len(alerts_result.data or [])
-        except:
-            support_requests = 0
+        # Support requests (wellbeing_alerts table may not exist yet)
+        support_requests = 0
 
         # Top strategy
         strategy_counts = {}
@@ -3108,28 +3105,52 @@ async def get_admin_stats(request: Request):
                 strategy_counts[s] = strategy_counts.get(s, 0) + 1
         top_strategy = max(strategy_counts, key=strategy_counts.get) if strategy_counts else "—"
 
-        # Schools breakdown
+        # Schools breakdown — one entry per school_admin
         try:
             school_admins = supabase.table("users").select("*").eq("role", "school_admin").execute()
             schools_breakdown = []
             for admin in (school_admins.data or []):
-                school_logs = supabase.table("zone_logs").select("zone").gte("timestamp", week_ago).execute()
+                admin_id = admin.get("user_id", "")
+                # Get students belonging to this admin's school
+                try:
+                    school_students = supabase.table("students").select("id").eq("teacher_id", admin_id).execute()
+                    student_ids = [s["id"] for s in (school_students.data or [])]
+                except:
+                    student_ids = []
+
                 school_zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
-                for log in (school_logs.data or []):
-                    z = log.get("zone", "")
-                    if z in school_zone_counts:
-                        school_zone_counts[z] += 1
-                # Get school settings
-                settings = supabase.table("admin_settings").select("*").execute()
-                settings_dict = {row["key"]: row["value"] for row in (settings.data or [])}
+                school_checkins = 0
+                if student_ids:
+                    try:
+                        school_logs = supabase.table("feeling_logs").select("feeling_colour,zone").in_("student_id", student_ids[:50]).gte("timestamp", week_ago).execute()
+                        for log in (school_logs.data or []):
+                            z = log.get("feeling_colour") or log.get("zone", "")
+                            if z in school_zone_counts:
+                                school_zone_counts[z] += 1
+                        school_checkins = len(school_logs.data or [])
+                    except:
+                        pass
+
+                # Get school name from admin record or school_profiles
+                school_name = admin.get("school_name") or admin.get("email", "Unknown School")
+                school_desc = ""
+                try:
+                    profile = supabase.table("school_profiles").select("school_name,description").eq("user_id", admin_id).execute()
+                    if profile.data:
+                        school_name = profile.data[0].get("school_name") or school_name
+                        school_desc = profile.data[0].get("description", "")
+                except:
+                    pass
+
                 schools_breakdown.append({
-                    "name": settings_dict.get("school_name") or admin.get("school_name") or admin.get("email", "Unknown"),
-                    "description": settings_dict.get("school_description", ""),
-                    "total_checkins": len(school_logs.data or []),
+                    "name": school_name,
+                    "description": school_desc,
+                    "total_checkins": school_checkins,
                     "zone_counts": school_zone_counts,
                 })
             total_schools = len(schools_breakdown)
-        except:
+        except Exception as sb_err:
+            logger.error(f"Schools breakdown error: {sb_err}")
             schools_breakdown = []
             total_schools = 0
 

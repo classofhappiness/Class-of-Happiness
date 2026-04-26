@@ -266,11 +266,17 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
   const [unlinkEmail, setUnlinkEmail] = useState('');
   const [unlinkType, setUnlinkType] = useState<'teacher'|'parent'>('teacher');
 
-  useEffect(() => { if (tab==='analytics') loadStats(); }, [tab]);
+  useEffect(() => { if (tab==='analytics') loadStats(); }, [tab, statsPeriod]);
 
   const loadStats = async () => {
     setLoading(true);
-    try { const d = await apiCall(`/admin/stats?days=${statsPeriod}`, authToken); setStats(d); } catch { setStats(null); }
+    try {
+      const d = await apiCall(`/admin/stats?days=${statsPeriod}`, authToken);
+      setStats(d);
+    } catch (e: any) {
+      console.error('[SuperAdmin] loadStats error:', e?.message || e);
+      // Keep previous stats rather than wiping to null on transient errors
+    }
     finally { setLoading(false); }
   };
 
@@ -312,7 +318,7 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
                 <TouchableOpacity key={p}
                   style={{flex:1,paddingVertical:8,borderRadius:8,alignItems:'center',
                     backgroundColor:statsPeriod===p?'#3949AB':'#F0F0F0'}}
-                  onPress={()=>{ setStatsPeriod(p); loadStats(); }}>
+                  onPress={()=>{ setStatsPeriod(p); }}>
                   <Text style={{fontSize:12,fontWeight:'600',color:statsPeriod===p?'white':'#666'}}>
                     {p===7?'7 Days':p===30?'30 Days':'3 Months'}
                   </Text>
@@ -789,7 +795,7 @@ function SchoolAdminDashboard({ authToken, user }: { authToken:string|null, user
     setLoading(true);
     try {
       if (tab==='overview') {
-        try { const d = await apiCall(`/admin/stats?days=${statsPeriod}`, authToken); setStats(d); } catch (e) { console.log("[silent]", e); }
+        try { const d = await apiCall(`/admin/stats?days=${statsPeriod}`, authToken); setStats(d); } catch (e: any) { console.error('[Admin] stats error:', e?.message || e); }
         try { const d = await apiCall('/students', authToken); setStudents(Array.isArray(d)?d:[]); } catch { setStudents([]); }
       } else if (tab==='alerts') {
         try { const d = await apiCall('/admin/wellbeing-alerts', authToken); setAlerts(Array.isArray(d)?d:[]); } catch { setAlerts([]); }
