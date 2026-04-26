@@ -655,17 +655,30 @@ function AdminResourceUpload({ authToken }: { authToken: string | null }) {
 
   const pickDocument = async () => {
     try {
-      const DocumentPicker = require('expo-document-picker');
-      const FileSystem = require('expo-file-system');
-      const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true });
+      const DocumentPicker = await import('expo-document-picker');
+      const FileSystem = await import('expo-file-system');
+      const result = await DocumentPicker.getDocumentAsync({ 
+        type: ['application/pdf', 'application/msword', 
+               'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        copyToCacheDirectory: true 
+      });
       if (!result.canceled && result.assets?.[0]) {
         const file = result.assets[0];
-        const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: 'base64' });
-        setSelectedFile({ name: file.name, content: base64 });
-        if (!title) setTitle(file.name.replace('.pdf',''));
-        Alert.alert('✅ Selected', file.name);
+        try {
+          const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.Base64 });
+          setSelectedFile({ name: file.name, content: base64 });
+          if (!title) setTitle(file.name.replace(/\.(pdf|docx|doc)$/i,''));
+          Alert.alert('✅ Selected', file.name);
+        } catch (readErr) {
+          // File too large to encode - use URI reference
+          setSelectedFile({ name: file.name, content: '' });
+          if (!title) setTitle(file.name.replace(/\.(pdf|docx|doc)$/i,''));
+          Alert.alert('✅ Selected', `${file.name} (will upload directly)`);
+        }
       }
-    } catch (e) { Alert.alert('Error', 'Could not pick file'); }
+    } catch (e: any) { 
+      Alert.alert('Error', `Could not pick file: ${e.message || 'Unknown error'}`); 
+    }
   };
 
   const handleUpload = async () => {

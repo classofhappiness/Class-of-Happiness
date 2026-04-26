@@ -2835,10 +2835,6 @@ async def get_admin_stats(request: Request):
         # Query both zone_logs and feeling_logs
         logs = []
         try:
-            r1 = supabase.table("zone_logs").select("*").gte("timestamp", week_ago).execute()
-            logs.extend(r1.data or [])
-        except: pass
-        try:
             r2 = supabase.table("feeling_logs").select("*").gte("timestamp", week_ago).execute()
             logs.extend(r2.data or [])
         except: pass
@@ -4995,6 +4991,57 @@ async def teacher_unlink_student(student_id: str, request: Request):
         return {"message": "Student unlinked successfully"}
     except Exception as e:
         logger.error(f"Unlink error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/admin/strategies")
+async def create_admin_strategy(request: Request):
+    """Admin creates a strategy visible to all teachers."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    try:
+        body = await request.json()
+        new_strategy = {
+            "id": str(uuid.uuid4()),
+            "name": body.get("name", ""),
+            "description": body.get("description", ""),
+            "feeling_colour": body.get("feeling_colour", body.get("zone", "green")),
+            "icon": body.get("icon", "star"),
+            "lang": body.get("lang", "en"),
+            "is_active": True,
+            "created_by": user["user_id"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        result = supabase.table("helpers").insert(new_strategy).execute()
+        return result.data[0] if result.data else new_strategy
+    except Exception as e:
+        logger.error(f"Admin strategy create error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.put("/admin/strategies/{strategy_id}")
+async def update_admin_strategy(strategy_id: str, request: Request):
+    """Admin updates a strategy."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    try:
+        body = await request.json()
+        supabase.table("helpers").update(body).eq("id", strategy_id).execute()
+        return {"status": "updated"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.delete("/admin/strategies/{strategy_id}")
+async def delete_admin_strategy(strategy_id: str, request: Request):
+    """Admin deletes a strategy."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    try:
+        supabase.table("helpers").delete().eq("id", strategy_id).execute()
+        return {"status": "deleted"}
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 app.include_router(api_router)
