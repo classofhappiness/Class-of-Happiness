@@ -27,6 +27,28 @@ import { Avatar } from '../../src/components/Avatar';
 
 const { width } = Dimensions.get('window');
 
+
+// Complete strategy name lookup - matches student/strategies.tsx fallback IDs
+const STRATEGY_NAME_MAP: Record<string, string> = {
+  // Blue zone
+  b1: 'Gentle Stretch', b2: 'Favourite Song', b3: 'Tell Someone', b4: 'Slow Breathing',
+  // Green zone  
+  g1: 'Keep Going!', g2: 'Help a Friend', g3: 'Set a Goal', g4: 'Gratitude',
+  // Yellow zone
+  y1: 'Bubble Breathing', y2: 'Count to 10', y3: '5 Senses', y4: 'Talk About It',
+  // Red zone
+  r1: 'Freeze', r2: 'Big Breaths', r3: 'Safe Space', r4: 'Ask for Help',
+  // Parent strategies
+  p_b1: 'Side-by-Side Presence', p_b2: 'Warm Drink Ritual', p_b3: 'Name It to Tame It',
+  p_b4: 'Movement Invitation', p_b5: 'Comfort & Closeness',
+  p_g1: 'Gratitude Round', p_g2: 'Strength Spotting', p_g3: 'Creative Together',
+  p_g4: 'Family Dance', p_g5: 'Calm Problem Solving',
+  p_y1: 'Box Breathing Together', p_y2: 'Validate First', p_y3: 'Body Check-In',
+  p_y4: 'Feelings Journal', p_y5: 'Give Space with Love',
+  p_r1: 'Stay Calm Yourself', p_r2: 'Safe Space Together', p_r3: 'Cold Water Reset',
+  p_r4: 'No Teaching Now', p_r5: 'Reconnect with Warmth',
+};
+
 const ZONE_COLORS = {
   blue: '#4A90D9',
   green: '#4CAF50',
@@ -198,23 +220,21 @@ export default function StudentDetailScreen() {
   };
 
   const getStrategyName = (strategyId: string) => {
-    // Check loaded strategies first
-    const strategy = strategies.find(s => s.id === strategyId);
+    if (!strategyId) return '';
+    // Check the complete name map first
+    if (STRATEGY_NAME_MAP[strategyId]) return STRATEGY_NAME_MAP[strategyId];
+    // Check loaded strategies
+    const strategy = strategies.find((s: any) => s.id === strategyId || s.name === strategyId);
     if (strategy?.name) return strategy.name;
-    // Check allStrategies (school + family)
+    // Check allStrategies
     const schoolStrat = allStrategies.school.find((s: any) => s.id === strategyId);
     if (schoolStrat?.name) return schoolStrat.name;
-    // Clean up ID format: red_1 → Red Strategy 1, p_g1 → Green Strategy
-    if (strategyId.includes('_')) {
-      const parts = strategyId.split('_');
-      const zoneMap: Record<string,string> = {
-        r: 'Red', g: 'Green', b: 'Blue', y: 'Yellow',
-        red: 'Red', green: 'Green', blue: 'Blue', yellow: 'Yellow', p: 'Parent'
-      };
-      const zone = zoneMap[parts[0]] || parts[0];
-      return `${zone} Strategy`;
-    }
-    return strategyId;
+    const familyStrat = allStrategies.family.find((s: any) => s.id === strategyId);
+    if (familyStrat?.name || familyStrat?.strategy_name) return familyStrat.name || familyStrat.strategy_name;
+    // If it looks like a readable name already, return it
+    if (strategyId.length > 5 && !strategyId.match(/^[a-z]_?\d+$/)) return strategyId;
+    // Last resort cleanup
+    return strategyId.replace(/_/g, ' ').replace(/\w/g, l => l.toUpperCase());
   };
 
   const formatDate = (timestamp: string) => {

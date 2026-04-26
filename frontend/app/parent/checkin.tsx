@@ -226,6 +226,9 @@ export default function FamilyCheckInScreen() {
                       color={selectedStrategies.includes(strategy.id) ? zoneConfig?.color : '#666'}
                     />
                     <Text style={styles.strategyName}>{strategy.name}</Text>
+                    {strategy.description ? (
+                      <Text style={styles.strategyDesc}>{strategy.description}</Text>
+                    ) : null}
                     {selectedStrategies.includes(strategy.id) && (
                       <MaterialIcons name="check-circle" size={20} color={zoneConfig?.color} style={styles.checkIcon} />
                     )}
@@ -415,6 +418,7 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0',
     position: 'relative',
   },
+  strategyDesc: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
   strategyName: {
     fontSize: 14,
     fontWeight: '500',
