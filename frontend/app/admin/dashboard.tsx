@@ -443,6 +443,7 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
           </View>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <Modal visible={showUnlink} transparent animationType="slide" onRequestClose={()=>setShowUnlink(false)}>
         <View style={styles.modalOverlay}>
