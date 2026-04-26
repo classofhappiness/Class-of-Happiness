@@ -28,7 +28,7 @@ const ZONE_DESC: Record<string, string> = {
 
 const FAMILY_STRATEGIES = [
   // BLUE
-  { zone:'blue', name:'Side-by-Side Presence', description:'Sit quietly next to your child without expectation. No screens, no fixing — just presence. Research shows co-regulation starts with felt safety.', icon:'people', research:'Attachment theory (Bowlby)' },
+  { zone:'blue', name:'Side-by-Side Presence', description:'Sit quietly next to your child without expectation. No screens, no fixing — just presence. Research shows co-regulation starts with felt safety.', icon:'people', research:'Attachment theory' },
   { zone:'blue', name:'Warm Drink Ritual', description:'Make a warm drink together. The act of preparing something nourishing activates the caregiving system and signals safety.', icon:'local-cafe', research:'Gottman Emotion Coaching' },
   { zone:'blue', name:'Name It to Tame It', description:'Gently name what you see: "You seem really low today." Labelling emotions reduces amygdala activation by up to 50%.', icon:'chat-bubble', research:'Siegel & Bryson (2012)' },
   { zone:'blue', name:'Movement Invitation', description:'Suggest a 5-minute walk outside. Even slow movement increases serotonin and dopamine. Invite — never force.', icon:'directions-walk', research:'Exercise & mood regulation' },
@@ -170,7 +170,7 @@ export default function FamilyStrategiesScreen() {
         <View style={styles.footer}>
           <MaterialIcons name="info-outline" size={14} color="#AAA" />
           <Text style={styles.footerText}>
-            Based on Zones of Regulation, Gottman Emotion Coaching, Collaborative Problem Solving, Attachment Theory, and Polyvagal Theory.
+            Based on colour emotion check-ins, Gottman Emotion Coaching, Collaborative Problem Solving, Attachment Theory, and Polyvagal Theory.
           </Text>
         </View>
 
