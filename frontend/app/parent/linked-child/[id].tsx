@@ -340,10 +340,15 @@ export default function LinkedChildDetailScreen() {
             getCurrentCheckIns().slice(0, 10).map((checkIn, index) => (
               <View key={checkIn.id || index} style={styles.checkInItem}>
                 <View style={[styles.checkInZone, { backgroundColor: ZONE_CONFIG[checkIn.zone]?.color || '#999' }]}>
-                  <Text style={styles.checkInEmoji}>{ZONE_CONFIG[checkIn.zone]?.emoji || '❓'}</Text>
+                  {(() => {
+                          const zoneEmojis: Record<string,string> = {blue:'😢',green:'😊',yellow:'😟',red:'😣'};
+                          return <Text style={styles.checkInEmoji}>{zoneEmojis[checkIn.zone] || zoneEmojis[checkIn.feeling_colour] || '😊'}</Text>;
+                        })()}
                 </View>
                 <View style={styles.checkInDetails}>
-                  <Text style={styles.checkInZoneLabel}>{ZONE_CONFIG[checkIn.zone]?.label || checkIn.zone}</Text>
+                  <Text style={styles.checkInZoneLabel}>{
+                          ({blue:'Blue Zone',green:'Green Zone',yellow:'Yellow Zone',red:'Red Zone'} as any)[checkIn.zone || checkIn.feeling_colour] || checkIn.zone || 'Check-in'
+                        }</Text>
                   <Text style={styles.checkInTime}>{formatDate(checkIn.timestamp)}</Text>
                   {checkIn.strategies_selected?.length > 0 && (
                     <Text style={styles.checkInStrategies}>

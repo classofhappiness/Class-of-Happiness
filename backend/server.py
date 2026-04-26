@@ -1767,15 +1767,28 @@ async def get_students(request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Get teacher's own students
     result = supabase.table("students").select("*").eq("user_id", user["user_id"]).execute()
     students = result.data or []
+    student_ids = {s["id"] for s in students}
+    
+    # Also get students linked to this teacher via parent_links
+    # (students the teacher gave link codes to)
     try:
-        links = supabase.table("parent_links").select("student_id,home_sharing_enabled").execute()
-        linked = {l["student_id"]: l for l in (links.data or [])}
+        links_result = supabase.table("parent_links").select("*").execute()
+        all_links = links_result.data or []
+        linked_map = {l["student_id"]: l for l in all_links}
+        
+        # Add is_linked flag to existing students
         for s in students:
-            s["is_linked"] = s["id"] in linked
-            s["home_sharing_enabled"] = linked.get(s["id"], {}).get("home_sharing_enabled", False)
-    except Exception: pass
+            link = linked_map.get(s["id"])
+            s["is_linked"] = link is not None
+            s["home_sharing_enabled"] = link.get("home_sharing_enabled", False) if link else False
+            s["parent_user_id"] = link.get("parent_user_id") if link else None
+    except Exception as e:
+        logger.error(f"Could not fetch link status: {e}")
+    
     return students
     return result.data or []
 
@@ -4851,6 +4864,22 @@ async def unlink_child(student_id: str, request: Request):
         return {"status": "unlinked", "student_id": student_id}
     except Exception as e:
         logger.error(f"unlink error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.delete("/students/{student_id}/unlink")
+async def teacher_unlink_student(student_id: str, request: Request):
+    """Teacher removes parent link from a student."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        supabase.table("parent_links").delete().eq("student_id", student_id).execute()
+        # Clear link code from student
+        supabase.table("students").update({"parent_link_code": None}).eq("id", student_id).execute()
+        return {"message": "Student unlinked successfully"}
+    except Exception as e:
+        logger.error(f"Unlink error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 app.include_router(api_router)
