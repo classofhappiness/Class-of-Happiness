@@ -174,22 +174,24 @@ export default function FamilyStrategiesScreen() {
           </Text>
         </View>
 
-        {/* Legal disclaimer */}
+                {/* Legal disclaimer */}
         <View style={styles.disclaimer}>
           <MaterialIcons name="gavel" size={14} color="#999" />
-          <Text style={styles.disclaimerText}>
-            <Text style={styles.disclaimerBold}>Important Notice: </Text>
-            The strategies provided in this section are for general educational and informational purposes only. They are not a substitute for professional psychological, medical, or therapeutic advice, diagnosis, or treatment.{'
-
-'}
-            If you have concerns about your child's emotional, mental, or physical health, please consult a qualified healthcare or mental health professional.{'
-
-'}
-            Class of Happiness is not liable for any outcomes resulting from the application of strategies found in this app. All strategies should be applied with parental judgement and in accordance with your child's individual needs.{'
-
-'}
-            © {new Date().getFullYear()} Class of Happiness. All rights reserved.
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.disclaimerText}>
+              <Text style={styles.disclaimerBold}>Important Notice: </Text>
+              The strategies provided in this section are for general educational and informational purposes only. They are not a substitute for professional psychological, medical, or therapeutic advice, diagnosis, or treatment.
+            </Text>
+            <Text style={[styles.disclaimerText, { marginTop: 6 }]}>
+              If you have concerns about your child's emotional, mental, or physical health, please consult a qualified healthcare or mental health professional.
+            </Text>
+            <Text style={[styles.disclaimerText, { marginTop: 6 }]}>
+              Class of Happiness is not liable for any outcomes resulting from the application of strategies found in this app. All strategies should be applied with parental judgement and in accordance with your child's individual needs.
+            </Text>
+            <Text style={[styles.disclaimerText, { marginTop: 6 }]}>
+              © Class of Happiness. All rights reserved.
+            </Text>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
