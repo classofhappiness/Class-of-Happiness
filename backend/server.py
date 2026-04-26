@@ -2398,7 +2398,7 @@ async def link_child(body: LinkChildRequest, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     # Try both field names for compatibility
-    result = supabase.table("students").select("*").eq("parent_link_code", body.link_code).execute()
+    result = supabase.table("students").select("*").eq("link_code", body.link_code).execute()
     if not result.data:
         result = supabase.table("students").select("*").eq("link_code", body.link_code).execute()
     if not result.data:
