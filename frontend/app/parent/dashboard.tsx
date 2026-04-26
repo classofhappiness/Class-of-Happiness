@@ -404,10 +404,29 @@ export default function ParentDashboard() {
     setLinking(true);
     try {
       const result = await parentApi.linkChild(linkCode.trim());
-      Alert.alert('Success', `${result.student_name} has been linked!`);
+      const childName = result.student_name || 'Child';
       setShowLinkModal(false);
       setLinkCode('');
       fetchData();
+      // Show sharing consent after linking
+      setTimeout(() => {
+        Alert.alert(
+          `✅ ${childName} Linked!`,
+          `${childName} is now connected between home and school.\n\n📋 SHARING:\n\n🏫→🏠 You can already see school check-ins here.\n\n🏠→🏫 You can choose to share home check-ins with the teacher.\n\nHome sharing is OFF by default for privacy.`,
+          [
+            { text: '🔒 Keep Private', style: 'cancel' },
+            {
+              text: '📤 Share with Teacher',
+              onPress: async () => {
+                try {
+                  await linkedChildApi.toggleHomeSharing(result.student_id || result.id);
+                  Alert.alert('✅ Sharing On', 'Teacher can now see home check-ins. Turn off anytime in the linked student section.');
+                } catch (e) { console.log('Sharing toggle error:', e); }
+              }
+            }
+          ]
+        );
+      }, 500);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Invalid or expired code');
     } finally {
