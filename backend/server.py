@@ -2502,6 +2502,23 @@ async def get_linked_children(request: Request):
     return children
 
 # ================== PDF REPORTS ==================
+
+# Full strategy name map (mirrors frontend STRATEGY_NAME_MAP)
+STRATEGY_NAME_MAP = {
+    "b1": "Gentle Stretch", "b2": "Favourite Song", "b3": "Tell Someone", "b4": "Slow Breathing",
+    "g1": "Keep Going!", "g2": "Help a Friend", "g3": "Set a Goal", "g4": "Gratitude",
+    "y1": "Bubble Breathing", "y2": "Count to 10", "y3": "5 Senses", "y4": "Talk About It",
+    "r1": "Freeze", "r2": "Big Breaths", "r3": "Safe Space", "r4": "Ask for Help",
+    "p_b1": "Side-by-Side Presence", "p_b2": "Warm Drink Ritual", "p_b3": "Name It to Tame It",
+    "p_g1": "Gratitude Round", "p_g2": "Strength Spotting", "p_g3": "Creative Together",
+    "p_y1": "Box Breathing Together", "p_y2": "Validate First", "p_y3": "Body Check-In",
+    "p_r1": "Stay Calm Yourself", "p_r2": "Safe Space Together", "p_r3": "Cold Water Reset",
+}
+
+def resolve_strategy_name(sid: str) -> str:
+    """Return human-readable strategy name from ID or raw string."""
+    return STRATEGY_NAME_MAP.get(str(sid).strip(), str(sid).strip().replace("_", " ").title())
+
 @api_router.get("/reports/available-months/{student_id}")
 async def get_available_months(student_id: str):
     logs = supabase.table("feeling_logs").select("timestamp").eq("student_id", student_id).execute()
@@ -2559,239 +2576,422 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
             hour_counts[ts.hour] = hour_counts.get(ts.hour, 0) + 1
         except: pass
 
-    # Build PDF
+    # ── BUILD PDF ──────────────────────────────────────────────────────────────
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter,
-        leftMargin=50, rightMargin=50, topMargin=50, bottomMargin=50)
+    from reportlab.lib.pagesizes import A4
+    PAGE_W, PAGE_H = A4
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36
+    )
     styles = getSampleStyleSheet()
 
-    # Custom styles
-    INDIGO = colors.HexColor('#5C6BC0')
-    BLUE_C = colors.HexColor('#4A90D9')
-    GREEN_C = colors.HexColor('#4CAF50')
-    YELLOW_C = colors.HexColor('#FFC107')
-    RED_C = colors.HexColor('#F44336')
-    LIGHT = colors.HexColor('#F8F9FA')
-    ZONE_COLORS_PDF = {"blue": BLUE_C, "green": GREEN_C, "yellow": YELLOW_C, "red": RED_C}
-    COLOUR_NAMES = {"blue": "Blue Feelings", "green": "Green Feelings", "yellow": "Yellow Feelings", "red": "Red Feelings"}
-    WEEKDAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+    # ── Palette ──
+    INDIGO      = colors.HexColor('#5C6BC0')
+    INDIGO_DARK = colors.HexColor('#3949AB')
+    BLUE_C      = colors.HexColor('#4A90D9')
+    GREEN_C     = colors.HexColor('#4CAF50')
+    YELLOW_C    = colors.HexColor('#FFC107')
+    RED_C       = colors.HexColor('#F44336')
+    LIGHT       = colors.HexColor('#F8F9FA')
+    MID         = colors.HexColor('#E8EAF6')
+    GREY        = colors.HexColor('#666666')
+    LIGHT_GREY  = colors.HexColor('#E0E0E0')
+    WHITE       = colors.white
 
-    title_style = ParagraphStyle('CoHTitle', fontSize=22, textColor=INDIGO, fontName='Helvetica-Bold', spaceAfter=4)
-    sub_style = ParagraphStyle('CoHSub', fontSize=11, textColor=colors.HexColor('#666666'), spaceAfter=2)
-    section_style = ParagraphStyle('CoHSection', fontSize=13, textColor=INDIGO, fontName='Helvetica-Bold', spaceBefore=16, spaceAfter=8)
-    normal_style = ParagraphStyle('CoHNormal', fontSize=10, textColor=colors.HexColor('#333333'), spaceAfter=4)
-    small_style = ParagraphStyle('CoHSmall', fontSize=8, textColor=colors.HexColor('#666666'))
-    disclaimer_style = ParagraphStyle('Disc', fontSize=8, textColor=colors.HexColor('#999999'), fontName='Helvetica-Oblique')
+    ZONE_COLORS_PDF  = {"blue": BLUE_C, "green": GREEN_C, "yellow": YELLOW_C, "red": RED_C}
+    ZONE_LABELS      = {"blue": "Blue Zone", "green": "Green Zone", "yellow": "Yellow Zone", "red": "Red Zone"}
+    ZONE_DESCS       = {
+        "blue":   "Calm / Low energy",
+        "green":  "Happy / Ready to learn",
+        "yellow": "Worried / Frustrated",
+        "red":    "Overwhelmed / Angry",
+    }
+    WEEKDAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+
+    # ── Styles ──
+    def s(name, **kw):
+        return ParagraphStyle(name, **kw)
+
+    ST_LOGO    = s('Logo',    fontSize=20, textColor=WHITE,  fontName='Helvetica-Bold', leading=24)
+    ST_LOGSUB  = s('LogoS',  fontSize=10, textColor=colors.HexColor('#C5CAE9'), leading=13)
+    ST_H2      = s('H2',     fontSize=13, textColor=INDIGO,  fontName='Helvetica-Bold', spaceBefore=10, spaceAfter=4)
+    ST_BODY    = s('Body',   fontSize=9,  textColor=colors.HexColor('#333333'), spaceAfter=3, leading=13)
+    ST_SMALL   = s('Small',  fontSize=7.5,textColor=GREY, leading=10)
+    ST_DISC    = s('Disc',   fontSize=7,  textColor=colors.HexColor('#999999'), fontName='Helvetica-Oblique', leading=9)
+    ST_LABEL   = s('Label',  fontSize=8,  textColor=GREY,   fontName='Helvetica-Bold')
+    ST_VALUE   = s('Val',    fontSize=9,  textColor=colors.HexColor('#222222'), fontName='Helvetica-Bold')
 
     elements = []
-    total = sum(feeling_counts.values())
+    total      = sum(feeling_counts.values())
     month_name = datetime(year, month, 1).strftime("%B %Y")
+    _, last_day_cal = calendar.monthrange(year, month)
 
-    # ── HEADER ──
-    elements.append(Paragraph("Class of Happiness", title_style))
-    elements.append(Paragraph("Emotional Wellbeing Report", ParagraphStyle('sub2', fontSize=16, textColor=colors.HexColor('#333'), fontName='Helvetica-Bold', spaceAfter=2)))
-    elements.append(Spacer(1, 6))
-
-    # Student info box
-    info_data = [
-        [Paragraph('<b>Student:</b>', styles['Normal']), Paragraph(student_data['name'], styles['Normal']),
-         Paragraph('<b>Class:</b>', styles['Normal']), Paragraph(classroom_name, styles['Normal'])],
-        [Paragraph('<b>Period:</b>', styles['Normal']), Paragraph(month_name, styles['Normal']),
-         Paragraph('<b>Total Check-ins:</b>', styles['Normal']), Paragraph(str(len(logs_data)), styles['Normal'])],
-        [Paragraph('<b>Generated:</b>', styles['Normal']), Paragraph(datetime.now().strftime("%d %B %Y"), styles['Normal']),
-         Paragraph('<b>Purpose:</b>', styles['Normal']), Paragraph("Educational & Therapeutic Support", styles['Normal'])],
-    ]
-    info_table = Table(info_data, colWidths=[90, 160, 90, 160])
-    info_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), LIGHT),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E0E0E0')),
-        ('PADDING', (0,0), (-1,-1), 8),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+    # ════════════════════════════════════════════════════════
+    # HEADER BANNER
+    # ════════════════════════════════════════════════════════
+    header_data = [[
+        Paragraph("🌈 Class of Happiness", ST_LOGO),
+        Paragraph(
+            f"<b>Emotional Wellbeing Report</b><br/>{month_name}",
+            s('HRight', fontSize=11, textColor=WHITE, fontName='Helvetica-Bold',
+              alignment=2, leading=15)
+        ),
+    ]]
+    header_table = Table(header_data, colWidths=[280, 225])
+    header_table.setStyle(TableStyle([
+        ('BACKGROUND',  (0,0), (-1,-1), INDIGO),
+        ('PADDING',     (0,0), (-1,-1), 14),
+        ('VALIGN',      (0,0), (-1,-1), 'MIDDLE'),
+        ('ROUNDEDCORNERS', [8]),
     ]))
-    elements.append(info_table)
-    elements.append(Spacer(1, 16))
+    elements.append(header_table)
+    elements.append(Spacer(1, 10))
 
-    # ── SECTION 1: ZONE DISTRIBUTION ──
-    elements.append(Paragraph("1. Emotion Zone Distribution", section_style))
-    elements.append(Paragraph(
-        "The Zones of Regulation framework uses four colour zones to represent different emotional and physiological states. "
-        "This section shows how frequently the student was in each zone during the reporting period.",
-        normal_style
-    ))
+    # ── Student info strip ──
+    info_data = [[
+        Paragraph(f"<b>Student:</b> {student_data['name']}", ST_BODY),
+        Paragraph(f"<b>Class:</b> {classroom_name}", ST_BODY),
+        Paragraph(f"<b>Period:</b> {month_name}", ST_BODY),
+        Paragraph(f"<b>Check-ins:</b> {len(logs_data)}", ST_BODY),
+        Paragraph(f"<b>Generated:</b> {datetime.now().strftime('%d %b %Y')}", ST_BODY),
+    ]]
+    info_strip = Table(info_data, colWidths=[103, 103, 103, 79, 117])
+    info_strip.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), MID),
+        ('PADDING',    (0,0), (-1,-1), 7),
+        ('VALIGN',     (0,0), (-1,-1), 'MIDDLE'),
+        ('GRID',       (0,0), (-1,-1), 0.5, LIGHT_GREY),
+    ]))
+    elements.append(info_strip)
+    elements.append(Spacer(1, 12))
 
-    zone_data = [['Zone', 'Colour', 'Description', 'Count', '%']]
-    zone_descs = {
-        "blue": "Sad, tired, moving slowly, low energy",
-        "green": "Happy, calm, focused, ready to learn",
-        "yellow": "Worried, frustrated, silly, losing control",
-        "red": "Angry, scared, out of control, overwhelmed",
-    }
-    for zone in ["blue","green","yellow","red"]:
+    # ════════════════════════════════════════════════════════
+    # ROW 1: Zone distribution (visual bars) + Zone table side by side
+    # ════════════════════════════════════════════════════════
+    elements.append(Paragraph("Emotion Zone Distribution", ST_H2))
+
+    # Build visual bar chart using ReportLab Drawing
+    from reportlab.graphics.shapes import Drawing, Rect, String
+    from reportlab.graphics import renderPDF
+
+    BAR_W, BAR_H = 240, 90
+    bar_drawing = Drawing(BAR_W, BAR_H)
+    zones_order = ["blue", "green", "yellow", "red"]
+    max_count = max(feeling_counts.values()) if total > 0 else 1
+    bar_slot_w = BAR_W / 4
+    bar_margin = 8
+
+    for idx, zone in enumerate(zones_order):
         count = feeling_counts[zone]
-        pct = f"{(count/total*100):.1f}%" if total > 0 else "0%"
-        zone_data.append([
-            COLOUR_NAMES[zone],
-            "",
-            zone_descs[zone],
-            str(count),
-            pct,
+        bar_h = int((count / max_count) * 65) if max_count > 0 else 0
+        bar_h = max(bar_h, 2)
+        x = idx * bar_slot_w + bar_margin
+        bw = bar_slot_w - bar_margin * 2
+
+        # Bar fill
+        zc = ZONE_COLORS_PDF[zone]
+        r = Rect(x, 20, bw, bar_h)
+        r.fillColor = zc
+        r.strokeColor = None
+        bar_drawing.add(r)
+
+        # Count label above bar
+        lbl = String(x + bw / 2, 22 + bar_h, str(count),
+                     textAnchor='middle', fontSize=9,
+                     fontName='Helvetica-Bold',
+                     fillColor=colors.HexColor('#333333'))
+        bar_drawing.add(lbl)
+
+        # Zone label below
+        zlbl = String(x + bw / 2, 6, ZONE_LABELS[zone].split()[0],
+                      textAnchor='middle', fontSize=7,
+                      fontName='Helvetica',
+                      fillColor=colors.HexColor('#666666'))
+        bar_drawing.add(zlbl)
+
+    # Zone stats table (right side)
+    zone_rows = [
+        [Paragraph('<b>Zone</b>', ST_LABEL),
+         Paragraph('<b>Count</b>', ST_LABEL),
+         Paragraph('<b>%</b>', ST_LABEL),
+         Paragraph('<b>State</b>', ST_LABEL)]
+    ]
+    for zone in zones_order:
+        count = feeling_counts[zone]
+        pct   = f"{(count/total*100):.0f}%" if total > 0 else "—"
+        zone_rows.append([
+            Paragraph(ZONE_LABELS[zone], ST_BODY),
+            Paragraph(str(count), ST_VALUE),
+            Paragraph(pct, ST_BODY),
+            Paragraph(ZONE_DESCS[zone], ST_SMALL),
         ])
 
-    zone_table = Table(zone_data, colWidths=[100, 18, 240, 40, 40])
-    zone_style_cmds = [
+    zone_tbl = Table(zone_rows, colWidths=[72, 36, 30, 110])
+    zone_style_list = [
         ('BACKGROUND', (0,0), (-1,0), INDIGO),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E0E0E0')),
-        ('PADDING', (0,0), (-1,-1), 7),
-        ('FONTSIZE', (0,0), (-1,-1), 9),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TEXTCOLOR',  (0,0), (-1,0), WHITE),
+        ('GRID',       (0,0), (-1,-1), 0.4, LIGHT_GREY),
+        ('PADDING',    (0,0), (-1,-1), 5),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [WHITE, LIGHT]),
+        ('VALIGN',     (0,0), (-1,-1), 'MIDDLE'),
     ]
-    for i, zone in enumerate(["blue","green","yellow","red"], 1):
-        zone_style_cmds.append(('BACKGROUND', (1,i), (1,i), ZONE_COLORS_PDF[zone]))
-    zone_table.setStyle(TableStyle(zone_style_cmds))
-    elements.append(zone_table)
-    elements.append(Spacer(1, 16))
+    for i, zone in enumerate(zones_order, 1):
+        zone_style_list.append(
+            ('LEFTPADDING', (0,i), (0,i), 10)
+        )
+        # Colour swatch in first col via background on a tiny inner cell - use textcolor instead
+        zone_style_list.append(
+            ('TEXTCOLOR', (0,i), (0,i), ZONE_COLORS_PDF[zone])
+        )
+        zone_style_list.append(
+            ('FONTNAME', (0,i), (0,i), 'Helvetica-Bold')
+        )
+    zone_tbl.setStyle(TableStyle(zone_style_list))
 
-    # ── SECTION 2: STRATEGIES ──
-    elements.append(Paragraph("2. Coping Strategies Used", section_style))
-    elements.append(Paragraph(
-        "Coping strategies (helpers) are tools the student selected during check-ins to support emotional regulation. "
-        "Frequent use of strategies indicates active engagement with self-regulation skills.",
-        normal_style
-    ))
+    # Side-by-side
+    dist_row = Table(
+        [[bar_drawing, zone_tbl]],
+        colWidths=[250, 255]
+    )
+    dist_row.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('LEFTPADDING',  (1,0), (1,0), 10),
+        ('RIGHTPADDING', (0,0), (0,0), 10),
+    ]))
+    elements.append(dist_row)
+    elements.append(Spacer(1, 12))
+
+    # ════════════════════════════════════════════════════════
+    # ROW 2: Calendar heatmap
+    # ════════════════════════════════════════════════════════
+    elements.append(Paragraph("Monthly Calendar", ST_H2))
+
+    # Build 7-col calendar grid
+    import calendar as cal_mod
+    first_weekday, _ = cal_mod.monthrange(year, month)  # 0=Mon
+    # Pad to Monday-start
+    cal_cells = [''] * first_weekday
+    for day in range(1, last_day_cal + 1):
+        date_key = f"{year}-{month:02d}-{day:02d}"
+        day_logs = daily_counts.get(date_key, {})
+        day_total = sum(day_logs.values())
+        # Dominant zone
+        dominant = max(day_logs, key=day_logs.get) if day_logs else None
+        cal_cells.append((day, dominant, day_total))
+
+    # Pad to full weeks
+    while len(cal_cells) % 7 != 0:
+        cal_cells.append('')
+
+    cal_rows = [['Mon','Tue','Wed','Thu','Fri','Sat','Sun']]
+    for i in range(0, len(cal_cells), 7):
+        week = cal_cells[i:i+7]
+        row = []
+        for cell in week:
+            if cell == '':
+                row.append('')
+            else:
+                day_num, dominant, day_total = cell
+                if dominant:
+                    row.append(Paragraph(
+                        f'<b>{day_num}</b><br/><font size="6">{day_total}✓</font>',
+                        s('CalCell', fontSize=8, textColor=WHITE,
+                          fontName='Helvetica-Bold', alignment=1, leading=10)
+                    ))
+                else:
+                    row.append(Paragraph(
+                        f'<font color="#999">{day_num}</font>',
+                        s('CalEmpty', fontSize=8, alignment=1, leading=10,
+                          textColor=colors.HexColor('#AAAAAA'))
+                    ))
+        cal_rows.append(row)
+
+    col_w = (PAGE_W - 72) / 7
+    cal_tbl = Table(cal_rows, colWidths=[col_w] * 7,
+                    rowHeights=[18] + [28] * (len(cal_rows) - 1))
+
+    cal_style = [
+        ('BACKGROUND',  (0,0), (-1,0), INDIGO),
+        ('TEXTCOLOR',   (0,0), (-1,0), WHITE),
+        ('FONTNAME',    (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE',    (0,0), (-1,0), 8),
+        ('ALIGN',       (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN',      (0,0), (-1,-1), 'MIDDLE'),
+        ('GRID',        (0,0), (-1,-1), 0.3, LIGHT_GREY),
+        ('PADDING',     (0,0), (-1,-1), 3),
+    ]
+
+    # Colour each day cell by dominant zone
+    row_idx = 1
+    for i in range(0, len(cal_cells), 7):
+        week = cal_cells[i:i+7]
+        for col_idx, cell in enumerate(week):
+            if cell and cell != '':
+                day_num, dominant, day_total = cell
+                if dominant and dominant in ZONE_COLORS_PDF:
+                    cal_style.append(
+                        ('BACKGROUND', (col_idx, row_idx), (col_idx, row_idx),
+                         ZONE_COLORS_PDF[dominant])
+                    )
+                else:
+                    cal_style.append(
+                        ('BACKGROUND', (col_idx, row_idx), (col_idx, row_idx), LIGHT)
+                    )
+        row_idx += 1
+
+    cal_tbl.setStyle(TableStyle(cal_style))
+    elements.append(cal_tbl)
+
+    # Legend
+    legend_items = [[
+        Paragraph(f"<font color='#{zc.hexval()[2:]}'>■</font> {ZONE_LABELS[z]}"
+                  if hasattr(zc, 'hexval') else f"■ {ZONE_LABELS[z]}",
+                  ST_SMALL)
+        for z, zc in ZONE_COLORS_PDF.items()
+    ] + [Paragraph("□ No check-in", ST_SMALL)]]
+    legend_tbl = Table(legend_items, colWidths=[(PAGE_W - 72) / 5] * 5)
+    legend_tbl.setStyle(TableStyle([('PADDING', (0,0), (-1,-1), 3)]))
+    elements.append(legend_tbl)
+    elements.append(Spacer(1, 12))
+
+    # ════════════════════════════════════════════════════════
+    # ROW 3: Strategies + Day-of-week side by side
+    # ════════════════════════════════════════════════════════
+    elements.append(Paragraph("Coping Strategies Used", ST_H2))
 
     if helper_counts:
-        top_helpers = sorted(helper_counts.items(), key=lambda x: x[1], reverse=True)
-        helper_data = [['Strategy / Helper', 'Times Used', 'Frequency']]
-        for name, count in top_helpers:
+        top_helpers = sorted(helper_counts.items(), key=lambda x: x[1], reverse=True)[:8]
+        strat_rows = [[
+            Paragraph('<b>Strategy</b>', ST_LABEL),
+            Paragraph('<b>Used</b>', ST_LABEL),
+            Paragraph('<b>Frequency</b>', ST_LABEL),
+        ]]
+        max_strat = max(c for _, c in top_helpers)
+        for sid, count in top_helpers:
+            name = resolve_strategy_name(sid)
+            bar  = '█' * int((count / max_strat) * 8) if max_strat > 0 else ''
             freq = "Very Often" if count >= 5 else "Often" if count >= 3 else "Sometimes" if count >= 2 else "Once"
-            helper_data.append([name, str(count), freq])
-
-        helper_table = Table(helper_data, colWidths=[280, 70, 100])
-        helper_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), INDIGO),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E0E0E0')),
-            ('PADDING', (0,0), (-1,-1), 7),
-            ('FONTSIZE', (0,0), (-1,-1), 9),
-            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, LIGHT]),
+            strat_rows.append([
+                Paragraph(name, ST_BODY),
+                Paragraph(str(count), ST_VALUE),
+                Paragraph(f'<font color="#5C6BC0">{bar}</font> {freq}', ST_SMALL),
+            ])
+        strat_tbl = Table(strat_rows, colWidths=[140, 35, 95])
+        strat_tbl.setStyle(TableStyle([
+            ('BACKGROUND',     (0,0), (-1,0), INDIGO),
+            ('TEXTCOLOR',      (0,0), (-1,0), WHITE),
+            ('GRID',           (0,0), (-1,-1), 0.4, LIGHT_GREY),
+            ('PADDING',        (0,0), (-1,-1), 5),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [WHITE, LIGHT]),
+            ('VALIGN',         (0,0), (-1,-1), 'MIDDLE'),
         ]))
-        elements.append(helper_table)
     else:
-        elements.append(Paragraph("No strategies recorded this period.", normal_style))
-    elements.append(Spacer(1, 16))
+        strat_tbl = Paragraph("No strategies recorded this period.", ST_BODY)
 
-    # ── SECTION 3: WEEKLY PATTERNS ──
-    elements.append(Paragraph("3. Day-of-Week Pattern", section_style))
-    elements.append(Paragraph(
-        "This shows which days of the week had the most check-ins, helping identify patterns in emotional regulation needs.",
-        normal_style
-    ))
-    week_data = [['Day', 'Check-ins', 'Pattern']]
+    # Day of week mini chart
     max_week = max(week_counts.values()) if week_counts else 1
+    week_rows = [[Paragraph('<b>Day</b>', ST_LABEL), Paragraph('<b>Check-ins</b>', ST_LABEL)]]
     for day_idx in range(7):
         count = week_counts.get(day_idx, 0)
-        bar = "█" * int((count / max_week) * 10) if max_week > 0 else ""
-        week_data.append([WEEKDAYS[day_idx], str(count), bar])
-    week_table = Table(week_data, colWidths=[120, 70, 260])
-    week_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), INDIGO),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E0E0E0')),
-        ('PADDING', (0,0), (-1,-1), 7),
-        ('FONTSIZE', (0,0), (-1,-1), 9),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, LIGHT]),
-        ('TEXTCOLOR', (2,1), (2,-1), INDIGO),
+        bar   = '█' * int((count / max_week) * 6) if max_week > 0 else ''
+        week_rows.append([
+            Paragraph(WEEKDAYS[day_idx], ST_BODY),
+            Paragraph(f'<font color="#5C6BC0">{bar}</font> {count}', ST_SMALL),
+        ])
+    week_tbl = Table(week_rows, colWidths=[45, 75])
+    week_tbl.setStyle(TableStyle([
+        ('BACKGROUND',     (0,0), (-1,0), INDIGO),
+        ('TEXTCOLOR',      (0,0), (-1,0), WHITE),
+        ('GRID',           (0,0), (-1,-1), 0.4, LIGHT_GREY),
+        ('PADDING',        (0,0), (-1,-1), 5),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [WHITE, LIGHT]),
+        ('VALIGN',         (0,0), (-1,-1), 'MIDDLE'),
     ]))
-    elements.append(week_table)
-    elements.append(Spacer(1, 16))
 
-    # ── SECTION 4: TIME OF DAY ──
-    if hour_counts:
-        elements.append(Paragraph("4. Time of Day Pattern", section_style))
-        sorted_hours = sorted(hour_counts.items())
-        time_data = [['Time', 'Check-ins']]
-        for hour, count in sorted_hours:
-            time_str = f"{hour:02d}:00 - {hour:02d}:59"
-            time_data.append([time_str, str(count)])
-        time_table = Table(time_data, colWidths=[200, 100])
-        time_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), INDIGO),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E0E0E0')),
-            ('PADDING', (0,0), (-1,-1), 7),
-            ('FONTSIZE', (0,0), (-1,-1), 9),
-            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, LIGHT]),
-        ]))
-        elements.append(time_table)
-        elements.append(Spacer(1, 16))
+    strat_week_row = Table(
+        [[strat_tbl, week_tbl]],
+        colWidths=[280, 130]
+    )
+    strat_week_row.setStyle(TableStyle([
+        ('VALIGN',       (0,0), (-1,-1), 'TOP'),
+        ('LEFTPADDING',  (1,0), (1,0), 12),
+    ]))
+    elements.append(strat_week_row)
+    elements.append(Spacer(1, 12))
 
-    # ── SECTION 5: DETAILED CHECK-IN LOG ──
-    elements.append(Paragraph("5. Detailed Check-in Log", section_style))
-    elements.append(Paragraph(
-        "A complete record of all emotional check-ins for this period, including date, time, zone, and strategies used.",
-        normal_style
-    ))
+    # ════════════════════════════════════════════════════════
+    # Check-in log (compact, with comments)
+    # ════════════════════════════════════════════════════════
+    elements.append(Paragraph("Check-in Log", ST_H2))
 
     if logs_data:
-        log_table_data = [['Date', 'Time', 'Zone', 'Strategies Used', 'Note']]
+        log_rows = [[
+            Paragraph('<b>Date</b>',       ST_LABEL),
+            Paragraph('<b>Time</b>',       ST_LABEL),
+            Paragraph('<b>Zone</b>',       ST_LABEL),
+            Paragraph('<b>Strategies</b>', ST_LABEL),
+            Paragraph('<b>Comment</b>',    ST_LABEL),
+        ]]
         for log in logs_data:
             try:
-                ts = datetime.fromisoformat(log["timestamp"].replace("Z", "+00:00"))
+                ts       = datetime.fromisoformat(log["timestamp"].replace("Z", "+00:00"))
                 date_str = ts.strftime("%d %b")
                 time_str = ts.strftime("%H:%M")
             except:
-                date_str = log.get("timestamp", "")[:10]
+                date_str = log.get("timestamp","")[:10]
                 time_str = ""
-            zone = log.get("feeling_colour", log.get("zone", ""))
-            helpers = log.get("helpers_selected", log.get("strategies_selected", []))
-            helpers_str = ", ".join(helpers[:3]) if helpers else "—"
-            if len(helpers) > 3:
-                helpers_str += f" +{len(helpers)-3}"
-            comment = (log.get("comment") or "")[:40]
-            if len(log.get("comment") or "") > 40:
-                comment += "..."
-            log_table_data.append([date_str, time_str, COLOUR_NAMES.get(zone, zone), helpers_str, comment or "—"])
 
-        log_table = Table(log_table_data, colWidths=[45, 35, 85, 200, 85])
-        log_style_cmds = [
-            ('BACKGROUND', (0,0), (-1,0), INDIGO),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E0E0E0')),
-            ('PADDING', (0,0), (-1,-1), 5),
-            ('FONTSIZE', (0,0), (-1,-1), 8),
-            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, LIGHT]),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            zone     = log.get("feeling_colour", log.get("zone", ""))
+            raw_strats = log.get("helpers_selected", log.get("strategies_selected", []))
+            strat_names = [resolve_strategy_name(s) for s in raw_strats[:3]]
+            strats_str  = ", ".join(strat_names) if strat_names else "—"
+            if len(raw_strats) > 3:
+                strats_str += f" +{len(raw_strats)-3}"
+
+            comment = (log.get("comment") or "").strip()
+            comment = comment[:60] + ("…" if len(comment) > 60 else "")
+            comment = comment or "—"
+
+            log_rows.append([
+                Paragraph(date_str,                              ST_SMALL),
+                Paragraph(time_str,                              ST_SMALL),
+                Paragraph(ZONE_LABELS.get(zone, zone),           ST_SMALL),
+                Paragraph(strats_str,                            ST_SMALL),
+                Paragraph(comment,                               ST_SMALL),
+            ])
+
+        log_tbl = Table(log_rows, colWidths=[38, 32, 68, 170, 147])
+        log_style_list = [
+            ('BACKGROUND',     (0,0), (-1,0), INDIGO),
+            ('TEXTCOLOR',      (0,0), (-1,0), WHITE),
+            ('GRID',           (0,0), (-1,-1), 0.3, LIGHT_GREY),
+            ('PADDING',        (0,0), (-1,-1), 4),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [WHITE, LIGHT]),
+            ('VALIGN',         (0,0), (-1,-1), 'MIDDLE'),
         ]
-        # Colour zone cells
         for i, log in enumerate(logs_data, 1):
             zone = log.get("feeling_colour", log.get("zone", ""))
             if zone in ZONE_COLORS_PDF:
-                log_style_cmds.append(('TEXTCOLOR', (2,i), (2,i), ZONE_COLORS_PDF[zone]))
-                log_style_cmds.append(('FONTNAME', (2,i), (2,i), 'Helvetica-Bold'))
-        log_table.setStyle(TableStyle(log_style_cmds))
-        elements.append(log_table)
+                log_style_list.append(('TEXTCOLOR',  (2,i), (2,i), ZONE_COLORS_PDF[zone]))
+                log_style_list.append(('FONTNAME',   (2,i), (2,i), 'Helvetica-Bold'))
+        log_tbl.setStyle(TableStyle(log_style_list))
+        elements.append(log_tbl)
     else:
-        elements.append(Paragraph("No check-ins recorded for this period.", normal_style))
+        elements.append(Paragraph("No check-ins recorded for this period.", ST_BODY))
 
-    elements.append(Spacer(1, 20))
+    elements.append(Spacer(1, 14))
 
-    # ── DISCLAIMER ──
+    # ── Footer disclaimer ──
     elements.append(Paragraph(
-        "CONFIDENTIALITY NOTICE: This report contains personal emotional wellbeing data. "
-        "It is intended solely for the named student's educational and therapeutic support team. "
-        "Unauthorised sharing or use is prohibited. © Class of Happiness",
-        disclaimer_style
+        "CONFIDENTIALITY NOTICE: This report contains personal emotional wellbeing data intended solely for the named "
+        "student's educational and therapeutic support team. Unauthorised sharing is prohibited. © Class of Happiness",
+        ST_DISC
     ))
     elements.append(Paragraph(
-        "This report is generated by Class of Happiness (classofhappiness.app) using the Zones of Regulation framework. "
-        "It is an educational tool and does not constitute a clinical assessment or diagnosis.",
-        disclaimer_style
+        "Generated by Class of Happiness (classofhappiness.app) using the Zones of Regulation framework. "
+        "This is an educational tool and does not constitute a clinical assessment or diagnosis.",
+        ST_DISC
     ))
 
     doc.build(elements)
