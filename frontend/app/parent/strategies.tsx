@@ -236,6 +236,9 @@ export default function ParentStrategiesScreen() {
                       {strategy.is_shared ? 'Shared with teacher' : 'Not shared'}
                     </Text>
                   </TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleDeleteStrategy(strategy)} style={{padding:4,marginTop:2,alignSelf:'flex-start'}}>
+                    <Text style={{fontSize:11,color:'#F44336',fontWeight:'600'}}>🗑 Delete</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             ))}
