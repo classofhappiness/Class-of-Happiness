@@ -361,6 +361,7 @@ export default function StudentDetailScreen() {
               onPress={() => setShowLinkCodeModal(true)}
             >
               <MaterialIcons name="family-restroom" size={20} color="#4A90D9" />
+              <Text style={[styles.iconBtnLabel, {color:"#4A90D9",fontSize:9}]}>Family</Text>
             </TouchableOpacity>
             {activeTooltip === 'family' && (
               <Animated.View style={[styles.tooltip, styles.tooltipRight, { opacity: tooltipOpacity }]}>

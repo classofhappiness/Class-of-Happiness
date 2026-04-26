@@ -164,6 +164,9 @@ export default function ManageClassroomsScreen() {
       setStrategyModalVisible(false);
       setSelectedStrategy(null);
       setSelectedStudentIds(new Set());
+      setCustomStrategyName('');
+      setCustomStrategyDesc('');
+      setShowCustomStrategyInput(false);
     } catch {
       Alert.alert('Error', 'Failed to add strategy to some students.');
     } finally {
@@ -396,6 +399,35 @@ export default function ManageClassroomsScreen() {
                   {selectedStrategy?.id === s.id && <MaterialIcons name="check-circle" size={20} color={ZONE_COLORS[selectedZone as keyof typeof ZONE_COLORS]} />}
                 </TouchableOpacity>
               ))}
+
+              {/* Custom Strategy Option */}
+              <TouchableOpacity
+                style={[styles.strategyOption, showCustomStrategyInput && { borderColor: '#5C6BC0', borderWidth: 2, backgroundColor: '#EEF2FF' }]}
+                onPress={() => { setShowCustomStrategyInput(!showCustomStrategyInput); setSelectedStrategy(null); }}
+              >
+                <MaterialIcons name="add-circle" size={20} color="#5C6BC0" />
+                <Text style={[styles.strategyOptionText, { color: '#5C6BC0', fontWeight: '600' }]}>✏️ Write a custom strategy...</Text>
+              </TouchableOpacity>
+
+              {showCustomStrategyInput && (
+                <View style={{ backgroundColor: '#F8F9FA', borderRadius: 10, padding: 12, marginBottom: 8, gap: 8 }}>
+                  <TextInput
+                    style={{ borderWidth: 1, borderColor: '#DDD', borderRadius: 8, padding: 10, fontSize: 14, backgroundColor: 'white' }}
+                    placeholder="Strategy name e.g. Take 3 deep breaths"
+                    value={customStrategyName}
+                    onChangeText={setCustomStrategyName}
+                    placeholderTextColor="#AAA"
+                  />
+                  <TextInput
+                    style={{ borderWidth: 1, borderColor: '#DDD', borderRadius: 8, padding: 10, fontSize: 13, backgroundColor: 'white', height: 56, textAlignVertical: 'top' }}
+                    placeholder="How to do it (optional)..."
+                    value={customStrategyDesc}
+                    onChangeText={setCustomStrategyDesc}
+                    multiline
+                    placeholderTextColor="#AAA"
+                  />
+                </View>
+              )}
 
               {/* Student selector */}
               <Text style={styles.sectionLabel}>Select Students ({selectedStudentIds.size} selected)</Text>
