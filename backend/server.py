@@ -50,9 +50,34 @@ app.add_middleware(
 
 # ================== SUBSCRIPTION PLANS ==================
 SUBSCRIPTION_PLANS = {
-    "monthly": {"price": 4.99, "name": "Monthly", "duration_days": 30},
-    "six_month": {"price": 19.99, "name": "6 Months", "duration_days": 180},
-    "annual": {"price": 35.00, "name": "Annual", "duration_days": 365}
+    "teacher_monthly": {
+        "id": "teacher_monthly", "name": "Teacher", "type": "teacher",
+        "price_eur": 7.99, "price_aud": 12.99,
+        "label_eur": "€7.99/month", "label_aud": "A$12.99/month",
+        "trial_days": 7, "duration_days": 30,
+        "features": ["Unlimited classrooms","Unlimited students","PDF reports","Parent linking","Strategy management"],
+    },
+    "parent_monthly": {
+        "id": "parent_monthly", "name": "Parent", "type": "parent",
+        "price_eur": 3.99, "price_aud": 6.99,
+        "label_eur": "€3.99/month", "label_aud": "A$6.99/month",
+        "trial_days": 7, "duration_days": 30,
+        "features": ["Unlimited family members","Home check-ins","Family strategies","School linking"],
+    },
+    "school_small": {
+        "id": "school_small", "name": "School — Small", "type": "school",
+        "price_eur": 399, "price_aud": 699,
+        "label_eur": "€399/year", "label_aud": "A$699/year",
+        "trial_days": 30, "duration_days": 365,
+        "features": ["5 teacher accounts","150 students","School admin dashboard","All features"],
+    },
+    "school_large": {
+        "id": "school_large", "name": "School — Large", "type": "school",
+        "price_eur": 1499, "price_aud": 2499,
+        "label_eur": "€1,499/year", "label_aud": "A$2,499/year",
+        "trial_days": 30, "duration_days": 365,
+        "features": ["Unlimited teachers","Unlimited students","Priority support","Custom branding"],
+    },
 }
 TRIAL_DURATION_DAYS = 7
 

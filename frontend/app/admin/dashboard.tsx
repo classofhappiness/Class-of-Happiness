@@ -986,9 +986,22 @@ export default function AdminDashboardScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={[styles.header,{backgroundColor:headerColor}]}>
-        <Text style={styles.headerTitle}>{isSuperAdmin ? 'Super Admin' : (t('school_admin_dashboard') || 'Admin Dashboard')}</Text>
-        <Text style={styles.headerSub}>{user?.name||user?.email}</Text>
-        <Text style={styles.headerRole} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>{headerLabel}</Text>
+        <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}>
+          <View style={{flex:1}}>
+            <Text style={styles.headerTitle}>{isSuperAdmin ? 'Super Admin' : (t('school_admin_dashboard') || 'Admin Dashboard')}</Text>
+            <Text style={styles.headerSub}>{user?.name||user?.email}</Text>
+            <Text style={styles.headerRole} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>{headerLabel}</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => Alert.alert('Logout', 'Are you sure you want to logout?', [
+              {text:'Cancel',style:'cancel'},
+              {text:'Logout',style:'destructive',onPress:() => signOut()}
+            ])}
+            style={{backgroundColor:'rgba(255,255,255,0.2)',padding:10,borderRadius:10,alignItems:'center'}}>
+            <MaterialIcons name="logout" size={20} color="white" />
+            <Text style={{color:'white',fontSize:10,marginTop:2}}>Logout</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       {isSuperAdmin && <SuperAdminDashboard authToken={authToken} user={user}/>}
       {isSchoolAdmin && !isSuperAdmin && <SchoolAdminDashboard authToken={authToken} user={user}/>}
