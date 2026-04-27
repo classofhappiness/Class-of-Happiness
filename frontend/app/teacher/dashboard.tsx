@@ -83,14 +83,31 @@ export default function TeacherDashboardScreen() {
     }
   };
 
-  // Load teacher checkins immediately when user is ready
+  // Load teacher checkins immediately when user is ready — DB first
   useEffect(() => {
     if (!user?.user_id) return;
     (async () => {
       try {
+        // Try AsyncStorage first for instant display
         const raw = await AsyncStorage.getItem(`teacher_checkins_${user.user_id}`);
-        const data = raw ? JSON.parse(raw) : [];
-        setTeacherCheckins(data.slice(0, 5));
+        const cached = raw ? JSON.parse(raw) : [];
+        if (cached.length > 0) setTeacherCheckins(cached.slice(0, 5));
+
+        // Then fetch from DB for freshest data
+        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        const token = await AsyncStorage.getItem('session_token');
+        const res = await fetch(`${BACKEND_URL}/api/teacher-checkins?days=30`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const dbData = await res.json();
+          const checkins = Array.isArray(dbData) ? dbData : [];
+          if (checkins.length > 0) {
+            setTeacherCheckins(checkins.slice(0, 5));
+            // Update cache
+            await AsyncStorage.setItem(`teacher_checkins_${user.user_id}`, JSON.stringify(checkins.slice(0, 90)));
+          }
+        }
       } catch {}
     })();
   }, [user?.user_id]);

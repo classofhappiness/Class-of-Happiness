@@ -97,8 +97,28 @@ export default function TeacherCheckInScreen() {
   const loadData = async () => {
     if (!user?.user_id) return;
     try {
-      const raw = await AsyncStorage.getItem(`teacher_checkins_${user.user_id}`);
-      const checkins = raw ? JSON.parse(raw) : [];
+      // Try DB first
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const token = await AsyncStorage.getItem('session_token');
+      let checkins: any[] = [];
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/teacher-checkins?days=30`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const dbData = await res.json();
+          checkins = Array.isArray(dbData) ? dbData : [];
+          // Also update AsyncStorage so dashboard loads fast
+          await AsyncStorage.setItem(`teacher_checkins_${user.user_id}`, JSON.stringify(checkins.slice(0, 90)));
+        }
+      } catch { }
+
+      // Fallback to AsyncStorage if DB empty
+      if (checkins.length === 0) {
+        const raw = await AsyncStorage.getItem(`teacher_checkins_${user.user_id}`);
+        checkins = raw ? JSON.parse(raw) : [];
+      }
+
       setHistory(checkins.slice(0, 10));
 
       // Build this week's data
