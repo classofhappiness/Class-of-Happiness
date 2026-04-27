@@ -69,12 +69,40 @@ export default function ManageStrategiesScreen() {
     fetchStrategies();
   }, [studentId, selectedZone]);
 
+  // Fallback strategies matching student app
+  const FALLBACK_STRATEGIES: Record<string, Strategy[]> = {
+    blue: [
+      {id:'b1', name:'Gentle Stretch', description:'Move your body slowly and gently', icon:'fitness-center', zone:'blue', feeling_colour:'blue'},
+      {id:'b2', name:'Favourite Song', description:'Listen to a calming favourite song', icon:'music-note', zone:'blue', feeling_colour:'blue'},
+      {id:'b3', name:'Tell Someone', description:'Share how you feel with a trusted person', icon:'chat', zone:'blue', feeling_colour:'blue'},
+      {id:'b4', name:'Slow Breathing', description:'Breathe in slowly, hold, breathe out', icon:'air', zone:'blue', feeling_colour:'blue'},
+    ],
+    green: [
+      {id:'g1', name:'Keep Going!', description:'You are in a great zone — keep it up!', icon:'thumb-up', zone:'green', feeling_colour:'green'},
+      {id:'g2', name:'Help a Friend', description:'Use your good energy to help someone else', icon:'favorite', zone:'green', feeling_colour:'green'},
+      {id:'g3', name:'Set a Goal', description:'Plan something you want to achieve today', icon:'lightbulb', zone:'green', feeling_colour:'green'},
+      {id:'g4', name:'Gratitude', description:'Think of three things you are grateful for', icon:'star', zone:'green', feeling_colour:'green'},
+    ],
+    yellow: [
+      {id:'y1', name:'Bubble Breathing', description:'Breathe out slowly like blowing a bubble', icon:'air', zone:'yellow', feeling_colour:'yellow'},
+      {id:'y2', name:'Count to 10', description:'Count slowly from 1 to 10 before reacting', icon:'filter-9-plus', zone:'yellow', feeling_colour:'yellow'},
+      {id:'y3', name:'5 Senses', description:'Name 5 things you can see, hear, feel', icon:'visibility', zone:'yellow', feeling_colour:'yellow'},
+      {id:'y4', name:'Talk About It', description:'Find a safe person to share your feelings', icon:'chat', zone:'yellow', feeling_colour:'yellow'},
+    ],
+    red: [
+      {id:'r1', name:'Freeze', description:'Stop and hold very still for 10 seconds', icon:'pan-tool', zone:'red', feeling_colour:'red'},
+      {id:'r2', name:'Big Breaths', description:'Take 3 big deep breaths right now', icon:'air', zone:'red', feeling_colour:'red'},
+      {id:'r3', name:'Safe Space', description:'Move to a quiet safe place to calm down', icon:'home', zone:'red', feeling_colour:'red'},
+      {id:'r4', name:'Ask for Help', description:'Tell an adult you need support right now', icon:'support-agent', zone:'red', feeling_colour:'red'},
+    ],
+  };
+
   const fetchStrategies = async () => {
     setLoading(true);
     try {
       const [defaultStrats, customStrats, sharedStrats] = await Promise.all([
-        strategiesApi.getByZone(selectedZone),
-        studentId ? customStrategiesApi.getAll(studentId) : Promise.resolve([]),
+        strategiesApi.getByZone(selectedZone).catch(() => []),
+        studentId ? customStrategiesApi.getAll(studentId).catch(() => []) : Promise.resolve([]),
         studentId ? strategySyncApi.getShared(studentId) : Promise.resolve([])
       ]);
       setStrategies(defaultStrats.filter(s => !s.is_custom));

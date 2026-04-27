@@ -293,26 +293,49 @@ export default function LinkedChildDetailScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Permission Toggle */}
+        {/* Permission Toggle — Share / No Share tabs */}
         <View style={styles.permissionCard}>
-          <View style={styles.permissionInfo}>
-            <MaterialIcons name="share" size={24} color="#5C6BC0" />
-            <View style={styles.permissionTextContainer}>
-              <Text style={styles.permissionTitle}>{t('share_with_teacher') || 'Share Home Data with Teacher'}</Text>
-              <Text style={styles.permissionDesc}>
-                {homeSharingEnabled 
-                  ? (t('teacher_can_see') || 'Teacher can see home check-ins and shared strategies')
-                  : (t('teacher_cannot_see') || 'Teacher cannot see home data')
-                }
-              </Text>
-            </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <MaterialIcons name="share" size={20} color="#5C6BC0" />
+            <Text style={styles.permissionTitle}>{t('share_with_teacher') || 'Share Home Data with Teacher'}</Text>
           </View>
-          <Switch
-            value={homeSharingEnabled}
-            onValueChange={handleToggleHomeSharing}
-            trackColor={{ false: '#ddd', true: '#81C784' }}
-            thumbColor={homeSharingEnabled ? '#4CAF50' : '#999'}
-          />
+          <Text style={[styles.permissionDesc, { marginBottom: 12 }]}>
+            {homeSharingEnabled
+              ? (t('teacher_can_see') || 'Teacher can see home check-ins and shared strategies')
+              : (t('teacher_cannot_see') || 'Teacher cannot see home data')}
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity
+              style={{
+                flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center',
+                backgroundColor: homeSharingEnabled ? '#E8F5E9' : '#F5F5F5',
+                borderWidth: 2,
+                borderColor: homeSharingEnabled ? '#4CAF50' : '#E0E0E0',
+              }}
+              onPress={() => { if (!homeSharingEnabled) handleToggleHomeSharing(); }}
+            >
+              <MaterialIcons name="visibility" size={20} color={homeSharingEnabled ? '#4CAF50' : '#CCC'} />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: homeSharingEnabled ? '#4CAF50' : '#CCC', marginTop: 4 }}>
+                Share
+              </Text>
+              <Text style={{ fontSize: 10, color: '#999', marginTop: 2 }}>Teacher can see</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{
+                flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center',
+                backgroundColor: !homeSharingEnabled ? '#FFF3E0' : '#F5F5F5',
+                borderWidth: 2,
+                borderColor: !homeSharingEnabled ? '#FF9800' : '#E0E0E0',
+              }}
+              onPress={() => { if (homeSharingEnabled) handleToggleHomeSharing(); }}
+            >
+              <MaterialIcons name="visibility-off" size={20} color={!homeSharingEnabled ? '#FF9800' : '#CCC'} />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: !homeSharingEnabled ? '#FF9800' : '#CCC', marginTop: 4 }}>
+                No Share
+              </Text>
+              <Text style={{ fontSize: 10, color: '#999', marginTop: 2 }}>Keep private</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Check-ins Section */}

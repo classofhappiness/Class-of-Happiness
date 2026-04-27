@@ -106,15 +106,20 @@ export default function StudentSelectScreen() {
     if (allCreatures.length > 0) {
       // Calculate total points needed across all creatures
       const totalNeeded = allCreatures.reduce((sum: number, c: any) => {
-        const stages = c.stages || [];
-        return sum + stages.reduce((s: number, stage: any) => s + (stage.points_required || 10), 0);
+        return sum + (c.total_points_needed || 0);
       }, 0);
       const currentPts = allCreatures.reduce((sum: number, c: any) => sum + Number(c.current_points || 0), 0);
+      const allComplete = allCreatures.every((c: any) => c.is_complete);
       return (
         <View style={styles.creatureIconsContainer}>
-          {totalNeeded > 0 && (
+          {totalNeeded > 0 && !allComplete && (
             <Text style={{ fontSize: 9, color: '#888', textAlign: 'center', marginBottom: 2 }}>
-              {currentPts}/{totalNeeded} pts total
+              ⭐ {currentPts}/{totalNeeded} pts to complete all
+            </Text>
+          )}
+          {allComplete && (
+            <Text style={{ fontSize: 9, color: '#4CAF50', textAlign: 'center', marginBottom: 2, fontWeight: '600' }}>
+              ✅ All creatures complete!
             </Text>
           )}
           <View style={styles.collectedIcons}>

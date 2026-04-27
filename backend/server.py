@@ -3826,10 +3826,24 @@ async def get_collection(student_id: str):
 
     all_creatures = []
     for cid, cdata in creatures_map.items():
+        cstage = creature_stages.get(cid, 0)
+        cpoints = creature_points.get(cid, 0)
+        stages = cdata.get("stages", [])
+        # Points needed to reach next stage
+        next_stage_points = None
+        for stage in stages:
+            if stage.get("stage", 0) > cstage:
+                next_stage_points = stage.get("required_points", 0)
+                break
+        # Total points needed across all stages
+        total_points_needed = sum(s.get("required_points", 0) for s in stages if s.get("stage", 0) > 0)
         all_creatures.append({
             **cdata,
-            "current_points": creature_points.get(cid, 0),
-            "current_stage": creature_stages.get(cid, 0),
+            "current_points": cpoints,
+            "current_stage": cstage,
+            "next_stage_points": next_stage_points,
+            "total_points_needed": total_points_needed,
+            "is_complete": cstage >= len(stages) - 1,
         })
 
     current_creature = creatures_map.get(current_id, CREATURES[0])
