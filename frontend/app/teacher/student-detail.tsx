@@ -540,15 +540,29 @@ export default function StudentDetailScreen() {
         {analytics && Object.keys(analytics.strategy_counts || {}).length > 0 && (
           <View style={styles.strategiesSection}>
             <Text style={styles.sectionTitle}>Most Used Strategies</Text>
-            {Object.entries(analytics.strategy_counts).map(([strategyId, count]) => (
-              <View key={strategyId} style={styles.strategyItem}>
-                <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
-                <Text style={styles.strategyName}>{getStrategyName(strategyId)}</Text>
-                <View style={styles.strategyCount}>
-                  <Text style={styles.strategyCountText}>{count as number}x</Text>
-                </View>
-              </View>
-            ))}
+            {Object.entries(analytics.strategy_counts)
+              .sort(([,a],[,b]) => (b as number) - (a as number))
+              .map(([strategyId, count]) => {
+                // Determine zone colour from strategy ID prefix
+                const zoneColour = strategyId.startsWith('b') ? '#4A90D9'
+                  : strategyId.startsWith('g') ? '#4CAF50'
+                  : strategyId.startsWith('y') ? '#FFC107'
+                  : strategyId.startsWith('r') ? '#F44336'
+                  : strategyId.startsWith('p_b') ? '#4A90D9'
+                  : strategyId.startsWith('p_g') ? '#4CAF50'
+                  : strategyId.startsWith('p_y') ? '#FFC107'
+                  : strategyId.startsWith('p_r') ? '#F44336'
+                  : '#999';
+                return (
+                  <View key={strategyId} style={styles.strategyItem}>
+                    <View style={[styles.strategyZoneCircle, { backgroundColor: zoneColour }]} />
+                    <Text style={styles.strategyName}>{getStrategyName(strategyId)}</Text>
+                    <View style={styles.strategyCount}>
+                      <Text style={styles.strategyCountText}>{count as number}x</Text>
+                    </View>
+                  </View>
+                );
+              })}
           </View>
         )}
 
@@ -1356,6 +1370,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     marginLeft: 12,
+  },
+  strategyZoneCircle: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 8,
+    flexShrink: 0,
   },
   strategyCount: {
     backgroundColor: '#FFF8E1',
