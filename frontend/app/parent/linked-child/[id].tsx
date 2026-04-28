@@ -226,7 +226,7 @@ export default function LinkedChildDetailScreen() {
     switch (activeTab) {
       case 'home': return homeCheckIns;
       case 'school': return schoolCheckIns;
-      default: return allCheckIns;
+      default: return (allCheckIns).filter((c: any) => !activeZoneFilter || c.zone === activeZoneFilter || c.feeling_colour === activeZoneFilter);
     }
   };
 
@@ -345,6 +345,27 @@ export default function LinkedChildDetailScreen() {
 
         {/* Check-ins Section */}
         <Text style={styles.sectionTitle}>{t('check_ins') || 'Check-ins'}</Text>
+        {/* Zone filter */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}
+          contentContainerStyle={{ flexDirection: 'row', gap: 8, paddingHorizontal: 4 }}>
+          {[
+            { id: null, label: 'All', color: '#5C6BC0' },
+            { id: 'blue', label: '😢 Blue', color: '#4A90D9' },
+            { id: 'green', label: '😊 Green', color: '#4CAF50' },
+            { id: 'yellow', label: '😟 Yellow', color: '#FFC107' },
+            { id: 'red', label: '😣 Red', color: '#F44336' },
+          ].map(z => (
+            <TouchableOpacity key={z.id || 'all'}
+              style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
+                backgroundColor: activeZoneFilter === z.id ? z.color : '#F0F0F0',
+                borderWidth: 1, borderColor: activeZoneFilter === z.id ? z.color : '#E0E0E0' }}
+              onPress={() => setActiveZoneFilter(z.id)}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '600',
+                color: activeZoneFilter === z.id ? 'white' : '#666' }}>{z.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
         
         {/* Tab Selector */}
         <View style={styles.tabSelector}>

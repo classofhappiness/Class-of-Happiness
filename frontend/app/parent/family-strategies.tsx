@@ -86,6 +86,8 @@ export default function FamilyStrategiesScreen() {
   const [saving, setSaving] = useState(false);
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'parent' | 'child' | 'custom'>('parent');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectMode, setSelectMode] = useState(false);
 
   useEffect(() => {
     loadCustomStrategies();
@@ -134,6 +136,29 @@ export default function FamilyStrategiesScreen() {
       { text: 'Delete', style: 'destructive', onPress: async () => {
         try { await familyStratApi(`/custom-strategies/${s.id}`, 'DELETE'); loadCustomStrategies(); }
         catch { Alert.alert('Error', 'Could not delete'); }
+      }},
+    ]);
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const deleteSelected = () => {
+    if (selectedIds.size === 0) return;
+    Alert.alert('Delete', `Delete ${selectedIds.size} strategy${selectedIds.size > 1 ? 'ies' : 'y'}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete All', style: 'destructive', onPress: async () => {
+        try {
+          await Promise.all([...selectedIds].map(id => familyStratApi(`/custom-strategies/${id}`, 'DELETE')));
+          setSelectedIds(new Set());
+          setSelectMode(false);
+          loadCustomStrategies();
+        } catch { Alert.alert('Error', 'Could not delete some strategies'); }
       }},
     ]);
   };
@@ -299,15 +324,58 @@ export default function FamilyStrategiesScreen() {
 
         {/* My Family Strategies — Custom */}
         <View style={{ backgroundColor: 'white', borderRadius: 14, padding: 16, marginTop: 16, marginBottom: 8 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: '#333' }}>My Family Strategies</Text>
-            <TouchableOpacity
-              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#5C6BC0', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, gap: 4 }}
-              onPress={() => { setEditingStrategy(null); setNewStrat({ name: '', description: '', zone: 'green', share_with_teacher: false, assigned_to: 'all' }); setShowAddModal(true); }}
-            >
-              <MaterialIcons name="add" size={16} color="white" />
-              <Text style={{ color: 'white', fontSize: 13, fontWeight: '600' }}>Add</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {selectMode ? (
+                <>
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F0F0', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 20, gap: 4 }}
+                    onPress={() => {
+                      if (selectedIds.size === customStrategies.length) {
+                        setSelectedIds(new Set());
+                      } else {
+                        setSelectedIds(new Set(customStrategies.map((s: any) => s.id)));
+                      }
+                    }}
+                  >
+                    <MaterialIcons name={selectedIds.size === customStrategies.length ? 'check-box' : 'check-box-outline-blank'} size={16} color="#5C6BC0" />
+                    <Text style={{ fontSize: 12, color: '#5C6BC0' }}>All</Text>
+                  </TouchableOpacity>
+                  {selectedIds.size > 0 && (
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F44336', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 20, gap: 4 }}
+                      onPress={deleteSelected}
+                    >
+                      <MaterialIcons name="delete" size={16} color="white" />
+                      <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>Delete ({selectedIds.size})</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={{ paddingHorizontal: 10, paddingVertical: 7, borderRadius: 20, backgroundColor: '#F0F0F0' }}
+                    onPress={() => { setSelectMode(false); setSelectedIds(new Set()); }}
+                  >
+                    <Text style={{ fontSize: 12, color: '#666' }}>Done</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={{ paddingHorizontal: 10, paddingVertical: 7, borderRadius: 20, backgroundColor: '#F0F0F0' }}
+                    onPress={() => setSelectMode(true)}
+                  >
+                    <Text style={{ fontSize: 12, color: '#666' }}>Select</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#5C6BC0', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, gap: 4 }}
+                    onPress={() => { setEditingStrategy(null); setNewStrat({ name: '', description: '', zone: 'green', share_with_teacher: false, assigned_to: 'all' }); setShowAddModal(true); }}
+                  >
+                    <MaterialIcons name="add" size={16} color="white" />
+                    <Text style={{ color: 'white', fontSize: 13, fontWeight: '600' }}>Add</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
           </View>
           {customStrategies.length === 0 ? (
             <Text style={{ fontSize: 13, color: '#AAA', textAlign: 'center', paddingVertical: 16 }}>
@@ -315,20 +383,36 @@ export default function FamilyStrategiesScreen() {
             </Text>
           ) : (
             customStrategies.map((s) => (
-              <View key={s.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', gap: 10 }}>
-                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: ZONE_COLORS[s.feeling_colour || s.zone || 'green'] || '#5C6BC0' }} />
+              <TouchableOpacity
+                key={s.id}
+                style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', gap: 10,
+                  backgroundColor: selectedIds.has(s.id) ? '#EEF2FF' : 'transparent' }}
+                onPress={() => selectMode ? toggleSelect(s.id) : null}
+                activeOpacity={selectMode ? 0.6 : 1}
+              >
+                {selectMode && (
+                  <MaterialIcons
+                    name={selectedIds.has(s.id) ? 'check-box' : 'check-box-outline-blank'}
+                    size={20} color="#5C6BC0"
+                  />
+                )}
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: ZONE_COLORS[s.feeling_colour || s.zone || 'green'] || '#5C6BC0', flexShrink: 0 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 14, fontWeight: '600', color: '#333' }}>{s.name}</Text>
                   {s.description ? <Text style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{s.description}</Text> : null}
                   {s.is_shared && <Text style={{ fontSize: 10, color: '#4CAF50', marginTop: 2 }}>Shared with teacher ✅</Text>}
                 </View>
-                <TouchableOpacity onPress={() => openEdit(s)} style={{ padding: 6 }}>
-                  <MaterialIcons name="edit" size={18} color="#5C6BC0" />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => deleteStrategy(s)} style={{ padding: 6 }}>
-                  <MaterialIcons name="delete" size={18} color="#F44336" />
-                </TouchableOpacity>
-              </View>
+                {!selectMode && (
+                  <>
+                    <TouchableOpacity onPress={() => openEdit(s)} style={{ padding: 6 }}>
+                      <MaterialIcons name="edit" size={18} color="#5C6BC0" />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => deleteStrategy(s)} style={{ padding: 6 }}>
+                      <MaterialIcons name="delete" size={18} color="#F44336" />
+                    </TouchableOpacity>
+                  </>
+                )}
+              </TouchableOpacity>
             ))
           )}
         </View>
