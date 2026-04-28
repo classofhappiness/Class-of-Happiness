@@ -5041,7 +5041,8 @@ async def get_student_sharing_status(student_id: str, request: Request):
         if is_linked and links.data:
             link = links.data[0]
             home_sharing = link.get("home_sharing_enabled", False)
-            school_sharing = True  # school always shares with parent by default
+            # School sharing - teacher can always see school data, parent sees school data if link exists
+            school_sharing = True  # school data visible to linked parent by default
             # Get parent name
             try:
                 parent = supabase.table("users").select("name,email").eq("user_id", link["parent_user_id"]).execute()
@@ -5155,11 +5156,19 @@ async def get_student_all_strategies(student_id: str, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        # School strategies
+        # School strategies - normalize zone/feeling_colour
         try:
             school = supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute()
-            school_strats = [{**s, "source": "school"} for s in (school.data or [])]
-        except Exception:
+            school_strats = []
+            for s in (school.data or []):
+                normalized = {**s, "source": "school"}
+                if not normalized.get("zone"):
+                    normalized["zone"] = normalized.get("feeling_colour", "green")
+                if not normalized.get("feeling_colour"):
+                    normalized["feeling_colour"] = normalized.get("zone", "green")
+                school_strats.append(normalized)
+        except Exception as e:
+            logger.error(f"school strategies fetch error: {e}")
             school_strats = []
         # Family strategies (shared with teacher)
         try:

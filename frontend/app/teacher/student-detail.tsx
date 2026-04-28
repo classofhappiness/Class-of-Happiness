@@ -177,7 +177,7 @@ export default function StudentDetailScreen() {
         
         // Also load teacher/family strategies
         try {
-          const allStrats = await teacherHomeDataApi.getAllStrategies(studentId);
+          let allStrats = await teacherHomeDataApi.getAllStrategies(studentId).catch(() => ({school_strategies:[], family_strategies:[]}));
           const schoolStrats = (allStrats.school_strategies || []).map((s: any) => ({ ...s, source: 'school' }));
           const familyStrats = (allStrats.family_strategies || []).map((s: any) => ({
             ...s, name: s.name || s.strategy_name, description: s.description || s.strategy_description, source: 'home',
@@ -856,7 +856,7 @@ export default function StudentDetailScreen() {
                         icon: 'star',
                         share_with_parent: newStrategy.shareWithParent,
                       });
-                      const strats = await teacherHomeDataApi.getAllStrategies(studentId!);
+                      const strats = await teacherHomeDataApi.getAllStrategies(studentId!).catch(() => ({school_strategies:[], family_strategies:[]}));
                       setAllStrategies({ school: strats.school_strategies || [], family: strats.family_strategies || [] });
                       setShowAddStrategyModal(false);
                       setNewStrategy({name:'', description:'', zone:'green', icon:'star', shareWithParent:false});
@@ -885,33 +885,44 @@ export default function StudentDetailScreen() {
                 ? `✅ Parent sharing on · ${sharingStatus.school_sharing_enabled ? '✅ School sharing on' : '⏸ School sharing off'}`
                 : `⏸ Parent sharing off · ${sharingStatus.school_sharing_enabled ? '✅ School sharing on' : '⏸ School sharing off'}`}
             </Text>
-            {/* Share / No Share tabs */}
+            {/* Share status info - read only for teacher, parent controls sharing */}
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
               <View style={{
-                flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center',
-                backgroundColor: sharingStatus.home_sharing_enabled && sharingStatus.school_sharing_enabled ? '#E8F5E9' : '#F5F5F5',
+                flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center',
+                backgroundColor: sharingStatus.home_sharing_enabled ? '#E8F5E9' : '#F5F5F5',
                 borderWidth: 1.5,
-                borderColor: sharingStatus.home_sharing_enabled && sharingStatus.school_sharing_enabled ? '#4CAF50' : '#E0E0E0',
+                borderColor: sharingStatus.home_sharing_enabled ? '#4CAF50' : '#E0E0E0',
               }}>
-                <MaterialIcons name="visibility" size={16} color={sharingStatus.home_sharing_enabled && sharingStatus.school_sharing_enabled ? '#4CAF50' : '#CCC'} />
-                <Text style={{ fontSize: 11, fontWeight: '600', color: sharingStatus.home_sharing_enabled && sharingStatus.school_sharing_enabled ? '#4CAF50' : '#CCC', marginTop: 2 }}>
-                  Share
+                <MaterialIcons name="home" size={16} color={sharingStatus.home_sharing_enabled ? '#4CAF50' : '#CCC'} />
+                <Text style={{ fontSize: 10, fontWeight: '600', color: sharingStatus.home_sharing_enabled ? '#4CAF50' : '#999', marginTop: 2 }}>
+                  Parent Sharing
                 </Text>
-                <Text style={{ fontSize: 9, color: '#999', marginTop: 1 }}>Both enabled</Text>
+                <Text style={{ fontSize: 9, color: sharingStatus.home_sharing_enabled ? '#4CAF50' : '#999' }}>
+                  {sharingStatus.home_sharing_enabled ? 'On ✅' : 'Off ⏸'}
+                </Text>
               </View>
               <View style={{
-                flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center',
-                backgroundColor: !sharingStatus.home_sharing_enabled || !sharingStatus.school_sharing_enabled ? '#FFF3E0' : '#F5F5F5',
+                flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center',
+                backgroundColor: '#E8EAF6',
                 borderWidth: 1.5,
-                borderColor: !sharingStatus.home_sharing_enabled || !sharingStatus.school_sharing_enabled ? '#FF9800' : '#E0E0E0',
+                borderColor: '#5C6BC0',
               }}>
-                <MaterialIcons name="visibility-off" size={16} color={!sharingStatus.home_sharing_enabled || !sharingStatus.school_sharing_enabled ? '#FF9800' : '#CCC'} />
-                <Text style={{ fontSize: 11, fontWeight: '600', color: !sharingStatus.home_sharing_enabled || !sharingStatus.school_sharing_enabled ? '#FF9800' : '#CCC', marginTop: 2 }}>
-                  No Share
+                <MaterialIcons name="school" size={16} color="#5C6BC0" />
+                <Text style={{ fontSize: 10, fontWeight: '600', color: '#5C6BC0', marginTop: 2 }}>
+                  School Sharing
                 </Text>
-                <Text style={{ fontSize: 9, color: '#999', marginTop: 1 }}>One or both off</Text>
+                <Text style={{ fontSize: 9, color: '#5C6BC0' }}>
+                  Always On ✅
+                </Text>
               </View>
             </View>
+            {!sharingStatus.home_sharing_enabled && (
+              <View style={{ backgroundColor: '#FFF8E1', borderRadius: 8, padding: 10, marginBottom: 12 }}>
+                <Text style={{ fontSize: 11, color: '#F57F17' }}>
+                  ℹ️ Parent has not enabled home data sharing yet. Ask them to turn on sharing in their app under Linked Child settings.
+                </Text>
+              </View>
+            )}
             
             {sharingStatus.home_sharing_enabled && homeData ? (
               <>
