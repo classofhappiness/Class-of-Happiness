@@ -107,6 +107,7 @@ export default function ParentDashboard() {
   
   // Linked children from school
   const [linkedChildren, setLinkedChildren] = useState<Student[]>([]);
+  const [childCreatures, setChildCreatures] = useState<Record<string, any>>({});
   // Family members (self, partner, kids at home)
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [memberCreatures, setMemberCreatures] = useState<Record<string, any>>({});
