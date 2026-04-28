@@ -296,7 +296,7 @@ export const customStrategiesApi = {
 
 // Zone Logs API
 export const zoneLogsApi = {
-  create: (data: { student_id: string; zone: string; strategies_selected: string[]; comment?: string }): Promise<ZoneLog> => 
+  create: (data: { student_id: string; zone: string; strategies_selected: string[]; comment?: string; logged_by?: string }): Promise<ZoneLog> => 
     apiRequest('/zone-logs', { method: 'POST', body: JSON.stringify(data) }),
   
   getByStudent: (studentId: string, days?: number): Promise<ZoneLog[]> => 
