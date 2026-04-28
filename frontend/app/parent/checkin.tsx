@@ -93,7 +93,18 @@ export default function FamilyCheckInScreen() {
   const router = useRouter();
   const { memberId, memberName, studentId, relationship } = useLocalSearchParams<{ memberId: string; memberName: string; studentId?: string; relationship?: string }>();
   const memberRelationship = (relationship as string) || 'adult';
-  const { t, language } = useApp();
+  const { t, language, currentStudent, students } = useApp();
+
+  // If checking in a child, redirect to student flow with home location
+  React.useEffect(() => {
+    if (memberRelationship === 'child' && studentId) {
+      // Find the student and set them as current, then go to student select
+      router.replace({
+        pathname: '/student/select',
+        params: { fromHome: 'true', linkedStudentId: studentId, memberName }
+      });
+    }
+  }, [memberRelationship, studentId]);
   
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
   const [strategies, setStrategies] = useState<Strategy[]>([]);

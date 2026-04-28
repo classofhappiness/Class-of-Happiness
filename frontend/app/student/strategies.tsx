@@ -68,15 +68,48 @@ export default function StrategiesScreen() {
     if (!zone) return;
     setLoading(true);
     try {
-      // Direct fetch to bypass any auth issues - helpers are public
+      // Fetch generic helpers
       const url = `${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=${language || 'en'}`;
       const response = await fetch(url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      setStrategies(data);
+      let genericStrats: Strategy[] = [];
+      if (response.ok) {
+        genericStrats = await response.json();
+      } else {
+        genericStrats = getFallbackStrategies(zone);
+      }
+
+      // Also fetch custom strategies for this student (teacher/parent added)
+      let customStrats: Strategy[] = [];
+      if (currentStudent?.id) {
+        try {
+          const token = await AsyncStorage.getItem('session_token');
+          const customRes = await fetch(
+            `${BACKEND_URL}/api/custom-strategies?student_id=${currentStudent.id}`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+          );
+          if (customRes.ok) {
+            const customData = await customRes.json();
+            // Only show custom strategies for this zone
+            customStrats = (Array.isArray(customData) ? customData : [])
+              .filter((s: any) => (s.feeling_colour || s.zone) === zone)
+              .map((s: any) => ({
+                id: s.id,
+                name: s.name,
+                description: s.description || '',
+                icon: s.icon || 'star',
+                zone: s.feeling_colour || s.zone || zone,
+                is_custom: true,
+              }));
+          }
+        } catch { /* custom strategies optional */ }
+      }
+
+      // Merge: generic first, then custom (no duplicates by name)
+      const genericNames = new Set(genericStrats.map((s: Strategy) => s.name.toLowerCase()));
+      const uniqueCustom = customStrats.filter((s: any) => !genericNames.has(s.name.toLowerCase()));
+      setStrategies([...genericStrats, ...uniqueCustom]);
     } catch (error) {
       console.error('Error fetching strategies:', error);
-      // Fallback hardcoded strategies
       setStrategies(getFallbackStrategies(zone));
     } finally {
       setLoading(false);

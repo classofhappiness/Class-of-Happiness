@@ -501,21 +501,23 @@ const styles = StyleSheet.create({
   },
   filterContainer: { flexDirection: 'row', flexWrap: 'nowrap', gap: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   filterChip: {
-    flexShrink: 0,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: 'white',
+    backgroundColor: '#F0F0F0',
     borderWidth: 1,
     borderColor: '#E0E0E0',
+    minWidth: 60,
+    flexShrink: 0,
   },
   filterChipActive: {
     backgroundColor: '#5C6BC0',
     borderColor: '#5C6BC0',
   },
   filterChipText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#666',
+    textAlign: 'center',
   },
   filterChipTextActive: {
     color: 'white',

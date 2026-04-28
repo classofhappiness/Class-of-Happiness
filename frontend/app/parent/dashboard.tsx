@@ -27,8 +27,7 @@ import { Avatar } from '../../src/components/Avatar';
 
 // Pick image with camera or library choice
 const pickImageWithChoice = (
-  onSelect: (base64: string) => void,
-  setLoading?: (v: boolean) => void
+  onSelect: (base64: string) => void
 ) => {
   Alert.alert(
     'Add Photo',
@@ -37,32 +36,32 @@ const pickImageWithChoice = (
       {
         text: '📷 Take Photo',
         onPress: async () => {
-          const perm = await ImagePicker.requestCameraPermissionsAsync();
-          if (!perm.granted) { Alert.alert('Permission needed', 'Allow camera access in Settings.'); return; }
-          setLoading?.(true);
-          const result = await ImagePicker.launchCameraAsync({
-            allowsEditing: true, aspect: [1,1], quality: 0.5, base64: true,
-          });
-          setLoading?.(false);
-          if (!result.canceled && result.assets[0].base64) {
-            onSelect(`data:image/jpeg;base64,${result.assets[0].base64}`);
-          }
+          try {
+            const perm = await ImagePicker.requestCameraPermissionsAsync();
+            if (!perm.granted) { Alert.alert('Permission needed', 'Allow camera access in Settings.'); return; }
+            const result = await ImagePicker.launchCameraAsync({
+              allowsEditing: true, aspect: [1,1], quality: 0.4, base64: true,
+            });
+            if (!result.canceled && result.assets?.[0]?.base64) {
+              onSelect(`data:image/jpeg;base64,${result.assets[0].base64}`);
+            }
+          } catch (e) { console.error('Camera error:', e); Alert.alert('Error', 'Could not open camera'); }
         },
       },
       {
         text: '🖼️ Choose from Library',
         onPress: async () => {
-          const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-          if (!perm.granted) { Alert.alert('Permission needed', 'Allow photo library access in Settings.'); return; }
-          setLoading?.(true);
-          const result = await ImagePicker.launchImageLibraryAsync({
-            allowsEditing: true, aspect: [1,1], quality: 0.5, base64: true,
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          });
-          setLoading?.(false);
-          if (!result.canceled && result.assets[0].base64) {
-            onSelect(`data:image/jpeg;base64,${result.assets[0].base64}`);
-          }
+          try {
+            const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!perm.granted) { Alert.alert('Permission needed', 'Allow photo library access in Settings.'); return; }
+            const result = await ImagePicker.launchImageLibraryAsync({
+              allowsEditing: true, aspect: [1,1], quality: 0.4, base64: true,
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            });
+            if (!result.canceled && result.assets?.[0]?.base64) {
+              onSelect(`data:image/jpeg;base64,${result.assets[0].base64}`);
+            }
+          } catch (e) { console.error('Library error:', e); Alert.alert('Error', 'Could not open photo library'); }
         },
       },
       { text: 'Cancel', style: 'cancel' },
