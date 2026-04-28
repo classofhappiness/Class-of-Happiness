@@ -609,7 +609,7 @@ export default function LinkedChildDetailScreen() {
 
               <View style={styles.shareOption}>
                 <View style={styles.shareOptionText}>
-                  <Text style={styles.Share with Teacher'}</Text>
+                  <Text style={styles.shareOptionTitle}>{t('share_with_teacher') || 'Share with Teacher'}</Text>
                   <Text style={styles.shareOptionDesc}>{t('teacher_can_see_strategy') || 'Teacher will be able to see this strategy'}</Text>
                 </View>
                 <Switch
