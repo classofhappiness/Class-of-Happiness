@@ -82,10 +82,22 @@ export default function FamilyStrategiesScreen() {
   const [customStrategies, setCustomStrategies] = useState<any[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingStrategy, setEditingStrategy] = useState<any | null>(null);
-  const [newStrat, setNewStrat] = useState({ name: '', description: '', zone: 'green', share_with_teacher: false });
+  const [newStrat, setNewStrat] = useState({ name: '', description: '', zone: 'green', share_with_teacher: false, assigned_to: 'all' });
   const [saving, setSaving] = useState(false);
+  const [familyMembers, setFamilyMembers] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'parent' | 'child' | 'custom'>('parent');
 
-  useEffect(() => { loadCustomStrategies(); }, []);
+  useEffect(() => {
+    loadCustomStrategies();
+    loadFamilyMembers();
+  }, []);
+
+  const loadFamilyMembers = async () => {
+    try {
+      const data = await familyStratApi('/family/members');
+      setFamilyMembers(Array.isArray(data) ? data : []);
+    } catch { setFamilyMembers([]); }
+  };
 
   const loadCustomStrategies = async () => {
     try {
@@ -101,7 +113,12 @@ export default function FamilyStrategiesScreen() {
       if (editingStrategy) {
         await familyStratApi(`/custom-strategies/${editingStrategy.id}`, 'PUT', newStrat);
       } else {
-        await familyStratApi('/custom-strategies', 'POST', { ...newStrat, feeling_colour: newStrat.zone });
+        await familyStratApi('/custom-strategies', 'POST', {
+          ...newStrat,
+          feeling_colour: newStrat.zone,
+          is_shared: newStrat.share_with_teacher,
+          assigned_to: newStrat.assigned_to,
+        });
       }
       setShowAddModal(false);
       setEditingStrategy(null);
@@ -123,7 +140,7 @@ export default function FamilyStrategiesScreen() {
 
   const openEdit = (s: any) => {
     setEditingStrategy(s);
-    setNewStrat({ name: s.name, description: s.description || '', zone: s.feeling_colour || s.zone || 'green', share_with_teacher: s.is_shared || false });
+    setNewStrat({ name: s.name, description: s.description || '', zone: s.feeling_colour || s.zone || 'green', share_with_teacher: s.is_shared || false, assigned_to: s.assigned_to || 'all' });
     setShowAddModal(true);
   };
 
@@ -146,8 +163,31 @@ export default function FamilyStrategiesScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
       >
+        {/* Tab selector */}
+        <View style={{ flexDirection: 'row', backgroundColor: '#F0F0F0', borderRadius: 12, padding: 4, marginBottom: 14 }}>
+          {([
+            { id: 'parent', label: '👨‍👩‍👧 Parent Strategies' },
+            { id: 'child', label: '🧒 Child Strategies' },
+            { id: 'custom', label: '⭐ My Strategies' },
+          ] as const).map(tab => (
+            <TouchableOpacity
+              key={tab.id}
+              style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center',
+                backgroundColor: activeTab === tab.id ? 'white' : 'transparent' }}
+              onPress={() => setActiveTab(tab.id)}
+            >
+              <Text style={{ fontSize: 11, fontWeight: activeTab === tab.id ? '700' : '400',
+                color: activeTab === tab.id ? '#333' : '#888' }}>{tab.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {activeTab !== 'custom' && (
+          <>
         <Text style={styles.subtitle}>
-          Evidence-based strategies for parents. Tap any card to read the full strategy and its research backing.
+          {activeTab === 'parent'
+            ? 'Evidence-based co-regulation strategies for parents. Tap any card to read more.'
+            : 'Emotion strategies for children — the same ones used at school.'}
         </Text>
         <View style={styles.infoNote}>
           <MaterialIcons name="info" size={14} color="#5C6BC0" />
@@ -185,8 +225,30 @@ export default function FamilyStrategiesScreen() {
         )}
 
         {/* Strategies grouped by zone */}
+        {activeTab === 'child' && (
+          <View style={{ backgroundColor: '#E8F5E9', borderRadius: 10, padding: 12, marginBottom: 14 }}>
+            <Text style={{ fontSize: 12, color: '#2E7D32', lineHeight: 18 }}>
+              These are the same strategies children use at school. They are shown here so families can reinforce them at home.
+            </Text>
+          </View>
+        )}
         {(!selectedZone ? zones : [selectedZone]).map(zone => {
-          const strats = filteredStrategies.filter(s => s.zone === zone);
+          const strats = activeTab === 'child'
+            ? [
+                {zone, name:'Gentle Stretch', description:'Move your body slowly and gently', icon:'fitness-center'},
+                {zone, name:'Bubble Breathing', description:'Breathe out slowly like blowing a bubble', icon:'air'},
+                {zone, name:'Count to 10', description:'Count slowly from 1 to 10', icon:'filter-9-plus'},
+                {zone, name:'5 Senses', description:'Name 5 things you can see, hear, feel', icon:'visibility'},
+                {zone, name:'Talk About It', description:'Find a safe person to share feelings', icon:'chat'},
+                {zone, name:'Ask for Help', description:'Tell a trusted adult you need support', icon:'support-agent'},
+              ].filter(s => {
+                if (zone === 'blue') return ['Gentle Stretch','Talk About It','Ask for Help'].includes(s.name);
+                if (zone === 'green') return ['Count to 10','5 Senses'].includes(s.name) === false;
+                if (zone === 'yellow') return ['Bubble Breathing','Count to 10','5 Senses','Talk About It'].includes(s.name);
+                if (zone === 'red') return ['Bubble Breathing','Ask for Help','Talk About It'].includes(s.name);
+                return true;
+              })
+            : filteredStrategies.filter(s => s.zone === zone);
           if (strats.length === 0) return null;
           return (
             <View key={zone}>
@@ -230,6 +292,9 @@ export default function FamilyStrategiesScreen() {
         })}
 
         {/* Research attribution */}
+          </>
+        )}
+
         {/* My Family Strategies — Custom */}
         <View style={{ backgroundColor: 'white', borderRadius: 14, padding: 16, marginTop: 16, marginBottom: 8 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -296,6 +361,25 @@ export default function FamilyStrategiesScreen() {
                     onPress={() => setNewStrat(p => ({ ...p, zone: z }))}
                   >
                     <Text style={{ fontSize: 11, fontWeight: '600', color: newStrat.zone === z ? 'white' : '#666' }}>{z.charAt(0).toUpperCase() + z.slice(1)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 8 }}>Assign to</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                <TouchableOpacity
+                  style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+                    backgroundColor: newStrat.assigned_to === 'all' ? '#5C6BC0' : '#F0F0F0' }}
+                  onPress={() => setNewStrat(p => ({ ...p, assigned_to: 'all' }))}
+                >
+                  <Text style={{ fontSize: 12, color: newStrat.assigned_to === 'all' ? 'white' : '#666' }}>Everyone</Text>
+                </TouchableOpacity>
+                {familyMembers.map((m: any) => (
+                  <TouchableOpacity key={m.id}
+                    style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+                      backgroundColor: newStrat.assigned_to === m.id ? '#5C6BC0' : '#F0F0F0' }}
+                    onPress={() => setNewStrat(p => ({ ...p, assigned_to: m.id }))}
+                  >
+                    <Text style={{ fontSize: 12, color: newStrat.assigned_to === m.id ? 'white' : '#666' }}>{m.name}</Text>
                   </TouchableOpacity>
                 ))}
               </View>

@@ -2121,6 +2121,18 @@ async def create_custom_strategy_alias(request: Request):
         logger.error(f"custom_strategies create error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@api_router.delete("/custom-strategies/{strategy_id}")
+async def delete_custom_strategy(strategy_id: str, request: Request):
+    """Delete a custom strategy - owner only."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        result = supabase.table("custom_helpers").delete().eq("id", strategy_id).execute()
+        return {"deleted": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @api_router.get("/custom-strategies")
 async def get_custom_strategies(request: Request, student_id: Optional[str] = None):
     """Get custom strategies for a student."""
