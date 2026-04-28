@@ -959,10 +959,10 @@ TRANSLATIONS = {
         "save_checkin": "Save My Feelings",
         "well_done": "Well Done!",
         "great_job": "Great job sharing your feelings!",
-        "blue_feelings": "Blue Feelings",
-        "green_feelings": "Green Feelings",
-        "yellow_feelings": "Yellow Feelings",
-        "red_feelings": "Red Feelings",
+        "blue_feelings": "Blue Emotions",
+        "green_feelings": "Green Emotions",
+        "yellow_feelings": "Yellow Emotions",
+        "red_feelings": "Red Emotions",
         "blue_zone": "Blue Emotions",
         "green_zone": "Green Emotions",
         "yellow_zone": "Yellow Emotions",
@@ -2960,7 +2960,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
             log_rows.append([
                 Paragraph(date_str,                              ST_SMALL),
                 Paragraph(time_str,                              ST_SMALL),
-                Paragraph(ZONE_LABELS.get(zone, zone),           ST_SMALL),
+                Paragraph(ZONE_LABELS.get(zone, zone.capitalize() + " Emotions"),  ST_SMALL),
                 Paragraph(strats_str,                            ST_SMALL),
                 Paragraph(comment,                               ST_SMALL),
             ])

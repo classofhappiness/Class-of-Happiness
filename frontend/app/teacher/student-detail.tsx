@@ -725,7 +725,7 @@ export default function StudentDetailScreen() {
             <>
               <Text style={styles.stratSourceLabel}>🏫 School Strategies</Text>
               {allStrategies.school.map((s: any) => (
-                <View key={s.id} style={styles.strategyRow}>
+                <View key={s.id + "_" + String(Math.random()).slice(2,8)} style={styles.strategyRow}>
                   <MaterialIcons name={(s.icon || 'star') as any} size={20} color="#5C6BC0" />
                   <View style={styles.strategyInfo}>
                     <Text style={styles.strategyName}>{s.name}</Text>
@@ -767,7 +767,7 @@ export default function StudentDetailScreen() {
             <>
               <Text style={styles.stratSourceLabel}>🏠 From Home (shared by parent)</Text>
               {allStrategies.family.map((s: any) => (
-                <View key={s.id} style={[styles.strategyRow, {borderLeftColor:'#4CAF50', borderLeftWidth:3}]}>
+                <View key={`family_${s.id}`} style={[styles.strategyRow, {borderLeftColor:'#4CAF50', borderLeftWidth:3}]}>
                   <MaterialIcons name={(s.icon || 'favorite') as any} size={20} color="#4CAF50" />
                   <View style={styles.strategyInfo}>
                     <Text style={styles.strategyName}>{s.name || s.strategy_name}</Text>
@@ -920,7 +920,7 @@ export default function StudentDetailScreen() {
                   <View style={styles.homeCheckinsContainer}>
                     <Text style={styles.homeSubtitle}>{t('home_checkins') || 'Home Check-ins'}</Text>
                     {homeData.home_checkins.slice(0, 5).map((checkin: any, index: number) => (
-                      <View key={checkin.id || index} style={styles.homeCheckinItem}>
+                      <View key={`checkin_${checkin.id || index}`} style={styles.homeCheckinItem}>
                         <View style={[styles.homeCheckinZone, { backgroundColor: ZONE_COLORS[checkin.zone as keyof typeof ZONE_COLORS] || '#999' }]}>
                           <Text style={styles.homeCheckinEmoji}>
                             {checkin.zone === 'blue' ? '😢' : checkin.zone === 'green' ? '😊' : checkin.zone === 'yellow' ? '😰' : '😠'}
@@ -945,7 +945,7 @@ export default function StudentDetailScreen() {
                   <View style={styles.familyStrategiesContainer}>
                     <Text style={styles.homeSubtitle}>{t('family_strategies') || 'Family Strategies'}</Text>
                     {homeData.family_strategies.map((strategy: any, index: number) => (
-                      <View key={strategy.id || index} style={styles.familyStrategyItem}>
+                      <View key={`strategy_${strategy.id || index}`} style={styles.familyStrategyItem}>
                         <MaterialIcons name={(strategy.icon || 'star') as any} size={20} color="#4CAF50" />
                         <View style={styles.familyStrategyInfo}>
                           <Text style={styles.familyStrategyName}>{strategy.strategy_name}</Text>

@@ -565,7 +565,7 @@ export default function LinkedChildDetailScreen() {
                 multiline
               />
 
-              <Text style={styles.inputLabel}>{t('zone') || 'Zone'}</Text>
+              <Text style={styles.inputLabel}>{t('emotions') || 'Zone'}</Text>
               <View style={styles.zoneSelector}>
                 {Object.entries(ZONE_CONFIG).map(([zone, config]) => (
                   <TouchableOpacity

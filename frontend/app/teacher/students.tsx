@@ -499,8 +499,9 @@ const styles = StyleSheet.create({
   filterScroll: {
     maxHeight: 50,
   },
-  filterContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  filterContainer: { flexDirection: 'row', flexWrap: 'nowrap', gap: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   filterChip: {
+    flexShrink: 0,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,

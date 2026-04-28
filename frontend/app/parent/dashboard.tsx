@@ -261,20 +261,14 @@ export default function ParentDashboard() {
     return weekData;
   };
 
-  const pickImage = async () => {
-    try {
-      pickImageWithChoice((base64) => {
-        setNewMember({
-          ...newMember,
-          avatar_type: 'custom',
-          avatar_custom: base64,
-        });
-      });
-      return; // pickImageWithChoice handles async
-    } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image');
-    }
+  const pickImage = () => {
+    pickImageWithChoice((base64) => {
+      setNewMember(prev => ({
+        ...prev,
+        avatar_type: 'custom',
+        avatar_custom: base64,
+      }));
+    });
   };
 
   const fetchData = async () => {
@@ -521,8 +515,7 @@ export default function ParentDashboard() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>{t('family_dashboard') || 'Family Dashboard'}</Text>
-          <Text style={styles.headerSubtitle}>{t('track_emotional_wellness') || 'Track emotional wellness at home'}</Text>
+          <Text style={styles.headerSubtitle}>{t('track_emotional_wellness') || 'Track emotional wellbeing at home'}</Text>
         </View>
 
         {/* Family Members Section */}
