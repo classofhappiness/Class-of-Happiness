@@ -91,7 +91,8 @@ const PARENT_STRATEGIES: Record<string, Array<{id:string; name:string; descripti
 
 export default function FamilyCheckInScreen() {
   const router = useRouter();
-  const { memberId, memberName, studentId } = useLocalSearchParams<{ memberId: string; memberName: string; studentId?: string }>();
+  const { memberId, memberName, studentId } = useLocalSearchParams<{ memberId: string;
+  const memberRelationship = (useLocalSearchParams<{relationship?: string}>().relationship as string) || 'adult'; memberName: string; studentId?: string }>();
   const { t, language } = useApp();
   
   const [selectedZone, setSelectedZone] = useState<string | null>(null);

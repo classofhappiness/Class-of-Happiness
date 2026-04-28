@@ -19,11 +19,16 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useApp } from '../../../src/context/AppContext';
 import { linkedChildApi, LinkedChild, FamilyAssignedStrategy } from '../../../src/utils/api';
 
+const LINKED_ZONE_COLORS: Record<string, string> = {
+  blue: '#4A90D9', green: '#4CAF50', yellow: '#FFC107', red: '#F44336',
+};
+
+
 const ZONE_CONFIG: Record<string, { color: string; emoji: string; label: string }> = {
-  blue: { color: '#4A90D9', emoji: '😢', label: 'Blue Zone' },
-  green: { color: '#4CAF50', emoji: '😊', label: 'Green Zone' },
-  yellow: { color: '#FFC107', emoji: '😰', label: 'Yellow Zone' },
-  red: { color: '#F44336', emoji: '😠', label: 'Red Zone' },
+  blue: { color: '#4A90D9', emoji: '😢', label: 'Blue Emotions' },
+  green: { color: '#4CAF50', emoji: '😊', label: 'Green Emotions' },
+  yellow: { color: '#FFC107', emoji: '😰', label: 'Yellow Emotions' },
+  red: { color: '#F44336', emoji: '😠', label: 'Red Emotions' },
 };
 
 const STRATEGY_ICONS = [
@@ -376,7 +381,7 @@ export default function LinkedChildDetailScreen() {
                 </View>
                 <View style={styles.checkInDetails}>
                   <Text style={styles.checkInZoneLabel}>{
-                          ({blue:'Blue Zone',green:'Green Zone',yellow:'Yellow Zone',red:'Red Zone'} as any)[checkIn.zone || checkIn.feeling_colour] || checkIn.zone || 'Check-in'
+                          ({blue:'Blue Emotions',green:'Green Emotions',yellow:'Yellow Emotions',red:'Red Emotions'} as any)[checkIn.zone || checkIn.feeling_colour] || checkIn.zone || 'Check-in'
                         }</Text>
                   <Text style={styles.checkInTime}>{formatDate(checkIn.timestamp)}</Text>
                   {checkIn.strategies_selected?.length > 0 && (
@@ -604,7 +609,7 @@ export default function LinkedChildDetailScreen() {
 
               <View style={styles.shareOption}>
                 <View style={styles.shareOptionText}>
-                  <Text style={styles.shareOptionTitle}>{t('share_with_teacher') || 'Share with Teacher'}</Text>
+                  <Text style={styles.Share with Teacher'}</Text>
                   <Text style={styles.shareOptionDesc}>{t('teacher_can_see_strategy') || 'Teacher will be able to see this strategy'}</Text>
                 </View>
                 <Switch
