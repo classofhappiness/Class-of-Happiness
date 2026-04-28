@@ -23,7 +23,8 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://class-of-hap
 export default function StrategiesScreen() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { zone } = useLocalSearchParams<{ zone: string }>();
+  const { zone, location } = useLocalSearchParams<{ zone: string; location?: string }>();
+  const checkInLocation = (location as string) || 'school';
   const { currentStudent, t, language, translations } = useApp();
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
@@ -129,6 +130,7 @@ export default function StrategiesScreen() {
         zone: zone,
         strategies_selected: selectedStrategies,
         comment: comment.trim() || undefined,
+        logged_by: checkInLocation === 'home' ? 'parent' : 'student',
       });
       setShowCelebration(true);
       setTimeout(() => {

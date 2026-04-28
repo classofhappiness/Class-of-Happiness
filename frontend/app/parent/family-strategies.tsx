@@ -1,11 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, RefreshControl,
+  TouchableOpacity, RefreshControl, Modal, TextInput, Alert, Switch,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+
+async function familyStratApi(endpoint: string, method = 'GET', body?: any) {
+  const token = await AsyncStorage.getItem('session_token');
+  const res = await fetch(`${BACKEND_URL}/api${endpoint}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`API error ${res.status}`);
+  return res.json();
+}
 
 const ZONE_COLORS: Record<string, string> = {
   blue: '#4A90D9', green: '#4CAF50', yellow: '#FFC107', red: '#F44336',
@@ -59,10 +73,59 @@ const FAMILY_STRATEGIES = [
 
 export default function FamilyStrategiesScreen() {
   const router = useRouter();
-  const { t } = useApp();
+  const { t, user } = useApp();
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
   const [expandedStrategy, setExpandedStrategy] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Custom strategies CRUD
+  const [customStrategies, setCustomStrategies] = useState<any[]>([]);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingStrategy, setEditingStrategy] = useState<any | null>(null);
+  const [newStrat, setNewStrat] = useState({ name: '', description: '', zone: 'green', share_with_teacher: false });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { loadCustomStrategies(); }, []);
+
+  const loadCustomStrategies = async () => {
+    try {
+      const data = await familyStratApi('/custom-strategies');
+      setCustomStrategies(Array.isArray(data) ? data : []);
+    } catch { setCustomStrategies([]); }
+  };
+
+  const saveStrategy = async () => {
+    if (!newStrat.name.trim()) { Alert.alert('Name required'); return; }
+    setSaving(true);
+    try {
+      if (editingStrategy) {
+        await familyStratApi(`/custom-strategies/${editingStrategy.id}`, 'PUT', newStrat);
+      } else {
+        await familyStratApi('/custom-strategies', 'POST', { ...newStrat, feeling_colour: newStrat.zone });
+      }
+      setShowAddModal(false);
+      setEditingStrategy(null);
+      setNewStrat({ name: '', description: '', zone: 'green', share_with_teacher: false });
+      loadCustomStrategies();
+    } catch (e: any) { Alert.alert('Error', e.message); }
+    finally { setSaving(false); }
+  };
+
+  const deleteStrategy = (s: any) => {
+    Alert.alert('Delete', `Delete "${s.name}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try { await familyStratApi(`/custom-strategies/${s.id}`, 'DELETE'); loadCustomStrategies(); }
+        catch { Alert.alert('Error', 'Could not delete'); }
+      }},
+    ]);
+  };
+
+  const openEdit = (s: any) => {
+    setEditingStrategy(s);
+    setNewStrat({ name: s.name, description: s.description || '', zone: s.feeling_colour || s.zone || 'green', share_with_teacher: s.is_shared || false });
+    setShowAddModal(true);
+  };
 
   const zones = ['green', 'blue', 'yellow', 'red'];
   const filteredStrategies = selectedZone
@@ -167,6 +230,91 @@ export default function FamilyStrategiesScreen() {
         })}
 
         {/* Research attribution */}
+        {/* My Family Strategies — Custom */}
+        <View style={{ backgroundColor: 'white', borderRadius: 14, padding: 16, marginTop: 16, marginBottom: 8 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#333' }}>My Family Strategies</Text>
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#5C6BC0', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, gap: 4 }}
+              onPress={() => { setEditingStrategy(null); setNewStrat({ name: '', description: '', zone: 'green', share_with_teacher: false }); setShowAddModal(true); }}
+            >
+              <MaterialIcons name="add" size={16} color="white" />
+              <Text style={{ color: 'white', fontSize: 13, fontWeight: '600' }}>Add</Text>
+            </TouchableOpacity>
+          </View>
+          {customStrategies.length === 0 ? (
+            <Text style={{ fontSize: 13, color: '#AAA', textAlign: 'center', paddingVertical: 16 }}>
+              No custom strategies yet. Tap Add to create one for your family.
+            </Text>
+          ) : (
+            customStrategies.map((s) => (
+              <View key={s.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', gap: 10 }}>
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: ZONE_COLORS[s.feeling_colour || s.zone || 'green'] || '#5C6BC0' }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#333' }}>{s.name}</Text>
+                  {s.description ? <Text style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{s.description}</Text> : null}
+                  {s.is_shared && <Text style={{ fontSize: 10, color: '#4CAF50', marginTop: 2 }}>Shared with teacher ✅</Text>}
+                </View>
+                <TouchableOpacity onPress={() => openEdit(s)} style={{ padding: 6 }}>
+                  <MaterialIcons name="edit" size={18} color="#5C6BC0" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => deleteStrategy(s)} style={{ padding: 6 }}>
+                  <MaterialIcons name="delete" size={18} color="#F44336" />
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
+        </View>
+
+        {/* Add/Edit Modal */}
+        <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 20 }}>
+                {editingStrategy ? 'Edit Strategy' : 'Add Family Strategy'}
+              </Text>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 6 }}>Name *</Text>
+              <TextInput
+                style={{ borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 10, padding: 12, fontSize: 15, marginBottom: 14 }}
+                value={newStrat.name}
+                onChangeText={v => setNewStrat(p => ({ ...p, name: v }))}
+                placeholder="e.g. Breathing together"
+              />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 6 }}>Description</Text>
+              <TextInput
+                style={{ borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 10, padding: 12, fontSize: 15, marginBottom: 14, height: 70, textAlignVertical: 'top' }}
+                value={newStrat.description}
+                onChangeText={v => setNewStrat(p => ({ ...p, description: v }))}
+                placeholder="What does this strategy involve?"
+                multiline
+              />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 8 }}>Emotion colour</Text>
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+                {(['blue','green','yellow','red'] as const).map(z => (
+                  <TouchableOpacity key={z}
+                    style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: newStrat.zone === z ? ZONE_COLORS[z] : '#F5F5F5', borderWidth: 2, borderColor: newStrat.zone === z ? ZONE_COLORS[z] : '#E0E0E0' }}
+                    onPress={() => setNewStrat(p => ({ ...p, zone: z }))}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: newStrat.zone === z ? 'white' : '#666' }}>{z.charAt(0).toUpperCase() + z.slice(1)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, color: '#333' }}>Share with teacher</Text>
+                <Switch value={newStrat.share_with_teacher} onValueChange={v => setNewStrat(p => ({ ...p, share_with_teacher: v }))} trackColor={{ false: '#ddd', true: '#81C784' }} thumbColor={newStrat.share_with_teacher ? '#4CAF50' : '#999'} />
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: '#F5F5F5' }} onPress={() => setShowAddModal(false)}>
+                  <Text style={{ fontSize: 15, color: '#666' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: '#5C6BC0', opacity: saving ? 0.6 : 1 }} onPress={saveStrategy} disabled={saving}>
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: 'white' }}>{saving ? 'Saving...' : 'Save'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
         <View style={styles.footer}>
           <MaterialIcons name="info-outline" size={14} color="#AAA" />
           <Text style={styles.footerText}>
