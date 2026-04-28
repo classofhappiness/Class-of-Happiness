@@ -651,9 +651,10 @@ export default function ParentDashboard() {
                     style={styles.bigCheckinButton}
                     onPress={() => router.push({
                       pathname: '/parent/checkin',
-                      params: { 
-                        memberId: member.id, 
-                        memberName: member.name,
+                params: {
+                  memberId: member.id,
+                  memberName: member.name,
+                  relationship: (member as any).relationship || 'adult',
                         studentId: (member as any).student_id || '',
                       }
                     })}

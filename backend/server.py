@@ -2604,7 +2604,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     WHITE       = colors.white
 
     ZONE_COLORS_PDF  = {"blue": BLUE_C, "green": GREEN_C, "yellow": YELLOW_C, "red": RED_C}
-    ZONE_LABELS      = {"blue": "Blue Zone", "green": "Green Zone", "yellow": "Yellow Zone", "red": "Red Zone"}
+    ZONE_LABELS      = {"blue": "Blue Emotions", "green": "Green Emotions", "yellow": "Yellow Emotions", "red": "Red Emotions"}
     ZONE_DESCS       = {
         "blue":   "Calm / Low energy",
         "green":  "Happy / Ready to learn",

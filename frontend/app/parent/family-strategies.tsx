@@ -14,10 +14,10 @@ const ZONE_BG: Record<string, string> = {
   blue: '#EBF3FB', green: '#E8F5E9', yellow: '#FFF8E1', red: '#FFEBEE',
 };
 const ZONE_NAMES: Record<string, string> = {
-  blue: 'Blue Zone — Quiet Energy',
-  green: 'Green Zone — Balanced Energy',
-  yellow: 'Yellow Zone — Fizzing Energy',
-  red: 'Red Zone — Big Energy',
+  blue: 'Blue Emotions — Quiet Energy',
+  green: 'Green Emotions — Balanced Energy',
+  yellow: 'Yellow Emotions — Fizzing Energy',
+  red: 'Red Emotions — Big Energy',
 };
 const ZONE_DESC: Record<string, string> = {
   blue: 'Sad, tired, withdrawn, low motivation',
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   backButton: { padding: 4 },
   topBarTitle: { fontSize: 17, fontWeight: '700', color: '#333' },
   scrollContent: { padding: 16, paddingBottom: 50 },
-  subtitle: { fontSize: 13, color: '#888', marginBottom: 14, lineHeight: 18, textAlign: 'center', fontStyle: 'italic' },
+  subtitle: { fontSize: 13, color: '#AAA', marginBottom: 14, lineHeight: 18, textAlign: 'center', fontStyle: 'italic', textShadowColor: 'transparent', textShadowOffset: {width:0,height:0}, textShadowRadius: 0 },
   zoneChip: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, backgroundColor: '#F0F0F0', borderWidth: 1.5, borderColor: '#E0E0E0' },
   zoneChipActive: { backgroundColor: '#5C6BC0', borderColor: '#5C6BC0' },
   zoneChipText: { fontSize: 13, fontWeight: '600', color: '#666' },

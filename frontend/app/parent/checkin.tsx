@@ -28,6 +28,35 @@ const getZones = (t: (key: string) => string) => [
 const MAX_COMMENT_LENGTH = 100;
 
 // Research-backed parent strategies per zone
+
+// Child strategies - same as student app (for family members with relationship='child')
+const CHILD_STRATEGIES: Record<string, Array<{id:string; name:string; description:string; icon:string}>> = {
+  blue: [
+    {id:'b1', name:'Gentle Stretch', description:'Move your body slowly and gently', icon:'fitness-center'},
+    {id:'b2', name:'Favourite Song', description:'Listen to a calming favourite song', icon:'music-note'},
+    {id:'b3', name:'Tell Someone', description:'Share how you feel with a trusted person', icon:'chat'},
+    {id:'b4', name:'Slow Breathing', description:'Breathe in slowly, hold, breathe out', icon:'air'},
+  ],
+  green: [
+    {id:'g1', name:'Keep Going!', description:'You are in a great zone — keep it up!', icon:'thumb-up'},
+    {id:'g2', name:'Help a Friend', description:'Use your good energy to help someone else', icon:'favorite'},
+    {id:'g3', name:'Set a Goal', description:'Plan something you want to achieve today', icon:'lightbulb'},
+    {id:'g4', name:'Gratitude', description:'Think of three things you are grateful for', icon:'star'},
+  ],
+  yellow: [
+    {id:'y1', name:'Bubble Breathing', description:'Breathe out slowly like blowing a bubble', icon:'air'},
+    {id:'y2', name:'Count to 10', description:'Count slowly from 1 to 10 before reacting', icon:'filter-9-plus'},
+    {id:'y3', name:'5 Senses', description:'Name 5 things you can see, hear, feel', icon:'visibility'},
+    {id:'y4', name:'Talk About It', description:'Find a safe person to share your feelings', icon:'chat'},
+  ],
+  red: [
+    {id:'r1', name:'Freeze', description:'Stop and hold very still for 10 seconds', icon:'pan-tool'},
+    {id:'r2', name:'Big Breaths', description:'Take 3 big deep breaths right now', icon:'air'},
+    {id:'r3', name:'Safe Space', description:'Move to a quiet safe place to calm down', icon:'home'},
+    {id:'r4', name:'Ask for Help', description:'Tell an adult you need support right now', icon:'support-agent'},
+  ],
+};
+
 const PARENT_STRATEGIES: Record<string, Array<{id:string; name:string; description:string; icon:string}>> = {
   blue: [
     {id:'p_b1', name:'Side-by-Side Presence', description:'Sit quietly together without fixing', icon:'people'},
@@ -82,9 +111,12 @@ export default function FamilyCheckInScreen() {
 
   const fetchStrategies = async () => {
     if (!selectedZone) return;
-    // Use parent-specific research-backed strategies
-    const parentStrats = PARENT_STRATEGIES[selectedZone] || [];
-    setStrategies(parentStrats as any);
+    // Children get student strategies, adults get parent co-regulation strategies
+    const isChild = memberRelationship === 'child';
+    const strats = isChild
+      ? (CHILD_STRATEGIES[selectedZone] || [])
+      : (PARENT_STRATEGIES[selectedZone] || []);
+    setStrategies(strats as any);
   };
 
   const handleZoneSelect = (zoneId: string) => {
