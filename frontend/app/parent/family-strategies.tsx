@@ -122,7 +122,7 @@ export default function FamilyStrategiesScreen() {
       }
       setShowAddModal(false);
       setEditingStrategy(null);
-      setNewStrat({ name: '', description: '', zone: 'green', share_with_teacher: false });
+      setNewStrat({ name: '', description: '', zone: 'green', share_with_teacher: false, assigned_to: 'all' });
       loadCustomStrategies();
     } catch (e: any) { Alert.alert('Error', e.message); }
     finally { setSaving(false); }
@@ -278,9 +278,9 @@ export default function FamilyStrategiesScreen() {
                     {isOpen && (
                       <View style={styles.stratBody}>
                         <Text style={styles.stratDesc}>{s.description}</Text>
-                        <View style={styles.researchBadge}>
+                        {(s as any).research && <View style={styles.researchBadge}>
                           <MaterialIcons name="science" size={11} color="#5C6BC0" />
-                          <Text style={styles.researchText}>{s.research}</Text>
+                          <Text style={styles.researchText}>{(s as any).research || ""}</Text>
                         </View>
                       </View>
                     )}
@@ -301,7 +301,7 @@ export default function FamilyStrategiesScreen() {
             <Text style={{ fontSize: 16, fontWeight: '700', color: '#333' }}>My Family Strategies</Text>
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#5C6BC0', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, gap: 4 }}
-              onPress={() => { setEditingStrategy(null); setNewStrat({ name: '', description: '', zone: 'green', share_with_teacher: false }); setShowAddModal(true); }}
+              onPress={() => { setEditingStrategy(null); setNewStrat({ name: '', description: '', zone: 'green', share_with_teacher: false, assigned_to: 'all' }); setShowAddModal(true); }}
             >
               <MaterialIcons name="add" size={16} color="white" />
               <Text style={{ color: 'white', fontSize: 13, fontWeight: '600' }}>Add</Text>
