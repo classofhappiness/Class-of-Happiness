@@ -278,10 +278,12 @@ export default function FamilyStrategiesScreen() {
                     {isOpen && (
                       <View style={styles.stratBody}>
                         <Text style={styles.stratDesc}>{s.description}</Text>
-                        {(s as any).research && <View style={styles.researchBadge}>
-                          <MaterialIcons name="science" size={11} color="#5C6BC0" />
-                          <Text style={styles.researchText}>{(s as any).research || ""}</Text>
-                        </View>
+                        {(s as any).research && (
+                          <View style={styles.researchBadge}>
+                            <MaterialIcons name="science" size={11} color="#5C6BC0" />
+                            <Text style={styles.researchText}>{(s as any).research}</Text>
+                          </View>
+                        )}
                       </View>
                     )}
                   </TouchableOpacity>
