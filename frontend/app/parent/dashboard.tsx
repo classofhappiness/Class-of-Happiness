@@ -656,9 +656,13 @@ export default function ParentDashboard() {
                     />
                   ) : member.avatar_type === 'preset' && member.avatar_preset ? (
                     <View style={[styles.memberAvatar, { backgroundColor: getRelationshipColor(member.relationship) + '20' }]}>
-                      <Text style={styles.memberAvatarEmoji}>
+                      {member.relationship === 'child' && childCreatures[member.id] ? (
+                        <Text style={{ fontSize: 26 }}>{childCreatures[member.id].emoji}</Text>
+                      ) : (
+                        <Text style={styles.memberAvatarEmoji}>
                         {presetAvatars?.find(a => a.id === member.avatar_preset)?.emoji || '⭐'}
                       </Text>
+                      )}
                     </View>
                   ) : (
                     <View style={[styles.memberAvatar, { backgroundColor: getRelationshipColor(member.relationship) + '20' }]}>

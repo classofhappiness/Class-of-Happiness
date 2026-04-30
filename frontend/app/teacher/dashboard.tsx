@@ -43,6 +43,14 @@ export default function TeacherDashboardScreen() {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
+  // Refresh counts every time this screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshStudents();
+      refreshClassrooms();
+    }, [])
+  );
+
   // Translated day names
   const getDayNames = () => {
     if (language === 'pt') {
