@@ -112,15 +112,19 @@ export default function FamilyStrategiesScreen() {
     if (!newStrat.name.trim()) { Alert.alert('Name required'); return; }
     setSaving(true);
     try {
+      const payload = {
+        name: newStrat.name.trim(),
+        description: newStrat.description.trim(),
+        zone: newStrat.zone,
+        feeling_colour: newStrat.zone,
+        is_shared: newStrat.share_with_teacher,
+        assigned_to: newStrat.assigned_to || 'all',
+        icon: 'star',
+      };
       if (editingStrategy) {
-        await familyStratApi(`/custom-strategies/${editingStrategy.id}`, 'PUT', newStrat);
+        await familyStratApi(`/custom-strategies/${editingStrategy.id}`, 'PUT', payload);
       } else {
-        await familyStratApi('/custom-strategies', 'POST', {
-          ...newStrat,
-          feeling_colour: newStrat.zone,
-          is_shared: newStrat.share_with_teacher,
-          assigned_to: newStrat.assigned_to,
-        });
+        await familyStratApi('/custom-strategies', 'POST', payload);
       }
       setShowAddModal(false);
       setEditingStrategy(null);

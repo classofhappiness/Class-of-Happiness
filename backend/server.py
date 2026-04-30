@@ -2121,6 +2121,26 @@ async def create_custom_strategy_alias(request: Request):
         logger.error(f"custom_strategies create error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@api_router.put("/custom-strategies/{strategy_id}")
+async def update_custom_strategy(strategy_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        body = await request.json()
+        update_data = {}
+        for field in ["name", "description", "zone", "feeling_colour", "icon", "is_shared", "assigned_to"]:
+            if field in body:
+                update_data[field] = body[field]
+        if "zone" in update_data:
+            update_data["feeling_colour"] = update_data["zone"]
+        result = supabase.table("custom_helpers").update(update_data).eq("id", strategy_id).execute()
+        row = result.data[0] if result.data else update_data
+        row["zone"] = row.get("zone") or row.get("feeling_colour", "green")
+        return row
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @api_router.delete("/custom-strategies/{strategy_id}")
 async def delete_custom_strategy(strategy_id: str, request: Request):
     """Delete a custom strategy - owner only."""
@@ -4826,23 +4846,37 @@ async def get_school_checkins(student_id: str, request: Request, days: int = 30)
 
 
 @api_router.get("/family/custom-strategies")
-async def get_family_custom_strategies(request: Request, zone: Optional[str] = None):
-    """Get family-level custom strategies (no student_id) for family checkins."""
+async def get_family_custom_strategies(request: Request, zone: Optional[str] = None, member_id: Optional[str] = None):
+    """Get family-level custom strategies for family checkins.
+    Returns strategies assigned to 'all' or to specific member_id."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        query = supabase.table("custom_helpers").select("*").eq("user_id", user["user_id"])
-        if zone:
-            query = query.or_(f"feeling_colour.eq.{zone},zone.eq.{zone}")
-        result = query.execute()
-        data = result.data or []
-        for row in data:
+        # Get all custom strategies for this user (no student_id = family level)
+        result = supabase.table("custom_helpers").select("*").eq("user_id", user["user_id"]).execute()
+        all_strats = result.data or []
+
+        visible = []
+        for row in all_strats:
+            # Normalise zone
             fc = row.get("feeling_colour", "")
             z  = row.get("zone", "")
             row["zone"] = z or fc or "green"
             row["feeling_colour"] = fc or z or "green"
-        return data
+
+            # Filter by zone if specified
+            if zone and row["zone"] != zone:
+                continue
+
+            # Filter by member_id: show if assigned to 'all' or to this member
+            assigned = row.get("assigned_to", "all") or "all"
+            if member_id and assigned not in ("all", member_id):
+                continue
+
+            visible.append(row)
+
+        return visible
     except Exception as e:
         logger.error(f"get_family_custom_strategies error: {e}")
         return []
