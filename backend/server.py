@@ -2543,32 +2543,47 @@ async def get_linked_children(request: Request):
 
 @api_router.get("/strategies/shared/{student_id}")
 async def get_shared_strategies_for_student(student_id: str, request: Request):
-    """Get family strategies shared with teacher for a specific student."""
+    """Get all strategies visible to a student: teacher custom + parent shared."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        # Get strategies from custom_helpers that are shared (is_shared=True) for this student
-        result = supabase.table("custom_helpers").select("*").eq("student_id", student_id).eq("is_shared", True).execute()
-        data = result.data or []
+        data = []
+        seen_ids = set()
 
-        # Also get family strategies linked to this student via parent_links
+        # 1. Teacher-added custom strategies for this student
+        try:
+            result = supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute()
+            for s in (result.data or []):
+                if s["id"] not in seen_ids:
+                    s["creator_role"] = "teacher"
+                    data.append(s)
+                    seen_ids.add(s["id"])
+        except Exception as e:
+            logger.error(f"teacher strategies fetch error: {e}")
+
+        # 2. Parent family strategies linked via parent_links
         try:
             links = supabase.table("parent_links").select("parent_user_id").eq("student_id", student_id).execute()
             for link in (links.data or []):
                 parent_id = link.get("parent_user_id")
-                if parent_id:
-                    # Get parent's custom strategies assigned to this student or all
-                    fam_strats = supabase.table("custom_helpers").select("*").eq("user_id", parent_id).eq("is_shared", True).execute()
-                    for s in (fam_strats.data or []):
-                        assigned = s.get("assigned_to", "all")
-                        if assigned in ("all", student_id):
-                            s["creator_role"] = "parent"
-                            data.append(s)
+                if not parent_id:
+                    continue
+                # Get ALL parent custom strategies (not just is_shared)
+                fam_result = supabase.table("custom_helpers").select("*").eq("user_id", parent_id).execute()
+                for s in (fam_result.data or []):
+                    if s["id"] in seen_ids:
+                        continue
+                    assigned = s.get("assigned_to", "all") or "all"
+                    # Show if assigned to all, or to this specific student
+                    if assigned in ("all", student_id):
+                        s["creator_role"] = "parent"
+                        data.append(s)
+                        seen_ids.add(s["id"])
         except Exception as e:
-            logger.error(f"get_shared_strategies parent fetch error: {e}")
+            logger.error(f"parent strategies fetch error: {e}")
 
-        # Normalise zone/feeling_colour
+        # Normalise zone/feeling_colour for all
         for row in data:
             fc = row.get("feeling_colour", "")
             z  = row.get("zone", "")
@@ -2576,6 +2591,7 @@ async def get_shared_strategies_for_student(student_id: str, request: Request):
             row["feeling_colour"] = fc or z or "green"
             if "creator_role" not in row:
                 row["creator_role"] = "teacher"
+
         return data
     except Exception as e:
         logger.error(f"get_shared_strategies error: {e}")
