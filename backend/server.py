@@ -2519,6 +2519,66 @@ async def get_linked_children(request: Request):
             children.append(student.data[0])
     return children
 
+# ================== STRATEGY SHARING ==================
+
+@api_router.get("/strategies/shared/{student_id}")
+async def get_shared_strategies_for_student(student_id: str, request: Request):
+    """Get family strategies shared with teacher for a specific student."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        # Get strategies from custom_helpers that are shared (is_shared=True) for this student
+        result = supabase.table("custom_helpers").select("*").eq("student_id", student_id).eq("is_shared", True).execute()
+        data = result.data or []
+
+        # Also get family strategies linked to this student via parent_links
+        try:
+            links = supabase.table("parent_links").select("parent_user_id").eq("student_id", student_id).execute()
+            for link in (links.data or []):
+                parent_id = link.get("parent_user_id")
+                if parent_id:
+                    # Get parent's custom strategies assigned to this student or all
+                    fam_strats = supabase.table("custom_helpers").select("*").eq("user_id", parent_id).eq("is_shared", True).execute()
+                    for s in (fam_strats.data or []):
+                        assigned = s.get("assigned_to", "all")
+                        if assigned in ("all", student_id):
+                            s["creator_role"] = "parent"
+                            data.append(s)
+        except Exception as e:
+            logger.error(f"get_shared_strategies parent fetch error: {e}")
+
+        # Normalise zone/feeling_colour
+        for row in data:
+            fc = row.get("feeling_colour", "")
+            z  = row.get("zone", "")
+            row["zone"] = z or fc or "green"
+            row["feeling_colour"] = fc or z or "green"
+            if "creator_role" not in row:
+                row["creator_role"] = "teacher"
+        return data
+    except Exception as e:
+        logger.error(f"get_shared_strategies error: {e}")
+        return []
+
+@api_router.put("/strategies/sync/{strategy_id}")
+async def toggle_strategy_sync(strategy_id: str, request: Request):
+    """Toggle is_shared on a custom strategy."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        current = supabase.table("custom_helpers").select("is_shared").eq("id", strategy_id).execute()
+        if not current.data:
+            raise HTTPException(status_code=404, detail="Strategy not found")
+        new_val = not current.data[0].get("is_shared", False)
+        supabase.table("custom_helpers").update({"is_shared": new_val}).eq("id", strategy_id).execute()
+        return {"is_shared": new_val}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ================== PDF REPORTS ==================
+
 # ================== PDF REPORTS ==================
 
 # Full strategy name map (mirrors frontend STRATEGY_NAME_MAP)

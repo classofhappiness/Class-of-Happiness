@@ -123,12 +123,41 @@ export default function FamilyCheckInScreen() {
 
   const fetchStrategies = async () => {
     if (!selectedZone) return;
-    // Children get student strategies, adults get parent co-regulation strategies
     const isChild = memberRelationship === 'child';
-    const strats = isChild
-      ? (CHILD_STRATEGIES[selectedZone] || [])
-      : (PARENT_STRATEGIES[selectedZone] || []);
-    setStrategies(strats as any);
+
+    if (isChild) {
+      // Children always get student strategies
+      setStrategies(CHILD_STRATEGIES[selectedZone] as any || []);
+      return;
+    }
+
+    // Adults: parent strategies + any custom family strategies
+    const baseStrats = PARENT_STRATEGIES[selectedZone] || [];
+    try {
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const token = await (await import('@react-native-async-storage/async-storage')).default.getItem('session_token');
+      const res = await fetch(`${BACKEND_URL}/api/family/custom-strategies?zone=${selectedZone}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const customStrats = await res.json();
+        const customMapped = (customStrats || []).map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          description: s.description || '',
+          icon: s.icon || 'star',
+          zone: s.zone || selectedZone,
+        }));
+        // Merge custom with parent strategies
+        const allNames = new Set(baseStrats.map((s: any) => s.name.toLowerCase()));
+        const unique = customMapped.filter((s: any) => !allNames.has(s.name.toLowerCase()));
+        setStrategies([...baseStrats, ...unique] as any);
+      } else {
+        setStrategies(baseStrats as any);
+      }
+    } catch {
+      setStrategies(baseStrats as any);
+    }
   };
 
   const handleZoneSelect = (zoneId: string) => {

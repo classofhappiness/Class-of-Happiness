@@ -78,19 +78,20 @@ export default function StrategiesScreen() {
         genericStrats = getFallbackStrategies(zone);
       }
 
-      // Also fetch custom strategies for this student (teacher/parent added)
+      // Fetch custom strategies (teacher-added) and shared family strategies
       let customStrats: Strategy[] = [];
       if (currentStudent?.id) {
         try {
           const token = await AsyncStorage.getItem('session_token');
+
+          // Teacher custom strategies
           const customRes = await fetch(
             `${BACKEND_URL}/api/custom-strategies?student_id=${currentStudent.id}`,
             { headers: { 'Authorization': `Bearer ${token}` } }
           );
           if (customRes.ok) {
             const customData = await customRes.json();
-            // Only show custom strategies for this zone
-            customStrats = (Array.isArray(customData) ? customData : [])
+            const teacherStrats = (Array.isArray(customData) ? customData : [])
               .filter((s: any) => (s.feeling_colour || s.zone) === zone)
               .map((s: any) => ({
                 id: s.id,
@@ -100,6 +101,27 @@ export default function StrategiesScreen() {
                 zone: s.feeling_colour || s.zone || zone,
                 is_custom: true,
               }));
+            customStrats = [...customStrats, ...teacherStrats];
+          }
+
+          // Family/parent shared strategies
+          const sharedRes = await fetch(
+            `${BACKEND_URL}/api/strategies/shared/${currentStudent.id}`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+          );
+          if (sharedRes.ok) {
+            const sharedData = await sharedRes.json();
+            const familyStrats = (Array.isArray(sharedData) ? sharedData : [])
+              .filter((s: any) => (s.feeling_colour || s.zone) === zone)
+              .map((s: any) => ({
+                id: s.id + '_family',
+                name: s.name,
+                description: s.description || '',
+                icon: s.icon || 'favorite',
+                zone: s.feeling_colour || s.zone || zone,
+                is_custom: true,
+              }));
+            customStrats = [...customStrats, ...familyStrats];
           }
         } catch { /* custom strategies optional */ }
       }
