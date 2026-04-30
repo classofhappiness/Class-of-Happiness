@@ -2147,8 +2147,10 @@ async def get_custom_strategies(request: Request, student_id: Optional[str] = No
         # Normalise: add zone field from feeling_colour for frontend compatibility
         data = result.data or []
         for row in data:
-            if "zone" not in row or not row.get("zone"):
-                row["zone"] = row.get("feeling_colour", "green")
+            fc = row.get("feeling_colour", "")
+            z  = row.get("zone", "")
+            row["zone"]           = z or fc or "green"
+            row["feeling_colour"] = fc or z or "green"
         return data
     except Exception as e:
         return []
@@ -4762,6 +4764,28 @@ async def get_school_checkins(student_id: str, request: Request, days: int = 30)
         logger.error(f"get_school_checkins error: {e}")
         return {"checkins": [], "sharing_disabled": False}
 
+
+@api_router.get("/family/custom-strategies")
+async def get_family_custom_strategies(request: Request, zone: Optional[str] = None):
+    """Get family-level custom strategies (no student_id) for family checkins."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        query = supabase.table("custom_helpers").select("*").eq("user_id", user["user_id"])
+        if zone:
+            query = query.or_(f"feeling_colour.eq.{zone},zone.eq.{zone}")
+        result = query.execute()
+        data = result.data or []
+        for row in data:
+            fc = row.get("feeling_colour", "")
+            z  = row.get("zone", "")
+            row["zone"] = z or fc or "green"
+            row["feeling_colour"] = fc or z or "green"
+        return data
+    except Exception as e:
+        logger.error(f"get_family_custom_strategies error: {e}")
+        return []
 
 @api_router.get("/parent/resources")
 async def get_parent_resources(request: Request, topic: Optional[str] = None):

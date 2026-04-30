@@ -103,13 +103,14 @@ export default function ManageStrategiesScreen() {
       const [defaultStrats, customStrats, sharedStrats] = await Promise.all([
         strategiesApi.getByZone(selectedZone).catch(() => []),
         studentId ? customStrategiesApi.getAll(studentId).catch(() => []) : Promise.resolve([]),
-        studentId ? strategySyncApi.getShared(studentId) : Promise.resolve([])
+        studentId ? strategySyncApi.getShared(studentId).catch(() => []) : Promise.resolve([])
       ]);
-      setStrategies(defaultStrats.filter(s => !s.is_custom));
-      setCustomStrategies(customStrats.filter(s => s.zone === selectedZone));
-      // Filter shared strategies by zone and exclude ones we created (to avoid duplicates)
-      setSharedStrategies(sharedStrats.filter(s => 
-        s.zone === selectedZone && s.creator_role === 'parent'
+      // Use fallback if API returns empty
+      const genericStrats = defaultStrats.filter((s: any) => !s.is_custom);
+      setStrategies(genericStrats.length > 0 ? genericStrats : (FALLBACK_STRATEGIES[selectedZone] || []));
+      setCustomStrategies(customStrats.filter((s: any) => (s.zone || s.feeling_colour) === selectedZone));
+      setSharedStrategies((sharedStrats || []).filter((s: any) =>
+        (s.zone || s.feeling_colour) === selectedZone
       ));
     } catch (error) {
       console.error('Error fetching strategies:', error);

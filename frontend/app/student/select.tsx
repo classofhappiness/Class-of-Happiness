@@ -484,9 +484,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   pointsText: {
-    fontSize: 9,
-    color: '#F9A825',
-    fontWeight: 'bold',
+    fontSize: 11,
+    color: '#111',
+    fontStyle: 'italic',
+    fontWeight: '600',
+    textShadowColor: 'transparent',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 0,
   },
   addCard: {
     borderWidth: 2,

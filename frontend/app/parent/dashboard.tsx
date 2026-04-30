@@ -295,6 +295,21 @@ export default function ParentDashboard() {
     }
   };
 
+  const loadFamilyMemberCreatures = async (members: any[]) => {
+    const creatures: Record<string, any> = {};
+    const childMembers = members.filter((m: any) => m.relationship === 'child');
+    await Promise.allSettled(childMembers.map(async (member: any) => {
+      // Family members don't have creature collections yet - show default egg
+      creatures[member.id] = {
+        emoji: '🥚',
+        color: '#5C6BC0',
+        stage: 0,
+        points: 0,
+      };
+    }));
+    setChildCreatures(prev => ({ ...prev, ...creatures }));
+  };
+
   const fetchData = async () => {
     try {
       // First, ensure user role is set to parent
@@ -1249,8 +1264,9 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 20,
-    marginTop: 20,
+    marginTop: 28,
     paddingBottom: 8,
+    paddingTop: 8,
   },
   headerLogo: { width: 56, height: 56, marginBottom: 4 },
   headerTitle: {
@@ -1261,9 +1277,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#666',
-    marginTop: 4,
+    marginTop: 8,
+    textAlign: 'center',
+    paddingHorizontal: 16,
   },
   section: {
     backgroundColor: 'white',
