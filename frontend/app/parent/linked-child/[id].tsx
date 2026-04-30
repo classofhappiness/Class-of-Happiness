@@ -52,6 +52,7 @@ export default function LinkedChildDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   
   // View tabs
+  const [activeZoneFilter, setActiveZoneFilter] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'combined' | 'home' | 'school'>('combined');
   
   // Check-ins data
@@ -223,10 +224,13 @@ export default function LinkedChildDetailScreen() {
   };
 
   const getCurrentCheckIns = () => {
+    const zoneFilter = (arr: any[]) => activeZoneFilter
+      ? arr.filter((c: any) => c.zone === activeZoneFilter || c.feeling_colour === activeZoneFilter)
+      : arr;
     switch (activeTab) {
-      case 'home': return homeCheckIns;
-      case 'school': return schoolCheckIns;
-      default: return (allCheckIns).filter((c: any) => !activeZoneFilter || c.zone === activeZoneFilter || c.feeling_colour === activeZoneFilter);
+      case 'home': return zoneFilter(homeCheckIns);
+      case 'school': return zoneFilter(schoolCheckIns);
+      default: return zoneFilter(allCheckIns);
     }
   };
 

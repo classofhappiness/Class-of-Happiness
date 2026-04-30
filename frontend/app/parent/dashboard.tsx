@@ -103,7 +103,7 @@ const getRelationshipColor = (relationship: string) => {
 
 export default function ParentDashboard() {
   const router = useRouter();
-  const { user, presetAvatars, t, language } = useApp();
+  const { user, presetAvatars, t, language , setCurrentStudent } = useApp();
   
   // Linked children from school
   const [linkedChildren, setLinkedChildren] = useState<Student[]>([]);
