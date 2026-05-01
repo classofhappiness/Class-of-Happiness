@@ -398,11 +398,19 @@ export default function LinkedChildDetailScreen() {
           ) : (
             getCurrentCheckIns().slice(0, 10).map((checkIn, index) => (
               <View key={checkIn.id || index} style={styles.checkInItem}>
-                <View style={[styles.checkInZone, { backgroundColor: ZONE_CONFIG[checkIn.zone]?.color || '#999' }]}>
+                <View style={[styles.checkInZone, { backgroundColor: LINKED_ZONE_COLORS[checkIn.zone as keyof typeof LINKED_ZONE_COLORS] || '#999' }]}>
                   {(() => {
-                          const zoneEmojis: Record<string,string> = {blue:'😢',green:'😊',yellow:'😟',red:'😣'};
-                          return <Text style={styles.checkInEmoji}>{zoneEmojis[checkIn.zone] || zoneEmojis[checkIn.feeling_colour] || '😊'}</Text>;
-                        })()}
+                    const zoneEmojis: Record<string,string> = {blue:'😢',green:'😊',yellow:'😟',red:'😣'};
+                    return <Text style={styles.checkInEmoji}>{zoneEmojis[checkIn.zone] || zoneEmojis[checkIn.feeling_colour] || '😊'}</Text>;
+                  })()}
+                </View>
+                <View style={{ position:'absolute', top:4, right:4 }}>
+                  <MaterialIcons
+                    name={checkIn.logged_by === 'parent' || checkIn.logged_by === 'family' ? 'home' : 'school'}
+                    size={10}
+                    color="white"
+                    style={{ opacity: 0.8 }}
+                  />
                 </View>
                 <View style={styles.checkInDetails}>
                   <Text style={styles.checkInZoneLabel}>{
@@ -632,7 +640,7 @@ export default function LinkedChildDetailScreen() {
                 ))}
               </View>
 
-              <View style={styles.shareOption}>
+              <View style={{ flexDirection:"row", alignItems:"center", backgroundColor:"#F8F9FA", borderRadius:12, padding:14, marginTop:8 }}>
                 <View style={styles.shareOptionText}>
                   <Text style={styles.shareOptionTitle}>{t('share_with_teacher') || 'Share with Teacher'}</Text>
                   <Text style={styles.shareOptionDesc}>{t('teacher_can_see_strategy') || 'Teacher will be able to see this strategy'}</Text>

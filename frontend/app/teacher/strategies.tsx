@@ -100,20 +100,32 @@ export default function ManageStrategiesScreen() {
   const fetchStrategies = async () => {
     setLoading(true);
     try {
-      const [defaultStrats, customStrats, sharedStrats] = await Promise.all([
-        strategiesApi.getByZone(selectedZone).catch(() => []),
-        studentId ? customStrategiesApi.getAll(studentId).catch(() => []) : Promise.resolve([]),
-        studentId ? strategySyncApi.getShared(studentId).catch(() => []) : Promise.resolve([])
-      ]);
-      // Use fallback if API returns empty
-      const genericStrats = defaultStrats.filter((s: any) => !s.is_custom);
+      // Fetch each independently so one failure doesn't block others
+      const defaultStrats = await strategiesApi.getByZone(selectedZone).catch(() => []);
+      const customStrats = studentId
+        ? await customStrategiesApi.getAll(studentId).catch(() => [])
+        : [];
+      const sharedStrats = studentId
+        ? await strategySyncApi.getShared(studentId).catch(() => [])
+        : [];
+
+      // Generic strategies - use fallback if API empty
+      const genericStrats = (defaultStrats || []).filter((s: any) => !s.is_custom);
       setStrategies(genericStrats.length > 0 ? genericStrats : (FALLBACK_STRATEGIES[selectedZone] || []));
-      setCustomStrategies(customStrats.filter((s: any) => (s.zone || s.feeling_colour) === selectedZone));
+
+      // Custom teacher strategies for this zone
+      setCustomStrategies((customStrats || []).filter((s: any) =>
+        (s.zone || s.feeling_colour) === selectedZone
+      ));
+
+      // Shared parent strategies for this zone
       setSharedStrategies((sharedStrats || []).filter((s: any) =>
         (s.zone || s.feeling_colour) === selectedZone
       ));
     } catch (error) {
       console.error('Error fetching strategies:', error);
+      // Show fallback so screen is never empty
+      setStrategies(FALLBACK_STRATEGIES[selectedZone] || []);
     } finally {
       setLoading(false);
     }
