@@ -121,6 +121,10 @@ export default function TeacherDashboardScreen() {
   }, [user?.user_id]);
 
   useEffect(() => {
+    if (user?.user_id) {
+      refreshStudents();
+      refreshClassrooms();
+    }
     fetchData();
   }, [selectedPeriod, selectedClassroom, user?.user_id]);
 
