@@ -520,7 +520,6 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     flexShrink: 0,
-    whiteSpace: 'nowrap' as any,
     flexShrink: 0,
   },
   filterChipTextActive: {
