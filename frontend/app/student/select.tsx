@@ -488,9 +488,7 @@ const styles = StyleSheet.create({
     color: '#111',
     fontStyle: 'italic',
     fontWeight: '600',
-    textShadowColor: 'transparent',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 0,
+
   },
   addCard: {
     borderWidth: 2,

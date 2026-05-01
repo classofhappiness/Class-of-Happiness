@@ -553,8 +553,10 @@ export default function ParentDashboard() {
         }
       >
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerSubtitle}>{t('track_emotional_wellness') || 'Track emotional wellbeing at home'}</Text>
+        <View style={[styles.header, { alignItems: 'center', paddingHorizontal: 24 }]}>
+          <Text style={[styles.headerSubtitle, { textAlign: 'center' }]}>
+            {t('track_emotional_wellness') || 'Track emotional wellbeing at home'}
+          </Text>
         </View>
 
         {/* Family Members Section */}

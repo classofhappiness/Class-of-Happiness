@@ -509,6 +509,7 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0',
     flexShrink: 0,
     flexGrow: 0,
+    minWidth: 80,
   },
   filterChipActive: {
     backgroundColor: '#5C6BC0',
@@ -518,6 +519,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#666',
     textAlign: 'center',
+    flexShrink: 0,
+    whiteSpace: 'nowrap' as any,
     flexShrink: 0,
   },
   filterChipTextActive: {

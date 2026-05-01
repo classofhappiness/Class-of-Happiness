@@ -290,10 +290,14 @@ export default function StudentDetailScreen() {
         // Mobile (Expo Go SDK 54+): Use new File/Directory API
         // Use cache directory directly to avoid create() issues
         const cacheDir = new Directory(Paths.cache);
-        
-        console.log('Saving report to cache directory');
-        
-        // Download file directly to cache
+
+        // Use unique filename with timestamp to avoid "destination already exists" error
+        const uniqueFilename = `${filename}_${Date.now()}.pdf`;
+        const destFile = new File(Paths.cache, uniqueFilename);
+
+        console.log('Saving report to cache directory:', uniqueFilename);
+
+        // Download file directly to cache with unique name
         const downloadedFile = await File.downloadFileAsync(fullUrl, cacheDir);
         
         console.log('Download result - exists:', downloadedFile.exists);
@@ -426,20 +430,20 @@ export default function StudentDetailScreen() {
 
         {/* Period Selector */}
         <View style={styles.periodSelector}>
-          {[7, 14, 30].map((days) => (
+          {[1, 7, 14, 30].map((days) => (
             <TouchableOpacity
               key={days}
               style={[
                 styles.periodButton,
                 selectedPeriod === days && styles.periodButtonActive
               ]}
-              onPress={() => setSelectedPeriod(days as 7 | 14 | 30)}
+              onPress={() => setSelectedPeriod(days as 1 | 7 | 14 | 30)}
             >
               <Text style={[
                 styles.periodButtonText,
                 selectedPeriod === days && styles.periodButtonTextActive
               ]}>
-                {days === 7 ? '7 Days' : days === 14 ? '2 Weeks' : '30 Days'}
+                {days === 1 ? 'Today' : days === 7 ? '7 Days' : days === 14 ? '2 Weeks' : '30 Days'}
               </Text>
             </TouchableOpacity>
           ))}

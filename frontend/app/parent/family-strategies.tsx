@@ -76,6 +76,15 @@ export default function FamilyStrategiesScreen() {
   const { t, user } = useApp();
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
   const [expandedStrategy, setExpandedStrategy] = useState<string | null>(null);
+  const [collapsedZones, setCollapsedZones] = useState<Set<string>>(new Set());
+
+  const toggleZoneCollapse = (zone: string) => {
+    setCollapsedZones(prev => {
+      const next = new Set(prev);
+      next.has(zone) ? next.delete(zone) : next.add(zone);
+      return next;
+    });
+  };
   const [refreshing, setRefreshing] = useState(false);
 
   // Custom strategies CRUD
@@ -283,13 +292,16 @@ export default function FamilyStrategiesScreen() {
             <View key={zone}>
               {!selectedZone && (
                 <TouchableOpacity
-                  style={[styles.zoneSectionHeader, { backgroundColor: ZONE_COLORS[zone] }]}
-                  onPress={() => setSelectedZone(zone)} activeOpacity={0.85}>
-                  <Text style={styles.zoneSectionTitle}>{ZONE_NAMES[zone]}</Text>
-                  <Text style={styles.zoneSectionDesc}>{ZONE_DESC[zone]}</Text>
+                  style={[styles.zoneSectionHeader, { backgroundColor: ZONE_COLORS[zone], flexDirection:'row', justifyContent:'space-between', alignItems:'center' }]}
+                  onPress={() => toggleZoneCollapse(zone)} activeOpacity={0.85}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.zoneSectionTitle}>{ZONE_NAMES[zone]}</Text>
+                    {!collapsedZones.has(zone) && <Text style={styles.zoneSectionDesc}>{ZONE_DESC[zone]}</Text>}
+                  </View>
+                  <MaterialIcons name={collapsedZones.has(zone) ? 'expand-more' : 'expand-less'} size={22} color="white" />
                 </TouchableOpacity>
               )}
-              {strats.map((s, i) => {
+              {!collapsedZones.has(zone) && strats.map((s, i) => {
                 const key = `${zone}-${i}`;
                 const isOpen = expandedStrategy === key;
                 return (
