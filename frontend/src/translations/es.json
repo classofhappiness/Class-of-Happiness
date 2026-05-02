@@ -521,5 +521,13 @@
   "change_photo": "Cambiar Foto",
   "assign_label": "Asignar a",
   "save_btn": "Guardar",
-  "saving_btn": "Guardando..."
+  "saving_btn": "Guardando...",
+  "select_emotion": "Seleccionar Emoción",
+  "write_custom_strategy": "✏️ Escribir una estrategia personalizada...",
+  "select_students": "Seleccionar Estudiantes",
+  "selected_count": "seleccionado(s)",
+  "blue_short": "😢 Azul",
+  "green_short": "😊 Verde",
+  "yellow_short": "😟 Amarillo",
+  "red_short": "😣 Rojo"
 }

@@ -395,7 +395,7 @@ export default function ManageClassroomsScreen() {
 
             <ScrollView>
               {/* Zone selector */}
-              <Text style={styles.sectionLabel}>{t('select_zone') || 'Select Zone'}</Text>
+              <Text style={styles.sectionLabel}>{t('select_emotion') || 'Select Emotion'}</Text>
               <View style={styles.zoneRow}>
                 {(['blue', 'green', 'yellow', 'red'] as const).map(z => (
                   <TouchableOpacity
@@ -403,7 +403,7 @@ export default function ManageClassroomsScreen() {
                     style={[styles.zoneChip, { backgroundColor: ZONE_COLORS[z], opacity: selectedZone === z ? 1 : 0.4 }]}
                     onPress={() => { setSelectedZone(z); setSelectedStrategy(null); }}
                   >
-                    <Text style={styles.zoneChipText}>{z}</Text>
+                    <Text style={styles.zoneChipText}>{z === 'blue' ? (t('blue_short') || z) : z === 'green' ? (t('green_short') || z) : z === 'yellow' ? (t('yellow_short') || z) : (t('red_short') || z)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -428,7 +428,7 @@ export default function ManageClassroomsScreen() {
                 onPress={() => { setShowCustomStrategyInput(!showCustomStrategyInput); setSelectedStrategy(null); }}
               >
                 <MaterialIcons name="add-circle" size={20} color="#5C6BC0" />
-                <Text style={[styles.strategyOptionText, { color: '#5C6BC0', fontWeight: '600' }]}>✏️ Write a custom strategy...</Text>
+                <Text style={[styles.strategyOptionText, { color: '#5C6BC0', fontWeight: '600' }]}>{t('write_custom_strategy') || '✏️ Write a custom strategy...'}</Text>
               </TouchableOpacity>
 
               {showCustomStrategyInput && (
@@ -452,7 +452,7 @@ export default function ManageClassroomsScreen() {
               )}
 
               {/* Student selector */}
-              <Text style={styles.sectionLabel}>Select Students ({selectedStudentIds.size} selected)</Text>
+              <Text style={styles.sectionLabel}>{t('select_students') || 'Select Students'} ({selectedStudentIds.size} {t('selected_count') || 'selected'})</Text>
               <TouchableOpacity
                 style={styles.selectAllButton}
                 onPress={() => {
@@ -464,7 +464,7 @@ export default function ManageClassroomsScreen() {
                 }}
               >
                 <Text style={styles.selectAllText}>
-                  {selectedStudentIds.size === strategyStudents.length ? 'Deselect All' : 'Select All'}
+                  {selectedStudentIds.size === strategyStudents.length ? (t('deselect_all') || 'Deselect All') : (t('select_all') || 'Select All')}
                 </Text>
               </TouchableOpacity>
               {strategyStudents.map(s => (

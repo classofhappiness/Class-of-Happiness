@@ -279,7 +279,7 @@ export default function ManageStrategiesScreen() {
               styles.zoneTabText,
               { color: selectedZone === zone ? 'white' : '#666' }
             ]}>
-              {zone === 'blue' ? (t('blue_label') || 'Blue') : zone === 'green' ? (t('green_label') || 'Green') : zone === 'yellow' ? (t('yellow_label') || 'Yellow') : (t('red_label') || 'Red')}
+              {zone === 'blue' ? (t('blue_short') || 'Blue') : zone === 'green' ? (t('green_short') || 'Green') : zone === 'yellow' ? (t('yellow_short') || 'Yellow') : (t('red_short') || 'Red')}
             </Text>
           </TouchableOpacity>
         ))}
@@ -369,7 +369,7 @@ export default function ManageStrategiesScreen() {
 
         {/* Default Strategies */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('default_zone_strategies') || 'Default'} {selectedZone === 'blue' ? (t('blue_label') || 'Blue') : selectedZone === 'green' ? (t('green_label') || 'Green') : selectedZone === 'yellow' ? (t('yellow_label') || 'Yellow') : (t('red_label') || 'Red')} {t('strategies') || 'Strategies'}</Text>
+          <Text style={styles.sectionTitle}>{t('default_zone_strategies') || 'Default'} {selectedZone === 'blue' ? (t('blue_emotions') || 'Blue') : selectedZone === 'green' ? (t('green_emotions') || 'Green') : selectedZone === 'yellow' ? (t('yellow_emotions') || 'Yellow') : (t('red_emotions') || 'Red')} {t('strategies') || 'Strategies'}</Text>
           {strategies.map((strategy) => (
             <View key={strategy.id} style={[styles.strategyCard, styles.defaultCard]}>
               <View style={[styles.strategyIcon, { backgroundColor: zoneConfig.color }]}>
@@ -432,7 +432,7 @@ export default function ManageStrategiesScreen() {
 
               {/* Zone */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>{t('zone_label') || 'Zone'}</Text>
+                <Text style={styles.inputLabel}>{t('select_emotion') || 'Emotion'}</Text>
                 <View style={styles.zoneSelector}>
                   {ZONES.map((zone) => (
                     <TouchableOpacity
