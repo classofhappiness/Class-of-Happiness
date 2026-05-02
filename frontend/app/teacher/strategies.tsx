@@ -406,10 +406,10 @@ export default function ManageStrategiesScreen() {
             <ScrollView style={styles.modalScroll}>
               {/* Name */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Name *</Text>
+                <Text style={styles.inputLabel}>{t('name_required') || 'Name *'}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="e.g., Deep Breathing"
+                  placeholder={t('strategy_name_ph') || 'e.g., Deep Breathing'}
                   value={strategyName}
                   onChangeText={setStrategyName}
                   placeholderTextColor="#999"
@@ -418,10 +418,10 @@ export default function ManageStrategiesScreen() {
 
               {/* Description */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Description</Text>
+                <Text style={styles.inputLabel}>{t('description_label') || 'Description'}</Text>
                 <TextInput
                   style={[styles.input, styles.textArea]}
-                  placeholder="e.g., Take 5 slow deep breaths"
+                  placeholder={t('strategy_desc_ph') || 'e.g., Take 5 slow deep breaths'}
                   value={strategyDesc}
                   onChangeText={setStrategyDesc}
                   placeholderTextColor="#999"
@@ -432,7 +432,7 @@ export default function ManageStrategiesScreen() {
 
               {/* Zone */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Zone</Text>
+                <Text style={styles.inputLabel}>{t('zone_label') || 'Zone'}</Text>
                 <View style={styles.zoneSelector}>
                   {ZONES.map((zone) => (
                     <TouchableOpacity
@@ -453,14 +453,14 @@ export default function ManageStrategiesScreen() {
 
               {/* Image Type */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Image</Text>
+                <Text style={styles.inputLabel}>{t('image_label') || 'Image'}</Text>
                 <View style={styles.imageTypeSelector}>
                   <TouchableOpacity
                     style={[styles.imageTypeOption, imageType === 'icon' && styles.imageTypeActive]}
                     onPress={() => setImageType('icon')}
                   >
                     <MaterialIcons name="emoji-symbols" size={24} color={imageType === 'icon' ? '#5C6BC0' : '#999'} />
-                    <Text style={[styles.imageTypeText, imageType === 'icon' && styles.imageTypeTextActive]}>Icon</Text>
+                    <Text style={[styles.imageTypeText, imageType === 'icon' && styles.imageTypeTextActive]}>{t('icon_label') || 'Icon'}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.imageTypeOption, imageType === 'custom' && styles.imageTypeActive]}
@@ -498,7 +498,7 @@ export default function ManageStrategiesScreen() {
                   <View style={styles.imagePreview}>
                     <Image source={{ uri: customImage }} style={styles.previewImage} />
                     <TouchableOpacity style={styles.changeImageBtn} onPress={pickImage}>
-                      <Text style={styles.changeImageText}>Change Photo</Text>
+                      <Text style={styles.changeImageText}>{t('change_photo') || 'Change Photo'}</Text>
                     </TouchableOpacity>
                   </View>
                 )}

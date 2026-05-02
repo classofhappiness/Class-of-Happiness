@@ -396,7 +396,7 @@
   "for_educational_purposes": "Solo para fines educativos. No es sustituto del asesoramiento profesional. Ver aviso legal abajo.",
   "child_strategies_note": "Estas son las mismas estrategias que los niños usan en la escuela. Se muestran aquí para que las familias puedan reforzarlas en casa.",
   "emotion_strategies_children": "Estrategias de emociones para niños — las mismas que se usan en la escuela.",
-  "name_required": "Nombre obligatorio",
+  "name_required": "Nombre *",
   "strat_side_by_side_name": "Presencia Lado a Lado",
   "strat_side_by_side_desc": "Siéntate tranquilamente junto a tu hijo sin expectativas. Sin pantallas, sin resolver — solo presencia.",
   "strat_warm_drink_name": "Ritual de Bebida Caliente",
@@ -510,5 +510,16 @@
   "strategy_zone_label": "Zona de Emoción",
   "assign_to_student": "Asignar al estudiante",
   "save_strategy": "Guardar Estrategia",
-  "saving_strategy": "Guardando..."
+  "saving_strategy": "Guardando...",
+  "strategy_name_ph": "ej. Respiración Profunda",
+  "description_label": "Descripción",
+  "strategy_desc_ph": "ej. Haz 5 respiraciones lentas y profundas",
+  "zone_label": "Zona",
+  "image_label": "Imagen",
+  "icon_label": "Ícono",
+  "photo_label": "Foto",
+  "change_photo": "Cambiar Foto",
+  "assign_label": "Asignar a",
+  "save_btn": "Guardar",
+  "saving_btn": "Guardando..."
 }
