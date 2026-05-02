@@ -431,13 +431,13 @@ export default function StudentDetailScreen() {
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{analytics?.total_logs || 0}</Text>
-            <Text style={styles.statLabel}>Check-ins</Text>
+            <Text style={styles.statLabel}>{t('check_ins') || 'Check-ins'}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={[styles.statValue, { color: ZONE_COLORS.green }]}>
               {analytics?.zone_counts.green || 0}
             </Text>
-            <Text style={styles.statLabel}>Green Emotions</Text>
+            <Text style={styles.statLabel}>{t('green_emotions') || 'Green Emotions'}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>
@@ -550,7 +550,7 @@ export default function StudentDetailScreen() {
 
         {/* Recent Logs */}
         <View style={styles.logsSection}>
-          <Text style={styles.sectionTitle}>Recent Check-ins</Text>
+          <Text style={styles.sectionTitle}>{t('recent_checkins') || 'Recent Check-ins'}</Text>
           {logs.length > 0 ? (
             logs.slice(0, 15).map((log) => (
               <View key={log.id} style={styles.logItem}>
@@ -582,7 +582,7 @@ export default function StudentDetailScreen() {
           ) : (
             <View style={styles.emptyLogs}>
               <MaterialIcons name="history" size={48} color="#CCC" />
-              <Text style={styles.emptyLogsText}>No check-ins yet</Text>
+              <Text style={styles.emptyLogsText}>{t('no_checkins') || 'No check-ins yet'}</Text>
             </View>
           )}
         </View>
@@ -777,7 +777,7 @@ export default function StudentDetailScreen() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add Strategy</Text>
+                <Text style={styles.modalTitle}>{t('add_strategy') || 'Add Strategy'}</Text>
                 <TouchableOpacity onPress={() => setShowAddStrategyModal(false)}>
                   <MaterialIcons name="close" size={24} color="#666" />
                 </TouchableOpacity>

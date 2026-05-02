@@ -189,5 +189,19 @@
   "day_sat": "Sáb",
   "track_emotional_wellbeing": "Acompanha o bem-estar emocional",
   "view_progress": "Ver o progresso da turma",
-  "your_family_emotions": "Check-ins da família"
+  "your_family_emotions": "Check-ins da família",
+  "edit_strategy": "Editar Estratégia",
+  "no_custom_strategies": "Sem estratégias personalizadas ainda",
+  "tap_add_create": "Toca em Adicionar para criar uma para a tua família",
+  "shared_with_teacher": "Partilhado com professor",
+  "select": "Selecionar",
+  "blue_zone_label": "Emoções Azuis — Energia Calma",
+  "green_zone_label": "Emoções Verdes — Energia Equilibrada",
+  "yellow_zone_label": "Emoções Amarelas — Energia Agitada",
+  "red_zone_label": "Emoções Vermelhas — Grande Energia",
+  "green_desc": "Calmo, feliz, focado, pronto para ligar",
+  "blue_desc": "Triste, cansado, retraído, pouca motivação",
+  "yellow_desc": "Preocupado, frustrado, a perder o controlo",
+  "red_desc": "Zangado, assustado, sobrecarregado",
+  "no_strategies": "Sem estratégias ainda"
 }

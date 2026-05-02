@@ -166,5 +166,21 @@
   "day_wed": "Mié",
   "day_thu": "Jue",
   "day_fri": "Vie",
-  "day_sat": "Sáb"
+  "day_sat": "Sáb",
+  "edit_strategy": "Editar Estrategia",
+  "no_custom_strategies": "Sin estrategias personalizadas aún",
+  "tap_add_create": "Toca Agregar para crear una para tu familia",
+  "shared_with_teacher": "Compartido con profesor",
+  "link_to_family": "Vincular a Familia",
+  "save_message": "Guardar Mensaje",
+  "select": "Seleccionar",
+  "blue_zone_label": "Emociones Azules — Energía Tranquila",
+  "green_zone_label": "Emociones Verdes — Energía Equilibrada",
+  "yellow_zone_label": "Emociones Amarillas — Energía Agitada",
+  "red_zone_label": "Emociones Rojas — Gran Energía",
+  "green_desc": "Tranquilo, feliz, enfocado, listo para conectar",
+  "blue_desc": "Triste, cansado, retraído, poca motivación",
+  "yellow_desc": "Preocupado, frustrado, perdiendo el control",
+  "red_desc": "Enojado, asustado, abrumado, fuera de control",
+  "no_strategies": "Sin estrategias aún"
 }

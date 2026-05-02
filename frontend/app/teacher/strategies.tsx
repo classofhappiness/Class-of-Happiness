@@ -283,7 +283,7 @@ export default function ManageStrategiesScreen() {
             placeholderTextColor="#AAA"
           />
           <TouchableOpacity style={styles.saveMessageBtn} onPress={saveSupportMessage}>
-            <Text style={styles.saveMessageText}>Save Message</Text>
+            <Text style={styles.saveMessageText}>{t('save_message') || 'Save Message'}</Text>
           </TouchableOpacity>
           <Text style={styles.supportMessageHint}>
             This message will appear on {student?.name}'s reward screen after checking in.

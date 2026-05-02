@@ -341,7 +341,7 @@ export default function FamilyStrategiesScreen() {
         {/* My Family Strategies — Custom */}
         <View style={{ backgroundColor: 'white', borderRadius: 14, padding: 16, marginTop: 16, marginBottom: 8 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: '#333' }}>My Family Strategies</Text>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#333' }}>{t('my_strategies') || 'My Family Strategies'}</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {selectMode ? (
                 <>
@@ -380,7 +380,7 @@ export default function FamilyStrategiesScreen() {
                     style={{ paddingHorizontal: 10, paddingVertical: 7, borderRadius: 20, backgroundColor: '#F0F0F0' }}
                     onPress={() => setSelectMode(true)}
                   >
-                    <Text style={{ fontSize: 12, color: '#666' }}>Select</Text>
+                    <Text style={{ fontSize: 12, color: '#666' }}>{t('select') || 'Select'}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#5C6BC0', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, gap: 4 }}
@@ -455,7 +455,7 @@ export default function FamilyStrategiesScreen() {
                 placeholder="What does this strategy involve?"
                 multiline
               />
-              <Text style={{ fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 8 }}>Emotion colour</Text>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 8 }}>{t('emotion_colour') || 'Emotion colour'}</Text>
               <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
                 {(['blue','green','yellow','red'] as const).map(z => (
                   <TouchableOpacity key={z}
@@ -466,14 +466,14 @@ export default function FamilyStrategiesScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 8 }}>Assign to</Text>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 8 }}>{t('assign_to') || 'Assign to'}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
                 <TouchableOpacity
                   style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
                     backgroundColor: newStrat.assigned_to === 'all' ? '#5C6BC0' : '#F0F0F0' }}
                   onPress={() => setNewStrat(p => ({ ...p, assigned_to: 'all' }))}
                 >
-                  <Text style={{ fontSize: 12, color: newStrat.assigned_to === 'all' ? 'white' : '#666' }}>Everyone</Text>
+                  <Text style={{ fontSize: 12, color: newStrat.assigned_to === 'all' ? 'white' : '#666' }}>{t('everyone') || 'Everyone'}</Text>
                 </TouchableOpacity>
                 {familyMembers.map((m: any) => (
                   <TouchableOpacity key={m.id}
@@ -486,7 +486,7 @@ export default function FamilyStrategiesScreen() {
                 ))}
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                <Text style={{ fontSize: 14, color: '#333' }}>Share with teacher</Text>
+                <Text style={{ fontSize: 14, color: '#333' }}>{t('share_with_teacher') || 'Share with teacher'}</Text>
                 <Switch value={newStrat.share_with_teacher} onValueChange={v => setNewStrat(p => ({ ...p, share_with_teacher: v }))} trackColor={{ false: '#ddd', true: '#81C784' }} thumbColor={newStrat.share_with_teacher ? '#4CAF50' : '#999'} />
               </View>
               <View style={{ flexDirection: 'row', gap: 10 }}>
