@@ -330,7 +330,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!isAuthenticated) return; // ✅ Don't fetch if not logged in
     try {
       const data = await studentsApi.getAll();
-      setStudents(data);
+      // Sort: linked students first, then alphabetical
+      const sorted = [...data].sort((a: any, b: any) => {
+        if (a.is_linked && !b.is_linked) return -1;
+        if (!a.is_linked && b.is_linked) return 1;
+        return (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase());
+      });
+      setStudents(sorted);
     } catch (error) {
       // Silently ignore auth errors - user may not be logged in
       if (!String(error).includes('401') && !String(error).includes('authenticated')) {

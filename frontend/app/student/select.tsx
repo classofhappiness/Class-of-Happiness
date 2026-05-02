@@ -232,7 +232,7 @@ export default function StudentSelectScreen() {
         <Text style={styles.instruction}>{t('tap_to_check_in')}</Text>
 
         <View style={styles.studentsGrid}>
-          {(selectedClassroom ? students.filter(s => s.classroom_id === selectedClassroom) : students).slice().sort((a: any, b: any) => { const aLinked = a.is_linked === true; const bLinked = b.is_linked === true; if (aLinked && !bLinked) return -1; if (!aLinked && bLinked) return 1; return (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()); }).map((student) => (
+          {(selectedClassroom ? students.filter(s => s.classroom_id === selectedClassroom) : students).map((student) => (
             <Pressable
               key={student.id}
               style={({ pressed }) => [
