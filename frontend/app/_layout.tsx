@@ -142,14 +142,7 @@ function AppContent() {
           options={{
             title: 'Helpful Strategies',
             headerBackTitle: 'Back',
-            headerRight: () => (
-              <TouchableOpacity
-                onPress={() => router.replace('/student/select')}
-                style={{ marginRight: 12 }}
-              >
-                <Text style={{ fontSize: 18 }}>🏠</Text>
-              </TouchableOpacity>
-            ),
+            headerRight: () => <HomeToStudents />,
           }}
         />
         <Stack.Screen
@@ -197,7 +190,7 @@ function AppContent() {
         <Stack.Screen
           name="teacher/classrooms"
           options={{
-            headerRight: () => (<TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{marginRight:12}}><Text style={{fontSize:18}}>🏠</Text></TouchableOpacity>),
+            headerRight: () => <HomeToDashboard />,
             title: 'Manage Classrooms',
             headerBackTitle: 'Dashboard',
           }}
@@ -321,6 +314,26 @@ const styles = StyleSheet.create({
     height: 30,
   },
 });
+
+
+// HomeButton component - uses its own router hook so it works in Stack options
+function HomeToStudents() {
+  const r = useRouter();
+  return (
+    <TouchableOpacity onPress={() => r.replace('/student/select')} style={{ marginRight: 12 }}>
+      <Text style={{ fontSize: 18 }}>🏠</Text>
+    </TouchableOpacity>
+  );
+}
+
+function HomeToDashboard() {
+  const r = useRouter();
+  return (
+    <TouchableOpacity onPress={() => r.replace('/teacher/dashboard')} style={{ marginRight: 12 }}>
+      <Text style={{ fontSize: 18 }}>🏠</Text>
+    </TouchableOpacity>
+  );
+}
 
 export default function RootLayout() {
   return (
