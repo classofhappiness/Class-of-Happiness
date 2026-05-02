@@ -412,7 +412,7 @@ export default function LinkedChildDetailScreen() {
                 </View>
                 <View style={styles.checkInDetails}>
                   <Text style={styles.checkInZoneLabel}>{
-                          ({blue:'Blue Emotions',green:'Green Emotions',yellow:'Yellow Emotions',red:'Red Emotions'} as any)[checkIn.zone || checkIn.feeling_colour] || checkIn.zone || 'Check-in'
+                          ({blue: t('blue_emotions_label') || 'Blue Emotions', green: t('green_emotions_label') || 'Green Emotions', yellow: t('yellow_emotions_label') || 'Yellow Emotions', red: t('red_emotions_label') || 'Red Emotions'} as any)[checkIn.zone || checkIn.feeling_colour] || checkIn.zone || 'Check-in'
                         }</Text>
                   <Text style={styles.checkInTime}>{formatDate(checkIn.timestamp)}</Text>
                   {checkIn.strategies_selected?.length > 0 && (

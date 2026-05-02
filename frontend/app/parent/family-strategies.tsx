@@ -204,9 +204,9 @@ export default function FamilyStrategiesScreen() {
         {/* Tab selector */}
         <View style={{ flexDirection: 'row', backgroundColor: '#F0F0F0', borderRadius: 12, padding: 4, marginBottom: 14 }}>
           {([
-            { id: 'parent', label: '👨‍👩‍👧 Parent Strategies' },
-            { id: 'child', label: '🧒 Child Strategies' },
-            { id: 'custom', label: '⭐ My Strategies' },
+            { id: 'parent', label: t('tab_parent_strategies') || '👨‍👩‍👧 Parent Strategies' },
+            { id: 'child', label: t('tab_child_strategies') || '🧒 Child Strategies' },
+            { id: 'custom', label: t('tab_my_strategies') || '⭐ My Strategies' },
           ] as const).map(tab => (
             <TouchableOpacity
               key={tab.id}
@@ -438,7 +438,7 @@ export default function FamilyStrategiesScreen() {
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
             <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
               <Text style={{ fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 20 }}>
-                {editingStrategy ? 'Edit Strategy' : t('add_family_strategy') || 'Add Family Strategy'}
+                {editingStrategy ? (t('edit_family_strategy') || 'Edit Strategy') : (t('add_family_strategy') || 'Add Family Strategy')}
               </Text>
               <Text style={{ fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 6 }}>Name *</Text>
               <TextInput
