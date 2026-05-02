@@ -335,7 +335,7 @@ export default function ParentDashboard() {
       for (const m of members) {
         // Try to find a linked student for this family member (match by name or student_id)
         const linkedId = (m as any).student_id ||
-          linkedChildren.find((s: any) => s.name === m.name)?.id;
+          children.find((s: any) => s.name === m.name)?.id;
         if (linkedId) {
           try {
             const collection = await rewardsApi.getCollection(linkedId);
