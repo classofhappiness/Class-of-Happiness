@@ -77,7 +77,7 @@ const MONTH_NAMES = [
 export default function StudentDetailScreen() {
   const router = useRouter();
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
-  const { students, presetAvatars, classrooms, t } = useApp();
+  const { students, presetAvatars, classrooms, t, language } = useApp();
   
   const student = students.find(s => s.id === studentId);
   
@@ -86,6 +86,7 @@ export default function StudentDetailScreen() {
   const [logs, setLogs] = useState<ZoneLog[]>([]);
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [showReportModal, setShowReportModal] = useState(false);
   const [combinedLogs, setCombinedLogs] = useState<any[]>([]);
@@ -288,29 +289,13 @@ export default function StudentDetailScreen() {
       });
       if (!response.ok) throw new Error(`Server error: ${response.status}`);
 
-      const blob = await response.blob();
-      const reader = new FileReader();
-      const base64 = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve((reader.result as string).split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-
-      // Write to a unique file
-      const filename = `report_${studentId}_${monthStr}_${Date.now()}.pdf`;
-      const fileUri = `${FileSystem.cacheDirectory}${filename}`;
-      await FileSystem.writeAsStringAsync(fileUri, base64, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      // Share/open the file
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'application/pdf',
-          dialogTitle: `Report ${monthStr}`,
-        });
+      // Open PDF URL directly - simplest reliable approach
+      const fullUrl2 = `${BACKEND_URL}/api/reports/generate/${studentId}?month=${monthStr}&lang=${language || 'en'}&token=${token}`;
+      const canOpen = await Linking.canOpenURL(fullUrl2);
+      if (canOpen) {
+        await Linking.openURL(fullUrl2);
       } else {
-        Alert.alert('PDF Ready', `Report saved: ${filename}`);
+        Alert.alert('Error', 'Cannot open PDF');
       }
     } catch (error: any) {
       console.error('PDF download error:', error);
