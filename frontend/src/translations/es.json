@@ -184,7 +184,7 @@
   "red_desc": "Enojado, asustado, abrumado, fuera de control",
   "no_strategies": "Sin estrategias aún",
   "success": "Éxito",
-  "checkin_saved": "¡Check-in guardado!",
+  "checkin_saved": "✅ Guardado",
   "strategy_added": "¡Estrategia añadida!",
   "child_not_found": "Hijo vinculado no encontrado",
   "go_back": "Volver",
@@ -356,5 +356,15 @@
   "low_energy": "Poca energía",
   "steady": "Estable",
   "stressed": "Estresado",
-  "checkin_all": "Check-in de Todos"
+  "checkin_all": "Check-in de Todos",
+  "request_support": "Solicitar Apoyo de Bienestar",
+  "checkin_saved_shared": "Check-in guardado y compartido con tu equipo de bienestar.",
+  "checkin_saved_private": "Tu check-in ha sido registrado de forma privada.",
+  "alert_sent": "📨 Alerta Enviada",
+  "alert_sent_desc": "Tu equipo de apoyo de bienestar ha sido notificado. Alguien se pondrá en contacto contigo pronto.",
+  "thank_you": "Gracias",
+  "share_wellbeing": "📨 Compartir con apoyo de bienestar",
+  "keep_private": "🔒 Mantener privado",
+  "private_message_note": "🔒 Este mensaje es privado. Solo tu personal de apoyo de bienestar designado lo verá.",
+  "saved": "Guardado"
 }

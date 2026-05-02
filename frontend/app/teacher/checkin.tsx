@@ -238,7 +238,7 @@ export default function TeacherCheckInScreen() {
       setSelectedStrategies([]);
       setNotes('');
       setShareWithWellbeing(false);
-      Alert.alert('✅ Saved', shareWithWellbeing ? 'Check-in saved and shared with your wellbeing support team.' : 'Your check-in has been recorded privately.');
+      Alert.alert(t('checkin_saved') || '✅ Saved', shareWithWellbeing ? (t('checkin_saved_shared') || 'Check-in saved and shared with your wellbeing support team.') : (t('checkin_saved_private') || 'Your check-in has been recorded privately.'));
     } catch {
       Alert.alert('Error', 'Could not save check-in right now.');
     } finally {
@@ -268,7 +268,7 @@ export default function TeacherCheckInScreen() {
     setShowAlertModal(false);
     setAlertMessage('');
     setSendingAlert(false);
-    Alert.alert('📨 Alert Sent', 'Your wellbeing support team has been notified. Someone will reach out to you soon.', [{ text: 'Thank you' }]);
+    Alert.alert(t('alert_sent') || '📨 Alert Sent', t('alert_sent_desc') || 'Your wellbeing support team has been notified. Someone will reach out to you soon.', [{ text: t('thank_you') || 'Thank you' }]);
   };
 
   const getStrategyName = (id: string) => ALL_STRATEGIES.find(s => s.id === id)?.name || id;
@@ -294,7 +294,7 @@ export default function TeacherCheckInScreen() {
         </TouchableOpacity>
         <TouchableOpacity style={styles.alertBtn} onPress={() => setShowAlertModal(true)}>
           <MaterialIcons name="support-agent" size={18} color="white" />
-          <Text style={styles.alertBtnText}>Support</Text>
+          <Text style={styles.alertBtnText}>{t('support') || 'Support'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -311,7 +311,7 @@ export default function TeacherCheckInScreen() {
               activeOpacity={0.85}
             >
               <Text style={styles.zoneEmoji}>{zone.emoji}</Text>
-              <Text style={styles.zoneBtnLabel}>{zone.label}</Text>
+              <Text style={styles.zoneBtnLabel}>{zone.id === 'blue' ? (t('blue_label') || zone.label) : zone.id === 'green' ? (t('steady') || zone.label) : zone.id === 'yellow' ? (t('stressed') || zone.label) : (t('red_label') || zone.label)}</Text>
               {selectedZone === zone.id && <MaterialIcons name="check-circle" size={22} color="white" />}
             </TouchableOpacity>
           ))}
@@ -398,7 +398,7 @@ export default function TeacherCheckInScreen() {
               />
               <View style={styles.shareToggleText}>
                 <Text style={styles.shareToggleTitle}>
-                  {shareWithWellbeing ? '📨 Share with wellbeing support' : '🔒 Keep private'}
+                  {shareWithWellbeing ? (t('share_wellbeing') || '📨 Share with wellbeing support') : (t('keep_private') || '🔒 Keep private')}
                 </Text>
                 <Text style={styles.shareToggleDesc}>
                   {shareWithWellbeing
@@ -458,7 +458,7 @@ export default function TeacherCheckInScreen() {
                 <View style={styles.historyInfo}>
                   <View style={styles.historyRow}>
                     <Text style={[styles.historyZone, { color: ZONE_COLORS[entry.zone as FeelingZone] }]}>
-                      {ZONES.find(z => z.id === entry.zone)?.label || entry.zone}
+                      {ZONES.find(z => z.id === entry.zone)?.id === 'blue' ? (t('blue_label') || 'Low Energy') : ZONES.find(z => z.id === entry.zone)?.id === 'green' ? (t('steady') || 'Steady') : ZONES.find(z => z.id === entry.zone)?.id === 'yellow' ? (t('stressed') || 'Stressed') : (t('red_label') || entry.zone)}
                     </Text>
                     <Text style={styles.historyTime}>{formatDate(entry.timestamp)}</Text>
                   </View>
@@ -483,7 +483,7 @@ export default function TeacherCheckInScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <MaterialIcons name="notifications-active" size={24} color="#F44336" />
-              <Text style={styles.modalTitle}>Request Wellbeing Support</Text>
+              <Text style={styles.modalTitle}>{t('request_support') || 'Request Wellbeing Support'}</Text>
               <TouchableOpacity onPress={() => setShowAlertModal(false)}>
                 <MaterialIcons name="close" size={24} color="#666" />
               </TouchableOpacity>
@@ -511,7 +511,7 @@ export default function TeacherCheckInScreen() {
               <Text style={styles.sendAlertText}>{sendingAlert ? 'Sending...' : 'Send to Wellbeing Team'}</Text>
             </TouchableOpacity>
             <Text style={styles.modalNote}>
-              🔒 This message is private. Only your designated wellbeing support staff will see it.
+              {t('private_message_note') || '🔒 This message is private. Only your designated wellbeing support staff will see it.'}
             </Text>
           </View>
         </View>
