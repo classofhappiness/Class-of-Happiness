@@ -23,6 +23,22 @@ const AVAILABLE_ICONS = [
   'emoji-emotions', 'lightbulb', 'star', 'pets', 'nature'
 ];
 
+// Translation lookup for default strategy names
+const STRATEGY_KEYS: Record<string, [string, string]> = {
+  'Gentle Stretch': ['strat_gentle_stretch', 'strat_gentle_stretch_desc'],
+  'Favourite Song': ['strat_favourite_song', 'strat_favourite_song_desc'],
+  'Tell Someone': ['strat_tell_someone', 'strat_tell_someone_desc'],
+  'Slow Breathing': ['strat_slow_breathing', 'strat_slow_breathing_desc'],
+  'Keep Going!': ['strat_keep_going', 'strat_keep_going_desc'],
+  'Help a Friend': ['strat_help_friend', 'strat_help_friend_desc'],
+  'Set a Goal': ['strat_set_goal', 'strat_set_goal_desc'],
+  'Gratitude': ['strat_gratitude', 'strat_gratitude_desc'],
+  'Bubble Breathing': ['strat_bubble_breathing', 'strat_bubble_breathing_desc'],
+  'Count to 10': ['strat_count_to_10', 'strat_count_to_10_desc'],
+  '5 Senses': ['strat_5_senses', 'strat_5_senses_desc'],
+  'Talk About It': ['strat_talk_about_it', 'strat_talk_about_it_desc'],
+};
+
 export default function ManageStrategiesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();

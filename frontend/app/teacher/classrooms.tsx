@@ -277,7 +277,7 @@ export default function ManageClassroomsScreen() {
                   </TouchableOpacity>
                 </View>
                 <View style={styles.iconLabels}>
-                  <Text style={[styles.iconLabel, {color:'#4CAF50'}]}>Check-in</Text>
+                  <Text style={[styles.iconLabel, {color:'#4CAF50'}]}>{t('checkin_btn') || 'Check-in'}</Text>
                   <Text style={[styles.iconLabel, {color:'#5C6BC0'}]}>{t('edit') || 'Edit'}</Text>
                   <Text style={[styles.iconLabel, {color:'#FFC107'}]}>Strategy</Text>
                   <Text style={[styles.iconLabel, {color:'#F44336'}]}>Delete</Text>

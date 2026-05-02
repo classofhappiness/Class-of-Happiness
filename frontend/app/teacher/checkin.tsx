@@ -418,14 +418,14 @@ export default function TeacherCheckInScreen() {
               disabled={saving}
             >
               <MaterialIcons name="check" size={22} color="white" />
-              <Text style={styles.saveText}>{saving ? 'Saving...' : t('save_checkin')||'Save Check-in'}</Text>
+              <Text style={styles.saveText}>{saving ? (t('saving') || 'Saving...') : (t('save_checkin') || 'Save Check-in')}</Text>
             </TouchableOpacity>
           </>
         )}
 
         {/* STEP 3: Weekly Calendar — always visible at bottom */}
         <View style={styles.weekCard}>
-          <Text style={styles.weekTitle}>📅 This week</Text>
+          <Text style={styles.weekTitle}>{t('this_week') || '📅 This week'}</Text>
           <View style={styles.weekRow}>
             {DAYS.map(day => {
               const entries = weekData[day] || [];
@@ -447,7 +447,7 @@ export default function TeacherCheckInScreen() {
         {/* STEP 4: Check-in History */}
         {history.length > 0 && (
           <View style={styles.historySection}>
-            <Text style={styles.sectionLabel}>Your recent check-ins</Text>
+            <Text style={styles.sectionLabel}>{t('your_recent_checkins') || 'Your recent check-ins'}</Text>
             {history.map((entry, i) => (
               <View key={entry.id || i} style={styles.historyCard}>
                 <View style={[styles.historyDot, { backgroundColor: ZONE_COLORS[entry.zone as FeelingZone] || '#CCC' }]}>

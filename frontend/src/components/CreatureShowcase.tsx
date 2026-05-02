@@ -24,7 +24,7 @@ interface CreatureShowcaseProps {
 export const CreatureShowcase: React.FC<CreatureShowcaseProps> = ({
   visible, creature, stage, points, unlockedMoves, unlockedOutfits, unlockedFoods, unlockedHomes, onClose,
 }) => {
-  const { t } = useApp();
+  const { t, language } = useApp();
   const [step, setStep] = useState(0);
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
