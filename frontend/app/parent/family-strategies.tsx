@@ -197,7 +197,6 @@ export default function FamilyStrategiesScreen() {
         <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={{ padding: 8 }}>
           <MaterialIcons name="home" size={22} color="#333" />
         </TouchableOpacity>
-        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView
