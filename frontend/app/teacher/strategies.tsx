@@ -230,7 +230,7 @@ export default function ManageStrategiesScreen() {
   const handleDelete = (strategy: CustomStrategy) => {
     Alert.alert(
       'Delete Strategy',
-      `Are you sure you want to delete "${strategy.name}"?`,
+      `${t('are_you_sure_delete_strategy') || 'Are you sure you want to delete'} "${STRATEGY_KEYS[strategy.name] ? (t(STRATEGY_KEYS[strategy.name][0]) || strategy.name) : strategy.name}"?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -327,8 +327,8 @@ export default function ManageStrategiesScreen() {
                   )}
                 </View>
                 <View style={styles.strategyInfo}>
-                  <Text style={styles.strategyName}>{strategy.name}</Text>
-                  <Text style={styles.strategyDesc}>{strategy.description}</Text>
+                  <Text style={styles.strategyName}>{STRATEGY_KEYS[strategy.name] ? (t(STRATEGY_KEYS[strategy.name][0]) || strategy.name) : strategy.name}</Text>
+                  <Text style={styles.strategyDesc}>{STRATEGY_KEYS[strategy.name] ? (t(STRATEGY_KEYS[strategy.name][1]) || strategy.description) : strategy.description}</Text>
                 </View>
                 <TouchableOpacity style={styles.editIcon} onPress={() => openEditModal(strategy)}>
                   <MaterialIcons name="edit" size={20} color="#5C6BC0" />
@@ -356,8 +356,8 @@ export default function ManageStrategiesScreen() {
                   <MaterialIcons name={strategy.icon as any || 'star'} size={28} color="white" />
                 </View>
                 <View style={styles.strategyInfo}>
-                  <Text style={styles.strategyName}>{strategy.name}</Text>
-                  <Text style={styles.strategyDesc}>{strategy.description}</Text>
+                  <Text style={styles.strategyName}>{STRATEGY_KEYS[strategy.name] ? (t(STRATEGY_KEYS[strategy.name][0]) || strategy.name) : strategy.name}</Text>
+                  <Text style={styles.strategyDesc}>{STRATEGY_KEYS[strategy.name] ? (t(STRATEGY_KEYS[strategy.name][1]) || strategy.description) : strategy.description}</Text>
                   <View style={styles.syncBadge}>
                     <MaterialIcons name="sync" size={14} color="#9C27B0" />
                     <Text style={styles.syncText}>{t('synced')}</Text>
@@ -377,8 +377,8 @@ export default function ManageStrategiesScreen() {
                 <MaterialIcons name={strategy.icon as any} size={28} color="white" />
               </View>
               <View style={styles.strategyInfo}>
-                <Text style={styles.strategyName}>{strategy.name}</Text>
-                <Text style={styles.strategyDesc}>{strategy.description}</Text>
+                <Text style={styles.strategyName}>{STRATEGY_KEYS[strategy.name] ? (t(STRATEGY_KEYS[strategy.name][0]) || strategy.name) : strategy.name}</Text>
+                <Text style={styles.strategyDesc}>{STRATEGY_KEYS[strategy.name] ? (t(STRATEGY_KEYS[strategy.name][1]) || strategy.description) : strategy.description}</Text>
               </View>
               <View style={styles.defaultBadge}>
                 <Text style={styles.defaultBadgeText}>Default</Text>

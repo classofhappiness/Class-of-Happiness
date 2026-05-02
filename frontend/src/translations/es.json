@@ -485,5 +485,12 @@
   "strat_walk_away": "Aléjate",
   "strat_walk_away_desc": "Ve a un lugar seguro antes de reaccionar",
   "ask_for_cover": "Pedir Sustitución Inmediata",
-  "ask_for_cover_desc": "Solicita breve apoyo del personal cercano si es posible."
+  "ask_for_cover_desc": "Solicita breve apoyo del personal cercano si es posible.",
+  "create_new_classroom": "Crear Nueva Aula",
+  "strategy_btn": "Estrategia",
+  "delete_btn": "Eliminar",
+  "create_new_student": "Crear Nuevo Estudiante",
+  "this_message_appears": "Este mensaje aparecerá en la pantalla de recompensas de",
+  "after_checking_in": "después de hacer check-in.",
+  "are_you_sure_delete_strategy": "¿Estás seguro de que quieres eliminar"
 }

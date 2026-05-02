@@ -224,7 +224,7 @@ export default function ManageClassroomsScreen() {
         {/* Create Button */}
         <TouchableOpacity style={styles.addButton} onPress={() => setCreateModalVisible(true)}>
           <MaterialIcons name="add" size={24} color="white" />
-          <Text style={styles.addButtonText}>Create New Classroom</Text>
+          <Text style={styles.addButtonText}>{t('create_new_classroom') || 'Create New Classroom'}</Text>
         </TouchableOpacity>
 
         {/* Classrooms List */}
@@ -279,8 +279,8 @@ export default function ManageClassroomsScreen() {
                 <View style={styles.iconLabels}>
                   <Text style={[styles.iconLabel, {color:'#4CAF50'}]}>{t('checkin_btn') || 'Check-in'}</Text>
                   <Text style={[styles.iconLabel, {color:'#5C6BC0'}]}>{t('edit') || 'Edit'}</Text>
-                  <Text style={[styles.iconLabel, {color:'#FFC107'}]}>Strategy</Text>
-                  <Text style={[styles.iconLabel, {color:'#F44336'}]}>Delete</Text>
+                  <Text style={[styles.iconLabel, {color:'#FFC107'}]}>{t('strategy_btn') || 'Strategy'}</Text>
+                  <Text style={[styles.iconLabel, {color:'#F44336'}]}>{t('delete_btn') || 'Delete'}</Text>
                 </View>
               </View>
             </View>
@@ -375,7 +375,7 @@ export default function ManageClassroomsScreen() {
                 }}
               >
                 <MaterialIcons name="person-add" size={20} color="white" />
-                <Text style={styles.newStudentText}>Create New Student</Text>
+                <Text style={styles.newStudentText}>{t('create_new_student') || 'Create New Student'}</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
