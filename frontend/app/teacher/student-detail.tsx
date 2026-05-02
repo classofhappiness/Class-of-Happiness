@@ -721,7 +721,7 @@ export default function StudentDetailScreen() {
             <Text style={styles.sectionTitle}>Strategies</Text>
             <TouchableOpacity style={styles.addStratBtn} onPress={() => setShowAddStrategyModal(true)}>
               <MaterialIcons name="add" size={18} color="white" />
-              <Text style={styles.addStratBtnText}>Add</Text>
+              <Text style={styles.addStratBtnText}>{t('add') || 'Add'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -790,7 +790,7 @@ export default function StudentDetailScreen() {
           {allStrategies.school.length === 0 && allStrategies.family.length === 0 && (
             <View style={styles.emptyStrategies}>
               <MaterialIcons name="lightbulb-outline" size={40} color="#CCC" />
-              <Text style={styles.emptyText}>No strategies yet. Tap Add to create one.</Text>
+              <Text style={styles.emptyText}>{t('no_strategies_add') || 'No strategies yet. Tap Add to create one.'}</Text>
             </View>
           )}
         </View>
@@ -870,7 +870,7 @@ export default function StudentDetailScreen() {
                   }}
                   disabled={savingStrategy}>
                   <Text style={{color:'white', fontSize:16, fontWeight:'600'}}>
-                    {savingStrategy ? (t('saving') || 'Saving...') : (t('add_strategy') || 'Add Strategy')}
+                    {savingStrategy ? (t('saving') || 'Saving...') : (t('add') || 'Add')}
                   </Text>
                 </TouchableOpacity>
               </ScrollView>

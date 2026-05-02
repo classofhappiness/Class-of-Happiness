@@ -189,7 +189,7 @@ export default function BulkCheckinScreen() {
 
       {/* Quick select all row */}
       <View style={styles.quickSelectBar}>
-        <Text style={styles.quickSelectLabel}>All →</Text>
+        <Text style={styles.quickSelectLabel}>{t('all_arrow') || 'All →'}</Text>
         {ZONES.map(zone => (
           <TouchableOpacity
             key={zone}

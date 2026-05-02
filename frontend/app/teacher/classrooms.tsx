@@ -110,12 +110,12 @@ export default function ManageClassroomsScreen() {
   const handleDeleteClassroom = (classroom: any) => {
     const count = getClassroomStudents(classroom.id).length;
     Alert.alert(
-      'Delete Classroom',
+      t('delete_classroom') || 'Delete Classroom',
       `Delete "${classroom.name}"?${count > 0 ? ` ${count} student(s) will be unassigned.` : ''}`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
         {
-          text: 'Delete', style: 'destructive',
+          text: t('delete') || 'Delete', style: 'destructive',
           onPress: async () => {
             try {
               await classroomsApi.delete(classroom.id);

@@ -345,5 +345,16 @@
   "bulk_checkin": "Check-in en Grupo",
   "check_in_all": "Check-in de Todos",
   "how_grow_creature": "Cómo hacer crecer tu criatura",
-  "grow_creature_tip": "¡Haz check-ins diarios para ganar puntos y evolucionar tu criatura!"
+  "grow_creature_tip": "¡Haz check-ins diarios para ganar puntos y evolucionar tu criatura!",
+  "no_strategies_add": "Aún sin estrategias. Toca Agregar para crear una.",
+  "all_arrow": "Todos →",
+  "delete_classroom": "Eliminar Aula",
+  "delete_classroom_confirm": "¿Eliminar esta aula?",
+  "students_will_unassign": "estudiante(s) será(n) removido(s).",
+  "delete_classroom_btn": "Eliminar",
+  "support": "Soporte",
+  "low_energy": "Poca energía",
+  "steady": "Estable",
+  "stressed": "Estresado",
+  "checkin_all": "Check-in de Todos"
 }
