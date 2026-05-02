@@ -371,7 +371,7 @@ export default function StudentDetailScreen() {
             presetAvatars={presetAvatars}
           />
           <View style={styles.studentInfo}>
-            <Text style={styles.studentName} numberOfLines={1} adjustsFontSizeToFit>{student.name}</Text>
+            <Text style={styles.studentName} numberOfLines={1}>{student.name}</Text>
             <Text style={styles.studentClassroom} numberOfLines={1}>
               {getClassroomName(student.classroom_id)}
             </Text>
@@ -1227,8 +1227,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
   },
-  studentInfo: { flex: 1, marginHorizontal: 8, minWidth: 0 },
-  studentName: { fontSize: 16, fontWeight: '700', color: '#333', flexShrink: 1 },
+  studentInfo: { flex: 1, marginLeft: 12, marginRight: 4 },
+  studentName: { fontSize: 17, fontWeight: '700', color: '#333' },
   studentClassroom: { fontSize: 13, color: '#666', marginTop: 2, flexShrink: 1 },
   iconBtnLabel: { fontSize: 9, color: "#5C6BC0", marginTop: 2, fontWeight: "600", textAlign: "center" },
   editButton: {
