@@ -98,15 +98,13 @@ function AppContent() {
         <Stack.Screen
           name="settings"
           options={{
-            title: 'Settings',
-            headerBackTitle: 'Back',
+            headerShown: false,
           }}
         />
         <Stack.Screen
           name="about"
           options={{
-            title: 'About & Privacy',
-            headerBackTitle: 'Back',
+            headerShown: false,
           }}
         />
         <Stack.Screen
@@ -133,6 +131,7 @@ function AppContent() {
         <Stack.Screen
           name="student/zone"
           options={{
+            headerShown: false,
             title: 'How Are You Feeling?',
             headerBackTitle: 'Back',
           }}
@@ -140,6 +139,7 @@ function AppContent() {
         <Stack.Screen
           name="student/strategies"
           options={{
+            headerShown: false,
             title: 'Helpful Strategies',
             headerBackTitle: 'Back',
             headerRight: () => <HomeToStudents />,
@@ -162,6 +162,7 @@ function AppContent() {
         <Stack.Screen
           name="profiles/create"
           options={{
+            headerShown: false,
             headerRight: () => <HomeToDashboard />,
             title: 'Create Profile',
             headerBackTitle: 'Back',
@@ -170,6 +171,7 @@ function AppContent() {
         <Stack.Screen
           name="profiles/edit"
           options={{
+            headerShown: false,
             headerRight: () => <HomeToDashboard />,
             title: 'Edit Profile',
             headerBackTitle: 'Back',
@@ -185,24 +187,19 @@ function AppContent() {
         <Stack.Screen
           name="teacher/students"
           options={{
-            title: 'Manage Students',
-            headerBackTitle: 'Dashboard',
+            headerShown: false,
           }}
         />
         <Stack.Screen
           name="teacher/classrooms"
           options={{
-            headerRight: () => <HomeToDashboard />,
-            title: 'Manage Classrooms',
-            headerBackTitle: 'Dashboard',
+            headerShown: false,
           }}
         />
         <Stack.Screen
           name="teacher/student-detail"
           options={{
-            headerRight: () => <HomeToDashboard />,
-            title: 'Student Details',
-            headerBackTitle: 'Back',
+            headerShown: false,
           }}
         />
         <Stack.Screen
@@ -251,8 +248,7 @@ function AppContent() {
         <Stack.Screen
           name="parent/strategies"
           options={{
-            title: "My Family's Strategies",
-            headerBackTitle: 'Dashboard',
+            headerShown: false,
           }}
         />
         <Stack.Screen
@@ -265,9 +261,7 @@ function AppContent() {
         <Stack.Screen
           name="parent/checkin"
           options={{
-            headerRight: () => <HomeToDashboard />,
-            title: 'Check-in',
-            headerBackTitle: 'Dashboard',
+            headerShown: false,
           }}
         />
         <Stack.Screen
@@ -280,9 +274,7 @@ function AppContent() {
         <Stack.Screen
           name="parent/linked-child/[id]"
           options={{
-            headerRight: () => <HomeToDashboard />,
-            title: 'Child Details',
-            headerBackTitle: 'Dashboard',
+            headerShown: false,
           }}
         />
         <Stack.Screen

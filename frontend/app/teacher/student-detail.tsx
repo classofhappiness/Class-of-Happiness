@@ -377,7 +377,7 @@ export default function StudentDetailScreen() {
             })}
           >
             <MaterialIcons name="edit" size={20} color="#5C6BC0" />
-            <Text style={styles.iconBtnLabel}>Edit</Text>
+            <Text style={styles.iconBtnLabel}>{t('edit') || 'Edit'}</Text>
           </TouchableOpacity>
           
           {/* Strategies Button with Tooltip */}
@@ -390,7 +390,7 @@ export default function StudentDetailScreen() {
               })}
             >
               <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
-              <Text style={styles.iconBtnLabel}>Strategies</Text>
+              <Text style={styles.iconBtnLabel}>{t('strategies') || 'Strategies'}</Text>
             </TouchableOpacity>
             {activeTooltip === 'strategies' && (
               <Animated.View style={[styles.tooltip, { opacity: tooltipOpacity }]}>
@@ -518,7 +518,7 @@ export default function StudentDetailScreen() {
           <View style={styles.reportsSection}>
             <Text style={styles.sectionTitle}>{t('download_monthly_reports') || 'Download Monthly Reports'}</Text>
             <Text style={styles.reportsSubtitle}>
-              t('select_month_pdf') || 'Select a month to download a PDF report'
+              {t('select_month_pdf') || 'Select a month to download a PDF report'}
             </Text>
             <TouchableOpacity
               style={styles.downloadButton}
