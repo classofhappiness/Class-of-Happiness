@@ -193,11 +193,10 @@ export default function FamilyStrategiesScreen() {
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <View style={{ flex: 1 }} />
+        <Text style={[styles.topBarTitle, { flex: 1, textAlign: 'center' }]}>{t('family_strategies') || 'Family Strategies'}</Text>
         <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={{ padding: 8 }}>
           <MaterialIcons name="home" size={22} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.topBarTitle}>{t('family_strategies') || 'Family Strategies'}</Text>
         <View style={{ width: 40 }} />
       </View>
 

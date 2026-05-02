@@ -278,16 +278,13 @@ export default function LinkedChildDetailScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <MaterialIcons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
-          <View style={{ flex: 1 }} />
-          <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={[styles.backButton, { marginRight: 8 }]}>
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <Image source={require('../../../assets/images/logo_coh.png')} style={styles.headerLogo} resizeMode="contain" />
+            <Text style={styles.headerTitle}>{child.name}</Text>
+          </View>
+          <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={[styles.backButton, { marginLeft: 4 }]}>
             <MaterialIcons name="home" size={22} color="#333" />
           </TouchableOpacity>
-          <Image source={require('../../../assets/images/logo_coh.png')} style={styles.headerLogo} resizeMode="contain" />
-          <Text style={styles.headerTitle}>{child.name}</Text>
-          <View style={styles.headerBadge}>
-            <MaterialIcons name="link" size={14} color="#5C6BC0" />
-            <Text style={styles.headerBadgeText}>{t('linked') || 'Linked'}</Text>
-          </View>
         </View>
       </View>
 

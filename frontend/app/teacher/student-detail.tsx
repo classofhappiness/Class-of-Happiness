@@ -345,7 +345,11 @@ export default function StudentDetailScreen() {
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          <Image source={require('../../assets/images/logo_coh.png')} style={{ width: 28, height: 28 }} resizeMode="contain" />
+          <Image source={require('../../assets/images/logo_coh.png')} style={{ width: 24, height: 24 }} resizeMode="contain" />
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }} numberOfLines={1}>{student.name}</Text>
+            <Text style={{ fontSize: 11, color: '#888' }} numberOfLines={1}>{getClassroomName(student.classroom_id)}</Text>
+          </View>
         </View>
         <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ padding: 6 }}>
           <MaterialIcons name="home" size={24} color="#333" />
