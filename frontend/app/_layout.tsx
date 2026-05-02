@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Image, View, StyleSheet, Platform, TouchableOpacity, Text } from 'react-native';
+import { Image, View, StyleSheet, Platform, TouchableOpacity, Text , Text, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
@@ -142,6 +142,14 @@ function AppContent() {
           options={{
             title: 'Helpful Strategies',
             headerBackTitle: 'Back',
+            headerRight: () => (
+              <TouchableOpacity
+                onPress={() => router.replace('/student/select')}
+                style={{ marginRight: 12 }}
+              >
+                <Text style={{ fontSize: 18 }}>🏠</Text>
+              </TouchableOpacity>
+            ),
           }}
         />
         <Stack.Screen
@@ -189,6 +197,7 @@ function AppContent() {
         <Stack.Screen
           name="teacher/classrooms"
           options={{
+            headerRight: () => (<TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{marginRight:12}}><Text style={{fontSize:18}}>🏠</Text></TouchableOpacity>),
             title: 'Manage Classrooms',
             headerBackTitle: 'Dashboard',
           }}
