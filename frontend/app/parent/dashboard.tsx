@@ -333,7 +333,9 @@ export default function ParentDashboard() {
         other: {emoji:'⭐', color:'#FF9800'},
       };
       for (const m of members) {
-        const linkedId = (m as any).student_id;
+        // Try to find a linked student for this family member (match by name or student_id)
+        const linkedId = (m as any).student_id ||
+          linkedChildren.find((s: any) => s.name === m.name)?.id;
         if (linkedId) {
           try {
             const collection = await rewardsApi.getCollection(linkedId);
