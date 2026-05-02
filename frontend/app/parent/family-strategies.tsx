@@ -193,7 +193,7 @@ export default function FamilyStrategiesScreen() {
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={[styles.topBarTitle, { flex: 1, textAlign: 'center' }]}>{t('family_strategies') || 'Family Strategies'}</Text>
+        <Text style={styles.topBarTitle}>{t('family_strategies') || 'Family Strategies'}</Text>
         <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={{ padding: 8 }}>
           <MaterialIcons name="home" size={22} color="#333" />
         </TouchableOpacity>
@@ -538,13 +538,13 @@ export default function FamilyStrategiesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
   topBar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#F8F9FA',
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 12, paddingVertical: 14, backgroundColor: '#F8F9FA',
     borderBottomWidth: 1, borderBottomColor: '#E0E0E0',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 3,
   },
   backButton: { padding: 4 },
-  topBarTitle: { fontSize: 17, fontWeight: '700', color: '#333' },
+  topBarTitle: { fontSize: 17, fontWeight: '700', color: '#333', flex: 1, textAlign: 'center' },
   scrollContent: { padding: 16, paddingBottom: 50 },
   subtitle: { fontSize: 13, color: '#AAA', marginBottom: 14, lineHeight: 18, textAlign: 'center', fontStyle: 'italic', textShadowColor: 'transparent', textShadowOffset: {width:0,height:0}, textShadowRadius: 0 },
   zoneChip: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, backgroundColor: '#F0F0F0', borderWidth: 1.5, borderColor: '#E0E0E0' },
