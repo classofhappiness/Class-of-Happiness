@@ -446,7 +446,7 @@ export default function TeacherResourcesScreen() {
                   </Text>
                 </View>
                 <Text style={styles.uploadedBy}>
-                  By {resource.created_by_name || 'Teacher'}
+                  {t('by') || 'By'} {resource.created_by_name || (t('teacher') || 'Teacher')}
                 </Text>
               </View>
               <MaterialIcons name="chevron-right" size={24} color="#CCC" />
@@ -494,7 +494,7 @@ export default function TeacherResourcesScreen() {
               <TouchableOpacity style={styles.filePickerButton} onPress={handlePickDocument}>
                 <MaterialIcons name="attach-file" size={24} color="#5C6BC0" />
                 <Text style={styles.filePickerText}>
-                  {uploadData.pdf_filename || 'Select PDF file'}
+                  {uploadData.pdf_filename || (t('select_pdf') || 'Select PDF file')}
                 </Text>
               </TouchableOpacity>
 

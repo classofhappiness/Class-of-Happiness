@@ -376,5 +376,12 @@
   "students_in_class": "Estudiantes en esta clase",
   "select_zone": "Seleccionar Zona de Emoción",
   "select_strategy": "Seleccionar Estrategia",
-  "add_strategy_to_students": "💡 Agregar Estrategia a Estudiantes"
+  "add_strategy_to_students": "💡 Agregar Estrategia a Estudiantes",
+  "research_basis": "Basado en check-ins de emociones por color, Coaching Emocional de Gottman, Resolución Colaborativa de Problemas, Teoría del Apego y Teoría Polivagal.",
+  "important_notice": "Aviso Importante: ",
+  "disclaimer_1": "Las estrategias proporcionadas en esta sección son solo para fines educativos e informativos generales. No son un sustituto del asesoramiento, diagnóstico o tratamiento psicológico, médico o terapéutico profesional.",
+  "disclaimer_2": "Si tienes preocupaciones sobre la salud emocional, mental o física de tu hijo, consulta a un profesional de salud o salud mental calificado.",
+  "disclaimer_3": "Class of Happiness no es responsable de ningún resultado derivado de la aplicación de estrategias encontradas en esta aplicación. Todas las estrategias deben aplicarse con criterio parental y de acuerdo con las necesidades individuales de tu hijo.",
+  "by_teacher": "Por Profesor",
+  "select_pdf": "Seleccionar archivo PDF"
 }

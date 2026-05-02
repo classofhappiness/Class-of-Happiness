@@ -506,7 +506,7 @@ export default function FamilyStrategiesScreen() {
         <View style={styles.footer}>
           <MaterialIcons name="info-outline" size={14} color="#AAA" />
           <Text style={styles.footerText}>
-            Based on colour emotion check-ins, Gottman Emotion Coaching, Collaborative Problem Solving, Attachment Theory, and Polyvagal Theory.
+            {t('research_basis') || 'Based on colour emotion check-ins, Gottman Emotion Coaching, Collaborative Problem Solving, Attachment Theory, and Polyvagal Theory.'}
           </Text>
         </View>
 
@@ -515,14 +515,14 @@ export default function FamilyStrategiesScreen() {
           <MaterialIcons name="gavel" size={14} color="#999" />
           <View style={{ flex: 1 }}>
             <Text style={styles.disclaimerText}>
-              <Text style={styles.disclaimerBold}>Important Notice: </Text>
-              The strategies provided in this section are for general educational and informational purposes only. They are not a substitute for professional psychological, medical, or therapeutic advice, diagnosis, or treatment.
+              <Text style={styles.disclaimerBold}>{t('important_notice') || 'Important Notice: '}</Text>
+              {t('disclaimer_1') || 'The strategies provided in this section are for general educational and informational purposes only. They are not a substitute for professional psychological, medical, or therapeutic advice, diagnosis, or treatment.'}
             </Text>
             <Text style={[styles.disclaimerText, { marginTop: 6 }]}>
-              If you have concerns about your child's emotional, mental, or physical health, please consult a qualified healthcare or mental health professional.
+              {t('disclaimer_2') || "If you have concerns about your child's emotional, mental, or physical health, please consult a qualified healthcare or mental health professional."}
             </Text>
             <Text style={[styles.disclaimerText, { marginTop: 6 }]}>
-              Class of Happiness is not liable for any outcomes resulting from the application of strategies found in this app. All strategies should be applied with parental judgement and in accordance with your child's individual needs.
+              {t('disclaimer_3') || "Class of Happiness is not liable for any outcomes resulting from the application of strategies found in this app. All strategies should be applied with parental judgement and in accordance with your child's individual needs."}
             </Text>
             <Text style={[styles.disclaimerText, { marginTop: 6 }]}>
               © Class of Happiness. All rights reserved.
