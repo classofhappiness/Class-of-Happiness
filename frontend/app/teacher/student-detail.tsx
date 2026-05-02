@@ -1227,9 +1227,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
   },
-  studentInfo: { flex: 1, marginLeft: 12, marginRight: 8 },
-  studentName: { fontSize: 16, fontWeight: '700', color: '#333' },
-  studentClassroom: { fontSize: 13, color: '#666', marginTop: 2 },
+  studentInfo: { flex: 1, marginHorizontal: 8, minWidth: 0 },
+  studentName: { fontSize: 16, fontWeight: '700', color: '#333', flexShrink: 1 },
+  studentClassroom: { fontSize: 13, color: '#666', marginTop: 2, flexShrink: 1 },
   iconBtnLabel: { fontSize: 9, color: "#5C6BC0", marginTop: 2, fontWeight: "600", textAlign: "center" },
   editButton: {
     padding: 8,
