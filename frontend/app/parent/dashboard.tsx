@@ -337,15 +337,17 @@ export default function ParentDashboard() {
         if (linkedId) {
           try {
             const collection = await rewardsApi.getCollection(linkedId);
-            if (collection?.current_creature) {
+            if (collection) {
               const stage = collection.current_stage || 0;
               creatureMap[m.id] = {
-                emoji: collection.current_creature.stages?.[stage]?.emoji || '🥚',
-                color: collection.current_creature.color || '#4CAF50',
+                emoji: collection.current_creature?.stages?.[stage]?.emoji || '🥚',
+                color: collection.current_creature?.color || '#4CAF50',
                 points: collection.current_points || 0,
                 stage,
-                name: collection.current_creature.name || '',
+                name: collection.current_creature?.name || '',
                 hasRealCreature: true,
+                allCreatures: collection.all_creatures || [],
+                current_points: collection.current_points || 0,
               };
             }
           } catch { /* no creature yet - use default */ }
@@ -672,14 +674,35 @@ export default function ParentDashboard() {
                   )}
                   <Text style={styles.memberName} numberOfLines={1}>{member.name}</Text>
                   <Text style={styles.memberRole}>{t(member.relationship)}</Text>
-                  {/* Creature display for all members */}
+                  {/* Creature display - 4 creatures like student page */}
                   {memberCreatures[member.id] && (
-                    <View style={styles.memberCreatureRow}>
-                      <Text style={styles.memberCreatureEmoji}>
-                        {memberCreatures[member.id].emoji}
-                      </Text>
-                      {memberCreatures[member.id].hasRealCreature && (
-                        <View style={[styles.memberCreatureDot, {backgroundColor: memberCreatures[member.id].color}]} />
+                    <View style={{ alignItems: 'center', marginTop: 4 }}>
+                      {memberCreatures[member.id].allCreatures?.length > 0 ? (
+                        <View style={{ flexDirection: 'row', gap: 3 }}>
+                          {memberCreatures[member.id].allCreatures.slice(0, 4).map((creature: any) => {
+                            const cStage = Number(creature.current_stage || 0);
+                            const cColor = creature.color || '#CCC';
+                            const cEmoji = creature.stages?.[cStage]?.emoji || '🥚';
+                            const hasPoints = Number(creature.current_points || 0) > 0;
+                            return (
+                              <View key={creature.id} style={{
+                                width: 24, height: 24, borderRadius: 12,
+                                backgroundColor: hasPoints ? cColor + '30' : '#F0F0F0',
+                                borderWidth: 1, borderColor: hasPoints ? cColor : '#DDD',
+                                alignItems: 'center', justifyContent: 'center',
+                              }}>
+                                <Text style={{ fontSize: 12, opacity: hasPoints ? 1 : 0.3 }}>{cEmoji}</Text>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      ) : (
+                        <Text style={{ fontSize: 20 }}>{memberCreatures[member.id].emoji}</Text>
+                      )}
+                      {memberCreatures[member.id].hasRealCreature && memberCreatures[member.id].current_points > 0 && (
+                        <Text style={{ fontSize: 8, color: memberCreatures[member.id].color, marginTop: 1 }}>
+                          ⭐ {memberCreatures[member.id].current_points} pts
+                        </Text>
                       )}
                     </View>
                   )}
