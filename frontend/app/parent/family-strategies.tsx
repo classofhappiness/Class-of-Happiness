@@ -118,7 +118,7 @@ export default function FamilyStrategiesScreen() {
   };
 
   const saveStrategy = async () => {
-    if (!newStrat.name.trim()) { Alert.alert('Name required'); return; }
+    if (!newStrat.name.trim()) { Alert.alert(t('name_required') || 'Name required'); return; }
     setSaving(true);
     try {
       const payload = {
@@ -227,12 +227,12 @@ export default function FamilyStrategiesScreen() {
         <Text style={styles.subtitle}>
           {activeTab === 'parent'
             ? 'Evidence-based co-regulation strategies for parents. Tap any card to read more.'
-            : 'Emotion strategies for children — the same ones used at school.'}
+            : (t('emotion_strategies_children') || 'Emotion strategies for children — the same ones used at school.')}
         </Text>
         <View style={styles.infoNote}>
           <MaterialIcons name="info" size={14} color="#5C6BC0" />
           <Text style={styles.infoNoteText}>
-            For educational purposes only. Not a substitute for professional advice. See disclaimer below.
+            {t('for_educational_purposes') || 'For educational purposes only. Not a substitute for professional advice. See disclaimer below.'}
           </Text>
         </View>
 
@@ -243,14 +243,14 @@ export default function FamilyStrategiesScreen() {
           <TouchableOpacity
             style={[styles.zoneChip, !selectedZone && styles.zoneChipActive]}
             onPress={() => setSelectedZone(null)}>
-            <Text style={[styles.zoneChipText, !selectedZone && styles.zoneChipTextActive]}>All Zones</Text>
+            <Text style={[styles.zoneChipText, !selectedZone && styles.zoneChipTextActive]}>{t('all_zones') || 'All Zones'}</Text>
           </TouchableOpacity>
           {zones.map(zone => (
             <TouchableOpacity key={zone}
               style={[styles.zoneChip, selectedZone === zone && { backgroundColor: ZONE_COLORS[zone], borderColor: ZONE_COLORS[zone] }]}
               onPress={() => setSelectedZone(selectedZone === zone ? null : zone)}>
               <Text style={[styles.zoneChipText, selectedZone === zone && styles.zoneChipTextActive]}>
-                {zone.charAt(0).toUpperCase() + zone.slice(1)}
+                {zone === 'blue' ? (t('blue_label') || 'Blue') : zone === 'green' ? (t('green_label') || 'Green') : zone === 'yellow' ? (t('yellow_label') || 'Yellow') : (t('red_label') || 'Red')}
               </Text>
             </TouchableOpacity>
           ))}
@@ -259,8 +259,8 @@ export default function FamilyStrategiesScreen() {
         {/* Zone info card */}
         {selectedZone && (
           <View style={[styles.zoneInfoCard, { borderLeftColor: ZONE_COLORS[selectedZone], backgroundColor: ZONE_BG[selectedZone] }]}>
-            <Text style={[styles.zoneInfoTitle, { color: ZONE_COLORS[selectedZone] }]}>{ZONE_NAMES[selectedZone]}</Text>
-            <Text style={styles.zoneInfoDesc}>{ZONE_DESC[selectedZone]}</Text>
+            <Text style={[styles.zoneInfoTitle, { color: ZONE_COLORS[selectedZone] }]}>{selectedZone === 'blue' ? (t('blue_zone_name') || ZONE_NAMES[selectedZone]) : selectedZone === 'green' ? (t('green_zone_name') || ZONE_NAMES[selectedZone]) : selectedZone === 'yellow' ? (t('yellow_zone_name') || ZONE_NAMES[selectedZone]) : (t('red_zone_name') || ZONE_NAMES[selectedZone])}</Text>
+            <Text style={styles.zoneInfoDesc}>{selectedZone === 'blue' ? (t('blue_zone_desc') || ZONE_DESC[selectedZone]) : selectedZone === 'green' ? (t('green_zone_desc') || ZONE_DESC[selectedZone]) : selectedZone === 'yellow' ? (t('yellow_zone_desc') || ZONE_DESC[selectedZone]) : (t('red_zone_desc') || ZONE_DESC[selectedZone])}</Text>
           </View>
         )}
 
@@ -268,7 +268,7 @@ export default function FamilyStrategiesScreen() {
         {activeTab === 'child' && (
           <View style={{ backgroundColor: '#E8F5E9', borderRadius: 10, padding: 12, marginBottom: 14 }}>
             <Text style={{ fontSize: 12, color: '#2E7D32', lineHeight: 18 }}>
-              These are the same strategies children use at school. They are shown here so families can reinforce them at home.
+              {t('child_strategies_note') || 'These are the same strategies children use at school. They are shown here so families can reinforce them at home.'}
             </Text>
           </View>
         )}
@@ -297,8 +297,8 @@ export default function FamilyStrategiesScreen() {
                   style={[styles.zoneSectionHeader, { backgroundColor: ZONE_COLORS[zone], flexDirection:'row', justifyContent:'space-between', alignItems:'center' }]}
                   onPress={() => toggleZoneCollapse(zone)} activeOpacity={0.85}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.zoneSectionTitle}>{ZONE_NAMES[zone]}</Text>
-                    {!collapsedZones.has(zone) && <Text style={styles.zoneSectionDesc}>{ZONE_DESC[zone]}</Text>}
+                    <Text style={styles.zoneSectionTitle}>{zone === 'blue' ? (t('blue_zone_name') || ZONE_NAMES[zone]) : zone === 'green' ? (t('green_zone_name') || ZONE_NAMES[zone]) : zone === 'yellow' ? (t('yellow_zone_name') || ZONE_NAMES[zone]) : (t('red_zone_name') || ZONE_NAMES[zone])}</Text>
+                    {!collapsedZones.has(zone) && <Text style={styles.zoneSectionDesc}>{zone === 'blue' ? (t('blue_zone_desc') || ZONE_DESC[zone]) : zone === 'green' ? (t('green_zone_desc') || ZONE_DESC[zone]) : zone === 'yellow' ? (t('yellow_zone_desc') || ZONE_DESC[zone]) : (t('red_zone_desc') || ZONE_DESC[zone])}</Text>}
                   </View>
                   <MaterialIcons name={collapsedZones.has(zone) ? 'expand-more' : 'expand-less'} size={22} color="white" />
                 </TouchableOpacity>

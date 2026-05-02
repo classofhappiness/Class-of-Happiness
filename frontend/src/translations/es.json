@@ -383,5 +383,18 @@
   "disclaimer_2": "Si tienes preocupaciones sobre la salud emocional, mental o física de tu hijo, consulta a un profesional de salud o salud mental calificado.",
   "disclaimer_3": "Class of Happiness no es responsable de ningún resultado derivado de la aplicación de estrategias encontradas en esta aplicación. Todas las estrategias deben aplicarse con criterio parental y de acuerdo con las necesidades individuales de tu hijo.",
   "by_teacher": "Por Profesor",
-  "select_pdf": "Seleccionar archivo PDF"
+  "select_pdf": "Seleccionar archivo PDF",
+  "blue_zone_name": "Emociones Azules — Energía Tranquila",
+  "green_zone_name": "Emociones Verdes — Energía Equilibrada",
+  "yellow_zone_name": "Emociones Amarillas — Energía Agitada",
+  "red_zone_name": "Emociones Rojas — Gran Energía",
+  "blue_zone_desc": "Triste, cansado, retraído, poca motivación",
+  "green_zone_desc": "Tranquilo, feliz, enfocado, listo para conectar",
+  "yellow_zone_desc": "Preocupado, frustrado, perdiendo el control",
+  "red_zone_desc": "Enojado, asustado, abrumado, fuera de control",
+  "all_zones": "Todas las Zonas",
+  "for_educational_purposes": "Solo para fines educativos. No es sustituto del asesoramiento profesional. Ver aviso legal abajo.",
+  "child_strategies_note": "Estas son las mismas estrategias que los niños usan en la escuela. Se muestran aquí para que las familias puedan reforzarlas en casa.",
+  "emotion_strategies_children": "Estrategias de emociones para niños — las mismas que se usan en la escuela.",
+  "name_required": "Nombre obligatorio"
 }
