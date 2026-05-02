@@ -435,14 +435,14 @@ export default function ManageClassroomsScreen() {
                 <View style={{ backgroundColor: '#F8F9FA', borderRadius: 10, padding: 12, marginBottom: 8, gap: 8 }}>
                   <TextInput
                     style={{ borderWidth: 1, borderColor: '#DDD', borderRadius: 8, padding: 10, fontSize: 14, backgroundColor: 'white' }}
-                    placeholder="Strategy name e.g. Take 3 deep breaths"
+                    placeholder={t('strategy_name_example') || 'Strategy name e.g. Take 3 deep breaths'}
                     value={customStrategyName}
                     onChangeText={setCustomStrategyName}
                     placeholderTextColor="#AAA"
                   />
                   <TextInput
                     style={{ borderWidth: 1, borderColor: '#DDD', borderRadius: 8, padding: 10, fontSize: 13, backgroundColor: 'white', height: 56, textAlignVertical: 'top' }}
-                    placeholder="How to do it (optional)..."
+                    placeholder={t('how_to_do_optional') || 'How to do it (optional)...'}
                     value={customStrategyDesc}
                     onChangeText={setCustomStrategyDesc}
                     multiline

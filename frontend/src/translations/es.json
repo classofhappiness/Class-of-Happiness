@@ -446,5 +446,9 @@
   "strat_repair_name": "Modelar la Reparación",
   "strat_repair_desc": "Si perdiste la calma, modela la reparación: \"Lo siento por haber levantado la voz. Intentémoslo de nuevo.\" La reparación es más poderosa que la perfección.",
   "grow_creature_hint": "¡Sigue haciendo check-ins para crecer!",
-  "current_friend": "Conoce"
+  "current_friend": "Conoce",
+  "strategy_example": "ej. Respiración profunda, Dar un paseo...",
+  "how_to_use": "Cómo usar esta estrategia...",
+  "strategy_name_example": "Nombre de estrategia ej. Respirar 3 veces profundo",
+  "how_to_do_optional": "Cómo hacerlo (opcional)..."
 }

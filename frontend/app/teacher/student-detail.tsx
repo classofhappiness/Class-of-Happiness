@@ -811,7 +811,7 @@ export default function StudentDetailScreen() {
                   style={styles.textInput}
                   value={newStrategy.name}
                   onChangeText={(v: string) => setNewStrategy({...newStrategy, name: v})}
-                  placeholder="e.g. Deep breathing, Take a walk..."
+                  placeholder={t('strategy_example') || 'e.g. Deep breathing, Take a walk...'}
                   placeholderTextColor="#AAA"
                 />
                 <Text style={styles.inputLabel}>Description</Text>
@@ -819,7 +819,7 @@ export default function StudentDetailScreen() {
                   style={[styles.textInput, {height:60, textAlignVertical:'top'}]}
                   value={newStrategy.description}
                   onChangeText={(v: string) => setNewStrategy({...newStrategy, description: v})}
-                  placeholder="How to use this strategy..."
+                  placeholder={t('how_to_use') || 'How to use this strategy...'}
                   placeholderTextColor="#AAA"
                   multiline
                 />
