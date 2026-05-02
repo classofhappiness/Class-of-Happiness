@@ -23,7 +23,8 @@ export default function RewardsScreen() {
   const params = useLocalSearchParams<{ 
     strategiesUsed?: string; 
     hasComment?: string;
-    zone?: string;  // Zone parameter to know which creature to feed
+    zone?: string;
+    fromFamily?: string;
   }>();
 
   const [rewardsData, setRewardsData] = useState<AddPointsResponse | null>(null);
@@ -144,7 +145,7 @@ export default function RewardsScreen() {
   };
 
   const handleContinue = () => {
-    if (fromFamily === 'true') {
+    if (params.fromFamily === 'true') {
       router.replace('/parent/dashboard');
       return;
     }
