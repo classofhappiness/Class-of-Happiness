@@ -507,15 +507,15 @@ const styles = StyleSheet.create({
   },
   filterContainer: { flexDirection: 'row', flexWrap: 'nowrap', gap: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 9,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: '#F0F0F0',
     borderWidth: 1,
     borderColor: '#E0E0E0',
     flexShrink: 0,
     flexGrow: 0,
-    minWidth: 80,
+    minWidth: 90,
   },
   filterChipActive: {
     backgroundColor: '#5C6BC0',
@@ -523,7 +523,8 @@ const styles = StyleSheet.create({
   },
   filterChipText: {
     fontSize: 13,
-    color: '#666',
+    color: '#444',
+    fontWeight: '500',
     textAlign: 'center',
     flexShrink: 0,
   },

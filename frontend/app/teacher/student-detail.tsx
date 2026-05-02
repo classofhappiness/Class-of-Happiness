@@ -347,8 +347,8 @@ export default function StudentDetailScreen() {
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           <Image source={require('../../assets/images/logo_coh.png')} style={{ width: 24, height: 24 }} resizeMode="contain" />
           <View style={{ alignItems: 'center' }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: '#333', maxWidth: 160 }} numberOfLines={1} ellipsizeMode="tail">{student.name}</Text>
-            <Text style={{ fontSize: 10, color: '#888', maxWidth: 160 }} numberOfLines={1} ellipsizeMode="tail">{getClassroomName(student.classroom_id)}</Text>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }} numberOfLines={1}>{student.name}</Text>
+            <Text style={{ fontSize: 11, color: '#888' }} numberOfLines={1}>{getClassroomName(student.classroom_id)}</Text>
           </View>
         </View>
         <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ padding: 6 }}>
@@ -363,21 +363,24 @@ export default function StudentDetailScreen() {
       >
         {/* Student Header */}
         <View style={styles.studentHeader}>
-          <Avatar
-            type={student.avatar_type}
-            preset={student.avatar_preset}
-            custom={student.avatar_custom}
-            size={80}
-            presetAvatars={presetAvatars}
-          />
-          <View style={styles.studentInfo}>
-            <Text style={styles.studentName} numberOfLines={1}>{student.name}</Text>
-            <Text style={styles.studentClassroom} numberOfLines={1}>
-              {getClassroomName(student.classroom_id)}
-            </Text>
+          {/* Row 1: Avatar + Name + Classroom */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+            <Avatar
+              type={student.avatar_type}
+              preset={student.avatar_preset}
+              custom={student.avatar_custom}
+              size={64}
+              presetAvatars={presetAvatars}
+            />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: '#333' }} numberOfLines={1}>{student.name}</Text>
+              <Text style={{ fontSize: 13, color: '#666', marginTop: 2 }} numberOfLines={1}>{getClassroomName(student.classroom_id)}</Text>
+            </View>
           </View>
+          {/* Row 2: Action buttons */}
+          <View style={{ flexDirection: 'row', gap: 8 }}>
           <TouchableOpacity
-            style={styles.editButton}
+            style={[styles.editButton, { flex: 1, alignItems: 'center' }]}
             onPress={() => router.push({
               pathname: '/profiles/edit',
               params: { studentId: student.id }
@@ -388,9 +391,9 @@ export default function StudentDetailScreen() {
           </TouchableOpacity>
           
           {/* Strategies Button with Tooltip */}
-          <View style={styles.tooltipContainer}>
+          <View style={[styles.tooltipContainer, { flex: 1 }]}>
             <TouchableOpacity
-              style={[styles.strategiesButton, {alignItems:'center'}]}
+              style={[styles.strategiesButton, {alignItems:'center', marginLeft: 0, flex: 1}]}
               onPress={() => router.push({
                 pathname: '/teacher/strategies',
                 params: { studentId: student.id }
@@ -423,6 +426,7 @@ export default function StudentDetailScreen() {
               </Animated.View>
             )}
           </View>
+          </View>{/* end row 2 */}
         </View>
 
         {/* Period Selector */}
@@ -1215,11 +1219,10 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   studentHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
     backgroundColor: 'white',
     borderRadius: 20,
-    padding: 20,
+    padding: 16,
     marginBottom: 16,
     elevation: 2,
     shadowColor: '#000',
