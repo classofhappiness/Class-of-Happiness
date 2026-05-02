@@ -363,18 +363,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const fetchTranslations = async (lang: string) => {
     try {
-      // Clear any cached translations first
       setTranslationsLoaded(false);
-      const data = await translationsApi.get(lang);
-      if (data && Object.keys(data).length > 5) {
-        setTranslations(data);
-      } else {
-        console.warn('Translation response too small, keeping current');
+      // Use local translation files as PRIMARY source - reliable and fast
+      const localTrans = LANG_TRANSLATIONS[lang as keyof typeof LANG_TRANSLATIONS] as any;
+      if (localTrans && Object.keys(localTrans).length > 50) {
+        setTranslations(localTrans);
+        setTranslationsLoaded(true);
       }
-      setTranslationsLoaded(true);
-    } catch (error) {
-      console.error('Error fetching translations:', error);
+      // Also fetch from backend to merge any extra server-side keys
+      try {
+        const data = await translationsApi.get(lang);
+        if (data && Object.keys(data).length > 5) {
+          // Merge: local keys take priority over backend
+          setTranslations(prev => ({ ...data, ...localTrans }));
+        }
+      } catch { /* backend is optional */ }
+    } catch (e) {
       setTranslations(defaultTranslations);
+    } finally {
       setTranslationsLoaded(true);
     }
   };
