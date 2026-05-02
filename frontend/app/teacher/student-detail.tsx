@@ -673,7 +673,7 @@ export default function StudentDetailScreen() {
                   style={[styles.dataTab, activeDataTab === tab && styles.dataTabActive]}
                   onPress={() => setActiveDataTab(tab)}>
                   <Text style={[styles.dataTabText, activeDataTab === tab && styles.dataTabTextActive]}>
-                    {tab === 'combined' ? 'All' : tab === 'school' ? '🏫 School' : '🏠 Home'}
+                    {tab === 'combined' ? (t('all') || 'All') : tab === 'school' ? '🏫 ' + (t('school') || 'School') : '🏠 ' + (t('home') || 'Home')}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -1772,9 +1772,9 @@ const styles = StyleSheet.create({
   zoneDistSection: { backgroundColor:'white', borderRadius:16, padding:16, marginBottom:16 },
   sectionHeader: { flexDirection:'row', alignItems:'center', gap:8, marginBottom:12 },
   dataTabRow: { flexDirection:'row', backgroundColor:'#F5F5F5', borderRadius:10, padding:3, marginBottom:12, gap:3 },
-  dataTab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: '#F0F0F0', marginRight: 6 },
+  dataTab: { flex:1, paddingVertical:7, borderRadius:8, alignItems:'center' },
   dataTabActive: { backgroundColor:'white' },
-  dataTabText: { fontSize:12, color:'#888', fontWeight:'500' },
+  dataTabText: { fontSize:12, color:'#555', fontWeight:'500' },
   dataTabTextActive: { color:'#333', fontWeight:'600' },
   zoneDistBars: { gap:10 },
   zoneDistRow: { flexDirection:'row', alignItems:'center', gap:8 },
