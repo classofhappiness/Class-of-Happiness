@@ -331,10 +331,10 @@ export default function StudentDetailScreen() {
   ].filter(d => d.value > 0) : [];
 
   const barData = analytics ? [
-    { value: analytics.zone_counts.blue || 0, frontColor: ZONE_COLORS.blue, label: 'Blue' },
-    { value: analytics.zone_counts.green || 0, frontColor: ZONE_COLORS.green, label: 'Green' },
-    { value: analytics.zone_counts.yellow || 0, frontColor: ZONE_COLORS.yellow, label: 'Yellow' },
-    { value: analytics.zone_counts.red || 0, frontColor: ZONE_COLORS.red, label: 'Red' },
+    { value: analytics.zone_counts.blue || 0, frontColor: ZONE_COLORS.blue, label: t('blue_short_label') || 'Blue' },
+    { value: analytics.zone_counts.green || 0, frontColor: ZONE_COLORS.green, label: t('green_short_label') || 'Green' },
+    { value: analytics.zone_counts.yellow || 0, frontColor: ZONE_COLORS.yellow, label: t('yellow_short_label') || 'Yellow' },
+    { value: analytics.zone_counts.red || 0, frontColor: ZONE_COLORS.red, label: t('red_short_label') || 'Red' },
   ] : [];
 
   return (

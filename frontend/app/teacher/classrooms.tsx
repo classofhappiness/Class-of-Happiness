@@ -417,7 +417,7 @@ export default function ManageClassroomsScreen() {
                   onPress={() => setSelectedStrategy(s)}
                 >
                   <MaterialIcons name={s.icon as any} size={20} color={ZONE_COLORS[selectedZone as keyof typeof ZONE_COLORS]} />
-                  <Text style={styles.strategyOptionText}>{s.name}</Text>
+                  <Text style={styles.strategyOptionText}>{{'Gentle Stretch':t('strat_gentle_stretch'),'Favourite Song':t('strat_favourite_song'),'Tell Someone':t('strat_tell_someone'),'Slow Breathing':t('strat_slow_breathing'),'Keep Going!':t('strat_keep_going'),'Help a Friend':t('strat_help_friend'),'Set a Goal':t('strat_set_goal'),'Gratitude':t('strat_gratitude'),'Bubble Breathing':t('strat_bubble_breathing'),'Count to 10':t('strat_count_to_10'),'5 Senses':t('strat_5_senses'),'Talk About It':t('strat_talk_about_it'),'Safe Space':t('strat_safe_space_name'),'Deep Breaths':t('strat_slow_breathing'),'Squeeze Something':t('strat_squeeze_release'),'Walk Away Calmly':t('strat_walk_away')}[s.name] || s.name}</Text>
                   {selectedStrategy?.id === s.id && <MaterialIcons name="check-circle" size={20} color={ZONE_COLORS[selectedZone as keyof typeof ZONE_COLORS]} />}
                 </TouchableOpacity>
               ))}

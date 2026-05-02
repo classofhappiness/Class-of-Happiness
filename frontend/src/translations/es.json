@@ -529,5 +529,15 @@
   "blue_short": "😢 Azul",
   "green_short": "😊 Verde",
   "yellow_short": "😟 Amarillo",
-  "red_short": "😣 Rojo"
+  "red_short": "😣 Rojo",
+  "adding": "Agregando...",
+  "add_to_students": "Agregar a",
+  "student_s": "Estudiante(s)",
+  "create_classroom_to_organise": "Crea un aula para organizar a tus estudiantes",
+  "no_students_yet": "Aún sin estudiantes — agrega abajo",
+  "add_existing_students": "Agregar estudiantes existentes",
+  "blue_short_label": "Azul",
+  "green_short_label": "Verde",
+  "yellow_short_label": "Amarillo",
+  "red_short_label": "Rojo"
 }
