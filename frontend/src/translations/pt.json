@@ -125,7 +125,7 @@
   "points": "Pontos",
   "share": "Partilhar",
   "icon": "Ícone",
-  "disclaimer": "Baseado em investigação científica sobre regulação emocional",
+  "disclaimer": "Aviso Legal",
   "family_dashboard": "Painel da Família",
   "link_to_family": "Ligar à Família",
   "manage_strategies": "Gerir Estratégias",
@@ -332,5 +332,16 @@
   "generate_parent_code": "Gerar Código para Pais",
   "zone_combined": "Combinado",
   "zone_school": "Escola",
-  "zone_home": "Casa"
+  "zone_home": "Casa",
+  "zone_comparison": "Comparação de Zonas",
+  "download_monthly_reports": "Descarregar Relatórios Mensais",
+  "student_details": "Detalhes do Aluno",
+  "about_app": "Sobre a Aplicação",
+  "privacy_policy": "Política de Privacidade",
+  "terms_of_service": "Termos de Serviço",
+  "version": "Versão",
+  "contact_us": "Contacta-nos",
+  "built_with": "Desenvolvido com",
+  "scientific_research": "investigação científica",
+  "emotional_regulation": "regulação emocional"
 }

@@ -117,7 +117,7 @@
   "stage": "Etapa",
   "points": "Puntos",
   "share": "Compartir",
-  "disclaimer": "Basado en investigación científica sobre regulación emocional",
+  "disclaimer": "Aviso Legal",
   "family_dashboard": "Panel Familiar",
   "school_strategies": "Estrategias de la Escuela",
   "home_strategies": "Estrategias en Casa",
@@ -316,5 +316,16 @@
   "generate_parent_code": "Generar Código para Padres",
   "zone_combined": "Combinado",
   "zone_school": "Escuela",
-  "zone_home": "Casa"
+  "zone_home": "Casa",
+  "zone_comparison": "Comparación de Zonas",
+  "download_monthly_reports": "Descargar Informes Mensuales",
+  "student_details": "Detalles del Estudiante",
+  "about_app": "Sobre la Aplicación",
+  "privacy_policy": "Política de Privacidad",
+  "terms_of_service": "Términos de Servicio",
+  "version": "Versión",
+  "contact_us": "Contáctanos",
+  "built_with": "Desarrollado con",
+  "scientific_research": "investigación científica",
+  "emotional_regulation": "regulación emocional"
 }

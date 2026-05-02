@@ -480,7 +480,7 @@ export default function StudentDetailScreen() {
         {/* Bar Chart */}
         {analytics && analytics.total_logs > 0 && (
           <View style={styles.chartSection}>
-            <Text style={styles.sectionTitle}>{t('zone_comparison')}</Text>
+            <Text style={styles.sectionTitle}>{t('zone_comparison') || 'Zone Comparison'}</Text>
             <View style={styles.barChartContainer}>
               <BarChart
                 data={barData}
@@ -504,7 +504,7 @@ export default function StudentDetailScreen() {
         {/* Download Reports Section */}
         {availableMonths.length > 0 && (
           <View style={styles.reportsSection}>
-            <Text style={styles.sectionTitle}>Download Monthly Reports</Text>
+            <Text style={styles.sectionTitle}>{t('download_monthly_reports') || 'Download Monthly Reports'}</Text>
             <Text style={styles.reportsSubtitle}>
               Select a month to download a PDF report
             </Text>
