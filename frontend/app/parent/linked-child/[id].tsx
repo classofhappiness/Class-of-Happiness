@@ -42,6 +42,17 @@ const STRATEGY_ICONS = [
   { id: 'book', name: 'book', label: 'Reading' },
 ];
 
+
+// Strategy name resolver - maps IDs to readable names
+const STRATEGY_NAMES: Record<string, string> = {
+  b1: 'Gentle Stretch', b2: 'Favourite Song', b3: 'Tell Someone', b4: 'Slow Breathing',
+  g1: 'Keep Going!', g2: 'Help a Friend', g3: 'Set a Goal', g4: 'Gratitude',
+  y1: 'Bubble Breathing', y2: 'Count to 10', y3: '5 Senses', y4: 'Talk About It',
+  r1: 'Freeze', r2: 'Big Breaths', r3: 'Safe Space', r4: 'Ask for Help',
+};
+const resolveStrategyName = (id: string) =>
+  STRATEGY_NAMES[id] || id.replace(/_/g, ' ').replace(/\w/g, c => c.toUpperCase());
+
 export default function LinkedChildDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -302,48 +313,35 @@ export default function LinkedChildDetailScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Permission Toggle — Share / No Share tabs */}
+        {/* Sharing consent - single clean toggle */}
         <View style={styles.permissionCard}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <MaterialIcons name="share" size={20} color="#5C6BC0" />
-            <Text style={styles.permissionTitle}>{t('share_with_teacher') || 'Share Home Data with Teacher'}</Text>
-          </View>
-          <Text style={[styles.permissionDesc, { marginBottom: 12 }]}>
-            {homeSharingEnabled
-              ? (t('teacher_can_see') || 'Teacher can see home check-ins and shared strategies')
-              : (t('teacher_cannot_see') || 'Teacher cannot see home data')}
-          </Text>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <TouchableOpacity
-              style={{
-                flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center',
-                backgroundColor: homeSharingEnabled ? '#E8F5E9' : '#F5F5F5',
-                borderWidth: 2,
-                borderColor: homeSharingEnabled ? '#4CAF50' : '#E0E0E0',
-              }}
-              onPress={() => { if (!homeSharingEnabled) handleToggleHomeSharing(); }}
-            >
-              <MaterialIcons name="visibility" size={20} color={homeSharingEnabled ? '#4CAF50' : '#CCC'} />
-              <Text style={{ fontSize: 13, fontWeight: '700', color: homeSharingEnabled ? '#4CAF50' : '#CCC', marginTop: 4 }}>
-                Share
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1, marginRight: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <MaterialIcons
+                  name={homeSharingEnabled ? 'verified' : 'pause-circle-filled'}
+                  size={20}
+                  color={homeSharingEnabled ? '#4CAF50' : '#FF9800'}
+                />
+                <Text style={{ fontSize: 14, fontWeight: '700',
+                  color: homeSharingEnabled ? '#2E7D32' : '#E65100' }}>
+                  {homeSharingEnabled
+                    ? (t('mutual_consent') || 'Sharing Active')
+                    : (t('sharing_paused') || 'Sharing Paused')}
+                </Text>
+              </View>
+              <Text style={{ fontSize: 12, color: '#666', lineHeight: 16 }}>
+                {homeSharingEnabled
+                  ? (t('teacher_can_see') || 'Teacher can see home check-ins')
+                  : (t('teacher_cannot_see') || 'Teacher cannot see home data')}
               </Text>
-              <Text style={{ fontSize: 10, color: '#999', marginTop: 2 }}>Teacher can see</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={{
-                flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center',
-                backgroundColor: !homeSharingEnabled ? '#FFF3E0' : '#F5F5F5',
-                borderWidth: 2,
-                borderColor: !homeSharingEnabled ? '#FF9800' : '#E0E0E0',
-              }}
-              onPress={() => { if (homeSharingEnabled) handleToggleHomeSharing(); }}
-            >
-              <MaterialIcons name="visibility-off" size={20} color={!homeSharingEnabled ? '#FF9800' : '#CCC'} />
-              <Text style={{ fontSize: 13, fontWeight: '700', color: !homeSharingEnabled ? '#FF9800' : '#CCC', marginTop: 4 }}>
-                No Share
-              </Text>
-              <Text style={{ fontSize: 10, color: '#999', marginTop: 2 }}>Keep private</Text>
-            </TouchableOpacity>
+            </View>
+            <Switch
+              value={homeSharingEnabled}
+              onValueChange={handleToggleHomeSharing}
+              trackColor={{ false: '#FFE0B2', true: '#C8E6C9' }}
+              thumbColor={homeSharingEnabled ? '#4CAF50' : '#FF9800'}
+            />
           </View>
         </View>
 
@@ -457,7 +455,7 @@ export default function LinkedChildDetailScreen() {
               <View key={strategy.id || index} style={styles.strategyItem}>
                 <MaterialIcons name={strategy.icon || 'star'} size={24} color="#5C6BC0" />
                 <View style={styles.strategyInfo}>
-                  <Text style={styles.strategyName}>{strategy.name}</Text>
+                  <Text style={styles.strategyName}>{resolveStrategyName(strategy.name || strategy.id || "")}</Text>
                   <Text style={styles.strategyDesc}>{strategy.description}</Text>
                 </View>
                 <View style={[styles.zoneBadge, { backgroundColor: ZONE_CONFIG[strategy.zone]?.color + '30' }]}>

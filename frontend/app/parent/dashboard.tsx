@@ -274,20 +274,15 @@ export default function ParentDashboard() {
   const handleMemberCheckin = (member: any) => {
     const rel = member.relationship || 'adult';
     if (rel === 'child') {
-      // Children use student flow - find linked student or use member directly
+      // ALL children go to student zone flow regardless of link status
       const linkedStudent = linkedChildren.find((s: any) => s.name === member.name);
       if (linkedStudent) {
-        // Set as current student and go to zone select
         setCurrentStudent(linkedStudent);
-        router.push('/student/zone');
-      } else {
-        // No linked student - go to family checkin with child flag
-        router.push({
-          pathname: '/parent/checkin',
-          params: { memberId: member.id, memberName: member.name, relationship: 'child' }
-        });
       }
+      // Always go to student zone select - same experience as school
+      router.push({ pathname: '/student/zone', params: { fromFamily: 'true', memberName: member.name } });
     } else {
+      // Adults get parent checkin (max 3 taps: dashboard → checkin → zone → done)
       router.push({
         pathname: '/parent/checkin',
         params: { memberId: member.id, memberName: member.name, relationship: rel }

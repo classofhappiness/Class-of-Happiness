@@ -889,44 +889,32 @@ export default function StudentDetailScreen() {
                 ? `✅ Parent sharing on · ${sharingStatus.school_sharing_enabled ? '✅ School sharing on' : '⏸ School sharing off'}`
                 : `⏸ Parent sharing off · ${sharingStatus.school_sharing_enabled ? '✅ School sharing on' : '⏸ School sharing off'}`}
             </Text>
-            {/* Share status info - read only for teacher, parent controls sharing */}
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-              <View style={{
-                flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center',
-                backgroundColor: sharingStatus.home_sharing_enabled ? '#E8F5E9' : '#F5F5F5',
-                borderWidth: 1.5,
-                borderColor: sharingStatus.home_sharing_enabled ? '#4CAF50' : '#E0E0E0',
-              }}>
-                <MaterialIcons name="home" size={16} color={sharingStatus.home_sharing_enabled ? '#4CAF50' : '#CCC'} />
-                <Text style={{ fontSize: 10, fontWeight: '600', color: sharingStatus.home_sharing_enabled ? '#4CAF50' : '#999', marginTop: 2 }}>
-                  Parent Sharing
-                </Text>
-                <Text style={{ fontSize: 9, color: sharingStatus.home_sharing_enabled ? '#4CAF50' : '#999' }}>
-                  {sharingStatus.home_sharing_enabled ? 'On ✅' : 'Off ⏸'}
-                </Text>
-              </View>
-              <View style={{
-                flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center',
-                backgroundColor: '#E8EAF6',
-                borderWidth: 1.5,
-                borderColor: '#5C6BC0',
-              }}>
-                <MaterialIcons name="school" size={16} color="#5C6BC0" />
-                <Text style={{ fontSize: 10, fontWeight: '600', color: '#5C6BC0', marginTop: 2 }}>
-                  School Sharing
-                </Text>
-                <Text style={{ fontSize: 9, color: '#5C6BC0' }}>
-                  Always On ✅
+            {/* Sharing consent - Mutual Consent or Paused */}
+            <View style={{
+              borderRadius: 12, padding: 14, marginBottom: 12,
+              backgroundColor: sharingStatus.home_sharing_enabled ? '#E8F5E9' : '#FFF8E1',
+              borderWidth: 1.5,
+              borderColor: sharingStatus.home_sharing_enabled ? '#4CAF50' : '#FF9800',
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <MaterialIcons
+                  name={sharingStatus.home_sharing_enabled ? 'verified' : 'pause-circle-filled'}
+                  size={22}
+                  color={sharingStatus.home_sharing_enabled ? '#4CAF50' : '#FF9800'}
+                />
+                <Text style={{ fontSize: 14, fontWeight: '700',
+                  color: sharingStatus.home_sharing_enabled ? '#2E7D32' : '#E65100' }}>
+                  {sharingStatus.home_sharing_enabled
+                    ? (t('mutual_consent') || 'Mutual Consent Active')
+                    : (t('sharing_paused') || 'Sharing Paused')}
                 </Text>
               </View>
+              <Text style={{ fontSize: 11, color: '#666', marginTop: 6, lineHeight: 16 }}>
+                {sharingStatus.home_sharing_enabled
+                  ? 'Student emotional wellbeing data is being shared between school and home.'
+                  : 'Parent has not enabled home sharing. Home check-in data is not visible.'}
+              </Text>
             </View>
-            {!sharingStatus.home_sharing_enabled && (
-              <View style={{ backgroundColor: '#FFF8E1', borderRadius: 8, padding: 10, marginBottom: 12 }}>
-                <Text style={{ fontSize: 11, color: '#F57F17' }}>
-                  ℹ️ Parent has not enabled home data sharing yet. Ask them to turn on sharing in their app under Linked Child settings.
-                </Text>
-              </View>
-            )}
             
             {sharingStatus.home_sharing_enabled && homeData ? (
               <>
