@@ -23,7 +23,7 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://class-of-hap
 export default function StrategiesScreen() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { zone, location } = useLocalSearchParams<{ zone: string; location?: string }>();
+  const { zone, location , fromFamily} = useLocalSearchParams<{ zone: string; location?: string }>();
   const checkInLocation = (location as string) || 'school';
   const { currentStudent, t, language, translations } = useApp();
   const [strategies, setStrategies] = useState<Strategy[]>([]);

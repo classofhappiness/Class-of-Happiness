@@ -291,14 +291,9 @@ export default function StudentDetailScreen() {
         // Use cache directory directly to avoid create() issues
         const cacheDir = new Directory(Paths.cache);
 
-        // Use unique filename with timestamp to avoid "destination already exists" error
-        const uniqueFilename = `${filename}_${Date.now()}.pdf`;
-        const destFile = new File(Paths.cache, uniqueFilename);
-
-        console.log('Saving report to cache directory:', uniqueFilename);
-
-        // Download file directly to cache with unique name
-        const downloadedFile = await File.downloadFileAsync(fullUrl, cacheDir);
+        // Use unique dir per download to avoid conflicts
+        const uniqueDir = new Directory(Paths.cache, `rpt_${Date.now()}`);
+        const downloadedFile = await File.downloadFileAsync(fullUrl, uniqueDir);
         
         console.log('Download result - exists:', downloadedFile.exists);
         console.log('Download result - uri:', downloadedFile.uri);

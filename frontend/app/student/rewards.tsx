@@ -144,6 +144,10 @@ export default function RewardsScreen() {
   };
 
   const handleContinue = () => {
+    if (fromFamily === 'true') {
+      router.replace('/parent/dashboard');
+      return;
+    }
     playButtonFeedback(); // Sound effect for button press
     router.replace('/student/select');
   };

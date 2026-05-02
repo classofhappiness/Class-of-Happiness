@@ -550,7 +550,7 @@ export default function ParentDashboard() {
         {/* Header */}
         <View style={[styles.header, { alignItems: 'center', paddingHorizontal: 24 }]}>
           <Text style={[styles.headerSubtitle, { textAlign: 'center' }]}>
-            {t('track_emotional_wellness') || 'Track emotional wellbeing at home'}
+            {t('track_emotional_wellness') || 'Track your family\'s emotional wellness'}
           </Text>
         </View>
 
@@ -1264,10 +1264,10 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 20,
-    marginTop: 28,
-    paddingBottom: 8,
-    paddingTop: 8,
+    marginBottom: 16,
+    marginTop: 20,
+    paddingBottom: 4,
+    paddingTop: 4,
   },
   headerLogo: { width: 56, height: 56, marginBottom: 4 },
   headerTitle: {
@@ -1278,11 +1278,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   headerSubtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#666',
-    marginTop: 8,
+    marginTop: 12,
     textAlign: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
+    lineHeight: 20,
   },
   section: {
     backgroundColor: 'white',

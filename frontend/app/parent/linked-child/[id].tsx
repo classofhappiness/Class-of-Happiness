@@ -326,8 +326,8 @@ export default function LinkedChildDetailScreen() {
                 <Text style={{ fontSize: 14, fontWeight: '700',
                   color: homeSharingEnabled ? '#2E7D32' : '#E65100' }}>
                   {homeSharingEnabled
-                    ? (t('mutual_consent') || 'Sharing Active')
-                    : (t('sharing_paused') || 'Sharing Paused')}
+                    ? (t('mutual_consent') || '✅ Sharing Active')
+                    : (t('sharing_paused') || '⏸ Sharing Paused')}
                 </Text>
               </View>
               <Text style={{ fontSize: 12, color: '#666', lineHeight: 16 }}>

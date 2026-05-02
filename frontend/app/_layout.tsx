@@ -198,6 +198,7 @@ function AppContent() {
         <Stack.Screen
           name="teacher/student-detail"
           options={{
+            headerRight: () => <HomeToDashboard />,
             title: 'Student Details',
             headerBackTitle: 'Back',
           }}
@@ -219,6 +220,7 @@ function AppContent() {
         <Stack.Screen
           name="teacher/checkin"
           options={{
+            headerRight: () => <HomeToDashboard />,
             headerShown: false,
             title: 'Teacher Check-in',
           }}
@@ -261,6 +263,7 @@ function AppContent() {
         <Stack.Screen
           name="parent/checkin"
           options={{
+            headerRight: () => <HomeToDashboard />,
             title: 'Check-in',
             headerBackTitle: 'Dashboard',
           }}
@@ -275,6 +278,7 @@ function AppContent() {
         <Stack.Screen
           name="parent/linked-child/[id]"
           options={{
+            headerRight: () => <HomeToDashboard />,
             title: 'Child Details',
             headerBackTitle: 'Dashboard',
           }}
@@ -320,7 +324,7 @@ const styles = StyleSheet.create({
 function HomeToStudents() {
   const r = useRouter();
   return (
-    <TouchableOpacity onPress={() => r.replace('/student/select')} style={{ marginRight: 12 }}>
+    <TouchableOpacity onPress={() => r.replace('/')} style={{ marginRight: 12 }}>
       <Text style={{ fontSize: 18 }}>🏠</Text>
     </TouchableOpacity>
   );
@@ -329,7 +333,7 @@ function HomeToStudents() {
 function HomeToDashboard() {
   const r = useRouter();
   return (
-    <TouchableOpacity onPress={() => r.replace('/teacher/dashboard')} style={{ marginRight: 12 }}>
+    <TouchableOpacity onPress={() => r.replace('/')} style={{ marginRight: 12 }}>
       <Text style={{ fontSize: 18 }}>🏠</Text>
     </TouchableOpacity>
   );
