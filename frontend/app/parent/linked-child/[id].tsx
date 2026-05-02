@@ -530,7 +530,7 @@ export default function LinkedChildDetailScreen() {
                   >
                     <Text style={styles.zoneEmoji}>{config.emoji}</Text>
                     <Text style={[styles.zoneLabel, selectedZone === zone && { color: '#fff' }]}>
-                      {config.label}
+                      {zone === 'blue' ? (t('blue_emotions_label') || 'Blue Emotions') : zone === 'green' ? (t('green_emotions_label') || 'Green Emotions') : zone === 'yellow' ? (t('yellow_emotions_label') || 'Yellow Emotions') : (t('red_emotions_label') || 'Red Emotions')}
                     </Text>
                   </TouchableOpacity>
                 ))}
