@@ -413,7 +413,7 @@ export default function StudentDetailScreen() {
           {/* Family Button with Tooltip */}
           <View style={styles.tooltipContainer}>
             <TouchableOpacity
-              style={styles.shareParentButton}
+              style={styles.actionBtn}
               onPress={() => setShowLinkCodeModal(true)}
             >
               <MaterialIcons name="family-restroom" size={20} color="#4A90D9" />
