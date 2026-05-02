@@ -273,54 +273,50 @@ export default function StudentDetailScreen() {
   };
 
   const downloadReport = async (monthStr: string) => {
-    const [year, month] = monthStr.split('-').map(Number);
-    const pdfUrl = reportsApi.getPdfUrl(studentId!, year, month);
-    const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-    const fullUrl = `${BACKEND_URL}${pdfUrl}`;
-    const filename = `${student?.name || 'student'}_report_${year}_${month}.pdf`;
-    
-    console.log('Downloading monthly report from:', fullUrl);
-    setShowReportModal(false);
-    
+    if (!studentId) return;
+    setDownloading(true);
     try {
-      if (Platform.OS === 'web') {
-        // Web: Open in new tab
-        window.open(fullUrl, '_blank');
-      } else {
-        // Mobile (Expo Go SDK 54+): Use new File/Directory API
-        // Use cache directory directly to avoid create() issues
-        const cacheDir = new Directory(Paths.cache);
+      const token = await AsyncStorage.getItem('session_token');
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const url = `${BACKEND_URL}/api/reports/generate/${studentId}?month=${monthStr}&lang=${language || 'en'}`;
 
-        // Use unique dir per download to avoid conflicts
-        const uniqueDir = new Directory(Paths.cache, `rpt_${Date.now()}`);
-        const downloadedFile = await File.downloadFileAsync(fullUrl, uniqueDir);
-        
-        console.log('Download result - exists:', downloadedFile.exists);
-        console.log('Download result - uri:', downloadedFile.uri);
-        
-        if (!downloadedFile.exists) {
-          throw new Error('Downloaded file does not exist');
-        }
-        
-        const canShare = await Sharing.isAvailableAsync();
-        if (canShare) {
-          await Sharing.shareAsync(downloadedFile.uri, {
-            mimeType: 'application/pdf',
-            dialogTitle: `Share ${student?.name}'s Monthly Report`,
-            UTI: 'com.adobe.pdf',
-          });
-        } else {
-          Alert.alert('Success', 'Report downloaded successfully');
-        }
+      // Fetch the PDF as blob
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error(`Server error: ${response.status}`);
+
+      const blob = await response.blob();
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      // Write to a unique file
+      const filename = `report_${studentId}_${monthStr}_${Date.now()}.pdf`;
+      const fileUri = `${FileSystem.cacheDirectory}${filename}`;
+      await FileSystem.writeAsStringAsync(fileUri, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Share/open the file
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `Report ${monthStr}`,
+        });
+      } else {
+        Alert.alert('PDF Ready', `Report saved: ${filename}`);
       }
     } catch (error: any) {
-      console.error('Report download error:', error);
-      Alert.alert(
-        'Download Error',
-        `Failed to download report: ${error.message || 'Unknown error'}`
-      );
+      console.error('PDF download error:', error);
+      Alert.alert('Download Error', error.message || 'Could not download report');
+    } finally {
+      setDownloading(false);
     }
-  };
+  };;
 
   const formatMonthYear = (monthStr: string) => {
     const [year, month] = monthStr.split('-').map(Number);

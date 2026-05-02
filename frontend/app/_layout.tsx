@@ -162,6 +162,7 @@ function AppContent() {
         <Stack.Screen
           name="profiles/create"
           options={{
+            headerRight: () => <HomeToDashboard />,
             title: 'Create Profile',
             headerBackTitle: 'Back',
           }}
@@ -169,6 +170,7 @@ function AppContent() {
         <Stack.Screen
           name="profiles/edit"
           options={{
+            headerRight: () => <HomeToDashboard />,
             title: 'Edit Profile',
             headerBackTitle: 'Back',
           }}
@@ -325,7 +327,7 @@ function HomeToStudents() {
   const r = useRouter();
   return (
     <TouchableOpacity onPress={() => r.replace('/')} style={{ marginRight: 12 }}>
-      <Text style={{ fontSize: 18 }}>🏠</Text>
+      <MaterialIcons name="home" size={22} color="#000" />
     </TouchableOpacity>
   );
 }
@@ -334,7 +336,7 @@ function HomeToDashboard() {
   const r = useRouter();
   return (
     <TouchableOpacity onPress={() => r.replace('/')} style={{ marginRight: 12 }}>
-      <Text style={{ fontSize: 18 }}>🏠</Text>
+      <MaterialIcons name="home" size={22} color="#000" />
     </TouchableOpacity>
   );
 }
