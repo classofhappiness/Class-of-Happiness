@@ -380,7 +380,7 @@ export default function StudentDetailScreen() {
           {/* Row 2: Action buttons */}
           <View style={{ flexDirection: 'row', gap: 8 }}>
           <TouchableOpacity
-            style={[styles.editButton, { flex: 1, alignItems: 'center' }]}
+            style={[styles.actionBtn]}
             onPress={() => router.push({
               pathname: '/profiles/edit',
               params: { studentId: student.id }
@@ -393,7 +393,7 @@ export default function StudentDetailScreen() {
           {/* Strategies Button with Tooltip */}
           <View style={[styles.tooltipContainer, { flex: 1 }]}>
             <TouchableOpacity
-              style={[styles.strategiesButton, {alignItems:'center', marginLeft: 0, flex: 1}]}
+              style={[styles.actionBtn]}
               onPress={() => router.push({
                 pathname: '/teacher/strategies',
                 params: { studentId: student.id }
@@ -1239,6 +1239,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EDE7F6',
     borderRadius: 8,
   },
+  actionBtn: { flex: 1, alignItems: 'center', padding: 10, borderRadius: 10, backgroundColor: '#F5F5F5' },
   strategiesButton: {
     padding: 8,
     backgroundColor: '#FFF8E1',
