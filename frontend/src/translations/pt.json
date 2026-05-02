@@ -517,5 +517,14 @@
   "support_message_hint2": "após fazer check-in. Se vazio, será mostrada uma mensagem motivacional.",
   "add_custom_strategy": "Adicionar Estratégia Personalizada",
   "custom_strategies_for": "Estratégias Personalizadas para",
-  "default_strategies": "Estratégias Padrão"
+  "default_strategies": "Estratégias Padrão",
+  "default_zone_strategies": "Estratégias Padrão",
+  "default_badge": "Padrão",
+  "add_strategy_title": "Adicionar Estratégia",
+  "strategy_name_label": "Nome da Estratégia",
+  "strategy_desc_label": "Descrição (opcional)",
+  "strategy_zone_label": "Zona de Emoção",
+  "assign_to_student": "Atribuir ao aluno",
+  "save_strategy": "Guardar Estratégia",
+  "saving_strategy": "A guardar..."
 }

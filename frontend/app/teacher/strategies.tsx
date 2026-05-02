@@ -369,7 +369,7 @@ export default function ManageStrategiesScreen() {
 
         {/* Default Strategies */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Default {zoneConfig.label} Strategies</Text>
+          <Text style={styles.sectionTitle}>{t('default_zone_strategies') || 'Default'} {selectedZone === 'blue' ? (t('blue_label') || 'Blue') : selectedZone === 'green' ? (t('green_label') || 'Green') : selectedZone === 'yellow' ? (t('yellow_label') || 'Yellow') : (t('red_label') || 'Red')} {t('strategies') || 'Strategies'}</Text>
           {strategies.map((strategy) => (
             <View key={strategy.id} style={[styles.strategyCard, styles.defaultCard]}>
               <View style={[styles.strategyIcon, { backgroundColor: zoneConfig.color }]}>
@@ -380,7 +380,7 @@ export default function ManageStrategiesScreen() {
                 <Text style={styles.strategyDesc}>{STRATEGY_KEYS[strategy.name] ? (t(STRATEGY_KEYS[strategy.name][1]) || strategy.description) : strategy.description}</Text>
               </View>
               <View style={styles.defaultBadge}>
-                <Text style={styles.defaultBadgeText}>Default</Text>
+                <Text style={styles.defaultBadgeText}>{t('default_badge') || 'Default'}</Text>
               </View>
             </View>
           ))}
@@ -396,7 +396,7 @@ export default function ManageStrategiesScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {editingStrategy ? 'Edit Strategy' : 'Add Strategy'}
+                {editingStrategy ? (t('edit_strategy') || 'Edit Strategy') : (t('add_strategy_title') || 'Add Strategy')}
               </Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <MaterialIcons name="close" size={24} color="#666" />
