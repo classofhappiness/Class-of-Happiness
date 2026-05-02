@@ -504,7 +504,7 @@ export default function StudentDetailScreen() {
                 yAxisThickness={0}
                 yAxisTextStyle={{ color: '#666', fontSize: 11 }}
                 noOfSections={4}
-                maxValue={Math.max(...Object.values(analytics.zone_counts).map(v => Number(v))) + 1}
+                maxValue={Math.max(1, ...Object.values(analytics.zone_counts || {}).map(v => Number(v))) + 1}
                 isAnimated
                 barBorderRadius={6}
                 width={width - 100}
