@@ -485,10 +485,8 @@ const styles = StyleSheet.create({
   },
   pointsText: {
     fontSize: 11,
-    color: '#111',
-    fontStyle: 'italic',
+    color: '#333',
     fontWeight: '600',
-
   },
   addCard: {
     borderWidth: 2,
