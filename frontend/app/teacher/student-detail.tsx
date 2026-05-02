@@ -1538,15 +1538,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#999',
   },
-  shareParentButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#E3F2FD',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
+  shareParentButton: { flex: 1, alignItems: 'center', padding: 10, borderRadius: 10, backgroundColor: '#E3F2FD' },
   linkCodeContent: {
     padding: 24,
     alignItems: 'center',
