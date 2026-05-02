@@ -351,11 +351,11 @@ export default function LinkedChildDetailScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}
           contentContainerStyle={{ flexDirection: 'row', gap: 8, paddingHorizontal: 4 }}>
           {[
-            { id: null, label: 'All', color: '#5C6BC0' },
-            { id: 'blue', label: '😢 Blue', color: '#4A90D9' },
-            { id: 'green', label: '😊 Green', color: '#4CAF50' },
-            { id: 'yellow', label: '😟 Yellow', color: '#FFC107' },
-            { id: 'red', label: '😣 Red', color: '#F44336' },
+            { id: null, label: t('zone_all') || 'All', color: '#5C6BC0' },
+            { id: 'blue', label: t('zone_blue') || '😢 Blue', color: '#4A90D9' },
+            { id: 'green', label: t('zone_green') || '😊 Green', color: '#4CAF50' },
+            { id: 'yellow', label: t('zone_yellow') || '😟 Yellow', color: '#FFC107' },
+            { id: 'red', label: t('zone_red') || '😣 Red', color: '#F44336' },
           ].map(z => (
             <TouchableOpacity key={z.id || 'all'}
               style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,

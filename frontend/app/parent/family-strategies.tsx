@@ -416,7 +416,7 @@ export default function FamilyStrategiesScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 14, fontWeight: '600', color: '#333' }}>{s.name}</Text>
                   {s.description ? <Text style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{s.description}</Text> : null}
-                  {s.is_shared && <Text style={{ fontSize: 10, color: '#4CAF50', marginTop: 2 }}>Shared with teacher ✅</Text>}
+                  {s.is_shared && <Text style={{ fontSize: 10, color: '#4CAF50', marginTop: 2 }}>{t('shared_with_teacher_check') || 'Shared with teacher ✅'}</Text>}
                 </View>
                 {!selectMode && (
                   <>

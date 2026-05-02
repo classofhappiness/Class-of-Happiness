@@ -405,8 +405,8 @@ export default function SettingsScreen() {
           <View style={styles.settingLeft}>
             <MaterialIcons name="info-outline" size={24} color="#5C6BC0" />
             <View style={styles.settingText}>
-              <Text style={styles.settingLabel}>About & Privacy</Text>
-              <Text style={styles.settingValue}>Disclaimer, Privacy Policy, Terms</Text>
+              <Text style={styles.settingLabel}>{t('about_privacy') || 'About & Privacy'}</Text>
+              <Text style={styles.settingValue}>{t('disclaimer_privacy_terms') || 'Disclaimer, Privacy Policy, Terms'}</Text>
             </View>
           </View>
           <MaterialIcons name="chevron-right" size={24} color="#CCC" />
@@ -415,7 +415,7 @@ export default function SettingsScreen() {
 
       {/* Admin Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Administration</Text>
+        <Text style={styles.sectionTitle}>{t('administration') || 'Administration'}</Text>
         
         {/* Show Admin Dashboard if already admin */}
         {(user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'school_admin') && (
@@ -426,8 +426,8 @@ export default function SettingsScreen() {
             <View style={styles.settingLeft}>
               <MaterialIcons name="admin-panel-settings" size={24} color="#9C27B0" />
               <View style={styles.settingText}>
-                <Text style={styles.settingLabel}>Admin Dashboard</Text>
-                <Text style={styles.settingValue} numberOfLines={2}>{user?.role === 'superadmin' ? 'Super Admin' : 'School Admin'}</Text>
+                <Text style={styles.settingLabel}>{t('admin_dashboard') || 'Admin Dashboard'}</Text>
+                <Text style={styles.settingValue} numberOfLines={2}>{user?.role === 'superadmin' ? (t('super_admin') || 'Super Admin') : (t('school_admin_label') || 'School Admin')}</Text>
               </View>
             </View>
             <MaterialIcons name="chevron-right" size={24} color="#CCC" />
@@ -440,14 +440,14 @@ export default function SettingsScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="star" size={20} color="#FF9800" />
-              <Text style={styles.sectionTitle}>Free Trial</Text>
+              <Text style={styles.sectionTitle}>{t('free_trial_label') || 'Free Trial'}</Text>
             </View>
             <View style={[styles.settingItem, { backgroundColor: '#FFF8E1', borderRadius: 12, margin: 8 }]}>
               <View style={styles.settingLeft}>
                 <View style={styles.settingText}>
-                  <Text style={styles.settingLabel}>Start Your 7-Day Free Trial</Text>
+                  <Text style={styles.settingLabel}>{t('start_free_trial') || 'Start Your 7-Day Free Trial'}</Text>
                   <Text style={styles.settingValue}>
-                    Full access to all {user?.role} features. No credit card needed.
+                    {t('full_access_no_card') || 'Full access to all features. No credit card needed.'}
                   </Text>
                 </View>
               </View>
@@ -458,7 +458,7 @@ export default function SettingsScreen() {
               disabled={startingTrial}
             >
               <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16, textAlign: 'center' }}>
-                {startingTrial ? 'Starting...' : '🌟 Start Free Trial'}
+                {startingTrial ? (t('starting') || 'Starting...') : (t('start_free_trial_btn') || '🌟 Start Free Trial')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -471,9 +471,9 @@ export default function SettingsScreen() {
               <View style={styles.settingLeft}>
                 <MaterialIcons name="check-circle" size={24} color="#4CAF50" />
                 <View style={styles.settingText}>
-                  <Text style={styles.settingLabel}>✅ Free Trial Active</Text>
+                  <Text style={styles.settingLabel}>{t('trial_active') || '✅ Free Trial Active'}</Text>
                   <Text style={styles.settingValue}>
-                    Enjoy full access during your trial period.
+                    {t('trial_active_desc') || 'Enjoy full access during your trial period.'}
                   </Text>
                 </View>
               </View>
@@ -486,15 +486,15 @@ export default function SettingsScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="school" size={20} color="#5C6BC0" />
-              <Text style={styles.sectionTitle}>Join Your School</Text>
+              <Text style={styles.sectionTitle}>{t('join_your_school') || 'Join Your School'}</Text>
             </View>
             <View style={[styles.settingItem, { flexDirection: 'column', padding: 16 }]}>
               <Text style={[styles.settingValue, { marginBottom: 8 }]}>
-                Enter the invite code from your school admin to connect to your school.
+                {t('enter_invite_code_desc') || 'Enter the invite code from your school admin to connect to your school.'}
               </Text>
               <TextInput
                 style={[styles.trialCodeInputWithIcon, { borderRadius: 10, padding: 12, backgroundColor: '#F5F5F5', marginBottom: 8 }]}
-                placeholder="e.g. SCH-X7K2-M9P4"
+                placeholder={t('invite_code_placeholder') || 'e.g. SCH-X7K2-M9P4'}
                 value={schoolInviteCode}
                 onChangeText={setSchoolInviteCode}
                 autoCapitalize="characters"
@@ -507,7 +507,7 @@ export default function SettingsScreen() {
                 disabled={joiningSchool}
               >
                 <Text style={{ color: 'white', fontWeight: 'bold', textAlign: 'center' }}>
-                  {joiningSchool ? 'Joining...' : '🏫 Join School'}
+                  {joiningSchool ? (t('joining') || 'Joining...') : (t('join_school_btn') || '🏫 Join School')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -519,16 +519,16 @@ export default function SettingsScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="vpn-key" size={20} color="#5C6BC0" />
-              <Text style={styles.sectionTitle}>School Invite Code</Text>
+              <Text style={styles.sectionTitle}>{t('school_invite_code') || 'School Invite Code'}</Text>
             </View>
             <View style={[styles.settingItem, { flexDirection: 'column', padding: 16 }]}>
               <Text style={[styles.settingValue, { marginBottom: 12 }]}>
-                Generate a code to share with your teachers so they can join your school.
+                {t('generate_code_desc') || 'Generate a code to share with your teachers so they can join your school.'}
               </Text>
               {generatedCode ? (
                 <View style={{ backgroundColor: '#E8EAF6', borderRadius: 10, padding: 16, alignItems: 'center', marginBottom: 8 }}>
                   <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#3949AB', letterSpacing: 2 }}>{generatedCode}</Text>
-                  <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>Share this with your teachers</Text>
+                  <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>{t('share_with_teachers') || 'Share this with your teachers'}</Text>
                 </View>
               ) : null}
               <TouchableOpacity
@@ -560,7 +560,7 @@ export default function SettingsScreen() {
                 <MaterialIcons name="vpn-key" size={24} color="#9C27B0" />
                 <View style={styles.settingText}>
                   <Text style={styles.settingLabel}>{t('admin_access') || 'Admin Access'}</Text>
-                  <Text style={styles.settingValue}>Enter admin code to unlock</Text>
+                  <Text style={styles.settingValue}>{t('enter_admin_code') || 'Enter admin code to unlock'}</Text>
                 </View>
               </View>
               <MaterialIcons 
@@ -574,7 +574,7 @@ export default function SettingsScreen() {
               <View style={styles.trialCodeContainer}>
                 {!user && (
                   <Text style={styles.loginRequiredText}>
-                    ⚠️ You must be logged in as Teacher or Parent first
+                    {t('logged_in_required') || '⚠️ You must be logged in as Teacher or Parent first'}
                   </Text>
                 )}
                 <View style={styles.codeInputWrapper}>
