@@ -166,6 +166,9 @@ export default function BulkCheckinScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ padding: 4, marginRight: 4 }}>
+          <MaterialIcons name="home" size={20} color="#333" />
+        </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle} numberOfLines={1}>
             {classroomName || t('classrooms') || 'Classroom'}
