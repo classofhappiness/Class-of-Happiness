@@ -508,5 +508,14 @@
   "create_new_student": "Criar Novo Aluno",
   "this_message_appears": "Esta mensagem aparecerá no ecrã de recompensas de",
   "after_checking_in": "após fazer check-in.",
-  "are_you_sure_delete_strategy": "Tens a certeza que queres eliminar"
+  "are_you_sure_delete_strategy": "Tens a certeza que queres eliminar",
+  "manage_strategies_title": "Gerir Estratégias",
+  "for_student": "para",
+  "personal_support_message": "💬 Mensagem de Apoio Pessoal para",
+  "support_message_placeholder": "ex. És uma estrela! Continua assim!",
+  "support_message_hint": "Esta mensagem aparecerá no ecrã de recompensas de",
+  "support_message_hint2": "após fazer check-in. Se vazio, será mostrada uma mensagem motivacional.",
+  "add_custom_strategy": "Adicionar Estratégia Personalizada",
+  "custom_strategies_for": "Estratégias Personalizadas para",
+  "default_strategies": "Estratégias Padrão"
 }

@@ -259,8 +259,8 @@ export default function ManageStrategiesScreen() {
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.title}>Manage Strategies</Text>
-          {student && <Text style={styles.subtitle}>for {student.name}</Text>}
+          <Text style={styles.title}>{t('manage_strategies_title') || 'Manage Strategies'}</Text>
+          {student && <Text style={styles.subtitle}>{t('for_student') || 'for'} {student.name}</Text>}
         </View>
       </View>
 
@@ -279,7 +279,7 @@ export default function ManageStrategiesScreen() {
               styles.zoneTabText,
               { color: selectedZone === zone ? 'white' : '#666' }
             ]}>
-              {zone.charAt(0).toUpperCase() + zone.slice(1)}
+              {zone === 'blue' ? (t('blue_label') || 'Blue') : zone === 'green' ? (t('green_label') || 'Green') : zone === 'yellow' ? (t('yellow_label') || 'Yellow') : (t('red_label') || 'Red')}
             </Text>
           </TouchableOpacity>
         ))}
@@ -288,10 +288,10 @@ export default function ManageStrategiesScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Support Message */}
         <View style={styles.supportMessageBox}>
-          <Text style={styles.supportMessageLabel}>💬 Personal Support Message for {student?.name}</Text>
+          <Text style={styles.supportMessageLabel}>{t('personal_support_message') || '💬 Personal Support Message for'} {student?.name}</Text>
           <TextInput
             style={styles.supportMessageInput}
-            placeholder="e.g. You are a star! Keep going!"
+            placeholder={t('support_message_placeholder') || 'e.g. You are a star! Keep going!'}
             value={supportMessage}
             onChangeText={setSupportMessage}
             multiline
@@ -302,21 +302,20 @@ export default function ManageStrategiesScreen() {
             <Text style={styles.saveMessageText}>{t('save_message') || 'Save Message'}</Text>
           </TouchableOpacity>
           <Text style={styles.supportMessageHint}>
-            This message will appear on {student?.name}'s reward screen after checking in.
-            If empty, a rotating motivational message will show instead.
+            {t('support_message_hint') || 'This message will appear on'} {student?.name}'s {t('support_message_hint2') || 'reward screen after checking in. If empty, a rotating motivational message will show instead.'}
           </Text>
         </View>
 
         {/* Add Button */}
         <TouchableOpacity style={styles.addButton} onPress={openAddModal}>
           <MaterialIcons name="add" size={24} color="white" />
-          <Text style={styles.addButtonText}>Add Custom Strategy</Text>
+          <Text style={styles.addButtonText}>{t('add_custom_strategy') || 'Add Custom Strategy'}</Text>
         </TouchableOpacity>
 
         {/* Custom Strategies */}
         {customStrategies.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Custom Strategies for {student?.name}</Text>
+            <Text style={styles.sectionTitle}>{t('custom_strategies_for') || 'Custom Strategies for'} {student?.name}</Text>
             {customStrategies.map((strategy) => (
               <View key={strategy.id} style={styles.strategyCard}>
                 <View style={[styles.strategyIcon, { backgroundColor: zoneConfig.color }]}>
