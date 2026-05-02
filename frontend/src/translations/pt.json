@@ -382,5 +382,15 @@
   "share_wellbeing": "📨 Partilhar com suporte de bem-estar",
   "keep_private": "🔒 Manter privado",
   "private_message_note": "🔒 Esta mensagem é privada. Apenas o teu pessoal de suporte de bem-estar designado a verá.",
-  "saved": "Guardado"
+  "saved": "Guardado",
+  "classroom_name": "Nome da Turma",
+  "classroom_name_placeholder": "ex. Sala 3A",
+  "teacher_name_optional": "Nome do Professor (opcional)",
+  "teacher_name_placeholder": "ex. Prof. Silva",
+  "creating": "A criar...",
+  "edit_classroom": "Editar Turma",
+  "students_in_class": "Alunos nesta turma",
+  "select_zone": "Selecionar Zona de Emoção",
+  "select_strategy": "Selecionar Estratégia",
+  "add_strategy_to_students": "💡 Adicionar Estratégia aos Alunos"
 }

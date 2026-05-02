@@ -366,5 +366,15 @@
   "share_wellbeing": "📨 Compartir con apoyo de bienestar",
   "keep_private": "🔒 Mantener privado",
   "private_message_note": "🔒 Este mensaje es privado. Solo tu personal de apoyo de bienestar designado lo verá.",
-  "saved": "Guardado"
+  "saved": "Guardado",
+  "classroom_name": "Nombre del Aula",
+  "classroom_name_placeholder": "ej. Aula 3A",
+  "teacher_name_optional": "Nombre del Profesor (opcional)",
+  "teacher_name_placeholder": "ej. Prof. García",
+  "creating": "Creando...",
+  "edit_classroom": "Editar Aula",
+  "students_in_class": "Estudiantes en esta clase",
+  "select_zone": "Seleccionar Zona de Emoción",
+  "select_strategy": "Seleccionar Estrategia",
+  "add_strategy_to_students": "💡 Agregar Estrategia a Estudiantes"
 }

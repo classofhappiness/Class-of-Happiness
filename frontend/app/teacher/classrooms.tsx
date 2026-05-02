@@ -278,7 +278,7 @@ export default function ManageClassroomsScreen() {
                 </View>
                 <View style={styles.iconLabels}>
                   <Text style={[styles.iconLabel, {color:'#4CAF50'}]}>Check-in</Text>
-                  <Text style={[styles.iconLabel, {color:'#5C6BC0'}]}>Edit</Text>
+                  <Text style={[styles.iconLabel, {color:'#5C6BC0'}]}>{t('edit') || 'Edit'}</Text>
                   <Text style={[styles.iconLabel, {color:'#FFC107'}]}>Strategy</Text>
                   <Text style={[styles.iconLabel, {color:'#F44336'}]}>Delete</Text>
                 </View>
@@ -299,21 +299,21 @@ export default function ManageClassroomsScreen() {
         <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create Classroom</Text>
+              <Text style={styles.modalTitle}>{t('create_classroom') || 'Create Classroom'}</Text>
               <TouchableOpacity onPress={() => setCreateModalVisible(false)}>
                 <MaterialIcons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
-            <Text style={styles.inputLabel}>Classroom Name *</Text>
-            <TextInput style={styles.input} placeholder="e.g. Room 3A" value={newClassName} onChangeText={setNewClassName} />
-            <Text style={styles.inputLabel}>Teacher Name (optional)</Text>
-            <TextInput style={styles.input} placeholder="e.g. Ms Johnson" value={newTeacherName} onChangeText={setNewTeacherName} />
+            <Text style={styles.inputLabel}>{t('classroom_name') || 'Classroom Name'} *</Text>
+            <TextInput style={styles.input} placeholder={t('classroom_name_placeholder') || 'e.g. Room 3A'} value={newClassName} onChangeText={setNewClassName} />
+            <Text style={styles.inputLabel}>{t('teacher_name_optional') || 'Teacher Name (optional)'}</Text>
+            <TextInput style={styles.input} placeholder={t('teacher_name_placeholder') || 'e.g. Ms Johnson'} value={newTeacherName} onChangeText={setNewTeacherName} />
             <TouchableOpacity
               style={[styles.createButton, creating && styles.createButtonDisabled]}
               onPress={handleCreateClassroom}
               disabled={creating}
             >
-              <Text style={styles.createButtonText}>{creating ? 'Creating...' : 'Create Classroom'}</Text>
+              <Text style={styles.createButtonText}>{creating ? (t('creating') || 'Creating...') : (t('create_classroom') || 'Create Classroom')}</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -332,7 +332,7 @@ export default function ManageClassroomsScreen() {
 
             <ScrollView>
               {/* Current students */}
-              <Text style={styles.sectionLabel}>Students in this class ({classroomStudents.length})</Text>
+              <Text style={styles.sectionLabel}>{t('students_in_class') || 'Students in this class'} ({classroomStudents.length})</Text>
               {classroomStudents.length === 0 && (
                 <Text style={styles.emptySubtext}>No students yet — add from below</Text>
               )}
@@ -387,7 +387,7 @@ export default function ManageClassroomsScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { maxHeight: '90%' }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>💡 Add Strategy to Students</Text>
+              <Text style={styles.modalTitle}>{t('add_strategy_to_students') || '💡 Add Strategy to Students'}</Text>
               <TouchableOpacity onPress={() => setStrategyModalVisible(false)}>
                 <MaterialIcons name="close" size={24} color="#666" />
               </TouchableOpacity>
@@ -395,7 +395,7 @@ export default function ManageClassroomsScreen() {
 
             <ScrollView>
               {/* Zone selector */}
-              <Text style={styles.sectionLabel}>Select Zone</Text>
+              <Text style={styles.sectionLabel}>{t('select_zone') || 'Select Zone'}</Text>
               <View style={styles.zoneRow}>
                 {(['blue', 'green', 'yellow', 'red'] as const).map(z => (
                   <TouchableOpacity
@@ -409,7 +409,7 @@ export default function ManageClassroomsScreen() {
               </View>
 
               {/* Strategy selector */}
-              <Text style={styles.sectionLabel}>Select Strategy</Text>
+              <Text style={styles.sectionLabel}>{t('select_strategy') || 'Select Strategy'}</Text>
               {BULK_STRATEGIES[selectedZone as keyof typeof BULK_STRATEGIES].map(s => (
                 <TouchableOpacity
                   key={s.id}
