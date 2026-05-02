@@ -340,13 +340,13 @@ export default function StudentDetailScreen() {
     <SafeAreaView style={styles.container}>
       {/* Top nav bar */}
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 6, marginRight: 4 }}>
+        <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
+        <View style={{ flex: 1 }} />
         <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ padding: 6 }}>
           <MaterialIcons name="home" size={24} color="#333" />
         </TouchableOpacity>
-        <View style={{ flex: 1 }} />
       </View>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -518,7 +518,7 @@ export default function StudentDetailScreen() {
           <View style={styles.reportsSection}>
             <Text style={styles.sectionTitle}>{t('download_monthly_reports') || 'Download Monthly Reports'}</Text>
             <Text style={styles.reportsSubtitle}>
-              Select a month to download a PDF report
+              t('select_month_pdf') || 'Select a month to download a PDF report'
             </Text>
             <TouchableOpacity
               style={styles.downloadButton}
@@ -646,8 +646,8 @@ export default function StudentDetailScreen() {
             </View>
             {/* Legend */}
             <View style={styles.calendarLegend}>
-              <View style={styles.legendItem}><View style={[styles.legendDot, {backgroundColor:'#5C6BC0'}]}/><Text style={styles.legendText}>S = School</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendDot, {backgroundColor:'#4CAF50'}]}/><Text style={styles.legendText}>H = Home</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, {backgroundColor:'#5C6BC0'}]}/><Text style={styles.legendText}>{t('school_legend') || 'S = School'}</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, {backgroundColor:'#4CAF50'}]}/><Text style={styles.legendText}>{t('home_legend') || 'H = Home'}</Text></View>
             </View>
           </View>
         )}
@@ -657,7 +657,7 @@ export default function StudentDetailScreen() {
           <View style={styles.zoneDistSection}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="pie-chart" size={20} color="#5C6BC0" />
-              <Text style={styles.sectionTitle}>{t('zone_distribution') || 'Zone Distribution'}</Text>
+              <Text style={styles.sectionTitle}>{t('emotion_distribution') || 'Emotion Distribution'}</Text>
             </View>
             {/* Data source tabs */}
             <View style={styles.dataTabRow}>
@@ -859,7 +859,7 @@ export default function StudentDetailScreen() {
                   }}
                   disabled={savingStrategy}>
                   <Text style={{color:'white', fontSize:16, fontWeight:'600'}}>
-                    {savingStrategy ? 'Saving...' : 'Add Strategy'}
+                    {savingStrategy ? (t('saving') || 'Saving...') : (t('add_strategy') || 'Add Strategy')}
                   </Text>
                 </TouchableOpacity>
               </ScrollView>
@@ -901,18 +901,18 @@ export default function StudentDetailScreen() {
               </View>
               <Text style={{ fontSize: 11, color: '#666', marginTop: 6, lineHeight: 16 }}>
                 {sharingStatus.home_sharing_enabled
-                  ? 'Student emotional wellbeing data is being shared between school and home.'
-                  : 'Parent has not enabled home sharing. Home check-in data is not visible.'}
+                  ? t('data_shared_desc') || 'Student emotional wellbeing data is being shared between school and home.'
+                  : t('sharing_paused_desc') || 'Parent has not enabled home sharing. Home check-in data is not visible.'}
               </Text>
             </View>
             
             {sharingStatus.home_sharing_enabled && homeData ? (
               <>
                 {/* Home Check-ins */}
-                {homeData.home_checkins.length > 0 && (
+                {(homeData.home_checkins || []).length > 0 && (
                   <View style={styles.homeCheckinsContainer}>
                     <Text style={styles.homeSubtitle}>{t('home_checkins') || 'Home Check-ins'}</Text>
-                    {homeData.home_checkins.slice(0, 5).map((checkin: any, index: number) => (
+                    {(homeData.home_checkins || []).slice(0, 5).map((checkin: any, index: number) => (
                       <View key={`checkin_${checkin.id || index}`} style={styles.homeCheckinItem}>
                         <View style={[styles.homeCheckinZone, { backgroundColor: ZONE_COLORS[checkin.zone as keyof typeof ZONE_COLORS] || '#999' }]}>
                           <Text style={styles.homeCheckinEmoji}>
@@ -934,10 +934,10 @@ export default function StudentDetailScreen() {
                 )}
                 
                 {/* Family Strategies */}
-                {homeData.family_strategies.length > 0 && (
+                {(homeData.family_strategies || []).length > 0 && (
                   <View style={styles.familyStrategiesContainer}>
                     <Text style={styles.homeSubtitle}>{t('family_strategies') || 'Family Strategies'}</Text>
-                    {homeData.family_strategies.map((strategy: any, index: number) => (
+                    {(homeData.family_strategies || []).map((strategy: any, index: number) => (
                       <View key={`strategy_${strategy.id || index}`} style={styles.familyStrategyItem}>
                         <MaterialIcons name={(strategy.icon || 'star') as any} size={20} color="#4CAF50" />
                         <View style={styles.familyStrategyInfo}>
@@ -952,7 +952,7 @@ export default function StudentDetailScreen() {
                   </View>
                 )}
                 
-                {homeData.home_checkins.length === 0 && homeData.family_strategies.length === 0 && (
+                {(homeData.home_checkins || []).length === 0 && (homeData.family_strategies || []).length === 0 && (
                   <View style={styles.noHomeData}>
                     <MaterialIcons name="info" size={32} color="#CCC" />
                     <Text style={styles.noHomeDataText}>{t('no_home_data_yet') || 'No home data yet'}</Text>
@@ -984,7 +984,7 @@ export default function StudentDetailScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Month</Text>
+              <Text style={styles.modalTitle}>{t('select_month') || 'Select Month'}</Text>
               <TouchableOpacity
                 onPress={() => setShowReportModal(false)}
                 style={styles.modalCloseButton}
