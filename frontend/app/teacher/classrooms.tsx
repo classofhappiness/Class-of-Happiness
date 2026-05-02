@@ -171,7 +171,7 @@ export default function ManageClassroomsScreen() {
               description: stratDesc,
               feeling_colour: selectedZone,
               icon: stratIcon,
-              is_shared: true,
+              is_shared: false,
             }),
           })
         )
