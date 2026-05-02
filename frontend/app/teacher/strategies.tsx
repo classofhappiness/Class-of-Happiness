@@ -467,7 +467,7 @@ export default function ManageStrategiesScreen() {
                     onPress={pickImage}
                   >
                     <MaterialIcons name="photo" size={24} color={imageType === 'custom' ? '#5C6BC0' : '#999'} />
-                    <Text style={[styles.imageTypeText, imageType === 'custom' && styles.imageTypeTextActive]}>Photo</Text>
+                    <Text style={[styles.imageTypeText, imageType === 'custom' && styles.imageTypeTextActive]}>{t('photo_label') || 'Photo'}</Text>
                   </TouchableOpacity>
                 </View>
 
