@@ -137,6 +137,10 @@ export default function ManageStudentsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={{padding:4}}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
+        <View style={{ flex: 1 }} />
+        <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ padding: 8 }}>
+          <MaterialIcons name="home" size={24} color="#333" />
+        </TouchableOpacity>
         <Text style={styles.pageHeaderTitle}>{t('students') || 'Students'}</Text>
         <View style={{width:32}} />
       </View>

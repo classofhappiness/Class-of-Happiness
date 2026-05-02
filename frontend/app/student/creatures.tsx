@@ -11,6 +11,8 @@ import {
   TouchableOpacity,
   SafeAreaView,
 } from 'react-native';
+import { useRouter } from 'expo-router';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
@@ -33,6 +35,7 @@ export default function CreatureCollectionScreen({ studentId, authToken, onBack 
   const [creatures, setCreatures] = useState<Creature[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
   const { t } = useApp();
 
   useEffect(() => {
@@ -94,6 +97,15 @@ export default function CreatureCollectionScreen({ studentId, authToken, onBack 
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
+        <TouchableOpacity onPress={() => router.back()} style={{ padding: 6, marginRight: 4 }}>
+          <MaterialIcons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.replace('/student/select')} style={{ padding: 6 }}>
+          <MaterialIcons name="home" size={24} color="#333" />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }} />
+      </View>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>

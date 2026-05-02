@@ -282,6 +282,15 @@ export default function TeacherCheckInScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
+        <TouchableOpacity onPress={() => router.back()} style={{ padding: 6, marginRight: 4 }}>
+          <MaterialIcons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ padding: 6 }}>
+          <MaterialIcons name="home" size={24} color="#333" />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }} />
+      </View>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>

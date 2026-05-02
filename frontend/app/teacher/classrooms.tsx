@@ -211,6 +211,10 @@ export default function ManageClassroomsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.pageHeaderBack}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
+        <View style={{ flex: 1 }} />
+        <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ padding: 8 }}>
+          <MaterialIcons name="home" size={24} color="#333" />
+        </TouchableOpacity>
         <Image source={require('../../assets/images/logo_coh.png')} style={styles.pageHeaderLogo} resizeMode="contain" />
         <Text style={styles.pageHeaderTitle}>{t('classrooms') || 'Classrooms'}</Text>
         <View style={{width:32}} />
