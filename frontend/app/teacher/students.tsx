@@ -6,6 +6,7 @@ import {
   SafeAreaView, 
   ScrollView, 
   TouchableOpacity,
+  Image,
   Alert,
   TextInput,
   Modal,
@@ -137,12 +138,13 @@ export default function ManageStudentsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={{padding:4}}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <View style={{ flex: 1 }} />
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <Image source={require('../../assets/images/logo_coh.png')} style={{ width: 28, height: 28 }} resizeMode="contain" />
+          <Text style={styles.pageHeaderTitle}>{t('students') || 'Students'}</Text>
+        </View>
         <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ padding: 8 }}>
           <MaterialIcons name="home" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.pageHeaderTitle}>{t('students') || 'Students'}</Text>
-        <View style={{width:32}} />
       </View>
       {/* Search Bar */}
       <View style={styles.searchContainer}>

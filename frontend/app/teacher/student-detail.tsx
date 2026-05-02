@@ -6,6 +6,7 @@ import {
   SafeAreaView, 
   ScrollView, 
   TouchableOpacity,
+  Image,
   Dimensions,
   RefreshControl,
   Alert,
@@ -343,7 +344,9 @@ export default function StudentDetailScreen() {
         <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <View style={{ flex: 1 }} />
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <Image source={require('../../assets/images/logo_coh.png')} style={{ width: 28, height: 28 }} resizeMode="contain" />
+        </View>
         <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ padding: 6 }}>
           <MaterialIcons name="home" size={24} color="#333" />
         </TouchableOpacity>
