@@ -129,7 +129,7 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
 
   const PointsGuide = () => (
     <View style={styles.pointsGuide}>
-      <Text style={styles.pointsGuideTitle}>⭐ How to grow your creature:</Text>
+      <Text style={styles.pointsGuideTitle}>⭐ {t("how_grow_creature") || "How to grow your creature:"}</Text>
       <View style={styles.pointsGuideRow}>
         {[
           {label:'🥚 Hatch', pts: 25},
