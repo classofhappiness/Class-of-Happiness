@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Image, View, StyleSheet, Platform, TouchableOpacity, Text , Text, TouchableOpacity } from 'react-native';
+import { Image, View, StyleSheet, Platform, TouchableOpacity, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
