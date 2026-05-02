@@ -302,5 +302,19 @@
   "zone_green": "😊 Verde",
   "zone_yellow": "😟 Amarillo",
   "zone_red": "😣 Rojo",
-  "shared_with_teacher_check": "Compartido con profesor ✅"
+  "shared_with_teacher_check": "Compartido con profesor ✅",
+  "most_used_strategies": "Estrategias Más Usadas",
+  "checkin_calendar": "Calendario de Check-ins",
+  "zone_distribution": "Distribución de Zonas",
+  "share_student_tracking": "Compartir Seguimiento Emocional del Estudiante",
+  "child_details": "Detalles del Hijo",
+  "combined": "Combinado",
+  "download_error": "Error de Descarga",
+  "student_unlinked": "El estudiante ha sido desvinculado del padre/madre. Necesitarán un nuevo código para reconectarse.",
+  "failed_unlink": "Error al desvincular",
+  "please_try_again": "Por favor inténtalo de nuevo.",
+  "generate_parent_code": "Generar Código para Padres",
+  "zone_combined": "Combinado",
+  "zone_school": "Escuela",
+  "zone_home": "Casa"
 }

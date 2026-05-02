@@ -299,7 +299,7 @@ export default function StudentDetailScreen() {
       }
     } catch (error: any) {
       console.error('PDF download error:', error);
-      Alert.alert('Download Error', error.message || 'Could not download report');
+      Alert.alert(t('download_error') || 'Download Error', error.message || t('please_try_again') || 'Could not download report');
     } finally {
       setDownloading(false);
     }
@@ -521,7 +521,7 @@ export default function StudentDetailScreen() {
         {/* Top Strategies */}
         {analytics && Object.keys(analytics.strategy_counts || {}).length > 0 && (
           <View style={styles.strategiesSection}>
-            <Text style={styles.sectionTitle}>Most Used Strategies</Text>
+            <Text style={styles.sectionTitle}>{t('most_used_strategies') || 'Most Used Strategies'}</Text>
             {Object.entries(analytics.strategy_counts)
               .sort(([,a],[,b]) => (b as number) - (a as number))
               .map(([strategyId, count]) => {
@@ -592,7 +592,7 @@ export default function StudentDetailScreen() {
           <View style={styles.calendarSection}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="calendar-today" size={20} color="#5C6BC0" />
-              <Text style={styles.sectionTitle}>Check-in Calendar</Text>
+              <Text style={styles.sectionTitle}>{t('checkin_calendar') || 'Check-in Calendar'}</Text>
             </View>
             <View style={styles.calendarGrid}>
               {(() => {
@@ -645,7 +645,7 @@ export default function StudentDetailScreen() {
           <View style={styles.zoneDistSection}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="pie-chart" size={20} color="#5C6BC0" />
-              <Text style={styles.sectionTitle}>Zone Distribution</Text>
+              <Text style={styles.sectionTitle}>{t('zone_distribution') || 'Zone Distribution'}</Text>
             </View>
             {/* Data source tabs */}
             <View style={styles.dataTabRow}>
@@ -1069,7 +1069,7 @@ export default function StudentDetailScreen() {
                             onPress: async () => {
                               try {
                                 await teacherApi.unlinkStudent(student.id);
-                                Alert.alert(t('success') || 'Success', 'Student has been unlinked from parent. They will need a new code to reconnect.');
+                                Alert.alert(t('success') || 'Success', t('student_unlinked') || 'Student has been unlinked from parent. They will need a new code to reconnect.');
                                 setShowLinkCodeModal(false);
                                 setSharingStatus({ is_linked_to_parent: false, home_sharing_enabled: false, school_sharing_enabled: false, parent_name: null, link_count: 0 });
                                 setHomeData(null);
@@ -1144,7 +1144,7 @@ export default function StudentDetailScreen() {
                   >
                     <MaterialIcons name="vpn-key" size={24} color="white" />
                     <Text style={styles.generateCodeButtonText}>
-                      {generatingCode ? (t('generating') || 'Generating...') : (t('generate_code') || 'Generate Parent Code')}
+                      {generatingCode ? (t('generating') || 'Generating...') : (t('generate_parent_code') || 'Generate Parent Code')}
                     </Text>
                   </TouchableOpacity>
                 </>

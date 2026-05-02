@@ -135,7 +135,7 @@
   "sharing_active": "Partilha Ativa",
   "recent_checkins": "Check-ins Recentes",
   "most_used": "Mais Utilizados",
-  "zone_distribution": "Distribuição de Emoções",
+  "zone_distribution": "Distribuição de Zonas",
   "teacher_resources": "Recursos do Professor",
   "family_resources": "Recursos da Família",
   "all_topics": "Todos os Tópicos",
@@ -319,5 +319,18 @@
   "zone_green": "😊 Verde",
   "zone_yellow": "😟 Amarelo",
   "zone_red": "😣 Vermelho",
-  "shared_with_teacher_check": "Partilhado com professor ✅"
+  "shared_with_teacher_check": "Partilhado com professor ✅",
+  "most_used_strategies": "Estratégias Mais Usadas",
+  "checkin_calendar": "Calendário de Check-ins",
+  "share_student_tracking": "Partilhar Monitorização Emocional do Aluno",
+  "child_details": "Detalhes do Filho",
+  "combined": "Combinado",
+  "download_error": "Erro ao Descarregar",
+  "student_unlinked": "O aluno foi desligado do pai/mãe. Será necessário um novo código para reconectar.",
+  "failed_unlink": "Falha ao desligar",
+  "please_try_again": "Por favor tenta novamente.",
+  "generate_parent_code": "Gerar Código para Pais",
+  "zone_combined": "Combinado",
+  "zone_school": "Escola",
+  "zone_home": "Casa"
 }
