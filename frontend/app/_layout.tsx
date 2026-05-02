@@ -133,7 +133,6 @@ function AppContent() {
         <Stack.Screen
           name="student/zone"
           options={{
-            headerShown: false,
             title: 'How Are You Feeling?',
             headerBackTitle: 'Back',
           }}
