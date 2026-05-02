@@ -438,7 +438,7 @@ export default function FamilyStrategiesScreen() {
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
             <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
               <Text style={{ fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 20 }}>
-                {editingStrategy ? 'Edit Strategy' : 'Add Family Strategy'}
+                {editingStrategy ? 'Edit Strategy' : t('add_family_strategy') || 'Add Family Strategy'}
               </Text>
               <Text style={{ fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 6 }}>Name *</Text>
               <TextInput

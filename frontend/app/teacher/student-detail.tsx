@@ -443,7 +443,7 @@ export default function StudentDetailScreen() {
                 styles.periodButtonText,
                 selectedPeriod === days && styles.periodButtonTextActive
               ]}>
-                {days === 1 ? 'Today' : days === 7 ? '7 Days' : days === 14 ? '2 Weeks' : '30 Days'}
+                {days === 1 ? t('today') || 'Today' : days === 7 ? t('days_7') || '7 Days' : days === 14 ? t('days_14') || '2 Weeks' : t('days_30') || '30 Days'}
               </Text>
             </TouchableOpacity>
           ))}
