@@ -153,15 +153,6 @@ export default function ParentStrategiesScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }} />
-        <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={{ padding: 6 }}>
-          <MaterialIcons name="home" size={24} color="#333" />
-        </TouchableOpacity>
-      </View>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
@@ -170,10 +161,16 @@ export default function ParentStrategiesScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={{flexDirection:'row',alignItems:'center',marginBottom:8,gap:4}}>
-            <MaterialIcons name="arrow-back" size={20} color="#5C6BC0" />
-            <Text style={{color:'#5C6BC0',fontSize:14,fontWeight:'500'}}>Back</Text>
-          </TouchableOpacity>
+          <View style={{flexDirection:'row',alignItems:'center',marginBottom:8}}>
+            <TouchableOpacity onPress={() => router.back()} style={{flexDirection:'row',alignItems:'center',gap:4}}>
+              <MaterialIcons name="arrow-back" size={20} color="#5C6BC0" />
+              <Text style={{color:'#5C6BC0',fontSize:14,fontWeight:'500'}}>{t('back') || 'Back'}</Text>
+            </TouchableOpacity>
+            <View style={{flex:1}} />
+            <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={{padding:4}}>
+              <MaterialIcons name="home" size={22} color="#333" />
+            </TouchableOpacity>
+          </View>
           <Text style={styles.headerTitle}>
             {student ? `${student.name}'s Strategies` : t('family_strategies') || 'Family Strategies'}
           </Text>
