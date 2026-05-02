@@ -281,7 +281,9 @@ export default function StudentDetailScreen() {
     try {
       const token = await AsyncStorage.getItem('session_token');
       const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-      const url = `${BACKEND_URL}/api/reports/generate/${studentId}?month=${monthStr}&lang=${language || 'en'}`;
+      // Build correct URL: /api/reports/pdf/student/{id}/month/{year}/{month}
+      const [yearStr, monthNum] = monthStr.split('-');
+      const url = `${BACKEND_URL}/api/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}`;
 
       // Fetch the PDF as blob
       const response = await fetch(url, {
@@ -290,7 +292,7 @@ export default function StudentDetailScreen() {
       if (!response.ok) throw new Error(`Server error: ${response.status}`);
 
       // Open PDF URL directly - simplest reliable approach
-      const fullUrl2 = `${BACKEND_URL}/api/reports/generate/${studentId}?month=${monthStr}&lang=${language || 'en'}&token=${token}`;
+      const fullUrl2 = `${BACKEND_URL}/api/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}`;
       const canOpen = await Linking.canOpenURL(fullUrl2);
       if (canOpen) {
         await Linking.openURL(fullUrl2);

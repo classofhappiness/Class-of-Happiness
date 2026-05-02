@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, Dimensions, TouchableOpacity, Modal, ScrollView } from 'react-native';
-import { useRouter, useNavigation } from 'expo-router';
+import { useRouter, useNavigation, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
@@ -66,6 +66,7 @@ const getColourInfo = (t: (key: string) => string) => ({
 export default function ColourSelectionScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  const { fromFamily, location: locationParam } = useLocalSearchParams<{ fromFamily?: string; location?: string }>();
   const { currentStudent, presetAvatars, t, language, translations } = useApp();
   const [showHelp, setShowHelp] = useState(false);
 
@@ -79,7 +80,7 @@ export default function ColourSelectionScreen() {
 
   const handleZoneSelect = (zone: 'blue' | 'green' | 'yellow' | 'red') => {
     playSelectFeedback();
-    router.push(`/student/strategies?zone=${zone}`);
+    router.push({ pathname: '/student/strategies', params: { zone, location: locationParam || '', fromFamily: fromFamily || '' } });
   };
 
   if (!currentStudent) {

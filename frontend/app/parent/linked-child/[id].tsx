@@ -278,6 +278,9 @@ export default function LinkedChildDetailScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <MaterialIcons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={[styles.backButton, { marginLeft: 4 }]}>
+            <MaterialIcons name="home" size={22} color="#333" />
+          </TouchableOpacity>
           <Image source={require('../../../assets/images/logo_coh.png')} style={styles.headerLogo} resizeMode="contain" />
           <Text style={styles.headerTitle}>{child.name}</Text>
           <View style={styles.headerBadge}>

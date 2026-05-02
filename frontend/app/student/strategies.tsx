@@ -190,11 +190,11 @@ export default function StrategiesScreen() {
       setShowCelebration(true);
       setTimeout(() => {
         setShowCelebration(false);
-        router.replace({ pathname: '/student/rewards', params: { strategiesUsed: selectedStrategies.length.toString(), hasComment: comment.trim() ? 'true' : 'false', zone } });
+        router.replace({ pathname: '/student/rewards', params: { strategiesUsed: selectedStrategies.length.toString(), hasComment: comment.trim() ? 'true' : 'false', zone, fromFamily: fromFamily || '' } });
       }, 1800);
     } catch (error) {
       console.error('Error saving:', error);
-      router.replace({ pathname: '/student/rewards', params: { strategiesUsed: '0', hasComment: 'false', zone } });
+      router.replace({ pathname: '/student/rewards', params: { strategiesUsed: '0', hasComment: 'false', zone, fromFamily: fromFamily || '' } });
     } finally {
       setSaving(false);
     }
@@ -206,7 +206,7 @@ export default function StrategiesScreen() {
     try {
       await zoneLogsApi.create({ student_id: currentStudent.id, zone, strategies_selected: [] });
     } catch (e) {}
-    router.replace({ pathname: '/student/rewards', params: { strategiesUsed: '0', hasComment: 'false', zone } });
+    router.replace({ pathname: '/student/rewards', params: { strategiesUsed: '0', hasComment: 'false', zone, fromFamily: fromFamily || '' } });
   };
 
   return (
