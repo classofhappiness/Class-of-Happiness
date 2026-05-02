@@ -61,10 +61,10 @@ const ZONE_COLORS = {
 // Use translations for zone labels
 const getZoneLabel = (zone: string, t: (key: string) => string) => {
   const labels: Record<string, string> = {
-    blue: t('blue_zone') || 'Blue Emotions',
-    green: t('green_zone') || 'Green Emotions',
-    yellow: t('yellow_zone') || 'Yellow Emotions',
-    red: t('red_zone') || 'Red Emotions',
+    blue: t('blue_zone') || t('blue_emotions') || 'Blue Emotions',
+    green: t('green_zone') || t('green_emotions') || 'Green Emotions',
+    yellow: t('yellow_zone') || t('yellow_emotions') || 'Yellow Emotions',
+    red: t('red_zone') || t('red_emotions') || 'Red Emotions',
   };
   return labels[zone] || zone;
 };
