@@ -130,7 +130,7 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 20 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 40, flexGrow: 1 },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   appTitle: { fontSize: 28, fontWeight: 'bold', color: '#5C6BC0' },
   loadingText: { fontSize: 18, color: '#666', marginTop: 20 },
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
   zonePreviewRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 6 },
   zoneFaceContainer: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 3 },
   zoneFace: { fontSize: 22 },
-  zoneTip: { fontSize: 12, color: '#555', textAlign: 'center', marginBottom: 16 },
+  zoneTip: { fontSize: 12, color: '#555', textAlign: 'center', marginBottom: 28 },
 
   // Student — hero button
   studentButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#4CAF50', borderRadius: 22, paddingVertical: 20, paddingHorizontal: 20, marginBottom: 12, elevation: 5, shadowColor: '#4CAF50', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
   trialButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#E8F5E9', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, gap: 8, borderWidth: 1, borderColor: '#4CAF50', marginBottom: 12 },
   trialButtonText: { fontSize: 13, fontWeight: '600', color: '#4CAF50' },
 
-  footerSection: { alignItems: 'center', paddingTop: 8 },
+  footerSection: { alignItems: 'center', paddingTop: 24, marginTop: 'auto' },
   copyrightText: { fontSize: 11, color: '#CCC' },
   aboutButton: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8 },
   aboutButtonText: { fontSize: 12, color: '#CCC' },
