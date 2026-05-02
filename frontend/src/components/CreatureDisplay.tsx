@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { useApp } from '../context/AppContext';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { Creature, CreatureStage } from '../utils/api';
 
@@ -96,6 +97,7 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
   animated = true,
   showGrowthIndicator = true,
 }) => {
+  const { t } = useApp();
   // Animation values
   const bounceAnim = useRef(new Animated.Value(0)).current;
   const swimAnim = useRef(new Animated.Value(0)).current;
@@ -648,7 +650,7 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
       {/* Fully Evolved Badge */}
       {stage >= 3 && (
         <View style={[styles.evolvedBadge, { backgroundColor: creature.color }]}>
-          <Text style={styles.evolvedText}>✨ Fully Evolved!</Text>
+          <Text style={styles.evolvedText}>{t('fully_evolved') || '✨ Fully Evolved!'}</Text>
         </View>
       )}
     </View>

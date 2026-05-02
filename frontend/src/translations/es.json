@@ -136,7 +136,7 @@
   "keep_it_up": "¡Sigue así!",
   "continue": "Continuar",
   "loading_creature": "Cargando tu criatura...",
-  "fully_evolved": "¡Completamente Evolucionado!",
+  "fully_evolved": "✨ ¡Completamente Evolucionado!",
   "evolved": "¡EVOLUCIONADO!",
   "moves": "Movimientos",
   "outfits": "Ropa",
@@ -444,5 +444,7 @@
   "strat_reconnect_name": "Reconectar Antes de Redirigir",
   "strat_reconnect_desc": "Después de la tormenta, reconecta con calidez primero: un abrazo, contacto visual, voz suave. Solo entonces aborda el comportamiento — con calma.",
   "strat_repair_name": "Modelar la Reparación",
-  "strat_repair_desc": "Si perdiste la calma, modela la reparación: \"Lo siento por haber levantado la voz. Intentémoslo de nuevo.\" La reparación es más poderosa que la perfección."
+  "strat_repair_desc": "Si perdiste la calma, modela la reparación: \"Lo siento por haber levantado la voz. Intentémoslo de nuevo.\" La reparación es más poderosa que la perfección.",
+  "grow_creature_hint": "¡Sigue haciendo check-ins para crecer!",
+  "current_friend": "Conoce"
 }

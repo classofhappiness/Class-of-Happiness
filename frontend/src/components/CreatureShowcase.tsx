@@ -142,7 +142,7 @@ export const CreatureShowcase: React.FC<CreatureShowcaseProps> = ({
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <Animated.View style={[styles.overlay, { opacity: fadeAnim, backgroundColor: bg }]}>
         <TouchableOpacity style={styles.skipBtn} onPress={() => { if (moveLoop.current) moveLoop.current.stop(); onClose(); }}>
-          <Text style={[styles.skipTxt, { color }]}>{t('skip') || 'Skip'} ✕</Text>
+          <Text style={[styles.skipTxt, { color }]}>✕</Text>
         </TouchableOpacity>
         <View style={styles.dots}>
           {STEPS.map((_, i) => <View key={i} style={[styles.dot, { backgroundColor: i <= step ? color : '#DDD' }]} />)}
@@ -190,8 +190,8 @@ export const CreatureShowcase: React.FC<CreatureShowcaseProps> = ({
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  skipBtn: { position: 'absolute', top: 50, right: 20, padding: 10 },
-  skipTxt: { fontSize: 16, fontWeight: 'bold' },
+  skipBtn: { position: 'absolute', top: 50, right: 20, padding: 14, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 20 },
+  skipTxt: { fontSize: 20, fontWeight: 'bold' },
   dots: { position: 'absolute', top: 55, flexDirection: 'row', gap: 8 },
   dot: { width: 10, height: 10, borderRadius: 5 },
   content: { alignItems: 'center', width: '100%' },
