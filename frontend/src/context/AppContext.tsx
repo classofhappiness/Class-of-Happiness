@@ -406,7 +406,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Load saved language on app start
   const loadSavedLanguage = async () => {
     try {
-      const savedLang = await getStorageWithTimeout('app_language', 3000);
+      const savedLang = await getStorageWithTimeout('app_language', 5000);
       if (savedLang) {
         setLanguageState(savedLang);
         await fetchTranslations(savedLang);
@@ -424,8 +424,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (translations[key]) {
       return translations[key];
     }
-    // Fallback: convert key to readable text (replace underscores with spaces, capitalize)
-    return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    // Return empty string so JSX || 'fallback' works correctly
+    // This prevents missing keys showing as capitalised key names
+    return '';
   };
 
   const checkAuth = useCallback(async () => {
@@ -439,11 +440,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const userData = await authApi.getMe();
       setUser(userData);
       setIsAuthenticated(true);
-      // Only use user's server-side language if no local preference is saved
-      const localLang = await getStorageWithTimeout('app_language', 3000);
-      if (!localLang && userData.language) {
+      // Always restore saved local language preference - never let server override it
+      const localLang = await getStorageWithTimeout('app_language', 5000);
+      if (localLang) {
+        // User has a saved language - always use it, ignore server value
+        setLanguageState(localLang);
+        await fetchTranslations(localLang);
+      } else if (userData.language && userData.language !== 'en') {
+        // No local preference and server has a non-English language set
         setLanguageState(userData.language);
         await fetchTranslations(userData.language);
+        // Save it locally so it persists
+        try { await setStorageWithTimeout('app_language', userData.language, 3000); } catch {}
       }
     } catch (error) {
       setUser(null);
