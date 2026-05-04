@@ -262,7 +262,7 @@ export default function ManageStudentsScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <MaterialIcons name="link" size={14} color={showLinkedOnly ? 'white' : '#5C6BC0'} />
             <Text style={[styles.filterChipText, showLinkedOnly && styles.filterChipTextActive]}>
-              Linked Students ({students.filter((s: any) => s.is_linked).length})
+              {t('linked_students_filter') || 'Linked Students'} ({students.filter((s: any) => s.is_linked).length})
             </Text>
           </View>
         </TouchableOpacity>
