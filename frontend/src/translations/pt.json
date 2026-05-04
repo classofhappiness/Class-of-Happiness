@@ -556,5 +556,6 @@
   "green_short_label": "Verde",
   "yellow_short_label": "Amarelo",
   "red_short_label": "Vermelho",
-  "linked_students_filter": "🔗 Alunos Ligados"
+  "linked_students_filter": "🔗 Alunos Ligados",
+  "confirm_delete_resource": "Eliminar este recurso?"
 }

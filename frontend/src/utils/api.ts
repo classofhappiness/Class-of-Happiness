@@ -682,6 +682,8 @@ export interface TeacherResourceTopic {
 
 export interface TeacherResource {
   id: string;
+  uploaded_by_me?: boolean;
+  user_id?: string;
   title: string;
   description: string;
   topic: string;

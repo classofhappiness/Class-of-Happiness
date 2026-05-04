@@ -85,7 +85,8 @@ export default function TeacherResourcesScreen() {
   const fetchResources = async () => {
     try {
       const data = await teacherResourcesApi.getAll(selectedTopic || undefined);
-      setResources(Array.isArray(data) ? data : []);
+      const userId = user?.user_id || '';
+      setResources(Array.isArray(data) ? data.map((r: any) => ({ ...r, uploaded_by_me: r.user_id === userId || r.created_by === userId })) : []);
     } catch (error) {
       console.error('Error fetching resources:', error);
       // Try without topic filter as fallback
@@ -178,7 +179,7 @@ export default function TeacherResourcesScreen() {
         title: uploadData.title,
         description: uploadData.description,
         topic: selectedTopic,
-        target_audience: 'teachers',  // Teacher uploads go to teacher tab
+        target_audience: uploadData.audience || 'teachers',
         audience: uploadData.audience || 'teachers',
       };
 
@@ -447,6 +448,30 @@ export default function TeacherResourcesScreen() {
                 </View>
                 <Text style={styles.uploadedBy}>
                   {t('by') || 'By'} {resource.created_by_name || (t('teacher') || 'Teacher')}
+                  {resource.uploaded_by_me && (
+                    <TouchableOpacity
+                      onPress={async () => {
+                        Alert.alert(
+                          t('delete') || 'Delete',
+                          t('confirm_delete_resource') || 'Delete this resource?',
+                          [
+                            { text: t('cancel') || 'Cancel', style: 'cancel' },
+                            { text: t('delete') || 'Delete', style: 'destructive', onPress: async () => {
+                              try {
+                                await teacherResourcesApi.delete(resource.id);
+                                await fetchResources();
+                              } catch (e) {
+                                Alert.alert(t('error') || 'Error', 'Could not delete resource');
+                              }
+                            }}
+                          ]
+                        );
+                      }}
+                      style={{ marginTop: 4 }}
+                    >
+                      <Text style={{ fontSize: 12, color: '#F44336', fontWeight: '600' }}>🗑️ {t('delete') || 'Delete'}</Text>
+                    </TouchableOpacity>
+                  )}
                 </Text>
               </View>
               <MaterialIcons name="chevron-right" size={24} color="#CCC" />
