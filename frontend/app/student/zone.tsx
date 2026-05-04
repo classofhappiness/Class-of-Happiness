@@ -194,8 +194,8 @@ const styles = StyleSheet.create({
   content: { padding: 12, paddingBottom: 32 },
   greetingRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', padding: 10, borderRadius: 14, marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
   greetingText: { flex: 1, marginLeft: 10 },
-  greetingHi: { fontSize: 15, fontWeight: 'bold', color: '#333' },
-  greetingSub: { fontSize: 12, color: '#888', marginTop: 1 },
+  greetingHi: { fontSize: 18, fontWeight: '700', color: '#333' },
+  greetingSub: { fontSize: 13, color: '#555', marginTop: 2 },
 
   // Full-width stacked buttons
   zonesStack: { gap: 10 },
