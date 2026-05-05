@@ -732,6 +732,20 @@ export default function ParentDashboard() {
           </ScrollView>
         </View>
 
+        {/* My Wellness */}
+        <TouchableOpacity
+          style={styles.wellnessButton}
+          onPress={() => router.push('/parent/my-wellness' as any)}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.wellnessIcon}>🔒</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.wellnessTitle}>{t('my_wellness') || 'My Wellness'}</Text>
+            <Text style={styles.wellnessSub}>{t('wellness_pin_desc') || 'Private. Just for you.'}</Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={24} color="#5C6BC0" />
+        </TouchableOpacity>
+
         {/* Linked Children from School */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -1327,6 +1341,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
   },
+  wellnessButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', borderRadius: 16, padding: 16, marginHorizontal: 16, marginBottom: 12, shadowColor: '#5C6BC0', shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 3, borderWidth: 1, borderColor: '#E8EAF6', gap: 12 },
+  wellnessIcon: { fontSize: 28 },
+  wellnessTitle: { fontSize: 16, fontWeight: '700', color: '#5C6BC0' },
+  wellnessSub: { fontSize: 12, color: '#999', marginTop: 2 },
   addButton: {
     backgroundColor: '#4A90D9',
     width: 32,
