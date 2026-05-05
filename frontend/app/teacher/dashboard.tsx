@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
   snapshotItem: { alignItems: 'center', flex: 1 },
   snapshotDot: { width: 14, height: 14, borderRadius: 7, marginBottom: 4 },
   snapshotZoneText: { fontSize: 10, color: '#666', textAlign: 'center', flexWrap: 'wrap' },
-  snapshotValue: { fontSize: 18, fontWeight: '700', color: '#333', marginTop: 2 },
+  snapshotValue: { fontSize: 18, fontWeight: '700', color: '#333', marginTop: 2, textAlign: 'center', width: '100%' },
   actionText: { fontSize: 11, color: '#666', marginTop: 8, textAlign: 'center' },
   actionCount: { fontSize: 20, fontWeight: 'bold', color: '#333', marginTop: 4 },
   resourcesButton: {

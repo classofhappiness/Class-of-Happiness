@@ -140,8 +140,8 @@ const styles = StyleSheet.create({
   loginButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, gap: 6, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
   loginButtonText: { fontSize: 14, fontWeight: '600', color: '#5C6BC0' },
 
-  logoContainer: { alignItems: 'center', marginBottom: 4 },
-  mainLogo: { width: 130, height: 130 },
+  logoContainer: { alignItems: 'center', marginBottom: 4, marginTop: -10 },
+  mainLogo: { width: 140, height: 150 },
 
   subtitle: { fontSize: 16, color: '#333', textAlign: 'center', marginBottom: 12, fontWeight: '500' },
 
