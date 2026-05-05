@@ -4,7 +4,7 @@ import {
   Text,
   StyleSheet,
   SafeAreaView,
-  ScrollView,
+  ScrollView, KeyboardAvoidingView, Platform,
   TouchableOpacity,
   RefreshControl,
   Modal,
@@ -152,6 +152,7 @@ export default function ParentStrategiesScreen() {
   const zoneConfig = ZONES.find(z => z.id === selectedZone)!;
 
   return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <SafeAreaView style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -350,6 +351,7 @@ export default function ParentStrategiesScreen() {
         </View>
       </Modal>
     </SafeAreaView>
+  </KeyboardAvoidingView>
   );
 }
 

@@ -4,7 +4,7 @@ import {
   Text,
   StyleSheet,
   SafeAreaView,
-  ScrollView,
+  ScrollView, KeyboardAvoidingView,
   TouchableOpacity,
   RefreshControl,
   Modal,
@@ -343,6 +343,7 @@ export default function TeacherResourcesScreen() {
   const currentTopic = TOPICS.find(t => t.id === selectedTopic);
 
   return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <SafeAreaView style={styles.container}>
       {/* Header with back button */}
       <View style={styles.resourcesTopBar}>
@@ -732,6 +733,7 @@ export default function TeacherResourcesScreen() {
         </View>
       </Modal>
     </SafeAreaView>
+  </KeyboardAvoidingView>
   );
 }
 

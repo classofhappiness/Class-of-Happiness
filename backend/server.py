@@ -19,7 +19,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.platypus import KeepTogether, SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.graphics.shapes import Drawing
 from reportlab.graphics.charts.barcharts import VerticalBarChart
 
@@ -3045,8 +3045,17 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     # ════════════════════════════════════════════════════════
     # HEADER BANNER
     # ════════════════════════════════════════════════════════
+    # Try to load COH logo image
+    logo_path = os.path.join(os.path.dirname(__file__), 'assets', 'logo_coh.png')
+    try:
+        from reportlab.platypus import Image as RLImage
+        coh_logo = RLImage(logo_path, width=48, height=48)
+        logo_cell = coh_logo
+    except Exception:
+        logo_cell = Paragraph("🌈 Class of Happiness", ST_LOGO)
+
     header_data = [[
-        Paragraph("🌈 Class of Happiness", ST_LOGO),
+        Table([[logo_cell, Paragraph("Class of Happiness", ST_LOGO)]], colWidths=[56, 220]),
         Paragraph(
             f"<b>Emotional Wellbeing Report</b><br/>{month_name}",
             s('HRight', fontSize=11, textColor=WHITE, fontName='Helvetica-Bold',
@@ -3084,7 +3093,8 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     # ════════════════════════════════════════════════════════
     # ROW 1: Zone distribution (visual bars) + Zone table side by side
     # ════════════════════════════════════════════════════════
-    elements.append(Paragraph("Emotion Zone Distribution", ST_H2))
+    # Section 1 wrapped to prevent page splits
+    section1_elements = [Paragraph("Emotion Zone Distribution", ST_H2)]
 
     # Build visual bar chart using ReportLab Drawing
     from reportlab.graphics.shapes import Drawing, Rect, String
@@ -3174,13 +3184,13 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         ('LEFTPADDING',  (1,0), (1,0), 10),
         ('RIGHTPADDING', (0,0), (0,0), 10),
     ]))
-    elements.append(dist_row)
-    elements.append(Spacer(1, 12))
+    section1_elements.extend([dist_row, Spacer(1, 12)])
+    elements.append(KeepTogether(section1_elements))
 
     # ════════════════════════════════════════════════════════
     # ROW 2: Calendar heatmap
     # ════════════════════════════════════════════════════════
-    elements.append(Paragraph("Monthly Calendar", ST_H2))
+    section2_elements = [Paragraph("Monthly Calendar", ST_H2)]
 
     # Build 7-col calendar grid
     import calendar as cal_mod
@@ -3256,7 +3266,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         row_idx += 1
 
     cal_tbl.setStyle(TableStyle(cal_style))
-    elements.append(cal_tbl)
+    section2_elements.append(cal_tbl)
 
     # Legend
     legend_items = [[
@@ -3267,13 +3277,13 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     ] + [Paragraph("□ No check-in", ST_SMALL)]]
     legend_tbl = Table(legend_items, colWidths=[(PAGE_W - 72) / 5] * 5)
     legend_tbl.setStyle(TableStyle([('PADDING', (0,0), (-1,-1), 3)]))
-    elements.append(legend_tbl)
-    elements.append(Spacer(1, 12))
+    section2_elements.extend([legend_tbl, Spacer(1, 12)])
+    elements.append(KeepTogether(section2_elements))
 
     # ════════════════════════════════════════════════════════
     # ROW 3: Strategies + Day-of-week side by side
     # ════════════════════════════════════════════════════════
-    elements.append(Paragraph("Coping Strategies Used", ST_H2))
+    section3_elements = [Paragraph("Coping Strategies Used", ST_H2)]
 
     if helper_counts:
         top_helpers = sorted(helper_counts.items(), key=lambda x: x[1], reverse=True)[:8]
@@ -3332,8 +3342,8 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         ('VALIGN',       (0,0), (-1,-1), 'TOP'),
         ('LEFTPADDING',  (1,0), (1,0), 12),
     ]))
-    elements.append(strat_week_row)
-    elements.append(Spacer(1, 12))
+    section3_elements.extend([strat_week_row, Spacer(1, 12)])
+    elements.append(KeepTogether(section3_elements))
 
     # ════════════════════════════════════════════════════════
     # Check-in log (compact, with comments)
@@ -4028,7 +4038,7 @@ async def create_teacher_resource(request: Request):
     if not title:
         raise HTTPException(status_code=400, detail="Title is required")
     topic = body.get("topic") or body.get("category") or "general"
-    audience = body.get("audience") or "teachers"
+    audience = body.get("target_audience") or body.get("audience") or "teachers"
     content = body.get("content") or ""
     if len(content) > 4000000:
         raise HTTPException(status_code=413, detail="File too large. Please use a PDF under 2MB.")

@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
-  ScrollView, Alert, TextInput, Modal,
+  ScrollView, KeyboardAvoidingView, Platform, Alert, TextInput, Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useNavigation } from 'expo-router';
@@ -281,6 +281,7 @@ export default function TeacherCheckInScreen() {
   const zoneConfig = selectedZone ? ZONES.find(z => z.id === selectedZone) : null;
 
   return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
@@ -517,6 +518,7 @@ export default function TeacherCheckInScreen() {
         </View>
       </Modal>
     </SafeAreaView>
+  </KeyboardAvoidingView>
   );
 }
 

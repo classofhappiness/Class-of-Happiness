@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView,
+  View, Text, StyleSheet, SafeAreaView, ScrollView, KeyboardAvoidingView, Platform,
   TouchableOpacity, RefreshControl, Modal, TextInput, Alert, Switch,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -188,6 +188,7 @@ export default function FamilyStrategiesScreen() {
     : FAMILY_STRATEGIES;
 
   return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -531,6 +532,7 @@ export default function FamilyStrategiesScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
+  </KeyboardAvoidingView>
   );
 }
 

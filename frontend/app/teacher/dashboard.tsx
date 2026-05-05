@@ -314,7 +314,7 @@ export default function TeacherDashboardScreen() {
                 isAnimated
                 barBorderRadius={8}
                 width={width - 80}
-                xAxisLabelTextStyle={{ fontSize: 11, color: '#666' }}
+                xAxisLabelTextStyle={{ fontSize: 9, color: '#666', width: 50, textAlign: 'center' }}
               />
               {/* ✅ Fixed: Translated colour legend below chart */}
               <View style={styles.chartLegend}>
