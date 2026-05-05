@@ -171,8 +171,13 @@ export default function TeacherDashboardScreen() {
 
   // Translated zone labels for chart
   const getZoneLabel = (zone: string) => {
+    const short: Record<string,string> = { blue: '😢', green: '😊', yellow: '😟', red: '😣' };
     const key = `${zone}_label`;
     return t(key) || (zone.charAt(0).toUpperCase() + zone.slice(1));
+  };
+  const getZoneShort = (zone: string) => {
+    const short: Record<string,string> = { blue: '😢', green: '😊', yellow: '😟', red: '😣' };
+    return short[zone] || zone;
   };
 
   const chartData = analytics ? [
@@ -479,7 +484,7 @@ const styles = StyleSheet.create({
   snapshotRow: { flexDirection: 'row', justifyContent: 'space-between' },
   snapshotItem: { alignItems: 'center', flex: 1 },
   snapshotDot: { width: 14, height: 14, borderRadius: 7, marginBottom: 4 },
-  snapshotZoneText: { fontSize: 11, color: '#666', textTransform: 'capitalize' },
+  snapshotZoneText: { fontSize: 10, color: '#666', textAlign: 'center', flexWrap: 'wrap' },
   snapshotValue: { fontSize: 18, fontWeight: '700', color: '#333', marginTop: 2 },
   actionText: { fontSize: 11, color: '#666', marginTop: 8, textAlign: 'center' },
   actionCount: { fontSize: 20, fontWeight: 'bold', color: '#333', marginTop: 4 },
