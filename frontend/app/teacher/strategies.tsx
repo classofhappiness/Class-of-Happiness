@@ -392,6 +392,7 @@ export default function ManageStrategiesScreen() {
         <KeyboardAvoidingView 
           style={styles.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={60}
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
@@ -567,7 +568,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  scrollContent: {
+  scrollContent: { paddingHorizontal: 16,
     padding: 16,
     paddingBottom: 40,
   },
