@@ -3696,31 +3696,39 @@ async def send_help_request(request: Request):
     except Exception as e:
         logger.error(f"Could not store help request alert: {e}")
 
-    # Find teacher's push token
+    # Context: 'school' = teacher only, 'home' = family only, None = both
+    context = body.get("context", None)  # None means legacy — notify both (safe default)
+
+    # IMPORTANT: School and home are separate notification contexts.
+    # A red check-in at school should NOT panic a parent at work.
+    # A home check-in should NOT involve the school.
     tokens_to_notify = []
-    try:
-        teacher_r = supabase.table("users").select("push_token").eq("user_id", student.get("teacher_id", "")).execute()
-        if teacher_r.data and teacher_r.data[0].get("push_token"):
-            tokens_to_notify.append(("teacher", teacher_r.data[0]["push_token"]))
-    except: pass
 
-    # Find parent push tokens
-    try:
-        parent_links = supabase.table("parent_links").select("parent_id").eq("student_id", student_id).execute()
-        for link in (parent_links.data or []):
-            parent_r = supabase.table("users").select("push_token").eq("user_id", link["parent_id"]).execute()
-            if parent_r.data and parent_r.data[0].get("push_token"):
-                tokens_to_notify.append(("parent", parent_r.data[0]["push_token"]))
-    except: pass
+    # Teacher tokens — only for school context
+    if context != 'home':
+        try:
+            teacher_r = supabase.table("users").select("push_token").eq("user_id", student.get("teacher_id", "")).execute()
+            if teacher_r.data and teacher_r.data[0].get("push_token"):
+                tokens_to_notify.append(("teacher", teacher_r.data[0]["push_token"]))
+        except: pass
 
-    # Also check family_members links
-    try:
-        fm_links = supabase.table("family_members").select("*").eq("student_id", student_id).execute()
-        for fm in (fm_links.data or []):
-            parent_r = supabase.table("users").select("push_token").eq("user_id", fm.get("user_id","")).execute()
-            if parent_r.data and parent_r.data[0].get("push_token"):
-                tokens_to_notify.append(("parent", parent_r.data[0]["push_token"]))
-    except: pass
+    # Parent/family tokens — only for home context
+    if context != 'school':
+        try:
+            parent_links = supabase.table("parent_links").select("parent_id").eq("student_id", student_id).execute()
+            for link in (parent_links.data or []):
+                parent_r = supabase.table("users").select("push_token").eq("user_id", link["parent_id"]).execute()
+                if parent_r.data and parent_r.data[0].get("push_token"):
+                    tokens_to_notify.append(("parent", parent_r.data[0]["push_token"]))
+        except: pass
+
+        try:
+            fm_links = supabase.table("family_members").select("*").eq("student_id", student_id).execute()
+            for fm in (fm_links.data or []):
+                parent_r = supabase.table("users").select("push_token").eq("user_id", fm.get("user_id","")).execute()
+                if parent_r.data and parent_r.data[0].get("push_token"):
+                    tokens_to_notify.append(("parent", parent_r.data[0]["push_token"]))
+        except: pass
 
     # Send Expo push notifications
     zone_emoji = {"blue": "🔵", "green": "🟢", "yellow": "🟡", "red": "🔴"}.get(zone, "💙")
@@ -3812,26 +3820,31 @@ async def send_zone_alert(request: Request):
     student = student_r.data[0]
     student_name = student.get("name", "A student")
 
-    # Check teacher notification settings for this student
+    # Context boundary — school check-ins don't notify parents, home don't notify teachers
+    context = body.get("context", None)
     tokens_to_notify = []
-    try:
-        teacher_id = student.get("teacher_id")
-        if teacher_id:
-            setting_r = supabase.table("admin_settings").select("setting_value").eq("school_admin_id", teacher_id).eq("setting_key", f"notif_student_{student_id}").execute()
-            if setting_r.data:
-                import json as _json
-                settings = _json.loads(setting_r.data[0]["setting_value"])
-                watched_zones = settings.get("zone_alerts", [])
-                if zone in watched_zones and settings.get("enabled", False):
-                    teacher_token_r = supabase.table("users").select("push_token").eq("user_id", teacher_id).execute()
-                    if teacher_token_r.data and teacher_token_r.data[0].get("push_token"):
-                        tokens_to_notify.append(teacher_token_r.data[0]["push_token"])
-    except Exception as e:
-        logger.error(f"Zone alert teacher check error: {e}")
 
-    # Check parent notification settings
-    try:
-        parent_links = supabase.table("parent_links").select("parent_id").eq("student_id", student_id).execute()
+    # Teacher — school context only
+    if context != 'home':
+        try:
+            teacher_id = student.get("teacher_id")
+            if teacher_id:
+                setting_r = supabase.table("admin_settings").select("setting_value").eq("school_admin_id", teacher_id).eq("setting_key", f"notif_student_{student_id}").execute()
+                if setting_r.data:
+                    import json as _json
+                    settings = _json.loads(setting_r.data[0]["setting_value"])
+                    watched_zones = settings.get("zone_alerts", [])
+                    if zone in watched_zones and settings.get("enabled", False):
+                        teacher_token_r = supabase.table("users").select("push_token").eq("user_id", teacher_id).execute()
+                        if teacher_token_r.data and teacher_token_r.data[0].get("push_token"):
+                            tokens_to_notify.append(teacher_token_r.data[0]["push_token"])
+        except Exception as e:
+            logger.error(f"Zone alert teacher check error: {e}")
+
+    # Parents — home context only
+    if context != 'school':
+        try:
+            parent_links = supabase.table("parent_links").select("parent_id").eq("student_id", student_id).execute()
         for link in (parent_links.data or []):
             parent_id = link["parent_id"]
             setting_r = supabase.table("admin_settings").select("setting_value").eq("school_admin_id", parent_id).eq("setting_key", f"notif_student_{student_id}").execute()

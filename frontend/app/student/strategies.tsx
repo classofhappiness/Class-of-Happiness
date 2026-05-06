@@ -188,6 +188,7 @@ export default function StrategiesScreen() {
       strategy_id: strategyId,
       strategy_name: strategyName,
       zone: zone || '',
+      context: checkInLocation === 'home' ? 'home' : 'school', // school → teacher only, home → family only
     });
     if (result.shield_awarded) {
       setShieldJustAwarded(true);
@@ -220,7 +221,11 @@ export default function StrategiesScreen() {
       });
       // Fire zone alert silently (teacher/parent notified if they enabled it)
       if (currentStudent?.id && zone) {
-        sendZoneAlert({ student_id: currentStudent.id, zone }).catch(() => {});
+        sendZoneAlert({
+          student_id: currentStudent.id,
+          zone,
+          context: checkInLocation === 'home' ? 'home' : 'school',
+        }).catch(() => {});
       }
       setShowCelebration(true);
       setTimeout(() => {
@@ -322,7 +327,8 @@ export default function StrategiesScreen() {
               </View>
             ))
           )}
-          {/* 💌 Message to parent */}
+          {/* 💌 Message to parent — only shown in home/family context */}
+          {checkInLocation === 'home' && (
           <TouchableOpacity
             style={styles.parentMsgToggle}
             onPress={() => setParentMessageVisible(!parentMessageVisible)}
@@ -331,7 +337,8 @@ export default function StrategiesScreen() {
             <Text style={styles.parentMsgLabel}>{t('message_parent') || 'Send message to parent'}</Text>
             <MaterialIcons name={parentMessageVisible ? 'expand-less' : 'expand-more'} size={20} color="#CCC" />
           </TouchableOpacity>
-          {parentMessageVisible && (
+          )}
+          {parentMessageVisible && checkInLocation === 'home' && (
             <View style={styles.parentMsgBox}>
               <TextInput
                 style={[styles.commentInput, { borderColor: '#5C6BC0', marginBottom: 8 }]}

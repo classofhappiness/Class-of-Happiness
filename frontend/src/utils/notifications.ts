@@ -59,6 +59,7 @@ export async function sendHelpRequest(params: {
   strategy_name: string;
   zone: string;
   message?: string;
+  context?: 'school' | 'home'; // school = teacher only, home = family only
 }): Promise<{ ok: boolean; shield_awarded: boolean }> {
   try {
     const token = await AsyncStorage.getItem('session_token');
@@ -77,6 +78,7 @@ export async function sendZoneAlert(params: {
   student_id: string;
   zone: string;
   log_id?: string;
+  context?: 'school' | 'home'; // school = teacher only, home = family only
 }): Promise<void> {
   try {
     const token = await AsyncStorage.getItem('session_token');
