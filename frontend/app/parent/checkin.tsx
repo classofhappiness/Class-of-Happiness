@@ -91,6 +91,7 @@ const PARENT_STRATEGIES: Record<string, Array<{id:string; name:string; descripti
 
 export default function FamilyCheckInScreen() {
   const router = useRouter();
+  const [checkedIn, setCheckedIn] = useState(false);
   const { memberId, memberName, studentId, relationship } = useLocalSearchParams<{ memberId: string; memberName: string; studentId?: string; relationship?: string }>();
   const memberRelationship = (relationship as string) || 'adult';
   const { t, language, currentStudent, students } = useApp();
@@ -251,12 +252,8 @@ export default function FamilyCheckInScreen() {
         throw new Error(errData.detail || 'Could not save check-in');
       }
       
-      // Family/adult check-ins: no creature reward, just go back with a success message
-      Alert.alert(
-        t('checkin_saved') || 'Check-in Saved! ✅',
-        t('checkin_saved_message') || 'Great job checking in today!',
-        [{ text: t('done') || 'Done', onPress: () => router.back() }]
-      );
+      // Family/adult check-ins: show success state with wellbeing button
+      setCheckedIn(true);
     } catch (error: any) {
       const errorMessage = error.message || 'Failed to save check-in';
       // Give a friendlier message if family member not found
@@ -275,6 +272,41 @@ export default function FamilyCheckInScreen() {
   };
 
   const zoneConfig = selectedZone ? getZones(t).find(z => z.id === selectedZone) : null;
+
+  if (checkedIn) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <Text style={{ fontSize: 60, marginBottom: 16 }}>✅</Text>
+          <Text style={{ fontSize: 22, fontWeight: '800', color: '#333', marginBottom: 8, textAlign: 'center' }}>
+            {t('checkin_complete') || 'Check-in saved ✅'}
+          </Text>
+          <Text style={{ fontSize: 15, color: '#888', textAlign: 'center', marginBottom: 40 }}>
+            {memberName}
+          </Text>
+
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#5C6BC0', borderRadius: 16, padding: 18, gap: 12, width: '100%', marginBottom: 14 }}
+            onPress={() => router.push({ pathname: '/parent/my-wellbeing' as any, params: { memberId, memberName } })}
+          >
+            <Text style={{ fontSize: 24 }}>🔒</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: 'white' }}>{t('view_my_wellbeing') || 'View My Wellbeing'}</Text>
+              <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>{t('wellbeing_pin_desc') || 'Private. Just for you.'}</Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={24} color="white" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={{ padding: 16 }}
+            onPress={() => router.back()}
+          >
+            <Text style={{ fontSize: 15, color: '#5C6BC0', fontWeight: '600' }}>{t('done') || 'Done'}</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>

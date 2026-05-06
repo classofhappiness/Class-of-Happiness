@@ -732,20 +732,6 @@ export default function ParentDashboard() {
           </ScrollView>
         </View>
 
-        {/* My Wellness */}
-        <TouchableOpacity
-          style={styles.wellnessButton}
-          onPress={() => router.push('/parent/my-wellness' as any)}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.wellnessIcon}>🔒</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.wellnessTitle}>{t('my_wellness') || 'My Wellness'}</Text>
-            <Text style={styles.wellnessSub}>{t('wellness_pin_desc') || 'Private. Just for you.'}</Text>
-          </View>
-          <MaterialIcons name="chevron-right" size={24} color="#5C6BC0" />
-        </TouchableOpacity>
-
         {/* Linked Children from School */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
