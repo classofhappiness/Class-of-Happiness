@@ -711,8 +711,13 @@ export const teacherResourcesApi = {
   getTopics: (): Promise<TeacherResourceTopic[]> =>
     apiRequest('/teacher-resources/topics'),
   
-  getAll: (topic?: string): Promise<TeacherResource[]> =>
-    apiRequest(topic ? `/teacher-resources?topic=${topic}` : '/teacher-resources'),
+  getAll: (topic?: string, audience?: string): Promise<TeacherResource[]> => {
+    const params = new URLSearchParams();
+    if (topic) params.append('topic', topic);
+    if (audience) params.append('audience', audience);
+    const qs = params.toString();
+    return apiRequest(qs ? `/teacher-resources?${qs}` : '/teacher-resources');
+  },
   
   get: (id: string): Promise<TeacherResource> =>
     apiRequest(`/teacher-resources/${id}`),

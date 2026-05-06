@@ -84,14 +84,14 @@ export default function TeacherResourcesScreen() {
 
   const fetchResources = async () => {
     try {
-      const data = await teacherResourcesApi.getAll(selectedTopic || undefined);
+      const data = await teacherResourcesApi.getAll(selectedTopic || undefined, 'teachers');
       const userId = user?.user_id || '';
       setResources(Array.isArray(data) ? data.map((r: any) => ({ ...r, uploaded_by_me: r.user_id === userId || r.created_by === userId })) : []);
     } catch (error) {
       console.error('Error fetching resources:', error);
       // Try without topic filter as fallback
       try {
-        const fallback = await teacherResourcesApi.getAll();
+        const fallback = await teacherResourcesApi.getAll(undefined, 'teachers');
         setResources(Array.isArray(fallback) ? fallback : []);
       } catch { setResources([]); }
     } finally {
