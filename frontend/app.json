@@ -18,7 +18,10 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryAddUsageDescription": "Save photos from Class of Happiness"
       },
-      "buildNumber": "9"
+      "buildNumber": "9",
+      "entitlements": {
+        "aps-environment": "production"
+      }
     },
     "android": {
       "package": "com.classofhappiness.app",
@@ -57,6 +60,15 @@
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos for avatars and strategies.",
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for profile photos."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/logo_coh.png",
+          "color": "#5C6BC0",
+          "defaultChannel": "default",
+          "sounds": []
+        }
       ]
     ],
     "experiments": {
@@ -68,6 +80,12 @@
         "projectId": "671f7f5a-f522-4a75-8d37-5d7113e2c5bb"
       }
     },
-    "owner": "jwacarey"
+    "owner": "jwacarey",
+    "notification": {
+      "icon": "./assets/images/logo_coh.png",
+      "color": "#5C6BC0",
+      "androidMode": "default",
+      "androidCollapsedTitle": "Class of Happiness"
+    }
   }
 }
