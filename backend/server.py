@@ -4642,12 +4642,26 @@ async def generate_school_invite_code(request: Request):
         "max_uses": 999,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
+    stored = False
     try:
         supabase.table("invite_codes").insert(invite_data).execute()
+        stored = True
     except Exception as e:
-        logger.error(f"Could not store invite code: {e}")
-    
-    return {"code": code, "expires_at": expires_at, "school_name": invite_data["school_name"]}
+        logger.error(f"Could not store invite code in invite_codes table: {e}")
+        # Fallback: store in admin_settings as key-value so join still works
+        try:
+            import json
+            supabase.table("admin_settings").insert({
+                "school_admin_id": user["user_id"],
+                "setting_key": f"invite_code_{code}",
+                "setting_value": json.dumps(invite_data),
+            }).execute()
+            stored = True
+            logger.info(f"Invite code stored in admin_settings fallback")
+        except Exception as e2:
+            logger.error(f"Fallback storage also failed: {e2}")
+
+    return {"code": code, "expires_at": expires_at, "school_name": invite_data["school_name"], "stored": stored}
 
 @api_router.post("/school/join")
 async def join_school_with_invite(request: Request):
@@ -4662,6 +4676,16 @@ async def join_school_with_invite(request: Request):
     
     try:
         result = supabase.table("invite_codes").select("*").eq("code", code).execute()
+        # Fallback: check admin_settings if invite_codes table is empty/missing
+        if not result.data:
+            try:
+                import json
+                fb = supabase.table("admin_settings").select("*").eq("setting_key", f"invite_code_{code}").execute()
+                if fb.data:
+                    result_data = json.loads(fb.data[0]["setting_value"])
+                    result = type('R', (), {'data': [result_data]})()
+            except Exception as fb_err:
+                logger.error(f"Fallback invite lookup failed: {fb_err}")
         if not result.data:
             raise HTTPException(status_code=404, detail="Invalid invite code. Check the code and try again.")
         invite = result.data[0]
