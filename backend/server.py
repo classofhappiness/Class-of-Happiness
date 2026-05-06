@@ -4153,9 +4153,25 @@ async def get_admin_stats(request: Request, days: int = 7):
             log.get("timestamp","") or log.get("created_at","")
         ).startswith(today_str))
 
-        # Teacher check-ins — from feeling_logs where student_id is null (teacher self check-ins)
+        # Teacher check-ins — from teacher_checkins table + feeling_logs with no student_id
         teacher_zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
         teacher_daily = [0] * 7
+        try:
+            # Try teacher_checkins table first
+            tc_r = supabase.table("teacher_checkins").select("*").gte("created_at", week_ago).execute()
+            for tc in (tc_r.data or []):
+                tz = tc.get("zone") or tc.get("feeling_colour", "")
+                if tz in teacher_zone_counts:
+                    teacher_zone_counts[tz] += 1
+                try:
+                    ts2 = tc.get("created_at","")
+                    if ts2:
+                        tdate = datetime.fromisoformat(ts2.replace("Z","+00:00")).date()
+                        d_ago = (today - tdate).days
+                        if 0 <= d_ago < 7:
+                            teacher_daily[6 - d_ago] += 1
+                except: pass
+        except: pass
         try:
             teacher_logs_r = supabase.table("feeling_logs").select("*").is_("student_id", "null").gte("timestamp", week_ago).execute()
             teacher_logs = teacher_logs_r.data or []
@@ -4264,11 +4280,19 @@ async def get_admin_stats(request: Request, days: int = 7):
             schools_breakdown = []
             total_schools = 0
 
+        # Build classroom name lookup
+        classroom_name_map = {}
+        try:
+            classrooms_r = supabase.table("classrooms").select("id,name").execute()
+            classroom_name_map = {c["id"]: c["name"] for c in (classrooms_r.data or [])}
+        except: pass
+
         return {
             "total_students": total_students,
             "total_teachers": total_teachers,
             "total_users": total_users,
             "total_schools": total_schools,
+            "classroom_names": classroom_name_map,
             "total_checkins": len(logs),
             "checkins_today": checkins_today,
             "active_users": min(total_students + total_teachers, len(set(l.get("student_id","") for l in logs))),
@@ -4785,7 +4809,13 @@ async def delete_teacher_resource(resource_id: str, request: Request):
     if not existing.data:
         raise HTTPException(status_code=404, detail="Resource not found")
     resource = existing.data[0]
-    if user.get("role") != "admin" and resource.get("user_id") != user.get("user_id"):
+    # Check ownership via created_by OR user_id (backwards compat) OR admin role
+    is_owner = (
+        resource.get("created_by") == user.get("user_id") or
+        resource.get("user_id") == user.get("user_id")
+    )
+    is_admin = user.get("role") in ["admin", "superadmin", "school_admin"]
+    if not is_owner and not is_admin:
         raise HTTPException(status_code=403, detail="Not allowed")
     supabase.table("resources").delete().eq("id", resource_id).execute()
     return {"message": "Resource deleted"}
