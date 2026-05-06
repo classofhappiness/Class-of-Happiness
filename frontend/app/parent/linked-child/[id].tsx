@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import {
   View,
   Image,
@@ -55,6 +56,8 @@ const resolveStrategyName = (id: string) =>
 
 export default function LinkedChildDetailScreen() {
   const router = useRouter();
+  const navigation = useNavigation() as any;
+  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useApp();
   

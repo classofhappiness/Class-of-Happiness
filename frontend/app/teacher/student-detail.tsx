@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import { 
   View, 
   Text, 
@@ -77,6 +78,8 @@ const MONTH_NAMES = [
 
 export default function StudentDetailScreen() {
   const router = useRouter();
+  const navigation = useNavigation() as any;
+  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
   const { students, presetAvatars, classrooms, t, language } = useApp();
   

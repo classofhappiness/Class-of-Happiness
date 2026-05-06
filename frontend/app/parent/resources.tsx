@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -33,6 +34,8 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 export default function ResourcesScreen() {
   const router = useRouter();
+  const navigation = useNavigation() as any;
+  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { t, isAuthenticated } = useApp();
   const [resources, setResources] = useState<Resource[]>([]);
   // Parent-targeted teacher resources (audience=parents or both)

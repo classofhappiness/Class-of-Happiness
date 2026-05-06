@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, Alert, ActivityIndicator, Platform,
@@ -24,6 +25,8 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 export default function BulkCheckinScreen() {
   const router = useRouter();
+  const navigation = useNavigation() as any;
+  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { classroomId, classroomName } = useLocalSearchParams<{ classroomId: string; classroomName: string }>();
   const { students, presetAvatars, t, language } = useApp();
 

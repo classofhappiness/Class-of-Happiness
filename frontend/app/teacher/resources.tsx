@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -31,6 +32,8 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 export default function TeacherResourcesScreen() {
   const router = useRouter();
+  const navigation = useNavigation() as any;
+  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { user, t } = useApp();
   
   const TOPICS = [

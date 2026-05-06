@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -35,6 +36,8 @@ const ZONE_CONFIG: Record<string, { color: string; emoji: string; labelKey: stri
 
 export default function TeacherWidgetScreen() {
   const router = useRouter();
+  const navigation = useNavigation() as any;
+  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { user, t } = useApp();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);

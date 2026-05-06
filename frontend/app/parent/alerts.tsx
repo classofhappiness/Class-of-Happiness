@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, RefreshControl,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -23,6 +24,8 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default function ParentAlertsScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
+  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { t } = useApp();
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

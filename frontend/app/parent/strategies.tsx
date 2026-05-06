@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -18,6 +19,8 @@ import { customStrategiesApi, strategiesApi, CustomStrategy, Strategy } from '..
 
 export default function ParentStrategiesScreen() {
   const router = useRouter();
+  const navigation = useNavigation() as any;
+  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
   const { user, students, presetAvatars, t, language } = useApp();
   

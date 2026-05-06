@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, KeyboardAvoidingView, Platform,
   TouchableOpacity, RefreshControl, Modal, TextInput, Alert, Switch,
@@ -73,6 +74,8 @@ const FAMILY_STRATEGIES = [
 
 export default function FamilyStrategiesScreen() {
   const router = useRouter();
+  const navigation = useNavigation() as any;
+  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { t, user } = useApp();
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
   const [expandedStrategy, setExpandedStrategy] = useState<string | null>(null);

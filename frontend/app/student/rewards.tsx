@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import { 
   View, 
   Text, 
@@ -20,6 +21,8 @@ import { playButtonFeedback, playRewardFeedback, playEvolutionSound, preloadSoun
 
 export default function RewardsScreen() {
   const router = useRouter();
+  const navigation = useNavigation() as any;
+  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { currentStudent, t } = useApp();
   const params = useLocalSearchParams<{ 
     strategiesUsed?: string; 

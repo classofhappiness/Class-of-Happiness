@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
   TextInput, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -28,6 +29,8 @@ type RangeKey = '7' | '14' | '30';
 
 export default function MyWellbeingScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
+  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { t } = useApp();
   const { memberId, memberName } = useLocalSearchParams<{ memberId: string; memberName: string }>();
 

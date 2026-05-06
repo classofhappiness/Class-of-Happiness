@@ -2,6 +2,7 @@
 // Shows all creatures a student has unlocked, with locked ones shown greyed out
 
 import React, { useEffect, useState } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -36,6 +37,8 @@ export default function CreatureCollectionScreen({ studentId, authToken, onBack 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const navigation = useNavigation() as any;
+  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { t } = useApp();
 
   useEffect(() => {

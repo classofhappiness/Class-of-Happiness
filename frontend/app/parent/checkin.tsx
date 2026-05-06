@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -91,6 +92,8 @@ const PARENT_STRATEGIES: Record<string, Array<{id:string; name:string; descripti
 
 export default function FamilyCheckInScreen() {
   const router = useRouter();
+  const navigation = useNavigation() as any;
+  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const [checkedIn, setCheckedIn] = useState(false);
   const { memberId, memberName, studentId, relationship } = useLocalSearchParams<{ memberId: string; memberName: string; studentId?: string; relationship?: string }>();
   const memberRelationship = (relationship as string) || 'adult';
