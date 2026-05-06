@@ -2966,6 +2966,19 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
                 classroom_name = cr.data[0]["name"]
         except: pass
 
+    # Detect report language from student or classroom
+    report_lang = "en"
+    try:
+        if student_data.get("language"):
+            report_lang = student_data["language"][:2].lower()
+        elif student_data.get("classroom_id"):
+            cr_lang = supabase.table("classrooms").select("language").eq("id", student_data["classroom_id"]).execute()
+            if cr_lang.data and cr_lang.data[0].get("language"):
+                report_lang = cr_lang.data[0]["language"][:2].lower()
+    except: pass
+    # Inject into student_data so the PDF builder can read it
+    student_data["language"] = report_lang
+
     # Aggregate data
     feeling_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
     helper_counts = {}
@@ -3015,7 +3028,35 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     WHITE       = colors.white
 
     ZONE_COLORS_PDF  = {"blue": BLUE_C, "green": GREEN_C, "yellow": YELLOW_C, "red": RED_C}
-    ZONE_LABELS      = {"blue": "Blue Emotions", "green": "Green Emotions", "yellow": "Yellow Emotions", "red": "Red Emotions"}
+    # Language-aware zone labels
+    lang = "en"
+    try:
+        if student_data.get("language"):
+            lang = student_data["language"]
+        else:
+            # Try to get from classroom/teacher settings
+            pass
+    except: pass
+
+    ZONE_LABELS_MAP = {
+        "en": {"blue": "Blue Emotions",      "green": "Green Emotions",      "yellow": "Yellow Emotions",      "red": "Red Emotions"},
+        "pt": {"blue": "Emoções Azuis",      "green": "Emoções Verdes",      "yellow": "Emoções Amarelas",     "red": "Emoções Vermelhas"},
+        "es": {"blue": "Emociones Azules",   "green": "Emociones Verdes",    "yellow": "Emociones Amarillas",  "red": "Emociones Rojas"},
+        "fr": {"blue": "Émotions Bleues",    "green": "Émotions Vertes",     "yellow": "Émotions Jaunes",      "red": "Émotions Rouges"},
+        "de": {"blue": "Blaue Emotionen",    "green": "Grüne Emotionen",     "yellow": "Gelbe Emotionen",      "red": "Rote Emotionen"},
+        "it": {"blue": "Emozioni Blu",       "green": "Emozioni Verdi",      "yellow": "Emozioni Gialle",      "red": "Emozioni Rosse"},
+    }
+    WEEKDAYS_MAP = {
+        "en": ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
+        "pt": ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"],
+        "es": ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"],
+        "fr": ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"],
+        "de": ["Mo","Di","Mi","Do","Fr","Sa","So"],
+        "it": ["Lun","Mar","Mer","Gio","Ven","Sab","Dom"],
+    }
+    ZONE_LABELS = ZONE_LABELS_MAP.get(lang, ZONE_LABELS_MAP["en"])
+    WEEKDAYS    = WEEKDAYS_MAP.get(lang, WEEKDAYS_MAP["en"])
+
     ZONE_DESCS       = {
         "blue":   "Calm / Low energy",
         "green":  "Happy / Ready to learn",
@@ -3047,22 +3088,40 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     # ════════════════════════════════════════════════════════
     # Try to load COH logo image
     logo_path = os.path.join(os.path.dirname(__file__), 'assets', 'logo_coh.png')
+    from reportlab.platypus import Image as RLImage
+
+    # Build logo cell — image if available, coloured text fallback
     try:
-        from reportlab.platypus import Image as RLImage
-        coh_logo = RLImage(logo_path, width=48, height=48)
-        logo_cell = coh_logo
-    except Exception:
-        logo_cell = Paragraph("🌈 Class of Happiness", ST_LOGO)
+        if not os.path.exists(logo_path):
+            raise FileNotFoundError(f"Logo not found at {logo_path}")
+        coh_logo = RLImage(logo_path, width=44, height=44)
+        logo_cell = Table(
+            [[coh_logo, Paragraph("Class of Happiness", ST_LOGO)]],
+            colWidths=[52, 220],
+            style=[
+                ('VALIGN',   (0,0), (-1,-1), 'MIDDLE'),
+                ('PADDING',  (0,0), (-1,-1), 0),
+                ('LEFTPADDING', (1,0), (1,0), 6),
+            ]
+        )
+    except Exception as logo_err:
+        # Fallback: rainbow emoji + text (no image dependency)
+        logo_cell = Paragraph(
+            "<font color='#FFC107'>●</font><font color='#4CAF50'>●</font>"
+            "<font color='#4A90D9'>●</font> Class of Happiness",
+            s('LogoFB', fontSize=16, textColor=WHITE, fontName='Helvetica-Bold',
+              leading=20)
+        )
 
     header_data = [[
-        Table([[logo_cell, Paragraph("Class of Happiness", ST_LOGO)]], colWidths=[56, 220]),
+        logo_cell,
         Paragraph(
             f"<b>Emotional Wellbeing Report</b><br/>{month_name}",
             s('HRight', fontSize=11, textColor=WHITE, fontName='Helvetica-Bold',
               alignment=2, leading=15)
         ),
     ]]
-    header_table = Table(header_data, colWidths=[280, 225])
+    header_table = Table(header_data, colWidths=[285, 220])
     header_table.setStyle(TableStyle([
         ('BACKGROUND',  (0,0), (-1,-1), INDIGO),
         ('PADDING',     (0,0), (-1,-1), 14),
@@ -3348,7 +3407,9 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     # ════════════════════════════════════════════════════════
     # Check-in log (compact, with comments)
     # ════════════════════════════════════════════════════════
-    elements.append(Paragraph("Check-in Log", ST_H2))
+    # Check-in log — keep heading with at least first few rows
+    log_header_el = [Paragraph("Check-in Log", ST_H2)]
+    elements.append(KeepTogether(log_header_el))
 
     if logs_data:
         log_rows = [[
@@ -3386,7 +3447,8 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
                 Paragraph(comment,                               ST_SMALL),
             ])
 
-        log_tbl = Table(log_rows, colWidths=[38, 32, 68, 170, 147])
+        log_tbl = Table(log_rows, colWidths=[38, 32, 68, 170, 147],
+                        repeatRows=1, splitByRow=0)
         log_style_list = [
             ('BACKGROUND',     (0,0), (-1,0), INDIGO),
             ('TEXTCOLOR',      (0,0), (-1,0), WHITE),
