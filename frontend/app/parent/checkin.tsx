@@ -313,6 +313,7 @@ export default function FamilyCheckInScreen() {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         {/* Header */}
         <View style={styles.header}>
@@ -330,7 +331,7 @@ export default function FamilyCheckInScreen() {
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps='handled'>
           {step === 'zone' ? (
             /* Zone Selection - aligned with student full-width color cards */
             <View style={styles.zonesStack}>
@@ -428,6 +429,9 @@ export default function FamilyCheckInScreen() {
                     value={comment}
                     onChangeText={(text) => setComment(text.slice(0, MAX_COMMENT_LENGTH))}
                     maxLength={MAX_COMMENT_LENGTH}
+                    multiline
+                    returnKeyType='done'
+                    blurOnSubmit
                   />
                   <Text style={styles.commentCounter}>
                     {comment.length}/{MAX_COMMENT_LENGTH}

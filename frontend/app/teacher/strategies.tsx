@@ -392,7 +392,7 @@ export default function ManageStrategiesScreen() {
         <KeyboardAvoidingView 
           style={styles.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={60}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
