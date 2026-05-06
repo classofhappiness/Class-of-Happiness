@@ -311,22 +311,32 @@ export default function StrategiesScreen() {
                   onPress={() => toggleStrategy(strategy.id)}
                   zoneColor={zoneColor}
                 />
-                {/* 🆘 Help request button — only visible if notifications enabled */}
+                {/* Help request button — calm hand icon */}
                 <TouchableOpacity
                   style={[
                     styles.helpBtn,
-                    helpRequested === strategy.id && { backgroundColor: '#4CAF50' },
+                    helpRequested === strategy.id && styles.helpBtnDone,
                   ]}
                   onPress={() => handleHelpRequest(strategy.id, strategy.name)}
                   disabled={helpRequested === strategy.id}
                 >
-                  <Text style={styles.helpBtnTxt}>
-                    {helpRequested === strategy.id ? '✅' : '🆘'}
-                  </Text>
+                  <MaterialIcons
+                    name={helpRequested === strategy.id ? 'check-circle' : 'pan-tool'}
+                    size={18}
+                    color={helpRequested === strategy.id ? '#4CAF50' : '#5C6BC0'}
+                  />
                 </TouchableOpacity>
               </View>
             ))
           )}
+          {/* Help request explanation */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 8, gap: 8 }}>
+            <MaterialIcons name="pan-tool" size={16} color="#5C6BC0" />
+            <Text style={{ fontSize: 12, color: '#888', flex: 1, fontStyle: 'italic' }}>
+              {t('help_request_hint') || 'Tap the hand icon on any helper to ask your teacher or parent for support.'}
+            </Text>
+          </View>
+
           {/* 💌 Message to parent — only shown in home/family context */}
           {checkInLocation === 'home' && (
           <TouchableOpacity
@@ -416,7 +426,8 @@ const styles = StyleSheet.create({
   skipButtonText: { fontSize: 15, color: '#888', fontWeight: '600' },
   doneButton: { flex: 2, padding: 14, borderRadius: 12, alignItems: 'center' },
   doneButtonText: { fontSize: 15, color: 'white', fontWeight: 'bold' },
-  helpBtn: { position: 'absolute', right: 10, top: '50%', transform: [{ translateY: -16 }], width: 32, height: 32, borderRadius: 16, backgroundColor: '#FF5252', alignItems: 'center', justifyContent: 'center', zIndex: 10, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
+  helpBtn: { position: 'absolute', right: 10, top: '50%', transform: [{ translateY: -16 }], width: 32, height: 32, borderRadius: 16, backgroundColor: 'white', borderWidth: 1.5, borderColor: '#5C6BC0', alignItems: 'center', justifyContent: 'center', zIndex: 10, shadowColor: '#5C6BC0', shadowOpacity: 0.1, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  helpBtnDone: { backgroundColor: '#E8F5E9', borderColor: '#4CAF50' },
   helpBtnTxt: { fontSize: 14 },
   parentMsgToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: '#E8EAF6', borderRadius: 12, marginTop: 10, marginBottom: 4 },
   parentMsgLabel: { flex: 1, fontSize: 14, color: '#5C6BC0', fontWeight: '600' },

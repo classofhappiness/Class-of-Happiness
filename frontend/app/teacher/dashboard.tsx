@@ -409,8 +409,15 @@ export default function TeacherDashboardScreen() {
                     </View>
                     <Text style={styles.logTime}>{formatTime(log.timestamp)}</Text>
                   </View>
-                  <View style={[styles.zoneIndicator, { backgroundColor: ZONE_COLORS[log.zone as keyof typeof ZONE_COLORS] || '#999' }]}>
-                    <Text style={styles.zoneText}>{getZoneLabel(log.zone)}</Text>
+                  <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                    <View style={[styles.zoneIndicator, { backgroundColor: ZONE_COLORS[log.zone as keyof typeof ZONE_COLORS] || '#999' }]}>
+                      <Text style={styles.zoneText}>{getZoneLabel(log.zone)}</Text>
+                    </View>
+                    {log.strategies_selected && log.strategies_selected.length > 0 && (
+                      <Text style={{ fontSize: 10, color: '#888', textAlign: 'right', maxWidth: 120 }} numberOfLines={1}>
+                        {log.strategies_selected.slice(0, 2).join(', ')}{log.strategies_selected.length > 2 ? ` +${log.strategies_selected.length - 2}` : ''}
+                      </Text>
+                    )}
                   </View>
                 </TouchableOpacity>
               );
