@@ -3512,6 +3512,559 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     return StreamingResponse(buffer, media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"})
 
+
+
+# ================== NOTIFICATION SYSTEM ==================
+
+# ── Push token registration ──────────────────────────────
+@api_router.post("/notifications/register-token")
+async def register_push_token(request: Request):
+    """Store Expo push token for a user."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    token = (body.get("token") or "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="Token required")
+    try:
+        existing = supabase.table("users").select("push_token").eq("user_id", user["user_id"]).execute()
+        supabase.table("users").update({"push_token": token}).eq("user_id", user["user_id"]).execute()
+    except Exception as e:
+        logger.error(f"Token registration error: {e}")
+    return {"ok": True}
+
+# ── Notification settings ────────────────────────────────
+@api_router.get("/notifications/settings")
+async def get_notification_settings(request: Request):
+    """Get notification preferences for the current user."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        result = supabase.table("admin_settings").select("*").eq("school_admin_id", user["user_id"]).like("setting_key", "notif_%").execute()
+        settings = {}
+        for row in (result.data or []):
+            import json
+            try:
+                settings[row["setting_key"]] = json.loads(row["setting_value"])
+            except:
+                settings[row["setting_key"]] = row["setting_value"]
+        return settings
+    except Exception as e:
+        logger.error(f"Get notification settings error: {e}")
+        return {}
+
+@api_router.post("/notifications/settings")
+async def update_notification_settings(request: Request):
+    """Update notification preferences."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    import json
+    try:
+        for key, value in body.items():
+            if not key.startswith("notif_"):
+                key = f"notif_{key}"
+            existing = supabase.table("admin_settings").select("id").eq("school_admin_id", user["user_id"]).eq("setting_key", key).execute()
+            if existing.data:
+                supabase.table("admin_settings").update({"setting_value": json.dumps(value)}).eq("school_admin_id", user["user_id"]).eq("setting_key", key).execute()
+            else:
+                supabase.table("admin_settings").insert({
+                    "id": str(uuid.uuid4()),
+                    "school_admin_id": user["user_id"],
+                    "setting_key": key,
+                    "setting_value": json.dumps(value),
+                }).execute()
+    except Exception as e:
+        logger.error(f"Update notification settings error: {e}")
+        raise HTTPException(status_code=500, detail="Could not save settings")
+    return {"ok": True}
+
+# ── Student notification settings (per student) ──────────
+@api_router.get("/notifications/student/{student_id}/settings")
+async def get_student_notification_settings(student_id: str, request: Request):
+    """Get notification settings for a specific student."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        result = supabase.table("admin_settings").select("*").eq("school_admin_id", user["user_id"]).eq("setting_key", f"notif_student_{student_id}").execute()
+        if result.data:
+            import json
+            try:
+                return json.loads(result.data[0]["setting_value"])
+            except:
+                return {}
+        return {"help_request": False, "zone_alerts": [], "enabled": False}
+    except Exception as e:
+        logger.error(f"Get student notif settings error: {e}")
+        return {"help_request": False, "zone_alerts": [], "enabled": False}
+
+@api_router.post("/notifications/student/{student_id}/settings")
+async def update_student_notification_settings(student_id: str, request: Request):
+    """Enable/disable notifications for a specific student."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    import json
+    key = f"notif_student_{student_id}"
+    try:
+        existing = supabase.table("admin_settings").select("id").eq("school_admin_id", user["user_id"]).eq("setting_key", key).execute()
+        if existing.data:
+            supabase.table("admin_settings").update({"setting_value": json.dumps(body)}).eq("school_admin_id", user["user_id"]).eq("setting_key", key).execute()
+        else:
+            supabase.table("admin_settings").insert({
+                "id": str(uuid.uuid4()),
+                "school_admin_id": user["user_id"],
+                "setting_key": key,
+                "setting_value": json.dumps(body),
+            }).execute()
+    except Exception as e:
+        logger.error(f"Update student notif settings error: {e}")
+        raise HTTPException(status_code=500, detail="Could not save")
+    return {"ok": True}
+
+# ── Bulk student notification settings (classroom) ───────
+@api_router.post("/notifications/classroom/{classroom_id}/settings")
+async def update_classroom_notification_settings(classroom_id: str, request: Request):
+    """Bulk enable notifications for all students in a classroom."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    import json
+    try:
+        students = supabase.table("students").select("id").eq("classroom_id", classroom_id).execute()
+        for student in (students.data or []):
+            sid = student["id"]
+            key = f"notif_student_{sid}"
+            existing = supabase.table("admin_settings").select("id").eq("school_admin_id", user["user_id"]).eq("setting_key", key).execute()
+            if existing.data:
+                supabase.table("admin_settings").update({"setting_value": json.dumps(body)}).eq("school_admin_id", user["user_id"]).eq("setting_key", key).execute()
+            else:
+                supabase.table("admin_settings").insert({
+                    "id": str(uuid.uuid4()),
+                    "school_admin_id": user["user_id"],
+                    "setting_key": key,
+                    "setting_value": json.dumps(body),
+                }).execute()
+    except Exception as e:
+        logger.error(f"Bulk classroom notif error: {e}")
+        raise HTTPException(status_code=500, detail="Could not save")
+    return {"ok": True, "updated": len(students.data or [])}
+
+# ── Help request (student asks for help with strategy) ───
+@api_router.post("/notifications/help-request")
+async def send_help_request(request: Request):
+    """Student requests help with a strategy — notifies teacher and/or parent."""
+    import json, httpx
+    body = await request.json()
+    student_id = body.get("student_id")
+    strategy_id = body.get("strategy_id")
+    strategy_name = body.get("strategy_name", "a strategy")
+    zone = body.get("zone", "")
+    message = (body.get("message") or "").strip()
+
+    if not student_id:
+        raise HTTPException(status_code=400, detail="student_id required")
+
+    # Get student info
+    student_r = supabase.table("students").select("*").eq("id", student_id).execute()
+    if not student_r.data:
+        raise HTTPException(status_code=404, detail="Student not found")
+    student = student_r.data[0]
+    student_name = student.get("name", "A student")
+
+    # Store alert in wellbeing_alerts
+    alert_id = str(uuid.uuid4())
+    try:
+        supabase.table("wellbeing_alerts").insert({
+            "id": alert_id,
+            "student_id": student_id,
+            "student_name": student_name,
+            "alert_type": "help_request",
+            "zone": zone,
+            "strategy_id": strategy_id,
+            "strategy_name": strategy_name,
+            "message": message,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "resolved": False,
+        }).execute()
+    except Exception as e:
+        logger.error(f"Could not store help request alert: {e}")
+
+    # Find teacher's push token
+    tokens_to_notify = []
+    try:
+        teacher_r = supabase.table("users").select("push_token").eq("user_id", student.get("teacher_id", "")).execute()
+        if teacher_r.data and teacher_r.data[0].get("push_token"):
+            tokens_to_notify.append(("teacher", teacher_r.data[0]["push_token"]))
+    except: pass
+
+    # Find parent push tokens
+    try:
+        parent_links = supabase.table("parent_links").select("parent_id").eq("student_id", student_id).execute()
+        for link in (parent_links.data or []):
+            parent_r = supabase.table("users").select("push_token").eq("user_id", link["parent_id"]).execute()
+            if parent_r.data and parent_r.data[0].get("push_token"):
+                tokens_to_notify.append(("parent", parent_r.data[0]["push_token"]))
+    except: pass
+
+    # Also check family_members links
+    try:
+        fm_links = supabase.table("family_members").select("*").eq("student_id", student_id).execute()
+        for fm in (fm_links.data or []):
+            parent_r = supabase.table("users").select("push_token").eq("user_id", fm.get("user_id","")).execute()
+            if parent_r.data and parent_r.data[0].get("push_token"):
+                tokens_to_notify.append(("parent", parent_r.data[0]["push_token"]))
+    except: pass
+
+    # Send Expo push notifications
+    zone_emoji = {"blue": "🔵", "green": "🟢", "yellow": "🟡", "red": "🔴"}.get(zone, "💙")
+    notif_title = f"{zone_emoji} {student_name} needs help"
+    notif_body = f"Asked for help with: {strategy_name}"
+    if message:
+        notif_body += f"\n\"{message}\""
+
+    sent = 0
+    if tokens_to_notify:
+        try:
+            messages = [
+                {
+                    "to": token,
+                    "title": notif_title,
+                    "body": notif_body,
+                    "data": {
+                        "type": "help_request",
+                        "student_id": student_id,
+                        "student_name": student_name,
+                        "zone": zone,
+                        "strategy_name": strategy_name,
+                        "alert_id": alert_id,
+                    },
+                    "sound": "default",
+                    "priority": "high",
+                }
+                for _, token in tokens_to_notify
+                if token and token.startswith("ExponentPushToken")
+            ]
+            if messages:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.post(
+                        "https://exp.host/--/api/v2/push/send",
+                        json=messages,
+                        headers={"Content-Type": "application/json"},
+                        timeout=10,
+                    )
+                sent = len(messages)
+                logger.info(f"Sent {sent} help request notifications for {student_name}")
+        except Exception as e:
+            logger.error(f"Push notification send error: {e}")
+
+    # Award brave shield badge
+    shield_awarded = False
+    try:
+        existing_reward = supabase.table("student_rewards").select("*").eq("student_id", student_id).eq("reward_type", "brave_shield").execute()
+        if existing_reward.data:
+            current = existing_reward.data[0]
+            new_count = (current.get("count") or 0) + 1
+            level = _shield_level(new_count)
+            supabase.table("student_rewards").update({
+                "count": new_count,
+                "level": level,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", current["id"]).execute()
+        else:
+            supabase.table("student_rewards").insert({
+                "id": str(uuid.uuid4()),
+                "student_id": student_id,
+                "reward_type": "brave_shield",
+                "count": 1,
+                "level": "bronze_1",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).execute()
+        shield_awarded = True
+    except Exception as e:
+        logger.error(f"Shield badge error: {e}")
+
+    return {"ok": True, "notifications_sent": sent, "shield_awarded": shield_awarded, "alert_id": alert_id}
+
+# ── Zone alert (auto-notify on check-in zone) ────────────
+@api_router.post("/notifications/zone-alert")
+async def send_zone_alert(request: Request):
+    """Auto-notify teacher/parent when student checks in with a watched zone."""
+    import json, httpx
+    body = await request.json()
+    student_id = body.get("student_id")
+    zone = body.get("zone", "")
+    log_id = body.get("log_id", "")
+
+    if not student_id or not zone:
+        raise HTTPException(status_code=400, detail="student_id and zone required")
+
+    student_r = supabase.table("students").select("*").eq("id", student_id).execute()
+    if not student_r.data:
+        return {"ok": False, "reason": "student not found"}
+    student = student_r.data[0]
+    student_name = student.get("name", "A student")
+
+    # Check teacher notification settings for this student
+    tokens_to_notify = []
+    try:
+        teacher_id = student.get("teacher_id")
+        if teacher_id:
+            setting_r = supabase.table("admin_settings").select("setting_value").eq("school_admin_id", teacher_id).eq("setting_key", f"notif_student_{student_id}").execute()
+            if setting_r.data:
+                import json as _json
+                settings = _json.loads(setting_r.data[0]["setting_value"])
+                watched_zones = settings.get("zone_alerts", [])
+                if zone in watched_zones and settings.get("enabled", False):
+                    teacher_token_r = supabase.table("users").select("push_token").eq("user_id", teacher_id).execute()
+                    if teacher_token_r.data and teacher_token_r.data[0].get("push_token"):
+                        tokens_to_notify.append(teacher_token_r.data[0]["push_token"])
+    except Exception as e:
+        logger.error(f"Zone alert teacher check error: {e}")
+
+    # Check parent notification settings
+    try:
+        parent_links = supabase.table("parent_links").select("parent_id").eq("student_id", student_id).execute()
+        for link in (parent_links.data or []):
+            parent_id = link["parent_id"]
+            setting_r = supabase.table("admin_settings").select("setting_value").eq("school_admin_id", parent_id).eq("setting_key", f"notif_student_{student_id}").execute()
+            if setting_r.data:
+                import json as _json
+                settings = _json.loads(setting_r.data[0]["setting_value"])
+                watched_zones = settings.get("zone_alerts", [])
+                if zone in watched_zones and settings.get("enabled", False):
+                    parent_token_r = supabase.table("users").select("push_token").eq("user_id", parent_id).execute()
+                    if parent_token_r.data and parent_token_r.data[0].get("push_token"):
+                        tokens_to_notify.append(parent_token_r.data[0]["push_token"])
+    except Exception as e:
+        logger.error(f"Zone alert parent check error: {e}")
+
+    if not tokens_to_notify:
+        return {"ok": True, "notifications_sent": 0, "reason": "no enabled watchers"}
+
+    zone_emoji = {"blue": "🔵", "green": "🟢", "yellow": "🟡", "red": "🔴"}.get(zone, "💙")
+    zone_label = {"blue": "Blue", "green": "Green", "yellow": "Yellow", "red": "Red"}.get(zone, zone.title())
+
+    sent = 0
+    try:
+        messages = [
+            {
+                "to": token,
+                "title": f"{zone_emoji} {student_name} checked in",
+                "body": f"Feeling {zone_label} right now.",
+                "data": {"type": "zone_alert", "student_id": student_id, "zone": zone, "log_id": log_id},
+                "sound": "default",
+            }
+            for token in tokens_to_notify
+            if token and token.startswith("ExponentPushToken")
+        ]
+        if messages:
+            async with httpx.AsyncClient() as client:
+                await client.post(
+                    "https://exp.host/--/api/v2/push/send",
+                    json=messages,
+                    headers={"Content-Type": "application/json"},
+                    timeout=10,
+                )
+            sent = len(messages)
+    except Exception as e:
+        logger.error(f"Zone alert push error: {e}")
+
+    return {"ok": True, "notifications_sent": sent}
+
+# ── Parent message from student ──────────────────────────
+@api_router.post("/notifications/parent-message")
+async def send_parent_message(request: Request):
+    """Student sends a feeling message to a parent."""
+    import json, httpx
+    body = await request.json()
+    student_id = body.get("student_id")
+    message = (body.get("message") or "").strip()
+    zone = body.get("zone", "")
+
+    if not student_id or not message:
+        raise HTTPException(status_code=400, detail="student_id and message required")
+
+    student_r = supabase.table("students").select("*").eq("id", student_id).execute()
+    if not student_r.data:
+        raise HTTPException(status_code=404, detail="Student not found")
+    student = student_r.data[0]
+    student_name = student.get("name", "A student")
+
+    # Store message
+    try:
+        supabase.table("wellbeing_alerts").insert({
+            "id": str(uuid.uuid4()),
+            "student_id": student_id,
+            "student_name": student_name,
+            "alert_type": "parent_message",
+            "zone": zone,
+            "message": message,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "resolved": False,
+        }).execute()
+    except Exception as e:
+        logger.error(f"Parent message store error: {e}")
+
+    # Find parent tokens
+    tokens_to_notify = []
+    try:
+        parent_links = supabase.table("parent_links").select("parent_id").eq("student_id", student_id).execute()
+        for link in (parent_links.data or []):
+            parent_r = supabase.table("users").select("push_token").eq("user_id", link["parent_id"]).execute()
+            if parent_r.data and parent_r.data[0].get("push_token"):
+                tokens_to_notify.append(parent_r.data[0]["push_token"])
+    except: pass
+
+    zone_emoji = {"blue": "🔵", "green": "🟢", "yellow": "🟡", "red": "🔴"}.get(zone, "💙")
+    sent = 0
+    try:
+        messages = [
+            {
+                "to": token,
+                "title": f"{zone_emoji} Message from {student_name}",
+                "body": message[:100],
+                "data": {"type": "parent_message", "student_id": student_id, "zone": zone},
+                "sound": "default",
+            }
+            for token in tokens_to_notify
+            if token and token.startswith("ExponentPushToken")
+        ]
+        if messages:
+            async with httpx.AsyncClient() as client:
+                await client.post(
+                    "https://exp.host/--/api/v2/push/send",
+                    json=messages,
+                    headers={"Content-Type": "application/json"},
+                    timeout=10,
+                )
+            sent = len(messages)
+    except Exception as e:
+        logger.error(f"Parent message push error: {e}")
+
+    return {"ok": True, "notifications_sent": sent}
+
+# ── Shield badge helper ──────────────────────────────────
+def _shield_level(count: int) -> str:
+    if count >= 50: return "gold"
+    if count >= 20: return "silver_2"
+    if count >= 10: return "silver_1"
+    if count >= 5:  return "bronze_3"
+    if count >= 3:  return "bronze_2"
+    return "bronze_1"
+
+# ── Get student shield badge ─────────────────────────────
+@api_router.get("/notifications/shield/{student_id}")
+async def get_student_shield(student_id: str):
+    """Get brave shield badge for a student."""
+    try:
+        result = supabase.table("student_rewards").select("*").eq("student_id", student_id).eq("reward_type", "brave_shield").execute()
+        if result.data:
+            r = result.data[0]
+            return {
+                "has_shield": True,
+                "level": r.get("level", "bronze_1"),
+                "count": r.get("count", 0),
+                "label": _shield_label(r.get("level", "bronze_1")),
+            }
+        return {"has_shield": False, "level": None, "count": 0}
+    except Exception as e:
+        logger.error(f"Get shield error: {e}")
+        return {"has_shield": False, "level": None, "count": 0}
+
+def _shield_label(level: str) -> str:
+    return {
+        "bronze_1": "Bronze Shield I",
+        "bronze_2": "Bronze Shield II",
+        "bronze_3": "Bronze Shield III",
+        "silver_1": "Silver Shield I",
+        "silver_2": "Silver Shield II",
+        "gold":     "Gold Shield",
+    }.get(level, "Bronze Shield I")
+
+# ── Alerts dashboard (teacher/parent) ───────────────────
+@api_router.get("/notifications/alerts")
+async def get_alerts(request: Request, limit: int = 20):
+    """Get recent alerts for the current user's students."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        # Get student IDs for this teacher
+        students_r = supabase.table("students").select("id").eq("teacher_id", user["user_id"]).execute()
+        student_ids = [s["id"] for s in (students_r.data or [])]
+
+        # Also check parent links
+        parent_links_r = supabase.table("parent_links").select("student_id").eq("parent_id", user["user_id"]).execute()
+        student_ids += [l["student_id"] for l in (parent_links_r.data or [])]
+        student_ids = list(set(student_ids))
+
+        if not student_ids:
+            return []
+
+        alerts = supabase.table("wellbeing_alerts").select("*").in_("student_id", student_ids[:50]).order("created_at", desc=True).limit(limit).execute()
+        return alerts.data or []
+    except Exception as e:
+        logger.error(f"Get alerts error: {e}")
+        return []
+
+@api_router.post("/notifications/alerts/{alert_id}/resolve")
+async def resolve_alert(alert_id: str, request: Request):
+    """Mark an alert as resolved."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        supabase.table("wellbeing_alerts").update({"resolved": True, "resolved_by": user["user_id"], "resolved_at": datetime.now(timezone.utc).isoformat()}).eq("id", alert_id).execute()
+    except Exception as e:
+        logger.error(f"Resolve alert error: {e}")
+    return {"ok": True}
+
+# ── Notification stats for admin ─────────────────────────
+@api_router.get("/notifications/stats")
+async def get_notification_stats(request: Request, days: int = 7):
+    """Admin stats — how many notifications sent, opt-in rates."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    try:
+        week_ago = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        alerts_r = supabase.table("wellbeing_alerts").select("alert_type,created_at,resolved").gte("created_at", week_ago).execute()
+        alerts = alerts_r.data or []
+        help_requests = sum(1 for a in alerts if a.get("alert_type") == "help_request")
+        zone_alerts = sum(1 for a in alerts if a.get("alert_type") == "zone_alert")
+        parent_messages = sum(1 for a in alerts if a.get("alert_type") == "parent_message")
+        resolved = sum(1 for a in alerts if a.get("resolved"))
+
+        # Opt-in rate
+        total_students_r = supabase.table("students").select("id", count="exact").execute()
+        total_students = total_students_r.count or 1
+        enabled_settings_r = supabase.table("admin_settings").select("id", count="exact").like("setting_key", "notif_student_%").execute()
+        enabled_count = enabled_settings_r.count or 0
+
+        return {
+            "total_alerts": len(alerts),
+            "help_requests": help_requests,
+            "zone_alerts": zone_alerts,
+            "parent_messages": parent_messages,
+            "resolved": resolved,
+            "opt_in_students": enabled_count,
+            "total_students": total_students,
+            "opt_in_rate": round(enabled_count / total_students * 100) if total_students else 0,
+        }
+    except Exception as e:
+        logger.error(f"Notification stats error: {e}")
+        return {"total_alerts": 0, "help_requests": 0, "zone_alerts": 0, "parent_messages": 0}
+
+# ================== END NOTIFICATION SYSTEM ==================
+
 # ================== SUBSCRIPTION ==================
 @api_router.get("/subscription/plans")
 async def get_plans():
