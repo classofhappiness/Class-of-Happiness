@@ -3823,19 +3823,19 @@ async def send_zone_alert(request: Request):
     if context != 'school':
         try:
             parent_links = supabase.table("parent_links").select("parent_id").eq("student_id", student_id).execute()
-        for link in (parent_links.data or []):
-            parent_id = link["parent_id"]
-            setting_r = supabase.table("admin_settings").select("setting_value").eq("school_admin_id", parent_id).eq("setting_key", f"notif_student_{student_id}").execute()
-            if setting_r.data:
-                import json as _json
-                settings = _json.loads(setting_r.data[0]["setting_value"])
-                watched_zones = settings.get("zone_alerts", [])
-                if zone in watched_zones and settings.get("enabled", False):
-                    parent_token_r = supabase.table("users").select("push_token").eq("user_id", parent_id).execute()
-                    if parent_token_r.data and parent_token_r.data[0].get("push_token"):
-                        tokens_to_notify.append(parent_token_r.data[0]["push_token"])
-    except Exception as e:
-        logger.error(f"Zone alert parent check error: {e}")
+            for link in (parent_links.data or []):
+                parent_id = link["parent_id"]
+                setting_r = supabase.table("admin_settings").select("setting_value").eq("school_admin_id", parent_id).eq("setting_key", f"notif_student_{student_id}").execute()
+                if setting_r.data:
+                    import json as _json
+                    settings = _json.loads(setting_r.data[0]["setting_value"])
+                    watched_zones = settings.get("zone_alerts", [])
+                    if zone in watched_zones and settings.get("enabled", False):
+                        parent_token_r = supabase.table("users").select("push_token").eq("user_id", parent_id).execute()
+                        if parent_token_r.data and parent_token_r.data[0].get("push_token"):
+                            tokens_to_notify.append(parent_token_r.data[0]["push_token"])
+        except Exception as e:
+            logger.error(f"Zone alert parent check error: {e}")
 
     if not tokens_to_notify:
         return {"ok": True, "notifications_sent": 0, "reason": "no enabled watchers"}
