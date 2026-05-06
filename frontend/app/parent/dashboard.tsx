@@ -720,6 +720,18 @@ export default function ParentDashboard() {
                     <Text style={styles.bigCheckinText}>{t('check_in') || 'Check In'}</Text>
                   </TouchableOpacity>
 
+                  {/* My Wellness private button */}
+                  <TouchableOpacity
+                    style={styles.wellnessButton}
+                    onPress={() => router.push(`/parent/my-wellbeing?memberId=${member.id}&memberName=${encodeURIComponent(member.name)}`)}
+                  >
+                    <Text style={styles.wellnessIcon}>🔒</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.wellnessTitle}>{t('my_wellbeing') || 'My Wellbeing'}</Text>
+                      <Text style={styles.wellnessSub}>{t('wellbeing_private') || 'Private · just for you'}</Text>
+                    </View>
+                    <MaterialIcons name="chevron-right" size={20} color="#C5CAE9" />
+                  </TouchableOpacity>
                 </View>
               </View>
             ))}
