@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { registerForPushNotifications } from '../../src/utils/notifications';
 import { PieChart } from 'react-native-gifted-charts';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
@@ -429,6 +430,11 @@ export default function ParentDashboard() {
       setAnalytics({ zone_counts: { blue: 0, green: 0, yellow: 0, red: 0 } });
     }
   };
+
+  // Register for push notifications on mount
+  useEffect(() => {
+    registerForPushNotifications().catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -853,6 +859,14 @@ export default function ParentDashboard() {
             >
               <MaterialIcons name="widgets" size={24} color="#9C27B0" />
               <Text style={styles.actionButtonText}>Widget</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => router.push('/parent/alerts')}
+            >
+              <MaterialIcons name="notifications" size={24} color="#5C6BC0" />
+              <Text style={styles.actionButtonText} numberOfLines={1}>{t('alerts') || 'Alerts'}</Text>
             </TouchableOpacity>
           </View>
         </View>
