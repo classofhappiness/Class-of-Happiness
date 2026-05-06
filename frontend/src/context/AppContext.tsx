@@ -479,34 +479,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const loginWithEmail = async (email: string, attempt = 1) => {
     try {
       setIsLoading(true);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
+      // Railway can take up to 30s to cold start — no abort signal, just wait
       let response: Response;
       try {
         response = await fetch('https://class-of-happiness-production.up.railway.app/api/auth/email-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email }),
-          signal: controller.signal,
+          // No signal/timeout — let Railway wake up naturally
         });
       } catch (fetchErr: any) {
-        clearTimeout(timeout);
-        // Railway cold start — retry once automatically
-        if (attempt === 1 && (fetchErr?.name === 'AbortError' || fetchErr?.message?.includes('failed'))) {
+        // Network error — retry once with friendly message
+        if (attempt === 1) {
           setIsLoading(false);
           const { Alert } = require('react-native');
           Alert.alert(
             'Waking up server ☕',
-            'The server is starting up. Trying again in 3 seconds...',
+            'The server is starting. Trying again in 5 seconds...',
             [{ text: 'OK' }]
           );
-          setTimeout(() => loginWithEmail(email, 2), 3000);
+          setTimeout(() => loginWithEmail(email, 2), 5000);
           return;
         }
-        throw fetchErr;
+        throw new Error('Could not reach server. Please check your connection and try again.');
       }
-      clearTimeout(timeout);
 
       // Read body first so we can show the real error message
       const data = await response.json().catch(() => null);
