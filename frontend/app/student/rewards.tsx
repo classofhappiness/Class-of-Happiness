@@ -12,6 +12,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { rewardsApi, Creature, AddPointsResponse } from '../../src/utils/api';
+import { getStudentShield, SHIELD_LEVELS } from '../../src/utils/notifications';
 import { CreatureDisplay } from '../../src/components/CreatureDisplay';
 import { EvolutionAnimation } from '../../src/components/EvolutionAnimation';
 import { CreatureCollection } from '../../src/components/CreatureCollection';
@@ -28,6 +29,7 @@ export default function RewardsScreen() {
   }>();
 
   const [rewardsData, setRewardsData] = useState<AddPointsResponse | null>(null);
+  const [shield, setShield] = useState<{ has_shield: boolean; level: string | null; count: number; label?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [showEvolution, setShowEvolution] = useState(false);
   const [showCollection, setShowCollection] = useState(false);
@@ -77,6 +79,9 @@ export default function RewardsScreen() {
 
       // Fetch collection data
       const collection = await rewardsApi.getCollection(currentStudent.id);
+      // Fetch shield badge
+      const shieldData = await getStudentShield(currentStudent.id);
+      setShield(shieldData);
       setCollectionData(collection);
 
       // Start animations
@@ -225,6 +230,39 @@ export default function RewardsScreen() {
         </View>
       )}
 
+      {/* Brave Shield Badge */}
+      {shield?.has_shield && (
+        <View style={styles.shieldContainer}>
+          <View style={styles.shieldCard}>
+            <Text style={styles.shieldEmoji}>
+              {shield.level === 'gold' ? '🏆🛡️' :
+               shield.level?.startsWith('silver') ? '🥈🛡️' : '🛡️'}
+            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.shieldTitle}>{shield.label || 'Brave Shield'}</Text>
+              <Text style={styles.shieldSub}>You asked for help {shield.count} time{shield.count !== 1 ? 's' : ''} — that takes courage!</Text>
+              {/* Progress to next level */}
+              {(() => {
+                const currentIdx = SHIELD_LEVELS.findIndex(s => s.level === shield.level);
+                const next = SHIELD_LEVELS[currentIdx + 1];
+                if (!next) return <Text style={styles.shieldMax}>🏆 Maximum level reached!</Text>;
+                const progress = shield.count - SHIELD_LEVELS[currentIdx].min;
+                const needed = next.min - SHIELD_LEVELS[currentIdx].min;
+                const pct = Math.min(progress / needed, 1);
+                return (
+                  <View style={{ marginTop: 6 }}>
+                    <Text style={styles.shieldNext}>{next.emoji} Next: {next.label} ({next.min - shield.count} more)</Text>
+                    <View style={styles.shieldBar}>
+                      <View style={[styles.shieldBarFill, { width: `${Math.round(pct * 100)}%` as any }]} />
+                    </View>
+                  </View>
+                );
+              })()}
+            </View>
+          </View>
+        </View>
+      )}
+
       {/* Action Buttons */}
       <View style={styles.buttonContainer}>
         {/* Collection Button */}
@@ -362,6 +400,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a2e',
     gap: 8,
   },
+  shieldContainer: { paddingHorizontal: 20, marginBottom: 12 },
+  shieldCard: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#FFF8E1', borderRadius: 14, padding: 14, gap: 12, borderWidth: 1.5, borderColor: '#FFD54F' },
+  shieldEmoji: { fontSize: 32, marginTop: 2 },
+  shieldTitle: { fontSize: 15, fontWeight: '700', color: '#F57F17' },
+  shieldSub: { fontSize: 11, color: '#888', marginTop: 2 },
+  shieldNext: { fontSize: 11, color: '#5C6BC0', fontWeight: '600', marginBottom: 4 },
+  shieldMax: { fontSize: 11, color: '#FF8F00', fontWeight: '700', marginTop: 4 },
+  shieldBar: { height: 6, backgroundColor: '#FFE082', borderRadius: 3, overflow: 'hidden' },
+  shieldBarFill: { height: 6, backgroundColor: '#FFA000', borderRadius: 3 },
   collectionButtonText: {
     color: '#FFD700',
     fontSize: 16,
