@@ -383,7 +383,7 @@ export default function StudentDetailScreen() {
           {/* Row 2: Action buttons */}
           <View style={{ flexDirection: 'row', gap: 8 }}>
           <TouchableOpacity
-            style={[styles.actionBtn]}
+            style={[styles.actionBtn, { flex: 1 }]}
             onPress={() => router.push({
               pathname: '/profiles/edit',
               params: { studentId: student.id }
@@ -396,7 +396,7 @@ export default function StudentDetailScreen() {
           {/* Strategies Button with Tooltip */}
           <View style={[styles.tooltipContainer, { flex: 1 }]}>
             <TouchableOpacity
-              style={[styles.actionBtn]}
+              style={[styles.actionBtn, { flex: 1 }]}
               onPress={() => router.push({
                 pathname: '/teacher/strategies',
                 params: { studentId: student.id }
@@ -416,11 +416,11 @@ export default function StudentDetailScreen() {
           {/* Family Button with Tooltip */}
           <View style={styles.tooltipContainer}>
             <TouchableOpacity
-              style={styles.actionBtn}
+              style={[styles.actionBtn, { flex: 1 }]}
               onPress={() => setShowLinkCodeModal(true)}
             >
               <MaterialIcons name="family-restroom" size={20} color="#4A90D9" />
-              <Text style={[styles.iconBtnLabel, {color:"#4A90D9",fontSize:9}]}>Family</Text>
+              <Text style={[styles.iconBtnLabel, { color: "#4A90D9" }]}>{t('family') || 'Family'}</Text>
             </TouchableOpacity>
             {activeTooltip === 'family' && (
               <Animated.View style={[styles.tooltip, styles.tooltipRight, { opacity: tooltipOpacity }]}>
@@ -1242,7 +1242,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EDE7F6',
     borderRadius: 8,
   },
-  actionBtn: { flex: 1, alignItems: 'center', padding: 10, borderRadius: 10, backgroundColor: '#F5F5F5' },
+  actionBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 10, borderRadius: 10, backgroundColor: '#F5F5F5', minWidth: 70 },
   strategiesButton: {
     padding: 8,
     backgroundColor: '#FFF8E1',

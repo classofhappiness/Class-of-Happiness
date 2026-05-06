@@ -170,7 +170,7 @@ export default function MyWellbeingScreen() {
         <TouchableOpacity style={st.backBtn} onPress={() => router.back()}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <KeyboardAvoidingView style={st.pinBody} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAvoidingView style={st.pinBody} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
           <Text style={st.pinIcon}>🔒</Text>
           <Text style={st.pinName}>{memberName}</Text>
           <Text style={st.pinTitle}>{t('my_wellbeing') || 'My Wellbeing'}</Text>
@@ -234,7 +234,7 @@ export default function MyWellbeingScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={st.scroll}>
+      <ScrollView contentContainerStyle={st.scroll} keyboardShouldPersistTaps='handled'>
 
         {/* Range selector */}
         <View style={st.rangeRow}>
