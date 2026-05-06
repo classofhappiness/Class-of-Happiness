@@ -3409,9 +3409,9 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     # ════════════════════════════════════════════════════════
     # Check-in log (compact, with comments)
     # ════════════════════════════════════════════════════════
-    # Check-in log — keep heading with at least first few rows
-    log_header_el = [Paragraph("Check-in Log", ST_H2)]
-    elements.append(KeepTogether(log_header_el))
+    # Check-in log — heading must stay with table (never orphaned at page bottom)
+    # We'll build heading + table together in a KeepTogether block if small enough
+    log_heading = Paragraph("Check-in Log", ST_H2)
 
     if logs_data:
         log_rows = [[
@@ -3465,7 +3465,12 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
                 log_style_list.append(('TEXTCOLOR',  (2,i), (2,i), ZONE_COLORS_PDF[zone]))
                 log_style_list.append(('FONTNAME',   (2,i), (2,i), 'Helvetica-Bold'))
         log_tbl.setStyle(TableStyle(log_style_list))
-        elements.append(log_tbl)
+        # Keep heading with first few rows to prevent orphaned header
+        try:
+            elements.append(KeepTogether([log_heading, Spacer(1, 4), log_tbl]))
+        except Exception:
+            elements.append(log_heading)
+            elements.append(log_tbl)
     else:
         elements.append(Paragraph("No check-ins recorded for this period.", ST_BODY))
 
@@ -4218,7 +4223,7 @@ async def get_admin_stats(request: Request, days: int = 7):
                 admin_id = admin.get("user_id", "")
                 # Get students belonging to this admin's school
                 try:
-                    school_students = supabase.table("students").select("id").eq("teacher_id", admin_id).execute()
+                    school_students = supabase.table("students").select("id,classroom_id").eq("teacher_id", admin_id).execute()
                     student_ids = [s["id"] for s in (school_students.data or [])]
                 except:
                     student_ids = []
@@ -4687,6 +4692,28 @@ async def get_teacher_resources(request: Request, topic: Optional[str] = None, a
 
     return [_resource_to_teacher_resource(r, ratings) for r in visible]
 
+
+
+@api_router.get("/teacher-resources/my-uploads")
+async def get_my_teacher_resource_uploads(request: Request):
+    """Get resources uploaded by the current teacher."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        result = supabase.table("resources").select("*").eq(
+            "created_by", user["user_id"]
+        ).order("created_at", desc=True).execute()
+        resources = result.data or []
+        try:
+            ratings_result = supabase.table("teacher_resource_ratings").select("*").execute()
+            ratings = ratings_result.data or []
+        except:
+            ratings = []
+        return [_resource_to_teacher_resource(r, ratings) for r in resources]
+    except Exception as e:
+        logger.error(f"My uploads error: {e}")
+        return []
 
 @api_router.get("/teacher-resources/{resource_id}")
 async def get_teacher_resource(resource_id: str, request: Request):

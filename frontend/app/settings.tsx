@@ -529,6 +529,35 @@ export default function SettingsScreen() {
                 <View style={{ backgroundColor: '#E8EAF6', borderRadius: 10, padding: 16, alignItems: 'center', marginBottom: 8 }}>
                   <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#3949AB', letterSpacing: 2 }}>{generatedCode}</Text>
                   <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>{t('share_with_teachers') || 'Share this with your teachers'}</Text>
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                    <TouchableOpacity
+                      style={{ backgroundColor: '#5C6BC0', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8 }}
+                      onPress={() => {
+                        const { Clipboard } = require('react-native');
+                        if (Clipboard?.setString) {
+                          Clipboard.setString(generatedCode);
+                        } else {
+                          import('expo-clipboard').then(m => m.setStringAsync(generatedCode)).catch(() => {});
+                        }
+                        const { Alert } = require('react-native');
+                        Alert.alert('Copied!', 'Invite code copied to clipboard.');
+                      }}
+                    >
+                      <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>📋 Copy</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ backgroundColor: '#4CAF50', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8 }}
+                      onPress={async () => {
+                        const { Share } = require('react-native');
+                        await Share.share({
+                          message: `Join my Class of Happiness school! Use this invite code: ${generatedCode}`,
+                          title: 'Class of Happiness Invite Code',
+                        });
+                      }}
+                    >
+                      <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>📤 Share</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ) : null}
               <TouchableOpacity

@@ -212,13 +212,13 @@ export default function TeacherDashboardScreen() {
 
           <TouchableOpacity style={styles.actionButton} onPress={() => router.push('/teacher/classrooms')}>
             <MaterialIcons name="school" size={28} color="#5C6BC0" />
-            <Text style={styles.actionText} numberOfLines={1}>{t('classrooms')}</Text>
+            <Text style={styles.actionText} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>{t('classrooms')}</Text>
             <Text style={styles.actionCount}>{classrooms.length}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.actionButton} onPress={() => router.push('/teacher/checkin')}>
             <MaterialIcons name="self-improvement" size={28} color="#5C6BC0" />
-            <Text style={styles.actionText} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>
+            <Text style={styles.actionText} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.6}>
               {t('teacher_checkin') || 'Check-in'}
             </Text>
             <Text style={styles.actionCount}>{t('now') || 'Now'}</Text>
