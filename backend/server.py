@@ -3562,7 +3562,9 @@ async def get_admin_stats(request: Request, days: int = 7):
         students_result = supabase.table("students").select("id", count="exact").execute()
         total_students = students_result.count or 0
 
-        teachers_result = supabase.table("users").select("user_id", count="exact").eq("role", "teacher").execute()
+        # Teachers are stored as role='admin' (set on school creation)
+        # Count all non-superadmin, non-parent users as teachers
+        teachers_result = supabase.table("users").select("user_id", count="exact").in_("role", ["admin", "teacher", "school_admin"]).execute()
         total_teachers = teachers_result.count or 0
 
         users_result = supabase.table("users").select("user_id", count="exact").execute()
@@ -3602,12 +3604,60 @@ async def get_admin_stats(request: Request, days: int = 7):
             log.get("timestamp","") or log.get("created_at","")
         ).startswith(today_str))
 
-        # Teacher checkins (from AsyncStorage - approximate from zone_logs with teacher users)
+        # Teacher check-ins — from feeling_logs where student_id is null (teacher self check-ins)
         teacher_zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
         teacher_daily = [0] * 7
+        try:
+            teacher_logs_r = supabase.table("feeling_logs").select("*").is_("student_id", "null").gte("timestamp", week_ago).execute()
+            teacher_logs = teacher_logs_r.data or []
+            for tl in teacher_logs:
+                tz = tl.get("feeling_colour") or tl.get("zone", "")
+                if tz in teacher_zone_counts:
+                    teacher_zone_counts[tz] += 1
+                try:
+                    ts2 = tl.get("timestamp","")
+                    if ts2:
+                        tdate = datetime.fromisoformat(ts2.replace("Z","+00:00")).date()
+                        d_ago = (today - tdate).days
+                        if 0 <= d_ago < 7:
+                            teacher_daily[6 - d_ago] += 1
+                except: pass
+        except Exception as te:
+            logger.error(f"Teacher zone counts error: {te}")
 
         # Support requests (wellbeing_alerts table may not exist yet)
         support_requests = 0
+
+        # Total creatures across all students
+        total_creatures = 0
+        try:
+            creatures_r = supabase.table("creatures").select("id", count="exact").execute()
+            total_creatures = creatures_r.count or 0
+        except: pass
+
+        # Streak students — students with check-ins on 3+ consecutive days
+        streak_students = 0
+        try:
+            all_logs_r = supabase.table("feeling_logs").select("student_id,timestamp").gte("timestamp", month_ago).execute()
+            from collections import defaultdict
+            student_dates = defaultdict(set)
+            for l in (all_logs_r.data or []):
+                try:
+                    d = datetime.fromisoformat(l["timestamp"].replace("Z","+00:00")).date()
+                    student_dates[l["student_id"]].add(d)
+                except: pass
+            for sid, dates in student_dates.items():
+                sorted_dates = sorted(dates)
+                streak = 1
+                for i in range(1, len(sorted_dates)):
+                    if (sorted_dates[i] - sorted_dates[i-1]).days == 1:
+                        streak += 1
+                        if streak >= 3:
+                            streak_students += 1
+                            break
+                    else:
+                        streak = 1
+        except: pass
 
         # Top strategy
         strategy_counts = {}
@@ -3684,9 +3734,9 @@ async def get_admin_stats(request: Request, days: int = 7):
             "support_requests": support_requests,
             "top_strategy": top_strategy,
             "top_teacher_strategy": "—",
-            "total_creatures": 0,
+            "total_creatures": total_creatures,
             "avg_checkins_to_evolve": "—",
-            "streak_students": 0,
+            "streak_students": streak_students,
             "avg_session_mins": "—",
             "avg_student_session": "—",
             "avg_teacher_session": "—",
