@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useRouter, useNavigation, useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { registerForPushNotifications } from '../../src/utils/notifications';
 import { BarChart } from 'react-native-gifted-charts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
@@ -41,6 +42,8 @@ export default function TeacherDashboardScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({ headerShown: false });
+    // Register for push notifications (only if user has enabled them)
+    registerForPushNotifications().catch(() => {});
   }, [navigation]);
 
   // Refresh counts every time this screen comes into focus
@@ -215,12 +218,16 @@ export default function TeacherDashboardScreen() {
 
           <TouchableOpacity style={styles.actionButton} onPress={() => router.push('/teacher/checkin')}>
             <MaterialIcons name="self-improvement" size={28} color="#5C6BC0" />
-            {/* ✅ Fixed: translatable label, no cut-off */}
             <Text style={styles.actionText} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>
               {t('teacher_checkin') || 'Check-in'}
             </Text>
-            {/* ✅ Fixed: 'Now' translated */}
             <Text style={styles.actionCount}>{t('now') || 'Now'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionButton} onPress={() => router.push('/teacher/alerts')}>
+            <MaterialIcons name="notifications" size={28} color="#5C6BC0" />
+            <Text style={styles.actionText} numberOfLines={1}>{t('alerts') || 'Alerts'}</Text>
+            <Text style={styles.actionCount}>🔔</Text>
           </TouchableOpacity>
         </View>
 

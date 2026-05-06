@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Tex
 import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { sendHelpRequest, sendZoneAlert, sendParentMessage, shieldEmoji } from '../../src/utils/notifications';
 import { useApp } from '../../src/context/AppContext';
 import { zoneLogsApi, Strategy } from '../../src/utils/api';
 import { StrategyCard } from '../../src/components/StrategyCard';
@@ -30,6 +31,10 @@ export default function StrategiesScreen() {
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [helpRequested, setHelpRequested] = useState<string | null>(null); // strategy id
+  const [shieldJustAwarded, setShieldJustAwarded] = useState(false);
+  const [parentMessageVisible, setParentMessageVisible] = useState(false);
+  const [parentMessage, setParentMessage] = useState('');
   const [customSupportMessage, setCustomSupportMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -175,6 +180,32 @@ export default function StrategiesScreen() {
     );
   };
 
+  const handleHelpRequest = async (strategyId: string, strategyName: string) => {
+    if (!currentStudent) return;
+    setHelpRequested(strategyId);
+    const result = await sendHelpRequest({
+      student_id: currentStudent.id,
+      strategy_id: strategyId,
+      strategy_name: strategyName,
+      zone: zone || '',
+    });
+    if (result.shield_awarded) {
+      setShieldJustAwarded(true);
+      setTimeout(() => setShieldJustAwarded(false), 3000);
+    }
+  };
+
+  const handleParentMessage = async () => {
+    if (!currentStudent || !parentMessage.trim()) return;
+    await sendParentMessage({
+      student_id: currentStudent.id,
+      message: parentMessage.trim(),
+      zone: zone || '',
+    });
+    setParentMessageVisible(false);
+    setParentMessage('');
+  };
+
   const handleDone = async () => {
     if (!currentStudent || !zone) return;
     playSuccessSound();
@@ -187,6 +218,10 @@ export default function StrategiesScreen() {
         comment: comment.trim() || undefined,
         logged_by: checkInLocation === 'home' ? 'parent' : 'student',
       });
+      // Fire zone alert silently (teacher/parent notified if they enabled it)
+      if (currentStudent?.id && zone) {
+        sendZoneAlert({ student_id: currentStudent.id, zone }).catch(() => {});
+      }
       setShowCelebration(true);
       setTimeout(() => {
         setShowCelebration(false);
@@ -248,25 +283,74 @@ export default function StrategiesScreen() {
           <Text style={styles.instruction}>
             {zone === 'green' ? t('tap_helpers_green') || 'Tap helpers you would like to try:' : t('tap_helpers_other') || 'Tap to select helpers:'}
           </Text>
+          {shieldJustAwarded && (
+            <View style={{ backgroundColor: '#FFF8E1', borderRadius: 12, padding: 10, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ fontSize: 20 }}>🛡️</Text>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#F57F17' }}>Brave Shield earned! You asked for help.</Text>
+            </View>
+          )}
           {loading ? (
             <View style={styles.loadingContainer}>
               <Text style={styles.loadingText}>{t('loading_helpers') || 'Loading helpers...'}</Text>
             </View>
           ) : (
             strategies.map((strategy) => (
-              <StrategyCard
-                key={strategy.id}
-                name={strategy.name}
-                description={strategy.description}
-                icon={strategy.icon}
-                customImage={strategy.custom_image}
-                imageType={strategy.image_type}
-                selected={selectedStrategies.includes(strategy.id)}
-                onPress={() => toggleStrategy(strategy.id)}
-                zoneColor={zoneColor}
-              />
+              <View key={strategy.id} style={{ position: 'relative' }}>
+                <StrategyCard
+                  name={strategy.name}
+                  description={strategy.description}
+                  icon={strategy.icon}
+                  customImage={strategy.custom_image}
+                  imageType={strategy.image_type}
+                  selected={selectedStrategies.includes(strategy.id)}
+                  onPress={() => toggleStrategy(strategy.id)}
+                  zoneColor={zoneColor}
+                />
+                {/* 🆘 Help request button — only visible if notifications enabled */}
+                <TouchableOpacity
+                  style={[
+                    styles.helpBtn,
+                    helpRequested === strategy.id && { backgroundColor: '#4CAF50' },
+                  ]}
+                  onPress={() => handleHelpRequest(strategy.id, strategy.name)}
+                  disabled={helpRequested === strategy.id}
+                >
+                  <Text style={styles.helpBtnTxt}>
+                    {helpRequested === strategy.id ? '✅' : '🆘'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             ))
           )}
+          {/* 💌 Message to parent */}
+          <TouchableOpacity
+            style={styles.parentMsgToggle}
+            onPress={() => setParentMessageVisible(!parentMessageVisible)}
+          >
+            <Text style={{ fontSize: 16 }}>💌</Text>
+            <Text style={styles.parentMsgLabel}>{t('message_parent') || 'Send message to parent'}</Text>
+            <MaterialIcons name={parentMessageVisible ? 'expand-less' : 'expand-more'} size={20} color="#CCC" />
+          </TouchableOpacity>
+          {parentMessageVisible && (
+            <View style={styles.parentMsgBox}>
+              <TextInput
+                style={[styles.commentInput, { borderColor: '#5C6BC0', marginBottom: 8 }]}
+                placeholder={t('message_parent_placeholder') || 'Tell your parent how you feel...'}
+                placeholderTextColor="#BBB"
+                value={parentMessage}
+                onChangeText={setParentMessage}
+                multiline
+                maxLength={200}
+              />
+              <TouchableOpacity
+                style={{ backgroundColor: '#5C6BC0', borderRadius: 10, padding: 10, alignItems: 'center' }}
+                onPress={handleParentMessage}
+              >
+                <Text style={{ color: 'white', fontWeight: '700' }}>{t('send') || 'Send'} 💌</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <View style={styles.commentSection}>
             <TouchableOpacity style={styles.commentToggle} onPress={() => { playButtonFeedback(); setShowCommentInput(!showCommentInput); }}>
               <MaterialIcons name="chat-bubble-outline" size={22} color={showCommentInput || comment ? zoneColor : '#999'} />
@@ -325,4 +409,9 @@ const styles = StyleSheet.create({
   skipButtonText: { fontSize: 15, color: '#888', fontWeight: '600' },
   doneButton: { flex: 2, padding: 14, borderRadius: 12, alignItems: 'center' },
   doneButtonText: { fontSize: 15, color: 'white', fontWeight: 'bold' },
+  helpBtn: { position: 'absolute', right: 10, top: '50%', transform: [{ translateY: -16 }], width: 32, height: 32, borderRadius: 16, backgroundColor: '#FF5252', alignItems: 'center', justifyContent: 'center', zIndex: 10, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
+  helpBtnTxt: { fontSize: 14 },
+  parentMsgToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: '#E8EAF6', borderRadius: 12, marginTop: 10, marginBottom: 4 },
+  parentMsgLabel: { flex: 1, fontSize: 14, color: '#5C6BC0', fontWeight: '600' },
+  parentMsgBox: { backgroundColor: 'white', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#E8EAF6' },
 });
