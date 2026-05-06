@@ -180,11 +180,13 @@ export default function TeacherDashboardScreen() {
     return short[zone] || zone;
   };
 
+  // Short x-axis labels for bars (full names shown in legend below)
+  const ZONE_SHORT = { blue: '🔵', green: '🟢', yellow: '🟡', red: '🔴' };
   const chartData = analytics ? [
-    { value: analytics.zone_counts.blue,   frontColor: ZONE_COLORS.blue,   label: getZoneLabel('blue') },
-    { value: analytics.zone_counts.green,  frontColor: ZONE_COLORS.green,  label: getZoneLabel('green') },
-    { value: analytics.zone_counts.yellow, frontColor: ZONE_COLORS.yellow, label: getZoneLabel('yellow') },
-    { value: analytics.zone_counts.red,    frontColor: ZONE_COLORS.red,    label: getZoneLabel('red') },
+    { value: analytics.zone_counts.blue,   frontColor: ZONE_COLORS.blue,   label: ZONE_SHORT.blue },
+    { value: analytics.zone_counts.green,  frontColor: ZONE_COLORS.green,  label: ZONE_SHORT.green },
+    { value: analytics.zone_counts.yellow, frontColor: ZONE_COLORS.yellow, label: ZONE_SHORT.yellow },
+    { value: analytics.zone_counts.red,    frontColor: ZONE_COLORS.red,    label: ZONE_SHORT.red },
   ] : [];
 
   const weeklyLogs = getWeeklyLogs();
@@ -314,7 +316,7 @@ export default function TeacherDashboardScreen() {
                 isAnimated
                 barBorderRadius={8}
                 width={width - 80}
-                xAxisLabelTextStyle={{ fontSize: 9, color: '#666', width: 50, textAlign: 'center' }}
+                xAxisLabelTextStyle={{ fontSize: 16, color: '#666', width: 50, textAlign: 'center' }}
               />
               {/* ✅ Fixed: Translated colour legend below chart */}
               <View style={styles.chartLegend}>
