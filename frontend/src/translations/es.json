@@ -586,5 +586,7 @@
   "wellbeing_timeline": "Historial de Check-ins",
   "wellbeing_journal": "Diario",
   "wellbeing_journal_ph": "Añade una nota a este check-in...",
-  "wellbeing_total": "check-ins en total"
+  "wellbeing_total": "check-ins en total",
+  "per_week_avg": "por semana promedio",
+  "daily_view": "por semana promedio"
 }

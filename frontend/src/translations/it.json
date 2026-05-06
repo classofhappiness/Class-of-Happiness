@@ -183,5 +183,7 @@
   "wellbeing_timeline": "Cronologia Check-in",
   "wellbeing_journal": "Diario",
   "wellbeing_journal_ph": "Aggiungi una nota...",
-  "wellbeing_total": "check-in in totale"
+  "wellbeing_total": "check-in in totale",
+  "per_week_avg": "per settimana in media",
+  "daily_view": "per settimana in media"
 }

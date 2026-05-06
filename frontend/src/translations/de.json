@@ -183,5 +183,7 @@
   "wellbeing_timeline": "Check-in Verlauf",
   "wellbeing_journal": "Tagebuch",
   "wellbeing_journal_ph": "Notiz hinzufügen...",
-  "wellbeing_total": "Check-ins insgesamt"
+  "wellbeing_total": "Check-ins insgesamt",
+  "per_week_avg": "pro Woche im Durchschnitt",
+  "daily_view": "pro Woche im Durchschnitt"
 }

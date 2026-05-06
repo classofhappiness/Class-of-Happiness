@@ -248,6 +248,53 @@ export default function MyWellbeingScreen() {
           ))}
         </View>
 
+        {/* Daily dots — one dot per day in range */}
+        <View style={st.card}>
+          <Text style={st.cardTitle}>{t('daily_view') || 'Daily View'}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={{ flexDirection: 'row', gap: 6, paddingVertical: 4 }}>
+              {Array.from({ length: parseInt(range) }).map((_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - (parseInt(range) - 1 - i));
+                const dateKey = d.toISOString().split('T')[0];
+                const dayEntries = entries.filter(e => e.timestamp.startsWith(dateKey));
+                const dominant = dayEntries.length > 0
+                  ? Object.entries(
+                      dayEntries.reduce((acc, e) => { acc[e.zone] = (acc[e.zone]||0)+1; return acc; }, {} as Record<string,number>)
+                    ).sort((a,b) => b[1]-a[1])[0][0]
+                  : null;
+                const dayLabel = d.getDate().toString();
+                const monthLabel = d.toLocaleDateString(undefined, { month: 'short' });
+                return (
+                  <View key={i} style={{ alignItems: 'center', gap: 4, minWidth: parseInt(range) <= 7 ? 40 : 28 }}>
+                    <View style={{
+                      width: parseInt(range) <= 7 ? 36 : 24,
+                      height: parseInt(range) <= 7 ? 36 : 24,
+                      borderRadius: 18,
+                      backgroundColor: dominant ? ZONE_COLORS[dominant] : '#E0E0E0',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      {dominant ? (
+                        <Text style={{ fontSize: parseInt(range) <= 7 ? 16 : 11 }}>{ZONE_EMOJI[dominant]}</Text>
+                      ) : (
+                        <Text style={{ fontSize: 10, color: '#999' }}>·</Text>
+                      )}
+                    </View>
+                    {dayEntries.length > 0 && (
+                      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: ZONE_COLORS[dominant!] }} />
+                    )}
+                    <Text style={{ fontSize: 9, color: '#888' }}>{dayLabel}</Text>
+                    {(i === 0 || d.getDate() === 1) && (
+                      <Text style={{ fontSize: 8, color: '#AAA' }}>{monthLabel}</Text>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
+
         {/* Stats summary */}
         <View style={st.statsRow}>
           <View style={st.statBox}>
@@ -256,7 +303,7 @@ export default function MyWellbeingScreen() {
           </View>
           <View style={st.statBox}>
             <Text style={st.statNum}>{total > 0 ? Math.round(total / parseInt(range) * 7) : 0}</Text>
-            <Text style={st.statLabel}>per week avg</Text>
+            <Text style={st.statLabel}>{t('per_week_avg') || 'per week avg'}</Text>
           </View>
         </View>
 

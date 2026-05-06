@@ -124,5 +124,7 @@
   "wellbeing_timeline": "Check-in Timeline",
   "wellbeing_journal": "Journal",
   "wellbeing_journal_ph": "Add a note to this check-in...",
-  "wellbeing_total": "total check-ins"
+  "wellbeing_total": "total check-ins",
+  "per_week_avg": "per week avg",
+  "daily_view": "Daily View"
 }
