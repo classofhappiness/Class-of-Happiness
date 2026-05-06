@@ -358,12 +358,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const fetchPresetAvatars = async () => {
+  const fetchPresetAvatars = async (retries = 2) => {
     try {
       const data = await avatarsApi.getPresets();
-      setPresetAvatars(data);
+      if (data && data.length > 0) setPresetAvatars(data);
     } catch (error) {
-      console.error('Error fetching avatars:', error);
+      if (retries > 0) {
+        setTimeout(() => fetchPresetAvatars(retries - 1), 2000);
+      }
+      // Silent fail — avatars are cosmetic, not critical
     }
   };
 
@@ -473,14 +476,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // ✅ FIXED: Now surfaces the real error message from the server
-  const loginWithEmail = async (email: string) => {
+  const loginWithEmail = async (email: string, attempt = 1) => {
     try {
       setIsLoading(true);
-      const response = await fetch('https://class-of-happiness-production.up.railway.app/api/auth/email-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
+      let response: Response;
+      try {
+        response = await fetch('https://class-of-happiness-production.up.railway.app/api/auth/email-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+          signal: controller.signal,
+        });
+      } catch (fetchErr: any) {
+        clearTimeout(timeout);
+        // Railway cold start — retry once automatically
+        if (attempt === 1 && (fetchErr?.name === 'AbortError' || fetchErr?.message?.includes('failed'))) {
+          setIsLoading(false);
+          const { Alert } = require('react-native');
+          Alert.alert(
+            'Waking up server ☕',
+            'The server is starting up. Trying again in 3 seconds...',
+            [{ text: 'OK' }]
+          );
+          setTimeout(() => loginWithEmail(email, 2), 3000);
+          return;
+        }
+        throw fetchErr;
+      }
+      clearTimeout(timeout);
 
       // Read body first so we can show the real error message
       const data = await response.json().catch(() => null);

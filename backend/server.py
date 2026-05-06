@@ -2123,54 +2123,32 @@ async def get_students(request: Request):
     own_students = result.data or []
     own_ids = {s["id"] for s in own_students}
 
-    # Get ALL parent links to find linked students
+    # Get parent links ONLY for THIS teacher's own students
     try:
-        links_result = supabase.table("parent_links").select("*").execute()
-        all_links = links_result.data or []
-        linked_map = {l["student_id"]: l for l in all_links}
+        if own_ids:
+            links_result = supabase.table("parent_links").select("*").in_(
+                "student_id", list(own_ids)[:50]
+            ).execute()
+            own_links = links_result.data or []
+            linked_map = {l["student_id"]: l for l in own_links}
+        else:
+            linked_map = {}
 
-        # Add is_linked flag to own students
+        # Add is_linked flag to own students only
         for s in own_students:
             link = linked_map.get(s["id"])
             s["is_linked"] = link is not None
             s["home_sharing_enabled"] = link.get("home_sharing_enabled", False) if link else False
             s["parent_user_id"] = link.get("parent_user_id") if link else None
 
-        # Also fetch students created by parents that are linked
-        # These are students NOT owned by teacher but have a parent_link
-        # pointing to a student the teacher gave a link code to
-        # Find any student_ids in parent_links that aren't in teacher's own students
-        extra_student_ids = [
-            l["student_id"] for l in all_links
-            if l["student_id"] not in own_ids
-        ]
-        
-        if extra_student_ids:
-            # Check if any of these were originally linked via teacher's link code
-            # by checking if the student's parent_link_code matches
-            for sid in extra_student_ids[:20]:  # limit
-                try:
-                    s_result = supabase.table("students").select("*").eq("id", sid).execute()
-                    if s_result.data:
-                        s = s_result.data[0]
-                        link = linked_map.get(sid)
-                        s["is_linked"] = True
-                        s["home_sharing_enabled"] = link.get("home_sharing_enabled", False) if link else False
-                        s["parent_user_id"] = link.get("parent_user_id") if link else None
-                        s["linked_via_parent"] = True  # flag so teacher knows
-                        if sid not in own_ids:
-                            own_students.append(s)
-                            own_ids.add(sid)
-                except Exception:
-                    pass
+        # NOTE: We intentionally do NOT add students from other teachers here.
+        # Each teacher only sees their own students. Parents can view shared data
+        # through the family dashboard, not by appearing in teacher lists.
 
     except Exception as e:
         logger.error(f"Could not fetch link status: {e}")
-    
-    students = own_students
-    
-    return students
-    return result.data or []
+
+    return own_students
 
 @api_router.post("/students")
 async def create_student(student: StudentCreate, request: Request):
