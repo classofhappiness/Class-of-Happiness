@@ -560,7 +560,7 @@ export default function ParentDashboard() {
         {/* Header */}
         <View style={[styles.header, { alignItems: 'center', paddingHorizontal: 24 }]}>
           <Text style={[styles.headerSubtitle, { textAlign: 'center' }]}>
-            {t('family_wellbeing_desc') || "My family's emotional wellbeing"}
+            {t('family_wellbeing_desc') || "My Family's Emotional Wellbeing"}
           </Text>
         </View>
 
@@ -626,10 +626,7 @@ export default function ParentDashboard() {
                     <Text style={styles.gridName} numberOfLines={1}>{member.name}</Text>
                     {isLinked && <Text style={styles.linkedLabel}>Linked Child</Text>}
 
-                    <View style={[styles.gridCheckinPill, { backgroundColor: cardColor }]}>
-                      <MaterialIcons name="favorite" size={12} color="white" />
-                      <Text style={styles.gridCheckinTxt}>{t('check_in') || 'Check In'}</Text>
-                    </View>
+
 
                     {/* Wellbeing button — parents only need PIN (not kids) */}
                     <TouchableOpacity
@@ -759,7 +756,7 @@ export default function ParentDashboard() {
           <>
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
-                {(selectedMember as any).name}'s {t('week_overview')}
+                {t('week_overview') || 'Week Overview'}
               </Text>
               
               {totalLogs > 0 ? (
@@ -1200,8 +1197,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
     marginTop: 20,
-    paddingBottom: 4,
-    paddingTop: 8,
+    paddingBottom: 2,
+    paddingTop: 4,
   },
   headerLogo: { width: 56, height: 56, marginBottom: 4 },
   headerTitle: {
@@ -1214,7 +1211,7 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 14,
     color: '#666',
-    marginTop: 12,
+    marginTop: 2,
     textAlign: 'center',
     paddingHorizontal: 20,
     lineHeight: 20,
@@ -1229,11 +1226,11 @@ const styles = StyleSheet.create({
   familySectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   familySectionTitle: { fontSize: 16, fontWeight: '700', color: '#1A1A2E' },
   familyGrid: { flexDirection: 'row', gap: 10 },
-  gridCard: { width: 140, backgroundColor: 'white', borderRadius: 14, padding: 10, alignItems: 'center', borderWidth: 1.5, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  gridCard: { width: 115, backgroundColor: 'white', borderRadius: 14, padding: 10, alignItems: 'center', borderWidth: 1.5, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   gridCardActions: { flexDirection: 'row', justifyContent: 'flex-end', width: '100%', gap: 4, marginBottom: 6 },
   gridActionBtn: { padding: 3, backgroundColor: '#F5F5F5', borderRadius: 6 },
-  gridAvatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  gridAvatarImg: { width: 56, height: 56, borderRadius: 28 },
+  gridAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  gridAvatarImg: { width: 44, height: 44, borderRadius: 22 },
   gridName: { fontSize: 14, fontWeight: '700', color: '#333', marginBottom: 8, textAlign: 'center' },
   gridCheckinBtn: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 7, marginBottom: 6 },
   gridCheckinTxt: { fontSize: 13, fontWeight: '700', color: 'white' },

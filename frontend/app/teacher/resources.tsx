@@ -88,11 +88,13 @@ export default function TeacherResourcesScreen() {
   const fetchResources = async () => {
     try {
       // Fetch all teacher resources + own uploads (in case is_active filter misses them)
+      const token = await AsyncStorage.getItem('session_token');
+      const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
       const [data, myUploads] = await Promise.all([
         teacherResourcesApi.getAll(selectedTopic || undefined, 'teachers'),
-        fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL || ''}/api/teacher-resources/my-uploads`, {
-          headers: { Authorization: `Bearer ${(await import('@react-native-async-storage/async-storage')).default.getItem('session_token').then(t => t || '')}` }
-        }).then(r => r.json()).catch(() => []),
+        fetch(`${BURL}/api/teacher-resources/my-uploads`, {
+          headers: { Authorization: `Bearer ${token || ''}` }
+        }).then(r => r.ok ? r.json() : []).catch(() => []),
       ]);
       // Merge, dedup by id
       const seen = new Set(data.map((r: any) => r.id));

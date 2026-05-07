@@ -51,7 +51,12 @@ export default function TeacherDashboardScreen() {
       const analyticsUrl = selectedClassroom
         ? `${BACKEND_URL}/api/analytics/classroom/${selectedClassroom}?days=${period}`
         : `${BACKEND_URL}/api/analytics/classroom/all?days=${period}`;
-      const analyticsData = await fetch(analyticsUrl, { headers: h }).then(r => r.ok ? r.json() : null).catch(() => null);
+      const analyticsRaw = await fetch(analyticsUrl, { headers: h }).then(r => r.ok ? r.json() : null).catch(() => null);
+      // Normalise field names — backend returns feeling_counts or zone_counts
+      const analyticsData = analyticsRaw ? {
+        ...analyticsRaw,
+        zone_counts: analyticsRaw.zone_counts || analyticsRaw.feeling_counts || { blue:0, green:0, yellow:0, red:0 }
+      } : null;
       setAnalytics(analyticsData);
 
       // Alert count

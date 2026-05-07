@@ -1329,7 +1329,7 @@ TRANSLATIONS = {
         "your_creature": "Your Creature", "creature_collection": "My Creature Collection",
         "stage": "Stage", "unlocked": "Unlocked!", "points_needed": "points to next stage",
         "settings": "Settings", "language": "Language", "about": "About",
-        "login": "Login", "logout": "Logout", "alerts": "Alerts", "fortnight": "Fortnight", "week": "Week", "today": "Today", "all": "All", "my_family": "My Family", "family_wellbeing_desc": "My family's emotional wellbeing", "help_request_hint": "Tap the hand icon on any helper to ask your teacher or parent for support.", "message_parent": "Send message to parent", "message_parent_placeholder": "Tell your parent how you feel...", "no_alerts": "No pending alerts", "resolved": "Mark resolved", "strategy": "Strategy", "wellbeing": "Wellbeing", "check_in": "Check In", "family_strategies": "Family Strategies", "linked_child": "Linked Child", "recent_check_ins": "Recent Check-ins", "no_recent_checkins": "No check-ins yet", "class_mood_graph": "Emotion Graph", "teacher_dashboard": "Teacher Dashboard", "my_wellbeing": "My Wellbeing", "wellbeing_private": "Private · just for you", "send": "Send", "no_data_yet": "No data yet", "confirm": "Confirm",
+        "login": "Login", "logout": "Logout", "alerts": "Alerts", "fortnight": "Fortnight", "week": "Week", "today": "Today", "all": "All", "my_family": "My Family", "family_wellbeing_desc": "My Family's Emotional Wellbeing", "help_request_hint": "Tap the hand icon on any helper to ask your teacher or parent for support.", "message_parent": "Send message to parent", "message_parent_placeholder": "Tell your parent how you feel...", "no_alerts": "No pending alerts", "resolved": "Mark resolved", "strategy": "Strategy", "wellbeing": "Wellbeing", "check_in": "Check In", "family_strategies": "Family Strategies", "linked_child": "Linked Child", "recent_check_ins": "Recent Check-ins", "no_recent_checkins": "No check-ins yet", "class_mood_graph": "Emotion Graph", "teacher_dashboard": "Teacher Dashboard", "my_wellbeing": "My Wellbeing", "wellbeing_private": "Private · just for you", "send": "Send", "no_data_yet": "No data yet", "confirm": "Confirm",
         "change_language": "Change Language", "language_changed": "Language Changed",
         "is_now_default": "is now your default language.",
         "i_am_a": "I am a...", "student": "Student", "teacher": "Teacher", "parent": "Parent",
@@ -2673,6 +2673,37 @@ async def get_student_analytics(student_id: str, days: int = 7):
         "daily_data": daily_data,
         "period_days": days
     }
+
+
+@api_router.get("/analytics/classroom/all")
+async def get_all_classrooms_analytics(request: Request, days: int = 7):
+    """Aggregate analytics across all classrooms for the authenticated teacher."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        # Get all students for this teacher
+        students_r = supabase.table("students").select("id").eq("user_id", user["user_id"]).execute()
+        student_ids = [s["id"] for s in (students_r.data or [])]
+        feeling_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+        if student_ids:
+            logs_r = supabase.table("feeling_logs").select("feeling_colour,zone").in_(
+                "student_id", student_ids[:100]
+            ).gte("timestamp", start_date).execute()
+            for log in (logs_r.data or []):
+                colour = log.get("feeling_colour") or log.get("zone", "")
+                if colour in feeling_counts:
+                    feeling_counts[colour] += 1
+        return {
+            "zone_counts": feeling_counts,
+            "feeling_counts": feeling_counts,
+            "total_logs": sum(feeling_counts.values()),
+            "students_count": len(student_ids),
+        }
+    except Exception as e:
+        logger.error(f"All analytics error: {e}")
+        return {"zone_counts": {"blue":0,"green":0,"yellow":0,"red":0}, "total_logs": 0}
 
 @api_router.get("/analytics/classroom/{classroom_id}")
 async def get_classroom_analytics(classroom_id: str, days: int = 7):
