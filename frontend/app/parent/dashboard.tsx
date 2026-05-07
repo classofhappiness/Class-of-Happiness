@@ -585,7 +585,7 @@ export default function ParentDashboard() {
         {/* Header — COH logo + centered title */}
         <View style={{ alignItems: 'center', paddingTop: 16, paddingBottom: 4 }}>
           <Image
-            source={require('../../assets/images/coh-logo.png')}
+            source={require('../../assets/images/logo_coh.png')}
             style={{ width: 52, height: 52, marginBottom: 10 }}
             resizeMode="contain"
           />
