@@ -191,6 +191,7 @@ export default function FamilyStrategiesScreen() {
     ? FAMILY_STRATEGIES.filter(s => s.zone === selectedZone)
     : FAMILY_STRATEGIES;
 
+  return (
     <SafeAreaView style={styles.container}>
       <TranslatedHeader title={t('family_strategies') || 'Family Strategies'} />
       <View style={styles.topBar}>
@@ -535,7 +536,6 @@ export default function FamilyStrategiesScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
-  </KeyboardAvoidingView>
   );
 }
 
