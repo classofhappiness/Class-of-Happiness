@@ -1329,7 +1329,7 @@ TRANSLATIONS = {
         "your_creature": "Your Creature", "creature_collection": "My Creature Collection",
         "stage": "Stage", "unlocked": "Unlocked!", "points_needed": "points to next stage",
         "settings": "Settings", "language": "Language", "about": "About",
-        "login": "Login", "logout": "Logout", "confirm": "Confirm",
+        "login": "Login", "logout": "Logout", "alerts": "Alerts", "fortnight": "Fortnight", "week": "Week", "today": "Today", "all": "All", "my_family": "My Family", "family_wellbeing_desc": "My family's emotional wellbeing", "help_request_hint": "Tap the hand icon on any helper to ask your teacher or parent for support.", "message_parent": "Send message to parent", "message_parent_placeholder": "Tell your parent how you feel...", "no_alerts": "No pending alerts", "resolved": "Mark resolved", "strategy": "Strategy", "wellbeing": "Wellbeing", "check_in": "Check In", "family_strategies": "Family Strategies", "linked_child": "Linked Child", "recent_check_ins": "Recent Check-ins", "no_recent_checkins": "No check-ins yet", "class_mood_graph": "Emotion Graph", "teacher_dashboard": "Teacher Dashboard", "my_wellbeing": "My Wellbeing", "wellbeing_private": "Private · just for you", "send": "Send", "no_data_yet": "No data yet", "confirm": "Confirm",
         "change_language": "Change Language", "language_changed": "Language Changed",
         "is_now_default": "is now your default language.",
         "i_am_a": "I am a...", "student": "Student", "teacher": "Teacher", "parent": "Parent",
@@ -1410,7 +1410,7 @@ TRANSLATIONS = {
         "your_creature": "A Tua Criatura", "creature_collection": "A Minha Coleção de Criaturas",
         "stage": "Fase", "unlocked": "Desbloqueado!", "points_needed": "pontos para a próxima fase",
         "settings": "Configurações", "language": "Idioma", "about": "Sobre",
-        "login": "Entrar", "logout": "Sair", "confirm": "Confirmar",
+        "login": "Entrar", "logout": "Sair", "fortnight": "Quinzena", "week": "Semana", "today": "Hoje", "all": "Todos", "my_family": "A Minha Família", "family_wellbeing_desc": "O bem-estar emocional da minha família", "help_request_hint": "Toca no ícone da mão para pedir ajuda ao teu professor ou pai.", "message_parent": "Enviar mensagem ao pai/mãe", "message_parent_placeholder": "Diz ao teu pai/mãe como te sentes...", "resolved": "Marcar como resolvido", "strategy": "Estratégia", "wellbeing": "Bem-estar", "check_in": "Registar", "family_strategies": "Estratégias Familiares", "linked_child": "Criança Ligada", "recent_check_ins": "Registos Recentes", "no_recent_checkins": "Ainda sem registos", "teacher_dashboard": "Painel do Professor", "my_wellbeing": "O Meu Bem-Estar", "wellbeing_private": "Privado · só para ti", "send": "Enviar", "no_data_yet": "Ainda sem dados", "confirm": "Confirmar",
         "change_language": "Mudar idioma", "language_changed": "Idioma alterado",
         "is_now_default": "é agora o teu idioma padrão.",
         "i_am_a": "Eu sou...", "student": "Aluno", "teacher": "Professor", "parent": "Pai/Mãe",
@@ -1784,7 +1784,7 @@ TRANSLATIONS = {
         "hi": "Hola", "need_help": "¿Necesitas ayuda? ¡Toca aquí!",
         "support_message": "Siempre puedes pedir ayuda a un adulto de confianza",
         "settings": "Ajustes", "language": "Idioma", "login": "Iniciar sesión",
-        "logout": "Cerrar sesión", "save": "Guardar", "cancel": "Cancelar",
+        "logout": "Cerrar sesión", "save": "Guardar", "cancel": "Cancelar", "alerts": "Alertas", "fortnight": "Quincena", "week": "Semana", "today": "Hoy", "all": "Todos", "my_family": "Mi Familia", "family_wellbeing_desc": "El bienestar emocional de mi familia", "help_request_hint": "Toca el icono de la mano para pedir ayuda a tu maestro o padre.", "message_parent": "Enviar mensaje al padre/madre", "message_parent_placeholder": "Dile a tu padre/madre cómo te sientes...", "no_alerts": "Sin alertas pendientes", "resolved": "Marcar como resuelto", "strategy": "Estrategia", "wellbeing": "Bienestar", "check_in": "Registrar", "family_strategies": "Estrategias Familiares", "linked_child": "Niño Vinculado", "recent_check_ins": "Registros Recientes", "no_recent_checkins": "Aún sin registros", "class_mood_graph": "Gráfico de Emociones", "teacher_dashboard": "Panel del Profesor", "send": "Enviar", "no_data_yet": "Aún sin datos",
         "student": "Estudiante", "teacher": "Profesor", "parent": "Padre/Madre",
         "loading": "Cargando...", "done": "Hecho", "back": "Atrás",
         "i_am_a": "Yo soy...", "select_profile": "Selecciona tu Perfil",
@@ -1807,7 +1807,7 @@ TRANSLATIONS = {
         "hi": "Salut", "need_help": "Besoin d'aide? Touche ici!",
         "support_message": "Tu peux toujours demander de l\'aide à un adulte de confiance",
         "settings": "Paramètres", "language": "Langue", "login": "Connexion",
-        "logout": "Déconnexion", "save": "Enregistrer", "cancel": "Annuler", "my_wellbeing": "Mon Bien-Être", "wellbeing_private": "Privé · juste pour toi", "wellbeing_pin_setup": "Crée ton PIN privé", "wellbeing_pin_enter": "Entre ton PIN", "wellbeing_pin_confirm": "Confirme le PIN", "wellbeing_pin_desc": "Seulement toi peux voir ça.", "wellbeing_pin_mismatch": "Les PINs ne correspondent pas", "wellbeing_pin_wrong": "PIN incorrect", "wellbeing_pin_reset": "Réinitialiser le PIN", "wellbeing_pin_forgot": "PIN oublié?", "wellbeing_pin_hint_label": "Indice PIN (optionnel)", "wellbeing_pin_hint_show": "Ton indice:",
+        "logout": "Déconnexion", "save": "Enregistrer", "cancel": "Annuler", "alerts": "Alertes", "fortnight": "Quinzaine", "week": "Semaine", "today": "Aujourd'hui", "all": "Tous", "my_family": "Ma Famille", "family_wellbeing_desc": "Le bien-être émotionnel de ma famille", "help_request_hint": "Appuie sur l'icône de main pour demander de l'aide à ton enseignant ou parent.", "message_parent": "Envoyer un message au parent", "message_parent_placeholder": "Dis à ton parent comment tu te sens...", "no_alerts": "Aucune alerte en attente", "resolved": "Marquer comme résolu", "strategy": "Stratégie", "wellbeing": "Bien-être", "check_in": "S'enregistrer", "family_strategies": "Stratégies Familiales", "linked_child": "Enfant Lié", "recent_check_ins": "Enregistrements Récents", "no_recent_checkins": "Pas encore d'enregistrements", "class_mood_graph": "Graphique des Émotions", "teacher_dashboard": "Tableau de Bord Enseignant", "send": "Envoyer", "no_data_yet": "Pas encore de données", "my_wellbeing": "Mon Bien-Être", "wellbeing_private": "Privé · juste pour toi", "wellbeing_pin_setup": "Crée ton PIN privé", "wellbeing_pin_enter": "Entre ton PIN", "wellbeing_pin_confirm": "Confirme le PIN", "wellbeing_pin_desc": "Seulement toi peux voir ça.", "wellbeing_pin_mismatch": "Les PINs ne correspondent pas", "wellbeing_pin_wrong": "PIN incorrect", "wellbeing_pin_reset": "Réinitialiser le PIN", "wellbeing_pin_forgot": "PIN oublié?", "wellbeing_pin_hint_label": "Indice PIN (optionnel)", "wellbeing_pin_hint_show": "Ton indice:",
         "student": "Élève", "teacher": "Enseignant", "parent": "Parent",
         "loading": "Chargement...", "done": "Terminé", "back": "Retour",
         "i_am_a": "Je suis...", "select_profile": "Sélectionne ton Profil",
@@ -1825,7 +1825,7 @@ TRANSLATIONS = {
         "hi": "Hallo", "need_help": "Brauchst du Hilfe? Tippe hier!",
         "support_message": "Du kannst immer einen Erwachsenen um Hilfe bitten",
         "settings": "Einstellungen", "language": "Sprache", "login": "Anmelden",
-        "logout": "Abmelden", "save": "Speichern", "cancel": "Abbrechen", "my_wellbeing": "Mein Wohlbefinden", "wellbeing_private": "Privat · nur für dich", "wellbeing_pin_setup": "Erstelle deinen privaten PIN", "wellbeing_pin_enter": "PIN eingeben", "wellbeing_pin_confirm": "PIN bestätigen", "wellbeing_pin_desc": "Nur du kannst das sehen.", "wellbeing_pin_mismatch": "PINs stimmen nicht überein", "wellbeing_pin_wrong": "Falscher PIN", "wellbeing_pin_reset": "PIN zurücksetzen", "wellbeing_pin_forgot": "PIN vergessen?", "wellbeing_pin_hint_label": "PIN-Hinweis (optional)", "wellbeing_pin_hint_show": "Dein Hinweis:",
+        "logout": "Abmelden", "save": "Speichern", "cancel": "Abbrechen", "alerts": "Benachrichtigungen", "fortnight": "Zwei Wochen", "week": "Woche", "today": "Heute", "all": "Alle", "my_family": "Meine Familie", "family_wellbeing_desc": "Das emotionale Wohlbefinden meiner Familie", "help_request_hint": "Tippe auf das Hand-Symbol, um deinen Lehrer oder Elternteil um Hilfe zu bitten.", "message_parent": "Nachricht an Elternteil senden", "message_parent_placeholder": "Erzähl deinem Elternteil, wie du dich fühlst...", "no_alerts": "Keine ausstehenden Benachrichtigungen", "resolved": "Als gelöst markieren", "strategy": "Strategie", "wellbeing": "Wohlbefinden", "check_in": "Einchecken", "family_strategies": "Familienstrategien", "linked_child": "Verknüpftes Kind", "recent_check_ins": "Letzte Einträge", "no_recent_checkins": "Noch keine Einträge", "class_mood_graph": "Emotions-Diagramm", "teacher_dashboard": "Lehrer-Dashboard", "send": "Senden", "no_data_yet": "Noch keine Daten", "my_wellbeing": "Mein Wohlbefinden", "wellbeing_private": "Privat · nur für dich", "wellbeing_pin_setup": "Erstelle deinen privaten PIN", "wellbeing_pin_enter": "PIN eingeben", "wellbeing_pin_confirm": "PIN bestätigen", "wellbeing_pin_desc": "Nur du kannst das sehen.", "wellbeing_pin_mismatch": "PINs stimmen nicht überein", "wellbeing_pin_wrong": "Falscher PIN", "wellbeing_pin_reset": "PIN zurücksetzen", "wellbeing_pin_forgot": "PIN vergessen?", "wellbeing_pin_hint_label": "PIN-Hinweis (optional)", "wellbeing_pin_hint_show": "Dein Hinweis:",
         "student": "Schüler", "teacher": "Lehrer", "parent": "Elternteil",
         "loading": "Lädt...", "done": "Fertig", "back": "Zurück", "i_am_a": "Ich bin...",
         "day_sun": "So", "day_mon": "Mo", "day_tue": "Di",
@@ -1842,7 +1842,7 @@ TRANSLATIONS = {
         "hi": "Ciao", "need_help": "Hai bisogno di aiuto? Tocca qui!",
         "support_message": "Puoi sempre chiedere aiuto a un adulto di fiducia",
         "settings": "Impostazioni", "language": "Lingua", "login": "Accedi",
-        "logout": "Esci", "save": "Salva", "cancel": "Annulla", "my_wellbeing": "Il Mio Benessere", "wellbeing_private": "Privato · solo per te", "wellbeing_pin_setup": "Crea il tuo PIN privato", "wellbeing_pin_enter": "Inserisci il PIN", "wellbeing_pin_confirm": "Conferma il PIN", "wellbeing_pin_desc": "Solo tu puoi vedere questo.", "wellbeing_pin_mismatch": "I PIN non corrispondono", "wellbeing_pin_wrong": "PIN errato", "wellbeing_pin_reset": "Reimposta PIN", "wellbeing_pin_forgot": "PIN dimenticato?", "wellbeing_pin_hint_label": "Suggerimento PIN (opzionale)", "wellbeing_pin_hint_show": "Il tuo suggerimento:",
+        "logout": "Esci", "save": "Salva", "cancel": "Annulla", "alerts": "Avvisi", "fortnight": "Quindicina", "week": "Settimana", "today": "Oggi", "all": "Tutti", "my_family": "La Mia Famiglia", "family_wellbeing_desc": "Il benessere emotivo della mia famiglia", "help_request_hint": "Tocca l'icona della mano per chiedere aiuto al tuo insegnante o genitore.", "message_parent": "Invia messaggio al genitore", "message_parent_placeholder": "Di' al tuo genitore come ti senti...", "no_alerts": "Nessun avviso in sospeso", "resolved": "Segna come risolto", "strategy": "Strategia", "wellbeing": "Benessere", "check_in": "Registra", "family_strategies": "Strategie Familiari", "linked_child": "Bambino Collegato", "recent_check_ins": "Registrazioni Recenti", "no_recent_checkins": "Ancora nessuna registrazione", "class_mood_graph": "Grafico delle Emozioni", "teacher_dashboard": "Dashboard Insegnante", "send": "Invia", "no_data_yet": "Ancora nessun dato", "my_wellbeing": "Il Mio Benessere", "wellbeing_private": "Privato · solo per te", "wellbeing_pin_setup": "Crea il tuo PIN privato", "wellbeing_pin_enter": "Inserisci il PIN", "wellbeing_pin_confirm": "Conferma il PIN", "wellbeing_pin_desc": "Solo tu puoi vedere questo.", "wellbeing_pin_mismatch": "I PIN non corrispondono", "wellbeing_pin_wrong": "PIN errato", "wellbeing_pin_reset": "Reimposta PIN", "wellbeing_pin_forgot": "PIN dimenticato?", "wellbeing_pin_hint_label": "Suggerimento PIN (opzionale)", "wellbeing_pin_hint_show": "Il tuo suggerimento:",
         "student": "Studente", "teacher": "Insegnante", "parent": "Genitore",
         "loading": "Caricamento...", "done": "Fatto", "back": "Indietro", "i_am_a": "Sono...",
         "day_sun": "Dom", "day_mon": "Lun", "day_tue": "Mar",
@@ -3768,8 +3768,10 @@ async def send_help_request(request: Request):
                 "level": level,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }).eq("id", current["id"]).execute()
+            shield_awarded = True
         else:
-            supabase.table("student_rewards").insert({
+            # Try insert with minimal fields first
+            shield_data = {
                 "id": str(uuid.uuid4()),
                 "student_id": student_id,
                 "reward_type": "brave_shield",
@@ -3777,10 +3779,17 @@ async def send_help_request(request: Request):
                 "level": "bronze_1",
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "updated_at": datetime.now(timezone.utc).isoformat(),
-            }).execute()
-        shield_awarded = True
+            }
+            result = supabase.table("student_rewards").insert(shield_data).execute()
+            if result.data:
+                shield_awarded = True
+                logger.info(f"Shield badge created for student {student_id}")
+            else:
+                logger.error(f"Shield insert returned no data: {result}")
     except Exception as e:
-        logger.error(f"Shield badge error: {e}")
+        logger.error(f"Shield badge error (student {student_id}): {e}", exc_info=True)
+        # Shield failure should not block the help request response
+        shield_awarded = False
 
     return {"ok": True, "notifications_sent": sent, "shield_awarded": shield_awarded, "alert_id": alert_id}
 
