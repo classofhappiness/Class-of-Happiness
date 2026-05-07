@@ -2699,11 +2699,11 @@ async def get_all_classrooms_analytics(request: Request, days: int = 7):
             logger.info(f"[analytics/all] fallback students={student_ids}")
         feeling_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
         if student_ids:
-            logs_r = supabase.table("feeling_logs").select("feeling_colour,zone").in_(
+            logs_r = supabase.table("feeling_logs").select("feeling_colour").in_(
                 "student_id", student_ids[:100]
             ).gte("timestamp", start_date).execute()
             for log in (logs_r.data or []):
-                colour = log.get("feeling_colour") or log.get("zone", "")
+                colour = log.get("feeling_colour", "")
                 if colour in feeling_counts:
                     feeling_counts[colour] += 1
         return {
