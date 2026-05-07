@@ -5,6 +5,7 @@ import {
   TouchableOpacity, RefreshControl, Modal, TextInput, Alert, Switch,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -190,8 +191,7 @@ export default function FamilyStrategiesScreen() {
     ? FAMILY_STRATEGIES.filter(s => s.zone === selectedZone)
     : FAMILY_STRATEGIES;
 
-  return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+      <TranslatedHeader title={t('family_strategies') || 'Family Strategies'} />
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>

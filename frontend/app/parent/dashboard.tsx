@@ -683,7 +683,15 @@ export default function ParentDashboard() {
                     </View>
                   </View>
                   <View style={[styles.gridAvatar, { backgroundColor: '#4CAF5015' }]}>
-                    <Text style={{ fontSize: 22 }}>🎒</Text>
+                    {child.avatar_type === 'custom' && child.avatar_custom ? (
+                      <Image source={{ uri: child.avatar_custom }} style={styles.gridAvatarImg} />
+                    ) : child.avatar_preset ? (
+                      <Text style={{ fontSize: 24 }}>
+                        {presetAvatars?.find((a: any) => a.id === child.avatar_preset)?.emoji || '🎒'}
+                      </Text>
+                    ) : (
+                      <MaterialIcons name="child-care" size={26} color="#4CAF50" />
+                    )}
                   </View>
                   <Text style={styles.gridName} numberOfLines={1}>{child.name}</Text>
                   <Text style={styles.linkedLabel}>Linked Child</Text>
@@ -793,7 +801,8 @@ export default function ParentDashboard() {
           <View style={styles.compactActions}>
             <TouchableOpacity style={styles.compactAction} onPress={() => router.push('/parent/family-strategies')}>
               <MaterialIcons name="lightbulb" size={22} color="#FFC107" />
-              <Text style={styles.compactActionTxt}>{t('strategies') || 'Strategies'}</Text>
+              <Text style={styles.compactActionTxt}>{t('family_strategies') || 'Family
+Strategies'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.compactAction} onPress={() => router.push('/parent/resources')}>
               <MaterialIcons name="library-books" size={22} color="#5C6BC0" />

@@ -52,7 +52,7 @@ export default function TeacherDashboardScreen() {
   const [todaySnap, setTodaySnap] = useState({ blue:0, green:0, yellow:0, red:0, total:0 });
   const [selectedClassroom, setSelectedClassroom] = useState<string|null>(null);
   const [alertCount, setAlertCount] = useState(0);
-  const [checkinsExpanded, setCheckinsExpanded] = useState(true);
+  const [checkinsExpanded, setCheckinsExpanded] = useState(false);
   const [graphExpanded, setGraphExpanded] = useState(false);
 
   useLayoutEffect(() => {
@@ -116,6 +116,9 @@ export default function TeacherDashboardScreen() {
     { value: Number(analytics.zone_counts?.red||0), frontColor: ZONE_COLORS.red, label:'🔴' },
   ] : [];
   const hasChartData = chartData.some(d => d.value > 0);
+  // Debug: log analytics to help diagnose empty graph
+  // console.log('Analytics:', JSON.stringify(analytics));
+  // console.log('Chart data:', chartData);
 
   const NAV_BUTTONS = [
     { label: t('students')||'Students', icon: 'people', color: '#4CAF50', route: '/teacher/students', count: students.length },
@@ -322,7 +325,7 @@ const st = StyleSheet.create({
   sectionTitle: { fontSize:15, fontWeight:'700', color:'#333' },
   logCard: { flexDirection:'row', alignItems:'center', backgroundColor:'white', borderRadius:12, padding:10, marginBottom:6, shadowColor:'#000', shadowOpacity:0.04, shadowRadius:3, elevation:1 },
   logName: { fontSize:14, fontWeight:'600', color:'#1A1A2E' },
-  logStrats: { fontSize:10, color:'#999', marginTop:1 },
+  logStrats: { fontSize:10, color:'#555', marginTop:1, fontWeight:'400' },
   logTime: { fontSize:10, color:'#BBB' },
   zonePill: { width:14, height:14, borderRadius:7 },
   homeBadge: { backgroundColor:'#E8F5E9', paddingHorizontal:4, paddingVertical:1, borderRadius:5 },
