@@ -560,7 +560,7 @@ export default function ParentDashboard() {
         {/* Header */}
         <View style={[styles.header, { alignItems: 'center', paddingHorizontal: 24 }]}>
           <Text style={[styles.headerSubtitle, { textAlign: 'center' }]}>
-            {t('track_emotional_wellness') || 'Track your family\'s emotional wellness'}
+            {t('family_wellbeing_desc') || "My family's emotional wellbeing"}
           </Text>
         </View>
 
@@ -581,7 +581,7 @@ export default function ParentDashboard() {
               <Text style={styles.emptyFamilyTxt}>{t('add_family_to_track') || 'Add a family member'}</Text>
             </TouchableOpacity>
           ) : (
-            <View style={styles.familyGrid}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={styles.familyGrid}>
               {familyMembers.slice(0, 4).map((member) => {
                 const creature = memberCreatures[member.id];
                 const creatureEmoji = creature?.allCreatures?.[0]
@@ -1200,7 +1200,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     marginTop: 20,
     paddingBottom: 4,
-    paddingTop: 4,
+    paddingTop: 8,
   },
   headerLogo: { width: 56, height: 56, marginBottom: 4 },
   headerTitle: {
@@ -1227,8 +1227,8 @@ const styles = StyleSheet.create({
   familySection: { paddingHorizontal: 16, marginBottom: 8 },
   familySectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   familySectionTitle: { fontSize: 16, fontWeight: '700', color: '#1A1A2E' },
-  familyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  gridCard: { width: '47.5%', backgroundColor: 'white', borderRadius: 14, padding: 10, alignItems: 'center', borderWidth: 1.5, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  familyGrid: { flexDirection: 'row', gap: 10 },
+  gridCard: { width: 140, backgroundColor: 'white', borderRadius: 14, padding: 10, alignItems: 'center', borderWidth: 1.5, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   gridCardActions: { flexDirection: 'row', justifyContent: 'flex-end', width: '100%', gap: 4, marginBottom: 6 },
   gridActionBtn: { padding: 3, backgroundColor: '#F5F5F5', borderRadius: 6 },
   gridAvatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
