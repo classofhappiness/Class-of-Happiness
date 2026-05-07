@@ -191,8 +191,8 @@ export default function FamilyStrategiesScreen() {
     ? FAMILY_STRATEGIES.filter(s => s.zone === selectedZone)
     : FAMILY_STRATEGIES;
 
-      <TranslatedHeader title={t('family_strategies') || 'Family Strategies'} />
     <SafeAreaView style={styles.container}>
+      <TranslatedHeader title={t('family_strategies') || 'Family Strategies'} />
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />

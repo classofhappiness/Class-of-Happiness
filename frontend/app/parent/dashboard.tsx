@@ -801,8 +801,7 @@ export default function ParentDashboard() {
           <View style={styles.compactActions}>
             <TouchableOpacity style={styles.compactAction} onPress={() => router.push('/parent/family-strategies')}>
               <MaterialIcons name="lightbulb" size={22} color="#FFC107" />
-              <Text style={styles.compactActionTxt}>{t('family_strategies') || 'Family
-Strategies'}</Text>
+              <Text style={styles.compactActionTxt}>{t('family_strategies') || 'Family Strategies'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.compactAction} onPress={() => router.push('/parent/resources')}>
               <MaterialIcons name="library-books" size={22} color="#5C6BC0" />
