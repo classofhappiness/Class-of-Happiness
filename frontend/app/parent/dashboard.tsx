@@ -1362,16 +1362,6 @@ const styles = StyleSheet.create({
     color: '#888',
     textTransform: 'capitalize',
   },
-  linkedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E8EAF6',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    gap: 2,
-    marginTop: 4,
-  },
   linkedBadgeText: {
     fontSize: 10,
     color: '#5C6BC0',
