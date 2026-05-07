@@ -564,20 +564,20 @@ export default function ParentDashboard() {
           </Text>
         </View>
 
-        {/* Family Members — Clean 2x2 Grid, max 4 members */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{t('my_family')}</Text>
+        {/* Family Members — Whole card taps to check in */}
+        <View style={styles.familySection}>
+          <View style={styles.familySectionHeader}>
+            <Text style={styles.familySectionTitle}>{t('my_family') || 'My Family'}</Text>
             {familyMembers.length < 4 && (
               <TouchableOpacity style={styles.addButton} onPress={() => setShowAddFamilyModal(true)}>
-                <MaterialIcons name="add" size={20} color="white" />
+                <MaterialIcons name="add" size={18} color="white" />
               </TouchableOpacity>
             )}
           </View>
 
           {familyMembers.length === 0 ? (
             <TouchableOpacity style={styles.emptyFamilyCard} onPress={() => setShowAddFamilyModal(true)}>
-              <MaterialIcons name="add-circle-outline" size={36} color="#C5CAE9" />
+              <MaterialIcons name="add-circle-outline" size={32} color="#C5CAE9" />
               <Text style={styles.emptyFamilyTxt}>{t('add_family_to_track') || 'Add a family member'}</Text>
             </TouchableOpacity>
           ) : (
@@ -587,49 +587,62 @@ export default function ParentDashboard() {
                 const creatureEmoji = creature?.allCreatures?.[0]
                   ? creature.allCreatures[0].stages?.[Number(creature.allCreatures[0].current_stage || 0)]?.emoji || '🥚'
                   : creature?.emoji || '🥚';
+                const isChild = member.relationship === 'child';
+                const cardColor = getRelationshipColor(member.relationship);
+                const isLinked = !!(member as any).student_id;
                 return (
-                  <View key={member.id} style={styles.gridCard}>
-                    {/* Top row: edit + delete */}
+                  <TouchableOpacity
+                    key={member.id}
+                    style={[styles.gridCard, { borderColor: cardColor + '30' }]}
+                    onPress={() => handleMemberCheckin(member)}
+                    activeOpacity={0.85}
+                  >
+                    {/* Edit/delete top row */}
                     <View style={styles.gridCardActions}>
-                      <TouchableOpacity onPress={() => handleEditFamilyMember(member)} style={styles.gridActionBtn}>
-                        <MaterialIcons name="edit" size={12} color="#5C6BC0" />
+                      <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); handleEditFamilyMember(member); }} style={styles.gridActionBtn}>
+                        <MaterialIcons name="edit" size={11} color="#5C6BC0" />
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleDeleteFamilyMember(member)} style={styles.gridActionBtn}>
-                        <MaterialIcons name="close" size={12} color="#F44336" />
+                      {isLinked && (
+                        <View style={styles.linkedBadge}>
+                          <MaterialIcons name="link" size={10} color="#4CAF50" />
+                        </View>
+                      )}
+                      <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); handleDeleteFamilyMember(member); }} style={styles.gridActionBtn}>
+                        <MaterialIcons name="close" size={11} color="#F44336" />
                       </TouchableOpacity>
                     </View>
 
                     {/* Avatar */}
-                    <View style={[styles.gridAvatar, { backgroundColor: getRelationshipColor(member.relationship) + '18' }]}>
+                    <View style={[styles.gridAvatar, { backgroundColor: cardColor + '15' }]}>
                       {member.avatar_type === 'custom' && member.avatar_custom ? (
                         <Image source={{ uri: member.avatar_custom }} style={styles.gridAvatarImg} />
                       ) : (
-                        <Text style={{ fontSize: 28 }}>
-                          {member.relationship === 'child'
-                            ? creatureEmoji
-                            : presetAvatars?.find((a: any) => a.id === member.avatar_preset)?.emoji || '⭐'}
+                        <Text style={{ fontSize: 26 }}>
+                          {isChild ? creatureEmoji : presetAvatars?.find((a: any) => a.id === member.avatar_preset)?.emoji || '⭐'}
                         </Text>
                       )}
                     </View>
 
                     <Text style={styles.gridName} numberOfLines={1}>{member.name}</Text>
+                    {isLinked && <Text style={styles.linkedLabel}>Linked Child</Text>}
 
-                    {/* Check In button */}
-                    <TouchableOpacity
-                      style={[styles.gridCheckinBtn, { backgroundColor: getRelationshipColor(member.relationship) }]}
-                      onPress={() => handleMemberCheckin(member)}
-                    >
+                    <View style={[styles.gridCheckinPill, { backgroundColor: cardColor }]}>
+                      <MaterialIcons name="favorite" size={12} color="white" />
                       <Text style={styles.gridCheckinTxt}>{t('check_in') || 'Check In'}</Text>
-                    </TouchableOpacity>
+                    </View>
 
-                    {/* Wellness button */}
+                    {/* Wellbeing button — parents only need PIN (not kids) */}
                     <TouchableOpacity
-                      style={styles.gridWellnessBtn}
-                      onPress={() => router.push(`/parent/my-wellbeing?memberId=${member.id}&memberName=${encodeURIComponent(member.name)}`)}
+                      style={styles.wellbeingBtn}
+                      onPress={(e) => {
+                        e.stopPropagation?.();
+                        router.push(`/parent/my-wellbeing?memberId=${member.id}&memberName=${encodeURIComponent(member.name)}&skipPin=${isChild ? 'true' : 'false'}`);
+                      }}
                     >
-                      <Text style={{ fontSize: 11, color: '#5C6BC0' }}>🔒 Wellness</Text>
+                      <MaterialIcons name="spa" size={12} color="#5C6BC0" />
+                      <Text style={styles.wellbeingBtnTxt}>Wellbeing</Text>
                     </TouchableOpacity>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
@@ -1211,8 +1224,11 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
   },
-  familyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  gridCard: { width: '47.5%', backgroundColor: 'white', borderRadius: 16, padding: 12, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  familySection: { paddingHorizontal: 16, marginBottom: 8 },
+  familySectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  familySectionTitle: { fontSize: 16, fontWeight: '700', color: '#1A1A2E' },
+  familyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  gridCard: { width: '47.5%', backgroundColor: 'white', borderRadius: 14, padding: 10, alignItems: 'center', borderWidth: 1.5, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   gridCardActions: { flexDirection: 'row', justifyContent: 'flex-end', width: '100%', gap: 4, marginBottom: 6 },
   gridActionBtn: { padding: 3, backgroundColor: '#F5F5F5', borderRadius: 6 },
   gridAvatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
@@ -1221,6 +1237,11 @@ const styles = StyleSheet.create({
   gridCheckinBtn: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 7, marginBottom: 6 },
   gridCheckinTxt: { fontSize: 13, fontWeight: '700', color: 'white' },
   gridWellnessBtn: { padding: 4 },
+  linkedBadge: { backgroundColor: '#E8F5E9', borderRadius: 6, padding: 2 },
+  linkedLabel: { fontSize: 9, color: '#4CAF50', fontWeight: '600', marginBottom: 4 },
+  gridCheckinPill: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 5 },
+  wellbeingBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 3 },
+  wellbeingBtnTxt: { fontSize: 11, color: '#5C6BC0', fontWeight: '600' },
   emptyFamilyCard: { borderRadius: 16, borderWidth: 2, borderColor: '#E8EAF6', borderStyle: 'dashed', padding: 32, alignItems: 'center', gap: 8 },
   emptyFamilyTxt: { fontSize: 14, color: '#AAA', textAlign: 'center' },
   compactActions: { flexDirection: 'row', gap: 8 },
