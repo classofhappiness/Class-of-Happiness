@@ -564,192 +564,77 @@ export default function ParentDashboard() {
           </Text>
         </View>
 
-        {/* Family Members Section */}
+        {/* Family Members — Clean 2x2 Grid, max 4 members */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>{t('my_family')}</Text>
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={() => setShowAddFamilyModal(true)}
-            >
-              <MaterialIcons name="add" size={20} color="white" />
-            </TouchableOpacity>
+            {familyMembers.length < 4 && (
+              <TouchableOpacity style={styles.addButton} onPress={() => setShowAddFamilyModal(true)}>
+                <MaterialIcons name="add" size={20} color="white" />
+              </TouchableOpacity>
+            )}
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.membersScroll}>
-            {familyMembers.map((member) => (
-              <View key={member.id} style={styles.memberCardWrapper}>
-                <TouchableOpacity
-                  style={[
-                    styles.memberCard,
-                    selectedMember?.id === member.id && selectedType === 'family' && styles.memberCardSelected,
-                  ]}
-                  onPress={() => {
-                    setSelectedMember(member);
-                    setSelectedType('family');
-                  }}
-                  onLongPress={() => handleDeleteFamilyMember(member)}
-                >
-                  {/* Action buttons row */}
-                  <View style={styles.cardActionButtons}>
-                    {/* Edit button */}
-                    <TouchableOpacity
-                      style={styles.editButton}
-                      onPress={() => handleEditFamilyMember(member)}
-                    >
-                      <MaterialIcons name="edit" size={14} color="#5C6BC0" />
-                    </TouchableOpacity>
-                    {/* Link to School button */}
-                    {!(member as any).student_id && (
-                      <TouchableOpacity
-                        style={[styles.editButton, {backgroundColor:'#E8EAF6'}]}
-                        onPress={async () => {
-                          try {
-                            const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-                            const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-                            const token = await AsyncStorage.getItem('session_token');
-                            const res = await fetch(`${BACKEND_URL}/api/family/linkable-students`, {
-                              headers: { 'Authorization': `Bearer ${token}` }
-                            });
-                            const students = await res.json().catch(() => []);
-                            if (!students.length) {
-                              Alert.alert(
-                                t('link_child')||'Link to School',
-                                'Ask your child\'s teacher for a link code first. This connects school and home check-ins.'
-                              );
-                            } else {
-                              Alert.alert(
-                                t('link_child')||'Link to School Profile',
-                                'Select your child\'s school profile:',
-                                [...students.map((s: any) => ({
-                                  text: s.name,
-                                  onPress: async () => {
-                                    const linkRes = await fetch(`${BACKEND_URL}/api/family/members/${member.id}/link-student`, {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                                      body: JSON.stringify({ student_id: s.id })
-                                    });
-                                    if (linkRes.ok) {
-                                      Alert.alert('Linked', `${member.name} linked to school profile.`);
-                                    }
-                                  }
-                                })), { text: t('cancel')||'Cancel', style: 'cancel' }]
-                              );
-                            }
-                          } catch { Alert.alert('Error', 'Could not load students'); }
-                        }}
-                      >
-                        <MaterialIcons name="link" size={14} color="#5C6BC0" />
+          {familyMembers.length === 0 ? (
+            <TouchableOpacity style={styles.emptyFamilyCard} onPress={() => setShowAddFamilyModal(true)}>
+              <MaterialIcons name="add-circle-outline" size={36} color="#C5CAE9" />
+              <Text style={styles.emptyFamilyTxt}>{t('add_family_to_track') || 'Add a family member'}</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.familyGrid}>
+              {familyMembers.slice(0, 4).map((member) => {
+                const creature = memberCreatures[member.id];
+                const creatureEmoji = creature?.allCreatures?.[0]
+                  ? creature.allCreatures[0].stages?.[Number(creature.allCreatures[0].current_stage || 0)]?.emoji || '🥚'
+                  : creature?.emoji || '🥚';
+                return (
+                  <View key={member.id} style={styles.gridCard}>
+                    {/* Top row: edit + delete */}
+                    <View style={styles.gridCardActions}>
+                      <TouchableOpacity onPress={() => handleEditFamilyMember(member)} style={styles.gridActionBtn}>
+                        <MaterialIcons name="edit" size={12} color="#5C6BC0" />
                       </TouchableOpacity>
-                    )}
-                    {/* Delete button */}
-                    <TouchableOpacity
-                      style={styles.deleteButton}
-                      onPress={() => handleDeleteFamilyMember(member)}
-                    >
-                      <MaterialIcons 
-                        name="close" 
-                        size={16} 
-                        color={deletingMember === member.id ? '#999' : '#F44336'} 
-                      />
-                    </TouchableOpacity>
-                  </View>
-                  
-                  {/* Avatar - Support both preset and custom */}
-                  {member.avatar_type === 'custom' && member.avatar_custom ? (
-                    <Image 
-                      source={{ uri: member.avatar_custom }} 
-                      style={styles.memberAvatarImage} 
-                    />
-                  ) : member.avatar_type === 'preset' && member.avatar_preset ? (
-                    <View style={[styles.memberAvatar, { backgroundColor: getRelationshipColor(member.relationship) + '20' }]}>
-                      {member.relationship === 'child' ? (
-                        <Text style={{ fontSize: 26 }}>{childCreatures[member.id]?.emoji || '🥚'}</Text>
-                      ) : (
-                        <Text style={styles.memberAvatarEmoji}>
-                        {presetAvatars?.find(a => a.id === member.avatar_preset)?.emoji || '⭐'}
-                      </Text>
-                      )}
+                      <TouchableOpacity onPress={() => handleDeleteFamilyMember(member)} style={styles.gridActionBtn}>
+                        <MaterialIcons name="close" size={12} color="#F44336" />
+                      </TouchableOpacity>
                     </View>
-                  ) : (
-                    <View style={[styles.memberAvatar, { backgroundColor: getRelationshipColor(member.relationship) + '20' }]}>
-                      <MaterialIcons 
-                        name={member.relationship === 'self' ? 'person' : member.relationship === 'partner' ? 'favorite' : 'child-care'} 
-                        size={32} 
-                        color={getRelationshipColor(member.relationship)} 
-                      />
-                    </View>
-                  )}
-                  <Text style={styles.memberName} numberOfLines={1}>{member.name}</Text>
-                  <Text style={styles.memberRole}>{t(member.relationship)}</Text>
-                  {/* Creature display - 4 creatures like student page */}
-                  {memberCreatures[member.id] && (
-                    <View style={{ alignItems: 'center', marginTop: 4 }}>
-                      {memberCreatures[member.id].allCreatures?.length > 0 ? (
-                        <View style={{ flexDirection: 'row', gap: 3 }}>
-                          {memberCreatures[member.id].allCreatures.slice(0, 4).map((creature: any) => {
-                            const cStage = Number(creature.current_stage || 0);
-                            const cColor = creature.color || '#CCC';
-                            const cEmoji = creature.stages?.[cStage]?.emoji || '🥚';
-                            const hasPoints = Number(creature.current_points || 0) > 0;
-                            return (
-                              <View key={creature.id} style={{
-                                width: 24, height: 24, borderRadius: 12,
-                                backgroundColor: hasPoints ? cColor + '30' : '#F0F0F0',
-                                borderWidth: 1, borderColor: hasPoints ? cColor : '#DDD',
-                                alignItems: 'center', justifyContent: 'center',
-                              }}>
-                                <Text style={{ fontSize: 12, opacity: hasPoints ? 1 : 0.3 }}>{cEmoji}</Text>
-                              </View>
-                            );
-                          })}
-                        </View>
+
+                    {/* Avatar */}
+                    <View style={[styles.gridAvatar, { backgroundColor: getRelationshipColor(member.relationship) + '18' }]}>
+                      {member.avatar_type === 'custom' && member.avatar_custom ? (
+                        <Image source={{ uri: member.avatar_custom }} style={styles.gridAvatarImg} />
                       ) : (
-                        <Text style={{ fontSize: 20 }}>{memberCreatures[member.id].emoji}</Text>
-                      )}
-                      {memberCreatures[member.id].hasRealCreature && memberCreatures[member.id].current_points > 0 && (
-                        <Text style={{ fontSize: 8, color: memberCreatures[member.id].color, marginTop: 1 }}>
-                          ⭐ {memberCreatures[member.id].current_points} pts
+                        <Text style={{ fontSize: 28 }}>
+                          {member.relationship === 'child'
+                            ? creatureEmoji
+                            : presetAvatars?.find((a: any) => a.id === member.avatar_preset)?.emoji || '⭐'}
                         </Text>
                       )}
                     </View>
-                  )}
-                </TouchableOpacity>
-                
-                {/* Check-in button */}
-                <View>
-                  <TouchableOpacity
-                    style={styles.bigCheckinButton}
-                    onPress={() => handleMemberCheckin(member)}
-                  >
-                    <Text style={styles.bigCheckinEmoji}>😊</Text>
-                    <Text style={styles.bigCheckinText}>{t('check_in') || 'Check In'}</Text>
-                  </TouchableOpacity>
 
-                  {/* My Wellness private button */}
-                  <TouchableOpacity
-                    style={styles.wellnessButton}
-                    onPress={() => router.push(`/parent/my-wellbeing?memberId=${member.id}&memberName=${encodeURIComponent(member.name)}`)}
-                  >
-                    <Text style={styles.wellnessIcon}>🔒</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.wellnessTitle}>{t('my_wellbeing') || 'My Wellbeing'}</Text>
-                      <Text style={styles.wellnessSub}>{t('wellbeing_private') || 'Private · just for you'}</Text>
-                    </View>
-                    <MaterialIcons name="chevron-right" size={20} color="#C5CAE9" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-            
-            {familyMembers.length === 0 && (
-              <View style={styles.emptyMembers}>
-                <Text style={styles.emptyText}>{t('add_family_to_track')}</Text>
-              </View>
-            )}
-          </ScrollView>
+                    <Text style={styles.gridName} numberOfLines={1}>{member.name}</Text>
+
+                    {/* Check In button */}
+                    <TouchableOpacity
+                      style={[styles.gridCheckinBtn, { backgroundColor: getRelationshipColor(member.relationship) }]}
+                      onPress={() => handleMemberCheckin(member)}
+                    >
+                      <Text style={styles.gridCheckinTxt}>{t('check_in') || 'Check In'}</Text>
+                    </TouchableOpacity>
+
+                    {/* Wellness button */}
+                    <TouchableOpacity
+                      style={styles.gridWellnessBtn}
+                      onPress={() => router.push(`/parent/my-wellbeing?memberId=${member.id}&memberName=${encodeURIComponent(member.name)}`)}
+                    >
+                      <Text style={{ fontSize: 11, color: '#5C6BC0' }}>🔒 Wellness</Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </View>
-
         {/* Linked Children from School */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -833,40 +718,24 @@ export default function ParentDashboard() {
           </ScrollView>
         </View>
 
-        {/* Quick Actions - Always visible */}
+        {/* Quick Actions — compact row */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('quick_actions') || t('quick_actions')||'Quick Actions'}</Text>
-          <View style={styles.actionsRow}>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => router.push('/parent/family-strategies')}
-            >
-              <MaterialIcons name="lightbulb" size={24} color="#FFC107" />
-              <Text style={styles.actionButtonText} numberOfLines={1}>{t('family_strategies') || 'Family Strategies'}</Text>
+          <View style={styles.compactActions}>
+            <TouchableOpacity style={styles.compactAction} onPress={() => router.push('/parent/family-strategies')}>
+              <MaterialIcons name="lightbulb" size={22} color="#FFC107" />
+              <Text style={styles.compactActionTxt}>{t('strategies') || 'Strategies'}</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => router.push('/parent/resources')}
-            >
-              <MaterialIcons name="library-books" size={24} color="#5C6BC0" />
-              <Text style={styles.actionButtonText} numberOfLines={1}>{t('resources')}</Text>
+            <TouchableOpacity style={styles.compactAction} onPress={() => router.push('/parent/resources')}>
+              <MaterialIcons name="library-books" size={22} color="#5C6BC0" />
+              <Text style={styles.compactActionTxt}>{t('resources') || 'Resources'}</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => router.push('/parent/widget')}
-            >
-              <MaterialIcons name="widgets" size={24} color="#9C27B0" />
-              <Text style={styles.actionButtonText}>Widget</Text>
+            <TouchableOpacity style={styles.compactAction} onPress={() => router.push('/parent/alerts')}>
+              <MaterialIcons name="notifications" size={22} color="#F44336" />
+              <Text style={styles.compactActionTxt}>{t('alerts') || 'Alerts'}</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => router.push('/parent/alerts')}
-            >
-              <MaterialIcons name="notifications" size={24} color="#5C6BC0" />
-              <Text style={styles.actionButtonText} numberOfLines={1}>{t('alerts') || 'Alerts'}</Text>
+            <TouchableOpacity style={styles.compactAction} onPress={() => router.push('/parent/widget')}>
+              <MaterialIcons name="widgets" size={22} color="#9C27B0" />
+              <Text style={styles.compactActionTxt}>Widget</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1342,6 +1211,21 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
   },
+  familyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  gridCard: { width: '47.5%', backgroundColor: 'white', borderRadius: 16, padding: 12, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  gridCardActions: { flexDirection: 'row', justifyContent: 'flex-end', width: '100%', gap: 4, marginBottom: 6 },
+  gridActionBtn: { padding: 3, backgroundColor: '#F5F5F5', borderRadius: 6 },
+  gridAvatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  gridAvatarImg: { width: 56, height: 56, borderRadius: 28 },
+  gridName: { fontSize: 14, fontWeight: '700', color: '#333', marginBottom: 8, textAlign: 'center' },
+  gridCheckinBtn: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 7, marginBottom: 6 },
+  gridCheckinTxt: { fontSize: 13, fontWeight: '700', color: 'white' },
+  gridWellnessBtn: { padding: 4 },
+  emptyFamilyCard: { borderRadius: 16, borderWidth: 2, borderColor: '#E8EAF6', borderStyle: 'dashed', padding: 32, alignItems: 'center', gap: 8 },
+  emptyFamilyTxt: { fontSize: 14, color: '#AAA', textAlign: 'center' },
+  compactActions: { flexDirection: 'row', gap: 8 },
+  compactAction: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: 'white', borderRadius: 12, paddingVertical: 12, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 3, elevation: 1 },
+  compactActionTxt: { fontSize: 10, fontWeight: '600', color: '#555', textAlign: 'center' },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
