@@ -85,12 +85,16 @@ export default function TeacherDashboardScreen() {
       const alertsData = await fetch(`${BACKEND_URL}/api/notifications/alerts`, { headers: h }).then(r => r.ok ? r.json() : []).catch(() => []);
       setAlertCount(Array.isArray(alertsData) ? alertsData.filter((a:any) => !a.resolved).length : 0);
 
-      // Today snapshot from logs
-      const today = new Date().toISOString().split('T')[0];
-      const tl = logs.filter((l:any) => (l.timestamp||'').startsWith(today));
-      const snap:any = { blue:0, green:0, yellow:0, red:0, total:tl.length };
-      tl.forEach((l:any) => { const z=l.zone||l.feeling_colour||''; if(z in snap) snap[z]++; });
-      setTodaySnap(snap);
+      // Period snapshot — use analytics zone_counts if available, else count from logs
+      const periodZones = analyticsData?.zone_counts || analyticsData?.feeling_counts || null;
+      if (periodZones) {
+        const total = Object.values(periodZones).reduce((a:any,b:any) => a+b, 0) as number;
+        setTodaySnap({ blue: periodZones.blue||0, green: periodZones.green||0, yellow: periodZones.yellow||0, red: periodZones.red||0, total });
+      } else {
+        const snap:any = { blue:0, green:0, yellow:0, red:0, total:logs.length };
+        logs.forEach((l:any) => { const z=l.zone||l.feeling_colour||''; if(z in snap) snap[z]++; });
+        setTodaySnap(snap);
+      }
     } catch(e) { console.error('loadData error:', e); }
   }, [period, selectedClassroom]);
 
@@ -236,23 +240,44 @@ export default function TeacherDashboardScreen() {
           <View style={st.card}>
             {hasChartData ? (
               <>
-                <BarChart data={chartData} barWidth={44} spacing={20} roundedTop
-                  xAxisThickness={0} yAxisThickness={0}
-                  yAxisTextStyle={{color:'#999',fontSize:10}} noOfSections={3}
-                  maxValue={Math.max(...chartData.map(d=>d.value),1)+1}
-                  isAnimated barBorderRadius={6} width={width-72}
-                  xAxisLabelTextStyle={{fontSize:16,color:'#666',width:50,textAlign:'center'}}/>
-                <View style={{flexDirection:'row',justifyContent:'center',gap:14,marginTop:10,flexWrap:'wrap'}}>
+                <BarChart
+                  data={chartData}
+                  barWidth={50}
+                  spacing={24}
+                  roundedTop
+                  roundedBottom
+                  xAxisThickness={1}
+                  xAxisColor={'#E0E0E0'}
+                  yAxisThickness={0}
+                  yAxisTextStyle={{color:'#999',fontSize:10}}
+                  noOfSections={4}
+                  maxValue={Math.max(...chartData.map(d=>d.value),1)+2}
+                  isAnimated
+                  barBorderRadius={8}
+                  width={width-80}
+                  xAxisLabelTextStyle={{fontSize:16,color:'#666',width:55,textAlign:'center'}}
+                  showValuesAsTopLabel
+                  topLabelTextStyle={{color:'#333',fontSize:11,fontWeight:'700'}}
+                />
+                {/* Legend */}
+                <View style={{flexDirection:'row',justifyContent:'center',gap:16,marginTop:12,flexWrap:'wrap'}}>
                   {(['blue','green','yellow','red'] as const).map(z => (
                     <View key={z} style={{flexDirection:'row',alignItems:'center',gap:4}}>
-                      <View style={{width:8,height:8,borderRadius:4,backgroundColor:ZONE_COLORS[z]}}/>
-                      <Text style={{fontSize:11,color:'#666'}}>{analytics?.zone_counts?.[z]||0}</Text>
+                      <View style={{width:10,height:10,borderRadius:5,backgroundColor:ZONE_COLORS[z]}}/>
+                      <Text style={{fontSize:12,color:'#555',fontWeight:'600'}}>{analytics?.zone_counts?.[z]||analytics?.feeling_counts?.[z]||0}</Text>
                     </View>
                   ))}
                 </View>
+                <Text style={{fontSize:11,color:'#999',textAlign:'center',marginTop:6}}>
+                  {t('check_ins')||'Check-ins'}: {todaySnap.total} · {periodLabel(period)}
+                </Text>
               </>
             ) : (
-              <Text style={[st.emptyTxt,{textAlign:'center',paddingVertical:20}]}>{t('no_data_yet')||'No data for this period'}</Text>
+              <View style={{alignItems:'center',paddingVertical:32,gap:8}}>
+                <MaterialIcons name="bar-chart" size={48} color="#E0E0E0"/>
+                <Text style={[st.emptyTxt,{textAlign:'center'}]}>{t('no_data_yet')||'No data for this period'}</Text>
+                <Text style={{fontSize:11,color:'#CCC',textAlign:'center'}}>Check-ins will appear here once students check in</Text>
+              </View>
             )}
           </View>
         )}

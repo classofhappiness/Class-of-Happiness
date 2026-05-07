@@ -17,7 +17,7 @@ import {
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { registerForPushNotifications } from '../../src/utils/notifications';
-import { PieChart } from 'react-native-gifted-charts';
+import { PieChart, BarChart } from 'react-native-gifted-charts';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
 import { 
@@ -142,6 +142,8 @@ export default function ParentDashboard() {
   
   // Analytics
   const [analytics, setAnalytics] = useState<{ zone_counts: Record<string, number> } | null>(null);
+  const [weekExpanded, setWeekExpanded] = useState(false);
+  const [checkinsExpanded, setCheckinsExpanded] = useState(true);
   const [recentLogs, setRecentLogs] = useState<(ZoneLog | FamilyZoneLog)[]>([]);
   
   // Modals
