@@ -581,7 +581,7 @@ export default function ParentDashboard() {
       >
         {/* Compact header */}
         <View style={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 4 }}>
-          <Text style={{ fontSize: 13, color: '#888', textAlign: 'center' }}>
+          <Text style={{ fontSize: 13, color: '#555', textAlign: 'center', fontWeight: '500' }}>
             {t('family_wellbeing_desc') || "My Family's Emotional Wellbeing"}
           </Text>
         </View>
@@ -896,7 +896,11 @@ export default function ParentDashboard() {
                     </View>
                     <View style={styles.logDetails}>
                       <Text style={styles.logZoneName}>{getZoneLabel(log.zone, t)}</Text>
-                      <Text style={styles.logTime}>{formatTime(log.timestamp)}</Text>
+                      <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                        <Text style={styles.logTime}>{formatTime(log.timestamp)}</Text>
+                        {(log as any).logged_by === 'parent' && <Text style={{ fontSize: 9, color: '#4CAF50', fontWeight: '700' }}>HOME</Text>}
+                        {(log as any).logged_by === 'student' && <Text style={{ fontSize: 9, color: '#5C6BC0', fontWeight: '700' }}>SCHOOL</Text>}
+                      </View>
                       {(log as any).strategies_selected?.length > 0 && (
                         <Text style={[styles.logTime, { color: '#AAA', fontSize: 10 }]} numberOfLines={1}>
                           {(log as any).strategies_selected.slice(0,2).map(resolveStrategy).join(', ')}
@@ -1301,8 +1305,8 @@ const styles = StyleSheet.create({
   linkedBadge: { backgroundColor: '#E8F5E9', borderRadius: 6, padding: 2 },
   linkedLabel: { fontSize: 9, color: '#4CAF50', fontWeight: '600', marginBottom: 4 },
   gridCheckinPill: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 5 },
-  wellbeingBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 3 },
-  wellbeingBtnTxt: { fontSize: 11, color: '#5C6BC0', fontWeight: '600' },
+  wellbeingBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1.5, borderColor: '#333', marginTop: 4 },
+  wellbeingBtnTxt: { fontSize: 11, color: '#333', fontWeight: '700' },
   emptyFamilyCard: { borderRadius: 16, borderWidth: 2, borderColor: '#E8EAF6', borderStyle: 'dashed', padding: 32, alignItems: 'center', gap: 8 },
   emptyFamilyTxt: { fontSize: 14, color: '#AAA', textAlign: 'center' },
   compactActions: { flexDirection: 'row', gap: 8 },

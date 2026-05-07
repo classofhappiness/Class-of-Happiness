@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { sendHelpRequest, sendZoneAlert, sendParentMessage, shieldEmoji } from '../../src/utils/notifications';
@@ -31,7 +32,7 @@ export default function StrategiesScreen() {
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [helpRequested, setHelpRequested] = useState<string | null>(null); // strategy id
+  const [helpRequested, setHelpRequested] = useState<Set<string>>(new Set()); // strategy ids
   const [shieldJustAwarded, setShieldJustAwarded] = useState(false);
   const [parentMessageVisible, setParentMessageVisible] = useState(false);
   const [parentMessage, setParentMessage] = useState('');
@@ -61,7 +62,7 @@ export default function StrategiesScreen() {
   };
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title: t('choose_helpers') || 'Choose your helpers' });
+    navigation.setOptions({ headerShown: false });
   }, [navigation, language, translations]);
 
   useEffect(() => {
@@ -182,7 +183,7 @@ export default function StrategiesScreen() {
 
   const handleHelpRequest = async (strategyId: string, strategyName: string) => {
     if (!currentStudent) return;
-    setHelpRequested(strategyId);
+    setHelpRequested(prev => new Set([...prev, strategyId]));
     const result = await sendHelpRequest({
       student_id: currentStudent.id,
       strategy_id: strategyId,
@@ -251,15 +252,7 @@ export default function StrategiesScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }} />
-        <TouchableOpacity onPress={() => router.replace('/student/select')} style={{ padding: 6 }}>
-          <MaterialIcons name="home" size={24} color="#333" />
-        </TouchableOpacity>
-      </View>
+      <TranslatedHeader title={t('choose_helpers') || 'Choose Helpers'} />
       <CelebrationOverlay
         visible={showCelebration}
         studentName={currentStudent?.name || ''}
@@ -315,13 +308,13 @@ export default function StrategiesScreen() {
                 <TouchableOpacity
                   style={[
                     styles.helpBtn,
-                    helpRequested === strategy.id && styles.helpBtnDone,
+                    helpRequested.has(strategy.id) && styles.helpBtnDone,
                   ]}
                   onPress={() => handleHelpRequest(strategy.id, strategy.name)}
-                  disabled={helpRequested === strategy.id}
+                  disabled={helpRequested.has(strategy.id)}
                 >
                   <MaterialIcons
-                    name={helpRequested === strategy.id ? 'check-circle' : 'pan-tool'}
+                    name={helpRequested.has(strategy.id) ? 'check-circle' : 'pan-tool'}
                     size={18}
                     color={helpRequested === strategy.id ? '#4CAF50' : '#5C6BC0'}
                   />
@@ -408,7 +401,7 @@ export default function StrategiesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  scrollContent: { padding: 16, paddingBottom: 100 },
+  scrollContent: { padding: 10, paddingBottom: 80 },
   zoneHeader: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 2, marginBottom: 14 },
   zoneColorDot: { width: 18, height: 18, borderRadius: 9, marginRight: 10 },
   zoneLabel: { fontSize: 17, fontWeight: 'bold' },
