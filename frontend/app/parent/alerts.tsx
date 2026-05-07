@@ -7,6 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { getAlerts, resolveAlert } from '../../src/utils/notifications';
 import { useApp } from '../../src/context/AppContext';
 
@@ -58,13 +59,7 @@ export default function ParentAlertsScreen() {
 
   return (
     <SafeAreaView style={st.container}>
-      <View style={st.header}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={st.title}>{t('alerts') || 'Alerts'} \ud83d\udd14</Text>
-        <View style={{ width: 36 }} />
-      </View>
+      <TranslatedHeader title={t('alerts') || 'Alerts'} />
 
       <ScrollView
         contentContainerStyle={{ padding: 16 }}

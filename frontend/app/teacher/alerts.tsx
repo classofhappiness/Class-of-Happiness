@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAlerts, resolveAlert } from '../../src/utils/notifications';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { useApp } from '../../src/context/AppContext';
 
 const ZONE_COLORS: Record<string, string> = {
@@ -58,13 +59,7 @@ export default function AlertsScreen() {
 
   return (
     <SafeAreaView style={st.container}>
-      <View style={st.header}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={st.title}>🔔 Student Alerts</Text>
-        <View style={{ width: 36 }} />
-      </View>
+      <TranslatedHeader title={t('alerts') || 'Student Alerts'} />
 
       <ScrollView
         contentContainerStyle={{ padding: 16 }}

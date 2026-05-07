@@ -16,6 +16,28 @@ import { registerForPushNotifications } from '../../src/utils/notifications';
 const { width } = Dimensions.get('window');
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const ZONE_COLORS: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
+
+const STRATEGY_NAMES: Record<string, string> = {
+  b1:'Gentle Stretch', b2:'Favourite Song', b3:'Tell Someone', b4:'Slow Breathing',
+  g1:'Keep Going!', g2:'Help a Friend', g3:'Set a Goal', g4:'Gratitude',
+  y1:'Bubble Breathing', y2:'Count to 10', y3:'5 Senses', y4:'Talk About It',
+  r1:'Freeze', r2:'Big Breaths', r3:'Safe Space', r4:'Ask for Help',
+  p_b1:'Side-by-Side', p_b2:'Warm Drink', p_b3:'Name It',
+  p_g1:'Gratitude Round', p_g2:'Strength Spotting', p_g3:'Creative Together',
+  p_y1:'Box Breathing', p_y2:'Validate First', p_y3:'Body Check-In',
+  p_r1:'Stay Calm', p_r2:'Safe Space Together', p_r3:'Cold Water Reset',
+  // zone_ prefix variants
+  blue_1:'Gentle Stretch', blue_2:'Favourite Song', blue_3:'Tell Someone', blue_4:'Slow Breathing',
+  green_1:'Keep Going!', green_2:'Help a Friend', green_3:'Set a Goal', green_4:'Gratitude',
+  yellow_1:'Bubble Breathing', yellow_2:'Count to 10', yellow_3:'5 Senses', yellow_4:'Talk About It',
+  red_1:'Freeze', red_2:'Big Breaths', red_3:'Safe Space', red_4:'Ask for Help',
+};
+const resolveStrategy = (id: string): string => {
+  if (!id) return '';
+  const clean = id.trim().toLowerCase().replace(/^(helper_|strategy_)/, '');
+  return STRATEGY_NAMES[clean] || STRATEGY_NAMES[id] || id.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+};
+
 const ZONE_EMOJI: Record<string,string> = { blue:'🔵', green:'🟢', yellow:'🟡', red:'🔴' };
 type Period = 1|7|14|30;
 
@@ -190,15 +212,13 @@ export default function TeacherDashboardScreen() {
                   </View>
                   {(log as any).strategies_selected?.length > 0 && (
                     <Text style={st.logStrats} numberOfLines={1}>
-                      {(log as any).strategies_selected.slice(0,2).join(', ')}
+                      {(log as any).strategies_selected.slice(0,2).map(resolveStrategy).join(', ')}
                       {(log as any).strategies_selected.length>2?` +${(log as any).strategies_selected.length-2}`:''}
                     </Text>
                   )}
                 </View>
                 <View style={{alignItems:'flex-end',gap:3}}>
-                  <View style={[st.zonePill,{backgroundColor:ZONE_COLORS[zone]||'#999'}]}>
-                    <Text style={st.zonePillTxt}>{ZONE_EMOJI[zone]||'💙'}</Text>
-                  </View>
+                  <View style={[st.zonePill,{backgroundColor:ZONE_COLORS[zone]||'#999'}]} />
                   <Text style={st.logTime}>{formatTime((log as any).timestamp)}</Text>
                 </View>
               </TouchableOpacity>
@@ -279,8 +299,7 @@ const st = StyleSheet.create({
   logName: { fontSize:14, fontWeight:'600', color:'#1A1A2E' },
   logStrats: { fontSize:10, color:'#999', marginTop:1 },
   logTime: { fontSize:10, color:'#BBB' },
-  zonePill: { width:26, height:26, borderRadius:13, alignItems:'center', justifyContent:'center' },
-  zonePillTxt: { fontSize:13 },
+  zonePill: { width:14, height:14, borderRadius:7 },
   homeBadge: { backgroundColor:'#E8F5E9', paddingHorizontal:4, paddingVertical:1, borderRadius:5 },
   homeBadgeTxt: { fontSize:8, color:'#4CAF50', fontWeight:'700' },
   card: { backgroundColor:'white', borderRadius:14, padding:14, marginBottom:10 },
