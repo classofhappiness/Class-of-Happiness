@@ -236,9 +236,8 @@ function AppContent() {
           name="parent/dashboard"
           options={{
             title: 'Family Dashboard',
-            headerBackTitle: 'Back',
             headerTitleAlign: 'center',
-            headerLeft: () => null,
+            headerTitleStyle: { fontWeight: '700' },
           }}
         />
         <Stack.Screen

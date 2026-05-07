@@ -401,7 +401,7 @@ export default function StrategiesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  scrollContent: { padding: 8, paddingBottom: 8 },
+  scrollContent: { padding: 6, paddingBottom: 6 },
   zoneHeader: { flexDirection: 'row', alignItems: 'center', padding: 6, borderRadius: 10, borderWidth: 2, marginBottom: 6 },
   zoneColorDot: { width: 18, height: 18, borderRadius: 9, marginRight: 10 },
   zoneLabel: { fontSize: 15, fontWeight: 'bold' },
