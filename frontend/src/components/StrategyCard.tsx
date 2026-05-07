@@ -40,7 +40,7 @@ export const StrategyCard: React.FC<StrategyCardProps> = ({
             resizeMode="cover"
           />
         ) : (
-          <MaterialIcons name={icon as any} size={32} color="white" />
+          <MaterialIcons name={icon as any} size={22} color="white" />
         )}
       </View>
       <View style={styles.textContainer}>
@@ -62,42 +62,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'white',
     borderRadius: 16,
-    padding: 16,
-    marginVertical: 6,
+    padding: 10,
+    marginVertical: 3,
     borderWidth: 2,
     borderColor: '#E0E0E0',
-    elevation: 2,
+    elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
   iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   customImage: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
   textContainer: {
     flex: 1,
-    marginLeft: 16,
+    marginLeft: 10,
   },
   name: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#333',
   },
   description: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
-    marginTop: 4,
+    marginTop: 2,
   },
   checkmark: {
     width: 28,
