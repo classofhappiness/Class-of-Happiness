@@ -2683,9 +2683,13 @@ async def get_all_classrooms_analytics(request: Request, days: int = 7):
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
         start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-        # Get all students for this teacher
-        students_r = supabase.table("students").select("id").eq("user_id", user["user_id"]).execute()
-        student_ids = [s["id"] for s in (students_r.data or [])]
+        # Get all students via teacher's classrooms
+        classrooms_r = supabase.table("classrooms").select("id").eq("user_id", user["user_id"]).execute()
+        classroom_ids = [cl["id"] for cl in (classrooms_r.data or [])]
+        student_ids = []
+        if classroom_ids:
+            students_r = supabase.table("students").select("id").in_("classroom_id", classroom_ids).execute()
+            student_ids = [s["id"] for s in (students_r.data or [])]
         feeling_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
         if student_ids:
             logs_r = supabase.table("feeling_logs").select("feeling_colour,zone").in_(
