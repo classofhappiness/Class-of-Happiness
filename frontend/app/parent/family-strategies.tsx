@@ -80,7 +80,9 @@ export default function FamilyStrategiesScreen() {
   const { t, user } = useApp();
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
   const [expandedStrategy, setExpandedStrategy] = useState<string | null>(null);
-  const [collapsedZones, setCollapsedZones] = useState<Set<string>>(new Set());
+  const [myStrategiesExpanded, setMyStrategiesExpanded] = useState(false);
+  const [importantNoticeExpanded, setImportantNoticeExpanded] = useState(false);
+  const [collapsedZones, setCollapsedZones] = useState<Set<string>>(new Set(['blue','green','yellow','red']));
 
   const toggleZoneCollapse = (zone: string) => {
     setCollapsedZones(prev => {
@@ -194,15 +196,6 @@ export default function FamilyStrategiesScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <TranslatedHeader title={t('family_strategies') || 'Family Strategies'} />
-      <View style={styles.topBar}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.topBarTitle}>{t('family_strategies') || 'Family Strategies'}</Text>
-        <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={{ padding: 8 }}>
-          <MaterialIcons name="home" size={22} color="#333" />
-        </TouchableOpacity>
-      </View>
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -348,7 +341,10 @@ export default function FamilyStrategiesScreen() {
         {/* My Family Strategies — Custom */}
         <View style={{ backgroundColor: 'white', borderRadius: 14, padding: 16, marginTop: 16, marginBottom: 8 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: '#333' }}>{t('my_strategies') || 'My Family Strategies'}</Text>
+            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} onPress={() => setMyStrategiesExpanded(e => !e)}>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: '#333' }}>{t('my_strategies') || 'My Family Strategies'}</Text>
+              <MaterialIcons name={myStrategiesExpanded ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+            </TouchableOpacity>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {selectMode ? (
                 <>
@@ -515,8 +511,16 @@ export default function FamilyStrategiesScreen() {
           </Text>
         </View>
 
-                {/* Legal disclaimer */}
-        <View style={styles.disclaimer}>
+                {/* Legal disclaimer — collapsed by default */}
+        <TouchableOpacity 
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 4 }}
+          onPress={() => setImportantNoticeExpanded(e => !e)}
+        >
+          <MaterialIcons name="gavel" size={14} color="#999" />
+          <Text style={{ fontSize: 12, color: '#999', flex: 1 }}>{t('important_notice') || 'Important Notice'}</Text>
+          <MaterialIcons name={importantNoticeExpanded ? 'expand-less' : 'expand-more'} size={18} color="#CCC" />
+        </TouchableOpacity>
+        {importantNoticeExpanded && <View style={styles.disclaimer}>
           <MaterialIcons name="gavel" size={14} color="#999" />
           <View style={{ flex: 1 }}>
             <Text style={styles.disclaimerText}>
@@ -533,7 +537,7 @@ export default function FamilyStrategiesScreen() {
               © Class of Happiness. All rights reserved.
             </Text>
           </View>
-        </View>
+        </View>}
       </ScrollView>
     </SafeAreaView>
   );
