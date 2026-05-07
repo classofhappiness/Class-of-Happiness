@@ -646,6 +646,7 @@ export default function ParentDashboard() {
                 );
               })}
             </View>
+            </ScrollView>
           )}
         </View>
         {/* Linked Children from School */}
