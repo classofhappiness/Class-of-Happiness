@@ -235,8 +235,7 @@ function AppContent() {
         <Stack.Screen
           name="parent/dashboard"
           options={{
-            title: 'Family Dashboard',
-            headerBackTitle: 'Home',
+            headerShown: false,
           }}
         />
         <Stack.Screen
