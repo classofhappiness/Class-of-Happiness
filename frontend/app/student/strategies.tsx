@@ -424,5 +424,5 @@ const styles = StyleSheet.create({
   helpBtnTxt: { fontSize: 14 },
   parentMsgToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: '#E8EAF6', borderRadius: 12, marginTop: 10, marginBottom: 4 },
   parentMsgLabel: { flex: 1, fontSize: 14, color: '#5C6BC0', fontWeight: '600' },
-  parentMsgBox: { backgroundColor: 'white', borderRadius: 12, padding: 10, marginBottom: 4, borderWidth: 1, borderColor: '#E8EAF6' },
+  parentMsgBox: { backgroundColor: 'white', borderRadius: 12, padding: 8, marginBottom: 3, borderWidth: 1, borderColor: '#E8EAF6' },
 });
