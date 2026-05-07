@@ -235,7 +235,10 @@ function AppContent() {
         <Stack.Screen
           name="parent/dashboard"
           options={{
-            headerShown: false,
+            title: 'Family Dashboard',
+            headerBackTitle: 'Back',
+            headerTitleAlign: 'center',
+            headerLeft: () => null,
           }}
         />
         <Stack.Screen

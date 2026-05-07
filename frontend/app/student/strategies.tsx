@@ -402,7 +402,7 @@ export default function StrategiesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
   scrollContent: { padding: 8, paddingBottom: 8 },
-  zoneHeader: { flexDirection: 'row', alignItems: 'center', padding: 8, borderRadius: 10, borderWidth: 2, marginBottom: 8 },
+  zoneHeader: { flexDirection: 'row', alignItems: 'center', padding: 6, borderRadius: 10, borderWidth: 2, marginBottom: 6 },
   zoneColorDot: { width: 18, height: 18, borderRadius: 9, marginRight: 10 },
   zoneLabel: { fontSize: 15, fontWeight: 'bold' },
   instruction: { fontSize: 11, color: '#666', marginBottom: 8, fontStyle: 'italic' },
@@ -424,5 +424,5 @@ const styles = StyleSheet.create({
   helpBtnTxt: { fontSize: 14 },
   parentMsgToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: '#E8EAF6', borderRadius: 12, marginTop: 10, marginBottom: 4 },
   parentMsgLabel: { flex: 1, fontSize: 14, color: '#5C6BC0', fontWeight: '600' },
-  parentMsgBox: { backgroundColor: 'white', borderRadius: 12, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: '#E8EAF6' },
+  parentMsgBox: { backgroundColor: 'white', borderRadius: 12, padding: 10, marginBottom: 4, borderWidth: 1, borderColor: '#E8EAF6' },
 });

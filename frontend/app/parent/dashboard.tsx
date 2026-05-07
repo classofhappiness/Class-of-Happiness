@@ -582,17 +582,9 @@ export default function ParentDashboard() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Header — COH logo + centered title */}
-        <View style={{ alignItems: 'center', paddingTop: 16, paddingBottom: 4 }}>
-          <Image
-            source={require('../../assets/images/logo_coh.png')}
-            style={{ width: 52, height: 52, marginBottom: 10 }}
-            resizeMode="contain"
-          />
-          <Text style={{ fontSize: 22, fontWeight: '700', color: '#333', textAlign: 'center', letterSpacing: 0.2 }}>
-            {t('family_dashboard') || 'Family Dashboard'}
-          </Text>
-          <Text style={{ fontSize: 12, color: '#888', textAlign: 'center', fontWeight: '400', marginTop: 4, paddingHorizontal: 24 }}>
+        {/* Subtitle */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 }}>
+          <Text style={{ fontSize: 12, color: '#888', textAlign: 'center', fontWeight: '400', letterSpacing: 0.2 }}>
             {t('family_wellbeing_desc') || "My Family's Emotional Wellbeing"}
           </Text>
         </View>
