@@ -956,7 +956,6 @@ export default function ParentDashboard() {
                 </View>
               )}
             </View>
-            </View>
             )}
           </>
         )}
