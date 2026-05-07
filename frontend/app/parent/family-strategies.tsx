@@ -554,7 +554,7 @@ const styles = StyleSheet.create({
   backButton: { padding: 4 },
   topBarTitle: { fontSize: 17, fontWeight: '700', color: '#333', flex: 1, textAlign: 'center' },
   scrollContent: { padding: 16, paddingBottom: 50 },
-  subtitle: { fontSize: 13, color: '#AAA', marginBottom: 14, lineHeight: 18, textAlign: 'center', fontStyle: 'italic', textShadowColor: 'transparent', textShadowOffset: {width:0,height:0}, textShadowRadius: 0 },
+  subtitle: { fontSize: 13, color: '#AAA', marginBottom: 14, lineHeight: 18, textAlign: 'center', fontStyle: 'italic' },
   zoneChip: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, backgroundColor: '#F0F0F0', borderWidth: 1.5, borderColor: '#E0E0E0' },
   zoneChipActive: { backgroundColor: '#5C6BC0', borderColor: '#5C6BC0' },
   zoneChipText: { fontSize: 13, fontWeight: '600', color: '#666' },
@@ -586,6 +586,6 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#FFE082',
     alignItems: 'flex-start',
   },
-  disclaimerText: { fontSize: 11, color: '#666', flex: 1, lineHeight: 17 },
+  disclaimerText: { fontSize: 11, color: '#333', lineHeight: 16 },
   disclaimerBold: { fontWeight: '700', color: '#555' },
 });

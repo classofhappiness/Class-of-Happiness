@@ -143,6 +143,7 @@ export default function ParentDashboard() {
   // Analytics
   const [analytics, setAnalytics] = useState<{ zone_counts: Record<string, number> } | null>(null);
   const [weekExpanded, setWeekExpanded] = useState(false);
+  const [checkInsExpanded, setCheckInsExpanded] = useState(false);
   const [checkinsExpanded, setCheckinsExpanded] = useState(true);
   const [recentLogs, setRecentLogs] = useState<(ZoneLog | FamilyZoneLog)[]>([]);
   
@@ -581,9 +582,17 @@ export default function ParentDashboard() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Subtitle */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 2, paddingBottom: 6 }}>
-          <Text style={{ fontSize: 12, color: '#888', textAlign: 'center', fontWeight: '400', letterSpacing: 0.2 }}>
+        {/* Header — COH logo + centered title */}
+        <View style={{ alignItems: 'center', paddingTop: 16, paddingBottom: 4 }}>
+          <Image
+            source={require('../../assets/images/coh-logo.png')}
+            style={{ width: 52, height: 52, marginBottom: 10 }}
+            resizeMode="contain"
+          />
+          <Text style={{ fontSize: 22, fontWeight: '700', color: '#333', textAlign: 'center', letterSpacing: 0.2 }}>
+            {t('family_dashboard') || 'Family Dashboard'}
+          </Text>
+          <Text style={{ fontSize: 12, color: '#888', textAlign: 'center', fontWeight: '400', marginTop: 4, paddingHorizontal: 24 }}>
             {t('family_wellbeing_desc') || "My Family's Emotional Wellbeing"}
           </Text>
         </View>
@@ -822,11 +831,16 @@ export default function ParentDashboard() {
         {selectedMember && (
           <>
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                {t('week_overview') || 'Week Overview'}
-              </Text>
-              
-              {totalLogs > 0 ? (
+              <TouchableOpacity
+                style={styles.collapsibleHeader}
+                onPress={() => setWeekExpanded(e => !e)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.sectionTitle}>{t('week_overview') || 'Week Overview'}</Text>
+                <MaterialIcons name={weekExpanded ? 'expand-less' : 'expand-more'} size={22} color="#5C6BC0" />
+              </TouchableOpacity>
+
+              {weekExpanded && totalLogs > 0 ? (
                 <View style={styles.chartContainer}>
                   <PieChart
                     data={pieData}
@@ -862,8 +876,17 @@ export default function ParentDashboard() {
 
             {/* Recent Activity */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t('recent_check_ins')}</Text>
+              <TouchableOpacity
+                style={styles.collapsibleHeader}
+                onPress={() => setCheckInsExpanded(e => !e)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.sectionTitle}>{t('recent_check_ins')}</Text>
+                <MaterialIcons name={checkInsExpanded ? 'expand-less' : 'expand-more'} size={22} color="#5C6BC0" />
+              </TouchableOpacity>
               
+              {checkInsExpanded && (
+              <View>
               {/* Weekly Table View - All 7 days */}
               <View style={styles.weeklyTable}>
                 <View style={styles.weeklyHeader}>
@@ -933,6 +956,8 @@ export default function ParentDashboard() {
                 </View>
               )}
             </View>
+            </View>
+            )}
           </>
         )}
       </ScrollView>

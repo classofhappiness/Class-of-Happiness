@@ -401,11 +401,11 @@ export default function StrategiesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  scrollContent: { padding: 10, paddingBottom: 80 },
-  zoneHeader: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 2, marginBottom: 14 },
+  scrollContent: { padding: 8, paddingBottom: 8 },
+  zoneHeader: { flexDirection: 'row', alignItems: 'center', padding: 8, borderRadius: 10, borderWidth: 2, marginBottom: 8 },
   zoneColorDot: { width: 18, height: 18, borderRadius: 9, marginRight: 10 },
-  zoneLabel: { fontSize: 17, fontWeight: 'bold' },
-  instruction: { fontSize: 14, color: '#666', marginBottom: 14, fontStyle: 'italic' },
+  zoneLabel: { fontSize: 15, fontWeight: 'bold' },
+  instruction: { fontSize: 11, color: '#666', marginBottom: 8, fontStyle: 'italic' },
   loadingContainer: { padding: 40, alignItems: 'center' },
   loadingText: { fontSize: 16, color: '#888' },
   commentSection: { marginTop: 14, backgroundColor: 'white', borderRadius: 12, overflow: 'hidden', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
@@ -424,5 +424,5 @@ const styles = StyleSheet.create({
   helpBtnTxt: { fontSize: 14 },
   parentMsgToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: '#E8EAF6', borderRadius: 12, marginTop: 10, marginBottom: 4 },
   parentMsgLabel: { flex: 1, fontSize: 14, color: '#5C6BC0', fontWeight: '600' },
-  parentMsgBox: { backgroundColor: 'white', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#E8EAF6' },
+  parentMsgBox: { backgroundColor: 'white', borderRadius: 12, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: '#E8EAF6' },
 });

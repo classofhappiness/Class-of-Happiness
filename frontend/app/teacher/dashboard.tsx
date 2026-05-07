@@ -50,6 +50,7 @@ export default function TeacherDashboardScreen() {
   const [analytics, setAnalytics] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [todaySnap, setTodaySnap] = useState({ blue:0, green:0, yellow:0, red:0, total:0 });
+  const [barData, setBarData] = useState<{value:number,label:string,frontColor:string}[]>([]);
   const [selectedClassroom, setSelectedClassroom] = useState<string|null>(null);
   const [alertCount, setAlertCount] = useState(0);
   const [checkinsExpanded, setCheckinsExpanded] = useState(false);
@@ -73,12 +74,24 @@ export default function TeacherDashboardScreen() {
       const analyticsUrl = selectedClassroom
         ? `${BACKEND_URL}/api/analytics/classroom/${selectedClassroom}?days=${period}`
         : `${BACKEND_URL}/api/analytics/classroom/all?days=${period}`;
-      const analyticsRaw = await fetch(analyticsUrl, { headers: h }).then(r => r.ok ? r.json() : null).catch(() => null);
+      let analyticsRaw: any = null;
+      try {
+        const aRes = await fetch(analyticsUrl, { headers: h });
+        if (aRes.ok) {
+          analyticsRaw = await aRes.json();
+          console.log('[Teacher] analytics raw:', JSON.stringify(analyticsRaw));
+        } else {
+          console.warn('[Teacher] analytics fetch failed:', aRes.status, await aRes.text());
+        }
+      } catch(e) {
+        console.error('[Teacher] analytics fetch error:', e);
+      }
       // Normalise field names — backend returns feeling_counts or zone_counts
       const analyticsData = analyticsRaw ? {
         ...analyticsRaw,
         zone_counts: analyticsRaw.zone_counts || analyticsRaw.feeling_counts || { blue:0, green:0, yellow:0, red:0 }
-      } : null;
+      } : { zone_counts: { blue:0, green:0, yellow:0, red:0 } };
+      console.log('[Teacher] analyticsData zone_counts:', JSON.stringify(analyticsData.zone_counts));
       setAnalytics(analyticsData);
 
       // Alert count
@@ -90,10 +103,29 @@ export default function TeacherDashboardScreen() {
       if (periodZones) {
         const total = Object.values(periodZones).reduce((a:any,b:any) => a+b, 0) as number;
         setTodaySnap({ blue: periodZones.blue||0, green: periodZones.green||0, yellow: periodZones.yellow||0, red: periodZones.red||0, total });
+        // Build barData for BarChart
+        const ZONE_ORDER = ['blue','green','yellow','red'] as const;
+        const ZONE_LABELS: Record<string,string> = { blue:'😊', green:'😌', yellow:'😟', red:'😡' };
+        const ZONE_COLORS_MAP: Record<string,string> = { blue:'#4A90D9', green:'#43A047', yellow:'#F9A825', red:'#E53935' };
+        setBarData(ZONE_ORDER.map(z => ({
+          value: periodZones[z] || 0,
+          label: ZONE_LABELS[z],
+          frontColor: ZONE_COLORS_MAP[z],
+          topLabelComponent: () => null,
+        })));
       } else {
         const snap:any = { blue:0, green:0, yellow:0, red:0, total:logs.length };
         logs.forEach((l:any) => { const z=l.zone||l.feeling_colour||''; if(z in snap) snap[z]++; });
         setTodaySnap(snap);
+        // Build barData from raw logs
+        const ZONE_ORDER2 = ['blue','green','yellow','red'] as const;
+        const ZONE_LABELS2: Record<string,string> = { blue:'😊', green:'😌', yellow:'😟', red:'😡' };
+        const ZONE_COLORS_MAP2: Record<string,string> = { blue:'#4A90D9', green:'#43A047', yellow:'#F9A825', red:'#E53935' };
+        setBarData(ZONE_ORDER2.map(z => ({
+          value: snap[z] || 0,
+          label: ZONE_LABELS2[z],
+          frontColor: ZONE_COLORS_MAP2[z],
+        })));
       }
     } catch(e) { console.error('loadData error:', e); }
   }, [period, selectedClassroom]);
@@ -109,12 +141,13 @@ export default function TeacherDashboardScreen() {
   const formatTime = (ts:string) => { try { return new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); } catch { return ''; } };
   const periodLabel = (p:Period) => p===1?(t('today')||'Today'):p===7?(t('week')||'Week'):p===14?'Fortnight':'Month';
 
-  const chartData = analytics ? [
-    { value: Number(analytics.zone_counts?.blue||0), frontColor: ZONE_COLORS.blue, label:'🔵' },
-    { value: Number(analytics.zone_counts?.green||0), frontColor: ZONE_COLORS.green, label:'🟢' },
-    { value: Number(analytics.zone_counts?.yellow||0), frontColor: ZONE_COLORS.yellow, label:'🟡' },
-    { value: Number(analytics.zone_counts?.red||0), frontColor: ZONE_COLORS.red, label:'🔴' },
-  ] : [];
+  const zc = analytics?.zone_counts || { blue:0, green:0, yellow:0, red:0 };
+  const chartData = [
+    { value: Number(zc.blue||0), frontColor: ZONE_COLORS.blue, label:'😊', labelTextStyle:{fontSize:16} },
+    { value: Number(zc.green||0), frontColor: ZONE_COLORS.green, label:'😌', labelTextStyle:{fontSize:16} },
+    { value: Number(zc.yellow||0), frontColor: ZONE_COLORS.yellow, label:'😟', labelTextStyle:{fontSize:16} },
+    { value: Number(zc.red||0), frontColor: ZONE_COLORS.red, label:'😡', labelTextStyle:{fontSize:16} },
+  ];
   const hasChartData = chartData.some(d => d.value > 0);
   // Debug: log analytics to help diagnose empty graph
   // console.log('Analytics:', JSON.stringify(analytics));
