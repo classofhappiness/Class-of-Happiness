@@ -316,7 +316,7 @@ export default function StrategiesScreen() {
                   <MaterialIcons
                     name={helpRequested.has(strategy.id) ? 'check-circle' : 'pan-tool'}
                     size={18}
-                    color={helpRequested === strategy.id ? '#4CAF50' : '#5C6BC0'}
+                    color={helpRequested.has(strategy.id) ? '#4CAF50' : '#5C6BC0'}
                   />
                 </TouchableOpacity>
               </View>
