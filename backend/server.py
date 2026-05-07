@@ -2677,7 +2677,7 @@ async def get_student_analytics(student_id: str, days: int = 7):
 
 @api_router.get("/analytics/classroom/all")
 async def get_all_classrooms_analytics(request: Request, days: int = 7):
-    """Aggregate analytics across all classrooms for the authenticated teacher."""
+    """Aggregate analytics across all classrooms for the authenticated teacher. v2"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
