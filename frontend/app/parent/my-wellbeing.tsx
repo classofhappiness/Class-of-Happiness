@@ -32,7 +32,8 @@ export default function MyWellbeingScreen() {
   const navigation = useNavigation();
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { t } = useApp();
-  const { memberId, memberName } = useLocalSearchParams<{ memberId: string; memberName: string }>();
+  const { memberId, memberName, skipPin } = useLocalSearchParams<{ memberId: string; memberName: string; skipPin?: string }>();
+  const isSkipPin = skipPin === 'true';
 
   const PIN_KEY = `wellbeing_pin_${memberId}`;
   const HINT_KEY = `wellbeing_hint_${memberId}`;
@@ -55,6 +56,11 @@ export default function MyWellbeingScreen() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (isSkipPin) {
+      setPinUnlocked(true);
+      loadData();
+      return;
+    }
     AsyncStorage.getItem(PIN_KEY).then(pin => {
       if (pin) { setPinExists(true); setPinStep('enter'); }
       else { setPinExists(false); setPinStep('setup'); }
