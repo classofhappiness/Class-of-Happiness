@@ -2686,10 +2686,17 @@ async def get_all_classrooms_analytics(request: Request, days: int = 7):
         # Get all students via teacher's classrooms
         classrooms_r = supabase.table("classrooms").select("id").eq("user_id", user["user_id"]).execute()
         classroom_ids = [cl["id"] for cl in (classrooms_r.data or [])]
+        logger.info(f"[analytics/all] user={user['user_id']} classrooms={classroom_ids}")
         student_ids = []
         if classroom_ids:
             students_r = supabase.table("students").select("id").in_("classroom_id", classroom_ids).execute()
             student_ids = [s["id"] for s in (students_r.data or [])]
+        logger.info(f"[analytics/all] students={student_ids}")
+        # Also try direct user_id match as fallback
+        if not student_ids:
+            students_r2 = supabase.table("students").select("id").eq("user_id", user["user_id"]).execute()
+            student_ids = [s["id"] for s in (students_r2.data or [])]
+            logger.info(f"[analytics/all] fallback students={student_ids}")
         feeling_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
         if student_ids:
             logs_r = supabase.table("feeling_logs").select("feeling_colour,zone").in_(
