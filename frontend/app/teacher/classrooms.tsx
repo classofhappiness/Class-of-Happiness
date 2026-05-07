@@ -13,6 +13,7 @@ import {
   Platform,
   Image,} from 'react-native';
 import { useRouter, useNavigation } from 'expo-router';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { classroomsApi, studentsApi, customStrategiesApi } from '../../src/utils/api';
@@ -207,18 +208,7 @@ export default function ManageClassroomsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       {/* Header with logo + yellow bar */}
-      <View style={styles.pageHeader}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.pageHeaderBack}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          <Image source={require('../../assets/images/logo_coh.png')} style={styles.pageHeaderLogo} resizeMode="contain" />
-          <Text style={styles.pageHeaderTitle}>{t('classrooms') || 'Classrooms'}</Text>
-        </View>
-        <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ padding: 8 }}>
-          <MaterialIcons name="home" size={24} color="#333" />
-        </TouchableOpacity>
-      </View>
+      <TranslatedHeader title={t('classrooms') || 'Classrooms'} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
 
         {/* Create Button */}

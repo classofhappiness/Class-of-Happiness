@@ -579,13 +579,12 @@ export default function ParentDashboard() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Header */}
-        <View style={[styles.header, { alignItems: 'center', paddingHorizontal: 24 }]}>
-          <Text style={[styles.headerSubtitle, { textAlign: 'center' }]}>
+        {/* Compact header */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 4 }}>
+          <Text style={{ fontSize: 13, color: '#888', textAlign: 'center' }}>
             {t('family_wellbeing_desc') || "My Family's Emotional Wellbeing"}
           </Text>
         </View>
-
         {/* Family Members — Whole card taps to check in */}
         <View style={styles.familySection}>
           <View style={styles.familySectionHeader}>
@@ -664,11 +663,46 @@ export default function ParentDashboard() {
                   </TouchableOpacity>
                 );
               })}
+              {/* Linked children in same row */}
+              {linkedChildren.slice(0, Math.max(0, 4 - familyMembers.length)).map((child: any) => (
+                <TouchableOpacity
+                  key={`linked-${child.id}`}
+                  style={[styles.gridCard, { borderColor: '#4CAF5030' }]}
+                  onPress={() => router.push({
+                    pathname: '/student/zone',
+                    params: { studentId: child.id, location: 'home', fromFamily: 'true' }
+                  })}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.gridCardActions}>
+                    <View style={[styles.linkedBadge, { flexDirection: 'row', gap: 2 }]}>
+                      <MaterialIcons name="link" size={9} color="#4CAF50" />
+                      <Text style={{ fontSize: 7, color: '#4CAF50', fontWeight: '700' }}>SCHOOL</Text>
+                    </View>
+                  </View>
+                  <View style={[styles.gridAvatar, { backgroundColor: '#4CAF5015' }]}>
+                    <Text style={{ fontSize: 22 }}>🎒</Text>
+                  </View>
+                  <Text style={styles.gridName} numberOfLines={1}>{child.name}</Text>
+                  <Text style={styles.linkedLabel}>Linked Child</Text>
+                  <TouchableOpacity
+                    style={styles.wellbeingBtn}
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      router.push(`/parent/my-wellbeing?memberId=${child.id}&memberName=${encodeURIComponent(child.name)}&skipPin=true`);
+                    }}
+                  >
+                    <MaterialIcons name="spa" size={12} color="#5C6BC0" />
+                    <Text style={styles.wellbeingBtnTxt}>Wellbeing</Text>
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
             </View>
             </ScrollView>
           )}
         </View>
-        {/* Linked Children from School */}
+        {/* Linked Children from School — now shown in My Family above */}
+        {false && <View>
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>{t('children_school')}</Text>
@@ -751,6 +785,7 @@ export default function ParentDashboard() {
           </ScrollView>
         </View>
 
+        </View>}
         {/* Quick Actions — compact row */}
         <View style={styles.section}>
           <View style={styles.compactActions}>
