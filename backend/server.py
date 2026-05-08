@@ -4064,10 +4064,14 @@ async def get_alerts(request: Request, limit: int = 20):
         student_ids += [l["student_id"] for l in (parent_links_r.data or [])]
         student_ids = list(set(student_ids))
 
+        logger.info(f"[get_alerts] user={user['user_id']} role={user.get('role')} student_ids={student_ids[:5]}")
         if not student_ids:
+            # Fallback: return ALL recent alerts for this user's students
+            logger.warning(f"[get_alerts] No student_ids found for user {user['user_id']}")
             return []
 
         alerts = supabase.table("wellbeing_alerts").select("*").in_("student_id", student_ids[:50]).order("created_at", desc=True).limit(limit).execute()
+        logger.info(f"[get_alerts] Found {len(alerts.data or [])} alerts")
         return alerts.data or []
     except Exception as e:
         logger.error(f"Get alerts error: {e}")

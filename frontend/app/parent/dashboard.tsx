@@ -726,19 +726,17 @@ export default function ParentDashboard() {
                     <MaterialIcons name="spa" size={12} color="#5C6BC0" />
                     <Text style={styles.wellbeingBtnTxt}>Wellbeing</Text>
                   </TouchableOpacity>
-                  {childCreatures[child.id] && (
-                    <TouchableOpacity
-                      style={[styles.wellbeingBtn, { marginTop: 4, borderColor: childCreatures[child.id]?.color || '#4CAF50' }]}
-                      onPress={(e) => {
-                        e.stopPropagation?.();
-                        setCollectionMember(child);
-                        setShowCollection(true);
-                      }}
-                    >
-                      <Text style={{ fontSize: 12 }}>{childCreatures[child.id]?.emoji || '🥚'}</Text>
-                      <Text style={[styles.wellbeingBtnTxt, { color: childCreatures[child.id]?.color || '#4CAF50' }]}>Creature</Text>
-                    </TouchableOpacity>
-                  )}
+                  <TouchableOpacity
+                    style={[styles.wellbeingBtn, { marginTop: 4, borderColor: childCreatures[child.id]?.color || '#4CAF50' }]}
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      setCollectionMember(child);
+                      setShowCollection(true);
+                    }}
+                  >
+                    <Text style={{ fontSize: 14 }}>{childCreatures[child.id]?.emoji || '🥚'}</Text>
+                    <Text style={[styles.wellbeingBtnTxt, { color: childCreatures[child.id]?.color || '#4CAF50' }]}>Creatures</Text>
+                  </TouchableOpacity>
                 </TouchableOpacity>
               ))}
             </View>

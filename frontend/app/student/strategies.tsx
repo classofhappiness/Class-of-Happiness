@@ -318,9 +318,10 @@ export default function StrategiesScreen() {
                   onPress={() => handleHelpRequest(strategy.id, strategy.name)}
                 >
                   <MaterialIcons
-                    name={helpRequested.has(strategy.id) ? 'pan-tool' : 'pan-tool-outline'}
+                    name="pan-tool"
                     size={18}
-                    color={helpRequested.has(strategy.id) ? '#333' : '#BBB'}
+                    color={helpRequested.has(strategy.id) ? '#333' : '#CCC'}
+                    style={{ opacity: helpRequested.has(strategy.id) ? 1 : 0.35 }}
                   />
                 </TouchableOpacity>
               </View>
