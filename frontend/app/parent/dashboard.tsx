@@ -25,6 +25,7 @@ import {
   familyApi, FamilyMember, FamilyZoneLog, authApiExtended, teacherApi, rewardsApi, linkedChildApi
 } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
+import { CreatureCollection } from '../../src/components/CreatureCollection';
 
 // Pick image with camera or library choice
 const pickImageWithChoice = (
@@ -144,6 +145,8 @@ export default function ParentDashboard() {
   const [analytics, setAnalytics] = useState<{ zone_counts: Record<string, number> } | null>(null);
   const [weekExpanded, setWeekExpanded] = useState(false);
   const [checkInsExpanded, setCheckInsExpanded] = useState(false);
+  const [showCollection, setShowCollection] = useState(false);
+  const [collectionMember, setCollectionMember] = useState<any>(null);
   const [checkinsExpanded, setCheckinsExpanded] = useState(true);
   const [recentLogs, setRecentLogs] = useState<(ZoneLog | FamilyZoneLog)[]>([]);
   
@@ -663,6 +666,19 @@ export default function ParentDashboard() {
                       <MaterialIcons name="spa" size={12} color="#5C6BC0" />
                       <Text style={styles.wellbeingBtnTxt}>Wellbeing</Text>
                     </TouchableOpacity>
+                    {creature && (
+                      <TouchableOpacity
+                        style={[styles.wellbeingBtn, { marginTop: 4, borderColor: creature.color || '#4CAF50' }]}
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          setCollectionMember(member);
+                          setShowCollection(true);
+                        }}
+                      >
+                        <Text style={{ fontSize: 12 }}>{creatureEmoji}</Text>
+                        <Text style={[styles.wellbeingBtnTxt, { color: creature.color || '#4CAF50' }]}>Creature</Text>
+                      </TouchableOpacity>
+                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -706,6 +722,19 @@ export default function ParentDashboard() {
                     <MaterialIcons name="spa" size={12} color="#5C6BC0" />
                     <Text style={styles.wellbeingBtnTxt}>Wellbeing</Text>
                   </TouchableOpacity>
+                  {childCreatures[child.id] && (
+                    <TouchableOpacity
+                      style={[styles.wellbeingBtn, { marginTop: 4, borderColor: childCreatures[child.id]?.color || '#4CAF50' }]}
+                      onPress={(e) => {
+                        e.stopPropagation?.();
+                        setCollectionMember(child);
+                        setShowCollection(true);
+                      }}
+                    >
+                      <Text style={{ fontSize: 12 }}>{childCreatures[child.id]?.emoji || '🥚'}</Text>
+                      <Text style={[styles.wellbeingBtnTxt, { color: childCreatures[child.id]?.color || '#4CAF50' }]}>Creature</Text>
+                    </TouchableOpacity>
+                  )}
                 </TouchableOpacity>
               ))}
             </View>
@@ -953,6 +982,26 @@ export default function ParentDashboard() {
           </>
         )}
       </ScrollView>
+
+      {/* Creature Collection Modal */}
+      {showCollection && collectionMember && (
+        <CreatureCollection
+          visible={showCollection}
+          onClose={() => { setShowCollection(false); setCollectionMember(null); }}
+          studentId={collectionMember.student_id || collectionMember.id}
+          studentName={collectionMember.name}
+          collectedCreatures={memberCreatures[collectionMember.id]?.allCreatures || childCreatures[collectionMember.id]?.allCreatures || []}
+          currentCreature={memberCreatures[collectionMember.id]?.currentCreature || null}
+          currentStage={memberCreatures[collectionMember.id]?.currentStage || 0}
+          currentPoints={memberCreatures[collectionMember.id]?.totalPoints || 0}
+          totalCreatures={4}
+          unlockedMoves={[]}
+          unlockedOutfits={[]}
+          unlockedFoods={[]}
+          unlockedHomes={[]}
+          allCreatures={memberCreatures[collectionMember.id]?.allCreatures || childCreatures[collectionMember.id]?.allCreatures || []}
+        />
+      )}
 
       {/* Link Child Modal */}
       <Modal visible={showLinkModal} transparent animationType="slide" onRequestClose={() => setShowLinkModal(false)}>
