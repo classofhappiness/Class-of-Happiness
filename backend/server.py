@@ -3703,10 +3703,10 @@ async def send_help_request(request: Request):
     student = student_r.data[0]
     student_name = student.get("name", "A student")
 
-    # Store alert in wellbeing_alerts
+    # Store alert in student_alerts table
     alert_id = str(uuid.uuid4())
     try:
-        supabase.table("wellbeing_alerts").insert({
+        supabase.table("student_alerts").insert({
             "id": alert_id,
             "student_id": student_id,
             "student_name": student_name,
@@ -3718,6 +3718,7 @@ async def send_help_request(request: Request):
             "created_at": datetime.now(timezone.utc).isoformat(),
             "resolved": False,
         }).execute()
+        logger.info(f"[help_request] Stored alert {alert_id} for student {student_id}")
     except Exception as e:
         logger.error(f"Could not store help request alert: {e}")
 
@@ -3954,7 +3955,7 @@ async def send_parent_message(request: Request):
 
     # Store message
     try:
-        supabase.table("wellbeing_alerts").insert({
+        supabase.table("student_alerts").insert({
             "id": str(uuid.uuid4()),
             "student_id": student_id,
             "student_name": student_name,
@@ -4075,7 +4076,7 @@ async def get_alerts(request: Request, limit: int = 20):
             logger.warning(f"[get_alerts] No student_ids found for user {user['user_id']}")
             return []
 
-        alerts = supabase.table("wellbeing_alerts").select("*").in_("student_id", student_ids[:50]).order("created_at", desc=True).limit(limit).execute()
+        alerts = supabase.table("student_alerts").select("*").in_("student_id", student_ids[:50]).order("created_at", desc=True).limit(limit).execute()
         logger.info(f"[get_alerts] Found {len(alerts.data or [])} alerts")
         return alerts.data or []
     except Exception as e:
@@ -4089,7 +4090,7 @@ async def resolve_alert(alert_id: str, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        supabase.table("wellbeing_alerts").update({"resolved": True, "resolved_by": user["user_id"], "resolved_at": datetime.now(timezone.utc).isoformat()}).eq("id", alert_id).execute()
+        supabase.table("student_alerts").update({"resolved": True, "resolved_by": user["user_id"], "resolved_at": datetime.now(timezone.utc).isoformat()}).eq("id", alert_id).execute()
     except Exception as e:
         logger.error(f"Resolve alert error: {e}")
     return {"ok": True}
