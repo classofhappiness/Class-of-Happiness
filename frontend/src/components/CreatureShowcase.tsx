@@ -175,14 +175,19 @@ export const CreatureShowcase: React.FC<CreatureShowcaseProps> = ({
             <Text style={styles.ptsTxt}>⭐ {points} {t('points') || 'points'}</Text>
           </View>
         </Animated.View>
-        <TouchableOpacity style={styles.tapArea} onPress={() => {
-          if (step < STEPS.length - 1) goToStep(step + 1);
-          else { if (moveLoop.current) moveLoop.current.stop(); onClose(); }
-        }}>
-          <Text style={[styles.tapHint, { color }]}>
-            {step < STEPS.length - 1 ? `${t('next') || 'Next'} →` : `${t('done') || 'Done'} ✓`}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.bottomRow}>
+          <TouchableOpacity style={styles.exitBtn} onPress={() => { if (moveLoop.current) moveLoop.current.stop(); onClose(); }}>
+            <Text style={[styles.exitTxt, { color }]}>✕ {t('exit') || 'Exit'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.nextBtn, { borderColor: color }]} onPress={() => {
+            if (step < STEPS.length - 1) goToStep(step + 1);
+            else { if (moveLoop.current) moveLoop.current.stop(); onClose(); }
+          }}>
+            <Text style={[styles.nextTxt, { color }]}>
+              {step < STEPS.length - 1 ? `${t('next') || 'Next'} →` : `${t('done') || 'Done'} ✓`}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </Animated.View>
     </Modal>
   );
@@ -190,8 +195,13 @@ export const CreatureShowcase: React.FC<CreatureShowcaseProps> = ({
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  skipBtn: { position: 'absolute', top: 50, right: 20, padding: 14, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 20 },
-  skipTxt: { fontSize: 20, fontWeight: 'bold' },
+  skipBtn: { position: 'absolute', top: 50, right: 20, padding: 12, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 24 },
+  skipTxt: { fontSize: 22, fontWeight: 'bold' },
+  bottomRow: { position: 'absolute', bottom: 50, flexDirection: 'row', gap: 12, paddingHorizontal: 20 },
+  exitBtn: { flex: 1, padding: 14, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 16, alignItems: 'center' },
+  exitTxt: { fontSize: 15, fontWeight: '700' },
+  nextBtn: { flex: 2, padding: 14, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 16, alignItems: 'center', borderWidth: 2 },
+  nextTxt: { fontSize: 15, fontWeight: '700' },
   dots: { position: 'absolute', top: 55, flexDirection: 'row', gap: 8 },
   dot: { width: 10, height: 10, borderRadius: 5 },
   content: { alignItems: 'center', width: '100%' },
