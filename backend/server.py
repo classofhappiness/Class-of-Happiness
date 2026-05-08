@@ -3732,9 +3732,16 @@ async def send_help_request(request: Request):
     # Teacher tokens — only for school context
     if context != 'home':
         try:
-            teacher_r = supabase.table("users").select("push_token").eq("user_id", student.get("teacher_id", "")).execute()
-            if teacher_r.data and teacher_r.data[0].get("push_token"):
-                tokens_to_notify.append(("teacher", teacher_r.data[0]["push_token"]))
+            # Find teacher via classroom
+            classroom_id = student.get("classroom_id", "")
+            if classroom_id:
+                classroom_r = supabase.table("classrooms").select("user_id").eq("id", classroom_id).execute()
+                if classroom_r.data:
+                    teacher_user_id = classroom_r.data[0]["user_id"]
+                    teacher_r = supabase.table("users").select("push_token").eq("user_id", teacher_user_id).execute()
+                    if teacher_r.data and teacher_r.data[0].get("push_token"):
+                        tokens_to_notify.append(("teacher", teacher_r.data[0]["push_token"]))
+            # Also store alert with correct teacher reference
         except: pass
 
     # Parent/family tokens — only for home context

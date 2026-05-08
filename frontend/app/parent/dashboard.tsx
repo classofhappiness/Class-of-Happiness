@@ -587,7 +587,7 @@ export default function ParentDashboard() {
       >
         {/* Subtitle */}
         <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 }}>
-          <Text style={{ fontSize: 12, color: '#888', textAlign: 'center', fontWeight: '400', letterSpacing: 0.2 }}>
+          <Text style={{ fontSize: 12, color: '#333', textAlign: 'center', fontWeight: '400', letterSpacing: 0.2 }}>
             {t('family_wellbeing_desc') || "My Family's Emotional Wellbeing"}
           </Text>
         </View>
@@ -655,18 +655,19 @@ export default function ParentDashboard() {
 
 
 
-                    {/* Wellbeing button — parents only need PIN (not kids) */}
-                    <TouchableOpacity
-                      style={styles.wellbeingBtn}
-                      onPress={(e) => {
-                        e.stopPropagation?.();
-                        router.push(`/parent/my-wellbeing?memberId=${member.id}&memberName=${encodeURIComponent(member.name)}&skipPin=${isChild ? 'true' : 'false'}`);
-                      }}
-                    >
-                      <MaterialIcons name="spa" size={12} color="#5C6BC0" />
-                      <Text style={styles.wellbeingBtnTxt}>Wellbeing</Text>
-                    </TouchableOpacity>
-                    {creature && (
+                    {!isChild && (
+                      <TouchableOpacity
+                        style={styles.wellbeingBtn}
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          router.push(`/parent/my-wellbeing?memberId=${member.id}&memberName=${encodeURIComponent(member.name)}&skipPin=false`);
+                        }}
+                      >
+                        <MaterialIcons name="spa" size={12} color="#5C6BC0" />
+                        <Text style={styles.wellbeingBtnTxt}>Wellbeing</Text>
+                      </TouchableOpacity>
+                    )}
+                    {isChild && creature && (
                       <TouchableOpacity
                         style={[styles.wellbeingBtn, { marginTop: 4, borderColor: creature.color || '#4CAF50' }]}
                         onPress={(e) => {
@@ -678,6 +679,9 @@ export default function ParentDashboard() {
                         <Text style={{ fontSize: 12 }}>{creatureEmoji}</Text>
                         <Text style={[styles.wellbeingBtnTxt, { color: creature.color || '#4CAF50' }]}>Creature</Text>
                       </TouchableOpacity>
+                    )}
+                    {isChild && (
+                      <View style={{ display: 'none' }} />
                     )}
                   </TouchableOpacity>
                 );
