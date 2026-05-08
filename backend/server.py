@@ -4060,7 +4060,7 @@ async def get_alerts(request: Request, limit: int = 20):
             student_ids = [s["id"] for s in (students_r.data or [])]
 
         # Also check parent links
-        parent_links_r = supabase.table("parent_links").select("student_id").eq("parent_id", user["user_id"]).execute()
+        parent_links_r = supabase.table("parent_links").select("student_id").eq("parent_user_id", user["user_id"]).execute()
         student_ids += [l["student_id"] for l in (parent_links_r.data or [])]
 
         # Also check family_members table for linked children
