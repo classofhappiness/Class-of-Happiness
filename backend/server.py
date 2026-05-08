@@ -5010,6 +5010,34 @@ async def get_family_analytics(member_id: str, request: Request, days: int = 7):
     }
 
 # ================== REWARDS COLLECTION ==================
+@api_router.get("/rewards/batch/collections")
+async def get_batch_collections(student_ids: str, request: Request):
+    """Get collections for multiple students in one call. student_ids = comma-separated IDs."""
+    ids = [s.strip() for s in student_ids.split(',') if s.strip()][:20]
+    results = {}
+    for sid in ids:
+        try:
+            # Reuse single collection logic
+            r = supabase.table("rewards").select("*").eq("student_id", sid).single().execute()
+            data = r.data or {}
+            creatures_r = supabase.table("creatures").select("*").execute()
+            all_creatures = creatures_r.data or []
+            results[sid] = {
+                "current_creature": data.get("current_creature"),
+                "current_stage": data.get("current_stage", 0),
+                "current_points": data.get("points", 0),
+                "collected_creatures": data.get("collected_creatures", []),
+                "total_creatures": len(all_creatures),
+                "all_creatures": all_creatures,
+                "unlocked_moves": data.get("unlocked_moves", []),
+                "unlocked_outfits": data.get("unlocked_outfits", []),
+                "unlocked_foods": data.get("unlocked_foods", []),
+                "unlocked_homes": data.get("unlocked_homes", []),
+            }
+        except Exception:
+            results[sid] = None
+    return results
+
 @api_router.get("/rewards/{student_id}/collection")
 async def get_collection(student_id: str):
     result = supabase.table("student_rewards").select("*").eq("student_id", student_id).execute()

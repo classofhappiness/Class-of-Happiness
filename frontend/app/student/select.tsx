@@ -6,6 +6,7 @@ import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { CreatureCollection } from '../../src/components/CreatureCollection';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { rewardsApi, StudentCollection, StudentRewards, Creature } from '../../src/utils/api';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../../src/utils/sounds';
 
@@ -45,14 +46,18 @@ export default function StudentSelectScreen() {
   // Load ALL creatures in parallel - much faster than one by one
   useEffect(() => {
     if (students.length === 0) return;
-    Promise.allSettled(
-      students.map(s => rewardsApi.getCollection(s.id).then(c => ({ id: s.id, c })))
-    ).then(results => {
+// Batch fetch all collections in ONE api call
+    const ids = students.map(s => s.id).join(',');
+    const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+    const tok = await AsyncStorage.getItem('session_token') || '';
+    fetch(`${BURL}/api/rewards/batch/collections?student_ids=${ids}`, {
+      headers: { Authorization: `Bearer ${tok}` }
+    }).then(r => r.ok ? r.json() : {}).then((batchResults: Record<string,any>) => {
       const data: Record<string, StudentCreatureData> = {};
-      results.forEach(r => {
-        if (r.status === 'fulfilled' && r.value.c?.current_creature) {
-          const { id, c } = r.value;
-          data[id] = {
+      students.forEach(s => {
+        const c = batchResults[s.id];
+        if (c?.current_creature) {
+          data[s.id] = {
             currentCreature: c.current_creature,
             currentStage: c.current_stage || 0,
             collectedCreatures: c.collected_creatures || [],
@@ -62,6 +67,20 @@ export default function StudentSelectScreen() {
         }
       });
       setStudentCreatures(data);
+    }).catch(() => {
+      // Fallback to parallel individual calls
+      Promise.allSettled(
+        students.map(s => rewardsApi.getCollection(s.id).then(c => ({ id: s.id, c })))
+      ).then(results => {
+        const data: Record<string, StudentCreatureData> = {};
+        results.forEach(r => {
+          if (r.status === 'fulfilled' && r.value.c?.current_creature) {
+            const { id, c } = r.value;
+            data[id] = { currentCreature: c.current_creature, currentStage: c.current_stage || 0, collectedCreatures: c.collected_creatures || [], totalPoints: c.current_points || 0, allCreatures: c.all_creatures || [] } as any;
+          }
+        });
+        setStudentCreatures(data);
+      });
     });
   }, [students]);
 
