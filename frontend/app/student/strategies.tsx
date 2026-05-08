@@ -311,12 +311,11 @@ export default function StrategiesScreen() {
                     helpRequested.has(strategy.id) && styles.helpBtnDone,
                   ]}
                   onPress={() => handleHelpRequest(strategy.id, strategy.name)}
-                  disabled={helpRequested.has(strategy.id)}
                 >
                   <MaterialIcons
-                    name={helpRequested.has(strategy.id) ? 'check-circle' : 'pan-tool'}
+                    name={helpRequested.has(strategy.id) ? 'pan-tool' : 'pan-tool-outline'}
                     size={18}
-                    color={helpRequested.has(strategy.id) ? '#4CAF50' : '#5C6BC0'}
+                    color={helpRequested.has(strategy.id) ? '#333' : '#BBB'}
                   />
                 </TouchableOpacity>
               </View>

@@ -123,13 +123,13 @@ export const CreatureShowcase: React.FC<CreatureShowcaseProps> = ({
     ]).start(() => startAnimation());
 
     const timers: any[] = [];
-    [1800, 3600, 5400, 7200].forEach((delay, i) => {
+    [3500, 7000, 10500, 14000].forEach((delay, i) => {
       timers.push(setTimeout(() => goToStep(i + 1), delay));
     });
     timers.push(setTimeout(() => {
       if (moveLoop.current) moveLoop.current.stop();
       Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => onClose());
-    }, 9500));
+    }, 18000));
 
     return () => { timers.forEach(clearTimeout); if (moveLoop.current) moveLoop.current.stop(); };
   }, [visible]);
