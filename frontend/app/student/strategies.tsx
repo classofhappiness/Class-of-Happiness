@@ -183,6 +183,11 @@ export default function StrategiesScreen() {
 
   const handleHelpRequest = async (strategyId: string, strategyName: string) => {
     if (!currentStudent) return;
+    // Toggle — deselect if already selected
+    if (helpRequested.has(strategyId)) {
+      setHelpRequested(prev => { const n = new Set(prev); n.delete(strategyId); return n; });
+      return;
+    }
     setHelpRequested(prev => new Set([...prev, strategyId]));
     const result = await sendHelpRequest({
       student_id: currentStudent.id,
