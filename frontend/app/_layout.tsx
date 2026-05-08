@@ -237,7 +237,7 @@ function AppContent() {
           options={{
             title: 'Family Dashboard',
             headerTitleAlign: 'center',
-            headerTitleStyle: { fontWeight: '700', marginLeft: 8 },
+            headerTitleStyle: { fontWeight: '700' },
           }}
         />
         <Stack.Screen

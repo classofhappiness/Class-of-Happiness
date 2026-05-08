@@ -49,9 +49,10 @@ export default function StudentSelectScreen() {
 // Batch fetch all collections in ONE api call
     const ids = students.map(s => s.id).join(',');
     const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-    const tok = await AsyncStorage.getItem('session_token') || '';
+    AsyncStorage.getItem('session_token').then(tok => {
+    const token = tok || '';
     fetch(`${BURL}/api/rewards/batch/collections?student_ids=${ids}`, {
-      headers: { Authorization: `Bearer ${tok}` }
+      headers: { Authorization: `Bearer ${token}` }
     }).then(r => r.ok ? r.json() : {}).then((batchResults: Record<string,any>) => {
       const data: Record<string, StudentCreatureData> = {};
       students.forEach(s => {
@@ -67,7 +68,7 @@ export default function StudentSelectScreen() {
         }
       });
       setStudentCreatures(data);
-    }).catch(() => {
+    }); }).catch(() => {
       // Fallback to parallel individual calls
       Promise.allSettled(
         students.map(s => rewardsApi.getCollection(s.id).then(c => ({ id: s.id, c })))

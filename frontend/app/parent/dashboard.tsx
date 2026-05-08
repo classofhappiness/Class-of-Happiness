@@ -988,10 +988,8 @@ export default function ParentDashboard() {
         <CreatureCollection
           visible={showCollection}
           onClose={() => { setShowCollection(false); setCollectionMember(null); }}
-          studentId={collectionMember.student_id || collectionMember.id}
-          studentName={collectionMember.name}
           collectedCreatures={memberCreatures[collectionMember.id]?.allCreatures || childCreatures[collectionMember.id]?.allCreatures || []}
-          currentCreature={memberCreatures[collectionMember.id]?.currentCreature || null}
+          currentCreature={memberCreatures[collectionMember.id]?.currentCreature || (memberCreatures[collectionMember.id]?.allCreatures?.[0]) || null}
           currentStage={memberCreatures[collectionMember.id]?.currentStage || 0}
           currentPoints={memberCreatures[collectionMember.id]?.totalPoints || 0}
           totalCreatures={4}
