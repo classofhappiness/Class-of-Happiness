@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
-  TextInput, Alert, KeyboardAvoidingView, Platform,
+  TextInput, Alert, KeyboardAvoidingView, Platform, Share,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -228,6 +228,34 @@ export default function MyWellbeingScreen() {
     );
   }
 
+  const handleExport = async () => {
+    if (entries.length === 0) {
+      Alert.alert('No Data', 'No wellbeing entries to export yet.');
+      return;
+    }
+    const lines = [
+      `My Wellbeing Report — ${memberName}`,
+      `Exported: ${new Date().toLocaleDateString()}`,
+      `Period: Last ${range} days`,
+      '',
+      ...entries.map(e => {
+        const d = new Date(e.timestamp).toLocaleDateString();
+        const t2 = new Date(e.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        const j = journals[e.id] ? `\n   Journal: ${journals[e.id]}` : '';
+        const c = e.comment ? `\n   Note: ${e.comment}` : '';
+        return `${d} ${t2} — ${e.zone.toUpperCase()}${c}${j}`;
+      }),
+      '',
+      `Total entries: ${entries.length}`,
+    ];
+    try {
+      await Share.share({
+        title: `Wellbeing Report — ${memberName}`,
+        message: lines.join('\n'),
+      });
+    } catch(e) { console.log('Export error:', e); }
+  };
+
   return (
     <SafeAreaView style={st.container}>
       <View style={st.header}>
@@ -242,19 +270,27 @@ export default function MyWellbeingScreen() {
 
       <ScrollView contentContainerStyle={st.scroll} keyboardShouldPersistTaps='handled'>
 
-        {/* Range selector */}
-        <View style={st.rangeRow}>
-          {(['7','14','30'] as RangeKey[]).map(r => (
-            <TouchableOpacity
-              key={r}
-              style={[st.rangeBtn, range === r && st.rangeBtnActive]}
-              onPress={() => setRange(r)}
-            >
-              <Text style={[st.rangeTxt, range === r && st.rangeTxtActive]}>
-                {t(`wellbeing_${r}days`) || `${r} Days`}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        {/* Range selector + export */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+          <View style={[st.rangeRow, { flex: 1, marginBottom: 0 }]}>
+            {(['7','14','30'] as RangeKey[]).map(r => (
+              <TouchableOpacity
+                key={r}
+                style={[st.rangeBtn, range === r && st.rangeBtnActive]}
+                onPress={() => setRange(r)}
+              >
+                <Text style={[st.rangeTxt, range === r && st.rangeTxtActive]}>
+                  {t(`wellbeing_${r}days`) || `${r} Days`}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity
+            onPress={handleExport}
+            style={{ marginLeft: 10, padding: 8, backgroundColor: '#F0F4FF', borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <MaterialIcons name="ios-share" size={20} color="#5C6BC0" />
+          </TouchableOpacity>
         </View>
 
         {/* Daily dots — one dot per day in range */}

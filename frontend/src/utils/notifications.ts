@@ -161,8 +161,14 @@ export async function getAlerts(token: string): Promise<any[]> {
     const res = await fetch(`${BACKEND_URL}/api/notifications/alerts`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    return await res.json();
-  } catch {
+    if (!res.ok) {
+      console.warn('[Alerts] fetch failed:', res.status);
+      return [];
+    }
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch(e) {
+    console.error('[Alerts] fetch error:', e);
     return [];
   }
 }

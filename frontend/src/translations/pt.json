@@ -604,5 +604,22 @@
   "wellbeing_journal_ph": "Adiciona uma nota a este check-in...",
   "wellbeing_total": "check-ins no total",
   "per_week_avg": "por semana em média",
-  "daily_view": "por semana em média"
-}
+  "daily_view": "por semana em média",
+        "add_note": "Adicionar uma nota (opcional)",
+        "classroom": "Turma",
+        "dashboard": "Painel",
+        "download": "Descarregar",
+        "email": "Email",
+        "login_required": "Login necessário",
+        "next": "Próximo",
+        "password": "Palavra-passe",
+        "privacy": "Privacidade",
+        "select_feeling": "Como te sentes?",
+        "teachers": "Professores",
+        "trial": "Teste Grátis",
+        "trial_desc": "Sem cartão de crédito",
+        "upload": "Carregar",
+        "alerts": "Alertas",
+        "no_alerts": "Sem alertas pendentes",
+        "class_mood_graph": "Gráfico de Emoções"
+    }

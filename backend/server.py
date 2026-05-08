@@ -4044,9 +4044,13 @@ async def get_alerts(request: Request, limit: int = 20):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        # Get student IDs for this teacher
-        students_r = supabase.table("students").select("id").eq("teacher_id", user["user_id"]).execute()
-        student_ids = [s["id"] for s in (students_r.data or [])]
+        # Get student IDs for this teacher via classrooms
+        classrooms_r = supabase.table("classrooms").select("id").eq("user_id", user["user_id"]).execute()
+        classroom_ids = [cl["id"] for cl in (classrooms_r.data or [])]
+        student_ids = []
+        if classroom_ids:
+            students_r = supabase.table("students").select("id").in_("classroom_id", classroom_ids).execute()
+            student_ids = [s["id"] for s in (students_r.data or [])]
 
         # Also check parent links
         parent_links_r = supabase.table("parent_links").select("student_id").eq("parent_id", user["user_id"]).execute()
