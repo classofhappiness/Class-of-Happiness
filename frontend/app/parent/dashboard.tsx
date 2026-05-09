@@ -867,10 +867,10 @@ export default function ParentDashboard() {
                 <View style={styles.chartContainer}>
                   <BarChart
                     data={[
-                      { value: selectedMemberLogs.filter((l:any) => (l.zone||l.feeling_colour)==='blue').length, frontColor:'#4A90D9', label:'😊', labelTextStyle:{fontSize:16} },
-                      { value: selectedMemberLogs.filter((l:any) => (l.zone||l.feeling_colour)==='green').length, frontColor:'#43A047', label:'😌', labelTextStyle:{fontSize:16} },
-                      { value: selectedMemberLogs.filter((l:any) => (l.zone||l.feeling_colour)==='yellow').length, frontColor:'#F9A825', label:'😟', labelTextStyle:{fontSize:16} },
-                      { value: selectedMemberLogs.filter((l:any) => (l.zone||l.feeling_colour)==='red').length, frontColor:'#E53935', label:'😡', labelTextStyle:{fontSize:16} },
+                      { value: recentLogs.filter((l:any) => (l.zone||l.feeling_colour)==='blue').length, frontColor:'#4A90D9', label:'😊', labelTextStyle:{fontSize:16} },
+                      { value: recentLogs.filter((l:any) => (l.zone||l.feeling_colour)==='green').length, frontColor:'#43A047', label:'😌', labelTextStyle:{fontSize:16} },
+                      { value: recentLogs.filter((l:any) => (l.zone||l.feeling_colour)==='yellow').length, frontColor:'#F9A825', label:'😟', labelTextStyle:{fontSize:16} },
+                      { value: recentLogs.filter((l:any) => (l.zone||l.feeling_colour)==='red').length, frontColor:'#E53935', label:'😡', labelTextStyle:{fontSize:16} },
                     ]}
                     barWidth={44}
                     spacing={20}
