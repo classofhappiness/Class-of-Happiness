@@ -885,26 +885,11 @@ export default function ParentDashboard() {
                     width={260}
                     xAxisLabelTextStyle={{fontSize:16}}
                   />
-                  {false && <PieChart
-                    data={pieData}
-                    donut
-                    radius={80}
-                    innerRadius={50}
-                    centerLabelComponent={() => (
-                      <View style={styles.chartCenter}>
-                        <Text style={styles.chartCenterNumber}>{totalLogs}</Text>
-                        <Text style={styles.chartCenterLabel}>{t('check_ins')}</Text>
-                      </View>
-                    )}
-                  />
                   <View style={styles.legendContainer}>
-                    {Object.entries(ZONE_COLORS).map(([zone, color]) => (
+                    {['blue','green','yellow','red'].map((zone) => (
                       <View key={zone} style={styles.legendItem}>
-                        <View style={[styles.legendDot, { backgroundColor: color }]} />
+                        <View style={[styles.legendDot, { backgroundColor: ZONE_COLORS[zone] }]} />
                         <Text style={styles.legendText}>{getZoneLabel(zone, t)}</Text>
-                        <Text style={styles.legendCount}>
-                          {analytics?.zone_counts[zone] || 0}
-                        </Text>
                       </View>
                     ))}
                   </View>
