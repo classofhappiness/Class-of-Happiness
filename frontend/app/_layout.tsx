@@ -136,6 +136,7 @@ function AppContent() {
             title: 'How Are You Feeling?',
             headerBackTitle: 'Back',
           }}
+        />
         <Stack.Screen
           name="student/strategies"
           options={{
