@@ -135,6 +135,7 @@ function AppContent() {
           options={{
             title: 'How Are You Feeling?',
             headerBackTitle: 'Back',
+            headerRight: () => <HomeToStudents />,
           }}
         />
         <Stack.Screen
