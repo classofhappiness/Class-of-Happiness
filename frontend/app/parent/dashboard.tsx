@@ -865,7 +865,27 @@ export default function ParentDashboard() {
 
               {weekExpanded && totalLogs > 0 ? (
                 <View style={styles.chartContainer}>
-                  <PieChart
+                  <BarChart
+                    data={[
+                      { value: selectedMemberLogs.filter((l:any) => (l.zone||l.feeling_colour)==='blue').length, frontColor:'#4A90D9', label:'😊', labelTextStyle:{fontSize:16} },
+                      { value: selectedMemberLogs.filter((l:any) => (l.zone||l.feeling_colour)==='green').length, frontColor:'#43A047', label:'😌', labelTextStyle:{fontSize:16} },
+                      { value: selectedMemberLogs.filter((l:any) => (l.zone||l.feeling_colour)==='yellow').length, frontColor:'#F9A825', label:'😟', labelTextStyle:{fontSize:16} },
+                      { value: selectedMemberLogs.filter((l:any) => (l.zone||l.feeling_colour)==='red').length, frontColor:'#E53935', label:'😡', labelTextStyle:{fontSize:16} },
+                    ]}
+                    barWidth={44}
+                    spacing={20}
+                    roundedTop
+                    xAxisThickness={1}
+                    xAxisColor={'#E0E0E0'}
+                    yAxisThickness={0}
+                    yAxisTextStyle={{color:'#999',fontSize:10}}
+                    noOfSections={4}
+                    isAnimated
+                    barBorderRadius={6}
+                    width={260}
+                    xAxisLabelTextStyle={{fontSize:16}}
+                  />
+                  {false && <PieChart
                     data={pieData}
                     donut
                     radius={80}
