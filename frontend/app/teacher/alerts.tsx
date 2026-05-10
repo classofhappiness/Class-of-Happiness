@@ -97,7 +97,10 @@ export default function AlertsScreen() {
                     {new Date(alert.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} · {new Date(alert.created_at).toLocaleDateString()}
                   </Text>
                 </View>
-                <TouchableOpacity style={st.resolveBtn} onPress={() => handleResolve(alert.id)}>
+                <TouchableOpacity 
+                  style={[st.resolveBtn, { flexDirection:'row', alignItems:'center', gap:4 }]} 
+                  onPress={() => handleResolve(alert.id)}>
+                  <MaterialIcons name="check-box-outline-blank" size={18} color="#5C6BC0" />
                   <Text style={st.resolveTxt}>Resolve</Text>
                 </TouchableOpacity>
               </View>

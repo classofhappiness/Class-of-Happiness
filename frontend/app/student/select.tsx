@@ -49,8 +49,10 @@ export default function StudentSelectScreen() {
 // Batch fetch all collections in ONE api call
     const ids = students.map(s => s.id).join(',');
     const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+    console.log('[Creatures] fetching for', students.length, 'students');
     AsyncStorage.getItem('session_token').then(tok => {
     const token = tok || '';
+    console.log('[Creatures] token present:', !!token);
     fetch(`${BURL}/api/rewards/batch/collections?student_ids=${ids}`, {
       headers: { Authorization: `Bearer ${token}` }
     }).then(r => r.ok ? r.json() : {}).then((batchResults: Record<string,any>) => {
