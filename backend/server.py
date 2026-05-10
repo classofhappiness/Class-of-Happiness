@@ -3710,6 +3710,9 @@ async def send_help_request(request: Request):
             classroom_name = cr.data[0]["name"] if cr.data else ""
     except: pass
 
+    # Context defined here before use
+    context = body.get("context", None)
+
     # Store alert in student_alerts table
     alert_id = str(uuid.uuid4())
     try:
@@ -3720,7 +3723,6 @@ async def send_help_request(request: Request):
             "alert_type": "help_request",
             "context": context or "school",
             "classroom_name": classroom_name,
-            "context": context or "school",
             "zone": zone,
             "strategy_id": strategy_id,
             "strategy_name": strategy_name,
