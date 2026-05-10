@@ -1948,7 +1948,11 @@ async def get_current_user(request: Request) -> Optional[dict]:
         return None
 
 def check_subscription_active(user: dict) -> bool:
-    if user.get("role") == "admin":
+    # All admin/staff roles bypass subscription
+    if user.get("role") in ("admin", "superadmin", "school_admin", "teacher"):
+        return True
+    # Also bypass if user has a school invite code (linked to a school)
+    if user.get("school_id") or user.get("invite_code"):
         return True
     sub_status = user.get("subscription_status", "none")
     if sub_status == "active":
