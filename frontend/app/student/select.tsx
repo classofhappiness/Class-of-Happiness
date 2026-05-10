@@ -61,7 +61,16 @@ export default function StudentSelectScreen() {
       const data: Record<string, StudentCreatureData> = {};
       students.forEach(s => {
         const c = batchResults[s.id];
-        if (c?.current_creature) {
+        if (c === null || c === undefined) {
+          // No rewards yet — show default egg
+          data[s.id] = {
+            currentCreature: { id:'egg', name:'Egg', color:'#E0E0E0', stages:[{emoji:'🥚'},{emoji:'🥚'},{emoji:'🥚'},{emoji:'🥚'}] } as any,
+            currentStage: 0,
+            collectedCreatures: [],
+            totalPoints: 0,
+            allCreatures: [],
+          } as any;
+        } else if (c?.current_creature) {
           data[s.id] = {
             currentCreature: c.current_creature,
             currentStage: c.current_stage || 0,
