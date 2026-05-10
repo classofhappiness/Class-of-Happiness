@@ -3711,6 +3711,8 @@ async def send_help_request(request: Request):
             "student_id": student_id,
             "student_name": student_name,
             "alert_type": "help_request",
+            "context": context or "school",
+            "context": context or "school",
             "zone": zone,
             "strategy_id": strategy_id,
             "strategy_name": strategy_name,
@@ -4076,9 +4078,16 @@ async def get_alerts(request: Request, limit: int = 20):
             logger.warning(f"[get_alerts] No student_ids found for user {user['user_id']}")
             return []
 
-        alerts = supabase.table("student_alerts").select("*").in_("student_id", student_ids[:50]).order("created_at", desc=True).limit(limit).execute()
-        logger.info(f"[get_alerts] Found {len(alerts.data or [])} alerts")
-        return alerts.data or []
+        role = user.get("role", "")
+        query = supabase.table("student_alerts").select("*").in_("student_id", student_ids[:50])
+        # Teachers only see school context alerts, parents only see home context
+        if role == "teacher":
+            query = query.eq("context", "school")
+        elif role in ["parent", "family"]:
+            query = query.eq("context", "home")
+        alerts_r = query.order("created_at", desc=True).limit(limit).execute()
+        logger.info(f"[get_alerts] Found {len(alerts_r.data or [])} alerts for role={role}")
+        return alerts_r.data or []
     except Exception as e:
         logger.error(f"Get alerts error: {e}")
         return []

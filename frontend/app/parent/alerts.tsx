@@ -50,8 +50,13 @@ export default function ParentAlertsScreen() {
   };
 
   const handleResolve = async (alert_id: string) => {
-    await resolveAlert(alert_id, token);
-    setAlerts(prev => prev.map(a => a.id === alert_id ? { ...a, resolved: true } : a));
+    Alert.alert('Mark as Resolved', 'Are you sure this has been addressed?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Resolved', style: 'destructive', onPress: async () => {
+        await resolveAlert(alert_id, token);
+        setAlerts(prev => prev.map(a => a.id === alert_id ? { ...a, resolved: true } : a));
+      }},
+    ]);
   };
 
   const unresolved = alerts.filter(a => !a.resolved);

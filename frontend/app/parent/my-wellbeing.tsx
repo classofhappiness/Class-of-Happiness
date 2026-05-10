@@ -265,7 +265,9 @@ export default function MyWellbeingScreen() {
     💬 "${e.comment}"` : '';
         const journal = journals[e.id] ? `
     📝 ${journals[e.id]}` : '';
-        return `${zoneEmoji[e.zone]||'•'} ${d} ${time} — ${zoneLabel[e.zone]||e.zone}${note}${journal}`;
+        const strats = (e as any).strategies_selected?.length ? `
+    🎯 ${((e as any).strategies_selected).slice(0,3).join(', ')}` : '';
+        return `${zoneEmoji[e.zone]||'•'} ${d} ${time} — ${zoneLabel[e.zone]||e.zone}${note}${strats}${journal}`;
       }),
       '',
       '─────────────────────────────────────',

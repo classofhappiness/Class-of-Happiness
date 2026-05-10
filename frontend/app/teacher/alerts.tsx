@@ -50,8 +50,13 @@ export default function AlertsScreen() {
   };
 
   const handleResolve = async (alert_id: string) => {
-    await resolveAlert(alert_id, token);
-    setAlerts(prev => prev.map(a => a.id === alert_id ? { ...a, resolved: true } : a));
+    Alert.alert('Mark as Resolved', 'Are you sure you want to mark this alert as resolved?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Resolve', style: 'destructive', onPress: async () => {
+        await resolveAlert(alert_id, token);
+        setAlerts(prev => prev.map(a => a.id === alert_id ? { ...a, resolved: true } : a));
+      }},
+    ]);
   };
 
   const unresolved = alerts.filter(a => !a.resolved);
