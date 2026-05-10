@@ -741,6 +741,7 @@ export default function ParentDashboard() {
                 </TouchableOpacity>
               ))}
             </View>
+            </ScrollView>
           )}
         </View>
         {/* Linked Children from School — now shown in My Family above */}
