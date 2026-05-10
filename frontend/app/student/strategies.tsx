@@ -430,7 +430,8 @@ const styles = StyleSheet.create({
   skipButtonText: { fontSize: 15, color: '#888', fontWeight: '600' },
   doneButton: { flex: 2, padding: 14, borderRadius: 12, alignItems: 'center' },
   doneButtonText: { fontSize: 15, color: 'white', fontWeight: 'bold' },
-  helpBtn: { position: 'absolute', right: 10, top: 10, width: 30, height: 30, borderRadius: 15, backgroundColor: 'white', borderWidth: 1.5, borderColor: '#5C6BC0', alignItems: 'center', justifyContent: 'center', zIndex: 10, shadowColor: '#5C6BC0', shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
+  helpBtn: { // positioned top-right of card
+   position: 'absolute', right: 10, top: 10, width: 30, height: 30, borderRadius: 15, backgroundColor: 'white', borderWidth: 1.5, borderColor: '#5C6BC0', alignItems: 'center', justifyContent: 'center', zIndex: 10, shadowColor: '#5C6BC0', shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
   helpBtnDone: { backgroundColor: '#E8F5E9', borderColor: '#4CAF50' },
   helpBtnTxt: { fontSize: 14 },
   parentMsgToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: '#E8EAF6', borderRadius: 12, marginTop: 10, marginBottom: 4 },
