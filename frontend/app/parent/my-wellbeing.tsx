@@ -233,26 +233,47 @@ export default function MyWellbeingScreen() {
       Alert.alert('No Data', 'No wellbeing entries to export yet.');
       return;
     }
+    const zoneEmoji: Record<string,string> = { blue:'😔', green:'😊', yellow:'😟', red:'😣' };
+    const zoneLabel: Record<string,string> = { blue:'Blue', green:'Green', yellow:'Yellow', red:'Red' };
+    const zoneCounts: Record<string,number> = { blue:0, green:0, yellow:0, red:0 };
+    entries.forEach(e => { if (e.zone in zoneCounts) zoneCounts[e.zone]++; });
+    const total = entries.length;
+    const bar = (z: string) => '█'.repeat(Math.round((zoneCounts[z]/Math.max(total,1))*10));
+    const pct = (z: string) => Math.round(zoneCounts[z]/Math.max(total,1)*100);
     const lines = [
-      `My Wellbeing Report — ${memberName}`,
-      `Exported: ${new Date().toLocaleDateString()}`,
-      `Period: Last ${range} days`,
+      '╔══════════════════════════════════════╗',
+      '║     CLASS OF HAPPINESS               ║',
+      '║     Wellbeing Report                 ║',
+      '╚══════════════════════════════════════╝',
       '',
-      ...entries.map(e => {
+      `👤 ${memberName}`,
+      `📅 Period: Last ${range} days`,
+      `🗓  Exported: ${new Date().toLocaleDateString()}`,
+      `📊 Total check-ins: ${total}`,
+      '',
+      '─── Emotion Summary ───────────────────',
+      `😔 Blue:   ${bar('blue')} ${zoneCounts.blue} (${pct('blue')}%)`,
+      `😊 Green:  ${bar('green')} ${zoneCounts.green} (${pct('green')}%)`,
+      `😟 Yellow: ${bar('yellow')} ${zoneCounts.yellow} (${pct('yellow')}%)`,
+      `😣 Red:    ${bar('red')} ${zoneCounts.red} (${pct('red')}%)`,
+      '',
+      '─── Check-in Log ──────────────────────',
+      ...entries.slice(0,50).map(e => {
         const d = new Date(e.timestamp).toLocaleDateString();
-        const t2 = new Date(e.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-        const j = journals[e.id] ? `\n   Journal: ${journals[e.id]}` : '';
-        const c = e.comment ? `\n   Note: ${e.comment}` : '';
-        return `${d} ${t2} — ${e.zone.toUpperCase()}${c}${j}`;
+        const time = new Date(e.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+        const note = e.comment ? `
+    💬 "${e.comment}"` : '';
+        const journal = journals[e.id] ? `
+    📝 ${journals[e.id]}` : '';
+        return `${zoneEmoji[e.zone]||'•'} ${d} ${time} — ${zoneLabel[e.zone]||e.zone}${note}${journal}`;
       }),
       '',
-      `Total entries: ${entries.length}`,
+      '─────────────────────────────────────',
+      '  Class of Happiness',
+      '  This report is private and confidential.',
     ];
     try {
-      await Share.share({
-        title: `Wellbeing Report — ${memberName}`,
-        message: lines.join('\n'),
-      });
+      await Share.share({ title: `Wellbeing Report — ${memberName}`, message: lines.join('\n') });
     } catch(e) { console.log('Export error:', e); }
   };
 

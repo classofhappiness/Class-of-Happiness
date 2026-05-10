@@ -144,6 +144,7 @@ export default function ParentDashboard() {
   // Analytics
   const [analytics, setAnalytics] = useState<{ zone_counts: Record<string, number> } | null>(null);
   const [weekExpanded, setWeekExpanded] = useState(false);
+  const [analyticsPeriod, setAnalyticsPeriod] = useState<1|7|14|30>(7);
   const [checkInsExpanded, setCheckInsExpanded] = useState(false);
   const [showCollection, setShowCollection] = useState(false);
   const [collectionMember, setCollectionMember] = useState<any>(null);
@@ -862,15 +863,29 @@ export default function ParentDashboard() {
                 <Text style={styles.sectionTitle}>{t('week_overview') || 'Week Overview'}</Text>
                 <MaterialIcons name={weekExpanded ? 'expand-less' : 'expand-more'} size={22} color="#5C6BC0" />
               </TouchableOpacity>
+              {weekExpanded && (
+                <View style={{ flexDirection:'row', gap:6, marginBottom:10, marginTop:4 }}>
+                  {([1,7,14,30] as const).map(p => (
+                    <TouchableOpacity key={p} onPress={() => setAnalyticsPeriod(p)}
+                      style={{ flex:1, paddingVertical:5, borderRadius:8, alignItems:'center',
+                        backgroundColor: analyticsPeriod===p ? '#5C6BC0' : '#F0F0F0' }}>
+                      <Text style={{ fontSize:11, fontWeight:'700',
+                        color: analyticsPeriod===p ? 'white' : '#888' }}>
+                        {p===1?(t('today')||'Today'):p===7?(t('week')||'Week'):p===14?(t('fortnight')||'Fortnight'):(t('month')||'Month')}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
 
               {weekExpanded && totalLogs > 0 ? (
                 <View style={styles.chartContainer}>
                   <BarChart
                     data={[
-                      { value: recentLogs.filter((l:any) => (l.zone||l.feeling_colour)==='blue').length, frontColor:'#4A90D9', label:'😊', labelTextStyle:{fontSize:16} },
-                      { value: recentLogs.filter((l:any) => (l.zone||l.feeling_colour)==='green').length, frontColor:'#43A047', label:'😌', labelTextStyle:{fontSize:16} },
-                      { value: recentLogs.filter((l:any) => (l.zone||l.feeling_colour)==='yellow').length, frontColor:'#F9A825', label:'😟', labelTextStyle:{fontSize:16} },
-                      { value: recentLogs.filter((l:any) => (l.zone||l.feeling_colour)==='red').length, frontColor:'#E53935', label:'😡', labelTextStyle:{fontSize:16} },
+                      { value: recentLogs.filter((l:any)=>{ const diff=(Date.now()-new Date(l.timestamp).getTime())/(86400000); return diff<=analyticsPeriod&&(l.zone||l.feeling_colour)==='blue'; }).length, frontColor:'#4A90D9', label:'😊', labelTextStyle:{fontSize:16} },
+                      { value: recentLogs.filter((l:any)=>{ const diff=(Date.now()-new Date(l.timestamp).getTime())/(86400000); return diff<=analyticsPeriod&&(l.zone||l.feeling_colour)==='green'; }).length, frontColor:'#43A047', label:'😌', labelTextStyle:{fontSize:16} },
+                      { value: recentLogs.filter((l:any)=>{ const diff=(Date.now()-new Date(l.timestamp).getTime())/(86400000); return diff<=analyticsPeriod&&(l.zone||l.feeling_colour)==='yellow'; }).length, frontColor:'#F9A825', label:'😟', labelTextStyle:{fontSize:16} },
+                      { value: recentLogs.filter((l:any)=>{ const diff=(Date.now()-new Date(l.timestamp).getTime())/(86400000); return diff<=analyticsPeriod&&(l.zone||l.feeling_colour)==='red'; }).length, frontColor:'#E53935', label:'😡', labelTextStyle:{fontSize:16} },
                     ]}
                     barWidth={44}
                     spacing={20}
@@ -894,12 +909,7 @@ export default function ParentDashboard() {
                     ))}
                   </View>
                 </View>
-              ) : (
-                <View style={styles.noDataContainer}>
-                  <MaterialIcons name="pie-chart" size={48} color="#CCC" />
-                  <Text style={styles.noDataText}>{t('no_checkins_week')}</Text>
-                </View>
-              )}
+              ) : null}
             </View>
 
             {/* Recent Activity */}
