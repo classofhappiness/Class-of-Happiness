@@ -36,8 +36,10 @@ export default function AlertsScreen() {
   const load = useCallback(async () => {
     const tok = await AsyncStorage.getItem('session_token') || '';
     setToken(tok);
+    console.log('[Alerts] token present:', !!tok, 'length:', tok.length);
     const data = await getAlerts(tok);
-    setAlerts(data);
+    console.log('[Alerts] data received:', JSON.stringify(data?.length), Array.isArray(data));
+    setAlerts(Array.isArray(data) ? data : []);
     setLoading(false);
   }, []);
 

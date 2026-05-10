@@ -36,8 +36,10 @@ export default function ParentAlertsScreen() {
   const load = useCallback(async () => {
     const tok = await AsyncStorage.getItem('session_token') || '';
     setToken(tok);
+    console.log('[Parent Alerts] token present:', !!tok);
     const data = await getAlerts(tok);
-    setAlerts(data);
+    console.log('[Parent Alerts] data:', JSON.stringify(data?.length), Array.isArray(data));
+    setAlerts(Array.isArray(data) ? data : []);
     setLoading(false);
   }, []);
 
