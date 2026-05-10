@@ -55,7 +55,9 @@ export default function StudentSelectScreen() {
     console.log('[Creatures] token present:', !!token);
     fetch(`${BURL}/api/rewards/batch/collections?student_ids=${ids}`, {
       headers: { Authorization: `Bearer ${token}` }
-    }).then(r => r.ok ? r.json() : {}).then((batchResults: Record<string,any>) => {
+    }).then(r => { console.log('[Creatures] batch response status:', r.status); return r.ok ? r.json() : {}; })
+    .then((batchResults: Record<string,any>) => {
+      console.log('[Creatures] batch results keys:', Object.keys(batchResults).length);
       const data: Record<string, StudentCreatureData> = {};
       students.forEach(s => {
         const c = batchResults[s.id];
