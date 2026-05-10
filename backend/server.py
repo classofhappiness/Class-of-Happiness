@@ -2122,9 +2122,23 @@ async def get_students(request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    # Get teacher's own students
+    # Get students via user_id AND via classrooms (for teachers assigned to classrooms)
     result = supabase.table("students").select("*").eq("user_id", user["user_id"]).execute()
     own_students = result.data or []
+    
+    # Also get students from classrooms assigned to this teacher
+    classrooms_r = supabase.table("classrooms").select("id").eq("user_id", user["user_id"]).execute()
+    classroom_ids = [cl["id"] for cl in (classrooms_r.data or [])]
+    if classroom_ids:
+        classroom_students_r = supabase.table("students").select("*").in_("classroom_id", classroom_ids).execute()
+        classroom_students = classroom_students_r.data or []
+        # Merge, avoiding duplicates
+        existing_ids = {s["id"] for s in own_students}
+        for s in classroom_students:
+            if s["id"] not in existing_ids:
+                own_students.append(s)
+                existing_ids.add(s["id"])
+    
     own_ids = {s["id"] for s in own_students}
 
     # Get parent links ONLY for THIS teacher's own students
