@@ -4,56 +4,45 @@ import {
   TouchableOpacity, RefreshControl, Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAlerts, resolveAlert } from '../../src/utils/notifications';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { useApp } from '../../src/context/AppContext';
 
-const ZONE_COLORS: Record<string, string> = {
-  blue: '#4A90D9', green: '#4CAF50', yellow: '#FFC107', red: '#F44336',
-};
-const ZONE_EMOJI: Record<string, string> = {
-  blue: '🔵', green: '🟢', yellow: '🟡', red: '🔴',
-};
-const TYPE_LABELS: Record<string, string> = {
-  help_request: 'Help Request',
-  zone_alert: 'Zone Alert',
-  parent_message: 'Message to Parent',
-};
+const ZONE_COLORS: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
+const ZONE_EMOJI: Record<string,string> = { blue:'🔵', green:'🟢', yellow:'🟡', red:'🔴' };
+
+type Period = 'today' | '7' | '14' | '30';
 
 export default function AlertsScreen() {
-  const router = useRouter();
   const navigation = useNavigation();
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
-  const { t } = useApp();
+  const { t, classrooms } = useApp();
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showResolved, setShowResolved] = useState(false);
   const [token, setToken] = useState('');
+  const [period, setPeriod] = useState<Period>('today');
+  const [selectedClassroom, setSelectedClassroom] = useState<string>('all');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selectMode, setSelectMode] = useState(false);
 
   const load = useCallback(async () => {
     const tok = await AsyncStorage.getItem('session_token') || '';
     setToken(tok);
-    console.log('[Alerts] token present:', !!tok, 'length:', tok.length);
     const data = await getAlerts(tok);
-    console.log('[Alerts] data received:', JSON.stringify(data?.length), Array.isArray(data));
     setAlerts(Array.isArray(data) ? data : []);
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, []);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
-  };
+  const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
   const handleResolve = async (alert_id: string) => {
-    Alert.alert('Mark as Resolved', 'Are you sure you want to mark this alert as resolved?', [
+    Alert.alert('Mark as Resolved', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Resolve', style: 'destructive', onPress: async () => {
         await resolveAlert(alert_id, token);
@@ -62,71 +51,187 @@ export default function AlertsScreen() {
     ]);
   };
 
-  const unresolved = alerts.filter(a => !a.resolved);
-  const resolved = alerts.filter(a => a.resolved);
+  const handleBulkResolve = async () => {
+    if (selected.size === 0) return;
+    Alert.alert(`Resolve ${selected.size} alerts?`, 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: `Resolve All (${selected.size})`, style: 'destructive', onPress: async () => {
+        for (const id of selected) {
+          await resolveAlert(id, token);
+        }
+        setAlerts(prev => prev.map(a => selected.has(a.id) ? { ...a, resolved: true } : a));
+        setSelected(new Set());
+        setSelectMode(false);
+      }},
+    ]);
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  };
+
+  // Filter by period
+  const filterByPeriod = (a: any) => {
+    const created = new Date(a.created_at).getTime();
+    const now = Date.now();
+    const diff = (now - created) / (1000 * 60 * 60 * 24);
+    if (period === 'today') return diff < 1;
+    if (period === '7') return diff <= 7;
+    if (period === '14') return diff <= 14;
+    return diff <= 30;
+  };
+
+  // Get unique classrooms from alerts
+  const alertClassrooms = ['all', ...Array.from(new Set(alerts.map(a => a.classroom_name).filter(Boolean)))];
+
+  const filtered = alerts.filter(a =>
+    !a.resolved &&
+    filterByPeriod(a) &&
+    (selectedClassroom === 'all' || a.classroom_name === selectedClassroom)
+  );
+
+  const resolvedFiltered = alerts.filter(a =>
+    a.resolved &&
+    filterByPeriod(a) &&
+    (selectedClassroom === 'all' || a.classroom_name === selectedClassroom)
+  );
+
+  // Group by student for easier management
+  const grouped: Record<string, any[]> = {};
+  filtered.forEach(a => {
+    const key = a.student_name || 'Unknown';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(a);
+  });
 
   return (
     <SafeAreaView style={st.container}>
       <TranslatedHeader title={t('alerts') || 'Student Alerts'} />
 
-      <ScrollView
-        contentContainerStyle={{ padding: 16 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {loading ? (
-          <Text style={st.empty}>Loading...</Text>
-        ) : unresolved.length === 0 ? (
+      {/* Period tabs */}
+      <View style={st.tabs}>
+        {(['today','7','14','30'] as Period[]).map(p => (
+          <TouchableOpacity key={p} onPress={() => setPeriod(p)}
+            style={[st.tab, period===p && st.tabActive]}>
+            <Text style={[st.tabTxt, period===p && st.tabTxtActive]}>
+              {p==='today'?(t('today')||'Today'):p==='7'?(t('week')||'Week'):p==='14'?(t('fortnight')||'Fortnight'):(t('month')||'Month')}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Classroom filter */}
+      {alertClassrooms.length > 2 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.classroomRow}>
+          {alertClassrooms.map(cl => (
+            <TouchableOpacity key={cl} onPress={() => setSelectedClassroom(cl)}
+              style={[st.classroomBtn, selectedClassroom===cl && st.classroomBtnActive]}>
+              <Text style={[st.classroomTxt, selectedClassroom===cl && st.classroomTxtActive]}>
+                {cl === 'all' ? '🏫 All' : `📍 ${cl}`}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* Bulk action bar */}
+      <View style={st.actionBar}>
+        <Text style={st.countTxt}>{filtered.length} pending</Text>
+        <View style={{ flexDirection:'row', gap:8 }}>
+          {selectMode && selected.size > 0 && (
+            <TouchableOpacity style={st.bulkBtn} onPress={handleBulkResolve}>
+              <MaterialIcons name="check" size={16} color="white" />
+              <Text style={st.bulkBtnTxt}>Resolve {selected.size}</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={[st.bulkBtn, { backgroundColor: selectMode ? '#F44336' : '#5C6BC0' }]}
+            onPress={() => { setSelectMode(!selectMode); setSelected(new Set()); }}>
+            <MaterialIcons name={selectMode ? 'close' : 'checklist'} size={16} color="white" />
+            <Text style={st.bulkBtnTxt}>{selectMode ? 'Cancel' : 'Select'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={{ padding: 16 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+
+        {loading ? <Text style={st.empty}>Loading...</Text>
+          : filtered.length === 0 ? (
           <View style={st.emptyBox}>
             <Text style={{ fontSize: 40 }}>✅</Text>
-            <Text style={st.empty}>No pending alerts</Text>
+            <Text style={st.empty}>No alerts for this period</Text>
           </View>
         ) : null}
 
-        {unresolved.map(alert => (
-          <View key={alert.id} style={[st.card, { borderLeftColor: ZONE_COLORS[alert.zone] || '#5C6BC0' }]}>
-              <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
-                <View style={{ flex:1 }}>
-                  <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
-                    <Text style={{ fontSize:15, fontWeight:'700', color:'#333' }}>{ZONE_EMOJI[alert.zone] || '💙'} {alert.student_name}</Text>
-                    {alert.context === 'home' && <Text style={{ fontSize:9, color:'#4CAF50', fontWeight:'700', backgroundColor:'#E8F5E9', paddingHorizontal:5, paddingVertical:2, borderRadius:4 }}>LINKED</Text>}
-                  </View>
-                  {alert.classroom_name && <Text style={{ fontSize:12, color:'#666', marginTop:2 }}>📍 {alert.classroom_name}</Text>}
-                  {alert.strategy_name && <Text style={{ fontSize:12, color:'#5C6BC0', marginTop:2 }}>🎯 {alert.strategy_name}</Text>}
-                  {alert.message ? <Text style={{ fontSize:12, color:'#555', marginTop:2 }}>💬 {alert.message}</Text> : null}
-                  <Text style={{ fontSize:11, color:'#999', marginTop:4 }}>
-                    {new Date(alert.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} · {new Date(alert.created_at).toLocaleDateString()}
-                  </Text>
-                </View>
-                <TouchableOpacity 
-                  style={[st.resolveBtn, { flexDirection:'row', alignItems:'center', gap:4 }]} 
-                  onPress={() => handleResolve(alert.id)}>
-                  <MaterialIcons name="check-box-outline-blank" size={18} color="#5C6BC0" />
-                  <Text style={st.resolveTxt}>Resolve</Text>
-                </TouchableOpacity>
+        {/* Grouped by student */}
+        {Object.entries(grouped).map(([studentName, studentAlerts]) => (
+          <View key={studentName} style={st.studentGroup}>
+            <View style={st.studentHeader}>
+              <Text style={st.studentName}>
+                {ZONE_EMOJI[studentAlerts[0]?.zone] || '💙'} {studentName}
+              </Text>
+              <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                {studentAlerts[0]?.classroom_name && (
+                  <Text style={st.classroomTag}>📍 {studentAlerts[0].classroom_name}</Text>
+                )}
+                <Text style={st.countBadge}>{studentAlerts.length}</Text>
               </View>
+            </View>
+            {studentAlerts.map(alert => (
+              <TouchableOpacity key={alert.id}
+                style={[st.alertRow, selectMode && selected.has(alert.id) && st.alertRowSelected]}
+                onPress={() => selectMode ? toggleSelect(alert.id) : null}
+                onLongPress={() => { setSelectMode(true); toggleSelect(alert.id); }}
+                activeOpacity={selectMode ? 0.7 : 1}>
+                <View style={{ flexDirection:'row', alignItems:'center', gap:8, flex:1 }}>
+                  {selectMode && (
+                    <MaterialIcons
+                      name={selected.has(alert.id) ? 'check-box' : 'check-box-outline-blank'}
+                      size={20} color={selected.has(alert.id) ? '#4CAF50' : '#CCC'} />
+                  )}
+                  <View style={[st.zoneDot, { backgroundColor: ZONE_COLORS[alert.zone] || '#CCC' }]} />
+                  <View style={{ flex:1 }}>
+                    {alert.strategy_name && <Text style={st.strategyTxt}>🎯 {alert.strategy_name}</Text>}
+                    {alert.message && <Text style={st.messageTxt}>💬 {alert.message}</Text>}
+                    <Text style={st.timeTxt}>
+                      {new Date(alert.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
+                      {' · '}{new Date(alert.created_at).toLocaleDateString()}
+                    </Text>
+                  </View>
+                </View>
+                {!selectMode && (
+                  <TouchableOpacity style={st.resolveBtn} onPress={() => handleResolve(alert.id)}>
+                    <MaterialIcons name="check-box-outline-blank" size={20} color="#4CAF50" />
+                  </TouchableOpacity>
+                )}
+              </TouchableOpacity>
+            ))}
           </View>
         ))}
 
-        {resolved.length > 0 && (
+        {/* Resolved section */}
+        {resolvedFiltered.length > 0 && (
           <>
-            <TouchableOpacity 
-              onPress={() => setShowResolved(e => !e)}
-              style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:10, paddingHorizontal:4, marginTop:8 }}>
-              <Text style={st.sectionLabel}>Resolved ({resolved.length})</Text>
+            <TouchableOpacity onPress={() => setShowResolved(e => !e)}
+              style={st.resolvedHeader}>
+              <Text style={st.sectionLabel}>Resolved ({resolvedFiltered.length})</Text>
               <MaterialIcons name={showResolved ? 'expand-less' : 'expand-more'} size={22} color="#999" />
             </TouchableOpacity>
-            {showResolved && <>
-            {resolved.slice(0, 5).map(alert => (
-              <View key={alert.id} style={[st.card, st.cardResolved]}>
-                <View style={st.cardTop}>
-                  <Text style={[st.zone, { color: '#999' }]}>{ZONE_EMOJI[alert.zone] || '💙'} {alert.student_name}</Text>
-                  <Text style={st.type}>{TYPE_LABELS[alert.alert_type] || alert.alert_type}</Text>
+            {showResolved && resolvedFiltered.slice(0,10).map(alert => (
+              <View key={alert.id} style={[st.alertRow, { opacity:0.5 }]}>
+                <View style={[st.zoneDot, { backgroundColor: ZONE_COLORS[alert.zone] || '#CCC' }]} />
+                <View style={{ flex:1 }}>
+                  <Text style={st.studentName}>{alert.student_name}</Text>
+                  {alert.strategy_name && <Text style={st.strategyTxt}>🎯 {alert.strategy_name}</Text>}
+                  <Text style={st.timeTxt}>{new Date(alert.created_at).toLocaleDateString()}</Text>
                 </View>
-                {alert.message ? <Text style={[st.message, { color: '#AAA' }]}>"{alert.message}"</Text> : null}
-                <Text style={st.time}>{new Date(alert.created_at).toLocaleString()}</Text>
+                <MaterialIcons name="check-box" size={20} color="#4CAF50" />
               </View>
             ))}
-            </>}
           </>
         )}
       </ScrollView>
@@ -135,21 +240,35 @@ export default function AlertsScreen() {
 }
 
 const st = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FA' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#EEE' },
-  title: { fontSize: 17, fontWeight: '700', color: '#333' },
-  card: { backgroundColor: 'white', borderRadius: 12, padding: 14, marginBottom: 10, borderLeftWidth: 4, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  cardResolved: { opacity: 0.5, borderLeftColor: '#CCC' },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  zone: { fontSize: 15, fontWeight: '700', color: '#333' },
-  type: { fontSize: 11, color: '#5C6BC0', fontWeight: '600', backgroundColor: '#E8EAF6', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
-  strategy: { fontSize: 13, color: '#555', marginBottom: 4 },
-  message: { fontSize: 13, color: '#333', fontStyle: 'italic', marginBottom: 6 },
-  cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  time: { fontSize: 11, color: '#999' },
-  resolveBtn: { backgroundColor: '#E8F5E9', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 8 },
-  resolveTxt: { fontSize: 12, color: '#4CAF50', fontWeight: '600' },
-  sectionLabel: { fontSize: 12, color: '#999', fontWeight: '600', marginTop: 16, marginBottom: 8, textTransform: 'uppercase' },
-  emptyBox: { alignItems: 'center', paddingTop: 60, gap: 12 },
-  empty: { fontSize: 15, color: '#999', textAlign: 'center', marginTop: 8 },
+  container: { flex:1, backgroundColor:'#F8F9FA' },
+  tabs: { flexDirection:'row', backgroundColor:'white', paddingHorizontal:16, paddingVertical:8, gap:8, borderBottomWidth:1, borderBottomColor:'#F0F0F0' },
+  tab: { flex:1, paddingVertical:6, borderRadius:8, alignItems:'center', backgroundColor:'#F5F5F5' },
+  tabActive: { backgroundColor:'#5C6BC0' },
+  tabTxt: { fontSize:12, fontWeight:'600', color:'#888' },
+  tabTxtActive: { color:'white' },
+  classroomRow: { backgroundColor:'white', paddingHorizontal:12, paddingVertical:8, borderBottomWidth:1, borderBottomColor:'#F0F0F0' },
+  classroomBtn: { paddingHorizontal:12, paddingVertical:5, borderRadius:16, marginRight:8, backgroundColor:'#F5F5F5' },
+  classroomBtnActive: { backgroundColor:'#E8EAF6' },
+  classroomTxt: { fontSize:12, color:'#888' },
+  classroomTxtActive: { color:'#5C6BC0', fontWeight:'600' },
+  actionBar: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:16, paddingVertical:8, backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0' },
+  countTxt: { fontSize:13, color:'#666', fontWeight:'600' },
+  bulkBtn: { flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#5C6BC0', paddingHorizontal:12, paddingVertical:6, borderRadius:8 },
+  bulkBtnTxt: { fontSize:12, color:'white', fontWeight:'600' },
+  studentGroup: { backgroundColor:'white', borderRadius:12, marginBottom:12, overflow:'hidden', shadowColor:'#000', shadowOpacity:0.05, shadowRadius:4, elevation:2 },
+  studentHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', padding:12, backgroundColor:'#F8F9FA', borderBottomWidth:1, borderBottomColor:'#F0F0F0' },
+  studentName: { fontSize:14, fontWeight:'700', color:'#333' },
+  classroomTag: { fontSize:11, color:'#888' },
+  countBadge: { fontSize:11, fontWeight:'700', color:'white', backgroundColor:'#5C6BC0', paddingHorizontal:6, paddingVertical:2, borderRadius:10 },
+  alertRow: { flexDirection:'row', alignItems:'center', padding:12, borderBottomWidth:1, borderBottomColor:'#F8F8F8', gap:8 },
+  alertRowSelected: { backgroundColor:'#E8F5E9' },
+  zoneDot: { width:10, height:10, borderRadius:5, flexShrink:0 },
+  strategyTxt: { fontSize:13, color:'#333', fontWeight:'500' },
+  messageTxt: { fontSize:12, color:'#666', fontStyle:'italic' },
+  timeTxt: { fontSize:11, color:'#999', marginTop:2 },
+  resolveBtn: { padding:4 },
+  resolvedHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:10, paddingHorizontal:4, marginTop:8 },
+  sectionLabel: { fontSize:12, color:'#999', fontWeight:'600', textTransform:'uppercase' },
+  emptyBox: { alignItems:'center', paddingTop:60, gap:12 },
+  empty: { fontSize:15, color:'#999', textAlign:'center', marginTop:8 },
 });
