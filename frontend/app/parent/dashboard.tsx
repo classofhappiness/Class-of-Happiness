@@ -434,7 +434,7 @@ export default function ParentDashboard() {
               const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
               const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
               const token = await AsyncStorage.getItem('session_token');
-              const r = await fetch(`${BACKEND_URL}/api/family/zone-logs/${(selectedMember as FamilyMember).id}?days=7`, {
+              const r = await fetch(`${BACKEND_URL}/api/family/zone-logs/${(selectedMember as FamilyMember).id}?days=${analyticsPeriod}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
               });
               return r.ok ? r.json() : [];
@@ -587,7 +587,7 @@ export default function ParentDashboard() {
         }
       >
         {/* Subtitle */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 }}>
+        <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 }}>
           <Text style={{ fontSize: 12, color: '#333', textAlign: 'center', fontWeight: '400', letterSpacing: 0.2 }}>
             {t('family_wellbeing_desc') || "My Family's Emotional Wellbeing"}
           </Text>

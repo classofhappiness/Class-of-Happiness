@@ -186,9 +186,15 @@ export default function StrategiesScreen() {
     // Toggle — deselect if already selected
     if (helpRequested.has(strategyId)) {
       setHelpRequested(prev => { const n = new Set(prev); n.delete(strategyId); return n; });
+      // Also deselect the strategy
+      setSelectedStrategies(prev => prev.filter(id => id !== strategyId));
       return;
     }
     setHelpRequested(prev => new Set([...prev, strategyId]));
+    // Auto-select the strategy when hand is tapped
+    if (!selectedStrategies.includes(strategyId)) {
+      setSelectedStrategies(prev => [...prev, strategyId]);
+    }
     const result = await sendHelpRequest({
       student_id: currentStudent.id,
       strategy_id: strategyId,

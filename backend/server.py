@@ -3702,6 +3702,13 @@ async def send_help_request(request: Request):
         raise HTTPException(status_code=404, detail="Student not found")
     student = student_r.data[0]
     student_name = student.get("name", "A student")
+    # Get classroom info
+    classroom_name = ""
+    try:
+        if student.get("classroom_id"):
+            cr = supabase.table("classrooms").select("name").eq("id", student["classroom_id"]).execute()
+            classroom_name = cr.data[0]["name"] if cr.data else ""
+    except: pass
 
     # Store alert in student_alerts table
     alert_id = str(uuid.uuid4())
@@ -3712,6 +3719,7 @@ async def send_help_request(request: Request):
             "student_name": student_name,
             "alert_type": "help_request",
             "context": context or "school",
+            "classroom_name": classroom_name,
             "context": context or "school",
             "zone": zone,
             "strategy_id": strategy_id,

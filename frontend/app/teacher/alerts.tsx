@@ -83,6 +83,9 @@ export default function AlertsScreen() {
           <View key={alert.id} style={[st.card, { borderLeftColor: ZONE_COLORS[alert.zone] || '#5C6BC0' }]}>
             <View style={st.cardTop}>
               <Text style={st.zone}>{ZONE_EMOJI[alert.zone] || '💙'} {alert.student_name}</Text>
+              {alert.classroom_name && <Text style={{ fontSize:11, color:'#888', marginTop:2 }}>📍 {alert.classroom_name}</Text>}
+              {alert.strategy_name && <Text style={{ fontSize:11, color:'#5C6BC0', marginTop:2 }}>🎯 Strategy: {alert.strategy_name}</Text>}
+              {alert.created_at && <Text style={{ fontSize:10, color:'#BBB', marginTop:2 }}>🕐 {new Date(alert.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} · {new Date(alert.created_at).toLocaleDateString()}</Text>}
               <Text style={st.type}>{TYPE_LABELS[alert.alert_type] || alert.alert_type}</Text>
             </View>
             {alert.strategy_name ? (
