@@ -4087,15 +4087,19 @@ async def get_alerts(request: Request, limit: int = 20):
             return []
 
         role = user.get("role", "")
-        query = supabase.table("student_alerts").select("*").in_("student_id", student_ids[:50])
-        # Teachers only see school context alerts, parents only see home context
+        # Get all alerts for these students
+        all_alerts_r = supabase.table("student_alerts").select("*").in_("student_id", student_ids[:50]).order("created_at", desc=True).limit(50).execute()
+        all_alerts = all_alerts_r.data or []
+        # Filter by context — teachers see school, parents see home
+        # Include null/missing context for backwards compatibility
         if role == "teacher":
-            query = query.eq("context", "school")
+            filtered = [a for a in all_alerts if a.get("context") in ("school", None, "")]
         elif role in ["parent", "family"]:
-            query = query.eq("context", "home")
-        alerts_r = query.order("created_at", desc=True).limit(limit).execute()
-        logger.info(f"[get_alerts] Found {len(alerts_r.data or [])} alerts for role={role}")
-        return alerts_r.data or []
+            filtered = [a for a in all_alerts if a.get("context") in ("home", None, "")]
+        else:
+            filtered = all_alerts
+        logger.info(f"[get_alerts] Total={len(all_alerts)} Filtered={len(filtered)} role={role}")
+        return filtered[:limit]
     except Exception as e:
         logger.error(f"Get alerts error: {e}")
         return []
