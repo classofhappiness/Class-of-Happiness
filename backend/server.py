@@ -5096,17 +5096,25 @@ async def get_batch_collections(student_ids: str, request: Request):
     """Get collections for multiple students in one call. student_ids = comma-separated IDs."""
     ids = [s.strip() for s in student_ids.split(',') if s.strip()][:20]
     results = {}
+    # Fetch all creatures once
+    try:
+        creatures_r = supabase.table("creatures").select("*").execute()
+        all_creatures = creatures_r.data or []
+    except:
+        all_creatures = []
+    
     for sid in ids:
         try:
-            # Reuse single collection logic
-            r = supabase.table("rewards").select("*").eq("student_id", sid).single().execute()
-            data = r.data or {}
-            creatures_r = supabase.table("creatures").select("*").execute()
-            all_creatures = creatures_r.data or []
+            # Use student_rewards table (same as single collection endpoint)
+            r = supabase.table("student_rewards").select("*").eq("student_id", sid).execute()
+            if not r.data:
+                results[sid] = None
+                continue
+            data = r.data[0]
             results[sid] = {
                 "current_creature": data.get("current_creature"),
                 "current_stage": data.get("current_stage", 0),
-                "current_points": data.get("points", 0),
+                "current_points": data.get("total_points_earned", 0),
                 "collected_creatures": data.get("collected_creatures", []),
                 "total_creatures": len(all_creatures),
                 "all_creatures": all_creatures,
@@ -5115,7 +5123,8 @@ async def get_batch_collections(student_ids: str, request: Request):
                 "unlocked_foods": data.get("unlocked_foods", []),
                 "unlocked_homes": data.get("unlocked_homes", []),
             }
-        except Exception:
+        except Exception as e:
+            logger.error(f"Batch collection error for {sid}: {e}")
             results[sid] = None
     return results
 
