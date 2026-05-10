@@ -5096,27 +5096,40 @@ async def get_batch_collections(student_ids: str, request: Request):
     """Get collections for multiple students in one call. student_ids = comma-separated IDs."""
     ids = [s.strip() for s in student_ids.split(',') if s.strip()][:20]
     results = {}
-    # Fetch all creatures once
-    try:
-        creatures_r = supabase.table("creatures").select("*").execute()
-        all_creatures = creatures_r.data or []
-    except:
-        all_creatures = []
+    creatures_map = {c["id"]: c for c in CREATURES}
     
     for sid in ids:
         try:
-            # Use student_rewards table (same as single collection endpoint)
             r = supabase.table("student_rewards").select("*").eq("student_id", sid).execute()
             if not r.data:
                 results[sid] = None
                 continue
             data = r.data[0]
+            creature_points = data.get("creature_points") or {}
+            creature_stages = data.get("creature_stages") or {}
+            current_id = data.get("current_creature_id", "aqua_buddy")
+            current_stage = data.get("current_stage", 0)
+            current_points = data.get("current_points", 0)
+            
+            all_creatures = []
+            for cid, cdata in creatures_map.items():
+                cstage = creature_stages.get(cid, 0)
+                cpoints = creature_points.get(cid, 0)
+                stages = cdata.get("stages", [])
+                all_creatures.append({
+                    **cdata,
+                    "current_points": cpoints,
+                    "current_stage": cstage,
+                    "is_complete": cstage >= len(stages) - 1,
+                })
+            
+            current_creature = creatures_map.get(current_id, CREATURES[0])
             results[sid] = {
-                "current_creature": data.get("current_creature"),
-                "current_stage": data.get("current_stage", 0),
-                "current_points": data.get("total_points_earned", 0),
+                "current_creature": current_creature,
+                "current_stage": current_stage,
+                "current_points": current_points,
                 "collected_creatures": data.get("collected_creatures", []),
-                "total_creatures": len(all_creatures),
+                "total_creatures": len(CREATURES),
                 "all_creatures": all_creatures,
                 "unlocked_moves": data.get("unlocked_moves", []),
                 "unlocked_outfits": data.get("unlocked_outfits", []),
