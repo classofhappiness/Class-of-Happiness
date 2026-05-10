@@ -53,10 +53,19 @@ export default function RewardsScreen() {
 
   const addPointsAndFetchRewards = async () => {
     if (!currentStudent) return;
+    
+    // Skip rewards for unlinked family members (they don't have student DB records)
+    const isLinkedStudent = !(currentStudent as any).is_family_member;
 
     try {
       // Get the zone from params - this determines which creature gets the points!
       const zone = params.zone || 'blue';
+      
+      if (!isLinkedStudent) {
+        // Family member — show simple celebration without rewards
+        setLoading(false);
+        return;
+      }
       
       // First get current stage to track evolution
       const currentRewards = await rewardsApi.getStudentRewards(currentStudent.id);

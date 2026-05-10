@@ -316,6 +316,7 @@ export default function ParentDashboard() {
           avatar_type: member.avatar_type || 'preset',
           avatar_preset: member.avatar_preset || 'bear',
           avatar_custom: member.avatar_custom || null,
+          is_family_member: true,
         } as any);
       }
       // Always go to student zone select - same experience as school

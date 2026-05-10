@@ -86,7 +86,10 @@ export default function AlertsScreen() {
           <View key={alert.id} style={[st.card, { borderLeftColor: ZONE_COLORS[alert.zone] || '#5C6BC0' }]}>
               <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
                 <View style={{ flex:1 }}>
-                  <Text style={{ fontSize:15, fontWeight:'700', color:'#333' }}>{ZONE_EMOJI[alert.zone] || '💙'} {alert.student_name}</Text>
+                  <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                    <Text style={{ fontSize:15, fontWeight:'700', color:'#333' }}>{ZONE_EMOJI[alert.zone] || '💙'} {alert.student_name}</Text>
+                    {alert.context === 'home' && <Text style={{ fontSize:9, color:'#4CAF50', fontWeight:'700', backgroundColor:'#E8F5E9', paddingHorizontal:5, paddingVertical:2, borderRadius:4 }}>LINKED</Text>}
+                  </View>
                   {alert.classroom_name && <Text style={{ fontSize:12, color:'#666', marginTop:2 }}>📍 {alert.classroom_name}</Text>}
                   {alert.strategy_name && <Text style={{ fontSize:12, color:'#5C6BC0', marginTop:2 }}>🎯 {alert.strategy_name}</Text>}
                   {alert.message ? <Text style={{ fontSize:12, color:'#555', marginTop:2 }}>💬 {alert.message}</Text> : null}

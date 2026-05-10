@@ -4084,6 +4084,10 @@ async def get_alerts(request: Request, limit: int = 20):
             if classroom_ids:
                 students_r = supabase.table("students").select("id").in_("classroom_id", classroom_ids).execute()
                 student_ids = [s["id"] for s in (students_r.data or [])]
+            # Superadmin/admin — if no direct classrooms, see all students
+            if not student_ids and role in ("superadmin", "admin"):
+                all_students_r = supabase.table("students").select("id").execute()
+                student_ids = [s["id"] for s in (all_students_r.data or [])]
         else:
             # Parents only see their directly linked children
             parent_links_r = supabase.table("parent_links").select("student_id").eq("parent_user_id", user["user_id"]).execute()
