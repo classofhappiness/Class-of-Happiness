@@ -304,30 +304,29 @@ export default function StrategiesScreen() {
             </View>
           ) : (
             strategies.map((strategy) => (
-              <View key={strategy.id} style={{ position: 'relative' }}>
-                <StrategyCard
-                  name={strategy.name}
-                  description={strategy.description}
-                  icon={strategy.icon}
-                  customImage={strategy.custom_image}
-                  imageType={strategy.image_type}
-                  selected={selectedStrategies.includes(strategy.id)}
-                  onPress={() => toggleStrategy(strategy.id)}
-                  zoneColor={zoneColor}
-                />
-                {/* Help request button — calm hand icon */}
+              <View key={strategy.id} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 3 }}>
+                <View style={{ flex: 1 }}>
+                  <StrategyCard
+                    name={strategy.name}
+                    description={strategy.description}
+                    icon={strategy.icon}
+                    customImage={strategy.custom_image}
+                    imageType={strategy.image_type}
+                    selected={selectedStrategies.includes(strategy.id)}
+                    onPress={() => toggleStrategy(strategy.id)}
+                    zoneColor={zoneColor}
+                  />
+                </View>
+                {/* Hand button — sits cleanly to the right of card */}
                 <TouchableOpacity
-                  style={[
-                    styles.helpBtn,
-                    helpRequested.has(strategy.id) && styles.helpBtnDone,
-                  ]}
+                  style={[styles.helpBtn, helpRequested.has(strategy.id) && styles.helpBtnDone]}
                   onPress={() => handleHelpRequest(strategy.id, strategy.name)}
                 >
                   <MaterialIcons
                     name="pan-tool"
-                    size={18}
-                    color={helpRequested.has(strategy.id) ? '#333' : '#CCC'}
-                    style={{ opacity: helpRequested.has(strategy.id) ? 1 : 0.35 }}
+                    size={20}
+                    color={helpRequested.has(strategy.id) ? '#333' : '#BBB'}
+                    style={{ opacity: helpRequested.has(strategy.id) ? 1 : 0.4 }}
                   />
                 </TouchableOpacity>
               </View>
