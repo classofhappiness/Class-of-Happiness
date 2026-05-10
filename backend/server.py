@@ -4073,22 +4073,24 @@ async def get_alerts(request: Request, limit: int = 20):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        # Get student IDs for this teacher via classrooms
-        classrooms_r = supabase.table("classrooms").select("id").eq("user_id", user["user_id"]).execute()
-        classroom_ids = [cl["id"] for cl in (classrooms_r.data or [])]
+        role = user.get("role", "")
+        classroom_ids = []
         student_ids = []
-        if classroom_ids:
-            students_r = supabase.table("students").select("id").in_("classroom_id", classroom_ids).execute()
-            student_ids = [s["id"] for s in (students_r.data or [])]
 
-        # Also check parent links
-        parent_links_r = supabase.table("parent_links").select("student_id").eq("parent_user_id", user["user_id"]).execute()
-        student_ids += [l["student_id"] for l in (parent_links_r.data or [])]
-
-        # Also check family_members table for linked children
-        family_links_r = supabase.table("family_members").select("student_id").eq("user_id", user["user_id"]).execute()
-        student_ids += [l["student_id"] for l in (family_links_r.data or []) if l.get("student_id")]
-        student_ids = list(set(student_ids))
+        if role in ("teacher", "school_admin", "superadmin", "admin"):
+            # Teachers see students via their classrooms
+            classrooms_r = supabase.table("classrooms").select("id").eq("user_id", user["user_id"]).execute()
+            classroom_ids = [cl["id"] for cl in (classrooms_r.data or [])]
+            if classroom_ids:
+                students_r = supabase.table("students").select("id").in_("classroom_id", classroom_ids).execute()
+                student_ids = [s["id"] for s in (students_r.data or [])]
+        else:
+            # Parents only see their directly linked children
+            parent_links_r = supabase.table("parent_links").select("student_id").eq("parent_user_id", user["user_id"]).execute()
+            student_ids += [l["student_id"] for l in (parent_links_r.data or [])]
+            family_links_r = supabase.table("family_members").select("student_id").eq("user_id", user["user_id"]).execute()
+            student_ids += [l["student_id"] for l in (family_links_r.data or []) if l.get("student_id")]
+            student_ids = list(set(student_ids))
         logger.info(f"[get_alerts] parent links student_ids: {student_ids}")
 
         logger.info(f"[get_alerts] user={user['user_id']} role={user.get('role')} student_ids={student_ids[:5]}")

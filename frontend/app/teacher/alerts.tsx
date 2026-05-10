@@ -31,6 +31,7 @@ export default function AlertsScreen() {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showResolved, setShowResolved] = useState(false);
   const [token, setToken] = useState('');
 
   const load = useCallback(async () => {
@@ -83,31 +84,32 @@ export default function AlertsScreen() {
 
         {unresolved.map(alert => (
           <View key={alert.id} style={[st.card, { borderLeftColor: ZONE_COLORS[alert.zone] || '#5C6BC0' }]}>
-            <View style={st.cardTop}>
-              <Text style={st.zone}>{ZONE_EMOJI[alert.zone] || '💙'} {alert.student_name}</Text>
-              {alert.classroom_name && <Text style={{ fontSize:11, color:'#888', marginTop:2 }}>📍 {alert.classroom_name}</Text>}
-              {alert.strategy_name && <Text style={{ fontSize:11, color:'#5C6BC0', marginTop:2 }}>🎯 Strategy: {alert.strategy_name}</Text>}
-              {alert.created_at && <Text style={{ fontSize:10, color:'#BBB', marginTop:2 }}>🕐 {new Date(alert.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} · {new Date(alert.created_at).toLocaleDateString()}</Text>}
-              <Text style={st.type}>{TYPE_LABELS[alert.alert_type] || alert.alert_type}</Text>
-            </View>
-            {alert.strategy_name ? (
-              <Text style={st.strategy}>Strategy: {alert.strategy_name}</Text>
-            ) : null}
-            {alert.message ? (
-              <Text style={st.message}>"{alert.message}"</Text>
-            ) : null}
-            <View style={st.cardBottom}>
-              <Text style={st.time}>{new Date(alert.created_at).toLocaleString()}</Text>
-              <TouchableOpacity style={st.resolveBtn} onPress={() => handleResolve(alert.id)}>
-                <Text style={st.resolveTxt}>Mark resolved</Text>
-              </TouchableOpacity>
-            </View>
+              <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
+                <View style={{ flex:1 }}>
+                  <Text style={{ fontSize:15, fontWeight:'700', color:'#333' }}>{ZONE_EMOJI[alert.zone] || '💙'} {alert.student_name}</Text>
+                  {alert.classroom_name && <Text style={{ fontSize:12, color:'#666', marginTop:2 }}>📍 {alert.classroom_name}</Text>}
+                  {alert.strategy_name && <Text style={{ fontSize:12, color:'#5C6BC0', marginTop:2 }}>🎯 {alert.strategy_name}</Text>}
+                  {alert.message ? <Text style={{ fontSize:12, color:'#555', marginTop:2 }}>💬 {alert.message}</Text> : null}
+                  <Text style={{ fontSize:11, color:'#999', marginTop:4 }}>
+                    {new Date(alert.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} · {new Date(alert.created_at).toLocaleDateString()}
+                  </Text>
+                </View>
+                <TouchableOpacity style={st.resolveBtn} onPress={() => handleResolve(alert.id)}>
+                  <Text style={st.resolveTxt}>Resolve</Text>
+                </TouchableOpacity>
+              </View>
           </View>
         ))}
 
         {resolved.length > 0 && (
           <>
-            <Text style={st.sectionLabel}>Resolved</Text>
+            <TouchableOpacity 
+              onPress={() => setShowResolved(e => !e)}
+              style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:10, paddingHorizontal:4, marginTop:8 }}>
+              <Text style={st.sectionLabel}>Resolved ({resolved.length})</Text>
+              <MaterialIcons name={showResolved ? 'expand-less' : 'expand-more'} size={22} color="#999" />
+            </TouchableOpacity>
+            {showResolved && <>
             {resolved.slice(0, 5).map(alert => (
               <View key={alert.id} style={[st.card, st.cardResolved]}>
                 <View style={st.cardTop}>
@@ -118,6 +120,7 @@ export default function AlertsScreen() {
                 <Text style={st.time}>{new Date(alert.created_at).toLocaleString()}</Text>
               </View>
             ))}
+            </>}
           </>
         )}
       </ScrollView>
