@@ -373,13 +373,21 @@ export default function StrategiesScreen() {
 
           <View style={styles.commentSection}>
             <TouchableOpacity style={[styles.commentToggle, { justifyContent:'space-between' }]} onPress={() => { playButtonFeedback(); setShowCommentInput(!showCommentInput); }}>
-              <MaterialIcons name="chat-bubble-outline" size={22} color={showCommentInput || comment ? zoneColor : '#999'} />
-              <MaterialIcons name="chat-bubble-outline" size={18} color={showCommentInput || comment ? zoneColor : '#999'} />
-              <MaterialIcons name="chat-bubble-outline" size={18} color={showCommentInput || comment ? zoneColor : '#999'} />
+              <MaterialIcons name="chat-bubble-outline" size={20} color={showCommentInput || comment ? zoneColor : '#999'} />
               <Text style={[styles.commentToggleText, (showCommentInput || comment) && { color: zoneColor }]}>
                 {comment ? t('edit') || 'Edit' : t('want_to_say') || 'Want to say something?'}
               </Text>
-              <MaterialIcons name={showCommentInput ? 'expand-less' : 'expand-more'} size={22} color="#CCC" />
+              <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+                <TouchableOpacity
+                  style={[styles.helpBtn, helpRequested.has('comment_support') && styles.helpBtnDone]}
+                  onPress={() => handleHelpRequest('comment_support', 'Personal Support Request')}
+                >
+                  <MaterialIcons name="pan-tool" size={18}
+                    color={helpRequested.has('comment_support') ? '#333' : '#BBB'}
+                    style={{ opacity: helpRequested.has('comment_support') ? 1 : 0.4 }} />
+                </TouchableOpacity>
+                <MaterialIcons name={showCommentInput ? 'expand-less' : 'expand-more'} size={22} color="#CCC" />
+              </View>
             </TouchableOpacity>
             {showCommentInput && (
               <View style={styles.commentInputWrapper}>
