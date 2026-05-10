@@ -4079,7 +4079,7 @@ def _shield_label(level: str) -> str:
 async def test_alerts_endpoint():
     """Debug: returns all student_alerts"""
     try:
-        result = supabase.table("student_alerts").select("*").order("created_at", desc=True).limit(10).execute()
+        result = supabase.table("student_alerts").select("*").order("created_at", desc=True).limit(50).execute()
         return {"count": len(result.data or []), "alerts": result.data or []}
     except Exception as e:
         return {"error": str(e)}
