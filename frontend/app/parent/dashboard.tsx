@@ -308,6 +308,15 @@ export default function ParentDashboard() {
       const linkedStudent = linkedChildren.find((s: any) => s.name === member.name);
       if (linkedStudent) {
         setCurrentStudent(linkedStudent);
+      } else {
+        // Create a temporary student object so the zone screen shows correct name
+        setCurrentStudent({
+          id: member.id,
+          name: member.name,
+          avatar_type: member.avatar_type || 'preset',
+          avatar_preset: member.avatar_preset || 'bear',
+          avatar_custom: member.avatar_custom || null,
+        } as any);
       }
       // Always go to student zone select - same experience as school
       router.push({ pathname: '/student/zone', params: { fromFamily: 'true', memberName: member.name } });
