@@ -4057,6 +4057,15 @@ def _shield_label(level: str) -> str:
     }.get(level, "Bronze Shield I")
 
 # ── Alerts dashboard (teacher/parent) ───────────────────
+@api_router.get("/notifications/alerts/test")
+async def test_alerts_endpoint():
+    """Debug: returns all student_alerts"""
+    try:
+        result = supabase.table("student_alerts").select("*").order("created_at", desc=True).limit(10).execute()
+        return {"count": len(result.data or []), "alerts": result.data or []}
+    except Exception as e:
+        return {"error": str(e)}
+
 @api_router.get("/notifications/alerts")
 async def get_alerts(request: Request, limit: int = 20):
     """Get recent alerts for the current user's students."""
