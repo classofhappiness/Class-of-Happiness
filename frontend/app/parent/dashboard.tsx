@@ -609,7 +609,7 @@ export default function ParentDashboard() {
               <Text style={styles.emptyFamilyTxt}>{t('add_family_to_track') || 'Add a family member'}</Text>
             </TouchableOpacity>
           ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={styles.familyGrid}>
+            <View style={styles.familyGrid}>
               {familyMembers.slice(0, 4).map((member) => {
                 const creature = memberCreatures[member.id];
                 const creatureEmoji = creature?.allCreatures?.[0]
@@ -741,7 +741,6 @@ export default function ParentDashboard() {
                 </TouchableOpacity>
               ))}
             </View>
-            </ScrollView>
           )}
         </View>
         {/* Linked Children from School — now shown in My Family above */}
@@ -966,7 +965,10 @@ export default function ParentDashboard() {
                       <Text style={styles.logZoneText}>{log.zone[0].toUpperCase()}</Text>
                     </View>
                     <View style={styles.logDetails}>
-                      <Text style={styles.logZoneName}>{getZoneLabel(log.zone, t)}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.logZoneName}>{getZoneLabel(log.zone, t)}</Text>
+                        {(log as any).member_name && <Text style={{ fontSize: 11, color: '#888' }}>· {(log as any).member_name.split(' ')[0]}</Text>}
+                      </View>
                       <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                         <Text style={styles.logTime}>{formatTime(log.timestamp)}</Text>
                         {(log as any).logged_by === 'parent' && <Text style={{ fontSize: 9, color: '#4CAF50', fontWeight: '700' }}>HOME</Text>}
@@ -1390,8 +1392,8 @@ const styles = StyleSheet.create({
   familySection: { paddingHorizontal: 16, marginBottom: 8 },
   familySectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   familySectionTitle: { fontSize: 16, fontWeight: '700', color: '#1A1A2E' },
-  familyGrid: { flexDirection: 'row', gap: 10 },
-  gridCard: { width: 115, backgroundColor: 'white', borderRadius: 14, padding: 10, alignItems: 'center', borderWidth: 1.5, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  familyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'flex-start' },
+  gridCard: { width: '30%', backgroundColor: 'white', borderRadius: 14, padding: 10, alignItems: 'center', borderWidth: 1.5, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   gridCardActions: { flexDirection: 'row', justifyContent: 'flex-end', width: '100%', gap: 4, marginBottom: 6 },
   gridActionBtn: { padding: 3, backgroundColor: '#F5F5F5', borderRadius: 6 },
   gridAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
