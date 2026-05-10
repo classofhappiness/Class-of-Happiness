@@ -4109,13 +4109,13 @@ async def get_alerts(request: Request, limit: int = 20):
         all_alerts = all_alerts_r.data or []
         logger.info(f"[get_alerts] Found {len(all_alerts)} total alerts for {len(student_ids)} students")
         
-        # Filter by context — teachers see school, parents see home
+        # Filter by context
+        # Teachers see school alerts only
+        # Parents see ALL alerts for their children (both home and school)
         if role in ("teacher", "school_admin"):
             filtered = [a for a in all_alerts if a.get("context") in ("school", None, "")]
-        elif role in ("parent", "family", "guardian"):
-            filtered = [a for a in all_alerts if a.get("context") in ("home", None, "")]
         else:
-            # Unknown role — return all
+            # Parents and others see all alerts for their linked children
             filtered = all_alerts
         logger.info(f"[get_alerts] Filtered={len(filtered)} for role={role}")
         return filtered[:limit]
