@@ -473,7 +473,7 @@ export default function ParentDashboard() {
     if (selectedMember) {
       fetchMemberData();
     }
-  }, [selectedMember, selectedType]);
+  }, [selectedMember, selectedType, analyticsPeriod]);
 
   const onRefresh = async () => {
     setRefreshing(true);
