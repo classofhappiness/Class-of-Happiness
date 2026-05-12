@@ -79,12 +79,12 @@ SUBSCRIPTION_PLANS = {
         "features": ["Unlimited teachers","Unlimited students","Priority support","Custom branding"],
     },
 }
-TRIAL_DURATION_DAYS = 7
+TRIAL_DURATION_DAYS = 14
 
 # Promo codes
 PROMO_CODES = {
-    "HAPPYCLASS2026": {"type": "trial", "days": 30},
-    "CLASSOFHAPPINESS2026": {"type": "trial", "days": 30},
+    "HAPPYCLASS2026": {"type": "trial", "days": 14},
+    "CLASSOFHAPPINESS2026": {"type": "trial", "days": 14},
     "ADMINCLASS2026": {"type": "admin"},
     "HAPPYADMIN2026": {"type": "admin"},
 }
@@ -2381,10 +2381,8 @@ async def get_strategies(zone: Optional[str] = None, feeling_colour: Optional[st
     helpers_result = supabase.table("helpers").select("*")
     if effective_zone:
         helpers_result = helpers_result.eq("feeling_colour", effective_zone)
-    if lang and lang != "en":
-        helpers_result = helpers_result.eq("lang", lang)
-    else:
-        helpers_result = helpers_result.eq("lang", "en")
+    # Note: lang filter removed — helpers table may not have lang column
+    # Strategies are translated client-side via translation keys
     result = helpers_result.execute()
     helpers = result.data or []
     
