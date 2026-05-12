@@ -240,5 +240,22 @@
         "upload": "Téléverser",
         "version": "Version",
         "week_overview": "Résumé de la semaine",
-        "wellbeing": "Bien-être"
+        "wellbeing": "Bien-être",
+        "resolve": "Résoudre",
+        "resolved": "Résolu",
+        "bulk_resolve": "Résoudre en Masse",
+        "pending": "En attente",
+        "student_alerts": "Alertes des Élèves",
+        "no_pending_alerts": "Aucune alerte en attente",
+        "creature": "Créature",
+        "my_creatures": "Mes Créatures",
+        "streak": "Série",
+        "great_job_title": "Excellent Travail!",
+        "keep_it_up": "Continue comme ça!",
+        "day_streak": "jours d'affilée",
+        "continue": "Continuer",
+        "exit": "Quitter",
+        "skip": "Passer",
+        "month": "Mois",
+        "linked_child": "Enfant Lié"
     }

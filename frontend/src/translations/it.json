@@ -240,5 +240,22 @@
         "view_progress": "Vedi progressi",
         "week_overview": "Riepilogo settimanale",
         "wellbeing": "Benessere",
-        "your_family_emotions": "Le emozioni della tua famiglia"
+        "your_family_emotions": "Le emozioni della tua famiglia",
+        "resolve": "Risolvere",
+        "resolved": "Risolto",
+        "bulk_resolve": "Risolvi in Massa",
+        "pending": "In Attesa",
+        "student_alerts": "Avvisi degli Studenti",
+        "no_pending_alerts": "Nessun avviso in sospeso",
+        "creature": "Creatura",
+        "my_creatures": "Le Mie Creature",
+        "streak": "Serie",
+        "great_job_title": "Ottimo Lavoro!",
+        "keep_it_up": "Continua così!",
+        "day_streak": "giorni di fila",
+        "continue": "Continua",
+        "exit": "Esci",
+        "skip": "Salta",
+        "month": "Mese",
+        "linked_child": "Bambino Collegato"
     }

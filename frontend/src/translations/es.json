@@ -606,5 +606,20 @@
         "trial_desc": "Sin tarjeta de crédito",
         "upload": "Subir",
         "view_progress": "Ver Progreso",
-        "your_family_emotions": "Las emociones de tu familia"
+        "your_family_emotions": "Las emociones de tu familia",
+        "resolve": "Resolver",
+        "resolved": "Resuelto",
+        "bulk_resolve": "Resolver en Masa",
+        "pending": "Pendiente",
+        "student_alerts": "Alertas de Estudiantes",
+        "no_pending_alerts": "Sin alertas pendientes",
+        "creature": "Criatura",
+        "streak": "Racha",
+        "great_job_title": "¡Excelente Trabajo!",
+        "day_streak": "días seguidos",
+        "exit": "Salir",
+        "skip": "Saltar",
+        "fortnight": "Quincena",
+        "month": "Mes",
+        "wellbeing_private": "Privado · solo para ti"
     }

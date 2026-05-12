@@ -2520,7 +2520,7 @@ async def create_custom_helper(helper: CustomHelperCreate, request: Request):
 # ================== CREATURES / REWARDS ==================
 @api_router.get("/creatures")
 async def get_creatures():
-    return CREATURES
+    return {"creatures": CREATURES, "count": len(CREATURES)}
 
 @api_router.get("/rewards/{student_id}")
 async def get_rewards(student_id: str):

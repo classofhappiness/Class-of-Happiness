@@ -240,5 +240,22 @@
         "view_progress": "Fortschritt ansehen",
         "week_overview": "Wochenübersicht",
         "wellbeing": "Wohlbefinden",
-        "your_family_emotions": "Die Gefühle deiner Familie"
+        "your_family_emotions": "Die Gefühle deiner Familie",
+        "resolve": "Auflösen",
+        "resolved": "Aufgelöst",
+        "bulk_resolve": "Alle Auflösen",
+        "pending": "Ausstehend",
+        "student_alerts": "Schüler-Benachrichtigungen",
+        "no_pending_alerts": "Keine ausstehenden Benachrichtigungen",
+        "creature": "Kreatur",
+        "my_creatures": "Meine Kreaturen",
+        "streak": "Serie",
+        "great_job_title": "Ausgezeichnete Arbeit!",
+        "keep_it_up": "Weiter so!",
+        "day_streak": "Tage in Folge",
+        "continue": "Weiter",
+        "exit": "Beenden",
+        "skip": "Überspringen",
+        "month": "Monat",
+        "linked_child": "Verknüpftes Kind"
     }
