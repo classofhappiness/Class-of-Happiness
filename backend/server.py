@@ -2378,13 +2378,15 @@ async def get_strategies(zone: Optional[str] = None, feeling_colour: Optional[st
     """Returns strategies - delegates to helpers endpoint for consistency."""
     effective_zone = zone or feeling_colour
     # Get default helpers for this zone
-    helpers_result = supabase.table("helpers").select("*")
-    if effective_zone:
-        helpers_result = helpers_result.eq("feeling_colour", effective_zone)
-    # Note: lang filter removed — helpers table may not have lang column
-    # Strategies are translated client-side via translation keys
-    result = helpers_result.execute()
-    helpers = result.data or []
+    try:
+        helpers_result = supabase.table("helpers").select("*")
+        if effective_zone:
+            helpers_result = helpers_result.eq("feeling_colour", effective_zone)
+        result = helpers_result.execute()
+        helpers = result.data or []
+    except Exception as e:
+        logger.warning(f"helpers table error: {e} — using empty list")
+        helpers = []
     
     # Also get custom helpers for the student
     custom = []
