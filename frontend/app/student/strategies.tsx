@@ -380,7 +380,14 @@ export default function StrategiesScreen() {
               <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
                 <TouchableOpacity
                   style={[styles.helpBtn, helpRequested.has('comment_support') && styles.helpBtnDone]}
-                  onPress={() => { setShowCommentInput(true); handleHelpRequest('comment_support', 'Personal Support Request'); }}
+                  onPress={() => { 
+                    if (helpRequested.has('comment_support')) {
+                      setShowCommentInput(false);
+                    } else {
+                      setShowCommentInput(true);
+                    }
+                    handleHelpRequest('comment_support', 'Personal Support Request');
+                  }}
                 >
                   <MaterialIcons name="pan-tool" size={18}
                     color={helpRequested.has('comment_support') ? '#333' : '#BBB'}

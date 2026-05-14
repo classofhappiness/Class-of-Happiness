@@ -97,7 +97,7 @@ export default function ColourSelectionScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Greeting */}
-        <View style={{ height: 40 }} />
+        <View style={{ height: 56 }} />
         <View style={styles.greetingRow}>
           <Avatar
             type={currentStudent.avatar_type}

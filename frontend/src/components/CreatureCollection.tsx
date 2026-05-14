@@ -168,7 +168,9 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
                   </View>
                 ) : (
                   <Text style={{ fontSize: 10, color: '#AAA', textAlign: 'center', marginTop: 2 }}>
-                    {item.required_points ? `⭐ ${item.required_points} pts` : '🔒 Locked'}
+                    {item.unlocks_at_stage === 1 ? '⭐ 25 pts to unlock' :
+                     item.unlocks_at_stage === 2 ? '⭐ 60 pts to unlock' :
+                     item.unlocks_at_stage === 3 ? '⭐ 120 pts to unlock' : '🔒 Locked'}
                   </Text>
                 )}
               </View>
