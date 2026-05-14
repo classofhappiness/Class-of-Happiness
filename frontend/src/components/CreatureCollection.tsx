@@ -160,12 +160,16 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
                 <Text style={[styles.itemEmoji, !isUnlocked && { opacity: 0.25 }]}>{item.emoji}</Text>
                 {!isUnlocked && <Text style={styles.lockOverlay}>🔒</Text>}
                 <Text style={[styles.itemName, !isUnlocked && styles.itemNameLocked]} numberOfLines={2}>
-                  {isUnlocked ? item.name : '???'}
+                  {item.name}
                 </Text>
-                {isUnlocked && (
+                {isUnlocked ? (
                   <View style={[styles.unlockedTag, { backgroundColor: displayColor }]}>
-                    <Text style={styles.unlockedTagText}>{t('unlocked') || '✓'}</Text>
+                    <Text style={styles.unlockedTagText}>✓ Unlocked</Text>
                   </View>
+                ) : (
+                  <Text style={{ fontSize: 10, color: '#AAA', textAlign: 'center', marginTop: 2 }}>
+                    {item.required_points ? `⭐ ${item.required_points} pts` : '🔒 Locked'}
+                  </Text>
                 )}
               </View>
             );
