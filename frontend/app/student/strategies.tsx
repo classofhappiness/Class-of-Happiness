@@ -334,8 +334,8 @@ export default function StrategiesScreen() {
           )}
           {/* Help request explanation */}
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 8, gap: 8 }}>
-            <MaterialIcons name="pan-tool" size={16} color="#5C6BC0" />
-            <Text style={{ fontSize: 12, color: '#888', flex: 1, fontStyle: 'italic' }}>
+            <MaterialIcons name="pan-tool" size={16} color="#333" />
+            <Text style={{ fontSize: 12, color: '#333', flex: 1, fontStyle: 'italic', fontWeight: '400' }}>
               {t('help_request_hint') || 'Tap the hand icon on any helper to ask your teacher or parent for support.'}
             </Text>
           </View>
@@ -380,7 +380,7 @@ export default function StrategiesScreen() {
               <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
                 <TouchableOpacity
                   style={[styles.helpBtn, helpRequested.has('comment_support') && styles.helpBtnDone]}
-                  onPress={() => handleHelpRequest('comment_support', 'Personal Support Request')}
+                  onPress={() => { setShowCommentInput(true); handleHelpRequest('comment_support', 'Personal Support Request'); }}
                 >
                   <MaterialIcons name="pan-tool" size={18}
                     color={helpRequested.has('comment_support') ? '#333' : '#BBB'}
