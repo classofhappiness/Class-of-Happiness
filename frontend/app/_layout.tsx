@@ -313,6 +313,7 @@ const styles = StyleSheet.create({
   headerLogo: {
     width: 30,
     height: 30,
+    marginRight: 8,
   },
 });
 

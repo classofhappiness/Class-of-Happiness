@@ -73,7 +73,7 @@ export default function ColourSelectionScreen() {
   useEffect(() => { preloadSounds(); }, []);
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title: '' });
+    navigation.setOptions({ title: t('how_are_you_feeling') || 'How are you feeling?' });
   }, [navigation, language, translations]);
 
   const colourInfo = getColourInfo(t);
@@ -96,12 +96,7 @@ export default function ColourSelectionScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Title with proper spacing from logo */}
-        <View style={{ alignItems: 'center', paddingTop: 12, paddingBottom: 16 }}>
-          <Text style={{ fontSize: 20, fontWeight: '700', color: '#333', textAlign: 'center' }}>
-            {t('how_are_you_feeling') || 'How are you feeling?'}
-          </Text>
-        </View>
+        {/* Greeting */}
         <View style={styles.greetingRow}>
           <Avatar
             type={currentStudent.avatar_type}
