@@ -78,11 +78,11 @@ const MONTH_NAMES = [
 
 export default function StudentDetailScreen() {
   const router = useRouter();
-  const [secEmoDistrib, setSecEmoDistrib] = React.useState(true);
+  const [secEmoDistrib, setSecEmoDistrib] = React.useState(false);
   const [secEmoCompare, setSecEmoCompare] = React.useState(false);
   const [secMonthlyReport, setSecMonthlyReport] = React.useState(false);
   const [secMostUsed, setSecMostUsed] = React.useState(false);
-  const [secRecentCheckins, setSecRecentCheckins] = React.useState(true);
+  const [secRecentCheckins, setSecRecentCheckins] = React.useState(false);
   const [secCalendar, setSecCalendar] = React.useState(false);
   const navigation = useNavigation() as any;
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
@@ -481,7 +481,7 @@ export default function StudentDetailScreen() {
 
         {/* Emotion Distribution */}
         <View style={styles.chartSection}>
-          <Text style={styles.sectionTitle}>{t('zone_distribution')}</Text>
+          <Text style={styles.sectionTitle}>{t('zone_distribution') || 'Emotion Distribution'}</Text>
           {pieData.length > 0 ? (
             <View style={styles.chartRow}>
               <PieChart
@@ -512,7 +512,7 @@ export default function StudentDetailScreen() {
         {/* Bar Chart */}
         {analytics && analytics.total_logs > 0 && (
           <View style={styles.chartSection}>
-            <TouchableOpacity onPress={() => secEmoCompare(e => !e)}
+            <TouchableOpacity onPress={() => setSecEmoCompare(e => !e)}
                 style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
                 <Text style={styles.sectionTitle}>{t('zone_comparison') || 'Emotion Comparison'}</Text>
                 <MaterialIcons name={secEmoCompare ? 'expand-less' : 'expand-more'} size={20} color="#666" />
@@ -540,7 +540,7 @@ export default function StudentDetailScreen() {
         {/* Download Reports Section */}
         {availableMonths.length > 0 && (
           <View style={styles.reportsSection}>
-            <TouchableOpacity onPress={() => secMonthlyReport(e => !e)}
+            <TouchableOpacity onPress={() => setSecMonthlyReport(e => !e)}
                 style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
                 <Text style={styles.sectionTitle}>{t('download_monthly_reports') || 'Download Monthly Reports'}</Text>
                 <MaterialIcons name={secMonthlyReport ? 'expand-less' : 'expand-more'} size={20} color="#666" />
@@ -561,7 +561,7 @@ export default function StudentDetailScreen() {
         {/* Top Strategies */}
         {analytics && Object.keys(analytics.strategy_counts || {}).length > 0 && (
           <View style={styles.strategiesSection}>
-            <TouchableOpacity onPress={() => secMostUsed(e => !e)}
+            <TouchableOpacity onPress={() => setSecMostUsed(e => !e)}
                 style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
                 <Text style={styles.sectionTitle}>{t('most_used_strategies') || 'Most Used Strategies'}</Text>
                 <MaterialIcons name={secMostUsed ? 'expand-less' : 'expand-more'} size={20} color="#666" />
@@ -594,7 +594,7 @@ export default function StudentDetailScreen() {
 
         {/* Recent Logs */}
         <View style={styles.logsSection}>
-          <TouchableOpacity onPress={() => secRecentCheckins(e => !e)}
+          <TouchableOpacity onPress={() => setSecRecentCheckins(e => !e)}
               style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
               <Text style={styles.sectionTitle}>{t('recent_checkins') || 'Recent Check-ins'}</Text>
               <MaterialIcons name={secRecentCheckins ? 'expand-less' : 'expand-more'} size={20} color="#666" />
@@ -640,7 +640,7 @@ export default function StudentDetailScreen() {
           <View style={styles.calendarSection}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="calendar-today" size={20} color="#5C6BC0" />
-              <TouchableOpacity onPress={() => secCalendar(e => !e)}
+              <TouchableOpacity onPress={() => setSecCalendar(e => !e)}
                 style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
                 <Text style={styles.sectionTitle}>{t('checkin_calendar') || 'Check-in Calendar'}</Text>
                 <MaterialIcons name={secCalendar ? 'expand-less' : 'expand-more'} size={20} color="#666" />
@@ -697,7 +697,7 @@ export default function StudentDetailScreen() {
           <View style={styles.zoneDistSection}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="pie-chart" size={20} color="#5C6BC0" />
-              <TouchableOpacity onPress={() => secEmoDistrib(e => !e)}
+              <TouchableOpacity onPress={() => setSecEmoDistrib(e => !e)}
                 style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
                 <Text style={styles.sectionTitle}>{t('emotion_distribution') || 'Emotion Distribution'}</Text>
                 <MaterialIcons name={secEmoDistrib ? 'expand-less' : 'expand-more'} size={20} color="#666" />
@@ -1266,7 +1266,7 @@ const styles = StyleSheet.create({
   studentInfo: { flex: 1, marginLeft: 12, marginRight: 4 },
   studentName: { fontSize: 17, fontWeight: '700', color: '#333' },
   studentClassroom: { fontSize: 13, color: '#666', marginTop: 2, flexShrink: 1 },
-  iconBtnLabel: { fontSize: 9, color: "#5C6BC0", marginTop: 2, fontWeight: "600", textAlign: "center" },
+  iconBtnLabel: { fontSize: 11, color: '#333', marginTop: 4, textAlign: 'center', flexWrap: 'wrap', fontWeight: '500' },
   editButton: {
     padding: 8,
     backgroundColor: '#EDE7F6',
