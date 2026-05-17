@@ -148,7 +148,7 @@ export default function ParentDashboard() {
   const [checkInsExpanded, setCheckInsExpanded] = useState(false);
   const [showCollection, setShowCollection] = useState(false);
   const [collectionMember, setCollectionMember] = useState<any>(null);
-  const [checkinsExpanded, setCheckinsExpanded] = useState(true);
+  // removed duplicate checkInsExpanded state — using checkInsExpanded
   const [recentLogs, setRecentLogs] = useState<(ZoneLog | FamilyZoneLog)[]>([]);
   
   // Modals

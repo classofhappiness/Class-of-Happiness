@@ -148,7 +148,7 @@ export default function TeacherDashboardScreen() {
     { value: Number(zc.yellow||0), frontColor: ZONE_COLORS.yellow, label:'😟', labelTextStyle:{fontSize:16} },
     { value: Number(zc.red||0), frontColor: ZONE_COLORS.red, label:'😡', labelTextStyle:{fontSize:16} },
   ];
-  const hasChartData = chartData.some(d => d.value > 0);
+  const hasChartData = barData.some(d => d.value > 0);
   // Debug: log analytics to help diagnose empty graph
   // console.log('Analytics:', JSON.stringify(analytics));
   // console.log('Chart data:', chartData);
@@ -277,7 +277,7 @@ export default function TeacherDashboardScreen() {
             {hasChartData ? (
               <>
                 <BarChart
-                  data={chartData}
+                  data={barData}
                   barWidth={50}
                   spacing={24}
                   roundedTop
@@ -287,7 +287,7 @@ export default function TeacherDashboardScreen() {
                   yAxisThickness={0}
                   yAxisTextStyle={{color:'#999',fontSize:10}}
                   noOfSections={4}
-                  maxValue={Math.max(...chartData.map(d=>d.value),1)+2}
+                  maxValue={Math.max(...barData.map(d=>d.value),1)+2}
                   isAnimated
                   barBorderRadius={8}
                   width={width-80}
