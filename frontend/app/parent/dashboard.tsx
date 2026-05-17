@@ -596,9 +596,12 @@ export default function ParentDashboard() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Subtitle */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 }}>
-          <Text style={{ fontSize: 12, color: '#333', textAlign: 'center', fontWeight: '400', letterSpacing: 0.2 }}>
+        {/* Header — title + subtitle */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 18, paddingBottom: 8, alignItems: 'center' }}>
+          <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#333', textAlign: 'center', marginBottom: 4 }}>
+            {t('family_dashboard') || 'Family Dashboard'}
+          </Text>
+          <Text style={{ fontSize: 12, color: '#666', textAlign: 'center', fontWeight: '400', letterSpacing: 0.2 }}>
             {t('family_wellbeing_desc') || "My Family's Emotional Wellbeing"}
           </Text>
         </View>
