@@ -426,7 +426,7 @@ export default function StudentDetailScreen() {
               onPress={() => setShowLinkCodeModal(true)}
             >
               <MaterialIcons name="family-restroom" size={20} color="#4A90D9" />
-              <Text style={[styles.iconBtnLabel, { color: "#4A90D9" }]}>{t('family') || 'School-Family Link'}</Text>
+              <Text style={styles.iconBtnLabel}>{t('family') || 'School-Family\nLink'}</Text>
             </TouchableOpacity>
             {activeTooltip === 'family' && (
               <Animated.View style={[styles.tooltip, styles.tooltipRight, { opacity: tooltipOpacity }]}>
@@ -481,8 +481,8 @@ export default function StudentDetailScreen() {
 
         {/* Emotion Distribution */}
         <View style={styles.chartSection}>
-          <Text style={styles.sectionTitle}>{t('zone_distribution') || 'Emotion Distribution'}</Text>
-          {pieData.length > 0 ? (
+          <Text style={styles.sectionTitle}>{'Emotion Distribution'}</Text>
+          {secEmoDistrib && (pieData.length > 0 ? (
             <View style={styles.chartRow}>
               <PieChart
                 data={pieData}
@@ -506,7 +506,7 @@ export default function StudentDetailScreen() {
             <View style={styles.emptyChart}>
               <Text style={styles.emptyChartText}>{t('no_data_period')}</Text>
             </View>
-          )}
+          ))}
         </View>
 
         {/* Bar Chart */}
@@ -514,10 +514,10 @@ export default function StudentDetailScreen() {
           <View style={styles.chartSection}>
             <TouchableOpacity onPress={() => setSecEmoCompare(e => !e)}
                 style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
-                <Text style={styles.sectionTitle}>{t('zone_comparison') || 'Emotion Comparison'}</Text>
+                <Text style={styles.sectionTitle}>{'Emotion Comparison'}</Text>
                 <MaterialIcons name={secEmoCompare ? 'expand-less' : 'expand-more'} size={20} color="#666" />
               </TouchableOpacity>
-            <View style={styles.barChartContainer}>
+            {secEmoCompare && (<View style={styles.barChartContainer}>
               <BarChart
                 data={barData}
                 barWidth={40}
@@ -534,7 +534,7 @@ export default function StudentDetailScreen() {
                 width={width - 100}
               />
             </View>
-          </View>
+          )}
         )}
 
         {/* Download Reports Section */}
@@ -545,7 +545,7 @@ export default function StudentDetailScreen() {
                 <Text style={styles.sectionTitle}>{t('download_monthly_reports') || 'Download Monthly Reports'}</Text>
                 <MaterialIcons name={secMonthlyReport ? 'expand-less' : 'expand-more'} size={20} color="#666" />
               </TouchableOpacity>
-            <Text style={styles.reportsSubtitle}>
+            {secMonthlyReport && (<><Text style={styles.reportsSubtitle}>
               {t('select_month_pdf') || 'Select a month to download a PDF report'}
             </Text>
             <TouchableOpacity
@@ -566,7 +566,7 @@ export default function StudentDetailScreen() {
                 <Text style={styles.sectionTitle}>{t('most_used_strategies') || 'Most Used Strategies'}</Text>
                 <MaterialIcons name={secMostUsed ? 'expand-less' : 'expand-more'} size={20} color="#666" />
               </TouchableOpacity>
-            {Object.entries(analytics.strategy_counts)
+            {secMostUsed && Object.entries(analytics.strategy_counts)
               .sort(([,a],[,b]) => (b as number) - (a as number))
               .map(([strategyId, count]) => {
                 // Determine zone colour from strategy ID prefix
@@ -599,7 +599,7 @@ export default function StudentDetailScreen() {
               <Text style={styles.sectionTitle}>{t('recent_checkins') || 'Recent Check-ins'}</Text>
               <MaterialIcons name={secRecentCheckins ? 'expand-less' : 'expand-more'} size={20} color="#666" />
             </TouchableOpacity>
-          {logs.length > 0 ? (
+          {secRecentCheckins && (logs.length > 0 ? (
             logs.slice(0, 15).map((log) => (
               <View key={log.id} style={styles.logItem}>
                 <View style={[styles.logZone, { backgroundColor: ZONE_COLORS[log.zone] }]}>
@@ -632,7 +632,7 @@ export default function StudentDetailScreen() {
               <MaterialIcons name="history" size={48} color="#CCC" />
               <Text style={styles.emptyLogsText}>{t('no_checkins') || 'No check-ins yet'}</Text>
             </View>
-          )}
+          ) : null)}
         </View>
         
         {/* ── Combined Calendar View ── */}
