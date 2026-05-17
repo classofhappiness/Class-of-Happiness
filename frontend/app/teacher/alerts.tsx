@@ -242,9 +242,9 @@ export default function AlertsScreen() {
 const st = StyleSheet.create({
   container: { flex:1, backgroundColor:'#F8F9FA' },
   tabs: { flexDirection:'row', backgroundColor:'white', paddingHorizontal:16, paddingVertical:8, gap:8, borderBottomWidth:1, borderBottomColor:'#F0F0F0' },
-  tab: { flex:1, paddingVertical:6, borderRadius:8, alignItems:'center', backgroundColor:'#F5F5F5' },
+  tab: { flex:1, paddingVertical:3, borderRadius:6, alignItems:'center', backgroundColor:'#F5F5F5' },
   tabActive: { backgroundColor:'#5C6BC0' },
-  tabTxt: { fontSize:12, fontWeight:'600', color:'#888' },
+  tabTxt: { fontSize:11, fontWeight:'600', color:'#888' },
   tabTxtActive: { color:'white' },
   classroomRow: { backgroundColor:'white', paddingHorizontal:12, paddingVertical:8, borderBottomWidth:1, borderBottomColor:'#F0F0F0' },
   classroomBtn: { paddingHorizontal:12, paddingVertical:5, borderRadius:16, marginRight:8, backgroundColor:'#F5F5F5' },
