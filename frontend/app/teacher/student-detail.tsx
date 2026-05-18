@@ -390,7 +390,7 @@ export default function StudentDetailScreen() {
           <View style={[styles.tooltipContainer, { flex: 1 }]}>
             <TouchableOpacity
               style={[styles.actionBtn, { flex: 1 }]}
-              onPress={() => setShowAddStrategyModal(true)}
+              onPress={() => router.push({ pathname: '/teacher/strategies', params: { studentId: student.id } })}
             >
               <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
               <Text style={styles.iconBtnLabel}>{t('strategies') || 'Helpful Strategies'}</Text>
@@ -738,91 +738,6 @@ export default function StudentDetailScreen() {
             </>)}
           </View>
         )}
-
-        {/* ── Strategy Management ── */}
-        <View style={styles.strategiesSection}>
-          <TouchableOpacity onPress={() => setSecStrategies(e=>!e)}
-            style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
-            <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
-              <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
-              <Text style={styles.sectionTitle}>{t('strategies') || 'Strategies'}</Text>
-            </View>
-            <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
-              <MaterialIcons name={secStrategies ? 'expand-less' : 'expand-more'} size={20} color="#666" />
-            </View>
-          </TouchableOpacity>
-          {secStrategies && (<>
-
-          {/* School strategies */}
-          {allStrategies.school.length > 0 && (
-            <>
-              <Text style={styles.stratSourceLabel}>🏫 School Strategies</Text>
-              {allStrategies.school.map((s: any) => (
-                <View key={s.id + "_" + String(Math.random()).slice(2,8)} style={styles.strategyRow}>
-                  <MaterialIcons name={(s.icon || 'star') as any} size={20} color="#5C6BC0" />
-                  <View style={styles.strategyInfo}>
-                    <Text style={styles.strategyName}>{s.name}</Text>
-                    {s.description ? <Text style={styles.strategyDesc}>{s.description}</Text> : null}
-                  </View>
-                  <TouchableOpacity
-                    style={[styles.shareToggleBtn, s.is_shared && styles.shareToggleBtnActive]}
-                    onPress={async () => {
-                      try {
-                        await teacherHomeDataApi.toggleStrategyShare(studentId!, s.id);
-                        const strats = await teacherHomeDataApi.getAllStrategies(studentId!);
-                        setAllStrategies({ school: strats.school_strategies || [], family: strats.family_strategies || [] });
-                      } catch (e) { console.log(e); }
-                    }}>
-                    <MaterialIcons name={s.is_shared ? 'home' : 'home'} size={14} color={s.is_shared ? 'white' : '#999'} />
-                    <Text style={[styles.shareToggleText, s.is_shared && styles.shareToggleTextActive]}>
-                      {s.is_shared ? 'Shared ✓' : 'Share'}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => {
-                    Alert.alert('Delete Strategy', `Delete "${s.name}"?`, [
-                      {text:'Cancel', style:'cancel'},
-                      {text:'Delete', style:'destructive', onPress: async () => {
-                        await teacherHomeDataApi.deleteStrategy(studentId!, s.id);
-                        const strats = await teacherHomeDataApi.getAllStrategies(studentId!);
-                        setAllStrategies({ school: strats.school_strategies || [], family: strats.family_strategies || [] });
-                      }}
-                    ]);
-                  }} style={{padding:6}}>
-                    <MaterialIcons name="delete" size={18} color="#F44336" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </>
-          )}
-
-          {/* Family strategies shared with teacher */}
-          {allStrategies.family.length > 0 && (
-            <>
-              <Text style={styles.stratSourceLabel}>🏠 From Home (shared by parent)</Text>
-              {allStrategies.family.map((s: any) => (
-                <View key={`family_${s.id}`} style={[styles.strategyRow, {borderLeftColor:'#4CAF50', borderLeftWidth:3}]}>
-                  <MaterialIcons name={(s.icon || 'favorite') as any} size={20} color="#4CAF50" />
-                  <View style={styles.strategyInfo}>
-                    <Text style={styles.strategyName}>{s.name || s.strategy_name}</Text>
-                    {(s.description || s.strategy_description) ?
-                      <Text style={styles.strategyDesc}>{s.description || s.strategy_description}</Text> : null}
-                  </View>
-                  <View style={[styles.zonePill, {backgroundColor:(ZONE_COLORS[s.zone as keyof typeof ZONE_COLORS]||'#999')+'25'}]}>
-                    <Text style={{fontSize:10, color: ZONE_COLORS[s.zone as keyof typeof ZONE_COLORS]||'#999'}}>{s.zone}</Text>
-                  </View>
-                </View>
-              ))}
-            </>
-          )}
-
-          {allStrategies.school.length === 0 && allStrategies.family.length === 0 && (
-            <View style={styles.emptyStrategies}>
-              <MaterialIcons name="lightbulb-outline" size={40} color="#CCC" />
-              <Text style={styles.emptyText}>{t('no_strategies_add') || 'No strategies yet. Tap Add to create one.'}</Text>
-            </View>
-          )}
-          </>)}
-        </View>
 
         {/* ── Add Strategy Modal ── */}
         <Modal visible={showAddStrategyModal} transparent animationType="slide" onRequestClose={() => setShowAddStrategyModal(false)}>
