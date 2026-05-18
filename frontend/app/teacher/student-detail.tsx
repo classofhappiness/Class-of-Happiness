@@ -426,7 +426,7 @@ export default function StudentDetailScreen() {
               onPress={() => setShowLinkCodeModal(true)}
             >
               <MaterialIcons name="family-restroom" size={20} color="#4A90D9" />
-              <Text style={styles.iconBtnLabel}>{t('family') || 'School-Family\nLink'}</Text>
+              <Text style={styles.iconBtnLabel}>{t('family') || 'School-Family Link'}</Text>
             </TouchableOpacity>
             {activeTooltip === 'family' && (
               <Animated.View style={[styles.tooltip, styles.tooltipRight, { opacity: tooltipOpacity }]}>
@@ -481,7 +481,10 @@ export default function StudentDetailScreen() {
 
         {/* Emotion Distribution */}
         <View style={styles.chartSection}>
-          <Text style={styles.sectionTitle}>{'Emotion Distribution'}</Text>
+          <TouchableOpacity onPress={() => setSecEmoDistrib(e=>!e)} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
+            <Text style={styles.sectionTitle}>{t('zone_distribution') || 'Emotion Distribution'}</Text>
+            <MaterialIcons name={secEmoDistrib?'expand-less':'expand-more'} size={20} color="#666"/>
+          </TouchableOpacity>
           {secEmoDistrib && (pieData.length > 0 ? (
             <View style={styles.chartRow}>
               <PieChart
@@ -506,18 +509,18 @@ export default function StudentDetailScreen() {
             <View style={styles.emptyChart}>
               <Text style={styles.emptyChartText}>{t('no_data_period')}</Text>
             </View>
-          ))}
+          ) : null)}
         </View>
 
         {/* Bar Chart */}
         {analytics && analytics.total_logs > 0 && (
           <View style={styles.chartSection}>
-            <TouchableOpacity onPress={() => setSecEmoCompare(e => !e)}
+            <TouchableOpacity onPress={() => secEmoCompare(e => !e)}
                 style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
-                <Text style={styles.sectionTitle}>{'Emotion Comparison'}</Text>
+                <Text style={styles.sectionTitle}>{t('zone_comparison') || 'Emotion Comparison'}</Text>
                 <MaterialIcons name={secEmoCompare ? 'expand-less' : 'expand-more'} size={20} color="#666" />
               </TouchableOpacity>
-            {secEmoCompare && (<View style={styles.barChartContainer}>
+            <View style={styles.barChartContainer}>
               <BarChart
                 data={barData}
                 barWidth={40}
@@ -533,42 +536,44 @@ export default function StudentDetailScreen() {
                 barBorderRadius={6}
                 width={width - 100}
               />
-            </View>)}
-          )}
+            </View>
+          </View>
         )}
 
         {/* Download Reports Section */}
         {availableMonths.length > 0 && (
           <View style={styles.reportsSection}>
-            <TouchableOpacity onPress={() => setSecMonthlyReport(e => !e)}
+            <TouchableOpacity onPress={() => secMonthlyReport(e => !e)}
                 style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
                 <Text style={styles.sectionTitle}>{t('download_monthly_reports') || 'Download Monthly Reports'}</Text>
                 <MaterialIcons name={secMonthlyReport ? 'expand-less' : 'expand-more'} size={20} color="#666" />
               </TouchableOpacity>
-            {secMonthlyReport && (<>
-              <Text style={styles.reportsSubtitle}>
-                {t('select_month_pdf') || 'Select a month to download a PDF report'}
-              </Text>
-              <TouchableOpacity
-                style={styles.downloadButton}
-                onPress={() => setShowReportModal(true)}
-              >
-                <MaterialIcons name="picture-as-pdf" size={24} color="white" />
-                <Text style={styles.downloadButtonText}>{t('download_report')}</Text>
-              </TouchableOpacity>
-            </>)}
+          {secMonthlyReport && (
+            <Text style={styles.reportsSubtitle}>
+              {t('select_month_pdf') || 'Select a month to download a PDF report'}
+            </Text>
+            <TouchableOpacity
+              style={styles.downloadButton}
+              onPress={() => setShowReportModal(true)}
+            >
+              <MaterialIcons name="picture-as-pdf" size={24} color="white" />
+              <Text style={styles.downloadButtonText}>{t('download_report')}</Text>
+            </TouchableOpacity>
+          )}}
+        
           </View>
         )}
 
         {/* Top Strategies */}
         {analytics && Object.keys(analytics.strategy_counts || {}).length > 0 && (
           <View style={styles.strategiesSection}>
-            <TouchableOpacity onPress={() => setSecMostUsed(e => !e)}
+            <TouchableOpacity onPress={() => secMostUsed(e => !e)}
                 style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
                 <Text style={styles.sectionTitle}>{t('most_used_strategies') || 'Most Used Strategies'}</Text>
                 <MaterialIcons name={secMostUsed ? 'expand-less' : 'expand-more'} size={20} color="#666" />
               </TouchableOpacity>
-            {secMostUsed && Object.entries(analytics.strategy_counts)
+          {secMostUsed && (
+            {Object.entries(analytics.strategy_counts)
               .sort(([,a],[,b]) => (b as number) - (a as number))
               .map(([strategyId, count]) => {
                 // Determine zone colour from strategy ID prefix
@@ -591,17 +596,20 @@ export default function StudentDetailScreen() {
                   </View>
                 );
               })}
+          )}}
+        
           </View>
         )}
 
         {/* Recent Logs */}
         <View style={styles.logsSection}>
-          <TouchableOpacity onPress={() => setSecRecentCheckins(e => !e)}
+          <TouchableOpacity onPress={() => secRecentCheckins(e => !e)}
               style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
               <Text style={styles.sectionTitle}>{t('recent_checkins') || 'Recent Check-ins'}</Text>
               <MaterialIcons name={secRecentCheckins ? 'expand-less' : 'expand-more'} size={20} color="#666" />
             </TouchableOpacity>
-          {secRecentCheckins && (logs.length > 0 ? (
+          {secRecentCheckins && (
+          {logs.length > 0 ? (
             logs.slice(0, 15).map((log) => (
               <View key={log.id} style={styles.logItem}>
                 <View style={[styles.logZone, { backgroundColor: ZONE_COLORS[log.zone] }]}>
@@ -634,7 +642,9 @@ export default function StudentDetailScreen() {
               <MaterialIcons name="history" size={48} color="#CCC" />
               <Text style={styles.emptyLogsText}>{t('no_checkins') || 'No check-ins yet'}</Text>
             </View>
-          ))}
+          )}
+          )}}
+        
         </View>
         
         {/* ── Combined Calendar View ── */}
@@ -642,13 +652,14 @@ export default function StudentDetailScreen() {
           <View style={styles.calendarSection}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="calendar-today" size={20} color="#5C6BC0" />
-              <TouchableOpacity onPress={() => setSecCalendar(e => !e)}
+              <TouchableOpacity onPress={() => secCalendar(e => !e)}
                 style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
                 <Text style={styles.sectionTitle}>{t('checkin_calendar') || 'Check-in Calendar'}</Text>
                 <MaterialIcons name={secCalendar ? 'expand-less' : 'expand-more'} size={20} color="#666" />
               </TouchableOpacity>
+          {secCalendar && (
             </View>
-            {secCalendar && <View style={styles.calendarGrid}>
+            <View style={styles.calendarGrid}>
               {(() => {
                 // Group by date
                 const grouped: Record<string, any[]> = {};
@@ -685,11 +696,14 @@ export default function StudentDetailScreen() {
                   );
                 });
               })()}
-            </View>}
-            {secCalendar && <View style={styles.calendarLegend}>
+            </View>
+            {/* Legend */}
+            <View style={styles.calendarLegend}>
               <View style={styles.legendItem}><View style={[styles.legendDot, {backgroundColor:'#5C6BC0'}]}/><Text style={styles.legendText}>{t('school_legend') || 'S = School'}</Text></View>
               <View style={styles.legendItem}><View style={[styles.legendDot, {backgroundColor:'#4CAF50'}]}/><Text style={styles.legendText}>{t('home_legend') || 'H = Home'}</Text></View>
-            </View>}
+            </View>
+          )}}
+        
           </View>
         )}
 
@@ -698,13 +712,12 @@ export default function StudentDetailScreen() {
           <View style={styles.zoneDistSection}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="pie-chart" size={20} color="#5C6BC0" />
-              <TouchableOpacity onPress={() => setSecEmoDistrib(e => !e)}
+              <TouchableOpacity onPress={() => secEmoDistrib(e => !e)}
                 style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
                 <Text style={styles.sectionTitle}>{t('emotion_distribution') || 'Emotion Distribution'}</Text>
                 <MaterialIcons name={secEmoDistrib ? 'expand-less' : 'expand-more'} size={20} color="#666" />
               </TouchableOpacity>
             </View>
-            {secEmoDistrib && (<>
             {/* Data source tabs */}
             <View style={styles.dataTabRow}>
               {(['combined','school','home'] as const).map(tab => (
@@ -746,7 +759,6 @@ export default function StudentDetailScreen() {
                 </View>
               );
             })()}
-            </>)}
           </View>
         )}
 
@@ -1269,7 +1281,7 @@ const styles = StyleSheet.create({
   studentInfo: { flex: 1, marginLeft: 12, marginRight: 4 },
   studentName: { fontSize: 17, fontWeight: '700', color: '#333' },
   studentClassroom: { fontSize: 13, color: '#666', marginTop: 2, flexShrink: 1 },
-  iconBtnLabel: { fontSize: 11, color: '#333', marginTop: 4, textAlign: 'center', flexWrap: 'wrap', fontWeight: '500' },
+  iconBtnLabel: { fontSize: 11, color: '#333', marginTop: 4, textAlign: 'center', fontWeight: '500' }, color: "#5C6BC0", marginTop: 2, fontWeight: "600", textAlign: "center" },
   editButton: {
     padding: 8,
     backgroundColor: '#EDE7F6',
