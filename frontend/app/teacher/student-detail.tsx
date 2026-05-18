@@ -371,22 +371,9 @@ export default function StudentDetailScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Student Header */}
-        <View style={styles.studentHeader}>
-          {/* Avatar row — name shown in top nav */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-            <Avatar
-              type={student.avatar_type}
-              preset={student.avatar_preset}
-              custom={student.avatar_custom}
-              size={48}
-              presetAvatars={presetAvatars}
-            />
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={{ fontSize: 12, color: '#888' }} numberOfLines={1}>{getClassroomName(student.classroom_id)}</Text>
-            </View>
-          </View>
-          {/* Row 2: Action buttons */}
+        {/* Student Header — ultra compact */}
+        <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 }}>
+          {/* Action buttons only — name/class in top nav */}
           <View style={{ flexDirection: 'row', gap: 8 }}>
           <TouchableOpacity
             style={[styles.actionBtn, { flex: 1 }]}
@@ -439,7 +426,7 @@ export default function StudentDetailScreen() {
         </View>
 
         {/* Period Selector */}
-        <View style={styles.periodSelector}>
+        <View style={{ flexDirection:'row', gap:6, paddingHorizontal:12, paddingVertical:6 }}>
           {[1, 7, 14, 30].map((days) => (
             <TouchableOpacity
               key={days}
@@ -457,10 +444,8 @@ export default function StudentDetailScreen() {
               </Text>
             </TouchableOpacity>
           ))}
-        </View>
-
         {/* Stats Summary */}
-        <View style={styles.statsRow}>
+        <View style={{ flexDirection:'row', gap:6, paddingHorizontal:12, paddingBottom:6 }}>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{analytics?.total_logs || 0}</Text>
             <Text style={styles.statLabel}>{t('check_ins') || 'Check-ins'}</Text>
@@ -1265,10 +1250,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FA',
   },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-  },
+  scrollContent: { padding:8, paddingBottom:40 },
   errorContainer: {
     flex: 1,
     alignItems: 'center',
@@ -1278,18 +1260,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#999',
   },
-  studentHeader: {
-    flexDirection: 'column',
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
+  studentHeader: { backgroundColor:'white', borderRadius:12, padding:10, marginBottom:6 },
   studentInfo: { flex: 1, marginLeft: 12, marginRight: 4 },
   studentName: { fontSize: 17, fontWeight: '700', color: '#333' },
   studentClassroom: { fontSize: 13, color: '#666', marginTop: 2, flexShrink: 1 },
@@ -1313,12 +1284,7 @@ const styles = StyleSheet.create({
     padding: 4,
     marginBottom: 16,
   },
-  periodButton: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
+  periodButton: { flex:1, paddingVertical:5, borderRadius:8, alignItems:'center', backgroundColor:'#F5F5F5' },
   periodButtonActive: {
     backgroundColor: '#5C6BC0',
   },
@@ -1335,28 +1301,9 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 16,
   },
-  statCard: {
-    flex: 1,
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#888',
-    marginTop: 4,
-  },
+  statCard: { flex:1, backgroundColor:'white', borderRadius:10, padding:8, alignItems:'center' },
+  statValue: { fontSize:18, fontWeight:'700', color:'#333' },
+  statLabel: { fontSize:10, color:'#888', marginTop:2, textAlign:'center' },
   chartSection: { backgroundColor:'white', borderRadius:12, padding:10, marginBottom:8 },
   sectionTitle: { fontSize: 13, fontWeight: '700', color: '#333' },
   chartRow: {
