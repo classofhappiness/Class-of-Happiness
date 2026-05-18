@@ -695,8 +695,7 @@ export default function StudentDetailScreen() {
             <View style={styles.calendarLegend}>
               <View style={styles.legendItem}><View style={[styles.legendDot, {backgroundColor:'#5C6BC0'}]}/><Text style={styles.legendText}>{t('school_legend') || 'S = School'}</Text></View>
               <View style={styles.legendItem}><View style={[styles.legendDot, {backgroundColor:'#4CAF50'}]}/><Text style={styles.legendText}>{t('home_legend') || 'H = Home'}</Text></View>
-            </View>
-          )}}
+            </View>}
         
           </View>
         )}
