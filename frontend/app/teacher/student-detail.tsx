@@ -590,7 +590,7 @@ export default function StudentDetailScreen() {
                     </View>
                   </View>
                 );
-              }))}
+              })}
           </View>
         )}
 
