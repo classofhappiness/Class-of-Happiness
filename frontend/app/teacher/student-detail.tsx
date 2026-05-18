@@ -640,9 +640,7 @@ export default function StudentDetailScreen() {
               <MaterialIcons name="history" size={48} color="#CCC" />
               <Text style={styles.emptyLogsText}>{t('no_checkins') || 'No check-ins yet'}</Text>
             </View>
-          )}
-          )}}
-        
+          ))}
         </View>
         
         {/* ── Combined Calendar View ── */}
