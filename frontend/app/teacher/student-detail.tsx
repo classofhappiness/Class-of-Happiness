@@ -533,7 +533,7 @@ export default function StudentDetailScreen() {
                 barBorderRadius={6}
                 width={width - 100}
               />
-            </View>
+            </View>)}
           )}
         )}
 
