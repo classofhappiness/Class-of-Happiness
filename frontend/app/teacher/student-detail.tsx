@@ -444,6 +444,7 @@ export default function StudentDetailScreen() {
               </Text>
             </TouchableOpacity>
           ))}
+        </View>
         {/* Stats Summary */}
         <View style={{ flexDirection:'row', gap:6, paddingHorizontal:12, paddingBottom:6 }}>
           <View style={styles.statCard}>
