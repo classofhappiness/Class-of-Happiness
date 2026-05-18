@@ -84,6 +84,7 @@ export default function StudentDetailScreen() {
   const [secMostUsed, setSecMostUsed] = React.useState(false);
   const [secRecentCheckins, setSecRecentCheckins] = React.useState(false);
   const [secCalendar, setSecCalendar] = React.useState(false);
+  const [secStrategies, setSecStrategies] = React.useState(false);
   const navigation = useNavigation() as any;
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
@@ -641,14 +642,14 @@ export default function StudentDetailScreen() {
         {/* ── Combined Calendar View ── */}
         {combinedLogs.length > 0 && (
           <View style={styles.calendarSection}>
-            <View style={styles.sectionHeader}>
-              <MaterialIcons name="calendar-today" size={20} color="#5C6BC0" />
-              <TouchableOpacity onPress={() => setSecCalendar(e => !e)}
-                style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+            <TouchableOpacity onPress={() => setSecCalendar(e => !e)}
+              style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+              <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+                <MaterialIcons name="calendar-today" size={20} color="#5C6BC0" />
                 <Text style={styles.sectionTitle}>{t('checkin_calendar') || 'Check-in Calendar'}</Text>
-                <MaterialIcons name={secCalendar ? 'expand-less' : 'expand-more'} size={20} color="#666" />
-              </TouchableOpacity>
-            </View>
+              </View>
+              <MaterialIcons name={secCalendar ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+            </TouchableOpacity>
             {secCalendar && (<><View style={styles.calendarGrid}>
               {(() => {
                 // Group by date
@@ -697,14 +698,14 @@ export default function StudentDetailScreen() {
         {/* ── Zone Distribution (combined) ── */}
         {combinedLogs.length > 0 && (
           <View style={styles.zoneDistSection}>
-            <View style={styles.sectionHeader}>
-              <MaterialIcons name="pie-chart" size={20} color="#5C6BC0" />
-              <TouchableOpacity onPress={() => setSecEmoDistrib(e=>!e)}
-                style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+            <TouchableOpacity onPress={() => setSecEmoDistrib(e=>!e)}
+              style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+              <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+                <MaterialIcons name="pie-chart" size={20} color="#5C6BC0" />
                 <Text style={styles.sectionTitle}>{t('emotion_distribution') || 'Emotion Distribution'}</Text>
-                <MaterialIcons name={secEmoDistrib ? 'expand-less' : 'expand-more'} size={20} color="#666" />
-              </TouchableOpacity>
-            </View>
+              </View>
+              <MaterialIcons name={secEmoDistrib ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+            </TouchableOpacity>
             {secEmoDistrib && (<>
             {/* Data source tabs */}
             <View style={styles.dataTabRow}>
@@ -753,14 +754,21 @@ export default function StudentDetailScreen() {
 
         {/* ── Strategy Management ── */}
         <View style={styles.strategiesSection}>
-          <View style={styles.sectionHeader}>
-            <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
-            <Text style={styles.sectionTitle}>Strategies</Text>
-            <TouchableOpacity style={styles.addStratBtn} onPress={() => setShowAddStrategyModal(true)}>
-              <MaterialIcons name="add" size={18} color="white" />
-              <Text style={styles.addStratBtnText}>{t('add') || 'Add'}</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity onPress={() => setSecStrategies(e=>!e)}
+            style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+            <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+              <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
+              <Text style={styles.sectionTitle}>{t('strategies') || 'Strategies'}</Text>
+            </View>
+            <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+              <TouchableOpacity style={styles.addStratBtn} onPress={() => setShowAddStrategyModal(true)}>
+                <MaterialIcons name="add" size={18} color="white" />
+                <Text style={styles.addStratBtnText}>{t('add') || 'Add'}</Text>
+              </TouchableOpacity>
+              <MaterialIcons name={secStrategies ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+            </View>
+          </TouchableOpacity>
+          {secStrategies && (<>
 
           {/* School strategies */}
           {allStrategies.school.length > 0 && (
@@ -830,6 +838,7 @@ export default function StudentDetailScreen() {
               <Text style={styles.emptyText}>{t('no_strategies_add') || 'No strategies yet. Tap Add to create one.'}</Text>
             </View>
           )}
+          </>)}
         </View>
 
         {/* ── Add Strategy Modal ── */}
@@ -1334,18 +1343,8 @@ const styles = StyleSheet.create({
     color: '#888',
     marginTop: 4,
   },
-  chartSection: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 16,
-  },
+  chartSection: { backgroundColor:'white', borderRadius:12, padding:10, marginBottom:8 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: '#333' },
   chartRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1385,12 +1384,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999',
   },
-  strategiesSection: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-  },
+  strategiesSection: { backgroundColor:'white', borderRadius:12, padding:10, marginBottom:8 },
   strategyItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1422,11 +1416,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#F9A825',
   },
-  logsSection: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-  },
+  logsSection: { backgroundColor:'white', borderRadius:12, padding:10, marginBottom:8 },
   logItem: {
     flexDirection: 'row',
     paddingVertical: 12,
@@ -1496,7 +1486,8 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 12,
   },
-  reportsSection: {
+  reportsSection: { backgroundColor:'white', borderRadius:12, padding:10, marginBottom:8 },
+  reportsSection__old: {
     backgroundColor: 'white',
     borderRadius: 16,
     padding: 16,
@@ -1789,7 +1780,7 @@ const styles = StyleSheet.create({
   },
   linkedBadge: { flexDirection:'row', alignItems:'center', backgroundColor:'#5C6BC0', paddingHorizontal:8, paddingVertical:3, borderRadius:10, gap:4, marginTop:4, alignSelf:'flex-start' },
   linkedBadgeText: { fontSize:11, color:'white', fontWeight:'600' },
-  calendarSection: { backgroundColor:'white', borderRadius:16, padding:16, marginBottom:16 },
+  calendarSection: { backgroundColor:'white', borderRadius:12, padding:10, marginBottom:8 },
   calendarGrid: { flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:8 },
   calendarDay: { alignItems:'center', width:38 },
   calendarDayName: { fontSize:9, color:'#888', marginBottom:3 },
@@ -1802,7 +1793,7 @@ const styles = StyleSheet.create({
 
 
 
-  zoneDistSection: { backgroundColor:'white', borderRadius:16, padding:16, marginBottom:16 },
+  zoneDistSection: { backgroundColor:'white', borderRadius:12, padding:10, marginBottom:8 },
   sectionHeader: { flexDirection:'row', alignItems:'center', gap:8, marginBottom:12 },
   dataTabRow: { flexDirection:'row', backgroundColor:'#F5F5F5', borderRadius:10, padding:3, marginBottom:12, gap:3 },
   dataTab: { flex:1, paddingVertical:7, borderRadius:8, alignItems:'center' },
