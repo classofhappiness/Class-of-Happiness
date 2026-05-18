@@ -648,7 +648,7 @@ export default function StudentDetailScreen() {
                 <MaterialIcons name={secCalendar ? 'expand-less' : 'expand-more'} size={20} color="#666" />
               </TouchableOpacity>
             </View>
-            <View style={styles.calendarGrid}>
+            {secCalendar && <View style={styles.calendarGrid}>
               {(() => {
                 // Group by date
                 const grouped: Record<string, any[]> = {};
@@ -685,12 +685,11 @@ export default function StudentDetailScreen() {
                   );
                 });
               })()}
-            </View>
-            {/* Legend */}
-            <View style={styles.calendarLegend}>
+            </View>}
+            {secCalendar && <View style={styles.calendarLegend}>
               <View style={styles.legendItem}><View style={[styles.legendDot, {backgroundColor:'#5C6BC0'}]}/><Text style={styles.legendText}>{t('school_legend') || 'S = School'}</Text></View>
               <View style={styles.legendItem}><View style={[styles.legendDot, {backgroundColor:'#4CAF50'}]}/><Text style={styles.legendText}>{t('home_legend') || 'H = Home'}</Text></View>
-            </View>
+            </View>}
           </View>
         )}
 
@@ -705,6 +704,7 @@ export default function StudentDetailScreen() {
                 <MaterialIcons name={secEmoDistrib ? 'expand-less' : 'expand-more'} size={20} color="#666" />
               </TouchableOpacity>
             </View>
+            {secEmoDistrib && (<>
             {/* Data source tabs */}
             <View style={styles.dataTabRow}>
               {(['combined','school','home'] as const).map(tab => (
@@ -746,6 +746,7 @@ export default function StudentDetailScreen() {
                 </View>
               );
             })()}
+            </>)}
           </View>
         )}
 
