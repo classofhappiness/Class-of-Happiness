@@ -607,8 +607,7 @@ export default function StudentDetailScreen() {
               <Text style={styles.sectionTitle}>{t('recent_checkins') || 'Recent Check-ins'}</Text>
               <MaterialIcons name={secRecentCheckins ? 'expand-less' : 'expand-more'} size={20} color="#666" />
             </TouchableOpacity>
-          {secRecentCheckins && (
-          {logs.length > 0 ? (
+          {secRecentCheckins && (logs.length > 0 ? (
             logs.slice(0, 15).map((log) => (
               <View key={log.id} style={styles.logItem}>
                 <View style={[styles.logZone, { backgroundColor: ZONE_COLORS[log.zone] }]}>
