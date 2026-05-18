@@ -543,7 +543,7 @@ export default function StudentDetailScreen() {
         {/* Download Reports Section */}
         {availableMonths.length > 0 && (
           <View style={styles.reportsSection}>
-            <TouchableOpacity onPress={() => secMonthlyReport(e => !e)}
+            <TouchableOpacity onPress={() => setSecMonthlyReport(e => !e)}
                 style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
                 <Text style={styles.sectionTitle}>{t('download_monthly_reports') || 'Download Monthly Reports'}</Text>
                 <MaterialIcons name={secMonthlyReport ? 'expand-less' : 'expand-more'} size={20} color="#666" />
@@ -567,13 +567,12 @@ export default function StudentDetailScreen() {
         {/* Top Strategies */}
         {analytics && Object.keys(analytics.strategy_counts || {}).length > 0 && (
           <View style={styles.strategiesSection}>
-            <TouchableOpacity onPress={() => secMostUsed(e => !e)}
+            <TouchableOpacity onPress={() => setSecMostUsed(e => !e)}
                 style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
                 <Text style={styles.sectionTitle}>{t('most_used_strategies') || 'Most Used Strategies'}</Text>
                 <MaterialIcons name={secMostUsed ? 'expand-less' : 'expand-more'} size={20} color="#666" />
               </TouchableOpacity>
-          {secMostUsed && (
-            {Object.entries(analytics.strategy_counts)
+          {secMostUsed && Object.entries(analytics.strategy_counts)
               .sort(([,a],[,b]) => (b as number) - (a as number))
               .map(([strategyId, count]) => {
                 // Determine zone colour from strategy ID prefix
@@ -603,7 +602,7 @@ export default function StudentDetailScreen() {
 
         {/* Recent Logs */}
         <View style={styles.logsSection}>
-          <TouchableOpacity onPress={() => secRecentCheckins(e => !e)}
+          <TouchableOpacity onPress={() => setSecRecentCheckins(e => !e)}
               style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
               <Text style={styles.sectionTitle}>{t('recent_checkins') || 'Recent Check-ins'}</Text>
               <MaterialIcons name={secRecentCheckins ? 'expand-less' : 'expand-more'} size={20} color="#666" />
@@ -652,7 +651,7 @@ export default function StudentDetailScreen() {
           <View style={styles.calendarSection}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="calendar-today" size={20} color="#5C6BC0" />
-              <TouchableOpacity onPress={() => secCalendar(e => !e)}
+              <TouchableOpacity onPress={() => setSecCalendar(e => !e)}
                 style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
                 <Text style={styles.sectionTitle}>{t('checkin_calendar') || 'Check-in Calendar'}</Text>
                 <MaterialIcons name={secCalendar ? 'expand-less' : 'expand-more'} size={20} color="#666" />
@@ -712,7 +711,7 @@ export default function StudentDetailScreen() {
           <View style={styles.zoneDistSection}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="pie-chart" size={20} color="#5C6BC0" />
-              <TouchableOpacity onPress={() => secEmoDistrib(e => !e)}
+              <TouchableOpacity onPress={() => setSecEmoDistrib(e => !e)}
                 style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
                 <Text style={styles.sectionTitle}>{t('emotion_distribution') || 'Emotion Distribution'}</Text>
                 <MaterialIcons name={secEmoDistrib ? 'expand-less' : 'expand-more'} size={20} color="#666" />
