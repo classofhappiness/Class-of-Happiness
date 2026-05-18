@@ -545,16 +545,18 @@ export default function StudentDetailScreen() {
                 <Text style={styles.sectionTitle}>{t('download_monthly_reports') || 'Download Monthly Reports'}</Text>
                 <MaterialIcons name={secMonthlyReport ? 'expand-less' : 'expand-more'} size={20} color="#666" />
               </TouchableOpacity>
-            {secMonthlyReport && (<><Text style={styles.reportsSubtitle}>
-              {t('select_month_pdf') || 'Select a month to download a PDF report'}
-            </Text>
-            <TouchableOpacity
-              style={styles.downloadButton}
-              onPress={() => setShowReportModal(true)}
-            >
-              <MaterialIcons name="picture-as-pdf" size={24} color="white" />
-              <Text style={styles.downloadButtonText}>{t('download_report')}</Text>
-            </TouchableOpacity>
+            {secMonthlyReport && (<>
+              <Text style={styles.reportsSubtitle}>
+                {t('select_month_pdf') || 'Select a month to download a PDF report'}
+              </Text>
+              <TouchableOpacity
+                style={styles.downloadButton}
+                onPress={() => setShowReportModal(true)}
+              >
+                <MaterialIcons name="picture-as-pdf" size={24} color="white" />
+                <Text style={styles.downloadButtonText}>{t('download_report')}</Text>
+              </TouchableOpacity>
+            </>)}
           </View>
         )}
 
