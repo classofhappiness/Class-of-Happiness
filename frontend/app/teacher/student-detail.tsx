@@ -653,9 +653,7 @@ export default function StudentDetailScreen() {
                 <Text style={styles.sectionTitle}>{t('checkin_calendar') || 'Check-in Calendar'}</Text>
                 <MaterialIcons name={secCalendar ? 'expand-less' : 'expand-more'} size={20} color="#666" />
               </TouchableOpacity>
-          {secCalendar && (
-            </View>
-            <View style={styles.calendarGrid}>
+          {secCalendar && (<View style={styles.calendarGrid}>
               {(() => {
                 // Group by date
                 const grouped: Record<string, any[]> = {};
