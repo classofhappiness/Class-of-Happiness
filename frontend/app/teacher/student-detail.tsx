@@ -509,13 +509,13 @@ export default function StudentDetailScreen() {
             <View style={styles.emptyChart}>
               <Text style={styles.emptyChartText}>{t('no_data_period')}</Text>
             </View>
-          ) : null)}
+          ))}
         </View>
 
         {/* Bar Chart */}
         {analytics && analytics.total_logs > 0 && (
           <View style={styles.chartSection}>
-            <TouchableOpacity onPress={() => secEmoCompare(e => !e)}
+            <TouchableOpacity onPress={() => setSecEmoCompare(e => !e)}
                 style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
                 <Text style={styles.sectionTitle}>{t('zone_comparison') || 'Emotion Comparison'}</Text>
                 <MaterialIcons name={secEmoCompare ? 'expand-less' : 'expand-more'} size={20} color="#666" />
