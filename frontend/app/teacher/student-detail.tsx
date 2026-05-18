@@ -382,8 +382,7 @@ export default function StudentDetailScreen() {
               params: { studentId: student.id }
             })}
           >
-            <MaterialIcons name="edit" size={20} color="#5C6BC0" />
-            <Text style={styles.iconBtnLabel}>{t('edit') || 'Edit'}</Text>
+            <MaterialIcons name="edit" size={22} color="#5C6BC0" />
           </TouchableOpacity>
           
           {/* Strategies Button with Tooltip */}
@@ -395,8 +394,7 @@ export default function StudentDetailScreen() {
                 params: { studentId: student.id }
               })}
             >
-              <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
-              <Text style={styles.iconBtnLabel}>{t('strategies') || 'Strategies'}</Text>
+              <MaterialIcons name="lightbulb" size={22} color="#FFC107" />
             </TouchableOpacity>
             {activeTooltip === 'strategies' && (
               <Animated.View style={[styles.tooltip, { opacity: tooltipOpacity }]}>
@@ -412,8 +410,7 @@ export default function StudentDetailScreen() {
               style={[styles.actionBtn, { flex: 1 }]}
               onPress={() => setShowLinkCodeModal(true)}
             >
-              <MaterialIcons name="family-restroom" size={20} color="#4A90D9" />
-              <Text style={styles.iconBtnLabel}>{t('family') || 'School-Family Link'}</Text>
+              <MaterialIcons name="family-restroom" size={22} color="#4A90D9" />
             </TouchableOpacity>
             {activeTooltip === 'family' && (
               <Animated.View style={[styles.tooltip, styles.tooltipRight, { opacity: tooltipOpacity }]}>
