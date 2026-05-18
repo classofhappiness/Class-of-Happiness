@@ -63,6 +63,7 @@ export default function ManageStrategiesScreen() {
   const [selectedIcon, setSelectedIcon] = useState('star');
   const [customImage, setCustomImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [shareWithParent, setShareWithParent] = useState(false);
   const [supportMessage, setSupportMessage] = useState('');
   const [loadingMessage, setLoadingMessage] = useState(false);
 
@@ -155,6 +156,7 @@ export default function ManageStrategiesScreen() {
     setImageType('icon');
     setSelectedIcon('star');
     setCustomImage(null);
+    setShareWithParent(false);
     setModalVisible(true);
   };
 
@@ -166,6 +168,7 @@ export default function ManageStrategiesScreen() {
     setImageType(strategy.image_type as 'icon' | 'custom');
     setSelectedIcon(strategy.icon);
     setCustomImage(strategy.custom_image || null);
+    setShareWithParent(strategy.share_with_parent || false);
     setModalVisible(true);
   };
 
@@ -205,6 +208,7 @@ export default function ManageStrategiesScreen() {
         zone: strategyZone,
         image_type: imageType,
         icon: selectedIcon,
+        share_with_parent: shareWithParent,
       };
       
       if (imageType === 'custom' && customImage) {
@@ -430,6 +434,27 @@ export default function ManageStrategiesScreen() {
                   numberOfLines={3}
                 />
               </View>
+
+              {/* Share with Home */}
+              <TouchableOpacity
+                onPress={() => setShareWithParent(v => !v)}
+                style={{ flexDirection:'row', alignItems:'center', gap:10, padding:12,
+                  backgroundColor: shareWithParent ? '#E8F5E9' : '#F5F5F5',
+                  borderRadius:10, marginBottom:14,
+                  borderWidth:1, borderColor: shareWithParent ? '#4CAF50' : '#E0E0E0' }}>
+                <MaterialIcons
+                  name={shareWithParent ? 'check-box' : 'check-box-outline-blank'}
+                  size={22} color={shareWithParent ? '#4CAF50' : '#999'} />
+                <View style={{flex:1}}>
+                  <Text style={{fontSize:14, fontWeight:'600', color:'#333'}}>
+                    {t('share_with_home') || 'Share with Home'}
+                  </Text>
+                  <Text style={{fontSize:11, color:'#888', marginTop:2}}>
+                    {t('share_with_home_desc') || 'Parent will see this strategy in their app'}
+                  </Text>
+                </View>
+                <MaterialIcons name="home" size={20} color={shareWithParent ? '#4CAF50' : '#CCC'} />
+              </TouchableOpacity>
 
               {/* Zone */}
               <View style={styles.inputGroup}>
