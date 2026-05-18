@@ -390,10 +390,7 @@ export default function StudentDetailScreen() {
           <View style={[styles.tooltipContainer, { flex: 1 }]}>
             <TouchableOpacity
               style={[styles.actionBtn, { flex: 1 }]}
-              onPress={() => router.push({
-                pathname: '/teacher/strategies',
-                params: { studentId: student.id }
-              })}
+              onPress={() => setShowAddStrategyModal(true)}
             >
               <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
               <Text style={styles.iconBtnLabel}>{t('strategies') || 'Helpful Strategies'}</Text>
@@ -692,7 +689,7 @@ export default function StudentDetailScreen() {
               style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
               <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
                 <MaterialIcons name="pie-chart" size={20} color="#5C6BC0" />
-                <Text style={styles.sectionTitle}>{t('emotion_distribution') || 'Emotion Distribution'}</Text>
+                <Text style={styles.sectionTitle}>{t('emotion_distribution') || 'Emotion Distribution — Linked Student'}</Text>
               </View>
               <MaterialIcons name={secEmoDistrib ? 'expand-less' : 'expand-more'} size={20} color="#666" />
             </TouchableOpacity>
@@ -751,10 +748,6 @@ export default function StudentDetailScreen() {
               <Text style={styles.sectionTitle}>{t('strategies') || 'Strategies'}</Text>
             </View>
             <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
-              <TouchableOpacity style={styles.addStratBtn} onPress={() => setShowAddStrategyModal(true)}>
-                <MaterialIcons name="add" size={18} color="white" />
-                <Text style={styles.addStratBtnText}>{t('add') || 'Add'}</Text>
-              </TouchableOpacity>
               <MaterialIcons name={secStrategies ? 'expand-less' : 'expand-more'} size={20} color="#666" />
             </View>
           </TouchableOpacity>
