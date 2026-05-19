@@ -4,6 +4,7 @@ import {
   TouchableOpacity, RefreshControl, Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAlerts, resolveAlert } from '../../src/utils/notifications';
@@ -28,6 +29,8 @@ export default function AlertsScreen() {
   const [selectedClassroom, setSelectedClassroom] = useState<string>('all');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const load = useCallback(async () => {
     const tok = await AsyncStorage.getItem('session_token') || '';
@@ -246,10 +249,10 @@ const st = StyleSheet.create({
   tabActive: { backgroundColor:'#5C6BC0' },
   tabTxt: { fontSize:11, fontWeight:'600', color:'#888' },
   tabTxtActive: { color:'white' },
-  classroomRow: { backgroundColor:'white', paddingHorizontal:12, paddingVertical:4, borderBottomWidth:1, borderBottomColor:'#F0F0F0' },
-  classroomBtn: { paddingHorizontal:10, paddingVertical:3, borderRadius:12, marginRight:6, backgroundColor:'#F5F5F5' },
+  classroomRow: { backgroundColor:'white', paddingHorizontal:12, paddingVertical:3, borderBottomWidth:1, borderBottomColor:'#F0F0F0', maxHeight:36 },
+  classroomBtn: { paddingHorizontal:8, paddingVertical:3, borderRadius:8, marginRight:5, backgroundColor:'#F5F5F5', height:26, justifyContent:'center' },
   classroomBtnActive: { backgroundColor:'#E8EAF6' },
-  classroomTxt: { fontSize:12, color:'#888' },
+  classroomTxt: { fontSize:11, color:'#888' },
   classroomTxtActive: { color:'#5C6BC0', fontWeight:'600' },
   actionBar: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:16, paddingVertical:8, backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0' },
   countTxt: { fontSize:13, color:'#666', fontWeight:'600' },

@@ -293,6 +293,13 @@ export default function TeacherDashboardScreen() {
         </TouchableOpacity>
 
         {graphExpanded && (
+          <View style={{paddingHorizontal:16,paddingTop:4,paddingBottom:2}}>
+            <Text style={{fontSize:12,color:'#5C6BC0',fontWeight:'600',textAlign:'center'}}>
+              {selectedClassroom ? (classrooms.find(c=>c.id===selectedClassroom)?.name||'Classroom') : (t('all')||'All Classrooms')}
+            </Text>
+          </View>
+        )}
+        {graphExpanded && (
           <View style={st.card}>
             {hasChartData ? (
               <>

@@ -44,13 +44,13 @@ export default function ManageStudentsScreen() {
 
   React.useEffect(() => {
     const loadCreaturesAndShields = async () => {
-      const token = await AsyncStorage.getItem('session_token');
-      if (!token || students.length === 0) return;
+      if (students.length === 0) return;
       const creatures: Record<string, string> = {};
       const shields: Record<string, string> = {};
       for (const student of students.slice(0, 20)) {
         try {
-          const data = await rewardsApi.getStudentRewards(student.id);
+          const data = await rewardsApi.getStudentRewards(student.id).catch(()=>null);
+          if (!data) continue;
           if (data?.current_creature) {
             const stage = data.current_creature.stages?.[Number(data.current_creature.current_stage || 0)];
             creatures[student.id] = stage?.emoji || data.current_creature.emoji || '🥚';
