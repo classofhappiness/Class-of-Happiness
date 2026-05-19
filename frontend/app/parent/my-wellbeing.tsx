@@ -98,7 +98,21 @@ export default function MyWellbeingScreen() {
         if (next.length === 4) {
           AsyncStorage.getItem(PIN_KEY).then(stored => {
             if (next === stored) { setPinUnlocked(true); loadData(); }
-            else { Alert.alert(t('wellbeing_pin_wrong') || 'Incorrect PIN'); setPinInput(''); }
+            else {
+            Alert.alert(
+              t('wellbeing_pin_wrong') || 'Incorrect PIN',
+              t('wellbeing_pin_forgot_msg') || 'Try again or reset your PIN',
+              [
+                { text: t('cancel') || 'Cancel', style: 'cancel', onPress: () => setPinInput('') },
+                { text: t('wellbeing_pin_reset') || 'Reset PIN', style: 'destructive', onPress: async () => {
+                  await AsyncStorage.removeItem(PIN_KEY);
+                  await AsyncStorage.removeItem(HINT_KEY);
+                  setPinExists(false); setPinStep('setup');
+                  setPinInput(''); setPinConfirm('');
+                }}
+              ]
+            );
+          }
           });
         }
       }

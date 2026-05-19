@@ -334,10 +334,27 @@ export default function ParentDashboard() {
     const creatures: Record<string, any> = {};
     const childMembers = members.filter((m: any) => m.relationship === 'child');
     await Promise.allSettled(childMembers.map(async (member: any) => {
-      // Family members don't have creature collections yet - show default egg
+      // Try to fetch real creature data if member has a student_id
+      if ((member as any).student_id) {
+        try {
+          const data = await rewardsApi.getStudentRewards((member as any).student_id);
+          if (data?.current_creature) {
+            const stageIdx = Number(data.current_stage || 0);
+            const stage = data.current_creature.stages?.[stageIdx];
+            creatures[member.id] = {
+              emoji: stage?.emoji || '🥚',
+              color: data.current_creature.color || '#4CAF50',
+              stage: stageIdx,
+              points: data.current_points || 0,
+            };
+            return;
+          }
+        } catch {}
+      }
+      // Default egg for unlinked children
       creatures[member.id] = {
         emoji: '🥚',
-        color: '#5C6BC0',
+        color: '#4CAF50',
         stage: 0,
         points: 0,
       };
@@ -596,11 +613,8 @@ export default function ParentDashboard() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Header — title + subtitle */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 18, paddingBottom: 8, alignItems: 'center' }}>
-          <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#333', textAlign: 'center', marginBottom: 4 }}>
-            {t('family_dashboard') || 'Family Dashboard'}
-          </Text>
+        {/* Subtitle only — title shown in TranslatedHeader */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4, alignItems: 'center' }}>
           <Text style={{ fontSize: 12, color: '#666', textAlign: 'center', fontWeight: '400', letterSpacing: 0.2 }}>
             {t('family_wellbeing_desc') || "My Family's Emotional Wellbeing"}
           </Text>
