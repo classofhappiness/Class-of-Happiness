@@ -294,7 +294,7 @@ export default function MyWellbeingScreen() {
   };
 
   return (
-    <SafeAreaView style={st.container}>
+    <SafeAreaView style={[st.container, { paddingTop: 8 }]}>
       <View style={st.header}>
         <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />

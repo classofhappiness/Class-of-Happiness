@@ -327,16 +327,28 @@ export default function FamilyCheckInScreen() {
             <MaterialIcons name="home" size={22} color="#333" />
           </TouchableOpacity>
           <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>{t('checkin_for')} {memberName}</Text>
-            <Text style={styles.headerSubtitle}>
-              {step === 'zone' ? t('how_everyone_feeling') : t('choose_helpful_strategies')}
-            </Text>
+            <Text style={styles.headerTitle}>{step === 'zone' ? (t('how_are_you_feeling') || 'How are you feeling?') : (t('choose_helpful_strategies') || 'Choose Helpful Strategies')}</Text>
+            <Text style={styles.headerSubtitle}>{t('checkin_for') || 'Check-in for'} {memberName}</Text>
           </View>
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps='handled'>
           {step === 'zone' ? (
-            /* Zone Selection - aligned with student full-width color cards */
+            /* Zone Selection */
+            <>
+            <View style={{ flexDirection:'row', justifyContent:'center', gap:16, marginBottom:10, flexWrap:'wrap' }}>
+              {[
+                { color:'#4A90D9', emoji:'😢', label: t('blue_feeling')||'Sad / Tired' },
+                { color:'#4CAF50', emoji:'😊', label: t('green_feeling')||'Happy / Calm' },
+                { color:'#FFC107', emoji:'😟', label: t('yellow_feeling')||'Worried / Silly' },
+                { color:'#F44336', emoji:'😣', label: t('red_feeling')||'Angry / Scared' },
+              ].map(z => (
+                <View key={z.color} style={{ alignItems:'center', gap:2 }}>
+                  <Text style={{ fontSize:18 }}>{z.emoji}</Text>
+                  <Text style={{ fontSize:9, color:z.color, fontWeight:'600', textAlign:'center', maxWidth:60 }}>{z.label}</Text>
+                </View>
+              ))}
+            </View>
             <View style={styles.zonesStack}>
               {getZones(t).map((zone) => (
                 <TouchableOpacity
@@ -357,6 +369,7 @@ export default function FamilyCheckInScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+            </>
           ) : (
             /* Strategies Selection */
             <>
@@ -538,23 +551,23 @@ const styles = StyleSheet.create({
   zoneCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 12,
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 8,
   },
   zoneCardSelected: {
     borderWidth: 4,
     borderColor: 'white',
   },
   zoneFace: {
-    fontSize: 40,
-    marginRight: 12,
+    fontSize: 30,
+    marginRight: 10,
   },
   zoneCenter: {
     flex: 1,
   },
   zoneName: {
-    fontSize: 22,
+    fontSize: 17,
     fontWeight: 'bold',
     color: 'white',
   },
@@ -605,20 +618,23 @@ const styles = StyleSheet.create({
   strategyCard: {
     width: '48%',
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#E0E0E0',
     position: 'relative',
+    flexDirection: 'row',
+    gap: 8,
   },
   strategyDesc: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
   strategyName: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '600',
     color: '#333',
-    marginTop: 8,
-    textAlign: 'center',
+    flex: 1,
+    textAlign: 'left',
   },
   checkIcon: {
     position: 'absolute',

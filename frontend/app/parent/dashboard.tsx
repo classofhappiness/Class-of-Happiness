@@ -144,6 +144,13 @@ export default function ParentDashboard() {
   // Analytics
   const [analytics, setAnalytics] = useState<{ zone_counts: Record<string, number> } | null>(null);
   const [weekExpanded, setWeekExpanded] = useState(false);
+  const [linkedChildSections, setLinkedChildSections] = useState<Record<string, {emoDistrib:boolean, recentCheckins:boolean, weekOverview:boolean}>>({});
+  const toggleLinkedSection = (childId: string, section: 'emoDistrib'|'recentCheckins'|'weekOverview') => {
+    setLinkedChildSections(prev => ({
+      ...prev,
+      [childId]: { emoDistrib:false, recentCheckins:false, weekOverview:false, ...prev[childId], [section]: !(prev[childId]?.[section]) }
+    }));
+  };
   const [analyticsPeriod, setAnalyticsPeriod] = useState<1|7|14|30>(7);
   const [checkInsExpanded, setCheckInsExpanded] = useState(false);
   const [showCollection, setShowCollection] = useState(false);
@@ -398,13 +405,16 @@ export default function ParentDashboard() {
             const collection = await rewardsApi.getCollection(linkedId);
             if (collection) {
               const stage = collection.current_stage || 0;
+              const stageEmoji = collection.current_creature?.stages?.[stage]?.emoji;
               creatureMap[m.id] = {
-                emoji: collection.current_creature?.stages?.[stage]?.emoji || '🥚',
+                emoji: stageEmoji || collection.current_creature?.emoji || '🥚',
                 color: collection.current_creature?.color || '#4CAF50',
                 points: collection.current_points || 0,
                 stage,
+                currentStage: stage,
+                currentCreature: collection.current_creature,
                 name: collection.current_creature?.name || '',
-                hasRealCreature: true,
+                hasRealCreature: !!stageEmoji,
                 allCreatures: collection.all_creatures || [],
                 current_points: collection.current_points || 0,
               };
@@ -614,7 +624,7 @@ export default function ParentDashboard() {
         }
       >
         {/* Subtitle only — title shown in TranslatedHeader */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12, alignItems: 'center' }}>
+        <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10, alignItems: 'center' }}>
           <Text style={{ fontSize: 13, color: '#666', textAlign: 'center', fontWeight: '400', letterSpacing: 0.2 }}>
             {t('family_wellbeing_desc') || "My Family's Emotional Wellbeing"}
           </Text>
@@ -639,9 +649,7 @@ export default function ParentDashboard() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={styles.familyGrid}>
               {familyMembers.slice(0, 4).map((member) => {
                 const creature = memberCreatures[member.id];
-                const creatureEmoji = creature?.allCreatures?.[0]
-                  ? creature.allCreatures[0].stages?.[Number(creature.allCreatures[0].current_stage || 0)]?.emoji || '🥚'
-                  : creature?.emoji || '🥚';
+                const creatureEmoji = creature?.emoji || '🥚';
                 const isChild = member.relationship === 'child';
                 const cardColor = getRelationshipColor(member.relationship);
                 const isLinked = !!(member as any).student_id;
@@ -767,8 +775,8 @@ export default function ParentDashboard() {
             </ScrollView>
           )}
         </View>
-        {/* Linked Children from School — now shown in My Family above */}
-        {false && <View>
+        {/* Linked Children from School — tap to see full detail */}
+        {true && <View>
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>{t('children_school')}</Text>
@@ -783,18 +791,11 @@ export default function ParentDashboard() {
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.membersScroll}>
             {linkedChildren.map((child) => (
-              <TouchableOpacity
-                key={child.id}
-                style={[
-                  styles.memberCard,
-                  selectedMember?.id === child.id && selectedType === 'linked' && styles.memberCardSelected,
-                ]}
-                onPress={() => {
-                  // Navigate to linked child detail screen
-                  console.log('[Dashboard] Navigating to linked child:', child.id);
-                  router.push(`/parent/linked-child/${child.id}`);
-                }}
-              >
+              <View key={child.id} style={{ backgroundColor:'white', borderRadius:14, padding:12, marginRight:12, marginBottom:8, minWidth:200 }}>
+                <TouchableOpacity
+                  style={{ flexDirection:'row', alignItems:'center', gap:8 }}
+                  onPress={() => router.push(`/parent/linked-child/${child.id}`)}
+                >
                 {/* Unlink Button (X) */}
                 <TouchableOpacity
                   style={styles.unlinkButton}
@@ -836,11 +837,47 @@ export default function ParentDashboard() {
                   presetAvatars={presetAvatars}
                 />
                 <Text style={styles.memberName}>{child.name}</Text>
-                <View style={styles.linkedBadge}>
-                  <MaterialIcons name="school" size={12} color="#5C6BC0" />
-                  <Text style={styles.linkedBadgeText}>{t('school')}</Text>
-                </View>
-              </TouchableOpacity>
+                  <View style={{ flex:1 }}>
+                    <Text style={{ fontSize:14, fontWeight:'700', color:'#333' }}>{child.name}</Text>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginTop:2 }}>
+                      <MaterialIcons name="school" size={10} color="#5C6BC0" />
+                      <Text style={{ fontSize:10, color:'#5C6BC0' }}>{t('school')||'School'}</Text>
+                    </View>
+                  </View>
+                  <MaterialIcons name="chevron-right" size={18} color="#CCC" />
+                </TouchableOpacity>
+
+                {/* Collapsible sections */}
+                <TouchableOpacity
+                  onPress={() => toggleLinkedSection(child.id, 'emoDistrib')}
+                  style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:8, borderTopWidth:1, borderTopColor:'#F0F0F0', marginTop:8 }}>
+                  <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                    <MaterialIcons name="donut-large" size={14} color="#5C6BC0" />
+                    <Text style={{ fontSize:12, fontWeight:'600', color:'#333' }}>Emotion Distribution</Text>
+                  </View>
+                  <MaterialIcons name={linkedChildSections[child.id]?.emoDistrib ? 'expand-less' : 'expand-more'} size={16} color="#666" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => toggleLinkedSection(child.id, 'recentCheckins')}
+                  style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:8, borderTopWidth:1, borderTopColor:'#F0F0F0' }}>
+                  <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                    <MaterialIcons name="history" size={14} color="#5C6BC0" />
+                    <Text style={{ fontSize:12, fontWeight:'600', color:'#333' }}>Recent Check-ins</Text>
+                  </View>
+                  <MaterialIcons name={linkedChildSections[child.id]?.recentCheckins ? 'expand-less' : 'expand-more'} size={16} color="#666" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => toggleLinkedSection(child.id, 'weekOverview')}
+                  style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:8, borderTopWidth:1, borderTopColor:'#F0F0F0' }}>
+                  <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                    <MaterialIcons name="bar-chart" size={14} color="#5C6BC0" />
+                    <Text style={{ fontSize:12, fontWeight:'600', color:'#333' }}>Week Overview</Text>
+                  </View>
+                  <MaterialIcons name={linkedChildSections[child.id]?.weekOverview ? 'expand-less' : 'expand-more'} size={16} color="#666" />
+                </TouchableOpacity>
+              </View>
             ))}
 
             {linkedChildren.length === 0 && (
