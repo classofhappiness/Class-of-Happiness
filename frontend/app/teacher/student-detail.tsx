@@ -85,6 +85,7 @@ export default function StudentDetailScreen() {
   const [secRecentCheckins, setSecRecentCheckins] = React.useState(false);
   const [secCalendar, setSecCalendar] = React.useState(false);
   const [secStrategies, setSecStrategies] = React.useState(false);
+  const [creatureEmoji, setCreatureEmoji] = React.useState('🥚');
   const navigation = useNavigation() as any;
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
@@ -357,7 +358,10 @@ export default function StudentDetailScreen() {
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           <Image source={require('../../assets/images/logo_coh.png')} style={{ width: 24, height: 24 }} resizeMode="contain" />
           <View style={{ alignItems: 'center' }}>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }} numberOfLines={1}>{student.name}</Text>
+            <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
+              <Text style={{fontSize:18}}>{creatureEmoji}</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }} numberOfLines={1}>{student.name}</Text>
+            </View>
             <Text style={{ fontSize: 11, color: '#888' }} numberOfLines={1}>{getClassroomName(student.classroom_id)}</Text>
           </View>
         </View>
