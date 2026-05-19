@@ -369,6 +369,11 @@ export default function FamilyCheckInScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+            <View style={{ marginTop: 8, padding: 12, backgroundColor: '#F8F9FA', borderRadius: 12 }}>
+              <Text style={{ fontSize: 11, color: '#666', lineHeight: 16, textAlign: 'center' }}>
+                Research shows that naming our emotional state helps regulate it. Blue = low energy, Green = regulated, Yellow = heightened, Red = dysregulated.
+              </Text>
+            </View>
             </>
           ) : (
             /* Strategies Selection */
@@ -516,14 +521,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FA',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
+  header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   backButton: {
     padding: 8,
     marginRight: 8,

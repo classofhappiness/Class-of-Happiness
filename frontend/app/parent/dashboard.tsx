@@ -337,6 +337,22 @@ export default function ParentDashboard() {
     }
   };
 
+  const loadLinkedChildCreatures = async (children: any[]) => {
+    for (const child of children) {
+      try {
+        const collection = await rewardsApi.getCollection(child.id);
+        if (collection?.current_creature) {
+          const stage = collection.current_stage || 0;
+          const emoji = collection.current_creature.stages?.[stage]?.emoji || '🥚';
+          setChildCreatures(prev => ({ ...prev, [child.id]: {
+            emoji, color: collection.current_creature.color || '#4CAF50',
+            allCreatures: collection.all_creatures || [],
+          }}));
+        }
+      } catch {}
+    }
+  };
+
   const loadFamilyMemberCreatures = async (members: any[]) => {
     const creatures: Record<string, any> = {};
     const childMembers = members.filter((m: any) => m.relationship === 'child');
@@ -381,6 +397,7 @@ export default function ParentDashboard() {
       // Fetch linked children from school
       const children = await parentApi.getChildren();
       setLinkedChildren(children);
+      loadLinkedChildCreatures(children);
       
       // Fetch family members
       const members = await familyApi.getMembers();
@@ -752,6 +769,19 @@ export default function ParentDashboard() {
                   </View>
                   <Text style={styles.gridName} numberOfLines={1}>{child.name}</Text>
                   <Text style={styles.linkedLabel}>Linked Child</Text>
+                  {childCreatures[child.id]?.emoji && (
+                    <Text style={{ fontSize: 22, marginBottom: 2 }}>{childCreatures[child.id].emoji}</Text>
+                  )}
+                  <TouchableOpacity
+                    style={[styles.wellbeingBtn, { backgroundColor: '#E8F5E9', borderColor: '#4CAF50' }]}
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      router.push(`/parent/linked-child/${child.id}`);
+                    }}
+                  >
+                    <MaterialIcons name="school" size={10} color="#4CAF50" />
+                    <Text style={[styles.wellbeingBtnTxt, { color: '#4CAF50' }]}>Stats</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.wellbeingBtn}
                     onPress={(e) => {
@@ -862,6 +892,18 @@ export default function ParentDashboard() {
                 <Text style={styles.sectionTitle}>{t('week_overview') || 'Week Overview'}</Text>
                 <MaterialIcons name={weekExpanded ? 'expand-less' : 'expand-more'} size={22} color="#5C6BC0" />
               </TouchableOpacity>
+              {weekExpanded && (
+              <View style={{ flexDirection:'row', gap:6, marginBottom:8, flexWrap:'wrap' }}>
+                <TouchableOpacity style={{ paddingHorizontal:10, paddingVertical:3, borderRadius:10, backgroundColor:'#5C6BC0' }}>
+                  <Text style={{ fontSize:10, color:'white', fontWeight:'600' }}>All</Text>
+                </TouchableOpacity>
+                {[...familyMembers.filter(m=>m.relationship==='child'), ...linkedChildren].map(m => (
+                  <TouchableOpacity key={m.id} style={{ paddingHorizontal:10, paddingVertical:3, borderRadius:10, backgroundColor:'#F0F0F0' }}>
+                    <Text style={{ fontSize:10, color:'#555', fontWeight:'600' }} numberOfLines={1}>{m.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              )}
               {weekExpanded && (
                 <View style={{ flexDirection:'row', gap:6, marginBottom:10, marginTop:4 }}>
                   {([1,7,14,30] as const).map(p => (
