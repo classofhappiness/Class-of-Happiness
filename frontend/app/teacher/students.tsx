@@ -16,7 +16,9 @@ import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
-import { studentsApi } from '../../src/utils/api';
+import { studentsApi, rewardsApi } from '../../src/utils/api';
+import { getStudentShield, SHIELD_LEVELS } from '../../src/utils/notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ManageStudentsScreen() {
   const router = useRouter();
@@ -25,6 +27,8 @@ export default function ManageStudentsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterClassroom, setFilterClassroom] = useState<string | null>(null);
   const [showLinkedOnly, setShowLinkedOnly] = useState(false);
+  const [studentCreatures, setStudentCreatures] = useState<Record<string, string>>({});
+  const [studentShields, setStudentShields] = useState<Record<string, string>>({});
   
   // Bulk selection state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -37,6 +41,32 @@ export default function ManageStudentsScreen() {
       title: t('students'),
     });
   }, [navigation, language, translations]);
+
+  React.useEffect(() => {
+    const loadCreaturesAndShields = async () => {
+      const token = await AsyncStorage.getItem('session_token');
+      if (!token || students.length === 0) return;
+      const creatures: Record<string, string> = {};
+      const shields: Record<string, string> = {};
+      for (const student of students.slice(0, 20)) {
+        try {
+          const data = await rewardsApi.getStudentRewards(student.id);
+          if (data?.current_creature) {
+            const stage = data.current_creature.stages?.[Number(data.current_creature.current_stage || 0)];
+            creatures[student.id] = stage?.emoji || data.current_creature.emoji || '🥚';
+          }
+          const shield = await getStudentShield(student.id);
+          if (shield?.has_shield && shield.level) {
+            const lvl = SHIELD_LEVELS.find(s => s.level === shield.level);
+            if (lvl) shields[student.id] = lvl.emoji;
+          }
+        } catch {}
+      }
+      setStudentCreatures(creatures);
+      setStudentShields(shields);
+    };
+    loadCreaturesAndShields();
+  }, [students]);
 
   const filteredStudents = students
     .filter(student => {
@@ -320,10 +350,18 @@ export default function ManageStudentsScreen() {
                     {(student as any).is_linked && (
                       <Text style={{fontSize:10}}>🔗</Text>
                     )}
+                    {studentShields[student.id] && (
+                      <Text style={{fontSize:12}}>{studentShields[student.id]}</Text>
+                    )}
                   </View>
-                  <Text style={styles.studentClassroom}>
-                    {getClassroomName(student.classroom_id)}
-                  </Text>
+                  <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
+                    <Text style={styles.studentClassroom}>
+                      {getClassroomName(student.classroom_id)}
+                    </Text>
+                    {studentCreatures[student.id] && (
+                      <Text style={{fontSize:16}}>{studentCreatures[student.id]}</Text>
+                    )}
+                  </View>
                 </View>
               </View>
               
