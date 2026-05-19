@@ -2982,10 +2982,17 @@ async def toggle_strategy_sync(strategy_id: str, request: Request):
 
 # Full strategy name map (mirrors frontend STRATEGY_NAME_MAP)
 STRATEGY_NAME_MAP = {
+    # Short IDs
     "b1": "Gentle Stretch", "b2": "Favourite Song", "b3": "Tell Someone", "b4": "Slow Breathing",
     "g1": "Keep Going!", "g2": "Help a Friend", "g3": "Set a Goal", "g4": "Gratitude",
     "y1": "Bubble Breathing", "y2": "Count to 10", "y3": "5 Senses", "y4": "Talk About It",
     "r1": "Freeze", "r2": "Big Breaths", "r3": "Safe Space", "r4": "Ask for Help",
+    # Underscore variants (blue_1 format stored in DB)
+    "blue_1": "Gentle Stretch", "blue_2": "Favourite Song", "blue_3": "Tell Someone", "blue_4": "Slow Breathing",
+    "green_1": "Keep Going!", "green_2": "Help a Friend", "green_3": "Set a Goal", "green_4": "Gratitude",
+    "yellow_1": "Bubble Breathing", "yellow_2": "Count to 10", "yellow_3": "5 Senses", "yellow_4": "Talk About It",
+    "red_1": "Freeze", "red_2": "Big Breaths", "red_3": "Safe Space", "red_4": "Ask for Help",
+    # Parent strategies
     "p_b1": "Side-by-Side Presence", "p_b2": "Warm Drink Ritual", "p_b3": "Name It to Tame It",
     "p_g1": "Gratitude Round", "p_g2": "Strength Spotting", "p_g3": "Creative Together",
     "p_y1": "Box Breathing Together", "p_y2": "Validate First", "p_y3": "Body Check-In",
