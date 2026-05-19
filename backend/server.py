@@ -2999,9 +2999,76 @@ STRATEGY_NAME_MAP = {
     "p_r1": "Stay Calm Yourself", "p_r2": "Safe Space Together", "p_r3": "Cold Water Reset",
 }
 
-def resolve_strategy_name(sid: str) -> str:
+STRATEGY_NAME_MAP_PT = {
+    "b1":"Alongamento Suave","b2":"Música Favorita","b3":"Contar a Alguém","b4":"Respiração Lenta",
+    "g1":"Continuar!","g2":"Ajudar um Amigo","g3":"Definir um Objetivo","g4":"Gratidão",
+    "y1":"Respiração de Bolha","y2":"Contar até 10","y3":"5 Sentidos","y4":"Falar Sobre Isso",
+    "r1":"Parar","r2":"Respirações Profundas","r3":"Espaço Seguro","r4":"Pedir Ajuda",
+    "blue_1":"Alongamento Suave","blue_2":"Música Favorita","blue_3":"Contar a Alguém","blue_4":"Respiração Lenta",
+    "green_1":"Continuar!","green_2":"Ajudar um Amigo","green_3":"Definir um Objetivo","green_4":"Gratidão",
+    "yellow_1":"Respiração de Bolha","yellow_2":"Contar até 10","yellow_3":"5 Sentidos","yellow_4":"Falar Sobre Isso",
+    "red_1":"Parar","red_2":"Respirações Profundas","red_3":"Espaço Seguro","red_4":"Pedir Ajuda",
+}
+STRATEGY_NAME_MAP_ES = {
+    "b1":"Estiramiento Suave","b2":"Canción Favorita","b3":"Contárselo a Alguien","b4":"Respiración Lenta",
+    "g1":"¡Seguir Adelante!","g2":"Ayudar a un Amigo","g3":"Establecer una Meta","g4":"Gratitud",
+    "y1":"Respiración Burbuja","y2":"Contar hasta 10","y3":"5 Sentidos","y4":"Hablar de Ello",
+    "r1":"Parar","r2":"Respiraciones Profundas","r3":"Espacio Seguro","r4":"Pedir Ayuda",
+    "blue_1":"Estiramiento Suave","blue_2":"Canción Favorita","blue_3":"Contárselo a Alguien","blue_4":"Respiración Lenta",
+    "green_1":"¡Seguir Adelante!","green_2":"Ayudar a un Amigo","green_3":"Establecer una Meta","green_4":"Gratitud",
+    "yellow_1":"Respiración Burbuja","yellow_2":"Contar hasta 10","yellow_3":"5 Sentidos","yellow_4":"Hablar de Ello",
+    "red_1":"Parar","red_2":"Respiraciones Profundas","red_3":"Espacio Seguro","red_4":"Pedir Ayuda",
+}
+STRATEGY_NAME_MAP_FR = {
+    "b1":"Étirement Doux","b2":"Chanson Préférée","b3":"En Parler à Quelqu un","b4":"Respiration Lente",
+    "g1":"Continuer!","g2":"Aider un Ami","g3":"Fixer un Objectif","g4":"Gratitude",
+    "y1":"Respiration Bulle","y2":"Compter jusqu à 10","y3":"5 Sens","y4":"En Parler",
+    "r1":"S arrêter","r2":"Grandes Respirations","r3":"Espace Sûr","r4":"Demander de l Aide",
+    "blue_1":"Étirement Doux","blue_2":"Chanson Préférée","blue_3":"En Parler","blue_4":"Respiration Lente",
+    "green_1":"Continuer!","green_2":"Aider un Ami","green_3":"Fixer un Objectif","green_4":"Gratitude",
+    "yellow_1":"Respiration Bulle","yellow_2":"Compter jusqu à 10","yellow_3":"5 Sens","yellow_4":"En Parler",
+    "red_1":"S arrêter","red_2":"Grandes Respirations","red_3":"Espace Sûr","red_4":"Demander de l Aide",
+}
+STRATEGY_NAME_MAP_DE = {
+    "b1":"Sanftes Dehnen","b2":"Lieblingslied","b3":"Jemandem Erzählen","b4":"Langsames Atmen",
+    "g1":"Weitermachen!","g2":"Einem Freund Helfen","g3":"Ein Ziel Setzen","g4":"Dankbarkeit",
+    "y1":"Blasen Atmen","y2":"Bis 10 Zählen","y3":"5 Sinne","y4":"Darüber Reden",
+    "r1":"Stopp","r2":"Tiefe Atemzüge","r3":"Sicherer Ort","r4":"Um Hilfe Bitten",
+    "blue_1":"Sanftes Dehnen","blue_2":"Lieblingslied","blue_3":"Jemandem Erzählen","blue_4":"Langsames Atmen",
+    "green_1":"Weitermachen!","green_2":"Einem Freund Helfen","green_3":"Ein Ziel Setzen","green_4":"Dankbarkeit",
+    "yellow_1":"Blasen Atmen","yellow_2":"Bis 10 Zählen","yellow_3":"5 Sinne","yellow_4":"Darüber Reden",
+    "red_1":"Stopp","red_2":"Tiefe Atemzüge","red_3":"Sicherer Ort","red_4":"Um Hilfe Bitten",
+}
+STRATEGY_NAME_MAP_IT = {
+    "b1":"Stretching Dolce","b2":"Canzone Preferita","b3":"Dirlo a Qualcuno","b4":"Respirazione Lenta",
+    "g1":"Continuare!","g2":"Aiutare un Amico","g3":"Fissare un Obiettivo","g4":"Gratitudine",
+    "y1":"Respirazione Bolla","y2":"Contare fino a 10","y3":"5 Sensi","y4":"Parlarne",
+    "r1":"Fermarsi","r2":"Respiri Profondi","r3":"Spazio Sicuro","r4":"Chiedere Aiuto",
+    "blue_1":"Stretching Dolce","blue_2":"Canzone Preferita","blue_3":"Dirlo a Qualcuno","blue_4":"Respirazione Lenta",
+    "green_1":"Continuare!","green_2":"Aiutare un Amico","green_3":"Fissare un Obiettivo","green_4":"Gratitudine",
+    "yellow_1":"Respirazione Bolla","yellow_2":"Contare fino a 10","yellow_3":"5 Sensi","yellow_4":"Parlarne",
+    "red_1":"Fermarsi","red_2":"Respiri Profondi","red_3":"Spazio Sicuro","red_4":"Chiedere Aiuto",
+}
+STRATEGY_MAPS_BY_LANG = {
+    "en": STRATEGY_NAME_MAP, "pt": STRATEGY_NAME_MAP_PT,
+    "es": STRATEGY_NAME_MAP_ES, "fr": STRATEGY_NAME_MAP_FR,
+    "de": STRATEGY_NAME_MAP_DE, "it": STRATEGY_NAME_MAP_IT,
+}
+
+PDF_HEADINGS = {
+    "en": {"report": "Emotional Wellbeing Report", "strategies": "Coping Strategies Used", "log": "Check-in Log", "day_of_week": "Day of Week Activity", "emotion_dist": "Emotion Distribution"},
+    "pt": {"report": "Relatório de Bem-Estar Emocional", "strategies": "Estratégias Utilizadas", "log": "Registo de Check-ins", "day_of_week": "Atividade por Dia da Semana", "emotion_dist": "Distribuição de Emoções"},
+    "es": {"report": "Informe de Bienestar Emocional", "strategies": "Estrategias Utilizadas", "log": "Registro de Check-ins", "day_of_week": "Actividad por Día", "emotion_dist": "Distribución de Emociones"},
+    "fr": {"report": "Rapport de Bien-être Émotionnel", "strategies": "Stratégies Utilisées", "log": "Journal des Enregistrements", "day_of_week": "Activité par Jour", "emotion_dist": "Distribution des Émotions"},
+    "de": {"report": "Bericht zum emotionalen Wohlbefinden", "strategies": "Verwendete Strategien", "log": "Check-in-Protokoll", "day_of_week": "Aktivität nach Wochentag", "emotion_dist": "Emotionsverteilung"},
+    "it": {"report": "Rapporto sul Benessere Emotivo", "strategies": "Strategie Utilizzate", "log": "Registro dei Check-in", "day_of_week": "Attività per Giorno", "emotion_dist": "Distribuzione delle Emozioni"},
+}
+
+def resolve_strategy_name(sid: str, lang: str = "en") -> str:
     """Return human-readable strategy name from ID or raw string."""
-    return STRATEGY_NAME_MAP.get(str(sid).strip(), str(sid).strip().replace("_", " ").title())
+    lang_map = STRATEGY_MAPS_BY_LANG.get(lang, STRATEGY_NAME_MAP)
+    sid_clean = str(sid).strip()
+    return lang_map.get(sid_clean) or STRATEGY_NAME_MAP.get(sid_clean) or sid_clean.replace("_", " ").title()
 
 @api_router.get("/reports/available-months/{student_id}")
 async def get_available_months(student_id: str):
@@ -3185,7 +3252,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     header_data = [[
         logo_cell,
         Paragraph(
-            f"<b>Emotional Wellbeing Report</b><br/>{month_name}",
+            f"<b>" + PDF_HEADINGS.get(lang, PDF_HEADINGS["en"])["report"] + "</b><br/>" + month_name,
             s('HRight', fontSize=11, textColor=WHITE, fontName='Helvetica-Bold',
               alignment=2, leading=15)
         ),
@@ -3411,7 +3478,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     # ════════════════════════════════════════════════════════
     # ROW 3: Strategies + Day-of-week side by side
     # ════════════════════════════════════════════════════════
-    section3_elements = [Paragraph("Coping Strategies Used", ST_H2)]
+    section3_elements = [Paragraph(PDF_HEADINGS.get(lang, PDF_HEADINGS["en"])["strategies"], ST_H2)]
 
     if helper_counts:
         top_helpers = sorted(helper_counts.items(), key=lambda x: x[1], reverse=True)[:8]
@@ -3422,7 +3489,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         ]]
         max_strat = max(c for _, c in top_helpers)
         for sid, count in top_helpers:
-            name = resolve_strategy_name(sid)
+            name = resolve_strategy_name(sid, lang=lang)
             bar  = '█' * int((count / max_strat) * 8) if max_strat > 0 else ''
             freq = "Very Often" if count >= 5 else "Often" if count >= 3 else "Sometimes" if count >= 2 else "Once"
             strat_rows.append([
@@ -3478,7 +3545,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     # ════════════════════════════════════════════════════════
     # Check-in log — heading must stay with table (never orphaned at page bottom)
     # We'll build heading + table together in a KeepTogether block if small enough
-    log_heading = Paragraph("Check-in Log", ST_H2)
+    log_heading = Paragraph(PDF_HEADINGS.get(lang, PDF_HEADINGS["en"])["log"], ST_H2)
 
     if logs_data:
         log_rows = [[
@@ -3499,7 +3566,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
 
             zone     = log.get("feeling_colour", log.get("zone", ""))
             raw_strats = log.get("helpers_selected", log.get("strategies_selected", []))
-            strat_names = [resolve_strategy_name(s) for s in raw_strats[:3]]
+            strat_names = [resolve_strategy_name(s, lang=lang) for s in raw_strats[:3]]
             strats_str  = ", ".join(strat_names) if strat_names else "—"
             if len(raw_strats) > 3:
                 strats_str += f" +{len(raw_strats)-3}"
