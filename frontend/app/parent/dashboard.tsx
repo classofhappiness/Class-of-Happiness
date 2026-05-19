@@ -653,6 +653,8 @@ export default function ParentDashboard() {
                 const isChild = member.relationship === 'child';
                 const cardColor = getRelationshipColor(member.relationship);
                 const isLinked = !!(member as any).student_id;
+                const isLinkedChild = !!(member as any).classroom_id || (!member.relationship && !!(member as any).avatar_type);
+                const linkedChildId = (member as any).student_id || (isLinkedChild ? member.id : null);
                 return (
                   <TouchableOpacity
                     key={member.id}
@@ -665,10 +667,12 @@ export default function ParentDashboard() {
                       <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); handleEditFamilyMember(member); }} style={styles.gridActionBtn}>
                         <MaterialIcons name="edit" size={11} color="#5C6BC0" />
                       </TouchableOpacity>
-                      {isLinked && (
-                        <View style={styles.linkedBadge}>
-                          <MaterialIcons name="link" size={10} color="#4CAF50" />
-                        </View>
+                      {(isLinked || isLinkedChild) && (
+                        <TouchableOpacity
+                          onPress={(e) => { e.stopPropagation?.(); router.push(`/parent/linked-child/${linkedChildId || member.id}`); }}
+                          style={[styles.linkedBadge, { backgroundColor:'#E8F5E9' }]}>
+                          <MaterialIcons name="school" size={10} color="#4CAF50" />
+                        </TouchableOpacity>
                       )}
                       <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); handleDeleteFamilyMember(member); }} style={styles.gridActionBtn}>
                         <MaterialIcons name="close" size={11} color="#F44336" />
@@ -775,8 +779,8 @@ export default function ParentDashboard() {
             </ScrollView>
           )}
         </View>
-        {/* Linked Children from School — tap to see full detail */}
-        {true && <View>
+        {/* Linked Children in family grid above */}
+        {false && <View>
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>{t('children_school')}</Text>
@@ -791,93 +795,28 @@ export default function ParentDashboard() {
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.membersScroll}>
             {linkedChildren.map((child) => (
-              <View key={child.id} style={{ backgroundColor:'white', borderRadius:14, padding:12, marginRight:12, marginBottom:8, minWidth:200 }}>
-                <TouchableOpacity
-                  style={{ flexDirection:'row', alignItems:'center', gap:8 }}
-                  onPress={() => router.push(`/parent/linked-child/${child.id}`)}
-                >
-                {/* Unlink Button (X) */}
-                <TouchableOpacity
-                  style={styles.unlinkButton}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    Alert.alert(
-                      t('unlink_child') || 'Unlink Child',
-                      t('confirm_unlink_child') || `Are you sure you want to unlink ${child.name}? You will need a new code from the teacher to reconnect.`,
-                      [
-                        { text: t('cancel') || 'Cancel', style: 'cancel' },
-                        {
-                          text: t('unlink') || 'Unlink',
-                          style: 'destructive',
-                          onPress: async () => {
-                            try {
-                              await linkedChildApi.unlink(child.id);
-                              setLinkedChildren(prev => prev.filter(c => c.id !== child.id));
-                              Alert.alert('✅ Unlinked', `${child.name} has been unlinked. You'll need a new code from the teacher to reconnect.`);
-                              // Refresh data
-                              const children = await parentApi.getChildren();
-                              setLinkedChildren(children);
-                            } catch (error: any) {
-                              Alert.alert(t('error') || 'Error', error.message || 'Failed to unlink');
-                            }
-                          },
-                        },
-                      ]
-                    );
-                  }}
-                >
-                  <MaterialIcons name="close" size={14} color="#F44336" />
-                </TouchableOpacity>
-                
+              <TouchableOpacity
+                key={child.id}
+                style={{ backgroundColor:'white', borderRadius:14, padding:12, marginRight:12, marginBottom:8, width:160, flexDirection:'row', alignItems:'center', gap:10, shadowColor:'#000', shadowOpacity:0.04, shadowRadius:4, elevation:1 }}
+                onPress={() => router.push(`/parent/linked-child/${child.id}`)}
+              >
                 <Avatar
                   type={child.avatar_type}
                   preset={child.avatar_preset}
                   custom={child.avatar_custom}
-                  size={50}
+                  size={42}
                   presetAvatars={presetAvatars}
                 />
-                <Text style={styles.memberName}>{child.name}</Text>
-                  <View style={{ flex:1 }}>
-                    <Text style={{ fontSize:14, fontWeight:'700', color:'#333' }}>{child.name}</Text>
-                    <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginTop:2 }}>
-                      <MaterialIcons name="school" size={10} color="#5C6BC0" />
-                      <Text style={{ fontSize:10, color:'#5C6BC0' }}>{t('school')||'School'}</Text>
-                    </View>
+                <View style={{ flex:1 }}>
+                  <Text style={{ fontSize:13, fontWeight:'700', color:'#333' }} numberOfLines={1}>{child.name}</Text>
+                  <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginTop:2 }}>
+                    <MaterialIcons name="school" size={10} color="#5C6BC0" />
+                    <Text style={{ fontSize:10, color:'#5C6BC0' }}>{t('school')||'School'}</Text>
                   </View>
-                  <MaterialIcons name="chevron-right" size={18} color="#CCC" />
-                </TouchableOpacity>
+                </View>
+                <MaterialIcons name="chevron-right" size={16} color="#CCC" />
 
-                {/* Collapsible sections */}
-                <TouchableOpacity
-                  onPress={() => toggleLinkedSection(child.id, 'emoDistrib')}
-                  style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:8, borderTopWidth:1, borderTopColor:'#F0F0F0', marginTop:8 }}>
-                  <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
-                    <MaterialIcons name="donut-large" size={14} color="#5C6BC0" />
-                    <Text style={{ fontSize:12, fontWeight:'600', color:'#333' }}>Emotion Distribution</Text>
-                  </View>
-                  <MaterialIcons name={linkedChildSections[child.id]?.emoDistrib ? 'expand-less' : 'expand-more'} size={16} color="#666" />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => toggleLinkedSection(child.id, 'recentCheckins')}
-                  style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:8, borderTopWidth:1, borderTopColor:'#F0F0F0' }}>
-                  <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
-                    <MaterialIcons name="history" size={14} color="#5C6BC0" />
-                    <Text style={{ fontSize:12, fontWeight:'600', color:'#333' }}>Recent Check-ins</Text>
-                  </View>
-                  <MaterialIcons name={linkedChildSections[child.id]?.recentCheckins ? 'expand-less' : 'expand-more'} size={16} color="#666" />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => toggleLinkedSection(child.id, 'weekOverview')}
-                  style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:8, borderTopWidth:1, borderTopColor:'#F0F0F0' }}>
-                  <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
-                    <MaterialIcons name="bar-chart" size={14} color="#5C6BC0" />
-                    <Text style={{ fontSize:12, fontWeight:'600', color:'#333' }}>Week Overview</Text>
-                  </View>
-                  <MaterialIcons name={linkedChildSections[child.id]?.weekOverview ? 'expand-less' : 'expand-more'} size={16} color="#666" />
-                </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
             ))}
 
             {linkedChildren.length === 0 && (
@@ -1452,38 +1391,9 @@ const styles = StyleSheet.create({
   },
   familySection: { paddingHorizontal: 16, marginBottom: 8 },
   familySectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  familySectionTitle: { fontSize: 16, fontWeight: '700', color: '#1A1A2E' },
-  familyGrid: { flexDirection: 'row', gap: 10 },
-  gridCard: { width: 108, backgroundColor: 'white', borderRadius: 14, padding: 10, alignItems: 'center', borderWidth: 1.5, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
-  gridCardActions: { flexDirection: 'row', justifyContent: 'flex-end', width: '100%', gap: 4, marginBottom: 6 },
-  gridActionBtn: { padding: 3, backgroundColor: '#F5F5F5', borderRadius: 6 },
-  gridAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  gridAvatarImg: { width: 44, height: 44, borderRadius: 22 },
-  gridName: { fontSize: 14, fontWeight: '700', color: '#333', marginBottom: 8, textAlign: 'center' },
-  gridCheckinBtn: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 7, marginBottom: 6 },
-  gridCheckinTxt: { fontSize: 13, fontWeight: '700', color: 'white' },
-  gridWellnessBtn: { padding: 4 },
-  linkedBadge: { backgroundColor: '#E8F5E9', borderRadius: 6, padding: 2 },
-  linkedLabel: { fontSize: 9, color: '#4CAF50', fontWeight: '600', marginBottom: 4 },
-  gridCheckinPill: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 5 },
-  wellbeingBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1.5, borderColor: '#333', marginTop: 4 },
-  wellbeingBtnTxt: { fontSize: 11, color: '#333', fontWeight: '700' },
-  emptyFamilyCard: { borderRadius: 16, borderWidth: 2, borderColor: '#E8EAF6', borderStyle: 'dashed', padding: 32, alignItems: 'center', gap: 8 },
-  emptyFamilyTxt: { fontSize: 14, color: '#AAA', textAlign: 'center' },
-  compactActions: { flexDirection: 'row', gap: 8 },
-  compactAction: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: 'white', borderRadius: 12, paddingVertical: 12, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 3, elevation: 1 },
-  compactActionTxt: { fontSize: 10, fontWeight: '600', color: '#555', textAlign: 'center' },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
+  familySectionTitle: { fontSize: 13, fontWeight: '700', color: '#333' },
+
+  sectionTitle: { fontSize: 13, fontWeight: '600', color: '#333' },
   wellnessButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', borderRadius: 16, padding: 16, marginHorizontal: 16, marginBottom: 12, shadowColor: '#5C6BC0', shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 3, borderWidth: 1, borderColor: '#E8EAF6', gap: 12 },
   wellnessIcon: { fontSize: 28 },
   wellnessTitle: { fontSize: 16, fontWeight: '700', color: '#5C6BC0' },
