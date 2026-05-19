@@ -123,6 +123,7 @@ export interface CustomStrategy {
   custom_image?: string;
   is_active: boolean;
   is_shared?: boolean;
+  share_with_parent?: boolean;
   created_at: string;
 }
 
