@@ -52,8 +52,9 @@ export default function ManageStudentsScreen() {
           const data = await rewardsApi.getStudentRewards(student.id).catch(()=>null);
           if (!data) continue;
           if (data?.current_creature) {
-            const stage = data.current_creature.stages?.[Number(data.current_creature.current_stage || 0)];
-            creatures[student.id] = stage?.emoji || data.current_creature.emoji || '🥚';
+            const stageIdx = Number(data.current_stage || 0);
+            const stage = data.current_creature.stages?.[stageIdx];
+            creatures[student.id] = stage?.emoji || '🥚';
           }
           const shield = await getStudentShield(student.id);
           if (shield?.has_shield && shield.level) {
