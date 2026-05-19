@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerForPushNotifications } from '../../src/utils/notifications';
 import { PieChart, BarChart } from 'react-native-gifted-charts';
 import * as ImagePicker from 'expo-image-picker';
@@ -144,6 +145,7 @@ export default function ParentDashboard() {
   // Analytics
   const [analytics, setAnalytics] = useState<{ zone_counts: Record<string, number> } | null>(null);
   const [weekExpanded, setWeekExpanded] = useState(false);
+  const [parentAlertCount, setParentAlertCount] = useState(0);
   const [linkedChildSections, setLinkedChildSections] = useState<Record<string, {emoDistrib:boolean, recentCheckins:boolean, weekOverview:boolean}>>({});
   const toggleLinkedSection = (childId: string, section: 'emoDistrib'|'recentCheckins'|'weekOverview') => {
     setLinkedChildSections(prev => ({
@@ -385,6 +387,26 @@ export default function ParentDashboard() {
     setChildCreatures(prev => ({ ...prev, ...creatures }));
   };
 
+  const loadParentAlerts = async () => {
+    try {
+      const token = await AsyncStorage.getItem('session_token');
+      if (!token) return;
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const res = await fetch(`${BACKEND_URL}/api/notifications/alerts`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+        const count = Array.isArray(data) ? data.filter((a:any) => {
+          if (a.resolved) return false;
+          return new Date(a.created_at || a.timestamp || 0) >= todayStart;
+        }).length : 0;
+        setParentAlertCount(count);
+      }
+    } catch {}
+  };
+
   const fetchData = async () => {
     try {
       // First, ensure user role is set to parent
@@ -521,6 +543,7 @@ export default function ParentDashboard() {
 
   useEffect(() => {
     fetchData();
+    loadParentAlerts();
   }, []);
 
   useEffect(() => {
@@ -529,7 +552,7 @@ export default function ParentDashboard() {
     }
   }, [selectedMember, selectedType, analyticsPeriod]);
 
-  const onRefresh = async () => {
+  const onRefresh = async () => { loadParentAlerts();
     setRefreshing(true);
     await fetchData();
     await fetchMemberData();
@@ -640,6 +663,21 @@ export default function ParentDashboard() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
+        {/* Alert banner */}
+        {parentAlertCount > 0 && (
+          <TouchableOpacity
+            onPress={() => router.push('/parent/alerts')}
+            style={{ flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#FFF3F3',
+              borderLeftWidth:4, borderLeftColor:'#F44336', marginHorizontal:12, marginBottom:8,
+              borderRadius:8, padding:10 }}>
+            <MaterialIcons name="notifications-active" size={18} color="#F44336" />
+            <Text style={{ flex:1, fontSize:13, fontWeight:'600', color:'#C62828' }}>
+              {parentAlertCount} {parentAlertCount === 1 ? 'alert' : 'alerts'} need your attention
+            </Text>
+            <MaterialIcons name="chevron-right" size={18} color="#F44336" />
+          </TouchableOpacity>
+        )}
+
         {/* Subtitle only — title shown in TranslatedHeader */}
         <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10, alignItems: 'center' }}>
           <Text style={{ fontSize: 13, color: '#666', textAlign: 'center', fontWeight: '400', letterSpacing: 0.2 }}>
@@ -743,7 +781,7 @@ export default function ParentDashboard() {
               {linkedChildren.slice(0, Math.max(0, 4 - familyMembers.length)).map((child: any) => (
                 <TouchableOpacity
                   key={`linked-${child.id}`}
-                  style={[styles.gridCard, { borderColor: '#4CAF5030' }]}
+                  style={[styles.gridCard, { borderColor: '#4CAF5060', borderWidth: 2, backgroundColor: '#F9FFF9' }]}
                   onPress={() => router.push({
                     pathname: '/student/zone',
                     params: { studentId: child.id, location: 'home', fromFamily: 'true' }

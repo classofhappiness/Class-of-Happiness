@@ -319,7 +319,7 @@ export default function FamilyCheckInScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: 16 }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <MaterialIcons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
@@ -327,7 +327,7 @@ export default function FamilyCheckInScreen() {
             <MaterialIcons name="home" size={22} color="#333" />
           </TouchableOpacity>
           <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>{step === 'zone' ? (t('how_are_you_feeling') || 'How are you feeling?') : (t('choose_helpful_strategies') || 'Choose Helpful Strategies')}</Text>
+            <Text style={styles.headerTitle}>{step === 'zone' ? (t('how_are_you_feeling') || 'How are you feeling?') : (t('choose_helpful_strategies') || 'Choose a Strategy')}</Text>
             <Text style={styles.headerSubtitle}>{t('checkin_for') || 'Check-in for'} {memberName}</Text>
           </View>
         </View>
@@ -613,19 +613,7 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 20,
   },
-  strategyCard: {
-    width: '48%',
-    backgroundColor: 'white',
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#E0E0E0',
-    position: 'relative',
-    flexDirection: 'row',
-    gap: 8,
-  },
+  strategyCard: { width: '48%', backgroundColor: 'white', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 8, alignItems: 'center', borderWidth: 1.5, borderColor: '#E0E0E0', position: 'relative', flexDirection: 'row', gap: 6 },
   strategyDesc: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
   strategyName: {
     fontSize: 12,
