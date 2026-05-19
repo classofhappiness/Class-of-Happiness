@@ -319,17 +319,18 @@ export default function FamilyCheckInScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         {/* Header */}
-        <View style={[styles.header, { paddingTop: 16 }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
             <MaterialIcons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={{ position: 'absolute', right: 12, padding: 6 }}>
+          <Image source={require('../../assets/images/logo_coh.png')} style={{ width: 28, height: 28 }} resizeMode="contain" />
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#333' }}>{step === 'zone' ? (t('how_are_you_feeling') || 'How are you feeling?') : (t('choose_helpful_strategies') || 'Choose a Strategy')}</Text>
+            <Text style={{ fontSize: 11, color: '#888', marginTop: 1 }}>{t('checkin_for') || 'Check-in for'} {memberName}</Text>
+          </View>
+          <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={{ padding: 6 }}>
             <MaterialIcons name="home" size={22} color="#333" />
           </TouchableOpacity>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>{step === 'zone' ? (t('how_are_you_feeling') || 'How are you feeling?') : (t('choose_helpful_strategies') || 'Choose a Strategy')}</Text>
-            <Text style={styles.headerSubtitle}>{t('checkin_for') || 'Check-in for'} {memberName}</Text>
-          </View>
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps='handled'>
@@ -404,7 +405,7 @@ export default function FamilyCheckInScreen() {
                   >
                     <MaterialIcons
                       name={strategy.icon as any || 'star'}
-                      size={32}
+                      size={20}
                       color={selectedStrategies.includes(strategy.id) ? zoneConfig?.color : '#666'}
                     />
                     <Text style={styles.strategyName}>{strategy.name}</Text>
@@ -521,7 +522,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FA',
   },
-  header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F0F0F0', gap: 8 },
   backButton: {
     padding: 8,
     marginRight: 8,
@@ -607,21 +608,10 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 12,
   },
-  strategiesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 20,
-  },
-  strategyCard: { width: '48%', backgroundColor: 'white', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 8, alignItems: 'center', borderWidth: 1.5, borderColor: '#E0E0E0', position: 'relative', flexDirection: 'row', gap: 6 },
+  strategiesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
+  strategyCard: { width: '48%', backgroundColor: 'white', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 6, alignItems: 'center', borderWidth: 1.5, borderColor: '#E0E0E0', position: 'relative', flexDirection: 'row', gap: 4 },
   strategyDesc: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-  strategyName: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#333',
-    flex: 1,
-    textAlign: 'left',
-  },
+  strategyName: { fontSize: 11, fontWeight: '600', color: '#333', flex: 1, textAlign: 'left' },
   checkIcon: {
     position: 'absolute',
     top: 8,
