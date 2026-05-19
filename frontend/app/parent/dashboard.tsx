@@ -614,8 +614,8 @@ export default function ParentDashboard() {
         }
       >
         {/* Subtitle only — title shown in TranslatedHeader */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4, alignItems: 'center' }}>
-          <Text style={{ fontSize: 12, color: '#666', textAlign: 'center', fontWeight: '400', letterSpacing: 0.2 }}>
+        <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12, alignItems: 'center' }}>
+          <Text style={{ fontSize: 13, color: '#666', textAlign: 'center', fontWeight: '400', letterSpacing: 0.2 }}>
             {t('family_wellbeing_desc') || "My Family's Emotional Wellbeing"}
           </Text>
         </View>
@@ -695,21 +695,17 @@ export default function ParentDashboard() {
                         <Text style={styles.wellbeingBtnTxt}>Wellbeing</Text>
                       </TouchableOpacity>
                     )}
-                    {isChild && creature && (
+                    {isChild && (
                       <TouchableOpacity
-                        style={[styles.wellbeingBtn, { marginTop: 4, borderColor: creature.color || '#4CAF50' }]}
+                        style={{ marginTop: 4, alignItems: 'center' }}
                         onPress={(e) => {
                           e.stopPropagation?.();
                           setCollectionMember(member);
                           setShowCollection(true);
                         }}
                       >
-                        <Text style={{ fontSize: 12 }}>{creatureEmoji}</Text>
-                        <Text style={[styles.wellbeingBtnTxt, { color: creature.color || '#4CAF50' }]}>Creature</Text>
+                        <Text style={{ fontSize: 28 }}>{creatureEmoji}</Text>
                       </TouchableOpacity>
-                    )}
-                    {isChild && (
-                      <View style={{ display: 'none' }} />
                     )}
                   </TouchableOpacity>
                 );
