@@ -773,16 +773,17 @@ export default function ParentDashboard() {
                     )}
                     {isLinked && (
                       <TouchableOpacity
-                        style={[styles.wellbeingBtn, { backgroundColor:'#E8F5E9', borderColor:'#4CAF50', marginTop:2 }]}
+                        style={[styles.wellbeingBtn, { backgroundColor:'#E8F5E9', borderColor:'#4CAF50', marginTop:2, flexDirection:'row', gap:3 }]}
                         onPress={(e) => { e.stopPropagation?.(); router.push(`/parent/linked-child/${(member as any).student_id}`); }}
                       >
                         <MaterialIcons name="school" size={10} color="#4CAF50" />
                         <Text style={[styles.wellbeingBtnTxt, { color:'#4CAF50' }]}>Stats</Text>
+                        <MaterialIcons name="chevron-right" size={10} color="#4CAF50" />
                       </TouchableOpacity>
                     )}
                     {isChild && (
                       <TouchableOpacity
-                        style={{ marginTop: 4, alignItems: 'center', width: '100%' }}
+                        style={{ marginTop: 4, alignItems: 'center', width: '100%', borderWidth:1, borderColor:'#C5CAE9', borderRadius:8, paddingVertical:3, backgroundColor:'#F3F4FF' }}
                         onPress={(e) => {
                           e.stopPropagation?.();
                           setCollectionMember(member);
@@ -835,7 +836,7 @@ export default function ParentDashboard() {
                   <Text style={styles.gridName} numberOfLines={1}>{child.name}</Text>
                   <Text style={styles.linkedLabel}>Linked Child</Text>
                   <TouchableOpacity
-                    style={{ alignItems:'center', marginBottom:2 }}
+                    style={{ alignItems:'center', marginBottom:2, borderWidth:1, borderColor:'#A5D6A7', borderRadius:8, paddingVertical:3, paddingHorizontal:4, backgroundColor:'#F1F8E9' }}
                     onPress={(e) => { e.stopPropagation?.(); setCollectionMember(child); setShowCollection(true); }}
                   >
                     <View style={{ flexDirection:'row', justifyContent:'center', gap:2 }}>
@@ -981,7 +982,7 @@ export default function ParentDashboard() {
                 <TouchableOpacity onPress={() => setSelectedWeekChild(null)} style={{ paddingHorizontal:10, paddingVertical:3, borderRadius:10, backgroundColor: selectedWeekChild===null?'#5C6BC0':'#F0F0F0' }}>
                   <Text style={{ fontSize:10, color: selectedWeekChild===null?'white':'#555', fontWeight:'600' }}>All</Text>
                 </TouchableOpacity>
-                {[...familyMembers.filter(m=>m.relationship==='child'), ...linkedChildren].map(m => (
+                {[...familyMembers.filter(m=>m.relationship==='child'), ...linkedChildren.filter(lc => !familyMembers.some(fm => fm.name === lc.name || (fm as any).student_id === lc.id))].map((m:any) => (
                   <TouchableOpacity key={m.id} onPress={() => setSelectedWeekChild(m.id)} style={{ paddingHorizontal:10, paddingVertical:3, borderRadius:10, backgroundColor: selectedWeekChild===m.id?'#5C6BC0':'#F0F0F0' }}>
                     <Text style={{ fontSize:10, color: selectedWeekChild===m.id?'white':'#555', fontWeight:'600' }} numberOfLines={1}>{m.name}</Text>
                   </TouchableOpacity>
@@ -1084,16 +1085,19 @@ export default function ParentDashboard() {
               </View>
               
               {/* Recent logs list */}
-              {recentLogs.length > 0 ? (
-                recentLogs.slice(0, 10).map((log) => (
+              {(selectedWeekChild ? recentLogs.filter((log:any) => (log as any).member_id === selectedWeekChild || (log as any).student_id === selectedWeekChild) : recentLogs).length > 0 ? (
+                (selectedWeekChild ? recentLogs.filter((log:any) => (log as any).member_id === selectedWeekChild || (log as any).student_id === selectedWeekChild) : recentLogs).slice(0, 10).map((log) => (
                   <View key={log.id} style={styles.logItem}>
                     <View style={[styles.logZone, { backgroundColor: ZONE_COLORS[log.zone] }]}>
                       <Text style={styles.logZoneText}>{log.zone[0].toUpperCase()}</Text>
                     </View>
                     <View style={styles.logDetails}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={styles.logZoneName}>{getZoneLabel(log.zone, t)}</Text>
-                        {(log as any).member_name && <Text style={{ fontSize: 11, color: '#888' }}>· {(log as any).member_name.split(' ')[0]}</Text>}
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                          <Text style={styles.logZoneName}>{getZoneLabel(log.zone, t)}</Text>
+                          {(log as any).member_name && <Text style={{ fontSize:11, color:'#888', fontWeight:'600' }}>· {(log as any).member_name.split(' ')[0]}</Text>}
+                          {!(log as any).member_name && (log as any).student_name && <Text style={{ fontSize:11, color:'#5C6BC0', fontWeight:'600' }}>· {(log as any).student_name.split(' ')[0]}</Text>}
+                        </View>
                       </View>
                       <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                         <Text style={styles.logTime}>{formatTime(log.timestamp)}</Text>
