@@ -285,12 +285,20 @@ export default function ParentDashboard() {
   };
 
   // Group logs by day for weekly view - all 7 days
+  const getFilteredLogs = () => {
+    if (!selectedWeekChild) return recentLogs;
+    return recentLogs.filter((log) =>
+      (log as any).member_id === selectedWeekChild ||
+      (log as any).student_id === selectedWeekChild
+    );
+  };
+
   const getWeeklyLogs = () => {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const weekData: Record<string, { logs: (ZoneLog | FamilyZoneLog)[], times: string[] }> = {};
     days.forEach(day => { weekData[day] = { logs: [], times: [] }; });
     
-    recentLogs.forEach(log => {
+    getFilteredLogs().forEach(log => {
       const day = getDayOfWeek(log.timestamp);
       if (weekData[day]) {
         const time = new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -774,14 +782,23 @@ export default function ParentDashboard() {
                     )}
                     {isChild && (
                       <TouchableOpacity
-                        style={{ marginTop: 4, alignItems: 'center' }}
+                        style={{ marginTop: 4, alignItems: 'center', width: '100%' }}
                         onPress={(e) => {
                           e.stopPropagation?.();
                           setCollectionMember(member);
                           setShowCollection(true);
                         }}
                       >
-                        <Text style={{ fontSize: 28 }}>{creatureEmoji}</Text>
+                        <View style={{ flexDirection:'row', justifyContent:'center', flexWrap:'wrap', gap:2 }}>
+                          {(memberCreatures[member.id]?.allCreatures || []).slice(0,4).map((cr, i) => {
+                            const stg = cr.stages?.[Number(cr.current_stage||0)]?.emoji || '🥚';
+                            return <Text key={i} style={{ fontSize:14 }}>{stg}</Text>;
+                          })}
+                          {(!memberCreatures[member.id]?.allCreatures?.length) && (
+                            <Text style={{ fontSize:20 }}>{creatureEmoji}</Text>
+                          )}
+                        </View>
+                        <Text style={{ fontSize:8, color:'#5C6BC0', marginTop:2 }}>My Creatures</Text>
                       </TouchableOpacity>
                     )}
                   </TouchableOpacity>
@@ -817,7 +834,21 @@ export default function ParentDashboard() {
                   </View>
                   <Text style={styles.gridName} numberOfLines={1}>{child.name}</Text>
                   <Text style={styles.linkedLabel}>Linked Child</Text>
-                  <Text style={{ fontSize: 22, marginBottom: 2 }}>{childCreatures[child.id]?.emoji || '🥚'}</Text>
+                  <TouchableOpacity
+                    style={{ alignItems:'center', marginBottom:2 }}
+                    onPress={(e) => { e.stopPropagation?.(); setCollectionMember(child); setShowCollection(true); }}
+                  >
+                    <View style={{ flexDirection:'row', justifyContent:'center', gap:2 }}>
+                      {(childCreatures[child.id]?.allCreatures || []).slice(0,4).map((cr, i) => {
+                        const stg = cr.stages?.[Number(cr.current_stage||0)]?.emoji || '\U0001f95a';
+                        return <Text key={i} style={{ fontSize:13 }}>{stg}</Text>;
+                      })}
+                      {(!childCreatures[child.id]?.allCreatures?.length) && (
+                        <Text style={{ fontSize:20 }}>{childCreatures[child.id]?.emoji || '\U0001f95a'}</Text>
+                      )}
+                    </View>
+                    <Text style={{ fontSize:8, color:'#4CAF50', marginTop:1 }}>Creatures</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.wellbeingBtn, { backgroundColor: '#E8F5E9', borderColor: '#4CAF50', marginBottom: 2 }]}
                     onPress={(e) => { e.stopPropagation?.(); router.push(`/parent/linked-child/${child.id}`); }}
