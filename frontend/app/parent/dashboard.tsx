@@ -145,6 +145,7 @@ export default function ParentDashboard() {
   // Analytics
   const [analytics, setAnalytics] = useState<{ zone_counts: Record<string, number> } | null>(null);
   const [weekExpanded, setWeekExpanded] = useState(false);
+  const [selectedWeekChild, setSelectedWeekChild] = useState<string | null>(null);
   const [parentAlertCount, setParentAlertCount] = useState(0);
   const [linkedChildSections, setLinkedChildSections] = useState<Record<string, {emoDistrib:boolean, recentCheckins:boolean, weekOverview:boolean}>>({});
   const toggleLinkedSection = (childId: string, section: 'emoDistrib'|'recentCheckins'|'weekOverview') => {
@@ -816,9 +817,14 @@ export default function ParentDashboard() {
                   </View>
                   <Text style={styles.gridName} numberOfLines={1}>{child.name}</Text>
                   <Text style={styles.linkedLabel}>Linked Child</Text>
-                  {childCreatures[child.id]?.emoji && (
-                    <Text style={{ fontSize: 22, marginBottom: 2 }}>{childCreatures[child.id].emoji}</Text>
-                  )}
+                  <Text style={{ fontSize: 22, marginBottom: 2 }}>{childCreatures[child.id]?.emoji || '🥚'}</Text>
+                  <TouchableOpacity
+                    style={[styles.wellbeingBtn, { backgroundColor: '#E8F5E9', borderColor: '#4CAF50', marginBottom: 2 }]}
+                    onPress={(e) => { e.stopPropagation?.(); router.push(`/parent/linked-child/${child.id}`); }}
+                  >
+                    <MaterialIcons name="bar-chart" size={10} color="#4CAF50" />
+                    <Text style={[styles.wellbeingBtnTxt, { color: '#4CAF50' }]}>Stats</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.wellbeingBtn, { backgroundColor: '#E8F5E9', borderColor: '#4CAF50' }]}
                     onPress={(e) => {
@@ -941,12 +947,12 @@ export default function ParentDashboard() {
               </TouchableOpacity>
               {weekExpanded && (
               <View style={{ flexDirection:'row', gap:6, marginBottom:8, flexWrap:'wrap' }}>
-                <TouchableOpacity style={{ paddingHorizontal:10, paddingVertical:3, borderRadius:10, backgroundColor:'#5C6BC0' }}>
-                  <Text style={{ fontSize:10, color:'white', fontWeight:'600' }}>All</Text>
+                <TouchableOpacity onPress={() => setSelectedWeekChild(null)} style={{ paddingHorizontal:10, paddingVertical:3, borderRadius:10, backgroundColor: selectedWeekChild===null?'#5C6BC0':'#F0F0F0' }}>
+                  <Text style={{ fontSize:10, color: selectedWeekChild===null?'white':'#555', fontWeight:'600' }}>All</Text>
                 </TouchableOpacity>
                 {[...familyMembers.filter(m=>m.relationship==='child'), ...linkedChildren].map(m => (
-                  <TouchableOpacity key={m.id} style={{ paddingHorizontal:10, paddingVertical:3, borderRadius:10, backgroundColor:'#F0F0F0' }}>
-                    <Text style={{ fontSize:10, color:'#555', fontWeight:'600' }} numberOfLines={1}>{m.name}</Text>
+                  <TouchableOpacity key={m.id} onPress={() => setSelectedWeekChild(m.id)} style={{ paddingHorizontal:10, paddingVertical:3, borderRadius:10, backgroundColor: selectedWeekChild===m.id?'#5C6BC0':'#F0F0F0' }}>
+                    <Text style={{ fontSize:10, color: selectedWeekChild===m.id?'white':'#555', fontWeight:'600' }} numberOfLines={1}>{m.name}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
