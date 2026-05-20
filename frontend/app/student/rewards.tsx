@@ -175,7 +175,7 @@ export default function RewardsScreen() {
     outputRange: [1, 1.3, 1],
   });
 
-  if (loading || !rewardsData) {
+  if (loading || (!rewardsData && !(currentStudent as any)?.is_family_member)) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
