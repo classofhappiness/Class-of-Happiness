@@ -322,23 +322,19 @@ export default function ParentDashboard() {
   const handleMemberCheckin = (member: any) => {
     const rel = member.relationship || 'adult';
     if (rel === 'child') {
-      // ALL children go to student zone flow regardless of link status
-      const linkedStudent = linkedChildren.find((s: any) => s.name === member.name);
+      const linkedStudent = linkedChildren.find((s: any) => s.name === member.name || s.id === (member as any).student_id);
       if (linkedStudent) {
+        // Linked child — use student zone flow (same as school)
         setCurrentStudent(linkedStudent);
+        router.push({ pathname: '/student/zone', params: { fromFamily: 'true', memberName: member.name } });
       } else {
-        // Create a temporary student object so the zone screen shows correct name
-        setCurrentStudent({
-          id: member.id,
-          name: member.name,
-          avatar_type: member.avatar_type || 'preset',
-          avatar_preset: member.avatar_preset || 'bear',
-          avatar_custom: member.avatar_custom || null,
-          is_family_member: true,
-        } as any);
+        // Non-linked child — use parent checkin flow (no creature loading)
+        router.push({
+          pathname: '/parent/checkin',
+          params: { memberId: member.id, memberName: member.name, relationship: 'child' }
+        });
       }
-      // Always go to student zone select - same experience as school
-      router.push({ pathname: '/student/zone', params: { fromFamily: 'true', memberName: member.name } });
+      return;
     } else {
       // Adults get parent checkin (max 3 taps: dashboard → checkin → zone → done)
       router.push({
@@ -783,7 +779,7 @@ export default function ParentDashboard() {
                     )}
                     {isChild && (
                       <TouchableOpacity
-                        style={{ marginTop: 4, alignItems: 'center', width: '100%', borderWidth:1, borderColor:'#C5CAE9', borderRadius:8, paddingVertical:3, backgroundColor:'#F3F4FF' }}
+                        style={{ marginTop: 4, alignItems: 'center', width: '100%', borderWidth:1, borderColor:'#C5CAE9', borderRadius:8, paddingVertical:3, backgroundColor:'#F3F4FF', minHeight:28 }}
                         onPress={(e) => {
                           e.stopPropagation?.();
                           setCollectionMember(member);
@@ -806,7 +802,7 @@ export default function ParentDashboard() {
                 );
               })}
               {/* Linked children in same row */}
-              {linkedChildren.slice(0, Math.max(0, 4 - familyMembers.length)).map((child: any) => (
+              {linkedChildren.filter(lc => !familyMembers.some(fm => fm.name === lc.name || (fm as any).student_id === lc.id)).map((child: any) => (
                 <TouchableOpacity
                   key={`linked-${child.id}`}
                   style={[styles.gridCard, { borderColor: '#4CAF5060', borderWidth: 2, backgroundColor: '#F9FFF9' }]}
