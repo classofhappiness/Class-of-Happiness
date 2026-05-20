@@ -57,8 +57,11 @@ export default function RewardsScreen() {
   const addPointsAndFetchRewards = async () => {
     if (!currentStudent) return;
     
-    // Skip rewards for family members immediately — before any API calls
-    if ((currentStudent as any).is_family_member) {
+    // For family members, use their auto-created student_id if available
+    const effectiveStudentId = (currentStudent as any).student_id || currentStudent.id;
+    const isFamilyMember = (currentStudent as any).is_family_member;
+    if (isFamilyMember && !(currentStudent as any).student_id) {
+      // No student record yet — show simple celebration
       setLoading(false);
       return;
     }
@@ -68,31 +71,31 @@ export default function RewardsScreen() {
       const isLinkedStudent = true;
       
       // First get current stage to track evolution
-      const currentRewards = await rewardsApi.getStudentRewards(currentStudent.id);
+      const currentRewards = await rewardsApi.getStudentRewards(effectiveStudentId);
       setPreviousStage(currentRewards.current_stage);
 
       const strategiesCount = params.strategiesUsed ? parseInt(params.strategiesUsed) : 0;
       const hasComment = params.hasComment === 'true';
 
       // Always add points for checking in - WITH THE ZONE to feed correct creature!
-      let response: AddPointsResponse = await rewardsApi.addPoints(currentStudent.id, 'checkin', 1, zone);
+      let response: AddPointsResponse = await rewardsApi.addPoints(effectiveStudentId, 'checkin', 1, zone);
 
       // Add bonus points for strategies used - same zone
       if (strategiesCount > 0) {
-        response = await rewardsApi.addPoints(currentStudent.id, 'strategy', strategiesCount, zone);
+        response = await rewardsApi.addPoints(effectiveStudentId, 'strategy', strategiesCount, zone);
       }
 
       // Add bonus points for comment if present - same zone
       if (hasComment) {
-        response = await rewardsApi.addPoints(currentStudent.id, 'comment', 1, zone);
+        response = await rewardsApi.addPoints(effectiveStudentId, 'comment', 1, zone);
       }
 
       setRewardsData(response);
 
       // Fetch collection data
-      const collection = await rewardsApi.getCollection(currentStudent.id);
+      const collection = await rewardsApi.getCollection(effectiveStudentId);
       // Fetch shield badge
-      const shieldData = await getStudentShield(currentStudent.id);
+      const shieldData = await getStudentShield(effectiveStudentId);
       setShield(shieldData);
       setCollectionData(collection);
 

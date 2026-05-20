@@ -522,10 +522,22 @@ export default function ParentDashboard() {
               const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
               const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
               const token = await AsyncStorage.getItem('session_token');
-              const r = await fetch(`${BACKEND_URL}/api/family/zone-logs/${(selectedMember as FamilyMember).id}?days=${analyticsPeriod}`, {
+              const memberId = (selectedMember as any).id;
+              const studentId = (selectedMember as any).student_id;
+              // Fetch family zone logs
+              const r = await fetch(`${BACKEND_URL}/api/family/zone-logs/${memberId}?days=${analyticsPeriod}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
               });
-              return r.ok ? r.json() : [];
+              const familyLogs = r.ok ? await r.json() : [];
+              // Also fetch feeling_logs if member has student_id
+              if (studentId) {
+                const r2 = await fetch(`${BACKEND_URL}/api/logs/student/${studentId}?days=${analyticsPeriod}`, {
+                  headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const studentLogs = r2.ok ? await r2.json() : [];
+                return [...familyLogs, ...studentLogs];
+              }
+              return familyLogs;
             } catch { return []; }
           })(),
           (async () => {

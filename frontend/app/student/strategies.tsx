@@ -224,18 +224,20 @@ export default function StrategiesScreen() {
     playSuccessSound();
     setSaving(true);
     try {
-      if ((currentStudent as any).is_family_member) {
-        // Family member (non-linked) — save to family checkin endpoint
+      // Always save via family member endpoint — backend handles routing to feeling_logs
+      const studentId = (currentStudent as any).student_id || currentStudent.id;
+      const isFamilyMember = (currentStudent as any).is_family_member;
+      if (isFamilyMember) {
         const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
         const token = await AsyncStorage.getItem('session_token');
-        await fetch(`${BACKEND_URL}/api/family/members/${currentStudent.id}/checkin`, {
+        const familyId = (currentStudent as any).family_member_id || currentStudent.id;
+        await fetch(`${BACKEND_URL}/api/family/members/${familyId}/checkin`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ zone, helpers_selected: selectedStrategies, comment: comment.trim() || undefined }),
         });
       } else {
-        // Real student — save to feeling_logs
         await zoneLogsApi.create({
           student_id: currentStudent.id,
           zone: zone,
