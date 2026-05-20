@@ -224,13 +224,26 @@ export default function StrategiesScreen() {
     playSuccessSound();
     setSaving(true);
     try {
-      await zoneLogsApi.create({
-        student_id: currentStudent.id,
-        zone: zone,
-        strategies_selected: selectedStrategies,
-        comment: comment.trim() || undefined,
-        logged_by: checkInLocation === 'home' ? 'parent' : 'student',
-      });
+      if ((currentStudent as any).is_family_member) {
+        // Family member (non-linked) — save to family checkin endpoint
+        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const token = await AsyncStorage.getItem('session_token');
+        await fetch(`${BACKEND_URL}/api/family/members/${currentStudent.id}/checkin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ zone, helpers_selected: selectedStrategies, comment: comment.trim() || undefined }),
+        });
+      } else {
+        // Real student — save to feeling_logs
+        await zoneLogsApi.create({
+          student_id: currentStudent.id,
+          zone: zone,
+          strategies_selected: selectedStrategies,
+          comment: comment.trim() || undefined,
+          logged_by: checkInLocation === 'home' ? 'parent' : 'student',
+        });
+      }
       // Fire zone alert silently (teacher/parent notified if they enabled it)
       if (currentStudent?.id && zone) {
         sendZoneAlert({
@@ -256,7 +269,9 @@ export default function StrategiesScreen() {
     if (!currentStudent || !zone) return;
     playButtonFeedback();
     try {
-      await zoneLogsApi.create({ student_id: currentStudent.id, zone, strategies_selected: [] });
+      if (!(currentStudent as any).is_family_member) {
+        await zoneLogsApi.create({ student_id: currentStudent.id, zone, strategies_selected: [] });
+      }
     } catch (e) {}
     router.replace({ pathname: '/student/rewards', params: { strategiesUsed: '0', hasComment: 'false', zone, fromFamily: fromFamily || '' } });
   };

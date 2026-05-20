@@ -324,16 +324,23 @@ export default function ParentDashboard() {
     if (rel === 'child') {
       const linkedStudent = linkedChildren.find((s: any) => s.name === member.name || s.id === (member as any).student_id);
       if (linkedStudent) {
-        // Linked child — use student zone flow (same as school)
+        // Linked child — use student zone with school account
         setCurrentStudent(linkedStudent);
-        router.push({ pathname: '/student/zone', params: { fromFamily: 'true', memberName: member.name } });
       } else {
-        // Non-linked child — use parent checkin flow (no creature loading)
-        router.push({
-          pathname: '/parent/checkin',
-          params: { memberId: member.id, memberName: member.name, relationship: 'child' }
-        });
+        // Non-linked child — use family member as student object
+        // Full student experience: zone, helpers, creatures, points
+        setCurrentStudent({
+          id: member.id,
+          name: member.name,
+          avatar_type: member.avatar_type || 'preset',
+          avatar_preset: member.avatar_preset || 'bear',
+          avatar_custom: member.avatar_custom || null,
+          is_family_member: true,
+          family_member_id: member.id,
+        } as any);
       }
+      // All children get full student zone experience
+      router.push({ pathname: '/student/zone', params: { fromFamily: 'true', memberName: member.name, memberId: member.id } });
       return;
     } else {
       // Adults get parent checkin (max 3 taps: dashboard → checkin → zone → done)
