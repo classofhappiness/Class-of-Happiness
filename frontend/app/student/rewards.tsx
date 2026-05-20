@@ -45,9 +45,12 @@ export default function RewardsScreen() {
   const bounceAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    preloadSounds(); // Preload sounds
+    preloadSounds();
     if (currentStudent) {
       addPointsAndFetchRewards();
+    } else if (params.fromFamily === 'true') {
+      // Family member checkin with no student — just show celebration
+      setLoading(false);
     }
   }, [currentStudent]);
 
