@@ -704,7 +704,7 @@ export default function ParentDashboard() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={styles.familyGrid}>
               {familyMembers.slice(0, 4).map((member) => {
                 const creature = memberCreatures[member.id];
-                const creatureEmoji = creature?.emoji || '🥚';
+                const creatureEmoji = childCreatures[member.id]?.emoji || creature?.emoji || '🥚';
                 const isChild = member.relationship === 'child';
                 const cardColor = getRelationshipColor(member.relationship);
                 const isLinked = !!(member as any).student_id;
@@ -760,6 +760,15 @@ export default function ParentDashboard() {
                       >
                         <MaterialIcons name="spa" size={12} color="#5C6BC0" />
                         <Text style={styles.wellbeingBtnTxt}>Wellbeing</Text>
+                      </TouchableOpacity>
+                    )}
+                    {isLinked && (
+                      <TouchableOpacity
+                        style={[styles.wellbeingBtn, { backgroundColor:'#E8F5E9', borderColor:'#4CAF50', marginTop:2 }]}
+                        onPress={(e) => { e.stopPropagation?.(); router.push(`/parent/linked-child/${(member as any).student_id}`); }}
+                      >
+                        <MaterialIcons name="school" size={10} color="#4CAF50" />
+                        <Text style={[styles.wellbeingBtnTxt, { color:'#4CAF50' }]}>Stats</Text>
                       </TouchableOpacity>
                     )}
                     {isChild && (

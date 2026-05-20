@@ -319,7 +319,7 @@ export default function FamilyCheckInScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { marginTop: 8 }]}>
           <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
             <MaterialIcons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
@@ -409,7 +409,7 @@ export default function FamilyCheckInScreen() {
                       color={selectedStrategies.includes(strategy.id) ? zoneConfig?.color : '#666'}
                     />
                     <Text style={styles.strategyName}>{strategy.name}</Text>
-                    {strategy.description ? (
+                    {false && strategy.description ? (
                       <Text style={styles.strategyDesc}>{strategy.description}</Text>
                     ) : null}
                     {selectedStrategies.includes(strategy.id) && (
