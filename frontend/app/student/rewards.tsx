@@ -190,7 +190,7 @@ export default function RewardsScreen() {
   }
 
   // Family member simple celebration (no rewards data)
-  if (!rewardsData && (currentStudent as any)?.is_family_member) {
+  if (!rewardsData && ((currentStudent as any)?.is_family_member || (currentStudent as any)?.family_member_id)) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={{ flex:1, alignItems:'center', justifyContent:'center', padding:32 }}>
@@ -230,8 +230,8 @@ export default function RewardsScreen() {
         <View style={styles.headerSpacer} />
         <Text style={styles.headerTitle}>🎉 {t('great_job_title')}</Text>
         <Text style={styles.headerSubtitle}>
-          {rewardsData && rewardsData.streak_days > 1 
-            ? `🔥 ${rewardsData.streak_days} ${t('day_streak')}` 
+          {rewardsData?.streak_days && rewardsData?.streak_days > 1 
+            ? `🔥 ${rewardsData?.streak_days} ${t('day_streak')}` 
             : t('keep_it_up') || 'Keep it up!'}
         </Text>
       </View>
@@ -239,10 +239,10 @@ export default function RewardsScreen() {
       {/* Creature Display */}
       <Animated.View style={[styles.creatureSection, { transform: [{ translateY: bounceAnim }] }]}>
         <CreatureDisplay
-          creature={rewardsData.current_creature}
-          stage={rewardsData.current_stage}
-          currentPoints={rewardsData.current_points}
-          pointsForNext={rewardsData.points_for_next_evolution}
+          creature={rewardsData?.current_creature}
+          stage={rewardsData?.current_stage}
+          currentPoints={rewardsData?.current_points}
+          pointsForNext={rewardsData?.points_for_next_evolution}
           size="large"
           showProgress={true}
           animated={true}
@@ -250,22 +250,22 @@ export default function RewardsScreen() {
       </Animated.View>
 
       {/* Points Earned */}
-      {rewardsData.points_added > 0 && (
+      {rewardsData?.points_added > 0 && (
         <Animated.View style={[styles.pointsSection, { transform: [{ scale: celebrateScale }] }]}>
-          <Text style={styles.pointsEarned}>+{rewardsData.points_added} {t('points')}!</Text>
-          {rewardsData.streak_bonus > 0 && (
+          <Text style={styles.pointsEarned}>+{rewardsData?.points_added} {t('points')}!</Text>
+          {rewardsData?.streak_bonus > 0 && (
             <Text style={styles.streakBonus}>
-              (+{rewardsData.streak_bonus} {t('streak_bonus')} 🔥)
+              (+{rewardsData?.streak_bonus} {t('streak_bonus')} 🔥)
             </Text>
           )}
         </Animated.View>
       )}
 
       {/* Evolution Progress Hint */}
-      {rewardsData.points_for_next_evolution && (
+      {rewardsData?.points_for_next_evolution && (
         <View style={styles.progressHint}>
           <Text style={styles.progressHintText}>
-            {rewardsData.points_for_next_evolution - rewardsData.current_points} {t('more_points_until')} {rewardsData.current_creature.name} {t('evolves')}
+            {rewardsData?.points_for_next_evolution - rewardsData?.current_points} {t('more_points_until')} {rewardsData?.current_creature.name} {t('evolves')}
           </Text>
         </View>
       )}
@@ -319,7 +319,7 @@ export default function RewardsScreen() {
 
         {/* Continue Button */}
         <TouchableOpacity 
-          style={[styles.continueButton, { backgroundColor: rewardsData.current_creature.color }]}
+          style={[styles.continueButton, { backgroundColor: rewardsData?.current_creature.color }]}
           onPress={handleContinue}
         >
           <Text style={styles.continueText}>{t('continue')}</Text>
@@ -328,12 +328,12 @@ export default function RewardsScreen() {
       </View>
 
       {/* Evolution Animation Modal */}
-      {showEvolution && rewardsData.evolution_info && (
+      {showEvolution && rewardsData?.evolution_info && (
         <EvolutionAnimation
           visible={showEvolution}
-          creature={rewardsData.current_creature}
+          creature={rewardsData?.current_creature}
           fromStage={previousStage}
-          toStage={rewardsData.current_stage}
+          toStage={rewardsData?.current_stage}
           onComplete={() => setShowEvolution(false)}
         />
       )}
@@ -343,9 +343,9 @@ export default function RewardsScreen() {
         <CreatureCollection
           visible={showCollection}
           collectedCreatures={collectionData.collected_creatures || []}
-          currentCreature={rewardsData.current_creature}
-          currentStage={rewardsData.current_stage}
-          currentPoints={rewardsData.current_points}
+          currentCreature={rewardsData?.current_creature}
+          currentStage={rewardsData?.current_stage}
+          currentPoints={rewardsData?.current_points}
           totalCreatures={collectionData.total_creatures}
           unlockedMoves={collectionData.unlocked_moves || []}
           unlockedOutfits={collectionData.unlocked_outfits || []}
