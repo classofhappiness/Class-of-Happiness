@@ -186,6 +186,31 @@ export default function RewardsScreen() {
     );
   }
 
+  // Family member simple celebration (no rewards data)
+  if (!rewardsData && (currentStudent as any)?.is_family_member) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={{ flex:1, alignItems:'center', justifyContent:'center', padding:32 }}>
+          <Text style={{ fontSize:80, marginBottom:16 }}>🎉</Text>
+          <Text style={{ fontSize:24, fontWeight:'800', color:'#333', textAlign:'center', marginBottom:8 }}>
+            {t('great_job_title') || 'Great job!'}
+          </Text>
+          <Text style={{ fontSize:15, color:'#888', textAlign:'center', marginBottom:40 }}>
+            {currentStudent?.name}
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor:'#5C6BC0', borderRadius:16, padding:18, width:'100%', alignItems:'center' }}
+            onPress={() => router.replace('/parent/dashboard')}
+          >
+            <Text style={{ color:'white', fontSize:16, fontWeight:'700' }}>
+              {t('done') || 'Done'} ✓
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
@@ -202,9 +227,9 @@ export default function RewardsScreen() {
         <View style={styles.headerSpacer} />
         <Text style={styles.headerTitle}>🎉 {t('great_job_title')}</Text>
         <Text style={styles.headerSubtitle}>
-          {rewardsData.streak_days > 1 
+          {rewardsData && rewardsData.streak_days > 1 
             ? `🔥 ${rewardsData.streak_days} ${t('day_streak')}` 
-            : t('keep_it_up')}
+            : t('keep_it_up') || 'Keep it up!'}
         </Text>
       </View>
 
