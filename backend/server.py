@@ -2833,53 +2833,38 @@ async def add_family_member(member: FamilyMemberCreate, request: Request):
     }
     result = supabase.table("family_members").insert(new_member).execute()
     
-    # Auto-create a student record for family children so they get full creature/points experience
+    # Auto-create student record for family children (gives full creature/points experience)
     if new_member.get("relationship") == "child":
         try:
             family_member_id = result.data[0]["id"] if result.data else new_member["id"]
-            # Check if student already exists for this family member
-            existing = supabase.table("students").select("id").eq("family_member_id", family_member_id).execute()
-            if not existing.data:
-                student_record = {
-                    "id": str(uuid.uuid4()),
-                    "name": new_member["name"],
-                    "avatar_type": new_member.get("avatar_type", "preset"),
-                    "avatar_preset": new_member.get("avatar_preset", "bear"),
-                    "avatar_custom": new_member.get("avatar_custom"),
-                    "family_member_id": family_member_id,
-                    "user_id": user["user_id"],
-                    "is_family_student": True,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+            # Only use columns that exist in students table
+            student_record = {
+                "id": str(uuid.uuid4()),
+                "name": new_member["name"],
+                "avatar_type": new_member.get("avatar_type", "preset"),
+                "avatar_preset": new_member.get("avatar_preset", "bear"),
+                "avatar_custom": new_member.get("avatar_custom"),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            student_result = supabase.table("students").insert(student_record).execute()
+            if student_result.data:
+                new_student_id = student_result.data[0]["id"]
+                # Link the student back to the family member
+                supabase.table("family_members").update({"student_id": new_student_id}).eq("id", family_member_id).execute()
+                # Also init rewards so creature system works immediately
+                default_rewards = {
+                    "student_id": new_student_id,
+                    "total_points_earned": 0,
+                    "streak_days": 0,
+                    "last_checkin_date": None,
+                    "creature_points": {"aqua_buddy": 0, "leaf_friend": 0, "spark_pal": 0, "blaze_heart": 0},
+                    "creature_stages": {"aqua_buddy": 0, "leaf_friend": 0, "spark_pal": 0, "blaze_heart": 0},
+                    "collected_creatures": [],
+                    "current_creature_id": "aqua_buddy",
+                    "current_stage": 0,
+                    "current_points": 0,
                 }
-                student_result = supabase.table("students").insert(student_record).execute()
-                if student_result.data:
-                    # Link student to family member
-                    supabase.table("family_members").update({"student_id": student_result.data[0]["id"]}).eq("id", family_member_id).execute()
-        except Exception as e:
-            logger.warning(f"Could not auto-create student for family child: {e}")
-    
-    # Auto-create a student record for family children so they get full creature/points experience
-    if new_member.get("relationship") == "child":
-        try:
-            family_member_id = result.data[0]["id"] if result.data else new_member["id"]
-            # Check if student already exists for this family member
-            existing = supabase.table("students").select("id").eq("family_member_id", family_member_id).execute()
-            if not existing.data:
-                student_record = {
-                    "id": str(uuid.uuid4()),
-                    "name": new_member["name"],
-                    "avatar_type": new_member.get("avatar_type", "preset"),
-                    "avatar_preset": new_member.get("avatar_preset", "bear"),
-                    "avatar_custom": new_member.get("avatar_custom"),
-                    "family_member_id": family_member_id,
-                    "user_id": user["user_id"],
-                    "is_family_student": True,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                }
-                student_result = supabase.table("students").insert(student_record).execute()
-                if student_result.data:
-                    # Link student to family member
-                    supabase.table("family_members").update({"student_id": student_result.data[0]["id"]}).eq("id", family_member_id).execute()
+                supabase.table("student_rewards").insert(default_rewards).execute()
         except Exception as e:
             logger.warning(f"Could not auto-create student for family child: {e}")
     return result.data[0] if result.data else new_member
