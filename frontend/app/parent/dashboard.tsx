@@ -294,7 +294,9 @@ export default function ParentDashboard() {
     const matchIds = new Set([selectedWeekChild, fm?.student_id].filter(Boolean));
     return recentLogs.filter((log) =>
       matchIds.has((log as any).member_id) ||
-      matchIds.has((log as any).student_id)
+      matchIds.has((log as any).student_id) ||
+      matchIds.has((log as any).linked_id) ||
+      matchIds.has((log as any).linked_id)
     );
   };
 
@@ -564,22 +566,21 @@ export default function ParentDashboard() {
         } catch {}
       }
 
-      // Fetch logs for school-linked children not already in family members
+      // Fetch logs for ALL school-linked children
       for (const linked of linkedKids) {
-        const alreadyCovered = children.some((c: any) => c.name === linked.name || c.student_id === linked.id);
-        if (!alreadyCovered) {
-          try {
-            const r = await fetch(`${BACKEND_URL}/api/parent/linked-child/${linked.id}/all-checkins?days=${analyticsPeriod}`, { headers });
-            const logs = r.ok ? await r.json() : [];
-            const tagged = Array.isArray(logs) ? logs.map((l: any) => ({
-              ...l,
-              zone: l.zone || l.feeling_colour,
-              member_name: linked.name,
-              student_id: linked.id,
-            })) : [];
-            allLogs.push(...tagged);
-          } catch {}
-        }
+        try {
+          const r = await fetch(`${BACKEND_URL}/api/parent/linked-child/${linked.id}/all-checkins?days=${analyticsPeriod}`, { headers });
+          const logs = r.ok ? await r.json() : [];
+          const tagged = Array.isArray(logs) ? logs.map((l: any) => ({
+            ...l,
+            zone: l.zone || l.feeling_colour,
+            member_name: linked.name,
+            linked_id: linked.id,
+            student_id: linked.id,
+          })) : [];
+          const existingIds2 = new Set(allLogs.map((l: any) => l.id));
+          allLogs.push(...tagged.filter((l: any) => !existingIds2.has(l.id)));
+        } catch {}
       }
 
       // Sort by timestamp desc
@@ -1023,58 +1024,50 @@ export default function ParentDashboard() {
           </View>
         </View>
 
-        {/* Selected Member Analytics */}
-        {selectedMember && (
-          <>
-            <View style={styles.section}>
-              <TouchableOpacity
-                style={styles.collapsibleHeader}
-                onPress={() => setWeekExpanded(e => !e)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.sectionTitle}>{t('week_overview') || 'Week Overview'}</Text>
-                <MaterialIcons name={weekExpanded ? 'expand-less' : 'expand-more'} size={22} color="#5C6BC0" />
+        {/* Children Analytics */}
+        <>
+          {/* Child + period filters — always visible */}
+          <View style={{ paddingHorizontal:16, paddingBottom:8, gap:8 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ flexDirection:'row', gap:6 }}>
+              <TouchableOpacity onPress={() => setSelectedWeekChild(null)}
+                style={{ paddingHorizontal:12, paddingVertical:5, borderRadius:16,
+                  backgroundColor: selectedWeekChild===null?'#5C6BC0':'#F0F0F0',
+                  borderWidth:1, borderColor: selectedWeekChild===null?'#5C6BC0':'#E0E0E0' }}>
+                <Text style={{ fontSize:11, fontWeight:'700', color: selectedWeekChild===null?'white':'#666' }}>All</Text>
               </TouchableOpacity>
-              {weekExpanded && (
-              <View style={{ flexDirection:'row', gap:6, marginBottom:8, flexWrap:'wrap' }}>
-                <TouchableOpacity onPress={() => setSelectedWeekChild(null)} style={{ paddingHorizontal:10, paddingVertical:3, borderRadius:10, backgroundColor: selectedWeekChild===null?'#5C6BC0':'#F0F0F0' }}>
-                  <Text style={{ fontSize:10, color: selectedWeekChild===null?'white':'#555', fontWeight:'600' }}>All</Text>
+              {(() => {
+                const kids: {id:string,name:string}[] = [];
+                (familyMembers as any[]).filter((m:any)=>m.relationship==='child').forEach((m:any)=>kids.push({id:m.id,name:m.name}));
+                linkedChildren.forEach((lc:any)=>{ if(!kids.some(c=>c.name===lc.name)) kids.push({id:lc.id,name:lc.name}); });
+                return kids.map(k=>(
+                  <TouchableOpacity key={k.id} onPress={()=>setSelectedWeekChild(selectedWeekChild===k.id?null:k.id)}
+                    style={{ paddingHorizontal:12, paddingVertical:5, borderRadius:16,
+                      backgroundColor: selectedWeekChild===k.id?'#5C6BC0':'#F0F0F0',
+                      borderWidth:1, borderColor: selectedWeekChild===k.id?'#5C6BC0':'#E0E0E0' }}>
+                    <Text style={{ fontSize:11, fontWeight:'700', color: selectedWeekChild===k.id?'white':'#666' }}>{k.name}</Text>
+                  </TouchableOpacity>
+                ));
+              })()}
+            </ScrollView>
+            <View style={{ flexDirection:'row', gap:6 }}>
+              {([1,7,14,30] as const).map(p=>(
+                <TouchableOpacity key={p} onPress={()=>setAnalyticsPeriod(p)}
+                  style={{ flex:1, paddingVertical:6, borderRadius:8, alignItems:'center',
+                    backgroundColor: analyticsPeriod===p?'#5C6BC0':'#F0F0F0' }}>
+                  <Text style={{ fontSize:11, fontWeight:'700', color: analyticsPeriod===p?'white':'#888' }}>
+                    {p===1?'Today':p===7?'Week':p===14?'Fortnight':'Month'}
+                  </Text>
                 </TouchableOpacity>
-                {(() => {
-                  // Build unified child list with filter ID matching log tags
-                  const allChildren: {id: string, name: string, filterIds: string[]}[] = [];
-                  familyMembers.filter((m:any) => m.relationship === 'child').forEach((m:any) => {
-                    allChildren.push({ id: m.id, name: m.name, filterIds: [m.id, m.student_id].filter(Boolean) });
-                  });
-                  linkedChildren.forEach((lc:any) => {
-                    if (!allChildren.some(c => c.name === lc.name)) {
-                      allChildren.push({ id: lc.id, name: lc.name, filterIds: [lc.id] });
-                    }
-                  });
-                  return allChildren.map((child) => (
-                    <TouchableOpacity key={child.id}
-                      onPress={() => setSelectedWeekChild(selectedWeekChild === child.id ? null : child.id)}
-                      style={{ paddingHorizontal:10, paddingVertical:3, borderRadius:10, backgroundColor: selectedWeekChild===child.id?'#5C6BC0':'#F0F0F0' }}>
-                      <Text style={{ fontSize:10, color: selectedWeekChild===child.id?'white':'#555', fontWeight:'600' }} numberOfLines={1}>{child.name}</Text>
-                    </TouchableOpacity>
-                  ));
-                })()}
-              </View>
-              )}
-              {weekExpanded && (
-                <View style={{ flexDirection:'row', gap:6, marginBottom:10, marginTop:4 }}>
-                  {([1,7,14,30] as const).map(p => (
-                    <TouchableOpacity key={p} onPress={() => setAnalyticsPeriod(p)}
-                      style={{ flex:1, paddingVertical:5, borderRadius:8, alignItems:'center',
-                        backgroundColor: analyticsPeriod===p ? '#5C6BC0' : '#F0F0F0' }}>
-                      <Text style={{ fontSize:11, fontWeight:'700',
-                        color: analyticsPeriod===p ? 'white' : '#888' }}>
-                        {p===1?(t('today')||'Today'):p===7?(t('week')||'Week'):p===14?(t('fortnight')||'Fortnight'):(t('month')||'Month')}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
+              ))}
+            </View>
+          </View>
+          <View style={styles.section}>
+            <TouchableOpacity style={styles.collapsibleHeader} onPress={()=>setWeekExpanded(e=>!e)} activeOpacity={0.7}>
+              <Text style={styles.sectionTitle}>{t('week_overview')||'Week Overview'}</Text>
+              <MaterialIcons name={weekExpanded?'expand-less':'expand-more'} size={22} color="#5C6BC0" />
+              </TouchableOpacity>
+
 
               {weekExpanded && totalLogs > 0 ? (
                 <View style={styles.chartContainer}>
@@ -1206,7 +1199,6 @@ export default function ParentDashboard() {
             )}
             </View>
           </>
-        )}
       </ScrollView>
 
       {/* Creature Collection Modal */}
