@@ -295,7 +295,6 @@ export default function ParentDashboard() {
     return recentLogs.filter((log) =>
       matchIds.has((log as any).member_id) ||
       matchIds.has((log as any).student_id) ||
-      matchIds.has((log as any).linked_id) ||
       matchIds.has((log as any).linked_id)
     );
   };
@@ -1073,38 +1072,39 @@ export default function ParentDashboard() {
               </TouchableOpacity>
 
 
-              {weekExpanded && totalLogs > 0 ? (
-                <View style={styles.chartContainer}>
-                  <BarChart
-                    data={[
-                      { value: recentLogs.filter((l:any)=>{ const diff=(Date.now()-new Date(l.timestamp).getTime())/(86400000); return diff<=analyticsPeriod&&(l.zone||l.feeling_colour)==='blue'; }).length, frontColor:'#4A90D9', label:'😊', labelTextStyle:{fontSize:16} },
-                      { value: recentLogs.filter((l:any)=>{ const diff=(Date.now()-new Date(l.timestamp).getTime())/(86400000); return diff<=analyticsPeriod&&(l.zone||l.feeling_colour)==='green'; }).length, frontColor:'#43A047', label:'😌', labelTextStyle:{fontSize:16} },
-                      { value: recentLogs.filter((l:any)=>{ const diff=(Date.now()-new Date(l.timestamp).getTime())/(86400000); return diff<=analyticsPeriod&&(l.zone||l.feeling_colour)==='yellow'; }).length, frontColor:'#F9A825', label:'😟', labelTextStyle:{fontSize:16} },
-                      { value: recentLogs.filter((l:any)=>{ const diff=(Date.now()-new Date(l.timestamp).getTime())/(86400000); return diff<=analyticsPeriod&&(l.zone||l.feeling_colour)==='red'; }).length, frontColor:'#E53935', label:'😡', labelTextStyle:{fontSize:16} },
-                    ]}
-                    barWidth={44}
-                    spacing={20}
-                    roundedTop
-                    xAxisThickness={1}
-                    xAxisColor={'#E0E0E0'}
-                    yAxisThickness={0}
-                    yAxisTextStyle={{color:'#999',fontSize:10}}
-                    noOfSections={4}
-                    isAnimated
-                    barBorderRadius={6}
-                    width={260}
-                    xAxisLabelTextStyle={{fontSize:16}}
-                  />
-                  <View style={styles.legendContainer}>
-                    {['blue','green','yellow','red'].map((zone) => (
-                      <View key={zone} style={styles.legendItem}>
-                        <View style={[styles.legendDot, { backgroundColor: ZONE_COLORS[zone] }]} />
-                        <Text style={styles.legendText}>{getZoneLabel(zone, t)}</Text>
-                      </View>
-                    ))}
+              {weekExpanded && (() => {
+                const filtered = getFilteredLogs().filter((l:any) => {
+                  const diff = (Date.now() - new Date((l as any).timestamp).getTime()) / 86400000;
+                  return diff <= analyticsPeriod;
+                });
+                const counts: Record<string,number> = { blue:0, green:0, yellow:0, red:0 };
+                filtered.forEach((l:any) => { const z = (l as any).zone || (l as any).feeling_colour; if (z in counts) counts[z]++; });
+                const total = Object.values(counts).reduce((a,b)=>a+b,0);
+                const ZONE_LABELS: Record<string,string> = { green:'Positive 😊', blue:'Calm 😢', yellow:'Anxious 😰', red:'Upset 😠' };
+                if (total === 0) return <Text style={{ color:'#999', fontSize:13, textAlign:'center', paddingVertical:16 }}>No check-ins for this period</Text>;
+                return (
+                  <View style={{ gap:10, marginTop:12 }}>
+                    {/* Summary pill */}
+                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, marginBottom:4 }}>
+                      <Text style={{ fontSize:22, fontWeight:'800', color:'#333' }}>{total}</Text>
+                      <Text style={{ fontSize:13, color:'#888' }}>check-ins total</Text>
+                    </View>
+                    {(['green','blue','yellow','red'] as const).map(zone => {
+                      const pct = total > 0 ? Math.round((counts[zone]/total)*100) : 0;
+                      return (
+                        <View key={zone} style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
+                          <Text style={{ fontSize:12, color:'#333', width:90 }}>{ZONE_LABELS[zone]}</Text>
+                          <View style={{ flex:1, height:12, backgroundColor:'#F0F0F0', borderRadius:6, overflow:'hidden' }}>
+                            <View style={{ width:`${pct}%` as any, height:12, borderRadius:6, backgroundColor:ZONE_COLORS[zone] }} />
+                          </View>
+                          <Text style={{ fontSize:12, fontWeight:'700', color:'#333', width:38, textAlign:'right' }}>{pct}%</Text>
+                          <Text style={{ fontSize:11, color:'#888', width:20 }}>({counts[zone]})</Text>
+                        </View>
+                      );
+                    })}
                   </View>
-                </View>
-              ) : null}
+                );
+              })()}
             </View>
 
             {/* Recent Activity */}
