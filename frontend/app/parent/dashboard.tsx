@@ -1038,7 +1038,11 @@ export default function ParentDashboard() {
               </TouchableOpacity>
               {(() => {
                 const kids: {id:string,name:string}[] = [];
-                (familyMembers as any[]).filter((m:any)=>m.relationship==='child').forEach((m:any)=>kids.push({id:m.id,name:m.name}));
+                (familyMembers as any[]).filter((m:any)=>m.relationship==='child').forEach((m:any)=>{
+                  // Use linked child ID if this family member is also school-linked
+                  const lc = linkedChildren.find((l:any)=>l.name===m.name);
+                  kids.push({id: lc ? lc.id : m.id, name:m.name});
+                });
                 linkedChildren.forEach((lc:any)=>{ if(!kids.some(c=>c.name===lc.name)) kids.push({id:lc.id,name:lc.name}); });
                 return kids.map(k=>(
                   <TouchableOpacity key={k.id} onPress={()=>setSelectedWeekChild(selectedWeekChild===k.id?null:k.id)}
