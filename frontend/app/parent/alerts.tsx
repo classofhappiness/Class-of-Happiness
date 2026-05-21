@@ -18,8 +18,8 @@ const ZONE_EMOJI: Record<string, string> = {
   blue: '🔵', green: '🟢', yellow: '🟡', red: '🔴',
 };
 const TYPE_LABELS: Record<string, string> = {
-  help_request:   'Help Request',
-  zone_alert:     'Check-in Alert',
+  help_request: 'Help Request',
+  zone_alert: 'Check-in Alert',
   parent_message: 'Message from Child',
 };
 
@@ -29,18 +29,15 @@ export default function ParentAlertsScreen() {
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { t } = useApp();
 
-  const [alerts,     setAlerts]     = useState<any[]>([]);
-  const [loading,    setLoading]    = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [token,      setToken]      = useState('');
-
-  // Filter state
-  const [selectedChild, setSelectedChild] = useState<string | null>(null); // null = All
-  const [selectedType,  setSelectedType]  = useState<string | null>(null); // null = All types
-
-  // Bulk select
+  const [alerts,        setAlerts]        = useState<any[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [refreshing,    setRefreshing]    = useState(false);
+  const [token,         setToken]         = useState('');
+  const [selectedChild, setSelectedChild] = useState<string | null>(null);
+  const [selectedType,  setSelectedType]  = useState<string | null>(null);
   const [selectMode,    setSelectMode]    = useState(false);
   const [selectedIds,   setSelectedIds]   = useState<Set<string>>(new Set());
+  const [showResolved,  setShowResolved]  = useState(false);
 
   const load = useCallback(async () => {
     const tok = await AsyncStorage.getItem('session_token') || '';
@@ -51,7 +48,6 @@ export default function ParentAlertsScreen() {
   }, []);
 
   useEffect(() => { load(); }, []);
-
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
   const handleResolve = async (alert_id: string) => {
@@ -64,11 +60,11 @@ export default function ParentAlertsScreen() {
     ]);
   };
 
-  const handleBulkResolve = async () => {
+  const handleBulkResolve = () => {
     if (selectedIds.size === 0) return;
     Alert.alert(
-      `Mark ${selectedIds.size} alert${selectedIds.size > 1 ? 's' : ''} as resolved?`,
-      'This cannot be undone.',
+      `Resolve ${selectedIds.size} alert${selectedIds.size > 1 ? 's' : ''}?`,
+      'Mark all selected as addressed.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Resolve All', onPress: async () => {
@@ -89,16 +85,15 @@ export default function ParentAlertsScreen() {
     });
   };
 
-  // Unique child names for filter pills
-  const childNames = [...new Set(alerts.map(a => a.student_name).filter(Boolean))];
+  const childNames = [...new Set(alerts.map((a: any) => a.student_name).filter(Boolean))] as string[];
 
-  const unresolved = alerts.filter(a => {
+  const unresolved = alerts.filter((a: any) => {
     if (a.resolved) return false;
     if (selectedChild && a.student_name !== selectedChild) return false;
-    if (selectedType && a.alert_type !== selectedType) return false;
+    if (selectedType  && a.alert_type  !== selectedType)  return false;
     return true;
   });
-  const resolved = alerts.filter(a => {
+  const resolved = alerts.filter((a: any) => {
     if (!a.resolved) return false;
     if (selectedChild && a.student_name !== selectedChild) return false;
     return true;
@@ -108,27 +103,25 @@ export default function ParentAlertsScreen() {
     <SafeAreaView style={st.container}>
       <TranslatedHeader title={t('alerts') || 'Alerts'} />
 
-      {/* Filter bar */}
       <View style={st.filterBar}>
-        {/* Child filter pills */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ gap: 6, paddingHorizontal: 16, paddingVertical: 8 }}>
           <TouchableOpacity
-            style={[st.pill, selectedChild === null && st.pillActive]}
-            onPress={() => setSelectedChild(null)}>
-            <Text style={[st.pillText, selectedChild === null && st.pillTextActive]}>All</Text>
+            style={[st.pill, !selectedChild && !selectedType && st.pillActive]}
+            onPress={() => { setSelectedChild(null); setSelectedType(null); }}>
+            <Text style={[st.pillText, !selectedChild && !selectedType && st.pillTextActive]}>All</Text>
           </TouchableOpacity>
-          {childNames.map(name => (
+          {childNames.map((name: string) => (
             <TouchableOpacity key={name}
               style={[st.pill, selectedChild === name && st.pillActive]}
               onPress={() => setSelectedChild(selectedChild === name ? null : name)}>
               <Text style={[st.pillText, selectedChild === name && st.pillTextActive]}>{name}</Text>
             </TouchableOpacity>
           ))}
-          {/* Type filters */}
+          <View style={st.pillDivider} />
           {Object.entries(TYPE_LABELS).map(([key, label]) => (
             <TouchableOpacity key={key}
-              style={[st.pill, selectedType === key && { ...st.pillActive, backgroundColor: '#5C6BC0' }]}
+              style={[st.pill, selectedType === key && st.pillTypeActive]}
               onPress={() => setSelectedType(selectedType === key ? null : key)}>
               <Text style={[st.pillText, selectedType === key && st.pillTextActive]}>{label}</Text>
             </TouchableOpacity>
@@ -136,27 +129,28 @@ export default function ParentAlertsScreen() {
         </ScrollView>
       </View>
 
-      {/* Bulk action bar */}
       {unresolved.length > 0 && (
         <View style={st.bulkBar}>
-          <TouchableOpacity style={st.bulkToggle} onPress={() => { setSelectMode(e => !e); setSelectedIds(new Set()); }}>
-            <MaterialIcons name={selectMode ? 'close' : 'checklist'} size={18} color="#5C6BC0" />
+          <TouchableOpacity style={st.bulkToggle}
+            onPress={() => { setSelectMode(e => !e); setSelectedIds(new Set()); }}>
+            <MaterialIcons name={selectMode ? 'close' : 'checklist'} size={16} color="#5C6BC0" />
             <Text style={st.bulkToggleTxt}>{selectMode ? 'Cancel' : 'Select'}</Text>
           </TouchableOpacity>
-          {selectMode && (
-            <>
-              <TouchableOpacity style={st.selectAllBtn}
-                onPress={() => setSelectedIds(new Set(unresolved.map((a: any) => a.id)))}>
-                <Text style={st.selectAllTxt}>Select All ({unresolved.length})</Text>
+          {selectMode && <>
+            <TouchableOpacity style={st.selectAllBtn}
+              onPress={() => setSelectedIds(new Set(unresolved.map((a: any) => a.id)))}>
+              <Text style={st.selectAllTxt}>All ({unresolved.length})</Text>
+            </TouchableOpacity>
+            {selectedIds.size > 0 && (
+              <TouchableOpacity style={st.bulkResolveBtn} onPress={handleBulkResolve}>
+                <MaterialIcons name="check-circle" size={14} color="#fff" />
+                <Text style={st.bulkResolveTxt}>Resolve {selectedIds.size}</Text>
               </TouchableOpacity>
-              {selectedIds.size > 0 && (
-                <TouchableOpacity style={st.bulkResolveBtn} onPress={handleBulkResolve}>
-                  <MaterialIcons name="check-circle" size={16} color="#fff" />
-                  <Text style={st.bulkResolveTxt}>Resolve {selectedIds.size}</Text>
-                </TouchableOpacity>
-              )}
-            </>
-          )}
+            )}
+          </>}
+          <Text style={{ marginLeft: 'auto' as any, fontSize: 11, color: '#999' }}>
+            {unresolved.length} pending
+          </Text>
         </View>
       )}
 
@@ -164,51 +158,40 @@ export default function ParentAlertsScreen() {
         contentContainerStyle={{ padding: 16 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {loading ? (
-          <Text style={st.empty}>Loading...</Text>
-        ) : unresolved.length === 0 ? (
-          <View style={st.emptyBox}>
-            <Text style={{ fontSize: 40 }}>✅</Text>
-            <Text style={st.empty}>{t('no_alerts') || 'No pending alerts'}</Text>
-          </View>
-        ) : null}
+        {loading ? <Text style={st.empty}>Loading...</Text>
+          : unresolved.length === 0 ? (
+            <View style={st.emptyBox}>
+              <Text style={{ fontSize: 40 }}>✅</Text>
+              <Text style={st.empty}>{t('no_alerts') || 'No pending alerts'}</Text>
+            </View>
+          ) : null}
 
         {unresolved.map((alert: any) => {
           const isSelected = selectedIds.has(alert.id);
           return (
-            <TouchableOpacity
-              key={alert.id}
-              activeOpacity={selectMode ? 0.7 : 1}
+            <TouchableOpacity key={alert.id} activeOpacity={selectMode ? 0.7 : 1}
               onPress={() => selectMode && toggleSelect(alert.id)}
-              style={[st.card,
-                { borderLeftColor: ZONE_COLORS[alert.zone] || '#5C6BC0' },
-                isSelected && st.cardSelected,
-              ]}>
-              {/* Select checkbox */}
-              {selectMode && (
-                <View style={st.checkbox}>
+              style={[st.card, { borderLeftColor: ZONE_COLORS[alert.zone] || '#5C6BC0' },
+                isSelected && st.cardSelected]}>
+              <View style={st.cardTop}>
+                {selectMode && (
                   <MaterialIcons
                     name={isSelected ? 'check-box' : 'check-box-outline-blank'}
-                    size={22} color={isSelected ? '#4CAF50' : '#CCC'} />
-                </View>
-              )}
-              <View style={st.cardTop}>
-                <Text style={st.zone}>
+                    size={20} color={isSelected ? '#4CAF50' : '#CCC'}
+                    style={{ marginRight: 8, flexShrink: 0 }} />
+                )}
+                <Text style={st.zone} numberOfLines={1}>
                   {ZONE_EMOJI[alert.zone] || '📙'} {alert.student_name || 'Child'}
                 </Text>
                 <Text style={st.type}>{TYPE_LABELS[alert.alert_type] || alert.alert_type}</Text>
               </View>
-              {alert.strategy_name && (
-                <Text style={st.strategy}>Strategy: {alert.strategy_name}</Text>
-              )}
-              {alert.message && (
-                <Text style={st.message}>"{alert.message}"</Text>
-              )}
+              {alert.strategy_name && <Text style={st.strategy}>Strategy: {alert.strategy_name}</Text>}
+              {alert.message && <Text style={st.message}>"{alert.message}"</Text>}
               <View style={st.cardBottom}>
                 <Text style={st.time}>{new Date(alert.created_at).toLocaleString()}</Text>
                 {!selectMode && (
                   <TouchableOpacity style={st.resolveBtn} onPress={() => handleResolve(alert.id)}>
-                    <MaterialIcons name="check" size={14} color="#4CAF50" />
+                    <MaterialIcons name="check" size={13} color="#4CAF50" />
                     <Text style={st.resolveTxt}>Resolve</Text>
                   </TouchableOpacity>
                 )}
@@ -219,13 +202,14 @@ export default function ParentAlertsScreen() {
 
         {resolved.length > 0 && (
           <>
-            <Text style={st.sectionLabel}>Resolved ({resolved.length})</Text>
-            {resolved.slice(0, 10).map((alert: any) => (
+            <TouchableOpacity style={st.resolvedHeader} onPress={() => setShowResolved(e => !e)}>
+              <Text style={st.sectionLabel}>Resolved ({resolved.length})</Text>
+              <MaterialIcons name={showResolved ? 'expand-less' : 'expand-more'} size={20} color="#999" />
+            </TouchableOpacity>
+            {showResolved && resolved.slice(0, 10).map((alert: any) => (
               <View key={alert.id} style={[st.card, st.cardResolved]}>
                 <View style={st.cardTop}>
-                  <Text style={[st.zone, { color: '#999' }]}>
-                    {ZONE_EMOJI[alert.zone] || '📙'} {alert.student_name}
-                  </Text>
+                  <Text style={[st.zone, { color: '#999' }]}>{ZONE_EMOJI[alert.zone] || '📙'} {alert.student_name}</Text>
                   <Text style={st.type}>{TYPE_LABELS[alert.alert_type] || alert.alert_type}</Text>
                 </View>
                 {alert.message && <Text style={[st.message, { color: '#AAA' }]}>"{alert.message}"</Text>}
@@ -234,7 +218,6 @@ export default function ParentAlertsScreen() {
             ))}
           </>
         )}
-
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
@@ -246,29 +229,31 @@ const st = StyleSheet.create({
   filterBar:      { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   pill:           { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: '#F0F0F0', borderWidth: 1, borderColor: '#E0E0E0' },
   pillActive:     { backgroundColor: '#4CAF50', borderColor: '#4CAF50' },
+  pillTypeActive: { backgroundColor: '#5C6BC0', borderColor: '#5C6BC0' },
   pillText:       { fontSize: 12, fontWeight: '600', color: '#666' },
   pillTextActive: { color: '#fff' },
+  pillDivider:    { width: 1, backgroundColor: '#E0E0E0', marginVertical: 4 },
   bulkBar:        { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  bulkToggle:     { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#EDE7F6' },
+  bulkToggle:     { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: '#EDE7F6' },
   bulkToggleTxt:  { fontSize: 12, fontWeight: '600', color: '#5C6BC0' },
-  selectAllBtn:   { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#F5F5F5' },
+  selectAllBtn:   { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: '#F5F5F5' },
   selectAllTxt:   { fontSize: 12, color: '#333', fontWeight: '500' },
-  bulkResolveBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: '#4CAF50', marginLeft: 'auto' as any },
+  bulkResolveBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, backgroundColor: '#4CAF50' },
   bulkResolveTxt: { fontSize: 12, fontWeight: '700', color: '#fff' },
   card:           { backgroundColor: 'white', borderRadius: 12, padding: 14, marginBottom: 10, borderLeftWidth: 4, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   cardSelected:   { backgroundColor: '#F1F8E9', borderLeftColor: '#4CAF50' },
   cardResolved:   { opacity: 0.5, borderLeftColor: '#CCC' },
-  cardTop:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  zone:           { fontSize: 15, fontWeight: '700', color: '#333' },
-  type:           { fontSize: 11, color: '#5C6BC0', fontWeight: '600', backgroundColor: '#E8EAF6', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  cardTop:        { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  zone:           { flex: 1, fontSize: 15, fontWeight: '700', color: '#333', marginRight: 8 },
+  type:           { fontSize: 11, color: '#5C6BC0', fontWeight: '600', backgroundColor: '#E8EAF6', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, flexShrink: 0 },
   strategy:       { fontSize: 13, color: '#555', marginBottom: 4 },
   message:        { fontSize: 13, color: '#333', fontStyle: 'italic', marginBottom: 6 },
   cardBottom:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
   time:           { fontSize: 11, color: '#999' },
   resolveBtn:     { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#E8F5E9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   resolveTxt:     { fontSize: 12, color: '#4CAF50', fontWeight: '600' },
-  sectionLabel:   { fontSize: 12, color: '#999', fontWeight: '600', marginTop: 16, marginBottom: 8, textTransform: 'uppercase' },
+  resolvedHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, marginTop: 8 },
+  sectionLabel:   { fontSize: 12, color: '#999', fontWeight: '600', textTransform: 'uppercase' },
   emptyBox:       { alignItems: 'center', paddingTop: 60, gap: 12 },
   empty:          { fontSize: 15, color: '#999', textAlign: 'center', marginTop: 8 },
-  checkbox:       { position: 'absolute', top: 12, right: 12, zIndex: 1 },
 });
