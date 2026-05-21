@@ -602,6 +602,7 @@ export default function ParentDashboard() {
   useEffect(() => {
     fetchData();
     loadParentAlerts();
+    fetchMemberData(); // Load children's data for graphs on mount
   }, []);
 
   // Reload alert count every time dashboard comes into focus (e.g. after resolving alerts)

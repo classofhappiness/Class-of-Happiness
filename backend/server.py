@@ -6271,8 +6271,14 @@ async def get_school_checkins(student_id: str, request: Request, days: int = 30)
         if not link.data:
             raise HTTPException(status_code=403, detail="Not linked to this student")
         start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-        result = supabase.table("feeling_logs").select("*").eq("student_id", student_id).eq("logged_by", "teacher").gte("timestamp", start_date).order("timestamp", desc=True).execute()
-        return {"checkins": result.data or [], "sharing_disabled": False}
+        # School check-ins = logged by teacher OR student (not parent)
+        result = supabase.table("feeling_logs").select("*").eq("student_id", student_id).not_.eq("logged_by", "parent").gte("timestamp", start_date).order("timestamp", desc=True).execute()
+        logs = result.data or []
+        return {"checkins": [{
+            **log,
+            "zone": log.get("feeling_colour", log.get("zone", "")),
+            "strategies_selected": log.get("helpers_selected", log.get("strategies_selected", [])),
+        } for log in logs], "sharing_disabled": False}
     except HTTPException:
         raise
     except Exception as e:
