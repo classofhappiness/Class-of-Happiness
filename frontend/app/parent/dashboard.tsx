@@ -613,10 +613,8 @@ export default function ParentDashboard() {
   );
 
   useEffect(() => {
-    if (selectedMember) {
-      fetchMemberData();
-    }
-  }, [selectedMember, selectedType, analyticsPeriod]);
+    fetchMemberData();
+  }, [analyticsPeriod]);
 
   const onRefresh = async () => { loadParentAlerts();
     setRefreshing(true);
@@ -1129,6 +1127,11 @@ export default function ParentDashboard() {
                             <View key={idx} style={styles.weeklyLogItem}>
                               <View style={[styles.weeklyZoneDot, { backgroundColor: ZONE_COLORS[log.zone] }]} />
                               <Text style={styles.weeklyTime}>{dayData.times[idx]}</Text>
+                              {(log as any).member_name && (
+                                <Text style={{ fontSize:8, color:'#999', fontWeight:'700' }}>
+                                  {((log as any).member_name || '').charAt(0).toUpperCase()}
+                                </Text>
+                              )}
                             </View>
                           ))
                         ) : (
