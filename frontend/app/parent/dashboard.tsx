@@ -1141,13 +1141,16 @@ export default function ParentDashboard() {
                       <View key={day} style={styles.weeklyDayCell}>
                         {dayData.logs.length > 0 ? (
                           dayData.logs.slice(0, 3).map((log, idx) => {
-                            const hour = new Date(log.timestamp).getHours();
+                            const ts = (log as any).timestamp || (log as any).created_at || '';
+                            const hour = ts ? new Date(ts).getHours() : 12;
                             const ampm = hour < 12 ? 'am' : 'pm';
-                            const initial = ((log as any).member_name || '').charAt(0).toUpperCase();
+                            const initial = ((log as any).member_name || (log as any).student_name || '').charAt(0).toUpperCase();
+                            const zone = (log as any).zone || (log as any).feeling_colour || 'green';
+                            const dotColor = ZONE_COLORS[zone] || '#4CAF50';
                             return (
                               <View key={idx} style={{ alignItems:'center', marginBottom:3 }}>
                                 <View style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
-                                  <View style={[styles.weeklyZoneDot, { backgroundColor: ZONE_COLORS[log.zone] }]} />
+                                  <View style={[styles.weeklyZoneDot, { backgroundColor: dotColor }]} />
                                   {initial ? <Text style={{ fontSize:7, color:'#888', fontWeight:'700' }}>{initial}</Text> : null}
                                 </View>
                                 <Text style={{ fontSize:7, color:'#AAA' }}>{ampm}</Text>
