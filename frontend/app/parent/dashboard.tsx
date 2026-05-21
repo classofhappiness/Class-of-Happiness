@@ -508,7 +508,7 @@ export default function ParentDashboard() {
     }
   };
 
-  const fetchMemberData = async () => {
+  const fetchMemberData = useCallback(async () => {
     // Fetch combined logs for ALL children (family + linked)
     // This powers the Week Overview and Recent Check-ins sections
     try {
@@ -592,7 +592,7 @@ export default function ParentDashboard() {
       setRecentLogs([]);
       setAnalytics({ zone_counts: { blue: 0, green: 0, yellow: 0, red: 0 } });
     }
-  };
+  }, [analyticsPeriod]);
 
   // Register for push notifications on mount
   useEffect(() => {
