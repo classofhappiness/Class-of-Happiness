@@ -1,58 +1,76 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import {
-  View,
-  Image,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  Alert,
-  ActivityIndicator,
-  RefreshControl,
-  Switch,
+  View, Image, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
+  Modal, Alert, ActivityIndicator, RefreshControl, Switch, Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { BarChart } from 'react-native-gifted-charts';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../../src/context/AppContext';
 import { linkedChildApi, LinkedChild, FamilyAssignedStrategy } from '../../../src/utils/api';
 
-const LINKED_ZONE_COLORS: Record<string, string> = {
+const { width } = Dimensions.get('window');
+
+const ZONE_COLORS: Record<string, string> = {
   blue: '#4A90D9', green: '#4CAF50', yellow: '#FFC107', red: '#F44336',
 };
-
-
 const ZONE_CONFIG: Record<string, { color: string; emoji: string; label: string }> = {
-  blue: { color: '#4A90D9', emoji: '😢', label: 'Blue Emotions' },
-  green: { color: '#4CAF50', emoji: '😊', label: 'Green Emotions' },
-  yellow: { color: '#FFC107', emoji: '😰', label: 'Yellow Emotions' },
-  red: { color: '#F44336', emoji: '😠', label: 'Red Emotions' },
+  blue:   { color: '#4A90D9', emoji: '\u{1F622}', label: 'Blue Emotions' },
+  green:  { color: '#4CAF50', emoji: '\u{1F60A}', label: 'Green Emotions' },
+  yellow: { color: '#FFC107', emoji: '\u{1F630}', label: 'Yellow Emotions' },
+  red:    { color: '#F44336', emoji: '\u{1F620}', label: 'Red Emotions' },
 };
-
 const STRATEGY_ICONS = [
-  { id: 'star', name: 'star', label: 'Star' },
-  { id: 'favorite', name: 'favorite', label: 'Heart' },
-  { id: 'self-improvement', name: 'self-improvement', label: 'Calm' },
-  { id: 'music-note', name: 'music-note', label: 'Music' },
-  { id: 'sports-soccer', name: 'sports-soccer', label: 'Sports' },
-  { id: 'pets', name: 'pets', label: 'Pet' },
-  { id: 'nature', name: 'nature', label: 'Nature' },
-  { id: 'book', name: 'book', label: 'Reading' },
+  { id: 'star', name: 'star' }, { id: 'favorite', name: 'favorite' },
+  { id: 'self-improvement', name: 'self-improvement' }, { id: 'music-note', name: 'music-note' },
+  { id: 'sports-soccer', name: 'sports-soccer' }, { id: 'pets', name: 'pets' },
+  { id: 'nature', name: 'nature' }, { id: 'book', name: 'book' },
 ];
 
-
-// Strategy name resolver - maps IDs to readable names
+// Full strategy name map — current backend IDs (blue_1 format) + legacy short IDs
 const STRATEGY_NAMES: Record<string, string> = {
-  b1: 'Gentle Stretch', b2: 'Favourite Song', b3: 'Tell Someone', b4: 'Slow Breathing',
-  g1: 'Keep Going!', g2: 'Help a Friend', g3: 'Set a Goal', g4: 'Gratitude',
-  y1: 'Bubble Breathing', y2: 'Count to 10', y3: '5 Senses', y4: 'Talk About It',
-  r1: 'Freeze', r2: 'Big Breaths', r3: 'Safe Space', r4: 'Ask for Help',
+  blue_1:'Gentle Stretch',   blue_2:'Warm Drink',         blue_3:'Favourite Song',
+  blue_4:'Cosy Spot',        blue_5:'Tell Someone',        blue_6:'Slow Breathing',
+  green_1:'Keep Going!',     green_2:'Help a Friend',      green_3:'Try Something New',
+  green_4:'Share Your Smile',green_5:'Set a Goal',         green_6:'Gratitude',
+  yellow_1:'Bubble Breathing',yellow_2:'Body Shake',       yellow_3:'Count to 10',
+  yellow_4:'5 Senses',       yellow_5:'Squeeze & Release', yellow_6:'Talk About It',
+  red_1:'Freeze',            red_2:'Big Breaths',          red_3:'Count Backwards',
+  red_4:'Safe Space',        red_5:'Ask for Help',         red_6:'Self Hug',
+  b1:'Gentle Stretch', b2:'Favourite Song', b3:'Tell Someone', b4:'Slow Breathing',
+  g1:'Keep Going!',    g2:'Help a Friend',  g3:'Set a Goal',   g4:'Gratitude',
+  y1:'Bubble Breathing',y2:'Count to 10',  y3:'5 Senses',     y4:'Talk About It',
+  r1:'Freeze',         r2:'Big Breaths',   r3:'Safe Space',   r4:'Ask for Help',
+  p_b1:'Side-by-Side Presence', p_b2:'Warm Drink Ritual',    p_b3:'Name It to Tame It',
+  p_b4:'Movement Invitation',   p_b5:'Comfort & Closeness',
+  p_g1:'Gratitude Round',       p_g2:'Strength Spotting',    p_g3:'Creative Together',
+  p_g4:'Family Dance',          p_g5:'Calm Problem Solving',
+  p_y1:'Box Breathing Together',p_y2:'Validate First',       p_y3:'Body Check-In',
+  p_y4:'Feelings Journal',      p_y5:'Give Space with Love',
+  p_r1:'Stay Calm Yourself',    p_r2:'Safe Space Together',  p_r3:'Cold Water Reset',
+  p_r4:'No Teaching Now',       p_r5:'Reconnect with Warmth',
 };
-const resolveStrategyName = (id: string) =>
-  STRATEGY_NAMES[id] || id.replace(/_/g, ' ').replace(/\w/g, c => c.toUpperCase());
+
+const resolveName = (id: string) =>
+  STRATEGY_NAMES[id] || id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+const buildZoneCounts = (checkins: any[]) => {
+  const c: Record<string, number> = { blue: 0, green: 0, yellow: 0, red: 0 };
+  checkins.forEach(ci => { const z = ci.zone || ci.feeling_colour; if (z in c) c[z]++; });
+  return c;
+};
+const buildStrategyCounts = (checkins: any[]) => {
+  const c: Record<string, number> = {};
+  checkins.forEach(ci =>
+    (ci.strategies_selected || []).forEach((s: string) => { c[s] = (c[s] || 0) + 1; })
+  );
+  return c;
+};
+
+type ChildType = 'school_linked' | 'family_member' | null;
 
 export default function LinkedChildDetailScreen() {
   const router = useRouter();
@@ -60,702 +78,698 @@ export default function LinkedChildDetailScreen() {
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useApp();
-  
-  const [child, setChild] = useState<LinkedChild | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  
-  // View tabs
-  const [activeZoneFilter, setActiveZoneFilter] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'combined' | 'home' | 'school'>('combined');
-  
-  // Check-ins data
-  const [allCheckIns, setAllCheckIns] = useState<any[]>([]);
-  const [homeCheckIns, setHomeCheckIns] = useState<any[]>([]);
+
+  const [child,          setChild]          = useState<any | null>(null);
+  const [childType,      setChildType]      = useState<ChildType>(null);
+  const [familyMemberId, setFamilyMemberId] = useState<string | null>(null);
+  const [loading,        setLoading]        = useState(true);
+  const [refreshing,     setRefreshing]     = useState(false);
+  const [allCheckIns,    setAllCheckIns]    = useState<any[]>([]);
+  const [homeCheckIns,   setHomeCheckIns]   = useState<any[]>([]);
   const [schoolCheckIns, setSchoolCheckIns] = useState<any[]>([]);
-  
-  // Strategies
-  const [schoolStrategies, setSchoolStrategies] = useState<any[]>([]);
-  const [familyStrategies, setFamilyStrategies] = useState<FamilyAssignedStrategy[]>([]);
-  
-  // Check-in modal
-  const [showCheckInModal, setShowCheckInModal] = useState(false);
-  const [selectedZone, setSelectedZone] = useState<string>('');
-  const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
-  const [comment, setComment] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  
-  // Add strategy modal
-  const [showAddStrategyModal, setShowAddStrategyModal] = useState(false);
-  const [newStrategy, setNewStrategy] = useState({
-    name: '',
-    description: '',
-    zone: 'green',
-    icon: 'star',
-    shareWithTeacher: false,
-  });
-  
-  // Permission state
+  const [schoolStrats,   setSchoolStrats]   = useState<any[]>([]);
+  const [familyStrats,   setFamilyStrats]   = useState<FamilyAssignedStrategy[]>([]);
   const [homeSharingEnabled, setHomeSharingEnabled] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<7 | 14 | 30>(7);
+
+  const [secEmoDistrib,     setSecEmoDistrib]     = useState(false);
+  const [secEmoCompare,     setSecEmoCompare]     = useState(false);
+  const [secMostUsed,       setSecMostUsed]       = useState(false);
+  const [secRecentCheckins, setSecRecentCheckins] = useState(false);
+  const [secCalendar,       setSecCalendar]       = useState(false);
+  const [secStrategies,     setSecStrategies]     = useState(false);
+
+  const [activeDistTab, setActiveDistTab] = useState<'combined' | 'home' | 'school'>('combined');
+  const [activeTab,     setActiveTab]     = useState<'combined' | 'home' | 'school'>('combined');
+  const [activeZone,    setActiveZone]    = useState<string | null>(null);
+
+  const [showCheckIn,  setShowCheckIn]  = useState(false);
+  const [selectedZone, setSelectedZone] = useState('');
+  const [comment,      setComment]      = useState('');
+  const [submitting,   setSubmitting]   = useState(false);
+  const [showAddStrat, setShowAddStrat] = useState(false);
+  const [newStrat, setNewStrat] = useState({
+    name: '', description: '', zone: 'green', icon: 'star', shareWithTeacher: false,
+  });
 
   const fetchData = useCallback(async () => {
     if (!id) return;
-    
+    const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+    const token = await AsyncStorage.getItem('session_token');
+    const headers = { 'Authorization': `Bearer ${token}` };
     try {
-      // Get linked children and find this one
-      const children = await linkedChildApi.getAll();
-      const foundChild = children.find(c => c.id === id);
-      if (foundChild) {
-        setChild(foundChild);
-        setHomeSharingEnabled(foundChild.home_sharing_enabled);
+      const linkedChildren = await linkedChildApi.getAll();
+      const linkedChild = linkedChildren.find((c: any) => c.id === id);
+      if (linkedChild) {
+        setChild(linkedChild);
+        setChildType('school_linked');
+        setHomeSharingEnabled(linkedChild.home_sharing_enabled);
+        const [allData, homeData, schoolData] = await Promise.all([
+          linkedChildApi.getAllCheckIns(id, selectedPeriod),
+          linkedChildApi.getHomeCheckIns(id, selectedPeriod),
+          linkedChildApi.getSchoolCheckIns(id, selectedPeriod),
+        ]);
+        setAllCheckIns(Array.isArray(allData) ? allData : []);
+        setHomeCheckIns(Array.isArray(homeData) ? homeData : []);
+        setSchoolCheckIns(Array.isArray(schoolData?.checkins) ? schoolData.checkins : []);
+        const [schoolStratData, familyStratData] = await Promise.all([
+          linkedChildApi.getSchoolStrategies(id),
+          linkedChildApi.getFamilyStrategies(id),
+        ]);
+        const genericRes = await Promise.all(['blue','green','yellow','red'].map(zone =>
+          fetch(`${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=en`).then(r => r.json()).catch(() => [])
+        ));
+        setSchoolStrats([...genericRes.flat(), ...(schoolStratData.custom_strategies || [])]);
+        setFamilyStrats(familyStratData || []);
+      } else {
+        const membersRes = await fetch(`${BACKEND_URL}/api/family/members`, { headers });
+        if (!membersRes.ok) { setLoading(false); setRefreshing(false); return; }
+        const members = await membersRes.json();
+        const fm = members.find((m: any) => m.student_id === id || m.id === id);
+        if (!fm) { setLoading(false); setRefreshing(false); return; }
+        const memberId = fm.id;
+        setFamilyMemberId(memberId);
+        setChildType('family_member');
+        setChild({ id, name: fm.name, avatar_type: fm.avatar_type, avatar_preset: fm.avatar_preset,
+          avatar_custom: fm.avatar_custom, home_sharing_enabled: true, is_linked_from_school: false });
+        const [checkinsRes, zoneLogsRes] = await Promise.all([
+          fetch(`${BACKEND_URL}/api/family/members/${memberId}/checkins?days=${selectedPeriod}`, { headers }),
+          fetch(`${BACKEND_URL}/api/family/zone-logs/${memberId}?days=${selectedPeriod}`, { headers }),
+        ]);
+        const checkinsData = checkinsRes.ok ? await checkinsRes.json() : [];
+        const zoneLogsData = zoneLogsRes.ok ? await zoneLogsRes.json() : [];
+        const combined = [...(Array.isArray(checkinsData) ? checkinsData : []),
+                          ...(Array.isArray(zoneLogsData) ? zoneLogsData : [])];
+        const seen = new Set();
+        const deduped = combined.filter((c: any) => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+        setAllCheckIns(deduped); setHomeCheckIns(deduped); setSchoolCheckIns([]);
+        const stratRes = await fetch(`${BACKEND_URL}/api/family/custom-strategies?member_id=${memberId}`, { headers });
+        const stratData = stratRes.ok ? await stratRes.json() : [];
+        setFamilyStrats(stratData.map((s: any) => ({
+          id: s.id, strategy_name: s.name || s.strategy_name,
+          strategy_description: s.description || s.strategy_description,
+          zone: s.zone, icon: s.icon, share_with_teacher: false,
+        })));
+        const genericRes2 = await Promise.all(['blue','green','yellow','red'].map(zone =>
+          fetch(`${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=en`).then(r => r.json()).catch(() => [])
+        ));
+        setSchoolStrats(genericRes2.flat());
       }
-      
-      // Get check-ins
-      const [allData, homeData, schoolData] = await Promise.all([
-        linkedChildApi.getAllCheckIns(id, 30),
-        linkedChildApi.getHomeCheckIns(id, 30),
-        linkedChildApi.getSchoolCheckIns(id, 30),
-      ]);
-      
-      setAllCheckIns(allData);
-      setHomeCheckIns(homeData);
-      setSchoolCheckIns(schoolData.checkins || []);
-      
-      // Get strategies
-      const [schoolStrats, familyStrats] = await Promise.all([
-        linkedChildApi.getSchoolStrategies(id),
-        linkedChildApi.getFamilyStrategies(id),
-      ]);
-      
-      // Include both custom AND generic helpers
-      const genericRes = await Promise.all(['blue','green','yellow','red'].map(zone =>
-        fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=en`)
-          .then(r => r.json()).catch(() => [])
-      ));
-      const generic = genericRes.flat();
-      setSchoolStrategies([...generic, ...(schoolStrats.custom_strategies || [])]);
-      setFamilyStrategies(familyStrats);
-      
-    } catch (error) {
-      console.error('Error fetching linked child data:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [id]);
+    } catch (err) { console.error('LinkedChild fetchData error:', err); }
+    finally { setLoading(false); setRefreshing(false); }
+  }, [id, selectedPeriod]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchData();
-  };
+  useEffect(() => { fetchData(); }, [fetchData]);
+  const onRefresh = () => { setRefreshing(true); fetchData(); };
 
   const handleCheckIn = async () => {
     if (!selectedZone || !id) return;
-    
     setSubmitting(true);
     try {
-      await linkedChildApi.createCheckIn(id, {
-        zone: selectedZone,
-        strategies_selected: selectedStrategies,
-        comment: comment.trim() || undefined,
-      });
-      
-      Alert.alert(t('success') || 'Success', t('checkin_saved') || 'Check-in saved!');
-      setShowCheckInModal(false);
-      setSelectedZone('');
-      setSelectedStrategies([]);
-      setComment('');
+      if (childType === 'school_linked') {
+        await linkedChildApi.createCheckIn(id, { zone: selectedZone, strategies_selected: [], comment: comment.trim() || undefined });
+      } else if (childType === 'family_member' && familyMemberId) {
+        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        const token = await AsyncStorage.getItem('session_token');
+        await fetch(`${BACKEND_URL}/api/family/members/${familyMemberId}/checkin`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ zone: selectedZone, strategies_selected: [], comment: comment.trim() || undefined }),
+        });
+      }
+      Alert.alert('Success', 'Check-in saved!');
+      setShowCheckIn(false); setSelectedZone(''); setComment('');
       fetchData();
-    } catch (error: any) {
-      Alert.alert(t('error') || 'Error', error.message || 'Failed to save check-in');
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (e: any) { Alert.alert('Error', e.message); }
+    finally { setSubmitting(false); }
   };
 
-  const handleAddStrategy = async () => {
-    if (!newStrategy.name.trim() || !id) return;
-    
+  const handleAddStrat = async () => {
+    if (!newStrat.name.trim() || !id) return;
     try {
-      await linkedChildApi.createFamilyStrategy(id, {
-        strategy_name: newStrategy.name,
-        strategy_description: newStrategy.description,
-        zone: newStrategy.zone,
-        icon: newStrategy.icon,
-        share_with_teacher: newStrategy.shareWithTeacher,
-      });
-      
-      Alert.alert(t('success') || 'Success', t('strategy_added') || 'Strategy added!');
-      setShowAddStrategyModal(false);
-      setNewStrategy({ name: '', description: '', zone: 'green', icon: 'star', shareWithTeacher: false });
+      if (childType === 'school_linked') {
+        await linkedChildApi.createFamilyStrategy(id, {
+          strategy_name: newStrat.name, strategy_description: newStrat.description,
+          zone: newStrat.zone, icon: newStrat.icon, share_with_teacher: newStrat.shareWithTeacher,
+        });
+      } else if (childType === 'family_member' && familyMemberId) {
+        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        const token = await AsyncStorage.getItem('session_token');
+        await fetch(`${BACKEND_URL}/api/family/custom-strategies`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: newStrat.name, description: newStrat.description,
+            zone: newStrat.zone, icon: newStrat.icon, member_id: familyMemberId }),
+        });
+      }
+      Alert.alert('Success', 'Strategy added!');
+      setShowAddStrat(false);
+      setNewStrat({ name: '', description: '', zone: 'green', icon: 'star', shareWithTeacher: false });
       fetchData();
-    } catch (error: any) {
-      Alert.alert(t('error') || 'Error', error.message || 'Failed to add strategy');
-    }
+    } catch (e: any) { Alert.alert('Error', e.message); }
   };
 
-  const handleToggleStrategySharing = async (strategyId: string) => {
-    if (!id) return;
-    
+  const handleToggleShare = async (stratId: string) => {
+    if (!id || childType !== 'school_linked') return;
     try {
-      const result = await linkedChildApi.toggleStrategySharing(id, strategyId);
-      Alert.alert(
-        t('success') || 'Success',
-        result.share_with_teacher 
-          ? (t('strategy_shared') || 'Strategy is now shared with teacher')
-          : (t('strategy_unshared') || 'Strategy is no longer shared with teacher')
-      );
+      const r = await linkedChildApi.toggleStrategySharing(id, stratId);
+      Alert.alert('Updated', r.share_with_teacher ? 'Now shared with teacher' : 'No longer shared');
       fetchData();
-    } catch (error: any) {
-      Alert.alert(t('error') || 'Error', error.message);
-    }
+    } catch (e: any) { Alert.alert('Error', e.message); }
   };
 
   const handleToggleHomeSharing = async () => {
-    if (!id) return;
-    
-    try {
-      const result = await linkedChildApi.toggleHomeSharing(id);
-      setHomeSharingEnabled(result.home_sharing_enabled);
-      Alert.alert(
-        t('success') || 'Success',
-        result.home_sharing_enabled
-          ? (t('home_sharing_enabled') || 'Teacher can now see home check-ins')
-          : (t('home_sharing_disabled') || 'Teacher can no longer see home check-ins')
-      );
-    } catch (error: any) {
-      Alert.alert(t('error') || 'Error', error.message);
-    }
+    if (!id || childType !== 'school_linked') return;
+    try { const r = await linkedChildApi.toggleHomeSharing(id); setHomeSharingEnabled(r.home_sharing_enabled); }
+    catch (e: any) { Alert.alert('Error', e.message); }
   };
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const getDistCheckins = () =>
+    activeDistTab === 'home' ? homeCheckIns : activeDistTab === 'school' ? schoolCheckIns : allCheckIns;
+  const getRecentCheckins = () => {
+    const base = activeTab === 'home' ? homeCheckIns : activeTab === 'school' ? schoolCheckIns : allCheckIns;
+    return activeZone ? base.filter((c: any) => (c.zone || c.feeling_colour) === activeZone) : base;
   };
 
-  const getCurrentCheckIns = () => {
-    const zoneFilter = (arr: any[]) => activeZoneFilter
-      ? arr.filter((c: any) => c.zone === activeZoneFilter || c.feeling_colour === activeZoneFilter)
-      : arr;
-    switch (activeTab) {
-      case 'home': return zoneFilter(homeCheckIns);
-      case 'school': return zoneFilter(schoolCheckIns);
-      default: return zoneFilter(allCheckIns);
-    }
-  };
+  const zoneCounts    = buildZoneCounts(allCheckIns);
+  const stratCounts   = buildStrategyCounts(allCheckIns);
+  const totalCheckins = allCheckIns.length;
+  const barData = (['blue','green','yellow','red'] as const).map(z => ({
+    value: zoneCounts[z] || 0, frontColor: ZONE_COLORS[z], label: z.charAt(0).toUpperCase() + z.slice(1),
+  }));
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
-          <Text style={styles.loadingText}>{t('loading') || 'Loading...'}</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  if (loading) return (
+    <SafeAreaView style={s.container}><View style={s.center}>
+      <ActivityIndicator size="large" color="#4CAF50" /><Text style={s.loadingText}>Loading...</Text>
+    </View></SafeAreaView>
+  );
+  if (!child) return (
+    <SafeAreaView style={s.container}><View style={s.center}>
+      <MaterialIcons name="error" size={48} color="#F44336" />
+      <Text style={s.errorText}>Child not found</Text>
+      <TouchableOpacity style={s.backBtn} onPress={() => router.back()}><Text style={s.backBtnText}>Go Back</Text></TouchableOpacity>
+    </View></SafeAreaView>
+  );
 
-  if (!child) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
-          <MaterialIcons name="error" size={48} color="#F44336" />
-          <Text style={styles.errorText}>{t('child_not_found') || 'Linked child not found'}</Text>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <Text style={styles.backBtnText}>{t('go_back') || 'Go Back'}</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const isFamilyChild = childType === 'family_member';
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={24} color="#333" />
-          </TouchableOpacity>
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            <Image source={require('../../../assets/images/logo_coh.png')} style={styles.headerLogo} resizeMode="contain" />
-            <Text style={styles.headerTitle}>{child.name}</Text>
-          </View>
-          <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={[styles.backButton, { marginLeft: 4 }]}>
-            <MaterialIcons name="home" size={22} color="#333" />
-          </TouchableOpacity>
+    <SafeAreaView style={s.container}>
+      <View style={s.header}>
+        <TouchableOpacity onPress={() => router.back()} style={s.headerBtn}>
+          <MaterialIcons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <View style={s.headerCenter}>
+          <Image source={require('../../../assets/images/logo_coh.png')} style={s.headerLogo} resizeMode="contain" />
+          <Text style={s.headerTitle}>{child.name}</Text>
+          {isFamilyChild && <View style={s.typeBadge}><Text style={s.typeBadgeText}>Family</Text></View>}
         </View>
+        <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={s.headerBtn}>
+          <MaterialIcons name="home" size={22} color="#333" />
+        </TouchableOpacity>
       </View>
 
-      <ScrollView
-        style={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {/* Child Info Card */}
-        <View style={styles.childCard}>
-          <View style={styles.childAvatar}>
-            <Text style={styles.childAvatarEmoji}>👧</Text>
+      <ScrollView style={s.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+
+        <View style={s.childCard}>
+          <View style={s.childAvatar}><Text style={{ fontSize: 28 }}>{'\u{1F467}'}</Text></View>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={s.childName}>{child.name}</Text>
+            <Text style={s.childSub}>{isFamilyChild ? 'Family Member' : (child.classroom_name || 'School Linked')}</Text>
           </View>
-          <View style={styles.childInfo}>
-            <Text style={styles.childName}>{child.name}</Text>
-            {child.classroom_name && (
-              <Text style={styles.childClassroom}>
-                <MaterialIcons name="class" size={14} color="#666" /> {child.classroom_name}
-              </Text>
-            )}
-          </View>
-          <TouchableOpacity
-            style={styles.checkInButton}
-            onPress={() => setShowCheckInModal(true)}
-          >
-            <MaterialIcons name="add-circle" size={24} color="#fff" />
-            <Text style={styles.checkInButtonText}>{t('check_in') || 'Check In'}</Text>
+          <TouchableOpacity style={s.checkInBtn} onPress={() => setShowCheckIn(true)}>
+            <MaterialIcons name="add-circle" size={20} color="#fff" />
+            <Text style={s.checkInBtnText}>Check In</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Sharing consent - single clean toggle */}
-        <View style={styles.permissionCard}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <View style={{ flex: 1, marginRight: 12 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <MaterialIcons
-                  name={homeSharingEnabled ? 'verified' : 'pause-circle-filled'}
-                  size={20}
-                  color={homeSharingEnabled ? '#4CAF50' : '#FF9800'}
-                />
-                <Text style={{ fontSize: 14, fontWeight: '700',
-                  color: homeSharingEnabled ? '#2E7D32' : '#E65100' }}>
-                  {homeSharingEnabled
-                    ? (t('mutual_consent') || '✅ Sharing Active')
-                    : (t('sharing_paused') || '⏸ Sharing Paused')}
+        {!isFamilyChild && (
+          <View style={s.card}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flex: 1, marginRight: 12 }}>
+                <Text style={[s.cardTitle, { color: homeSharingEnabled ? '#2E7D32' : '#E65100' }]}>
+                  {homeSharingEnabled ? '\u2705 Sharing Active' : '\u23F8 Sharing Paused'}
+                </Text>
+                <Text style={s.cardSub}>
+                  {homeSharingEnabled ? 'Teacher can see home check-ins' : 'Teacher cannot see home data'}
                 </Text>
               </View>
-              <Text style={{ fontSize: 12, color: '#666', lineHeight: 16 }}>
-                {homeSharingEnabled
-                  ? (t('teacher_can_see') || 'Teacher can see home check-ins')
-                  : (t('teacher_cannot_see') || 'Teacher cannot see home data')}
-              </Text>
+              <Switch value={homeSharingEnabled} onValueChange={handleToggleHomeSharing}
+                trackColor={{ false: '#FFE0B2', true: '#C8E6C9' }}
+                thumbColor={homeSharingEnabled ? '#4CAF50' : '#FF9800'} />
             </View>
-            <Switch
-              value={homeSharingEnabled}
-              onValueChange={handleToggleHomeSharing}
-              trackColor={{ false: '#FFE0B2', true: '#C8E6C9' }}
-              thumbColor={homeSharingEnabled ? '#4CAF50' : '#FF9800'}
-            />
-          </View>
-        </View>
-
-        {/* Check-ins Section */}
-        <Text style={styles.sectionTitle}>{t('check_ins') || 'Check-ins'}</Text>
-        {/* Zone filter */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}
-          contentContainerStyle={{ flexDirection: 'row', gap: 8, paddingHorizontal: 4 }}>
-          {[
-            { id: null, label: t('zone_all') || 'All', color: '#5C6BC0' },
-            { id: 'blue', label: t('zone_blue') || '😢 Blue', color: '#4A90D9' },
-            { id: 'green', label: t('zone_green') || '😊 Green', color: '#4CAF50' },
-            { id: 'yellow', label: t('zone_yellow') || '😟 Yellow', color: '#FFC107' },
-            { id: 'red', label: t('zone_red') || '😣 Red', color: '#F44336' },
-          ].map(z => (
-            <TouchableOpacity key={z.id || 'all'}
-              style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
-                backgroundColor: activeZoneFilter === z.id ? z.color : '#F0F0F0',
-                borderWidth: 1, borderColor: activeZoneFilter === z.id ? z.color : '#E0E0E0' }}
-              onPress={() => setActiveZoneFilter(z.id)}
-            >
-              <Text style={{ fontSize: 12, fontWeight: '600',
-                color: activeZoneFilter === z.id ? 'white' : '#666' }}>{z.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-        
-        {/* Tab Selector */}
-        <View style={styles.tabSelector}>
-          {['combined', 'home', 'school'].map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tab, activeTab === tab && styles.tabActive]}
-              onPress={() => setActiveTab(tab as any)}
-            >
-              <MaterialIcons
-                name={tab === 'combined' ? 'merge-type' : tab === 'home' ? 'home' : 'school'}
-                size={16}
-                color={activeTab === tab ? '#fff' : '#666'}
-              />
-              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-                {tab === 'combined' ? (t('all') || 'All') : tab === 'home' ? (t('home') || 'Home') : (t('school') || 'School')}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Check-ins List */}
-        <View style={styles.checkInsList}>
-          {getCurrentCheckIns().length === 0 ? (
-            <Text style={styles.emptyText}>{t('no_checkins') || 'No check-ins yet'}</Text>
-          ) : (
-            getCurrentCheckIns().slice(0, 10).map((checkIn, index) => (
-              <View key={checkIn.id || index} style={styles.checkInItem}>
-                <View style={[styles.checkInZone, { backgroundColor: LINKED_ZONE_COLORS[checkIn.zone as keyof typeof LINKED_ZONE_COLORS] || '#999' }]}>
-                  {(() => {
-                    const zoneEmojis: Record<string,string> = {blue:'😢',green:'😊',yellow:'😟',red:'😣'};
-                    return <Text style={styles.checkInEmoji}>{zoneEmojis[checkIn.zone] || zoneEmojis[checkIn.feeling_colour] || '😊'}</Text>;
-                  })()}
-                </View>
-                <View style={{ position:'absolute', top:4, right:4 }}>
-                  <MaterialIcons
-                    name={checkIn.logged_by === 'parent' || checkIn.logged_by === 'family' ? 'home' : 'school'}
-                    size={10}
-                    color="white"
-                    style={{ opacity: 0.8 }}
-                  />
-                </View>
-                <View style={styles.checkInDetails}>
-                  <Text style={styles.checkInZoneLabel}>{
-                          ({blue: t('blue_emotions_label') || 'Blue Emotions', green: t('green_emotions_label') || 'Green Emotions', yellow: t('yellow_emotions_label') || 'Yellow Emotions', red: t('red_emotions_label') || 'Red Emotions'} as any)[checkIn.zone || checkIn.feeling_colour] || checkIn.zone || 'Check-in'
-                        }</Text>
-                  <Text style={styles.checkInTime}>{formatDate(checkIn.timestamp)}</Text>
-                  {checkIn.strategies_selected?.length > 0 && (
-                    <Text style={styles.checkInStrategies}>
-                      {t('strategies') || 'Strategies'}: {checkIn.strategies_selected.join(', ')}
-                    </Text>
-                  )}
-                </View>
-                <View style={[styles.locationBadge, { backgroundColor: checkIn.location === 'home' ? '#E8F5E9' : '#E3F2FD' }]}>
-                  <MaterialIcons
-                    name={checkIn.location === 'home' ? 'home' : 'school'}
-                    size={14}
-                    color={checkIn.location === 'home' ? '#4CAF50' : '#2196F3'}
-                  />
-                </View>
-              </View>
-            ))
-          )}
-        </View>
-
-        {/* Strategies Section */}
-        <View style={styles.strategiesHeader}>
-          <Text style={styles.sectionTitle}>{t('strategies') || 'Strategies'}</Text>
-          <TouchableOpacity
-            style={styles.addStrategyBtn}
-            onPress={() => setShowAddStrategyModal(true)}
-          >
-            <MaterialIcons name="add" size={20} color="#fff" />
-            <Text style={styles.addStrategyBtnText}>{t('add_family_strategy') || 'Add Family Strategy'}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* School Strategies */}
-        {schoolStrategies.length > 0 && (
-          <View style={styles.strategySection}>
-            <Text style={styles.strategySubtitle}>
-              <MaterialIcons name="school" size={16} color="#5C6BC0" /> {t('school_strategies') || 'School Strategies'}
-            </Text>
-            {schoolStrategies.map((strategy, index) => (
-              <View key={strategy.id || index} style={styles.strategyItem}>
-                <MaterialIcons name={strategy.icon || 'star'} size={24} color="#5C6BC0" />
-                <View style={styles.strategyInfo}>
-                  <Text style={styles.strategyName}>{resolveStrategyName(strategy.name || strategy.id || "")}</Text>
-                  <Text style={styles.strategyDesc}>{strategy.description}</Text>
-                </View>
-                <View style={[styles.zoneBadge, { backgroundColor: ZONE_CONFIG[strategy.zone]?.color + '30' }]}>
-                  <Text style={{ color: ZONE_CONFIG[strategy.zone]?.color }}>{strategy.zone}</Text>
-                </View>
-              </View>
-            ))}
           </View>
         )}
 
-        {/* Family Strategies */}
-        <View style={styles.strategySection}>
-          <Text style={styles.strategySubtitle}>
-            <MaterialIcons name="home" size={16} color="#4CAF50" /> {t('family_strategies') || 'Family Strategies'}
-          </Text>
-          {familyStrategies.length === 0 ? (
-            <Text style={styles.emptyText}>{t('no_family_strategies') || 'No family strategies yet'}</Text>
-          ) : (
-            familyStrategies.map((strategy) => (
-              <View key={strategy.id} style={styles.strategyItem}>
-                <MaterialIcons name={strategy.icon as any || 'star'} size={24} color="#4CAF50" />
-                <View style={styles.strategyInfo}>
-                  <Text style={styles.strategyName}>{strategy.strategy_name}</Text>
-                  <Text style={styles.strategyDesc}>{strategy.strategy_description}</Text>
-                </View>
-                <TouchableOpacity
-                  style={[styles.shareToggle, strategy.share_with_teacher && styles.shareToggleActive]}
-                  onPress={() => handleToggleStrategySharing(strategy.id)}
-                >
-                  <MaterialIcons
-                    name={strategy.share_with_teacher ? 'visibility' : 'visibility-off'}
-                    size={18}
-                    color={strategy.share_with_teacher ? '#fff' : '#666'}
-                  />
-                </TouchableOpacity>
-              </View>
-            ))
-          )}
+        <View style={s.periodRow}>
+          {([7, 14, 30] as const).map(d => (
+            <TouchableOpacity key={d} style={[s.periodBtn, selectedPeriod === d && s.periodBtnActive]} onPress={() => setSelectedPeriod(d)}>
+              <Text style={[s.periodBtnText, selectedPeriod === d && s.periodBtnTextActive]}>
+                {d === 7 ? '7 Days' : d === 14 ? '2 Weeks' : '30 Days'}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        <View style={{ height: 40 }} />
-      </ScrollView>
+        <View style={s.statsRow}>
+          <View style={s.statCard}><Text style={s.statVal}>{totalCheckins}</Text><Text style={s.statLbl}>Total</Text></View>
+          <View style={s.statCard}><Text style={[s.statVal,{color:'#4CAF50'}]}>{zoneCounts.green||0}</Text><Text style={s.statLbl}>Positive</Text></View>
+          {!isFamilyChild && <>
+            <View style={s.statCard}><Text style={s.statVal}>{homeCheckIns.length}</Text><Text style={s.statLbl}>{'\u{1F3E0}'} Home</Text></View>
+            <View style={s.statCard}><Text style={s.statVal}>{schoolCheckIns.length}</Text><Text style={s.statLbl}>{'\u{1F3EB}'} School</Text></View>
+          </>}
+          <View style={s.statCard}><Text style={s.statVal}>{Object.keys(stratCounts).length}</Text><Text style={s.statLbl}>Strategies</Text></View>
+        </View>
 
-      {/* Check-in Modal */}
-      <Modal
-        visible={showCheckInModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowCheckInModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('home_check_in') || 'Home Check-in'}</Text>
-              <TouchableOpacity onPress={() => setShowCheckInModal(false)}>
-                <MaterialIcons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalScroll}>
-              <Text style={styles.inputLabel}>{t('how_feeling') || 'How is your child feeling?'}</Text>
-              <View style={styles.zoneSelector}>
-                {Object.entries(ZONE_CONFIG).map(([zone, config]) => (
-                  <TouchableOpacity
-                    key={zone}
-                    style={[
-                      styles.zoneOption,
-                      { borderColor: config.color },
-                      selectedZone === zone && { backgroundColor: config.color }
-                    ]}
-                    onPress={() => setSelectedZone(zone)}
-                  >
-                    <Text style={styles.zoneEmoji}>{config.emoji}</Text>
-                    <Text style={[styles.zoneLabel, selectedZone === zone && { color: '#fff' }]}>
-                      {zone === 'blue' ? (t('blue_emotions_label') || 'Blue Emotions') : zone === 'green' ? (t('green_emotions_label') || 'Green Emotions') : zone === 'yellow' ? (t('yellow_emotions_label') || 'Yellow Emotions') : (t('red_emotions_label') || 'Red Emotions')}
+        {/* EMOTION DISTRIBUTION */}
+        <View style={s.section}>
+          <TouchableOpacity onPress={() => setSecEmoDistrib(e => !e)} style={s.sectionHeader}>
+            <View style={s.sectionHeaderLeft}><MaterialIcons name="donut-large" size={17} color="#5C6BC0" /><Text style={s.sectionTitle}>Emotion Distribution</Text></View>
+            <MaterialIcons name={secEmoDistrib ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+          </TouchableOpacity>
+          {secEmoDistrib && (<>
+            {!isFamilyChild && (
+              <View style={[s.tabRow,{marginTop:10}]}>
+                {(['combined','home','school'] as const).map(tab => (
+                  <TouchableOpacity key={tab} style={[s.tab, activeDistTab===tab && s.tabActive]} onPress={() => setActiveDistTab(tab)}>
+                    <Text style={[s.tabText, activeDistTab===tab && s.tabTextActive]}>
+                      {tab==='combined'?'All':tab==='home'?'\u{1F3E0} Home':'\u{1F3EB} School'}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
-
-              <Text style={styles.inputLabel}>{t('comment_optional') || 'Comment (optional)'}</Text>
-              <TextInput
-                style={styles.commentInput}
-                value={comment}
-                onChangeText={setComment}
-                placeholder={t('add_comment') || 'Add a comment...'}
-                multiline
-                maxLength={100}
-              />
-            </ScrollView>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowCheckInModal(false)}>
-                <Text style={styles.cancelBtnText}>{t('cancel') || 'Cancel'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.submitBtn, !selectedZone && styles.submitBtnDisabled]}
-                onPress={handleCheckIn}
-                disabled={!selectedZone || submitting}
-              >
-                {submitting ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.submitBtnText}>{t('save_check_in') || 'Save Check-in'}</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
+            )}
+            {(() => {
+              const checkins = isFamilyChild ? allCheckIns : getDistCheckins();
+              const counts   = buildZoneCounts(checkins);
+              const total    = Object.values(counts).reduce((a,b) => a+b, 0);
+              return (
+                <View style={{gap:10,marginTop:12}}>
+                  {(['green','blue','yellow','red'] as const).map(zone => {
+                    const pct = total > 0 ? Math.round((counts[zone]/total)*100) : 0;
+                    return (
+                      <View key={zone} style={{flexDirection:'row',alignItems:'center',gap:8}}>
+                        <View style={[s.dot,{backgroundColor:ZONE_COLORS[zone]}]} />
+                        <Text style={s.zoneLabel}>{zone.charAt(0).toUpperCase()+zone.slice(1)}</Text>
+                        <View style={s.barBg}><View style={[s.barFill,{width:`${pct}%` as any,backgroundColor:ZONE_COLORS[zone]}]} /></View>
+                        <Text style={s.pctText}>{pct}%</Text>
+                        <Text style={s.countText}>({counts[zone]})</Text>
+                      </View>
+                    );
+                  })}
+                  {total===0 && <Text style={s.empty}>No check-ins for this period</Text>}
+                </View>
+              );
+            })()}
+          </>)}
         </View>
+
+        {/* EMOTION COMPARISON */}
+        <View style={s.section}>
+          <TouchableOpacity onPress={() => setSecEmoCompare(e => !e)} style={s.sectionHeader}>
+            <View style={s.sectionHeaderLeft}><MaterialIcons name="bar-chart" size={17} color="#5C6BC0" /><Text style={s.sectionTitle}>Emotion Comparison</Text></View>
+            <MaterialIcons name={secEmoCompare ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+          </TouchableOpacity>
+          {secEmoCompare && (totalCheckins > 0 ? (
+            <View style={{alignItems:'center',marginTop:12}}>
+              <BarChart data={barData} barWidth={42} spacing={18} roundedTop roundedBottom
+                xAxisThickness={0} yAxisThickness={0} yAxisTextStyle={{color:'#666',fontSize:11}}
+                noOfSections={4} maxValue={Math.max(1,...Object.values(zoneCounts).map(Number))+1}
+                isAnimated barBorderRadius={6} width={width-100} />
+            </View>
+          ) : <Text style={[s.empty,{marginTop:10}]}>No data for this period</Text>)}
+        </View>
+
+        {/* MOST USED STRATEGIES */}
+        <View style={s.section}>
+          <TouchableOpacity onPress={() => setSecMostUsed(e => !e)} style={s.sectionHeader}>
+            <View style={s.sectionHeaderLeft}><MaterialIcons name="star" size={17} color="#FFC107" /><Text style={s.sectionTitle}>Most Used Strategies</Text></View>
+            <MaterialIcons name={secMostUsed ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+          </TouchableOpacity>
+          {secMostUsed && (Object.keys(stratCounts).length > 0
+            ? Object.entries(stratCounts).sort(([,a],[,b]) => (b as number)-(a as number)).map(([stratId,count]) => {
+                const zc = stratId.startsWith('blue')?'#4A90D9':stratId.startsWith('green')?'#4CAF50':
+                           stratId.startsWith('yellow')?'#FFC107':stratId.startsWith('red')?'#F44336':
+                           stratId.startsWith('b')?'#4A90D9':stratId.startsWith('g')?'#4CAF50':
+                           stratId.startsWith('y')?'#FFC107':stratId.startsWith('r')?'#F44336':'#999';
+                return (
+                  <View key={stratId} style={s.stratRow}>
+                    <View style={[s.stratDot,{backgroundColor:zc}]} />
+                    <Text style={s.stratName}>{resolveName(stratId)}</Text>
+                    <View style={s.stratCount}><Text style={s.stratCountText}>{count as number}x</Text></View>
+                  </View>
+                );
+              })
+            : <Text style={[s.empty,{marginTop:8}]}>No strategies used yet</Text>
+          )}
+        </View>
+
+        {/* RECENT CHECK-INS */}
+        <View style={s.section}>
+          <TouchableOpacity onPress={() => setSecRecentCheckins(e => !e)} style={s.sectionHeader}>
+            <View style={s.sectionHeaderLeft}><MaterialIcons name="history" size={17} color="#5C6BC0" /><Text style={s.sectionTitle}>Recent Check-ins</Text></View>
+            <MaterialIcons name={secRecentCheckins ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+          </TouchableOpacity>
+          {secRecentCheckins && (<>
+            {!isFamilyChild && (
+              <View style={[s.tabRow,{marginTop:8}]}>
+                {(['combined','home','school'] as const).map(tab => (
+                  <TouchableOpacity key={tab} style={[s.tab,activeTab===tab&&s.tabActive]} onPress={() => setActiveTab(tab)}>
+                    <MaterialIcons name={tab==='combined'?'merge-type':tab==='home'?'home':'school'} size={14} color={activeTab===tab?'#fff':'#666'} />
+                    <Text style={[s.tabText,activeTab===tab&&s.tabTextActive]}>{tab==='combined'?'All':tab==='home'?'Home':'School'}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginVertical:8}}
+              contentContainerStyle={{flexDirection:'row',gap:6,paddingHorizontal:2}}>
+              {[{id:null,label:'All',color:'#5C6BC0'},{id:'blue',label:'\u{1F622} Blue',color:'#4A90D9'},
+                {id:'green',label:'\u{1F60A} Green',color:'#4CAF50'},{id:'yellow',label:'\u{1F630} Yellow',color:'#FFC107'},
+                {id:'red',label:'\u{1F620} Red',color:'#F44336'}].map(z => (
+                <TouchableOpacity key={z.id||'all'} style={[s.pill,activeZone===z.id&&{backgroundColor:z.color,borderColor:z.color}]}
+                  onPress={() => setActiveZone(z.id)}>
+                  <Text style={[s.pillText,activeZone===z.id&&{color:'white'}]}>{z.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            {(() => {
+              const list = isFamilyChild
+                ? (activeZone ? allCheckIns.filter((c:any)=>(c.zone||c.feeling_colour)===activeZone) : allCheckIns)
+                : getRecentCheckins();
+              return list.length === 0 ? <Text style={s.empty}>No check-ins for this view</Text>
+                : list.slice(0,15).map((ci:any,i:number) => {
+                    const zone = ci.zone||ci.feeling_colour||'green';
+                    const isHome = ci.location==='home'||ci.logged_by==='parent'||ci.logged_by==='family';
+                    const zEmoji: Record<string,string> = {blue:'\u{1F622}',green:'\u{1F60A}',yellow:'\u{1F630}',red:'\u{1F620}'};
+                    return (
+                      <View key={ci.id||i} style={s.ciRow}>
+                        <View style={[s.ciCircle,{backgroundColor:ZONE_COLORS[zone]||'#999'}]}>
+                          <Text>{zEmoji[zone]||'\u{1F60A}'}</Text>
+                        </View>
+                        <View style={{flex:1,marginLeft:10}}>
+                          <Text style={s.ciZone}>{ZONE_CONFIG[zone]?.label||zone}</Text>
+                          <Text style={s.ciTime}>{formatDate(ci.timestamp||ci.created_at)}</Text>
+                          {ci.strategies_selected?.length>0 && <Text style={s.ciStrats}>{ci.strategies_selected.map(resolveName).join(', ')}</Text>}
+                          {ci.comment && <Text style={s.ciComment}>"{ci.comment}"</Text>}
+                        </View>
+                        {!isFamilyChild && (
+                          <View style={[s.sourceBadge,{backgroundColor:isHome?'#E8F5E9':'#E3F2FD'}]}>
+                            <MaterialIcons name={isHome?'home':'school'} size={13} color={isHome?'#4CAF50':'#2196F3'} />
+                          </View>
+                        )}
+                      </View>
+                    );
+                  });
+            })()}
+          </>)}
+        </View>
+
+        {/* CHECK-IN CALENDAR */}
+        <View style={s.section}>
+          <TouchableOpacity onPress={() => setSecCalendar(e => !e)} style={s.sectionHeader}>
+            <View style={s.sectionHeaderLeft}><MaterialIcons name="calendar-today" size={17} color="#5C6BC0" /><Text style={s.sectionTitle}>Check-in Calendar</Text></View>
+            <MaterialIcons name={secCalendar ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+          </TouchableOpacity>
+          {secCalendar && (() => {
+            const grouped: Record<string,any[]> = {};
+            allCheckIns.forEach((ci:any) => {
+              const d = (ci.timestamp||ci.created_at||'').split('T')[0];
+              if (d) { if (!grouped[d]) grouped[d]=[]; grouped[d].push(ci); }
+            });
+            const dates = Object.keys(grouped).sort().slice(-14);
+            if (!dates.length) return <Text style={[s.empty,{marginTop:8}]}>No check-in data yet</Text>;
+            return (<>
+              <View style={s.calGrid}>
+                {dates.map(date => {
+                  const dayLogs = grouped[date];
+                  const d       = new Date(date);
+                  const dayName = ['Su','Mo','Tu','We','Th','Fr','Sa'][d.getDay()];
+                  const dayNum  = d.getDate();
+                  const homeN   = isFamilyChild ? dayLogs.length
+                    : dayLogs.filter((l:any)=>l.location==='home'||l.logged_by==='parent'||l.logged_by==='family').length;
+                  const schoolN = isFamilyChild ? 0 : dayLogs.length - homeN;
+                  const zcnts: Record<string,number> = {};
+                  dayLogs.forEach((l:any) => { const z=l.zone||l.feeling_colour; if(z) zcnts[z]=(zcnts[z]||0)+1; });
+                  const dom = Object.entries(zcnts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'green';
+                  return (
+                    <View key={date} style={s.calDay}>
+                      <Text style={s.calDayName}>{dayName}</Text>
+                      <View style={[s.calCircle,{backgroundColor:ZONE_COLORS[dom]||'#4CAF50'}]}>
+                        <Text style={s.calDayNum}>{dayNum}</Text>
+                      </View>
+                      <View style={{flexDirection:'row',gap:2,marginTop:2}}>
+                        {schoolN>0 && <View style={[s.calBadge,{backgroundColor:'#5C6BC0'}]}><Text style={s.calBadgeText}>S</Text></View>}
+                        {homeN>0   && <View style={[s.calBadge,{backgroundColor:'#4CAF50'}]}><Text style={s.calBadgeText}>H</Text></View>}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+              <View style={{flexDirection:'row',gap:16,marginTop:8,justifyContent:'center'}}>
+                {!isFamilyChild && <View style={{flexDirection:'row',alignItems:'center',gap:4}}>
+                  <View style={[s.dot,{backgroundColor:'#5C6BC0'}]}/><Text style={s.legend}>S = School</Text>
+                </View>}
+                <View style={{flexDirection:'row',alignItems:'center',gap:4}}>
+                  <View style={[s.dot,{backgroundColor:'#4CAF50'}]}/><Text style={s.legend}>H = Home</Text>
+                </View>
+              </View>
+            </>);
+          })()}
+        </View>
+
+        {/* STRATEGIES */}
+        <View style={s.section}>
+          <TouchableOpacity onPress={() => setSecStrategies(e => !e)} style={s.sectionHeader}>
+            <View style={s.sectionHeaderLeft}><MaterialIcons name="lightbulb" size={17} color="#FFC107" /><Text style={s.sectionTitle}>Strategies</Text></View>
+            <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
+              <TouchableOpacity style={s.addBtn} onPress={() => setShowAddStrat(true)}>
+                <MaterialIcons name="add" size={15} color="#fff" /><Text style={s.addBtnText}>Add</Text>
+              </TouchableOpacity>
+              <MaterialIcons name={secStrategies?'expand-less':'expand-more'} size={20} color="#666" />
+            </View>
+          </TouchableOpacity>
+          {secStrategies && (<>
+            {!isFamilyChild && schoolStrats.length>0 && (<>
+              <Text style={s.stratSubtitle}>{'\u{1F3EB}'} School Strategies</Text>
+              {schoolStrats.slice(0,8).map((st:any,i:number) => (
+                <View key={st.id||i} style={s.stratCard}>
+                  <MaterialIcons name={(st.icon||'star') as any} size={20} color="#5C6BC0" />
+                  <View style={{flex:1,marginLeft:10}}>
+                    <Text style={s.stratName}>{st.name||resolveName(st.id||'')}</Text>
+                    {st.description?<Text style={s.stratDesc}>{st.description}</Text>:null}
+                  </View>
+                  {st.feeling_colour && <View style={[s.zonePill,{backgroundColor:ZONE_COLORS[st.feeling_colour]+'25'}]}>
+                    <Text style={{color:ZONE_COLORS[st.feeling_colour],fontSize:10}}>{st.feeling_colour}</Text>
+                  </View>}
+                </View>
+              ))}
+            </>)}
+            <Text style={[s.stratSubtitle,{marginTop:!isFamilyChild&&schoolStrats.length>0?10:0}]}>
+              {'\u{1F3E0}'} {isFamilyChild?'Strategies':'Family Strategies'}
+            </Text>
+            {familyStrats.length===0
+              ? <Text style={s.empty}>No strategies yet — tap Add to create one</Text>
+              : familyStrats.map((st:any) => (
+                <View key={st.id} style={s.stratCard}>
+                  <MaterialIcons name={(st.icon)||'star'} size={20} color="#4CAF50" />
+                  <View style={{flex:1,marginLeft:10}}>
+                    <Text style={s.stratName}>{st.strategy_name}</Text>
+                    {st.strategy_description?<Text style={s.stratDesc}>{st.strategy_description}</Text>:null}
+                  </View>
+                  {!isFamilyChild && (
+                    <TouchableOpacity style={[s.visBtn,st.share_with_teacher&&s.visBtnActive]} onPress={()=>handleToggleShare(st.id)}>
+                      <MaterialIcons name={st.share_with_teacher?'visibility':'visibility-off'} size={15} color={st.share_with_teacher?'#fff':'#666'} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))
+            }
+          </>)}
+        </View>
+
+        <View style={{height:40}} />
+      </ScrollView>
+
+      {/* CHECK-IN MODAL */}
+      <Modal visible={showCheckIn} animationType="slide" transparent onRequestClose={()=>setShowCheckIn(false)}>
+        <View style={s.overlay}><View style={s.sheet}>
+          <View style={s.sheetHeader}>
+            <Text style={s.sheetTitle}>Check-in — {child.name}</Text>
+            <TouchableOpacity onPress={()=>setShowCheckIn(false)}><MaterialIcons name="close" size={24} color="#666" /></TouchableOpacity>
+          </View>
+          <ScrollView style={s.sheetScroll}>
+            <Text style={s.inputLabel}>How is {child.name} feeling?</Text>
+            <View style={s.zoneGrid}>
+              {Object.entries(ZONE_CONFIG).map(([zone,cfg]:[string,any]) => (
+                <TouchableOpacity key={zone} style={[s.zoneOpt,{borderColor:cfg.color},selectedZone===zone&&{backgroundColor:cfg.color}]}
+                  onPress={()=>setSelectedZone(zone)}>
+                  <Text style={{fontSize:24}}>{cfg.emoji}</Text>
+                  <Text style={[s.zoneOptLabel,selectedZone===zone&&{color:'#fff'}]}>{cfg.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={s.inputLabel}>Comment (optional)</Text>
+            <TextInput style={s.textarea} value={comment} onChangeText={setComment} placeholder="Add a comment..." multiline maxLength={100} />
+          </ScrollView>
+          <View style={s.sheetActions}>
+            <TouchableOpacity style={s.cancelBtn} onPress={()=>setShowCheckIn(false)}><Text style={s.cancelBtnText}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity style={[s.submitBtn,!selectedZone&&{opacity:0.5}]} onPress={handleCheckIn} disabled={!selectedZone||submitting}>
+              {submitting?<ActivityIndicator size="small" color="#fff"/>:<Text style={s.submitBtnText}>Save Check-in</Text>}
+            </TouchableOpacity>
+          </View>
+        </View></View>
       </Modal>
 
-      {/* Add Strategy Modal */}
-      <Modal
-        visible={showAddStrategyModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowAddStrategyModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('add_family_strategy') || 'Add Family Strategy'}</Text>
-              <TouchableOpacity onPress={() => setShowAddStrategyModal(false)}>
-                <MaterialIcons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalScroll}>
-              <Text style={styles.inputLabel}>{t('strategy_name') || 'Strategy Name'} *</Text>
-              <TextInput
-                style={styles.input}
-                value={newStrategy.name}
-                onChangeText={(text) => setNewStrategy({ ...newStrategy, name: text })}
-                placeholder={t('enter_name') || 'Enter strategy name'}
-              />
-
-              <Text style={styles.inputLabel}>{t('description') || 'Description'}</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={newStrategy.description}
-                onChangeText={(text) => setNewStrategy({ ...newStrategy, description: text })}
-                placeholder={t('enter_description') || 'Enter description'}
-                multiline
-              />
-
-              <Text style={styles.inputLabel}>{t('emotions') || 'Zone'}</Text>
-              <View style={styles.zoneSelector}>
-                {Object.entries(ZONE_CONFIG).map(([zone, config]) => (
-                  <TouchableOpacity
-                    key={zone}
-                    style={[
-                      styles.zoneOption,
-                      { borderColor: config.color },
-                      newStrategy.zone === zone && { backgroundColor: config.color }
-                    ]}
-                    onPress={() => setNewStrategy({ ...newStrategy, zone })}
-                  >
-                    <Text style={styles.zoneEmoji}>{config.emoji}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.inputLabel}>{t('icon') || 'Icon'}</Text>
-              <View style={styles.iconSelector}>
-                {STRATEGY_ICONS.map((icon) => (
-                  <TouchableOpacity
-                    key={icon.id}
-                    style={[
-                      styles.iconOption,
-                      newStrategy.icon === icon.id && styles.iconOptionActive
-                    ]}
-                    onPress={() => setNewStrategy({ ...newStrategy, icon: icon.id })}
-                  >
-                    <MaterialIcons
-                      name={icon.name as any}
-                      size={24}
-                      color={newStrategy.icon === icon.id ? '#fff' : '#666'}
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <View style={{ flexDirection:"row", alignItems:"center", backgroundColor:"#F8F9FA", borderRadius:12, padding:14, marginTop:8 }}>
-                <View style={styles.shareOptionText}>
-                  <Text style={styles.shareOptionTitle}>{t('share_with_teacher') || 'Share with Teacher'}</Text>
-                  <Text style={styles.shareOptionDesc}>{t('teacher_can_see_strategy') || 'Teacher will be able to see this strategy'}</Text>
-                </View>
-                <Switch
-                  value={newStrategy.shareWithTeacher}
-                  onValueChange={(value) => setNewStrategy({ ...newStrategy, shareWithTeacher: value })}
-                  trackColor={{ false: '#ddd', true: '#81C784' }}
-                  thumbColor={newStrategy.shareWithTeacher ? '#4CAF50' : '#999'}
-                />
-              </View>
-            </ScrollView>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAddStrategyModal(false)}>
-                <Text style={styles.cancelBtnText}>{t('cancel') || 'Cancel'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.submitBtn, !newStrategy.name.trim() && styles.submitBtnDisabled]}
-                onPress={handleAddStrategy}
-                disabled={!newStrategy.name.trim()}
-              >
-                <Text style={styles.submitBtnText}>{t('add_strategy') || 'Add Strategy'}</Text>
-              </TouchableOpacity>
-            </View>
+      {/* ADD STRATEGY MODAL */}
+      <Modal visible={showAddStrat} animationType="slide" transparent onRequestClose={()=>setShowAddStrat(false)}>
+        <View style={s.overlay}><View style={s.sheet}>
+          <View style={s.sheetHeader}>
+            <Text style={s.sheetTitle}>Add Strategy</Text>
+            <TouchableOpacity onPress={()=>setShowAddStrat(false)}><MaterialIcons name="close" size={24} color="#666" /></TouchableOpacity>
           </View>
-        </View>
+          <ScrollView style={s.sheetScroll}>
+            <Text style={s.inputLabel}>Strategy Name *</Text>
+            <TextInput style={s.input} value={newStrat.name} onChangeText={v=>setNewStrat({...newStrat,name:v})} placeholder="e.g. Deep breathing" />
+            <Text style={s.inputLabel}>Description</Text>
+            <TextInput style={[s.input,s.textarea]} value={newStrat.description} onChangeText={v=>setNewStrat({...newStrat,description:v})} placeholder="How to use this..." multiline />
+            <Text style={s.inputLabel}>Zone</Text>
+            <View style={s.zoneGrid}>
+              {Object.entries(ZONE_CONFIG).map(([zone,cfg]:[string,any]) => (
+                <TouchableOpacity key={zone} style={[s.zoneOpt,{borderColor:cfg.color},newStrat.zone===zone&&{backgroundColor:cfg.color}]}
+                  onPress={()=>setNewStrat({...newStrat,zone})}>
+                  <Text style={{fontSize:22}}>{cfg.emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={s.inputLabel}>Icon</Text>
+            <View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>
+              {STRATEGY_ICONS.map(ic=>(
+                <TouchableOpacity key={ic.id} style={[s.iconOpt,newStrat.icon===ic.id&&{backgroundColor:'#4CAF50'}]}
+                  onPress={()=>setNewStrat({...newStrat,icon:ic.id})}>
+                  <MaterialIcons name={ic.name as any} size={22} color={newStrat.icon===ic.id?'#fff':'#666'} />
+                </TouchableOpacity>
+              ))}
+            </View>
+            {!isFamilyChild && (
+              <View style={{flexDirection:'row',alignItems:'center',backgroundColor:'#F8F9FA',borderRadius:12,padding:14,marginTop:12}}>
+                <View style={{flex:1}}>
+                  <Text style={s.stratName}>Share with Teacher</Text>
+                  <Text style={s.stratDesc}>Teacher will see this strategy</Text>
+                </View>
+                <Switch value={newStrat.shareWithTeacher} onValueChange={v=>setNewStrat({...newStrat,shareWithTeacher:v})}
+                  trackColor={{false:'#ddd',true:'#81C784'}} thumbColor={newStrat.shareWithTeacher?'#4CAF50':'#999'} />
+              </View>
+            )}
+          </ScrollView>
+          <View style={s.sheetActions}>
+            <TouchableOpacity style={s.cancelBtn} onPress={()=>setShowAddStrat(false)}><Text style={s.cancelBtnText}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity style={[s.submitBtn,!newStrat.name.trim()&&{opacity:0.5}]} onPress={handleAddStrat} disabled={!newStrat.name.trim()}>
+              <Text style={s.submitBtnText}>Add Strategy</Text>
+            </TouchableOpacity>
+          </View>
+        </View></View>
       </Modal>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { marginTop: 16, fontSize: 16, color: '#666' },
-  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  errorText: { marginTop: 16, fontSize: 16, color: '#666', textAlign: 'center' },
-  backBtn: { marginTop: 16, padding: 12, backgroundColor: '#4CAF50', borderRadius: 8 },
-  backBtnText: { color: '#fff', fontWeight: '600' },
-  header: { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee', paddingTop: 16 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 6, gap: 8 },
-  headerLogo: { width: 26, height: 26 },
-  backButton: { padding: 4 },
-  headerTitle: { flex: 1, fontSize: 17, fontWeight: 'bold', color: '#333', textAlign: 'center' },
-  headerBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E8EAF6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, gap: 4 },
-  headerBadgeText: { fontSize: 12, color: '#5C6BC0', fontWeight: '600' },
-  content: { flex: 1 },
-  childCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', margin: 16, padding: 16, borderRadius: 16 },
-  childAvatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#E8F5E9', justifyContent: 'center', alignItems: 'center' },
-  childAvatarEmoji: { fontSize: 32 },
-  childInfo: { flex: 1, marginLeft: 12 },
-  childName: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  childClassroom: { fontSize: 14, color: '#666', marginTop: 4 },
-  checkInButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#4CAF50', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, gap: 6 },
-  checkInButtonText: { color: '#fff', fontWeight: '600' },
-  permissionCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', marginHorizontal: 16, marginBottom: 16, padding: 16, borderRadius: 12 },
-  permissionInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  permissionTextContainer: { flex: 1 },
-  permissionTitle: { fontSize: 14, fontWeight: '600', color: '#333' },
-  permissionDesc: { fontSize: 12, color: '#666', marginTop: 2 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginHorizontal: 16, marginBottom: 12 },
-  tabSelector: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 12, backgroundColor: '#fff', borderRadius: 12, padding: 4 },
-  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 8, gap: 4 },
-  tabActive: { backgroundColor: '#4CAF50' },
-  tabText: { fontSize: 14, color: '#666' },
-  tabTextActive: { color: '#fff', fontWeight: '600' },
-  checkInsList: { marginHorizontal: 16, marginBottom: 24 },
-  emptyText: { textAlign: 'center', color: '#999', paddingVertical: 24 },
-  checkInItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 12, borderRadius: 12, marginBottom: 8 },
-  checkInZone: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
-  checkInEmoji: { fontSize: 20 },
-  checkInDetails: { flex: 1, marginLeft: 12 },
-  checkInZoneLabel: { fontSize: 14, fontWeight: '600', color: '#333' },
-  checkInTime: { fontSize: 12, color: '#999', marginTop: 2 },
-  checkInStrategies: { fontSize: 12, color: '#666', marginTop: 4 },
-  locationBadge: { width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  strategiesHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginBottom: 12 },
-  addStrategyBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#4CAF50', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, gap: 4 },
-  addStrategyBtnText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  strategySection: { marginHorizontal: 16, marginBottom: 16 },
-  strategySubtitle: { fontSize: 14, fontWeight: '600', color: '#666', marginBottom: 8 },
-  strategyItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 12, borderRadius: 12, marginBottom: 8 },
-  strategyInfo: { flex: 1, marginLeft: 12 },
-  strategyName: { fontSize: 14, fontWeight: '600', color: '#333' },
-  strategyDesc: { fontSize: 12, color: '#666', marginTop: 2 },
-  zoneBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  shareToggle: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#eee', justifyContent: 'center', alignItems: 'center' },
-  shareToggleActive: { backgroundColor: '#4CAF50' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%' },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  modalScroll: { padding: 16, maxHeight: 400 },
-  inputLabel: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8, marginTop: 16 },
-  input: { backgroundColor: '#f5f5f5', borderRadius: 8, padding: 12, fontSize: 16 },
-  textArea: { height: 80, textAlignVertical: 'top' },
-  zoneSelector: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  zoneOption: { flex: 1, minWidth: 70, alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 2 },
-  zoneEmoji: { fontSize: 24 },
-  zoneLabel: { fontSize: 11, marginTop: 4, color: '#333' },
-  commentInput: { backgroundColor: '#f5f5f5', borderRadius: 8, padding: 12, fontSize: 16, height: 80, textAlignVertical: 'top' },
-  iconSelector: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  iconOption: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#f5f5f5', justifyContent: 'center', alignItems: 'center' },
-  iconOptionActive: { backgroundColor: '#4CAF50' },
-  shareOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f5f5f5', padding: 16, borderRadius: 12, marginTop: 16 },
-  shareOptionText: { flex: 1 },
-  shareOptionTitle: { fontSize: 14, fontWeight: '600', color: '#333' },
-  shareOptionDesc: { fontSize: 12, color: '#666', marginTop: 2 },
-  modalActions: { flexDirection: 'row', padding: 16, gap: 12, borderTopWidth: 1, borderTopColor: '#eee' },
-  cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 8, backgroundColor: '#f5f5f5', alignItems: 'center' },
-  cancelBtnText: { fontSize: 16, color: '#666', fontWeight: '600' },
-  submitBtn: { flex: 1, paddingVertical: 14, borderRadius: 8, backgroundColor: '#4CAF50', alignItems: 'center' },
-  submitBtnDisabled: { opacity: 0.5 },
-  submitBtnText: { fontSize: 16, color: '#fff', fontWeight: '600' },
+
+const s = StyleSheet.create({
+  container:           { flex:1, backgroundColor:'#F5F5F5' },
+  scroll:              { flex:1 },
+  center:              { flex:1, justifyContent:'center', alignItems:'center' },
+  loadingText:         { marginTop:12, fontSize:15, color:'#666' },
+  errorText:           { marginTop:12, fontSize:15, color:'#666', textAlign:'center' },
+  backBtn:             { marginTop:16, padding:12, backgroundColor:'#4CAF50', borderRadius:8 },
+  backBtnText:         { color:'#fff', fontWeight:'600' },
+  header:              { flexDirection:'row', alignItems:'center', backgroundColor:'#fff', paddingHorizontal:12, paddingVertical:10, borderBottomWidth:1, borderBottomColor:'#eee' },
+  headerBtn:           { padding:4 },
+  headerCenter:        { flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6 },
+  headerLogo:          { width:26, height:26 },
+  headerTitle:         { fontSize:16, fontWeight:'700', color:'#333' },
+  typeBadge:           { backgroundColor:'#E8F5E9', paddingHorizontal:8, paddingVertical:3, borderRadius:10 },
+  typeBadgeText:       { fontSize:10, color:'#4CAF50', fontWeight:'700' },
+  childCard:           { flexDirection:'row', alignItems:'center', backgroundColor:'#fff', margin:16, marginBottom:8, padding:14, borderRadius:14 },
+  childAvatar:         { width:52, height:52, borderRadius:26, backgroundColor:'#E8F5E9', justifyContent:'center', alignItems:'center' },
+  childName:           { fontSize:16, fontWeight:'700', color:'#333' },
+  childSub:            { fontSize:12, color:'#666', marginTop:3 },
+  checkInBtn:          { flexDirection:'row', alignItems:'center', backgroundColor:'#4CAF50', paddingHorizontal:12, paddingVertical:8, borderRadius:18, gap:5 },
+  checkInBtnText:      { color:'#fff', fontWeight:'600', fontSize:13 },
+  card:                { backgroundColor:'#fff', marginHorizontal:16, marginBottom:8, padding:14, borderRadius:12 },
+  cardTitle:           { fontSize:13, fontWeight:'700' },
+  cardSub:             { fontSize:11, color:'#666', marginTop:3 },
+  periodRow:           { flexDirection:'row', gap:6, paddingHorizontal:16, paddingBottom:8 },
+  periodBtn:           { flex:1, paddingVertical:7, borderRadius:8, alignItems:'center', backgroundColor:'#F0F0F0' },
+  periodBtnActive:     { backgroundColor:'#5C6BC0' },
+  periodBtnText:       { fontSize:12, color:'#666' },
+  periodBtnTextActive: { color:'#fff', fontWeight:'600' },
+  statsRow:            { flexDirection:'row', gap:8, paddingHorizontal:16, paddingBottom:8 },
+  statCard:            { flex:1, backgroundColor:'#fff', borderRadius:10, padding:10, alignItems:'center' },
+  statVal:             { fontSize:18, fontWeight:'700', color:'#333' },
+  statLbl:             { fontSize:9, color:'#888', marginTop:2, textAlign:'center' },
+  section:             { backgroundColor:'#fff', borderRadius:12, marginHorizontal:16, marginBottom:8, padding:12 },
+  sectionHeader:       { flexDirection:'row', justifyContent:'space-between', alignItems:'center' },
+  sectionHeaderLeft:   { flexDirection:'row', alignItems:'center', gap:8 },
+  sectionTitle:        { fontSize:13, fontWeight:'700', color:'#333' },
+  tabRow:              { flexDirection:'row', backgroundColor:'#F5F5F5', borderRadius:10, padding:3, gap:2 },
+  tab:                 { flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', paddingVertical:8, borderRadius:8, gap:4 },
+  tabActive:           { backgroundColor:'#fff' },
+  tabText:             { fontSize:12, color:'#555' },
+  tabTextActive:       { color:'#333', fontWeight:'600' },
+  dot:                 { width:10, height:10, borderRadius:5 },
+  zoneLabel:           { fontSize:12, color:'#333', width:48 },
+  barBg:               { flex:1, height:10, backgroundColor:'#F0F0F0', borderRadius:5, overflow:'hidden' },
+  barFill:             { height:10, borderRadius:5 },
+  pctText:             { fontSize:12, fontWeight:'600', color:'#333', width:34, textAlign:'right' },
+  countText:           { fontSize:10, color:'#888', width:28 },
+  stratRow:            { flexDirection:'row', alignItems:'center', paddingVertical:10, borderBottomWidth:1, borderBottomColor:'#F0F0F0' },
+  stratDot:            { width:10, height:10, borderRadius:5, marginRight:8 },
+  stratName:           { flex:1, fontSize:13, color:'#333' },
+  stratCount:          { backgroundColor:'#FFF8E1', paddingHorizontal:8, paddingVertical:3, borderRadius:10 },
+  stratCountText:      { fontSize:12, fontWeight:'600', color:'#F9A825' },
+  stratSubtitle:       { fontSize:11, fontWeight:'600', color:'#888', marginBottom:6, marginTop:4 },
+  stratCard:           { flexDirection:'row', alignItems:'center', backgroundColor:'#F8F9FA', borderRadius:10, padding:10, marginBottom:6 },
+  stratDesc:           { fontSize:11, color:'#888', marginTop:2 },
+  zonePill:            { paddingHorizontal:7, paddingVertical:3, borderRadius:8 },
+  visBtn:              { width:32, height:32, borderRadius:16, backgroundColor:'#eee', justifyContent:'center', alignItems:'center' },
+  visBtnActive:        { backgroundColor:'#4CAF50' },
+  addBtn:              { flexDirection:'row', alignItems:'center', backgroundColor:'#4CAF50', paddingHorizontal:9, paddingVertical:5, borderRadius:12, gap:3 },
+  addBtnText:          { color:'#fff', fontSize:11, fontWeight:'600' },
+  pill:                { paddingHorizontal:12, paddingVertical:6, borderRadius:18, backgroundColor:'#F0F0F0', borderWidth:1, borderColor:'#E0E0E0' },
+  pillText:            { fontSize:12, fontWeight:'600', color:'#666' },
+  ciRow:               { flexDirection:'row', alignItems:'center', backgroundColor:'#F8F9FA', borderRadius:10, padding:10, marginBottom:6 },
+  ciCircle:            { width:40, height:40, borderRadius:20, justifyContent:'center', alignItems:'center' },
+  ciZone:              { fontSize:13, fontWeight:'600', color:'#333' },
+  ciTime:              { fontSize:11, color:'#999', marginTop:2 },
+  ciStrats:            { fontSize:11, color:'#666', marginTop:3 },
+  ciComment:           { fontSize:11, color:'#5C6BC0', fontStyle:'italic', marginTop:3 },
+  sourceBadge:         { width:26, height:26, borderRadius:13, justifyContent:'center', alignItems:'center' },
+  calGrid:             { flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:8 },
+  calDay:              { alignItems:'center', width:38 },
+  calDayName:          { fontSize:9, color:'#888', marginBottom:3 },
+  calCircle:           { width:28, height:28, borderRadius:14, alignItems:'center', justifyContent:'center' },
+  calDayNum:           { fontSize:11, fontWeight:'700', color:'white' },
+  calBadge:            { width:12, height:12, borderRadius:6, alignItems:'center', justifyContent:'center' },
+  calBadgeText:        { fontSize:7, color:'white', fontWeight:'700' },
+  legend:              { fontSize:11, color:'#666' },
+  overlay:             { flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'flex-end' },
+  sheet:               { backgroundColor:'#fff', borderTopLeftRadius:24, borderTopRightRadius:24, maxHeight:'85%' },
+  sheetHeader:         { flexDirection:'row', alignItems:'center', justifyContent:'space-between', padding:16, borderBottomWidth:1, borderBottomColor:'#eee' },
+  sheetTitle:          { fontSize:17, fontWeight:'700', color:'#333' },
+  sheetScroll:         { padding:16, maxHeight:420 },
+  sheetActions:        { flexDirection:'row', padding:16, gap:12, borderTopWidth:1, borderTopColor:'#eee' },
+  inputLabel:          { fontSize:13, fontWeight:'600', color:'#333', marginBottom:8, marginTop:12 },
+  input:               { backgroundColor:'#F5F5F5', borderRadius:8, padding:12, fontSize:15 },
+  textarea:            { height:80, textAlignVertical:'top' },
+  zoneGrid:            { flexDirection:'row', gap:8, flexWrap:'wrap' },
+  zoneOpt:             { flex:1, minWidth:70, alignItems:'center', padding:10, borderRadius:12, borderWidth:2 },
+  zoneOptLabel:        { fontSize:10, marginTop:4, color:'#333' },
+  iconOpt:             { width:44, height:44, borderRadius:22, backgroundColor:'#F5F5F5', justifyContent:'center', alignItems:'center' },
+  cancelBtn:           { flex:1, paddingVertical:14, borderRadius:8, backgroundColor:'#F5F5F5', alignItems:'center' },
+  cancelBtnText:       { fontSize:15, color:'#666', fontWeight:'600' },
+  submitBtn:           { flex:1, paddingVertical:14, borderRadius:8, backgroundColor:'#4CAF50', alignItems:'center' },
+  submitBtnText:       { fontSize:15, color:'#fff', fontWeight:'600' },
+  empty:               { textAlign:'center', color:'#999', paddingVertical:16, fontSize:13 },
 });
