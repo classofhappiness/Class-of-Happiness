@@ -472,7 +472,7 @@ export default function LinkedChildDetailScreen() {
                         <View style={{flex:1,marginLeft:10}}>
                           <Text style={s.ciZone}>{ZONE_CONFIG[zone]?.label||zone}</Text>
                           <Text style={s.ciTime}>{formatDate(ci.timestamp||ci.created_at)}</Text>
-                          {ci.strategies_selected?.length>0 && <Text style={s.ciStrats}>{ci.strategies_selected.map(resolveName).join(', ')}</Text>}
+                          {(ci.strategies_selected?.length>0 || ci.helpers_selected?.length>0) && <Text style={s.ciStrats}>{(ci.strategies_selected || ci.helpers_selected || []).map(resolveName).join(', ')}</Text>}
                           {ci.comment && <Text style={s.ciComment}>"{ci.comment}"</Text>}
                         </View>
                         {!isFamilyChild && (
