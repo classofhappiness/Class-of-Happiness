@@ -488,14 +488,18 @@ export default function ParentDashboard() {
       }
       setMemberCreatures(creatureMap);
       
-      // Auto-select first member if none selected
+      // Auto-select first CHILD member (not adult) so graphs show children's data
       if (!selectedMember) {
-        if (members.length > 0) {
-          setSelectedMember(members[0]);
+        const firstChild = members.find((m: any) => m.relationship === 'child');
+        if (firstChild) {
+          setSelectedMember(firstChild);
           setSelectedType('family');
         } else if (children.length > 0) {
           setSelectedMember(children[0]);
           setSelectedType('linked');
+        } else if (members.length > 0) {
+          setSelectedMember(members[0]);
+          setSelectedType('family');
         }
       }
     } catch (error) {
