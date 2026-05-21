@@ -508,58 +508,86 @@ export default function ParentDashboard() {
   };
 
   const fetchMemberData = async () => {
-    if (!selectedMember) return;
-    
+    // Fetch combined logs for ALL children (family + linked)
+    // This powers the Week Overview and Recent Check-ins sections
     try {
-      if (selectedType === 'linked') {
-        // Fetch school data for linked child
-        const [logsData, analyticsData] = await Promise.all([
-          zoneLogsApi.getByStudent((selectedMember as Student).id, 7),
-          analyticsApi.getStudent((selectedMember as Student).id, 7),
-        ]);
-        setRecentLogs(logsData);
-        setAnalytics(analyticsData);
-      } else {
-        // Fetch family data
-        const [logsData, analyticsData] = await Promise.all([
-          (async () => {
-            try {
-              const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-              const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-              const token = await AsyncStorage.getItem('session_token');
-              const memberId = (selectedMember as any).id;
-              const studentId = (selectedMember as any).student_id;
-              // Fetch family zone logs
-              const r = await fetch(`${BACKEND_URL}/api/family/zone-logs/${memberId}?days=${analyticsPeriod}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-              });
-              const familyLogs = r.ok ? await r.json() : [];
-              // Also fetch feeling_logs if member has student_id
-              if (studentId) {
-                const r2 = await fetch(`${BACKEND_URL}/api/logs/student/${studentId}?days=${analyticsPeriod}`, {
-                  headers: { 'Authorization': `Bearer ${token}` }
-                });
-                const studentLogs = r2.ok ? await r2.json() : [];
-                return [...familyLogs, ...studentLogs];
-              }
-              return familyLogs;
-            } catch { return []; }
-          })(),
-          (async () => {
-          const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-          const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-          const token = await AsyncStorage.getItem('session_token');
-          const r = await fetch(`${BACKEND_URL}/api/family/analytics/${(selectedMember as FamilyMember).id}?days=7`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          return r.ok ? r.json() : { zone_counts: { blue: 0, green: 0, yellow: 0, red: 0 } };
-        })(),
-        ]);
-        setRecentLogs(logsData);
-        setAnalytics(analyticsData);
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const AsyncStorage2 = (await import('@react-native-async-storage/async-storage')).default;
+      const token = await AsyncStorage2.getItem('session_token');
+      const headers = { 'Authorization': `Bearer ${token}` };
+
+      // Get all family members
+      const membersRes = await fetch(`${BACKEND_URL}/api/family/members`, { headers });
+      const allMembers = membersRes.ok ? await membersRes.json() : [];
+      const children = allMembers.filter((m: any) => m.relationship === 'child');
+
+      // Also get school-linked children
+      const linkedRes = await fetch(`${BACKEND_URL}/api/parent/linked-children`, { headers });
+      const linkedKids = linkedRes.ok ? await linkedRes.json() : [];
+
+      const allLogs: any[] = [];
+
+      // Fetch logs for each family child
+      for (const child of children) {
+        // From feeling_logs via student_id (primary source — creature points go here)
+        if (child.student_id) {
+          try {
+            const r = await fetch(`${BACKEND_URL}/api/logs/student/${child.student_id}?days=${analyticsPeriod}`, { headers });
+            const logs = r.ok ? await r.json() : [];
+            const tagged = Array.isArray(logs) ? logs.map((l: any) => ({
+              ...l,
+              zone: l.zone || l.feeling_colour,
+              member_name: child.name,
+              member_id: child.id,
+            })) : [];
+            allLogs.push(...tagged);
+          } catch {}
+        }
+        // Also from family_zone_logs (fallback)
+        try {
+          const r2 = await fetch(`${BACKEND_URL}/api/family/zone-logs/${child.id}?days=${analyticsPeriod}`, { headers });
+          const logs2 = r2.ok ? await r2.json() : [];
+          const tagged2 = Array.isArray(logs2) ? logs2.map((l: any) => ({
+            ...l,
+            zone: l.zone || l.feeling_colour,
+            member_name: child.name,
+            member_id: child.id,
+          })) : [];
+          // Deduplicate by id
+          const existingIds = new Set(allLogs.map((l: any) => l.id));
+          allLogs.push(...tagged2.filter((l: any) => !existingIds.has(l.id)));
+        } catch {}
       }
+
+      // Fetch logs for school-linked children not already in family members
+      for (const linked of linkedKids) {
+        const alreadyCovered = children.some((c: any) => c.name === linked.name || c.student_id === linked.id);
+        if (!alreadyCovered) {
+          try {
+            const r = await fetch(`${BACKEND_URL}/api/parent/linked-child/${linked.id}/all-checkins?days=${analyticsPeriod}`, { headers });
+            const logs = r.ok ? await r.json() : [];
+            const tagged = Array.isArray(logs) ? logs.map((l: any) => ({
+              ...l,
+              zone: l.zone || l.feeling_colour,
+              member_name: linked.name,
+              student_id: linked.id,
+            })) : [];
+            allLogs.push(...tagged);
+          } catch {}
+        }
+      }
+
+      // Sort by timestamp desc
+      allLogs.sort((a: any, b: any) => new Date(b.timestamp || b.created_at).getTime() - new Date(a.timestamp || a.created_at).getTime());
+      setRecentLogs(allLogs as any);
+
+      // Build analytics from combined logs
+      const counts = { blue: 0, green: 0, yellow: 0, red: 0 } as Record<string,number>;
+      allLogs.forEach((l: any) => { const z = l.zone; if (z in counts) counts[z]++; });
+      setAnalytics({ zone_counts: counts, total_logs: allLogs.length });
+
     } catch (error) {
-      console.error('Error fetching member data:', error);
+      console.error('Error fetching children data:', error);
       setRecentLogs([]);
       setAnalytics({ zone_counts: { blue: 0, green: 0, yellow: 0, red: 0 } });
     }
@@ -574,6 +602,14 @@ export default function ParentDashboard() {
     fetchData();
     loadParentAlerts();
   }, []);
+
+  // Reload alert count every time dashboard comes into focus (e.g. after resolving alerts)
+  useFocusEffect(
+    useCallback(() => {
+      loadParentAlerts();
+      fetchMemberData();
+    }, [analyticsPeriod])
+  );
 
   useEffect(() => {
     if (selectedMember) {

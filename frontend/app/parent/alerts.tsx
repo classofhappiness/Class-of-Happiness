@@ -56,6 +56,8 @@ export default function ParentAlertsScreen() {
       { text: 'Resolved', onPress: async () => {
         await resolveAlert(alert_id, token);
         setAlerts(prev => prev.map(a => a.id === alert_id ? { ...a, resolved: true } : a));
+        // Re-fetch alerts so badge count updates on return to dashboard
+        await load();
       }},
     ]);
   };
@@ -72,6 +74,8 @@ export default function ParentAlertsScreen() {
           setAlerts(prev => prev.map(a => selectedIds.has(a.id) ? { ...a, resolved: true } : a));
           setSelectedIds(new Set());
           setSelectMode(false);
+          // Re-fetch so badge count updates on return to dashboard
+          await load();
         }},
       ]
     );
