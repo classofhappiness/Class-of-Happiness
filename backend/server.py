@@ -6038,7 +6038,43 @@ async def family_member_checkin(member_id: str, request: Request):
                 }
                 result = supabase.table("family_zone_logs").insert(log).execute()
         
-        return {"status": "saved", "log": result.data[0] if result.data else log}
+        # Award points to the student's creature if they have a student_id
+        final_student_id = student_id or member.get("student_id")
+        if final_student_id:
+            try:
+                rewards_res = supabase.table("student_rewards").select("*").eq("student_id", final_student_id).execute()
+                if rewards_res.data:
+                    rewards = rewards_res.data[0]
+                    POINTS_CONFIG = {"checkin": 10, "strategy": 5, "streak": 20}
+                    points_to_add = POINTS_CONFIG["checkin"]
+                    creature_id = rewards.get("current_creature_id", "aqua_buddy")
+                    creature_points = rewards.get("creature_points", {})
+                    creature_stages = rewards.get("creature_stages", {})
+                    current_points = rewards.get("current_points", 0) + points_to_add
+                    creature_points[creature_id] = creature_points.get(creature_id, 0) + points_to_add
+                    # Stage thresholds
+                    thresholds = [0, 30, 80, 150]
+                    stage = 0
+                    for i, thr in enumerate(thresholds):
+                        if creature_points[creature_id] >= thr:
+                            stage = i
+                    creature_stages[creature_id] = stage
+                    total_earned = rewards.get("total_points_earned", 0) + points_to_add
+                    import datetime as dt
+                    today = dt.date.today().isoformat()
+                    supabase.table("student_rewards").update({
+                        "current_points": current_points,
+                        "creature_points": creature_points,
+                        "creature_stages": creature_stages,
+                        "total_points_earned": total_earned,
+                        "last_checkin_date": today,
+                        "current_stage": stage,
+                    }).eq("student_id", final_student_id).execute()
+                    logger.info(f"[family_checkin] Awarded {points_to_add} points to {final_student_id}, stage now {stage}")
+            except Exception as pe:
+                logger.warning(f"[family_checkin] Could not award points: {pe}")
+
+        return {"status": "saved", "log": result.data[0] if result.data else log, "student_id": final_student_id}
     except HTTPException:
         raise
     except Exception as e:

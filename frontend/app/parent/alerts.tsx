@@ -15,11 +15,11 @@ const ZONE_COLORS: Record<string, string> = {
   blue: '#4A90D9', green: '#4CAF50', yellow: '#FFC107', red: '#F44336',
 };
 const ZONE_EMOJI: Record<string, string> = {
-  blue: '\ud83d\udd35', green: '\ud83d\udfe2', yellow: '\ud83d\udfe1', red: '\ud83d\udd34',
+  blue: '🔵', green: '🟢', yellow: '🟡', red: '🔴',
 };
 const TYPE_LABELS: Record<string, string> = {
-  help_request: 'Help Request',
-  zone_alert: 'Check-in Alert',
+  help_request:   'Help Request',
+  zone_alert:     'Check-in Alert',
   parent_message: 'Message from Child',
 };
 
@@ -28,45 +28,137 @@ export default function ParentAlertsScreen() {
   const navigation = useNavigation();
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { t } = useApp();
-  const [alerts, setAlerts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  const [alerts,     setAlerts]     = useState<any[]>([]);
+  const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [token, setToken] = useState('');
+  const [token,      setToken]      = useState('');
+
+  // Filter state
+  const [selectedChild, setSelectedChild] = useState<string | null>(null); // null = All
+  const [selectedType,  setSelectedType]  = useState<string | null>(null); // null = All types
+
+  // Bulk select
+  const [selectMode,    setSelectMode]    = useState(false);
+  const [selectedIds,   setSelectedIds]   = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     const tok = await AsyncStorage.getItem('session_token') || '';
     setToken(tok);
-    console.log('[Parent Alerts] token present:', !!tok);
     const data = await getAlerts(tok);
-    console.log('[Parent Alerts] data:', JSON.stringify(data?.length), Array.isArray(data));
     setAlerts(Array.isArray(data) ? data : []);
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, []);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
-  };
+  const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
   const handleResolve = async (alert_id: string) => {
-    Alert.alert('Mark as Resolved', 'Are you sure this has been addressed?', [
+    Alert.alert('Mark as Resolved', 'Has this been addressed?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Resolved', style: 'destructive', onPress: async () => {
+      { text: 'Resolved', onPress: async () => {
         await resolveAlert(alert_id, token);
         setAlerts(prev => prev.map(a => a.id === alert_id ? { ...a, resolved: true } : a));
       }},
     ]);
   };
 
-  const unresolved = alerts.filter(a => !a.resolved);
-  const resolved = alerts.filter(a => a.resolved);
+  const handleBulkResolve = async () => {
+    if (selectedIds.size === 0) return;
+    Alert.alert(
+      `Mark ${selectedIds.size} alert${selectedIds.size > 1 ? 's' : ''} as resolved?`,
+      'This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Resolve All', onPress: async () => {
+          await Promise.all([...selectedIds].map(id => resolveAlert(id, token).catch(() => {})));
+          setAlerts(prev => prev.map(a => selectedIds.has(a.id) ? { ...a, resolved: true } : a));
+          setSelectedIds(new Set());
+          setSelectMode(false);
+        }},
+      ]
+    );
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  // Unique child names for filter pills
+  const childNames = [...new Set(alerts.map(a => a.student_name).filter(Boolean))];
+
+  const unresolved = alerts.filter(a => {
+    if (a.resolved) return false;
+    if (selectedChild && a.student_name !== selectedChild) return false;
+    if (selectedType && a.alert_type !== selectedType) return false;
+    return true;
+  });
+  const resolved = alerts.filter(a => {
+    if (!a.resolved) return false;
+    if (selectedChild && a.student_name !== selectedChild) return false;
+    return true;
+  });
 
   return (
     <SafeAreaView style={st.container}>
       <TranslatedHeader title={t('alerts') || 'Alerts'} />
+
+      {/* Filter bar */}
+      <View style={st.filterBar}>
+        {/* Child filter pills */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 6, paddingHorizontal: 16, paddingVertical: 8 }}>
+          <TouchableOpacity
+            style={[st.pill, selectedChild === null && st.pillActive]}
+            onPress={() => setSelectedChild(null)}>
+            <Text style={[st.pillText, selectedChild === null && st.pillTextActive]}>All</Text>
+          </TouchableOpacity>
+          {childNames.map(name => (
+            <TouchableOpacity key={name}
+              style={[st.pill, selectedChild === name && st.pillActive]}
+              onPress={() => setSelectedChild(selectedChild === name ? null : name)}>
+              <Text style={[st.pillText, selectedChild === name && st.pillTextActive]}>{name}</Text>
+            </TouchableOpacity>
+          ))}
+          {/* Type filters */}
+          {Object.entries(TYPE_LABELS).map(([key, label]) => (
+            <TouchableOpacity key={key}
+              style={[st.pill, selectedType === key && { ...st.pillActive, backgroundColor: '#5C6BC0' }]}
+              onPress={() => setSelectedType(selectedType === key ? null : key)}>
+              <Text style={[st.pillText, selectedType === key && st.pillTextActive]}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Bulk action bar */}
+      {unresolved.length > 0 && (
+        <View style={st.bulkBar}>
+          <TouchableOpacity style={st.bulkToggle} onPress={() => { setSelectMode(e => !e); setSelectedIds(new Set()); }}>
+            <MaterialIcons name={selectMode ? 'close' : 'checklist'} size={18} color="#5C6BC0" />
+            <Text style={st.bulkToggleTxt}>{selectMode ? 'Cancel' : 'Select'}</Text>
+          </TouchableOpacity>
+          {selectMode && (
+            <>
+              <TouchableOpacity style={st.selectAllBtn}
+                onPress={() => setSelectedIds(new Set(unresolved.map((a: any) => a.id)))}>
+                <Text style={st.selectAllTxt}>Select All ({unresolved.length})</Text>
+              </TouchableOpacity>
+              {selectedIds.size > 0 && (
+                <TouchableOpacity style={st.bulkResolveBtn} onPress={handleBulkResolve}>
+                  <MaterialIcons name="check-circle" size={16} color="#fff" />
+                  <Text style={st.bulkResolveTxt}>Resolve {selectedIds.size}</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+        </View>
+      )}
 
       <ScrollView
         contentContainerStyle={{ padding: 16 }}
@@ -76,68 +168,107 @@ export default function ParentAlertsScreen() {
           <Text style={st.empty}>Loading...</Text>
         ) : unresolved.length === 0 ? (
           <View style={st.emptyBox}>
-            <Text style={{ fontSize: 40 }}>\u2705</Text>
+            <Text style={{ fontSize: 40 }}>✅</Text>
             <Text style={st.empty}>{t('no_alerts') || 'No pending alerts'}</Text>
           </View>
         ) : null}
 
-        {unresolved.map(alert => (
-          <View key={alert.id} style={[st.card, { borderLeftColor: ZONE_COLORS[alert.zone] || '#5C6BC0' }]}>
-            <View style={st.cardTop}>
-              <Text style={st.zone}>{ZONE_EMOJI[alert.zone] || '\ud83d\udcd9'} {alert.student_name}</Text>
-              <Text style={st.type}>{TYPE_LABELS[alert.alert_type] || alert.alert_type}</Text>
-            </View>
-            {alert.strategy_name ? (
-              <Text style={st.strategy}>{t('strategy') || 'Strategy'}: {alert.strategy_name}</Text>
-            ) : null}
-            {alert.message ? (
-              <Text style={st.message}>"{alert.message}"</Text>
-            ) : null}
-            <View style={st.cardBottom}>
-              <Text style={st.time}>{new Date(alert.created_at).toLocaleString()}</Text>
-              <TouchableOpacity style={st.resolveBtn} onPress={() => handleResolve(alert.id)}>
-                <Text style={st.resolveTxt}>{t('resolved') || 'Mark resolved'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ))}
+        {unresolved.map((alert: any) => {
+          const isSelected = selectedIds.has(alert.id);
+          return (
+            <TouchableOpacity
+              key={alert.id}
+              activeOpacity={selectMode ? 0.7 : 1}
+              onPress={() => selectMode && toggleSelect(alert.id)}
+              style={[st.card,
+                { borderLeftColor: ZONE_COLORS[alert.zone] || '#5C6BC0' },
+                isSelected && st.cardSelected,
+              ]}>
+              {/* Select checkbox */}
+              {selectMode && (
+                <View style={st.checkbox}>
+                  <MaterialIcons
+                    name={isSelected ? 'check-box' : 'check-box-outline-blank'}
+                    size={22} color={isSelected ? '#4CAF50' : '#CCC'} />
+                </View>
+              )}
+              <View style={st.cardTop}>
+                <Text style={st.zone}>
+                  {ZONE_EMOJI[alert.zone] || '📙'} {alert.student_name || 'Child'}
+                </Text>
+                <Text style={st.type}>{TYPE_LABELS[alert.alert_type] || alert.alert_type}</Text>
+              </View>
+              {alert.strategy_name && (
+                <Text style={st.strategy}>Strategy: {alert.strategy_name}</Text>
+              )}
+              {alert.message && (
+                <Text style={st.message}>"{alert.message}"</Text>
+              )}
+              <View style={st.cardBottom}>
+                <Text style={st.time}>{new Date(alert.created_at).toLocaleString()}</Text>
+                {!selectMode && (
+                  <TouchableOpacity style={st.resolveBtn} onPress={() => handleResolve(alert.id)}>
+                    <MaterialIcons name="check" size={14} color="#4CAF50" />
+                    <Text style={st.resolveTxt}>Resolve</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        })}
 
         {resolved.length > 0 && (
           <>
-            <Text style={st.sectionLabel}>{t('resolved') || 'Resolved'}</Text>
-            {resolved.slice(0, 5).map(alert => (
+            <Text style={st.sectionLabel}>Resolved ({resolved.length})</Text>
+            {resolved.slice(0, 10).map((alert: any) => (
               <View key={alert.id} style={[st.card, st.cardResolved]}>
                 <View style={st.cardTop}>
-                  <Text style={[st.zone, { color: '#999' }]}>{ZONE_EMOJI[alert.zone] || '\ud83d\udcd9'} {alert.student_name}</Text>
+                  <Text style={[st.zone, { color: '#999' }]}>
+                    {ZONE_EMOJI[alert.zone] || '📙'} {alert.student_name}
+                  </Text>
                   <Text style={st.type}>{TYPE_LABELS[alert.alert_type] || alert.alert_type}</Text>
                 </View>
-                {alert.message ? <Text style={[st.message, { color: '#AAA' }]}>"{alert.message}"</Text> : null}
+                {alert.message && <Text style={[st.message, { color: '#AAA' }]}>"{alert.message}"</Text>}
                 <Text style={st.time}>{new Date(alert.created_at).toLocaleString()}</Text>
               </View>
             ))}
           </>
         )}
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const st = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FA' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#EEE' },
-  title: { fontSize: 17, fontWeight: '700', color: '#333' },
-  card: { backgroundColor: 'white', borderRadius: 12, padding: 14, marginBottom: 10, borderLeftWidth: 4, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  cardResolved: { opacity: 0.5, borderLeftColor: '#CCC' },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  zone: { fontSize: 15, fontWeight: '700', color: '#333' },
-  type: { fontSize: 11, color: '#5C6BC0', fontWeight: '600', backgroundColor: '#E8EAF6', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
-  strategy: { fontSize: 13, color: '#555', marginBottom: 4 },
-  message: { fontSize: 13, color: '#333', fontStyle: 'italic', marginBottom: 6 },
-  cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  time: { fontSize: 11, color: '#999' },
-  resolveBtn: { backgroundColor: '#E8F5E9', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 8 },
-  resolveTxt: { fontSize: 12, color: '#4CAF50', fontWeight: '600' },
-  sectionLabel: { fontSize: 12, color: '#999', fontWeight: '600', marginTop: 16, marginBottom: 8, textTransform: 'uppercase' },
-  emptyBox: { alignItems: 'center', paddingTop: 60, gap: 12 },
-  empty: { fontSize: 15, color: '#999', textAlign: 'center', marginTop: 8 },
+  container:      { flex: 1, backgroundColor: '#F8F9FA' },
+  filterBar:      { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  pill:           { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: '#F0F0F0', borderWidth: 1, borderColor: '#E0E0E0' },
+  pillActive:     { backgroundColor: '#4CAF50', borderColor: '#4CAF50' },
+  pillText:       { fontSize: 12, fontWeight: '600', color: '#666' },
+  pillTextActive: { color: '#fff' },
+  bulkBar:        { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  bulkToggle:     { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#EDE7F6' },
+  bulkToggleTxt:  { fontSize: 12, fontWeight: '600', color: '#5C6BC0' },
+  selectAllBtn:   { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#F5F5F5' },
+  selectAllTxt:   { fontSize: 12, color: '#333', fontWeight: '500' },
+  bulkResolveBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: '#4CAF50', marginLeft: 'auto' as any },
+  bulkResolveTxt: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  card:           { backgroundColor: 'white', borderRadius: 12, padding: 14, marginBottom: 10, borderLeftWidth: 4, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  cardSelected:   { backgroundColor: '#F1F8E9', borderLeftColor: '#4CAF50' },
+  cardResolved:   { opacity: 0.5, borderLeftColor: '#CCC' },
+  cardTop:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  zone:           { fontSize: 15, fontWeight: '700', color: '#333' },
+  type:           { fontSize: 11, color: '#5C6BC0', fontWeight: '600', backgroundColor: '#E8EAF6', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  strategy:       { fontSize: 13, color: '#555', marginBottom: 4 },
+  message:        { fontSize: 13, color: '#333', fontStyle: 'italic', marginBottom: 6 },
+  cardBottom:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  time:           { fontSize: 11, color: '#999' },
+  resolveBtn:     { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#E8F5E9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  resolveTxt:     { fontSize: 12, color: '#4CAF50', fontWeight: '600' },
+  sectionLabel:   { fontSize: 12, color: '#999', fontWeight: '600', marginTop: 16, marginBottom: 8, textTransform: 'uppercase' },
+  emptyBox:       { alignItems: 'center', paddingTop: 60, gap: 12 },
+  empty:          { fontSize: 15, color: '#999', textAlign: 'center', marginTop: 8 },
+  checkbox:       { position: 'absolute', top: 12, right: 12, zIndex: 1 },
 });

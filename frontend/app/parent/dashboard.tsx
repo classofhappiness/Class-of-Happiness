@@ -330,13 +330,14 @@ export default function ParentDashboard() {
         // Non-linked child — use family member as student object
         // Full student experience: zone, helpers, creatures, points
         setCurrentStudent({
-          id: member.id,
+          id: (member as any).student_id || member.id,
           name: member.name,
           avatar_type: member.avatar_type || 'preset',
           avatar_preset: member.avatar_preset || 'bear',
           avatar_custom: member.avatar_custom || null,
           is_family_member: true,
           family_member_id: member.id,
+          student_id: (member as any).student_id,
         } as any);
       }
       // All children get full student zone experience
@@ -731,7 +732,7 @@ export default function ParentDashboard() {
                 const creatureEmoji = childCreatures[member.id]?.emoji || creature?.emoji || '🥚';
                 const isChild = member.relationship === 'child';
                 const cardColor = getRelationshipColor(member.relationship);
-                const isLinked = !!(member as any).student_id;
+                const isLinked = !!(member as any).student_id || linkedChildren.some((lc: any) => lc.name === member.name);
                 const isLinkedChild = !!(member as any).classroom_id || (!member.relationship && !!(member as any).avatar_type);
                 const linkedChildId = (member as any).student_id || (isLinkedChild ? member.id : null);
                 return (
@@ -764,7 +765,7 @@ export default function ParentDashboard() {
                         <Image source={{ uri: member.avatar_custom }} style={styles.gridAvatarImg} />
                       ) : (
                         <Text style={{ fontSize: 26 }}>
-                          {isChild ? creatureEmoji : presetAvatars?.find((a: any) => a.id === member.avatar_preset)?.emoji || '⭐'}
+                          {presetAvatars?.find((a: any) => a.id === member.avatar_preset)?.emoji || (isChild ? '👧' : '⭐')}
                         </Text>
                       )}
                     </View>
@@ -789,7 +790,7 @@ export default function ParentDashboard() {
                     {isLinked && (
                       <TouchableOpacity
                         style={[styles.wellbeingBtn, { backgroundColor:'#E8F5E9', borderColor:'#4CAF50', marginTop:2, flexDirection:'row', gap:3 }]}
-                        onPress={(e) => { e.stopPropagation?.(); router.push(`/parent/linked-child/${(member as any).student_id}`); }}
+                        onPress={(e) => { e.stopPropagation?.(); (() => { const lc = linkedChildren.find((lc: any) => lc.name === member.name); router.push(`/parent/linked-child/${(member as any).student_id || lc?.id || member.id}`); })(); }}
                       >
                         <MaterialIcons name="school" size={10} color="#4CAF50" />
                         <Text style={[styles.wellbeingBtnTxt, { color:'#4CAF50' }]}>Stats</Text>
@@ -825,10 +826,7 @@ export default function ParentDashboard() {
                 <TouchableOpacity
                   key={`linked-${child.id}`}
                   style={[styles.gridCard, { borderColor: '#4CAF5060', borderWidth: 2, backgroundColor: '#F9FFF9' }]}
-                  onPress={() => router.push({
-                    pathname: '/student/zone',
-                    params: { studentId: child.id, location: 'home', fromFamily: 'true' }
-                  })}
+                  onPress={() => router.push(`/parent/linked-child/${child.id}`)}
                   activeOpacity={0.85}
                 >
                   <View style={styles.gridCardActions}>
@@ -865,13 +863,7 @@ export default function ParentDashboard() {
                     </View>
                     <Text style={{ fontSize:8, color:'#4CAF50', marginTop:1 }}>Creatures</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.wellbeingBtn, { backgroundColor: '#E8F5E9', borderColor: '#4CAF50', marginBottom: 2 }]}
-                    onPress={(e) => { e.stopPropagation?.(); router.push(`/parent/linked-child/${child.id}`); }}
-                  >
-                    <MaterialIcons name="bar-chart" size={10} color="#4CAF50" />
-                    <Text style={[styles.wellbeingBtnTxt, { color: '#4CAF50' }]}>Stats</Text>
-                  </TouchableOpacity>
+
                   <TouchableOpacity
                     style={[styles.wellbeingBtn, { backgroundColor: '#E8F5E9', borderColor: '#4CAF50' }]}
                     onPress={(e) => {
@@ -970,7 +962,15 @@ export default function ParentDashboard() {
               <Text style={styles.compactActionTxt}>{t('resources') || 'Resources'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.compactAction} onPress={() => router.push('/parent/alerts')}>
-              <MaterialIcons name="notifications" size={22} color="#F44336" />
+              <View style={{ position:'relative' }}>
+                <MaterialIcons name="notifications" size={22} color="#F44336" />
+                {parentAlertCount > 0 && (
+                  <View style={{ position:'absolute', top:-4, right:-4, backgroundColor:'#F44336',
+                    borderRadius:8, minWidth:16, height:16, alignItems:'center', justifyContent:'center', paddingHorizontal:2 }}>
+                    <Text style={{ fontSize:9, color:'white', fontWeight:'700' }}>{parentAlertCount}</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.compactActionTxt}>{t('alerts') || 'Alerts'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.compactAction} onPress={() => router.push('/parent/widget')}>
