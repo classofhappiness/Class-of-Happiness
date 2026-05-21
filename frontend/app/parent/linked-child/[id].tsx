@@ -64,9 +64,10 @@ const buildZoneCounts = (checkins: any[]) => {
 };
 const buildStrategyCounts = (checkins: any[]) => {
   const c: Record<string, number> = {};
-  checkins.forEach(ci =>
-    (ci.strategies_selected || []).forEach((s: string) => { c[s] = (c[s] || 0) + 1; })
-  );
+  checkins.forEach(ci => {
+    const strats = ci.strategies_selected || ci.helpers_selected || [];
+    strats.forEach((s: string) => { c[s] = (c[s] || 0) + 1; });
+  });
   return c;
 };
 
@@ -90,7 +91,7 @@ export default function LinkedChildDetailScreen() {
   const [schoolStrats,   setSchoolStrats]   = useState<any[]>([]);
   const [familyStrats,   setFamilyStrats]   = useState<FamilyAssignedStrategy[]>([]);
   const [homeSharingEnabled, setHomeSharingEnabled] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState<7 | 14 | 30>(7);
+  const [selectedPeriod, setSelectedPeriod] = useState<1 | 7 | 14 | 30>(7);
 
   const [secEmoDistrib,     setSecEmoDistrib]     = useState(false);
   const [secEmoCompare,     setSecEmoCompare]     = useState(false);
@@ -327,7 +328,7 @@ export default function LinkedChildDetailScreen() {
           {([7, 14, 30] as const).map(d => (
             <TouchableOpacity key={d} style={[s.periodBtn, selectedPeriod === d && s.periodBtnActive]} onPress={() => setSelectedPeriod(d)}>
               <Text style={[s.periodBtnText, selectedPeriod === d && s.periodBtnTextActive]}>
-                {d === 7 ? '7 Days' : d === 14 ? '2 Weeks' : '30 Days'}
+                {d === 1 ? 'Today' : d === 7 ? '7 Days' : d === 14 ? '2 Weeks' : '30 Days'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -761,8 +762,8 @@ const s = StyleSheet.create({
   sheetScroll:         { padding:16, maxHeight:420 },
   sheetActions:        { flexDirection:'row', padding:16, gap:12, borderTopWidth:1, borderTopColor:'#eee' },
   inputLabel:          { fontSize:13, fontWeight:'600', color:'#333', marginBottom:8, marginTop:12 },
-  input:               { backgroundColor:'#F5F5F5', borderRadius:8, padding:12, fontSize:15 },
-  textarea:            { height:80, textAlignVertical:'top' },
+  input:               { backgroundColor:'#F5F5F5', borderRadius:8, padding:12, fontSize:15, color:'#333' },
+  textarea:            { height:80, textAlignVertical:'top', color:'#333' },
   zoneGrid:            { flexDirection:'row', gap:8, flexWrap:'wrap' },
   zoneOpt:             { flex:1, minWidth:70, alignItems:'center', padding:10, borderRadius:12, borderWidth:2 },
   zoneOptLabel:        { fontSize:10, marginTop:4, color:'#333' },
