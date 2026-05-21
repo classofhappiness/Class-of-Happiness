@@ -1138,17 +1138,20 @@ export default function ParentDashboard() {
                     return (
                       <View key={day} style={styles.weeklyDayCell}>
                         {dayData.logs.length > 0 ? (
-                          dayData.logs.slice(0, 3).map((log, idx) => (
-                            <View key={idx} style={styles.weeklyLogItem}>
-                              <View style={[styles.weeklyZoneDot, { backgroundColor: ZONE_COLORS[log.zone] }]} />
-                              <Text style={styles.weeklyTime}>{dayData.times[idx]}</Text>
-                              {(log as any).member_name && (
-                                <Text style={{ fontSize:8, color:'#999', fontWeight:'700' }}>
-                                  {((log as any).member_name || '').charAt(0).toUpperCase()}
-                                </Text>
-                              )}
-                            </View>
-                          ))
+                          dayData.logs.slice(0, 3).map((log, idx) => {
+                            const hour = new Date(log.timestamp).getHours();
+                            const ampm = hour < 12 ? 'am' : 'pm';
+                            const initial = ((log as any).member_name || '').charAt(0).toUpperCase();
+                            return (
+                              <View key={idx} style={{ alignItems:'center', marginBottom:3 }}>
+                                <View style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
+                                  <View style={[styles.weeklyZoneDot, { backgroundColor: ZONE_COLORS[log.zone] }]} />
+                                  {initial ? <Text style={{ fontSize:7, color:'#888', fontWeight:'700' }}>{initial}</Text> : null}
+                                </View>
+                                <Text style={{ fontSize:7, color:'#AAA' }}>{ampm}</Text>
+                              </View>
+                            );
+                          })
                         ) : (
                           <Text style={styles.weeklyNoData}>-</Text>
                         )}
