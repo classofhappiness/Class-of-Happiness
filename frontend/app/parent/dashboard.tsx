@@ -533,7 +533,7 @@ export default function ParentDashboard() {
         // From feeling_logs via student_id (primary source — creature points go here)
         if (child.student_id) {
           try {
-            const r = await fetch(`${BACKEND_URL}/api/logs/student/${child.student_id}?days=${analyticsPeriod}`, { headers });
+            const r = await fetch(`${BACKEND_URL}/api/zone-logs/student/${child.student_id}?days=${analyticsPeriod}`, { headers });
             const logs = r.ok ? await r.json() : [];
             const tagged = Array.isArray(logs) ? logs.map((l: any) => ({
               ...l,
