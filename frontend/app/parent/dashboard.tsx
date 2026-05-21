@@ -605,10 +605,9 @@ export default function ParentDashboard() {
 
   // Reload alert count every time dashboard comes into focus (e.g. after resolving alerts)
   useFocusEffect(
-    useCallback(() => {
+    React.useCallback(() => {
       loadParentAlerts();
-      fetchMemberData();
-    }, [analyticsPeriod])
+    }, [])
   );
 
   useEffect(() => {
