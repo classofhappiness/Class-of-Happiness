@@ -288,9 +288,13 @@ export default function ParentDashboard() {
   // Group logs by day for weekly view - all 7 days
   const getFilteredLogs = () => {
     if (!selectedWeekChild) return recentLogs;
+    // Match by member_id (family children) OR student_id (linked children)
+    // Also match family members whose student_id equals selectedWeekChild
+    const fm = familyMembers.find((m:any) => m.id === selectedWeekChild);
+    const matchIds = new Set([selectedWeekChild, fm?.student_id].filter(Boolean));
     return recentLogs.filter((log) =>
-      (log as any).member_id === selectedWeekChild ||
-      (log as any).student_id === selectedWeekChild
+      matchIds.has((log as any).member_id) ||
+      matchIds.has((log as any).student_id)
     );
   };
 
@@ -1036,11 +1040,25 @@ export default function ParentDashboard() {
                 <TouchableOpacity onPress={() => setSelectedWeekChild(null)} style={{ paddingHorizontal:10, paddingVertical:3, borderRadius:10, backgroundColor: selectedWeekChild===null?'#5C6BC0':'#F0F0F0' }}>
                   <Text style={{ fontSize:10, color: selectedWeekChild===null?'white':'#555', fontWeight:'600' }}>All</Text>
                 </TouchableOpacity>
-                {[...familyMembers.filter(m=>m.relationship==='child'), ...linkedChildren.filter(lc => !familyMembers.some(fm => fm.name === lc.name || (fm as any).student_id === lc.id))].map((m:any) => (
-                  <TouchableOpacity key={m.id} onPress={() => setSelectedWeekChild(m.id)} style={{ paddingHorizontal:10, paddingVertical:3, borderRadius:10, backgroundColor: selectedWeekChild===m.id?'#5C6BC0':'#F0F0F0' }}>
-                    <Text style={{ fontSize:10, color: selectedWeekChild===m.id?'white':'#555', fontWeight:'600' }} numberOfLines={1}>{m.name}</Text>
-                  </TouchableOpacity>
-                ))}
+                {(() => {
+                  // Build unified child list with filter ID matching log tags
+                  const allChildren: {id: string, name: string, filterIds: string[]}[] = [];
+                  familyMembers.filter((m:any) => m.relationship === 'child').forEach((m:any) => {
+                    allChildren.push({ id: m.id, name: m.name, filterIds: [m.id, m.student_id].filter(Boolean) });
+                  });
+                  linkedChildren.forEach((lc:any) => {
+                    if (!allChildren.some(c => c.name === lc.name)) {
+                      allChildren.push({ id: lc.id, name: lc.name, filterIds: [lc.id] });
+                    }
+                  });
+                  return allChildren.map((child) => (
+                    <TouchableOpacity key={child.id}
+                      onPress={() => setSelectedWeekChild(selectedWeekChild === child.id ? null : child.id)}
+                      style={{ paddingHorizontal:10, paddingVertical:3, borderRadius:10, backgroundColor: selectedWeekChild===child.id?'#5C6BC0':'#F0F0F0' }}>
+                      <Text style={{ fontSize:10, color: selectedWeekChild===child.id?'white':'#555', fontWeight:'600' }} numberOfLines={1}>{child.name}</Text>
+                    </TouchableOpacity>
+                  ));
+                })()}
               </View>
               )}
               {weekExpanded && (
