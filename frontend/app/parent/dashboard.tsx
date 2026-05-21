@@ -305,9 +305,11 @@ export default function ParentDashboard() {
     days.forEach(day => { weekData[day] = { logs: [], times: [] }; });
     
     getFilteredLogs().forEach(log => {
-      const day = getDayOfWeek(log.timestamp);
+      const ts = (log as any).timestamp || (log as any).created_at || '';
+      if (!ts) return;
+      const day = getDayOfWeek(ts);
       if (weekData[day]) {
-        const time = new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        const time = new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
         weekData[day].logs.push(log);
         weekData[day].times.push(time);
       }
@@ -1162,8 +1164,8 @@ export default function ParentDashboard() {
               </View>
               
               {/* Recent logs list */}
-              {(selectedWeekChild ? recentLogs.filter((log:any) => (log as any).member_id === selectedWeekChild || (log as any).student_id === selectedWeekChild) : recentLogs).length > 0 ? (
-                (selectedWeekChild ? recentLogs.filter((log:any) => (log as any).member_id === selectedWeekChild || (log as any).student_id === selectedWeekChild) : recentLogs).slice(0, 10).map((log) => (
+              {getFilteredLogs().length > 0 ? (
+                getFilteredLogs().slice(0, 10).map((log) => (
                   <View key={log.id} style={styles.logItem}>
                     <View style={[styles.logZone, { backgroundColor: ZONE_COLORS[log.zone] }]}>
                       <Text style={styles.logZoneText}>{log.zone[0].toUpperCase()}</Text>
@@ -1177,7 +1179,7 @@ export default function ParentDashboard() {
                         </View>
                       </View>
                       <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                        <Text style={styles.logTime}>{formatTime(log.timestamp)}</Text>
+                        <Text style={styles.logTime}>{new Date((log as any).timestamp||(log as any).created_at).toLocaleDateString(undefined,{month:'short',day:'numeric'})} · {formatTime((log as any).timestamp||(log as any).created_at)}</Text>
                         {(log as any).logged_by === 'parent' && <Text style={{ fontSize: 9, color: '#4CAF50', fontWeight: '700' }}>HOME</Text>}
                         {(log as any).logged_by === 'student' && <Text style={{ fontSize: 9, color: '#5C6BC0', fontWeight: '700' }}>SCHOOL</Text>}
                       </View>
