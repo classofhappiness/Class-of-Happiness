@@ -758,7 +758,7 @@ export default function ParentDashboard() {
         <View style={styles.familySection}>
           <View style={styles.familySectionHeader}>
             <Text style={styles.familySectionTitle}>{t('my_family') || 'My Family'}</Text>
-            {familyMembers.length < 4 && (
+            {familyMembers.length < 20 && (
               <TouchableOpacity style={styles.addButton} onPress={() => setShowAddFamilyModal(true)}>
                 <MaterialIcons name="add" size={18} color="white" />
               </TouchableOpacity>

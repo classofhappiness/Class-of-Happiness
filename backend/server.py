@@ -2883,7 +2883,14 @@ async def update_family_member(member_id: str, request: Request):
     updated = supabase.table("family_members").select("*").eq("id", member_id).eq("user_id", user["user_id"]).execute()
     if not updated.data:
         raise HTTPException(status_code=404, detail="Family member not found")
-    return updated.data[0]
+    member = updated.data[0]
+    # Also update linked student record so avatar shows correctly in student flow
+    student_id = member.get("student_id")
+    if student_id:
+        avatar_fields = {k: v for k, v in update_data.items() if k in ["avatar_type", "avatar_preset", "avatar_custom", "name"]}
+        if avatar_fields:
+            supabase.table("students").update(avatar_fields).eq("id", student_id).execute()
+    return member
 
 @api_router.delete("/family/members/{member_id}")
 async def delete_family_member(member_id: str, request: Request):
@@ -2980,6 +2987,26 @@ async def get_shared_strategies_for_student(student_id: str, request: Request):
                         seen_ids.add(s["id"])
         except Exception as e:
             logger.error(f"parent strategies fetch error: {e}")
+
+        # 3. Family member strategies — for family children (no parent_links entry)
+        # Find if this student_id belongs to a family member, then get that parent's strategies
+        try:
+            fm_result = supabase.table("family_members").select("user_id").eq("student_id", student_id).execute()
+            for fm in (fm_result.data or []):
+                parent_id = fm.get("user_id")
+                if not parent_id:
+                    continue
+                fam_result2 = supabase.table("custom_helpers").select("*").eq("user_id", parent_id).execute()
+                for s in (fam_result2.data or []):
+                    if s["id"] in seen_ids:
+                        continue
+                    assigned = s.get("assigned_to", "all") or "all"
+                    if assigned in ("all", student_id):
+                        s["creator_role"] = "parent"
+                        data.append(s)
+                        seen_ids.add(s["id"])
+        except Exception as e:
+            logger.error(f"family member strategies fetch error: {e}")
 
         # Normalise zone/feeling_colour for all
         for row in data:
