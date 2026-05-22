@@ -4275,7 +4275,11 @@ async def get_alerts(request: Request, limit: int = 20):
 
         logger.info(f"[get_alerts] user={user['user_id']} role={user.get('role')} student_ids={student_ids[:5]}")
         if not student_ids:
-            # Fallback: return ALL recent alerts for this user's students
+            if role in ("teacher", "school_admin"):
+                # Fallback for teacher: return all recent alerts (no classroom filter)
+                logger.warning(f"[get_alerts] No student_ids found for teacher {user['user_id']}, returning all recent alerts")
+                fallback = supabase.table("student_alerts").select("*").order("created_at", desc=True).limit(limit).execute()
+                return fallback.data or []
             logger.warning(f"[get_alerts] No student_ids found for user {user['user_id']}")
             return []
 
