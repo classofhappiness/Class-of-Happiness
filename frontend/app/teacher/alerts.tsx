@@ -130,7 +130,7 @@ export default function AlertsScreen() {
       </View>
 
       {/* Classroom filter */}
-      {alertClassrooms.length > 2 && (
+      {alertClassrooms.length > 1 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.classroomRow}>
           {alertClassrooms.map(cl => (
             <TouchableOpacity key={cl} onPress={() => setSelectedClassroom(cl)}
