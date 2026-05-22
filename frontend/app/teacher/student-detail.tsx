@@ -359,7 +359,11 @@ export default function StudentDetailScreen() {
           <Image source={require('../../assets/images/logo_coh.png')} style={{ width: 24, height: 24 }} resizeMode="contain" />
           <View style={{ alignItems: 'center' }}>
             <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
-              <Text style={{fontSize:18}}>{creatureEmoji}</Text>
+              {student.avatar_type === 'custom' && student.avatar_custom ? (
+                <Image source={{ uri: student.avatar_custom }} style={{ width:28, height:28, borderRadius:14 }} />
+              ) : (
+                <Text style={{fontSize:20}}>{presetAvatars?.find((a:any)=>a.id===student.avatar_preset)?.emoji || '👤'}</Text>
+              )}
               <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }} numberOfLines={1}>{student.name}</Text>
             </View>
             <Text style={{ fontSize: 11, color: '#888' }} numberOfLines={1}>{getClassroomName(student.classroom_id)}</Text>
