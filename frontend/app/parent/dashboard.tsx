@@ -1076,7 +1076,14 @@ export default function ParentDashboard() {
 
               {weekExpanded && (() => {
                 const filtered = getFilteredLogs().filter((l:any) => {
-                  const diff = (Date.now() - new Date((l as any).timestamp).getTime()) / 86400000;
+                  const ts = (l as any).timestamp || (l as any).created_at;
+                  if (!ts) return false;
+                  const logDate = new Date(ts);
+                  if (analyticsPeriod === 1) {
+                    const today = new Date(); today.setHours(0,0,0,0);
+                    return logDate >= today;
+                  }
+                  const diff = (Date.now() - logDate.getTime()) / 86400000;
                   return diff <= analyticsPeriod;
                 });
                 const counts: Record<string,number> = { blue:0, green:0, yellow:0, red:0 };
