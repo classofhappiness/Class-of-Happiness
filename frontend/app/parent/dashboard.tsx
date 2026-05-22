@@ -772,7 +772,7 @@ export default function ParentDashboard() {
             </TouchableOpacity>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={styles.familyGrid}>
-              {familyMembers.slice(0, 4).map((member) => {
+              {familyMembers.map((member) => {
                 const creature = memberCreatures[member.id];
                 const creatureEmoji = childCreatures[member.id]?.emoji || creature?.emoji || '🥚';
                 const isChild = member.relationship === 'child';
@@ -1174,8 +1174,19 @@ export default function ParentDashboard() {
               </View>
               
               {/* Recent logs list */}
-              {getFilteredLogs().length > 0 ? (
-                getFilteredLogs().slice(0, 10).map((log) => (
+              {(() => {
+                const periodFiltered = getFilteredLogs().filter((l:any) => {
+                  const ts = (l as any).timestamp || (l as any).created_at;
+                  if (!ts) return false;
+                  const logDate = new Date(ts);
+                  if (analyticsPeriod === 1) {
+                    const today = new Date(); today.setHours(0,0,0,0);
+                    return logDate >= today;
+                  }
+                  return (Date.now() - logDate.getTime()) / 86400000 <= analyticsPeriod;
+                });
+                return periodFiltered.length > 0 ? (
+                periodFiltered.slice(0, 10).map((log) => (
                   <View key={log.id} style={styles.logItem}>
                     <View style={[styles.logZone, { backgroundColor: ZONE_COLORS[log.zone] }]}>
                       <Text style={styles.logZoneText}>{log.zone[0].toUpperCase()}</Text>
@@ -1213,7 +1224,7 @@ export default function ParentDashboard() {
                   <MaterialIcons name="history" size={48} color="#CCC" />
                   <Text style={styles.noDataText}>{t('no_recent_activity')}</Text>
                 </View>
-              )}
+              ); })()}
             </View>
             )}
             </View>
