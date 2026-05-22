@@ -270,6 +270,7 @@ export default function TeacherDashboardScreen() {
                     <Text style={st.logName}>{getStudentName(log.student_id)}</Text>
                     {(log as any).logged_by==='parent' && <View style={st.homeBadge}><Text style={st.homeBadgeTxt}>HOME</Text></View>}
                   </View>
+                  {(() => { const s = getStudent(log.student_id); const cl = s?.classroom_id ? classrooms.find(c=>c.id===s.classroom_id) : null; return cl ? <Text style={{fontSize:9,color:'#AAA'}}>{cl.name}</Text> : null; })()}
                   {(log as any).strategies_selected?.length > 0 && (
                     <Text style={st.logStrats} numberOfLines={1}>
                       {(log as any).strategies_selected.slice(0,2).map(resolveStrategy).join(', ')}
