@@ -29,6 +29,7 @@ export default function AlertsScreen() {
   const [selectedClassroom, setSelectedClassroom] = useState<string>('all');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
+  const [selectedType, setSelectedType] = useState<string|null>(null);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -94,7 +95,8 @@ export default function AlertsScreen() {
   const filtered = alerts.filter(a =>
     !a.resolved &&
     filterByPeriod(a) &&
-    (selectedClassroom === 'all' || a.classroom_name === selectedClassroom)
+    (selectedClassroom === 'all' || a.classroom_name === selectedClassroom) &&
+    (!selectedType || a.alert_type === selectedType)
   );
 
   const resolvedFiltered = alerts.filter(a =>
@@ -141,10 +143,32 @@ export default function AlertsScreen() {
         </ScrollView>
       )}
 
+      {/* Type filter pills */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0', maxHeight:38 }}
+        contentContainerStyle={{ flexDirection:'row', gap:6, paddingHorizontal:12, paddingVertical:6 }}>
+        {[{id:null,label:'All'},{id:'help_request',label:'Help Request'},{id:'zone_alert',label:'Check-in Alert'},{id:'parent_message',label:'Message'}].map(typ=>(
+          <TouchableOpacity key={typ.id||'all'}
+            style={{ paddingHorizontal:10, paddingVertical:3, borderRadius:12,
+              backgroundColor: selectedType===typ.id?'#5C6BC0':'#F0F0F0',
+              borderWidth:1, borderColor: selectedType===typ.id?'#5C6BC0':'#E0E0E0' }}
+            onPress={()=>setSelectedType(typ.id)}>
+            <Text style={{ fontSize:11, fontWeight:'600', color: selectedType===typ.id?'white':'#666' }}>{typ.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       {/* Bulk action bar */}
       <View style={st.actionBar}>
         <Text style={st.countTxt}>{filtered.length} pending</Text>
         <View style={{ flexDirection:'row', gap:8 }}>
+          {selectMode && (
+            <TouchableOpacity style={[st.bulkBtn, {backgroundColor:'#FF9800'}]}
+              onPress={() => setSelected(new Set(filtered.map((a:any)=>a.id)))}>
+              <MaterialIcons name="select-all" size={16} color="white" />
+              <Text style={st.bulkBtnTxt}>All ({filtered.length})</Text>
+            </TouchableOpacity>
+          )}
           {selectMode && selected.size > 0 && (
             <TouchableOpacity style={st.bulkBtn} onPress={handleBulkResolve}>
               <MaterialIcons name="check" size={16} color="white" />

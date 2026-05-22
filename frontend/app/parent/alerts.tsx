@@ -38,6 +38,7 @@ export default function ParentAlertsScreen() {
   const [selectMode,    setSelectMode]    = useState(false);
   const [selectedIds,   setSelectedIds]   = useState<Set<string>>(new Set());
   const [showResolved,  setShowResolved]  = useState(false);
+  const [period, setPeriod] = useState<'today'|'7'|'14'|'30'>('7');
 
   const load = useCallback(async () => {
     const tok = await AsyncStorage.getItem('session_token') || '';
@@ -89,16 +90,26 @@ export default function ParentAlertsScreen() {
     });
   };
 
+  const filterByPeriod = (a: any) => {
+    const diff = (Date.now() - new Date(a.created_at).getTime()) / 86400000;
+    if (period === 'today') { const t2 = new Date(); t2.setHours(0,0,0,0); return new Date(a.created_at) >= t2; }
+    if (period === '7') return diff <= 7;
+    if (period === '14') return diff <= 14;
+    return diff <= 30;
+  };
+
   const childNames = [...new Set(alerts.map((a: any) => a.student_name).filter(Boolean))] as string[];
 
   const unresolved = alerts.filter((a: any) => {
     if (a.resolved) return false;
+    if (!filterByPeriod(a)) return false;
     if (selectedChild && a.student_name !== selectedChild) return false;
     if (selectedType  && a.alert_type  !== selectedType)  return false;
     return true;
   });
   const resolved = alerts.filter((a: any) => {
     if (!a.resolved) return false;
+    if (!filterByPeriod(a)) return false;
     if (selectedChild && a.student_name !== selectedChild) return false;
     return true;
   });
@@ -106,6 +117,18 @@ export default function ParentAlertsScreen() {
   return (
     <SafeAreaView style={st.container}>
       <TranslatedHeader title={t('alerts') || 'Alerts'} />
+
+      {/* Period tabs — matching teacher flow */}
+      <View style={{ flexDirection:'row', backgroundColor:'white', paddingHorizontal:12, paddingVertical:4, gap:6, borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}>
+        {(['today','7','14','30'] as const).map(p => (
+          <TouchableOpacity key={p} onPress={() => setPeriod(p)}
+            style={{ flex:1, paddingVertical:5, borderRadius:6, alignItems:'center', backgroundColor: period===p?'#4CAF50':'#F5F5F5' }}>
+            <Text style={{ fontSize:11, fontWeight:'600', color: period===p?'white':'#888' }}>
+              {p==='today'?'Today':p==='7'?'Week':p==='14'?'Fortnight':'Month'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
       <View style={st.filterBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
