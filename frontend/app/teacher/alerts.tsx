@@ -19,7 +19,7 @@ type Period = 'today' | '7' | '14' | '30';
 export default function AlertsScreen() {
   const navigation = useNavigation();
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
-  const { t, classrooms } = useApp();
+  const { t, classrooms, students } = useApp();
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -89,15 +89,24 @@ export default function AlertsScreen() {
     return diff <= 30;
   };
 
-  // Get unique classrooms from alerts
-  const alertClassrooms = ['all', ...Array.from(new Set(alerts.map(a => a.classroom_name).filter(Boolean)))];
+  // Get unique classrooms — from alerts AND from teacher's own classrooms
+  const alertClassroomNames = Array.from(new Set(alerts.map(a => a.classroom_name).filter(Boolean)));
+  const teacherClassroomNames = (classrooms || []).map(c => c.name);
+  const allClassroomNames = Array.from(new Set([...alertClassroomNames, ...teacherClassroomNames]));
+  const alertClassrooms = ['all', ...allClassroomNames];
 
-  const filtered = alerts.filter(a =>
-    !a.resolved &&
-    filterByPeriod(a) &&
-    (selectedClassroom === 'all' || a.classroom_name === selectedClassroom) &&
-    (!selectedType || a.alert_type === selectedType)
-  );
+  const filtered = alerts.filter(a => {
+    if (a.resolved) return false;
+    if (!filterByPeriod(a)) return false;
+    if (selectedType && a.alert_type !== selectedType) return false;
+    if (selectedClassroom !== 'all') {
+      const matchByName = a.classroom_name === selectedClassroom;
+      const cl = (classrooms||[]).find(c => c.name === selectedClassroom);
+      const matchByStudent = cl ? (students||[]).some(s => s.id === a.student_id && s.classroom_id === cl.id) : false;
+      if (!matchByName && !matchByStudent) return false;
+    }
+    return true;
+  });
 
   const resolvedFiltered = alerts.filter(a =>
     a.resolved &&
