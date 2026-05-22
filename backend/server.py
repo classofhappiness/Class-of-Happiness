@@ -4712,6 +4712,21 @@ async def create_admin_resource(request: Request):
     return result.data[0] if result.data else resource_data
 
 
+@api_router.get("/debug/student-classrooms")
+async def debug_student_classrooms():
+    """Temp debug: show all students and their classroom assignments."""
+    try:
+        students = supabase.table("students").select("id,name,classroom_id,user_id").order("name").execute()
+        classrooms = supabase.table("classrooms").select("id,name,user_id").execute()
+        alerts = supabase.table("student_alerts").select("id,student_name,student_id,alert_type,created_at,resolved").order("created_at", desc=True).limit(10).execute()
+        return {
+            "students": students.data or [],
+            "classrooms": classrooms.data or [],
+            "recent_alerts": alerts.data or []
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 @api_router.get("/admin/analytics")
 async def get_admin_analytics(request: Request, period: int = 30, classroom_id: Optional[str] = None):
     user = await get_current_user(request)
