@@ -816,7 +816,7 @@ export default function ParentDashboard() {
                     </View>
 
                     <Text style={styles.gridName} numberOfLines={1}>{member.name}</Text>
-                    {isLinked && <Text style={styles.linkedLabel}>Linked Child</Text>}
+                    {isLinkedChild && <Text style={styles.linkedLabel}>School Linked</Text>}
 
 
 
@@ -1151,7 +1151,8 @@ export default function ParentDashboard() {
                             const ts = (log as any).timestamp || (log as any).created_at || '';
                             const hour = ts ? new Date(ts).getHours() : 12;
                             const ampm = hour < 12 ? 'am' : 'pm';
-                            const initial = ((log as any).member_name || (log as any).student_name || '').charAt(0).toUpperCase();
+                            const fullName = (log as any).member_name || (log as any).student_name || '';
+                            const initial = fullName.length >= 2 ? fullName.slice(0,2) : fullName.toUpperCase();
                             const zone = (log as any).zone || (log as any).feeling_colour || 'green';
                             const dotColor = ZONE_COLORS[zone] || '#4CAF50';
                             return (
