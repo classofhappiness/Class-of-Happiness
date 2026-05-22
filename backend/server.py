@@ -4247,9 +4247,19 @@ async def get_alerts(request: Request, limit: int = 20):
             # Teachers see students via their classrooms
             classrooms_r = supabase.table("classrooms").select("id").eq("user_id", user["user_id"]).execute()
             classroom_ids = [cl["id"] for cl in (classrooms_r.data or [])]
+            seen_ids = set()
             if classroom_ids:
                 students_r = supabase.table("students").select("id").in_("classroom_id", classroom_ids).execute()
-                student_ids = [s["id"] for s in (students_r.data or [])]
+                for s in (students_r.data or []):
+                    if s["id"] not in seen_ids:
+                        student_ids.append(s["id"])
+                        seen_ids.add(s["id"])
+            # Also include students directly owned by this teacher (user_id match)
+            own_r = supabase.table("students").select("id").eq("user_id", user["user_id"]).execute()
+            for s in (own_r.data or []):
+                if s["id"] not in seen_ids:
+                    student_ids.append(s["id"])
+                    seen_ids.add(s["id"])
             # Superadmin/admin — if no direct classrooms, see all students
             if not student_ids and role in ("superadmin", "admin"):
                 all_students_r = supabase.table("students").select("id").execute()
