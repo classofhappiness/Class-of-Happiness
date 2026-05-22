@@ -349,7 +349,7 @@ export default function ParentDashboard() {
         } as any);
       }
       // All children get full student zone experience
-      router.push({ pathname: '/student/zone', params: { fromFamily: 'true', memberName: member.name, memberId: member.id } });
+      router.push({ pathname: '/student/zone', params: { fromFamily: 'true', location: 'home', memberName: member.name, memberId: member.id } });
       return;
     } else {
       // Adults get parent checkin (max 3 taps: dashboard → checkin → zone → done)

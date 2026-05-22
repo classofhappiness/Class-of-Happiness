@@ -291,7 +291,7 @@ const st = StyleSheet.create({
   alertRowSelected: { backgroundColor:'#E8F5E9' },
   zoneDot: { width:10, height:10, borderRadius:5, flexShrink:0 },
   strategyTxt: { fontSize:13, color:'#333', fontWeight:'500' },
-  messageTxt: { fontSize:12, color:'#666', fontStyle:'italic' },
+  messageTxt: { fontSize:13, color:'#333', fontWeight:'500', backgroundColor:'#F0F4FF', padding:6, borderRadius:6, marginVertical:2 },
   timeTxt: { fontSize:11, color:'#999', marginTop:2 },
   resolveBtn: { padding:4 },
   resolvedHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:10, paddingHorizontal:4, marginTop:8 },
