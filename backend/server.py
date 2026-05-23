@@ -4274,25 +4274,30 @@ async def get_alerts(request: Request, limit: int = 20):
         logger.info(f"[get_alerts] parent links student_ids: {student_ids}")
 
         logger.info(f"[get_alerts] user={user['user_id']} role={user.get('role')} student_ids={student_ids[:5]}")
+        role2 = user.get("role", "")
+        logger.info(f"[get_alerts] user_id={user['user_id']} role={role2} classroom_ids={classroom_ids} student_ids_count={len(student_ids)}")
+        
         if not student_ids:
-            if role in ("teacher", "school_admin"):
-                # Fallback for teacher: return all recent alerts (no classroom filter)
-                logger.warning(f"[get_alerts] No student_ids found for teacher {user['user_id']}, returning all recent alerts")
+            if role2 in ("teacher", "school_admin"):
+                logger.warning(f"[get_alerts] No student_ids for teacher, returning all recent alerts")
                 fallback = supabase.table("student_alerts").select("*").order("created_at", desc=True).limit(limit).execute()
                 return fallback.data or []
-            logger.warning(f"[get_alerts] No student_ids found for user {user['user_id']}")
-            return []
-
-        role = user.get("role", "")
-        logger.info(f"[get_alerts] user_id={user['user_id']} role={role} classroom_ids={classroom_ids} student_ids_count={len(student_ids)}")
-        
-        if not student_ids:
-            logger.warning(f"[get_alerts] No students found for user {user['user_id']}")
             return []
         
-        # Get all alerts for these students
-        all_alerts_r = supabase.table("student_alerts").select("*").in_("student_id", student_ids[:50]).order("created_at", desc=True).limit(50).execute()
-        all_alerts = all_alerts_r.data or []
+        # For teachers: also fetch by classroom_name as fallback
+        role3 = user.get("role", "")
+        if role3 in ("teacher", "school_admin") and classroom_ids:
+            # Get classroom names for this teacher
+            cl_names_r = supabase.table("classrooms").select("name").in_("id", classroom_ids).execute()
+            cl_names = [c["name"] for c in (cl_names_r.data or [])]
+            # Fetch alerts by student_ids OR by classroom_name
+            all_alerts_r = supabase.table("student_alerts").select("*").order("created_at", desc=True).limit(50).execute()
+            all_raw = all_alerts_r.data or []
+            all_alerts = [a for a in all_raw if a.get("student_id") in student_ids or a.get("classroom_name") in cl_names]
+        else:
+            # Get all alerts for these students
+            all_alerts_r = supabase.table("student_alerts").select("*").in_("student_id", student_ids[:50]).order("created_at", desc=True).limit(50).execute()
+            all_alerts = all_alerts_r.data or []
         logger.info(f"[get_alerts] Found {len(all_alerts)} total alerts for {len(student_ids)} students")
         
         # Filter by context
