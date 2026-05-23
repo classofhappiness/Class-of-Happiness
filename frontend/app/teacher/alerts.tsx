@@ -31,8 +31,6 @@ export default function AlertsScreen() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedType, setSelectedType] = useState<string|null>(null);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
-
   const load = useCallback(async () => {
     const tok = await AsyncStorage.getItem('session_token') || '';
     setToken(tok);
@@ -41,6 +39,7 @@ export default function AlertsScreen() {
     setLoading(false);
   }, []);
 
+  useFocusEffect(useCallback(() => { load(); }, [load]));
   useEffect(() => { load(); }, []);
 
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };

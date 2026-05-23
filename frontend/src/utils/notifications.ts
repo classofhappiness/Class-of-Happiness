@@ -166,7 +166,9 @@ export async function getAlerts(token: string): Promise<any[]> {
       return [];
     }
     const data = await res.json();
-    return Array.isArray(data) ? data : [];
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.alerts)) return data.alerts;
+    return [];
   } catch(e) {
     console.error('[Alerts] fetch error:', e);
     return [];
