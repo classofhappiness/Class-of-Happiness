@@ -4284,18 +4284,12 @@ async def get_alerts(request: Request, limit: int = 20):
                 return fallback.data or []
             return []
         
-        # For teachers: also fetch by classroom_name as fallback
+        # For teachers: return all alerts, frontend filters by classroom
         role3 = user.get("role", "")
-        if role3 in ("teacher", "school_admin") and classroom_ids:
-            # Get classroom names for this teacher
-            cl_names_r = supabase.table("classrooms").select("name").in_("id", classroom_ids).execute()
-            cl_names = [c["name"] for c in (cl_names_r.data or [])]
-            # Fetch alerts by student_ids OR by classroom_name
-            all_alerts_r = supabase.table("student_alerts").select("*").order("created_at", desc=True).limit(50).execute()
-            all_raw = all_alerts_r.data or []
-            all_alerts = [a for a in all_raw if a.get("student_id") in student_ids or a.get("classroom_name") in cl_names]
+        if role3 in ("teacher", "school_admin"):
+            all_alerts_r = supabase.table("student_alerts").select("*").order("created_at", desc=True).limit(100).execute()
+            all_alerts = all_alerts_r.data or []
         else:
-            # Get all alerts for these students
             all_alerts_r = supabase.table("student_alerts").select("*").in_("student_id", student_ids[:50]).order("created_at", desc=True).limit(50).execute()
             all_alerts = all_alerts_r.data or []
         logger.info(f"[get_alerts] Found {len(all_alerts)} total alerts for {len(student_ids)} students")
