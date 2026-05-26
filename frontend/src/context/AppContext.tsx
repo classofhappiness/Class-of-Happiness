@@ -330,10 +330,49 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!isAuthenticated) return; // ✅ Don't fetch if not logged in
     try {
       const data = await studentsApi.getAll();
-      // Sort: linked students first, then alphabetical
-      const sorted = [...data].sort((a: any, b: any) => {
+
+      // Also fetch family members and merge children into student list
+      // so family children appear in student select screen
+      let familyStudents: any[] = [];
+      try {
+        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const token = await AsyncStorage.getItem('session_token');
+        const res = await fetch(`${BACKEND_URL}/api/family/members`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const members = await res.json();
+          // Only include family children who have a linked student_id
+          familyStudents = members
+            .filter((m: any) => m.relationship === 'child' && m.student_id)
+            .map((m: any) => ({
+              id: m.student_id,
+              name: m.name,
+              avatar_type: m.avatar_type || 'preset',
+              avatar_preset: m.avatar_preset || 'bear',
+              avatar_custom: m.avatar_custom || null,
+              classroom_id: null,
+              is_family_member: true,
+              family_member_id: m.id,
+              relationship: m.relationship,
+            }));
+        }
+      } catch { /* silent — family fetch is optional */ }
+
+      // Merge: avoid duplicates (student already in data list)
+      const existingIds = new Set(data.map((s: any) => s.id));
+      const merged = [
+        ...data,
+        ...familyStudents.filter((fs: any) => !existingIds.has(fs.id))
+      ];
+
+      // Sort: linked students first, family children next, then alphabetical
+      const sorted = [...merged].sort((a: any, b: any) => {
         if (a.is_linked && !b.is_linked) return -1;
         if (!a.is_linked && b.is_linked) return 1;
+        if (a.is_family_member && !b.is_family_member) return -1;
+        if (!a.is_family_member && b.is_family_member) return 1;
         return (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase());
       });
       setStudents(sorted);

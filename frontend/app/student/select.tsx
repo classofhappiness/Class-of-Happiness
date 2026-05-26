@@ -99,10 +99,15 @@ export default function StudentSelectScreen() {
   }, [students]);
 
   const handleSelectStudent = useCallback((student: typeof students[0]) => {
-    playSelectFeedback(); // Sound effect for selecting student
+    playSelectFeedback();
     setSelectedStudentId(student.id);
-    setCurrentStudent(student);
-    // Short delay to show selection before navigating
+    // Tag family members so strategies screen routes correctly
+    const enriched = {
+      ...student,
+      is_family_member: !!(student as any).is_family_member,
+      family_member_id: (student as any).family_member_id || null,
+    };
+    setCurrentStudent(enriched as any);
     setTimeout(() => {
       router.push('/student/zone');
     }, 200);
@@ -295,6 +300,11 @@ export default function StudentSelectScreen() {
                 <Text style={styles.studentName} numberOfLines={1}>
                   {student.name}
                 </Text>
+                {(student as any).is_family_member && (
+                  <View style={{ backgroundColor: '#E8F5E9', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, marginTop: 2, alignSelf: 'center' }}>
+                    <Text style={{ fontSize: 9, color: '#4CAF50', fontWeight: '700' }}>🏠 Family</Text>
+                  </View>
+                )}
               </View>
               
               {/* Mini Creature Display */}
