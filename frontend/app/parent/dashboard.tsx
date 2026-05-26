@@ -792,6 +792,7 @@ export default function ParentDashboard() {
               <Text style={styles.emptyFamilyTxt}>{t('add_family_to_track') || 'Add a family member'}</Text>
             </TouchableOpacity>
           ) : (
+            <>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={styles.familyGrid}>
               {orderedMembers.map((member) => {
                 const creature = memberCreatures[member.id];
@@ -966,6 +967,7 @@ export default function ParentDashboard() {
                 </TouchableOpacity>
               ))}
             </View></ScrollView>
+            </>
           )}
         </View>
         {/* Linked Children in family grid above */}
