@@ -3163,7 +3163,7 @@ async def get_available_months(student_id: str):
     return sorted(list(months), reverse=True)
 
 @api_router.get("/reports/pdf/student/{student_id}/month/{year}/{month}")
-async def generate_pdf_report(student_id: str, year: int, month: int, request: Request):
+async def generate_pdf_report(student_id: str, year: int, month: int, request: Request, lang: str = ""):
     student = supabase.table("students").select("*").eq("id", student_id).execute()
     if not student.data:
         raise HTTPException(status_code=404, detail="Student not found")
@@ -3181,6 +3181,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
 
     # Also fetch home check-ins via family_members link
     home_logs = []
+    has_home_data = False
     try:
         fm_link = supabase.table("family_members").select("id").eq("student_id", student_id).execute()
         if fm_link.data:
@@ -3191,12 +3192,13 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
                 l["_source"] = "home"
                 l["zone"] = l.get("zone", l.get("feeling_colour", ""))
                 l["strategies_selected"] = l.get("strategies_selected", l.get("helpers_selected", []))
+        has_home_data = len(home_logs) > 0
     except Exception as e:
         logger.warning(f"Could not fetch home logs for PDF: {e}")
+        has_home_data = False
 
     # Combine all logs sorted by timestamp
     logs_data = sorted(school_logs + home_logs, key=lambda x: x.get("timestamp", ""))
-    has_home_data = len(home_logs) > 0
 
     # Also get classroom info
     classroom_name = "Not assigned"
@@ -3207,15 +3209,30 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
                 classroom_name = cr.data[0]["name"]
         except: pass
 
-    # Detect report language from student or classroom
+    # Detect report language — check request header, then student, then classroom
     report_lang = "en"
     try:
+        # Check URL lang param first (most reliable)
+        if lang and lang in ["pt", "es", "fr", "de", "it", "en"]:
+            report_lang = lang
+        else:
+            # Check Accept-Language header from request
+            accept_lang = request.headers.get("Accept-Language", "")
+            if accept_lang:
+                lang_code = accept_lang.split(",")[0].split("-")[0].lower()
+                if lang_code in ["pt", "es", "fr", "de", "it", "en"]:
+                    report_lang = lang_code
+        # Override with student's saved language if set
         if student_data.get("language"):
-            report_lang = student_data["language"][:2].lower()
+            lang_code = student_data["language"][:2].lower()
+            if lang_code in ["pt", "es", "fr", "de", "it", "en"]:
+                report_lang = lang_code
         elif student_data.get("classroom_id"):
             cr_lang = supabase.table("classrooms").select("language").eq("id", student_data["classroom_id"]).execute()
             if cr_lang.data and cr_lang.data[0].get("language"):
-                report_lang = cr_lang.data[0]["language"][:2].lower()
+                lang_code = cr_lang.data[0]["language"][:2].lower()
+                if lang_code in ["pt", "es", "fr", "de", "it", "en"]:
+                    report_lang = lang_code
     except: pass
     # Inject into student_data so the PDF builder can read it
     student_data["language"] = report_lang

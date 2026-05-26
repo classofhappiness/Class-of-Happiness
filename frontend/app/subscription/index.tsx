@@ -58,6 +58,7 @@ export default function SubscriptionScreen() {
   }, [selectedRole]);
 
   const plans = selectedRole === 'parent' ? PARENT_PLANS : TEACHER_PLANS;
+  // Teachers can also subscribe as parents — show note
   const features = selectedRole === 'parent' ? PARENT_FEATURES : TEACHER_FEATURES;
   const isTrialUsed = user?.trial_started_at != null;
   const isActive = user?.subscription_status === 'active' || user?.subscription_status === 'trial';
@@ -164,6 +165,16 @@ export default function SubscriptionScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Both roles note */}
+      {selectedRole === 'teacher' && (
+        <TouchableOpacity
+          onPress={() => Linking.openURL('mailto:hello@classofhappiness.com?subject=Parent and Teacher Plan')}
+          style={{ backgroundColor:'#E8F5E9', borderRadius:10, padding:10, marginBottom:12, flexDirection:'row', alignItems:'center', gap:8 }}>
+          <MaterialIcons name="info" size={16} color="#4CAF50" />
+          <Text style={{ fontSize:12, color:'#2E7D32', flex:1 }}>Need parent AND teacher access? Contact us for a combined plan.</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Plans */}
       <Text style={st.sectionLabel}>Choose your plan</Text>
       {plans.map(plan => (
@@ -211,6 +222,7 @@ export default function SubscriptionScreen() {
       )}
 
       {/* School Package CTA */}
+      <Text style={[st.sectionLabel, { marginTop: 8 }]}>For schools & districts</Text>
       <TouchableOpacity
         style={st.schoolCard}
         onPress={() => Linking.openURL('mailto:hello@classofhappiness.com?subject=School Package Enquiry')}>

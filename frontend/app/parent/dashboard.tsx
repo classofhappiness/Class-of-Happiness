@@ -120,8 +120,8 @@ const getZoneLabel = (zone: string, t: (key: string) => string) => {
 
 const RELATIONSHIP_COLORS: Record<string, string> = {
   self: '#5C6BC0',
-  partner: '#E91E63',
-  child: '#4CAF50',
+  partner: '#5C6BC0',
+  child: '#F44336',
 };
 
 const getRelationshipColor = (relationship: string) => {
@@ -1017,7 +1017,7 @@ export default function ParentDashboard() {
           )}
         </View>
         {/* Upgrade nudge — show after 5 checkins if not subscribed */}
-        {!hasActiveSubscription && totalFamilyCheckins >= 5 && (
+        {!hasActiveSubscription && familyMembers.length >= 1 && totalFamilyCheckins >= 3 && (
           <TouchableOpacity
             onPress={() => router.push('/subscription')}
             style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF8E1', borderRadius: 12, marginHorizontal: 16, marginBottom: 8, padding: 12, gap: 10, borderWidth: 1, borderColor: '#FFE082' }}>

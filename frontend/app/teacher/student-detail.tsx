@@ -299,12 +299,14 @@ export default function StudentDetailScreen() {
       const token = await AsyncStorage.getItem('session_token');
       const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
       const [yearStr, monthNum] = monthStr.split('-');
-      const fullUrl = `${BACKEND_URL}/api/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}`;
+      // Pass language preference in URL
+      const lang = await AsyncStorage.getItem('app_language') || 'en';
+      const fullUrl = `${BACKEND_URL}/api/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}&lang=${lang}`;
       const canOpen = await Linking.canOpenURL(fullUrl);
       if (canOpen) {
         await Linking.openURL(fullUrl);
       } else {
-        Alert.alert('Error', 'Cannot open PDF');
+        Alert.alert('Error', 'Cannot open PDF — no data may exist for this month yet');
       }
     } catch (error: any) {
       Alert.alert(t('download_error') || 'Download Error', error.message || t('please_try_again') || 'Could not download report');
@@ -829,10 +831,14 @@ export default function StudentDetailScreen() {
         {/* Home Data Section (if parent has enabled sharing) */}
         {sharingStatus?.is_linked_to_parent && (
           <View style={styles.homeDataSection}>
-            <View style={styles.homeDataHeader}>
-              <MaterialIcons name="home" size={24} color="#4CAF50" />
-              <Text style={styles.sectionTitle}>{t('home_data') || 'Home Data'}</Text>
-            </View>
+            <TouchableOpacity onPress={() => setSecHomeSharing(e => !e)} style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: secHomeSharing ? 10 : 0 }}>
+              <View style={styles.homeDataHeader}>
+                <MaterialIcons name="home" size={24} color="#4CAF50" />
+                <Text style={styles.sectionTitle}>{t('home_data') || 'Home Data'}</Text>
+              </View>
+              <MaterialIcons name={secHomeSharing ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+            </TouchableOpacity>
+          {secHomeSharing && <>
             <Text style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>
               {sharingStatus.home_sharing_enabled
                 ? `✅ Parent sharing on · ${sharingStatus.school_sharing_enabled ? '✅ School sharing on' : '⏸ School sharing off'}`
@@ -937,6 +943,7 @@ export default function StudentDetailScreen() {
                 </Text>
               </View>
             )}
+          </>}
           </View>
         )}
       </ScrollView>

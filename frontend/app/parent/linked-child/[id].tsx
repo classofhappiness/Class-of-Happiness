@@ -123,7 +123,8 @@ export default function LinkedChildDetailScreen() {
       const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
       const [yearStr, monthNum] = monthStr.split('-');
       const studentId = child?.student_id || id;
-      const fullUrl = `${BACKEND_URL}/api/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}`;
+      const lang = await AsyncStorage.getItem('app_language') || 'en';
+      const fullUrl = `${BACKEND_URL}/api/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}&lang=${lang}`;
       const canOpen = await Linking.canOpenURL(fullUrl);
       if (canOpen) {
         await Linking.openURL(fullUrl);
