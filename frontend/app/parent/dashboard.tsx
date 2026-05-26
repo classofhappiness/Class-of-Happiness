@@ -898,8 +898,8 @@ export default function ParentDashboard() {
                 );
               }}
             />
-            <View style={[styles.familyGrid, { paddingHorizontal: 16 }]}>
-              {/* Linked children in same row */}
+            {/* Linked children in same row */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={styles.familyGrid}>
               {linkedChildren.filter(lc => !familyMembers.some(fm => fm.name === lc.name || (fm as any).student_id === lc.id)).map((child: any) => (
                 <TouchableOpacity
                   key={`linked-${child.id}`}
@@ -975,7 +975,7 @@ export default function ParentDashboard() {
                   </TouchableOpacity>
                 </TouchableOpacity>
               ))}
-            </View>
+            </View></ScrollView>
           )}
         </View>
         {/* Linked Children in family grid above */}
