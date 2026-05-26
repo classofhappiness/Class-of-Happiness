@@ -144,6 +144,7 @@ export default function ParentDashboard() {
   const [selectedMember, setSelectedMember] = useState<FamilyMember | Student | null>(null);
   const [selectedType, setSelectedType] = useState<'family' | 'linked'>('family');
   const [orderedMembers, setOrderedMembers] = useState<typeof familyMembers>([]);
+  const [reorderMode, setReorderMode] = useState(false);
   
   // Analytics
   const [analytics, setAnalytics] = useState<{ zone_counts: Record<string, number> } | null>(null);
@@ -643,6 +644,15 @@ export default function ParentDashboard() {
     });
   }, [familyMembers]);
 
+  const moveCard = (fromIdx: number, dir: -1 | 1) => {
+    const to = fromIdx + dir;
+    if (to < 0 || to >= orderedMembers.length) return;
+    const next = [...orderedMembers];
+    [next[fromIdx], next[to]] = [next[to], next[fromIdx]];
+    setOrderedMembers(next);
+    AsyncStorage.setItem('family_member_order', JSON.stringify(next.map((m: any) => m.id)));
+  };
+
   const onRefresh = async () => { loadParentAlerts();
     setRefreshing(true);
     await fetchData();
@@ -779,11 +789,21 @@ export default function ParentDashboard() {
         <View style={styles.familySection}>
           <View style={styles.familySectionHeader}>
             <Text style={styles.familySectionTitle}>{t('my_family') || 'My Family'}</Text>
-            {familyMembers.length < 20 && (
-              <TouchableOpacity style={styles.addButton} onPress={() => setShowAddFamilyModal(true)}>
-                <MaterialIcons name="add" size={18} color="white" />
-              </TouchableOpacity>
-            )}
+            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+              {orderedMembers.length > 1 && (
+                <TouchableOpacity
+                  style={[styles.addButton, { backgroundColor: reorderMode ? '#F44336' : '#9E9E9E' }]}
+                  onPress={() => setReorderMode(r => !r)}
+                >
+                  <MaterialIcons name={reorderMode ? 'check' : 'swap-horiz'} size={16} color="white" />
+                </TouchableOpacity>
+              )}
+              {!reorderMode && familyMembers.length < 20 && (
+                <TouchableOpacity style={styles.addButton} onPress={() => setShowAddFamilyModal(true)}>
+                  <MaterialIcons name="add" size={18} color="white" />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           {familyMembers.length === 0 ? (
@@ -806,14 +826,25 @@ export default function ParentDashboard() {
                   <TouchableOpacity
                     key={member.id}
                     style={[styles.gridCard, { borderColor: cardColor + '30' }]}
-                    onPress={() => handleMemberCheckin(member)}
-                    activeOpacity={0.85}
+                    onPress={() => { if (!reorderMode) handleMemberCheckin(member); }}
+                    activeOpacity={reorderMode ? 1 : 0.85}
                   >
                     {/* Edit/delete top row */}
                     <View style={styles.gridCardActions}>
-                      <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); handleEditFamilyMember(member); }} style={styles.gridActionBtn}>
-                        <MaterialIcons name="edit" size={11} color="#5C6BC0" />
-                      </TouchableOpacity>
+                      {reorderMode ? (
+                        <>
+                          <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); moveCard(orderedMembers.indexOf(member), -1); }} style={styles.gridActionBtn}>
+                            <MaterialIcons name="chevron-left" size={16} color="#5C6BC0" />
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); moveCard(orderedMembers.indexOf(member), 1); }} style={styles.gridActionBtn}>
+                            <MaterialIcons name="chevron-right" size={16} color="#5C6BC0" />
+                          </TouchableOpacity>
+                        </>
+                      ) : (
+                        <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); handleEditFamilyMember(member); }} style={styles.gridActionBtn}>
+                          <MaterialIcons name="edit" size={11} color="#5C6BC0" />
+                        </TouchableOpacity>
+                      )}
                       {isLinked && (
                         <TouchableOpacity
                           onPress={(e) => { e.stopPropagation?.(); router.push(`/parent/linked-child/${linkedChildId || member.id}`); }}
