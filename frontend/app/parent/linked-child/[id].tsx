@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import {
   View, Image, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Modal, Alert, ActivityIndicator, RefreshControl, Switch, Dimensions,
+  Modal, Alert, ActivityIndicator, RefreshControl, Switch, Dimensions, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -99,6 +99,8 @@ export default function LinkedChildDetailScreen() {
   const [secRecentCheckins, setSecRecentCheckins] = useState(false);
   const [secCalendar,       setSecCalendar]       = useState(false);
   const [secStrategies,     setSecStrategies]     = useState(false);
+  const [secPdfReport,      setSecPdfReport]      = useState(false);
+  const [downloading,       setDownloading]       = useState(false);
 
   const [activeDistTab, setActiveDistTab] = useState<'combined' | 'home' | 'school'>('combined');
   const [activeTab,     setActiveTab]     = useState<'combined' | 'home' | 'school'>('combined');
@@ -112,6 +114,28 @@ export default function LinkedChildDetailScreen() {
   const [newStrat, setNewStrat] = useState({
     name: '', description: '', zone: 'green', icon: 'star', shareWithTeacher: false,
   });
+
+  const downloadReport = async (monthStr: string) => {
+    if (!id) return;
+    setDownloading(true);
+    try {
+      const token = await AsyncStorage.getItem('session_token');
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const [yearStr, monthNum] = monthStr.split('-');
+      const studentId = child?.student_id || id;
+      const fullUrl = `${BACKEND_URL}/api/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}`;
+      const canOpen = await Linking.canOpenURL(fullUrl);
+      if (canOpen) {
+        await Linking.openURL(fullUrl);
+      } else {
+        Alert.alert('Error', 'Cannot open PDF');
+      }
+    } catch (error: any) {
+      Alert.alert('Download Error', error.message || 'Could not download report');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     if (!id) return;
@@ -588,6 +612,51 @@ export default function LinkedChildDetailScreen() {
               ))
             }
           </>)}
+        </View>
+
+        {/* DOWNLOAD PDF */}
+        <View style={s.section}>
+          <TouchableOpacity onPress={() => setSecPdfReport(e => !e)} style={s.sectionHeader}>
+            <View style={s.sectionHeaderLeft}>
+              <MaterialIcons name="picture-as-pdf" size={17} color="#E53935" />
+              <Text style={s.sectionTitle}>Download Monthly Report</Text>
+            </View>
+            <MaterialIcons name={secPdfReport ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+          </TouchableOpacity>
+          {secPdfReport && (() => {
+            const months: string[] = [];
+            const now = new Date();
+            for (let i = 0; i < 6; i++) {
+              const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+              months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+            }
+            return (
+              <View style={{ gap: 8, marginTop: 12 }}>
+                <Text style={[s.empty, { paddingVertical: 4, textAlign: 'left', color: '#666' }]}>
+                  Select a month to download a PDF report
+                </Text>
+                {months.map(m => {
+                  const [y, mo] = m.split('-');
+                  const label = new Date(parseInt(y), parseInt(mo) - 1, 1)
+                    .toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+                  return (
+                    <TouchableOpacity
+                      key={m}
+                      style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF3F3', borderRadius: 10, padding: 12, gap: 10, borderWidth: 1, borderColor: '#FFCDD2' }}
+                      onPress={() => downloadReport(m)}
+                      disabled={downloading}
+                    >
+                      <MaterialIcons name="picture-as-pdf" size={20} color="#E53935" />
+                      <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: '#333' }}>{label}</Text>
+                      {downloading
+                        ? <ActivityIndicator size="small" color="#E53935" />
+                        : <MaterialIcons name="download" size={18} color="#E53935" />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            );
+          })()}
         </View>
 
         <View style={{height:40}} />
