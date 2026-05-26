@@ -365,6 +365,14 @@ export default function StrategiesScreen() {
           >
             <Text style={{ fontSize: 16 }}>💌</Text>
             <Text style={styles.parentMsgLabel}>{t('message_parent') || 'Send message to parent'}</Text>
+            <TouchableOpacity
+              style={[styles.helpBtn, parentMessageVisible && styles.helpBtnDone]}
+              onPress={() => setParentMessageVisible(true)}
+            >
+              <MaterialIcons name="pan-tool" size={18}
+                color={parentMessageVisible ? '#333' : '#BBB'}
+                style={{ opacity: parentMessageVisible ? 1 : 0.4 }} />
+            </TouchableOpacity>
             <MaterialIcons name={parentMessageVisible ? 'expand-less' : 'expand-more'} size={20} color="#CCC" />
           </TouchableOpacity>
           )}
