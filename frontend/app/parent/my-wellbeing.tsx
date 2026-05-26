@@ -403,8 +403,6 @@ export default function MyWellbeingScreen() {
               })}
             </View>
           </ScrollView>
-        </View>
-
           </View>}
         </View>
 
