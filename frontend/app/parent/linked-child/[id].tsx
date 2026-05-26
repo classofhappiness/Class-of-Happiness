@@ -309,7 +309,7 @@ export default function LinkedChildDetailScreen() {
         <View style={s.headerCenter}>
           <Image source={require('../../../assets/images/logo_coh.png')} style={s.headerLogo} resizeMode="contain" />
           <Text style={s.headerTitle}>{child.name}</Text>
-          {isFamilyChild && <View style={s.typeBadge}><Text style={s.typeBadgeText}>Family</Text></View>}
+          {isFamilyChild && <View style={s.typeBadge}><Text style={s.typeBadgeText}>{t('family') || 'Family'}</Text></View>}
         </View>
         <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={s.headerBtn}>
           <MaterialIcons name="home" size={22} color="#333" />
@@ -326,7 +326,7 @@ export default function LinkedChildDetailScreen() {
           </View>
           <TouchableOpacity style={s.checkInBtn} onPress={() => setShowCheckIn(true)}>
             <MaterialIcons name="add-circle" size={20} color="#fff" />
-            <Text style={s.checkInBtnText}>Check In</Text>
+            <Text style={s.checkInBtnText}>{t('check_in') || 'Check In'}</Text>
           </TouchableOpacity>
         </View>
 

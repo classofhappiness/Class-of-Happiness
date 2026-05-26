@@ -27,11 +27,11 @@ export default function SettingsScreen() {
   const [showTrialCode, setShowTrialCode] = useState(false);
   const [trialCode, setTrialCode] = useState('');
   const [redeemingCode, setRedeemingCode] = useState(false);
-  const [showTrialCodeText, setShowTrialCodeText] = useState(true);  // Show text by default
+  const [showTrialCodeText, setShowTrialCodeText] = useState(false);
   const [showAdminCode, setShowAdminCode] = useState(false);
   const [adminCode, setAdminCode] = useState('');
   const [promotingAdmin, setPromotingAdmin] = useState(false);
-  const [showAdminCodeText, setShowAdminCodeText] = useState(true);  // Show text by default
+  const [showAdminCodeText, setShowAdminCodeText] = useState(false);
 
   // Set translated header title - depend on language/translations to trigger updates
   useLayoutEffect(() => {

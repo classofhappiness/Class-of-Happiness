@@ -860,7 +860,7 @@ export default function ParentDashboard() {
                         }}
                       >
                         <MaterialIcons name="spa" size={12} color="#5C6BC0" />
-                        <Text style={styles.wellbeingBtnTxt}>Wellbeing</Text>
+                        <Text style={styles.wellbeingBtnTxt}>{t('wellbeing') || 'Wellbeing'}</Text>
                       </TouchableOpacity>
                     )}
                     {isLinked && (
@@ -869,7 +869,7 @@ export default function ParentDashboard() {
                         onPress={(e) => { e.stopPropagation?.(); (() => { const lc = linkedChildren.find((lc: any) => lc.name === member.name); router.push(`/parent/linked-child/${(member as any).student_id || lc?.id || member.id}`); })(); }}
                       >
                         <MaterialIcons name="school" size={10} color="#4CAF50" />
-                        <Text style={[styles.wellbeingBtnTxt, { color:'#4CAF50' }]}>Stats</Text>
+                        <Text style={[styles.wellbeingBtnTxt, { color:'#4CAF50' }]}>{t('stats') || 'Stats'}</Text>
                         <MaterialIcons name="chevron-right" size={10} color="#4CAF50" />
                       </TouchableOpacity>
                     )}
@@ -891,7 +891,7 @@ export default function ParentDashboard() {
                             <Text style={{ fontSize:20 }}>{creatureEmoji}</Text>
                           )}
                         </View>
-                        <Text style={{ fontSize:8, color:'#5C6BC0', marginTop:2 }}>My Creatures</Text>
+                        <Text style={{ fontSize:8, color:'#5C6BC0', marginTop:2 }}>{t('my_creatures') || 'My Creatures'}</Text>
                       </TouchableOpacity>
                     )}
                   </TouchableOpacity>
@@ -960,7 +960,7 @@ export default function ParentDashboard() {
                     }}
                   >
                     <MaterialIcons name="spa" size={12} color="#5C6BC0" />
-                    <Text style={styles.wellbeingBtnTxt}>Wellbeing</Text>
+                    <Text style={styles.wellbeingBtnTxt}>{t('wellbeing') || 'Wellbeing'}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.wellbeingBtn, { marginTop: 4, borderColor: childCreatures[child.id]?.color || '#4CAF50' }]}
@@ -971,7 +971,7 @@ export default function ParentDashboard() {
                     }}
                   >
                     <Text style={{ fontSize: 14 }}>{childCreatures[child.id]?.emoji || '🥚'}</Text>
-                    <Text style={[styles.wellbeingBtnTxt, { color: childCreatures[child.id]?.color || '#4CAF50' }]}>Creatures</Text>
+                    <Text style={[styles.wellbeingBtnTxt, { color: childCreatures[child.id]?.color || '#4CAF50' }]}>{t('creatures') || 'Creatures'}</Text>
                   </TouchableOpacity>
                 </TouchableOpacity>
               ))}
@@ -1222,7 +1222,9 @@ export default function ParentDashboard() {
                 periodFiltered.slice(0, 10).map((log) => (
                   <View key={log.id} style={styles.logItem}>
                     <View style={[styles.logZone, { backgroundColor: ZONE_COLORS[log.zone] }]}>
-                      <Text style={styles.logZoneText}>{log.zone[0].toUpperCase()}</Text>
+                      <Text style={styles.logZoneText}>
+                        {log.zone==='green'?'😊':log.zone==='blue'?'😔':log.zone==='yellow'?'😟':'😣'}
+                      </Text>
                     </View>
                     <View style={styles.logDetails}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>

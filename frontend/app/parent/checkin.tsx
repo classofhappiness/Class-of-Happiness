@@ -382,9 +382,9 @@ export default function FamilyCheckInScreen() {
               {/* Selected Emotion Badge */}
               <View style={[styles.selectedZoneBadge, { backgroundColor: zoneConfig?.color }]}>
                 <Text style={styles.selectedZoneFace}>{zoneConfig?.face}</Text>
-                <Text style={styles.selectedZoneText}>{zoneConfig?.name} Emotions</Text>
+                <Text style={styles.selectedZoneText}>{zoneConfig?.name} {t('emotions') || 'Emotions'}</Text>
                 <TouchableOpacity onPress={() => setStep('zone')} style={styles.changeZoneButton}>
-                  <Text style={styles.changeZoneText}>Change</Text>
+                  <Text style={styles.changeZoneText}>{t('change') || 'Change'}</Text>
                 </TouchableOpacity>
               </View>
 
