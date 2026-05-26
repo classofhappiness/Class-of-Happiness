@@ -799,7 +799,7 @@ export default function ParentDashboard() {
                 const creatureEmoji = childCreatures[member.id]?.emoji || creature?.emoji || '🥚';
                 const isChild = member.relationship === 'child';
                 const cardColor = getRelationshipColor(member.relationship);
-                const isLinked = !!(member as any).student_id || linkedChildren.some((lc: any) => lc.name === member.name);
+                const isLinked = linkedChildren.some((lc: any) => lc.name === member.name || lc.id === (member as any).student_id);
                 const isLinkedChild = !!(member as any).classroom_id || (!member.relationship && !!(member as any).avatar_type);
                 const linkedChildId = (member as any).student_id || (isLinkedChild ? member.id : null);
                 return (
@@ -814,11 +814,11 @@ export default function ParentDashboard() {
                       <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); handleEditFamilyMember(member); }} style={styles.gridActionBtn}>
                         <MaterialIcons name="edit" size={11} color="#5C6BC0" />
                       </TouchableOpacity>
-                      {(isLinked || isLinkedChild) && (
+                      {isLinked && (
                         <TouchableOpacity
                           onPress={(e) => { e.stopPropagation?.(); router.push(`/parent/linked-child/${linkedChildId || member.id}`); }}
                           style={[styles.linkedBadge, { backgroundColor:'#E8F5E9' }]}>
-                          <MaterialIcons name="school" size={10} color="#4CAF50" />
+                          <MaterialIcons name="link" size={10} color="#4CAF50" />
                         </TouchableOpacity>
                       )}
                       <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); handleDeleteFamilyMember(member); }} style={styles.gridActionBtn}>
@@ -1220,10 +1220,10 @@ export default function ParentDashboard() {
                     </View>
                     <View style={styles.logDetails}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
-                          <Text style={styles.logZoneName}>{getZoneLabel(log.zone, t)}</Text>
-                          {(log as any).member_name && <Text style={{ fontSize:11, color:'#888', fontWeight:'600' }}>· {(log as any).member_name.split(' ')[0]}</Text>}
-                          {!(log as any).member_name && (log as any).student_name && <Text style={{ fontSize:11, color:'#5C6BC0', fontWeight:'600' }}>· {(log as any).student_name.split(' ')[0]}</Text>}
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:4, flexWrap:'wrap' }}>
+                          {(log as any).member_name && <Text style={[styles.logZoneName, { fontSize:14 }]}>{(log as any).member_name.split(' ')[0]}</Text>}
+                          {!(log as any).member_name && (log as any).student_name && <Text style={[styles.logZoneName, { fontSize:14, color:'#5C6BC0' }]}>{(log as any).student_name.split(' ')[0]}</Text>}
+                          <Text style={{ fontSize:11, color:'#888' }}>{getZoneLabel(log.zone, t)}</Text>
                         </View>
                       </View>
                       <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
