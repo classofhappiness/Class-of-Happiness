@@ -18,6 +18,22 @@ const ZONE_EMOJI: Record<string, string> = {
   blue: '😔', green: '😊', yellow: '😟', red: '😣',
 };
 
+const STRATEGY_NAMES: Record<string, string> = {
+  blue_1:'Gentle Stretch', blue_2:'Warm Drink', blue_3:'Favourite Song', blue_4:'Cosy Spot', blue_5:'Tell Someone', blue_6:'Slow Breathing',
+  green_1:'Keep Going!', green_2:'Help a Friend', green_3:'Try Something New', green_4:'Share Your Smile', green_5:'Set a Goal', green_6:'Gratitude',
+  yellow_1:'Bubble Breathing', yellow_2:'Body Shake', yellow_3:'Count to 10', yellow_4:'5 Senses', yellow_5:'Squeeze & Release', yellow_6:'Talk About It',
+  red_1:'Freeze', red_2:'Big Breaths', red_3:'Count Backwards', red_4:'Safe Space', red_5:'Ask for Help', red_6:'Self Hug',
+  b1:'Gentle Stretch', b2:'Favourite Song', b3:'Tell Someone', b4:'Slow Breathing',
+  g1:'Keep Going!', g2:'Help a Friend', g3:'Set a Goal', g4:'Gratitude',
+  y1:'Bubble Breathing', y2:'Count to 10', y3:'5 Senses', y4:'Talk About It',
+  r1:'Freeze', r2:'Big Breaths', r3:'Safe Space', r4:'Ask for Help',
+  p_b1:'Side-by-Side Presence', p_b2:'Warm Drink Ritual', p_b3:'Name It to Tame It', p_b4:'Movement Invitation', p_b5:'Comfort & Closeness',
+  p_g1:'Gratitude Round', p_g2:'Strength Spotting', p_g3:'Creative Together', p_g4:'Family Dance', p_g5:'Calm Problem Solving',
+  p_y1:'Box Breathing Together', p_y2:'Validate First', p_y3:'Body Check-In', p_y4:'Feelings Journal', p_y5:'Give Space with Love',
+  p_r1:'Stay Calm Yourself', p_r2:'Safe Space Together', p_r3:'Cold Water Reset', p_r4:'No Teaching Now', p_r5:'Reconnect with Warmth',
+};
+const resolveName = (id: string) => STRATEGY_NAMES[id] || id.replace(/_/g, ' ').replace(/\w/g, c => c.toUpperCase());
+
 type Entry = {
   id: string;
   zone: string;
@@ -26,7 +42,7 @@ type Entry = {
   journal?: string;
 };
 
-type RangeKey = '7' | '14' | '30';
+type RangeKey = '1' | '7' | '14' | '30';
 
 export default function MyWellbeingScreen() {
   const router = useRouter();
@@ -304,7 +320,7 @@ export default function MyWellbeingScreen() {
         const journal = journals[e.id] ? `
     📝 ${journals[e.id]}` : '';
         const strats = (e as any).strategies_selected?.length ? `
-    🎯 ${((e as any).strategies_selected).slice(0,3).join(', ')}` : '';
+    🎯 ${((e as any).strategies_selected).slice(0,3).map(resolveName).join(', ')}` : '';
         return `${zoneEmoji[e.zone]||'•'} ${d} ${time} — ${zoneLabel[e.zone]||e.zone}${note}${strats}${journal}`;
       }),
       '',
@@ -334,14 +350,14 @@ export default function MyWellbeingScreen() {
         {/* Range selector + export */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
           <View style={[st.rangeRow, { flex: 1, marginBottom: 0 }]}>
-            {(['7','14','30'] as RangeKey[]).map(r => (
+            {(['1','7','14','30'] as RangeKey[]).map(r => (
               <TouchableOpacity
                 key={r}
                 style={[st.rangeBtn, range === r && st.rangeBtnActive]}
                 onPress={() => setRange(r)}
               >
                 <Text style={[st.rangeTxt, range === r && st.rangeTxtActive]}>
-                  {t(`wellbeing_${r}days`) || `${r} Days`}
+                  {r === '1' ? (t('today') || 'Today') : `${r} Days`}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -478,7 +494,7 @@ export default function MyWellbeingScreen() {
               ? <Text style={[st.noData,{marginTop:8}]}>No strategies used yet</Text>
               : sorted.map(([id,count]) => {
                   const zc = id.startsWith('blue')?'#4A90D9':id.startsWith('green')?'#4CAF50':id.startsWith('yellow')?'#FFC107':id.startsWith('red')?'#F44336':'#999';
-                  const name = id.replace(/_/g,' ').replace(/\w/g,c=>c.toUpperCase());
+                  const name = resolveName(id);
                   return (
                     <View key={id} style={{flexDirection:'row',alignItems:'center',paddingVertical:8,borderBottomWidth:1,borderBottomColor:'#F0F0F0'}}>
                       <View style={{width:10,height:10,borderRadius:5,backgroundColor:zc,marginRight:8}} />
@@ -503,8 +519,9 @@ export default function MyWellbeingScreen() {
           ) : (
             entries.slice(0, 20).map(entry => {
               const d = new Date(entry.timestamp);
-              const dateStr = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+              const dateStr = d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
               const timeStr = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+              const strats = ((entry as any).strategies_selected || []).map(resolveName).join(', ');
               const j = journals[entry.id] || '';
               return (
                 <View key={entry.id} style={st.entryRow}>
@@ -516,6 +533,7 @@ export default function MyWellbeingScreen() {
                       <Text style={st.entryDate}>{dateStr}</Text>
                       <Text style={st.entryTime}>{timeStr}</Text>
                     </View>
+                    {strats ? <Text style={{ fontSize:11, color:'#5C6BC0', marginTop:3 }}>🎯 {strats}</Text> : null}
                     {entry.comment ? (
                       <Text style={st.entryComment}>{entry.comment}</Text>
                     ) : null}
