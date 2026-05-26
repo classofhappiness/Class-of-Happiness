@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
-  TextInput, Alert, KeyboardAvoidingView, Platform, Share,
+  TextInput, Alert, KeyboardAvoidingView, Platform, Share, Linking, Dimensions,
 } from 'react-native';
+import { BarChart } from 'react-native-gifted-charts';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -54,6 +55,15 @@ export default function MyWellbeingScreen() {
   const [editingJournal, setEditingJournal] = useState<string | null>(null);
   const [journalText, setJournalText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [secDaily,      setSecDaily]      = useState(false);
+  const [secDistrib,    setSecDistrib]    = useState(false);
+  const [secCompare,    setSecCompare]    = useState(false);
+  const [secStrategies, setSecStrategies] = useState(false);
+  const [secTimeline,   setSecTimeline]   = useState(false);
+  const [secCalendar,   setSecCalendar]   = useState(false);
+  const [secPdf,        setSecPdf]        = useState(false);
+  const [downloading,   setDownloading]   = useState(false);
+  const { width } = Dimensions.get('window');
 
   useEffect(() => {
     if (isSkipPin) {
@@ -242,6 +252,20 @@ export default function MyWellbeingScreen() {
     );
   }
 
+  const downloadReport = async (monthStr: string) => {
+    setDownloading(true);
+    try {
+      const token = await AsyncStorage.getItem('session_token');
+      const [yearStr, monthNum] = monthStr.split('-');
+      const fullUrl = `${BACKEND_URL}/api/reports/pdf/parent/${memberId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}`;
+      const canOpen = await Linking.canOpenURL(fullUrl);
+      if (canOpen) { await Linking.openURL(fullUrl); }
+      else { Alert.alert('Error', 'Cannot open PDF'); }
+    } catch (error: any) {
+      Alert.alert('Download Error', error.message || 'Could not download report');
+    } finally { setDownloading(false); }
+  };
+
   const handleExport = async () => {
     if (entries.length === 0) {
       Alert.alert('No Data', 'No wellbeing entries to export yet.');
@@ -330,9 +354,13 @@ export default function MyWellbeingScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Daily dots — one dot per day in range */}
-        <View style={st.card}>
-          <Text style={st.cardTitle}>{t('daily_view') || 'Daily View'}</Text>
+        {/* DAILY VIEW */}
+        <View style={st.section}>
+          <TouchableOpacity onPress={() => setSecDaily(e => !e)} style={st.sectionHeader}>
+            <View style={st.sectionHeaderLeft}><MaterialIcons name="calendar-today" size={17} color="#5C6BC0" /><Text style={st.sectionTitle}>Daily View</Text></View>
+            <MaterialIcons name={secDaily ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+          </TouchableOpacity>
+          {secDaily && <View style={{marginTop:12}}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={{ flexDirection: 'row', gap: 6, paddingVertical: 4 }}>
               {Array.from({ length: parseInt(range) }).map((_, i) => {
@@ -377,6 +405,9 @@ export default function MyWellbeingScreen() {
           </ScrollView>
         </View>
 
+          </View>}
+        </View>
+
         {/* Stats summary */}
         <View style={st.statsRow}>
           <View style={st.statBox}>
@@ -389,34 +420,88 @@ export default function MyWellbeingScreen() {
           </View>
         </View>
 
-        {/* Distribution */}
-        <View style={st.card}>
-          <Text style={st.cardTitle}>{t('wellbeing_distribution') || 'Emotion Distribution'}</Text>
-          {total === 0 ? (
-            <Text style={st.noData}>{t('wellbeing_no_data') || 'No check-ins yet'}</Text>
+        {/* EMOTION DISTRIBUTION */}
+        <View style={st.section}>
+          <TouchableOpacity onPress={() => setSecDistrib(e => !e)} style={st.sectionHeader}>
+            <View style={st.sectionHeaderLeft}><MaterialIcons name="donut-large" size={17} color="#5C6BC0" /><Text style={st.sectionTitle}>Emotion Distribution</Text></View>
+            <MaterialIcons name={secDistrib ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+          </TouchableOpacity>
+          {secDistrib && (total === 0 ? (
+            <Text style={st.noData}>No check-ins yet</Text>
           ) : (
-            <View style={st.distRows}>
+            <View style={{gap:10,marginTop:12}}>
               {(Object.keys(counts) as (keyof typeof counts)[]).map(zone => (
                 <View key={zone} style={st.distRow}>
                   <Text style={st.distEmoji}>{ZONE_EMOJI[zone]}</Text>
                   <View style={st.distBarBg}>
-                    <View style={[st.distBar, {
-                      width: `${(counts[zone] / maxCount) * 100}%` as any,
-                      backgroundColor: ZONE_COLORS[zone],
-                    }]} />
+                    <View style={[st.distBar, { width:`${(counts[zone]/maxCount)*100}%` as any, backgroundColor:ZONE_COLORS[zone] }]} />
                   </View>
                   <Text style={st.distCount}>{counts[zone]}</Text>
                 </View>
               ))}
             </View>
-          )}
+          ))}
         </View>
 
-        {/* Timeline */}
-        <View style={st.card}>
-          <Text style={st.cardTitle}>{t('wellbeing_timeline') || 'Check-in Timeline'}</Text>
-          {entries.length === 0 ? (
-            <Text style={st.noData}>{t('wellbeing_no_data') || 'No check-ins yet'}</Text>
+        {/* EMOTION COMPARISON */}
+        <View style={st.section}>
+          <TouchableOpacity onPress={() => setSecCompare(e => !e)} style={st.sectionHeader}>
+            <View style={st.sectionHeaderLeft}><MaterialIcons name="bar-chart" size={17} color="#5C6BC0" /><Text style={st.sectionTitle}>Emotion Comparison</Text></View>
+            <MaterialIcons name={secCompare ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+          </TouchableOpacity>
+          {secCompare && (total > 0 ? (
+            <View style={{alignItems:'center',marginTop:12}}>
+              <BarChart
+                data={(['blue','green','yellow','red'] as const).map(z => ({
+                  value: counts[z]||0, frontColor: ZONE_COLORS[z],
+                  label: z.charAt(0).toUpperCase()+z.slice(1),
+                }))}
+                barWidth={42} spacing={18} roundedTop roundedBottom
+                xAxisThickness={0} yAxisThickness={0}
+                yAxisTextStyle={{color:'#666',fontSize:11}}
+                noOfSections={4} maxValue={Math.max(1,maxCount)+1}
+                isAnimated barBorderRadius={6} width={width-100}
+              />
+            </View>
+          ) : <Text style={[st.noData,{marginTop:10}]}>No data for this period</Text>)}
+        </View>
+
+        {/* MOST USED STRATEGIES */}
+        <View style={st.section}>
+          <TouchableOpacity onPress={() => setSecStrategies(e => !e)} style={st.sectionHeader}>
+            <View style={st.sectionHeaderLeft}><MaterialIcons name="star" size={17} color="#FFC107" /><Text style={st.sectionTitle}>Most Used Strategies</Text></View>
+            <MaterialIcons name={secStrategies ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+          </TouchableOpacity>
+          {secStrategies && (() => {
+            const stratCounts: Record<string,number> = {};
+            entries.forEach(e => { ((e as any).strategies_selected||[]).forEach((s:string) => { stratCounts[s]=(stratCounts[s]||0)+1; }); });
+            const sorted = Object.entries(stratCounts).sort(([,a],[,b])=>(b as number)-(a as number));
+            return sorted.length === 0
+              ? <Text style={[st.noData,{marginTop:8}]}>No strategies used yet</Text>
+              : sorted.map(([id,count]) => {
+                  const zc = id.startsWith('blue')?'#4A90D9':id.startsWith('green')?'#4CAF50':id.startsWith('yellow')?'#FFC107':id.startsWith('red')?'#F44336':'#999';
+                  const name = id.replace(/_/g,' ').replace(/\w/g,c=>c.toUpperCase());
+                  return (
+                    <View key={id} style={{flexDirection:'row',alignItems:'center',paddingVertical:8,borderBottomWidth:1,borderBottomColor:'#F0F0F0'}}>
+                      <View style={{width:10,height:10,borderRadius:5,backgroundColor:zc,marginRight:8}} />
+                      <Text style={{flex:1,fontSize:13,color:'#333'}}>{name}</Text>
+                      <View style={{backgroundColor:'#FFF8E1',paddingHorizontal:8,paddingVertical:3,borderRadius:10}}>
+                        <Text style={{fontSize:12,fontWeight:'600',color:'#F9A825'}}>{count as number}x</Text>
+                      </View>
+                    </View>
+                  );
+                });
+          })()}
+        </View>
+
+        {/* RECENT CHECK-INS / TIMELINE */}
+        <View style={st.section}>
+          <TouchableOpacity onPress={() => setSecTimeline(e => !e)} style={st.sectionHeader}>
+            <View style={st.sectionHeaderLeft}><MaterialIcons name="history" size={17} color="#5C6BC0" /><Text style={st.sectionTitle}>Recent Check-ins</Text></View>
+            <MaterialIcons name={secTimeline ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+          </TouchableOpacity>
+          {secTimeline && (entries.length === 0 ? (
+            <Text style={st.noData}>No check-ins yet</Text>
           ) : (
             entries.slice(0, 20).map(entry => {
               const d = new Date(entry.timestamp);
@@ -468,7 +553,73 @@ export default function MyWellbeingScreen() {
                 </View>
               );
             })
-          )}
+          ))}
+        </View>
+
+        {/* CHECK-IN CALENDAR */}
+        <View style={st.section}>
+          <TouchableOpacity onPress={() => setSecCalendar(e => !e)} style={st.sectionHeader}>
+            <View style={st.sectionHeaderLeft}><MaterialIcons name="event" size={17} color="#5C6BC0" /><Text style={st.sectionTitle}>Check-in Calendar</Text></View>
+            <MaterialIcons name={secCalendar ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+          </TouchableOpacity>
+          {secCalendar && (() => {
+            const grouped: Record<string,any[]> = {};
+            entries.forEach(e => { const d=(e.timestamp||'').split('T')[0]; if(d){if(!grouped[d])grouped[d]=[];grouped[d].push(e);} });
+            const dates = Object.keys(grouped).sort().slice(-14);
+            if (!dates.length) return <Text style={[st.noData,{marginTop:8}]}>No check-in data yet</Text>;
+            return (
+              <View style={{flexDirection:'row',flexWrap:'wrap',gap:6,marginTop:8}}>
+                {dates.map(date => {
+                  const dayLogs = grouped[date];
+                  const d = new Date(date);
+                  const dayName = ['Su','Mo','Tu','We','Th','Fr','Sa'][d.getDay()];
+                  const dayNum = d.getDate();
+                  const zcnts: Record<string,number> = {};
+                  dayLogs.forEach((l:any)=>{const z=l.zone;if(z)zcnts[z]=(zcnts[z]||0)+1;});
+                  const dom = Object.entries(zcnts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'green';
+                  return (
+                    <View key={date} style={{alignItems:'center',width:38}}>
+                      <Text style={{fontSize:9,color:'#888',marginBottom:3}}>{dayName}</Text>
+                      <View style={{width:28,height:28,borderRadius:14,backgroundColor:ZONE_COLORS[dom]||'#4CAF50',alignItems:'center',justifyContent:'center'}}>
+                        <Text style={{fontSize:11,fontWeight:'700',color:'white'}}>{dayNum}</Text>
+                      </View>
+                      <Text style={{fontSize:8,color:'#888',marginTop:2}}>{dayLogs.length}x</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            );
+          })()}
+        </View>
+
+        {/* DOWNLOAD PDF */}
+        <View style={st.section}>
+          <TouchableOpacity onPress={() => setSecPdf(e => !e)} style={st.sectionHeader}>
+            <View style={st.sectionHeaderLeft}><MaterialIcons name="picture-as-pdf" size={17} color="#E53935" /><Text style={st.sectionTitle}>Download Monthly Report</Text></View>
+            <MaterialIcons name={secPdf ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+          </TouchableOpacity>
+          {secPdf && (() => {
+            const months: string[] = [];
+            const now = new Date();
+            for (let i=0;i<6;i++){const d=new Date(now.getFullYear(),now.getMonth()-i,1);months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);}
+            return (
+              <View style={{gap:8,marginTop:12}}>
+                {months.map(m => {
+                  const [y,mo] = m.split('-');
+                  const label = new Date(parseInt(y),parseInt(mo)-1,1).toLocaleDateString(undefined,{month:'long',year:'numeric'});
+                  return (
+                    <TouchableOpacity key={m}
+                      style={{flexDirection:'row',alignItems:'center',backgroundColor:'#FFF3F3',borderRadius:10,padding:12,gap:10,borderWidth:1,borderColor:'#FFCDD2'}}
+                      onPress={() => downloadReport(m)} disabled={downloading}>
+                      <MaterialIcons name="picture-as-pdf" size={20} color="#E53935" />
+                      <Text style={{flex:1,fontSize:13,fontWeight:'600',color:'#333'}}>{label}</Text>
+                      <MaterialIcons name="download" size={18} color="#E53935" />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            );
+          })()}
         </View>
 
         <View style={{ height: 40 }} />
@@ -479,6 +630,10 @@ export default function MyWellbeingScreen() {
 
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
+  section: { backgroundColor: 'white', borderRadius: 12, marginBottom: 8, padding: 12 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sectionHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: '#333' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', backgroundColor: 'white' },
   headerTitle: { fontSize: 15, fontWeight: '700', color: '#333', flex: 1, textAlign: 'center' },
   scroll: { padding: 16, gap: 14 },
