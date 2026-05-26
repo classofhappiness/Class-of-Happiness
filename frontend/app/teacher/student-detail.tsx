@@ -10,6 +10,7 @@ import {
   Dimensions,
   RefreshControl,
   Alert,
+  ActivityIndicator,
   Linking,
   Modal,
   Share,
@@ -127,6 +128,10 @@ export default function StudentDetailScreen() {
     school_sharing_enabled: boolean;
   } | null>(null);
   const [showHomeDataTab, setShowHomeDataTab] = useState(false);
+  const [secHomeCheckins, setSecHomeCheckins] = useState(false);
+  const [secFamilyStrats, setSecFamilyStrats] = useState(false);
+  const [secHomeSharing, setSecHomeSharing] = useState(false);
+  const [downloadingMonth, setDownloadingMonth] = useState<string | null>(null);
 
   // Tooltip fade animation states
   const [activeTooltip, setActiveTooltip] = useState<'strategies' | 'family' | null>('strategies');
@@ -289,35 +294,24 @@ export default function StudentDetailScreen() {
 
   const downloadReport = async (monthStr: string) => {
     if (!studentId) return;
-    setDownloading(true);
+    setDownloadingMonth(monthStr);
     try {
       const token = await AsyncStorage.getItem('session_token');
       const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-      // Build correct URL: /api/reports/pdf/student/{id}/month/{year}/{month}
       const [yearStr, monthNum] = monthStr.split('-');
-      const url = `${BACKEND_URL}/api/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}`;
-
-      // Fetch the PDF as blob
-      const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error(`Server error: ${response.status}`);
-
-      // Open PDF URL directly - simplest reliable approach
-      const fullUrl2 = `${BACKEND_URL}/api/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}`;
-      const canOpen = await Linking.canOpenURL(fullUrl2);
+      const fullUrl = `${BACKEND_URL}/api/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}`;
+      const canOpen = await Linking.canOpenURL(fullUrl);
       if (canOpen) {
-        await Linking.openURL(fullUrl2);
+        await Linking.openURL(fullUrl);
       } else {
         Alert.alert('Error', 'Cannot open PDF');
       }
     } catch (error: any) {
-      console.error('PDF download error:', error);
       Alert.alert(t('download_error') || 'Download Error', error.message || t('please_try_again') || 'Could not download report');
     } finally {
-      setDownloading(false);
+      setDownloadingMonth(null);
     }
-  };;
+  };
 
   const formatMonthYear = (monthStr: string) => {
     const [year, month] = monthStr.split('-').map(Number);
@@ -602,7 +596,9 @@ export default function StudentDetailScreen() {
             logs.slice(0, 15).map((log) => (
               <View key={log.id} style={styles.logItem}>
                 <View style={[styles.logZone, { backgroundColor: ZONE_COLORS[log.zone] }]}>
-                  <Text style={styles.logZoneText}>{log.zone[0].toUpperCase()}</Text>
+                  <Text style={styles.logZoneText}>
+                    {log.zone==='green'?'😊':log.zone==='blue'?'😔':log.zone==='yellow'?'😟':'😣'}
+                  </Text>
                 </View>
                 <View style={styles.logDetails}>
                   <Text style={styles.logZoneName}>{getZoneLabel(log.zone, t)}</Text>
@@ -874,8 +870,12 @@ export default function StudentDetailScreen() {
                 {/* Home Check-ins */}
                 {(homeData.home_checkins || []).length > 0 && (
                   <View style={styles.homeCheckinsContainer}>
-                    <Text style={styles.homeSubtitle}>{t('home_checkins') || 'Home Check-ins'}</Text>
-                    {(homeData.home_checkins || []).slice(0, 5).map((checkin: any, index: number) => (
+                    <TouchableOpacity onPress={() => setSecHomeCheckins(e => !e)}
+                      style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                      <Text style={styles.homeSubtitle}>{t('home_checkins') || 'Home Check-ins'}</Text>
+                      <MaterialIcons name={secHomeCheckins?'expand-less':'expand-more'} size={18} color="#888" />
+                    </TouchableOpacity>
+                    {secHomeCheckins && (homeData.home_checkins || []).slice(0, 5).map((checkin: any, index: number) => (
                       <View key={`checkin_${checkin.id || index}`} style={styles.homeCheckinItem}>
                         <View style={[styles.homeCheckinZone, { backgroundColor: ZONE_COLORS[checkin.zone as keyof typeof ZONE_COLORS] || '#999' }]}>
                           <Text style={styles.homeCheckinEmoji}>
@@ -899,8 +899,12 @@ export default function StudentDetailScreen() {
                 {/* Family Strategies */}
                 {(homeData.family_strategies || []).length > 0 && (
                   <View style={styles.familyStrategiesContainer}>
-                    <Text style={styles.homeSubtitle}>{t('family_strategies') || 'Family Strategies'}</Text>
-                    {(homeData.family_strategies || []).map((strategy: any, index: number) => (
+                    <TouchableOpacity onPress={() => setSecFamilyStrats(e => !e)}
+                      style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                      <Text style={styles.homeSubtitle}>{t('family_strategies') || 'Family Strategies'}</Text>
+                      <MaterialIcons name={secFamilyStrats?'expand-less':'expand-more'} size={18} color="#888" />
+                    </TouchableOpacity>
+                    {secFamilyStrats && (homeData.family_strategies || []).map((strategy: any, index: number) => (
                       <View key={`strategy_${strategy.id || index}`} style={styles.familyStrategyItem}>
                         <MaterialIcons name={(strategy.icon || 'star') as any} size={20} color="#4CAF50" />
                         <View style={styles.familyStrategyInfo}>
@@ -962,10 +966,13 @@ export default function StudentDetailScreen() {
                   key={monthStr}
                   style={styles.monthItem}
                   onPress={() => downloadReport(monthStr)}
+                  disabled={downloadingMonth === monthStr}
                 >
                   <MaterialIcons name="calendar-today" size={20} color="#5C6BC0" />
                   <Text style={styles.monthItemText}>{formatMonthYear(monthStr)}</Text>
-                  <MaterialIcons name="download" size={20} color="#4CAF50" />
+                  {downloadingMonth === monthStr
+                    ? <ActivityIndicator size="small" color="#4CAF50" />
+                    : <MaterialIcons name="download" size={20} color="#4CAF50" />}
                 </TouchableOpacity>
               ))}
               
