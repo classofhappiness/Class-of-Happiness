@@ -273,10 +273,22 @@ export default function MyWellbeingScreen() {
     try {
       const token = await AsyncStorage.getItem('session_token');
       const [yearStr, monthNum] = monthStr.split('-');
-      const fullUrl = `${BACKEND_URL}/api/reports/pdf/parent/${memberId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}`;
+      // Use the student PDF endpoint with the family member's linked student_id
+      // memberId is the family_member id; we need their student_id from the checkins
+      // Try family member student_id first, fall back to memberId
+      const memberRes = await fetch(`${BACKEND_URL}/api/family/members`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      let studentId = memberId;
+      if (memberRes.ok) {
+        const members = await memberRes.json();
+        const fm = members.find((m: any) => m.id === memberId);
+        if (fm?.student_id) studentId = fm.student_id;
+      }
+      const fullUrl = `${BACKEND_URL}/api/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}`;
       const canOpen = await Linking.canOpenURL(fullUrl);
       if (canOpen) { await Linking.openURL(fullUrl); }
-      else { Alert.alert('Error', 'Cannot open PDF'); }
+      else { Alert.alert('Error', 'Cannot open PDF — no data may exist for this month yet'); }
     } catch (error: any) {
       Alert.alert('Download Error', error.message || 'Could not download report');
     } finally { setDownloading(false); }
@@ -367,6 +379,12 @@ export default function MyWellbeingScreen() {
             style={{ marginLeft: 10, padding: 8, backgroundColor: '#F0F4FF', borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}
           >
             <MaterialIcons name="ios-share" size={20} color="#5C6BC0" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push(`/parent/family-strategies?memberId=${memberId}&memberName=${encodeURIComponent(memberName || '')}` as any)}
+            style={{ marginLeft: 6, padding: 8, backgroundColor: '#F0FFF4', borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <MaterialIcons name="lightbulb" size={20} color="#4CAF50" />
           </TouchableOpacity>
         </View>
 
