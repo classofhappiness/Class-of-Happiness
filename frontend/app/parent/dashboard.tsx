@@ -27,6 +27,7 @@ import {
   familyApi, FamilyMember, FamilyZoneLog, authApiExtended, teacherApi, rewardsApi, linkedChildApi
 } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
+import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
 import { CreatureCollection } from '../../src/components/CreatureCollection';
 
 // Pick image with camera or library choice
@@ -142,6 +143,7 @@ export default function ParentDashboard() {
   // Selected member for viewing
   const [selectedMember, setSelectedMember] = useState<FamilyMember | Student | null>(null);
   const [selectedType, setSelectedType] = useState<'family' | 'linked'>('family');
+  const [orderedMembers, setOrderedMembers] = useState<typeof familyMembers>([]);
   
   // Analytics
   const [analytics, setAnalytics] = useState<{ zone_counts: Record<string, number> } | null>(null);
@@ -622,6 +624,25 @@ export default function ParentDashboard() {
     fetchMemberData();
   }, [analyticsPeriod]);
 
+  // Sync ordered members from saved order or default
+  useEffect(() => {
+    if (familyMembers.length === 0) { setOrderedMembers([]); return; }
+    AsyncStorage.getItem('family_member_order').then(raw => {
+      if (!raw) { setOrderedMembers(familyMembers); return; }
+      try {
+        const savedIds: string[] = JSON.parse(raw);
+        const sorted = [...familyMembers].sort((a, b) => {
+          const ai = savedIds.indexOf(a.id);
+          const bi = savedIds.indexOf(b.id);
+          if (ai === -1) return 1;
+          if (bi === -1) return -1;
+          return ai - bi;
+        });
+        setOrderedMembers(sorted);
+      } catch { setOrderedMembers(familyMembers); }
+    });
+  }, [familyMembers]);
+
   const onRefresh = async () => { loadParentAlerts();
     setRefreshing(true);
     await fetchData();
@@ -771,8 +792,16 @@ export default function ParentDashboard() {
               <Text style={styles.emptyFamilyTxt}>{t('add_family_to_track') || 'Add a family member'}</Text>
             </TouchableOpacity>
           ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={styles.familyGrid}>
-              {familyMembers.map((member) => {
+            <DraggableFlatList
+              horizontal
+              data={orderedMembers}
+              keyExtractor={(item) => item.id}
+              onDragEnd={({ data }) => {
+                setOrderedMembers(data);
+                AsyncStorage.setItem('family_member_order', JSON.stringify(data.map((m: any) => m.id)));
+              }}
+              contentContainerStyle={{ gap: 10, paddingHorizontal: 16, paddingBottom: 8 }}
+              renderItem={({ item: member, drag, isActive }: RenderItemParams<any>) => {
                 const creature = memberCreatures[member.id];
                 const creatureEmoji = childCreatures[member.id]?.emoji || creature?.emoji || '🥚';
                 const isChild = member.relationship === 'child';
@@ -783,8 +812,10 @@ export default function ParentDashboard() {
                 return (
                   <TouchableOpacity
                     key={member.id}
-                    style={[styles.gridCard, { borderColor: cardColor + '30' }]}
+                    style={[styles.gridCard, { borderColor: cardColor + '30', opacity: isActive ? 0.85 : 1, transform: [{ scale: isActive ? 1.04 : 1 }] }]}
                     onPress={() => handleMemberCheckin(member)}
+                    onLongPress={drag}
+                    delayLongPress={200}
                     activeOpacity={0.85}
                   >
                     {/* Edit/delete top row */}
@@ -865,7 +896,9 @@ export default function ParentDashboard() {
                     )}
                   </TouchableOpacity>
                 );
-              })}
+              }}
+            />
+            <View style={[styles.familyGrid, { paddingHorizontal: 16 }]}>
               {/* Linked children in same row */}
               {linkedChildren.filter(lc => !familyMembers.some(fm => fm.name === lc.name || (fm as any).student_id === lc.id)).map((child: any) => (
                 <TouchableOpacity
@@ -943,7 +976,6 @@ export default function ParentDashboard() {
                 </TouchableOpacity>
               ))}
             </View>
-            </ScrollView>
           )}
         </View>
         {/* Linked Children in family grid above */}
