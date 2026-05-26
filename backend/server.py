@@ -3174,7 +3174,29 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     end = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc).isoformat()
 
     logs = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start).lte("timestamp", end).order("timestamp", desc=False).execute()
-    logs_data = logs.data or []
+    school_logs = logs.data or []
+    # Tag school logs with source
+    for l in school_logs:
+        l["_source"] = "school"
+
+    # Also fetch home check-ins via family_members link
+    home_logs = []
+    try:
+        fm_link = supabase.table("family_members").select("id").eq("student_id", student_id).execute()
+        if fm_link.data:
+            fm_id = fm_link.data[0]["id"]
+            home_res = supabase.table("family_zone_logs").select("*").eq("family_member_id", fm_id).gte("timestamp", start).lte("timestamp", end).order("timestamp", desc=False).execute()
+            home_logs = home_res.data or []
+            for l in home_logs:
+                l["_source"] = "home"
+                l["zone"] = l.get("zone", l.get("feeling_colour", ""))
+                l["strategies_selected"] = l.get("strategies_selected", l.get("helpers_selected", []))
+    except Exception as e:
+        logger.warning(f"Could not fetch home logs for PDF: {e}")
+
+    # Combine all logs sorted by timestamp
+    logs_data = sorted(school_logs + home_logs, key=lambda x: x.get("timestamp", ""))
+    has_home_data = len(home_logs) > 0
 
     # Also get classroom info
     classroom_name = "Not assigned"
@@ -3373,6 +3395,15 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     # ════════════════════════════════════════════════════════
     # Section 1 wrapped to prevent page splits
     section1_elements = [Paragraph("Emotion Zone Distribution", ST_H2)]
+    # Compute school-only and home-only counts for split view
+    school_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+    home_counts   = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+    for log in logs_data:
+        zone = log.get("zone", log.get("feeling_colour", ""))
+        if log.get("_source") == "home" and zone in home_counts:
+            home_counts[zone] += 1
+        elif zone in school_counts:
+            school_counts[zone] += 1
 
     # Build visual bar chart using ReportLab Drawing
     from reportlab.graphics.shapes import Drawing, Rect, String
@@ -3468,6 +3499,40 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     # ════════════════════════════════════════════════════════
     # ROW 2: Calendar heatmap
     # ════════════════════════════════════════════════════════
+    # Add home/school split note if home data exists
+    if has_home_data:
+        split_rows = [[
+            Paragraph('<b>Source</b>', ST_LABEL),
+            Paragraph('<b>Blue</b>', ST_LABEL),
+            Paragraph('<b>Green</b>', ST_LABEL),
+            Paragraph('<b>Yellow</b>', ST_LABEL),
+            Paragraph('<b>Red</b>', ST_LABEL),
+            Paragraph('<b>Total</b>', ST_LABEL),
+        ],[
+            Paragraph('🏫 School', ST_BODY),
+            Paragraph(str(school_counts['blue']), ST_SMALL),
+            Paragraph(str(school_counts['green']), ST_SMALL),
+            Paragraph(str(school_counts['yellow']), ST_SMALL),
+            Paragraph(str(school_counts['red']), ST_SMALL),
+            Paragraph(str(sum(school_counts.values())), ST_VALUE),
+        ],[
+            Paragraph('🏠 Home', ST_BODY),
+            Paragraph(str(home_counts['blue']), ST_SMALL),
+            Paragraph(str(home_counts['green']), ST_SMALL),
+            Paragraph(str(home_counts['yellow']), ST_SMALL),
+            Paragraph(str(home_counts['red']), ST_SMALL),
+            Paragraph(str(sum(home_counts.values())), ST_VALUE),
+        ]]
+        split_tbl = Table(split_rows, colWidths=[80, 55, 55, 60, 55, 60])
+        split_tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), INDIGO),
+            ('TEXTCOLOR',  (0,0), (-1,0), WHITE),
+            ('GRID',       (0,0), (-1,-1), 0.4, LIGHT_GREY),
+            ('PADDING',    (0,0), (-1,-1), 5),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [WHITE, LIGHT]),
+        ]))
+        section1_elements.extend([Spacer(1,8), Paragraph("Home vs School Breakdown", ST_H2), split_tbl])
+
     section2_elements = [Paragraph("Monthly Calendar", ST_H2)]
 
     # Build 7-col calendar grid
@@ -3634,6 +3699,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         log_rows = [[
             Paragraph('<b>Date</b>',       ST_LABEL),
             Paragraph('<b>Time</b>',       ST_LABEL),
+            Paragraph('<b>Source</b>',     ST_LABEL),
             Paragraph('<b>Zone</b>',       ST_LABEL),
             Paragraph('<b>Strategies</b>', ST_LABEL),
             Paragraph('<b>Comment</b>',    ST_LABEL),
@@ -3658,15 +3724,18 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
             comment = comment[:60] + ("…" if len(comment) > 60 else "")
             comment = comment or "—"
 
+            source = log.get("_source", "school")
+            source_label = "🏠 Home" if source == "home" else "🏫 School"
             log_rows.append([
                 Paragraph(date_str,                              ST_SMALL),
                 Paragraph(time_str,                              ST_SMALL),
+                Paragraph(source_label,                          ST_SMALL),
                 Paragraph(ZONE_LABELS.get(zone, zone.capitalize() + " Emotions"),  ST_SMALL),
                 Paragraph(strats_str,                            ST_SMALL),
                 Paragraph(comment,                               ST_SMALL),
             ])
 
-        log_tbl = Table(log_rows, colWidths=[38, 32, 68, 170, 147],
+        log_tbl = Table(log_rows, colWidths=[38, 32, 48, 68, 140, 129],
                         repeatRows=1, splitByRow=0)
         log_style_list = [
             ('BACKGROUND',     (0,0), (-1,0), INDIGO),
@@ -3679,8 +3748,12 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         for i, log in enumerate(logs_data, 1):
             zone = log.get("feeling_colour", log.get("zone", ""))
             if zone in ZONE_COLORS_PDF:
-                log_style_list.append(('TEXTCOLOR',  (2,i), (2,i), ZONE_COLORS_PDF[zone]))
-                log_style_list.append(('FONTNAME',   (2,i), (2,i), 'Helvetica-Bold'))
+                log_style_list.append(('TEXTCOLOR',  (3,i), (3,i), ZONE_COLORS_PDF[zone]))
+                log_style_list.append(('FONTNAME',   (3,i), (3,i), 'Helvetica-Bold'))
+            # Colour source column
+            src = log.get("_source", "school")
+            src_color = colors.HexColor('#4CAF50') if src == "home" else colors.HexColor('#5C6BC0')
+            log_style_list.append(('TEXTCOLOR', (2,i), (2,i), src_color))
         log_tbl.setStyle(TableStyle(log_style_list))
         # Keep heading with first few rows to prevent orphaned header
         try:
