@@ -331,10 +331,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const data = await studentsApi.getAll();
 
-      // Also fetch family members and merge children into student list
-      // so family children appear in student select screen
+      // Only merge family children for parent/family users — NOT teachers
       let familyStudents: any[] = [];
-      try {
+      const isParentUser = user?.role === 'parent' || user?.role === 'family' || (!user?.role);
+      if (isParentUser) try {
         const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
         const token = await AsyncStorage.getItem('session_token');
@@ -359,6 +359,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             }));
         }
       } catch { /* silent — family fetch is optional */ }
+      } // end isParentUser check
 
       // Merge: avoid duplicates (student already in data list)
       const existingIds = new Set(data.map((s: any) => s.id));
