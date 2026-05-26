@@ -388,7 +388,7 @@ export default function StrategiesScreen() {
             </View>
           )}
 
-          <View style={styles.commentSection}>
+          {checkInLocation !== 'home' && <View style={styles.commentSection}>
             <TouchableOpacity style={[styles.commentToggle, { justifyContent:'space-between' }]} onPress={() => { playButtonFeedback(); setShowCommentInput(!showCommentInput); }}>
               <MaterialIcons name="chat-bubble-outline" size={20} color={showCommentInput || comment ? zoneColor : '#999'} />
               <Text style={[styles.commentToggleText, (showCommentInput || comment) && { color: zoneColor }]}>
@@ -426,7 +426,7 @@ export default function StrategiesScreen() {
                 <Text style={styles.charCount}>{comment.length}/{MAX_COMMENT_LENGTH}</Text>
               </View>
             )}
-          </View>
+          </View>}
         </ScrollView>
         <View style={styles.bottomBar}>
           <TouchableOpacity style={styles.skipButton} onPress={handleSkip} disabled={saving}>
