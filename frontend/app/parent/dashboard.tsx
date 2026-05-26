@@ -130,7 +130,7 @@ const getRelationshipColor = (relationship: string) => {
 
 export default function ParentDashboard() {
   const router = useRouter();
-  const { user, presetAvatars, t, language , setCurrentStudent } = useApp();
+  const { user, presetAvatars, t, language, setCurrentStudent, hasActiveSubscription } = useApp();
   
   // Linked children from school
   const [linkedChildren, setLinkedChildren] = useState<Student[]>([]);
@@ -755,6 +755,7 @@ export default function ParentDashboard() {
     })) : [];
 
   const totalLogs = pieData.reduce((sum, item) => sum + item.value, 0);
+  const totalFamilyCheckins = recentLogs.length;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -920,6 +921,20 @@ export default function ParentDashboard() {
                 );
               })}
             </View></ScrollView>
+            {/* Locked upgrade slot — shows when free user has 2+ members */}
+            {!hasActiveSubscription && familyMembers.length >= 2 && (
+              <TouchableOpacity
+                onPress={() => router.push('/subscription')}
+                style={[styles.gridCard, { borderColor: '#5C6BC0', borderStyle: 'dashed', opacity: 0.85, justifyContent: 'center', alignItems: 'center', gap: 6 }]}>
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#EDE7F6', justifyContent: 'center', alignItems: 'center' }}>
+                  <MaterialIcons name="lock" size={20} color="#5C6BC0" />
+                </View>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#5C6BC0', textAlign: 'center' }}>Add more</Text>
+                <View style={{ backgroundColor: '#5C6BC0', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                  <Text style={{ fontSize: 9, color: 'white', fontWeight: '700' }}>UPGRADE</Text>
+                </View>
+              </TouchableOpacity>
+            )}
             {/* Linked children in same row */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={styles.familyGrid}>
               {linkedChildren.filter(lc => !familyMembers.some(fm => fm.name === lc.name || (fm as any).student_id === lc.id)).map((child: any) => (
@@ -1001,6 +1016,22 @@ export default function ParentDashboard() {
             </>
           )}
         </View>
+        {/* Upgrade nudge — show after 5 checkins if not subscribed */}
+        {!hasActiveSubscription && totalFamilyCheckins >= 5 && (
+          <TouchableOpacity
+            onPress={() => router.push('/subscription')}
+            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF8E1', borderRadius: 12, marginHorizontal: 16, marginBottom: 8, padding: 12, gap: 10, borderWidth: 1, borderColor: '#FFE082' }}>
+            <Text style={{ fontSize: 20 }}>⭐</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#333' }}>Loving the app?</Text>
+              <Text style={{ fontSize: 11, color: '#666' }}>Unlock PDF reports, unlimited family & school linking</Text>
+            </View>
+            <View style={{ backgroundColor: '#FF9800', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
+              <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>Upgrade</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
         {/* Linked Children in family grid above */}
         {false && <View>
         <View style={styles.section}>

@@ -10,8 +10,8 @@ import { useApp } from '../../src/context/AppContext';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const ZONE_COLORS: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
-const ZONE_LABELS: Record<string,string> = { blue:'Blue Zone', green:'Green Zone', yellow:'Yellow Zone', red:'Red Zone' };
-const TEACHER_ZONE_LABELS: Record<string,string> = { blue:'Low Energy', green:'Steady', yellow:'Stressed', red:'Overloaded' };
+const ZONE_LABELS: Record<string,string> = { blue:'Blue Emotions', green:'Green Emotions', yellow:'Yellow Emotions', red:'Red Emotions' };
+const TEACHER_ZONE_LABELS: Record<string,string> = { blue:'Blue Emotions', green:'Green Emotions', yellow:'Yellow Emotions', red:'Red Emotions' };
 const ZONES = ['blue','green','yellow','red'];
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
@@ -344,6 +344,15 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
               <StatCard label="Schools" value={stats?.total_schools??'—'} icon="account-balance" color="#9C27B0"
                 graphData={stats?.school_daily||[0,0,0,0,0,0,0]}
                 detail={`Avg session: ${stats?.avg_session_mins??'—'} mins`}/>
+              <StatCard label="Paying Parents" value={stats?.active_parents??'—'} icon="family-restroom" color="#4CAF50"
+                graphData={stats?.parent_daily||[0,0,0,0,0,0,0]}
+                detail={`Annual plan: ${stats?.annual_parents??'—'} · Monthly: ${stats?.monthly_parents??'—'}`}/>
+              <StatCard label="Paying Teachers" value={stats?.active_teachers??'—'} icon="school" color="#FF9800"
+                graphData={stats?.teacher_sub_daily||[0,0,0,0,0,0,0]}
+                detail={`Annual plan: ${stats?.annual_teachers??'—'} · Monthly: ${stats?.monthly_teachers??'—'}`}/>
+              <StatCard label="Home Check-ins" value={stats?.home_checkins_total??'—'} icon="home" color="#5C6BC0"
+                graphData={stats?.home_checkin_daily||[0,0,0,0,0,0,0]}
+                detail={`Linked families: ${stats?.linked_families??'—'}`}/>
             </View>
 
             <Text style={[styles.sectionTitle,{marginTop:20}]}>Student Emotion Zones — All Schools</Text>
@@ -416,11 +425,12 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
           <View>
             <Text style={styles.sectionTitle}>App Info & Controls</Text>
             {[
-              {icon:'info',title:'Version',desc:'Class of Happiness v2.0 — April 2026',color:'#5C6BC0'},
+              {icon:'info',title:'Version',desc:'Class of Happiness v2.1 — May 2026',color:'#5C6BC0'},
               {icon:'people',title:'Total Registered Users',desc:`${stats?.total_users??'—'} users globally`,color:'#4CAF50'},
               {icon:'account-balance',title:'Active Schools',desc:`${stats?.total_schools??'—'} schools`,color:'#9C27B0'},
               {icon:'timer',title:'Avg Session Time',desc:`Students: ${stats?.avg_student_session??'—'} mins · Teachers: ${stats?.avg_teacher_session??'—'} mins`,color:'#FF9800'},
-              {icon:'attach-money',title:'Pricing',desc:'Free → Family €3.99/mo → School €399–1,499/yr',color:'#4A90D9'},
+              {icon:'attach-money',title:'Pricing',desc:'Free · Parent $4.99/mo ($39.99/yr) · Teacher $7.99/mo ($59.99/yr) · School from $299/yr',color:'#4A90D9'},
+              {icon:'people',title:'Active Subscribers',desc:`Parents: ${stats?.active_parents??'—'} · Teachers: ${stats?.active_teachers??'—'} · Schools: ${stats?.active_schools??'—'}`,color:'#4CAF50'},
             ].map((item,i)=>(
               <View key={i} style={styles.settingCard}>
                 <MaterialIcons name={item.icon as any} size={24} color={item.color}/>
@@ -867,6 +877,10 @@ function SchoolAdminDashboard({ authToken, user }: { authToken:string|null, user
                 graphData={stats?.checkin_daily||[0,0,0,0,0,0,0]} detail={`Avg session: ${stats?.avg_session_mins??'—'} mins`}/>
               <StatCard label="Active Users" value={stats?.active_users??'—'} icon="people" color="#9C27B0"
                 graphData={stats?.active_daily||[0,0,0,0,0,0,0]} detail={`Creatures collected: ${stats?.total_creatures??'—'}`}/>
+              <StatCard label="Home Check-ins" value={stats?.home_checkins??'—'} icon="home" color="#4CAF50"
+                graphData={stats?.home_checkin_daily||[0,0,0,0,0,0,0]} detail={`Family members linked: ${stats?.linked_families??'—'}`}/>
+              <StatCard label="Strategies Used" value={stats?.total_strategies_used??'—'} icon="lightbulb" color="#FF9800"
+                graphData={stats?.strategy_daily||[0,0,0,0,0,0,0]} detail={`Most used: ${stats?.top_strategy??'—'}`}/>
             </View>
 
             {/* Period Toggle */}
@@ -893,6 +907,26 @@ function SchoolAdminDashboard({ authToken, user }: { authToken:string|null, user
             <Text style={styles.sectionSubtitle}>Teacher self check-ins — percentages of total in selected period</Text>
             <View style={styles.colourTrends}>
               {ZONES.map(z=><ColourRow key={z} zone={z} count={tc[z]??0} total={ttc}/>)}
+            </View>
+
+            {/* Home vs School split */}
+            <Text style={[styles.sectionTitle,{marginTop:16}]}>📊 Home vs School Check-ins</Text>
+            <Text style={styles.sectionSubtitle}>Breakdown of where check-ins are happening this period</Text>
+            <View style={[styles.colourTrends,{flexDirection:'row',gap:16}]}>
+              <View style={{flex:1,alignItems:'center'}}>
+                <Text style={{fontSize:28,fontWeight:'800',color:'#5C6BC0'}}>{stats?.school_checkins??'—'}</Text>
+                <Text style={{fontSize:11,color:'#888',marginTop:4}}>🏫 School</Text>
+              </View>
+              <View style={{width:1,backgroundColor:'#F0F0F0'}}/>
+              <View style={{flex:1,alignItems:'center'}}>
+                <Text style={{fontSize:28,fontWeight:'800',color:'#4CAF50'}}>{stats?.home_checkins??'—'}</Text>
+                <Text style={{fontSize:11,color:'#888',marginTop:4}}>🏠 Home</Text>
+              </View>
+              <View style={{width:1,backgroundColor:'#F0F0F0'}}/>
+              <View style={{flex:1,alignItems:'center'}}>
+                <Text style={{fontSize:28,fontWeight:'800',color:'#FF9800'}}>{stats?.linked_families??'—'}</Text>
+                <Text style={{fontSize:11,color:'#888',marginTop:4}}>🔗 Linked</Text>
+              </View>
             </View>
 
             {atRisk.length>0 && (
