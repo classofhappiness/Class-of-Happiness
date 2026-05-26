@@ -334,7 +334,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // Only merge family children for parent/family users — NOT teachers
       let familyStudents: any[] = [];
       const isParentUser = user?.role === 'parent' || user?.role === 'family' || (!user?.role);
-      if (isParentUser) try {
+      if (isParentUser) { try {
         const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
         const token = await AsyncStorage.getItem('session_token');
@@ -359,7 +359,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             }));
         }
       } catch { /* silent — family fetch is optional */ }
-      } // end isParentUser check
+      } // end isParentUser if block
 
       // Merge: avoid duplicates (student already in data list)
       const existingIds = new Set(data.map((s: any) => s.id));
