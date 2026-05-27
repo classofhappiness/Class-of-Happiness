@@ -2338,7 +2338,7 @@ def check_subscription_active(user: dict) -> bool:
 # ================== HEALTH ==================
 @api_router.get("/health")
 async def health():
-    return {"status": "healthy", "app": "Class of Happiness", "version": "2.0"}
+    return {"status": "healthy", "app": "Class of Happiness", "version": "2.1"}
 
 # ================== TRANSLATIONS ==================
 @api_router.get("/translations/{lang}")
