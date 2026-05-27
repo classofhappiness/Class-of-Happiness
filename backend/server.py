@@ -3683,13 +3683,12 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     ZONE_LABELS = ZONE_LABELS_MAP.get(lang, ZONE_LABELS_MAP["en"])
     WEEKDAYS    = WEEKDAYS_MAP.get(lang, WEEKDAYS_MAP["en"])
 
-    ZONE_DESCS       = {
-        "blue":   "Calm / Low energy",
-        "green":  "Happy / Ready to learn",
-        "yellow": "Worried / Frustrated",
-        "red":    "Overwhelmed / Angry",
+    ZONE_DESCS = {
+        "blue":   ZONE_LABELS.get("blue_zone_desc", "Calm / Low energy"),
+        "green":  ZONE_LABELS.get("green_zone_desc", "Happy / Ready to learn"),
+        "yellow": ZONE_LABELS.get("yellow_zone_desc", "Worried / Frustrated"),
+        "red":    ZONE_LABELS.get("red_zone_desc", "Overwhelmed / Angry"),
     }
-    WEEKDAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
 
     # ── Styles ──
     def s(name, **kw):
