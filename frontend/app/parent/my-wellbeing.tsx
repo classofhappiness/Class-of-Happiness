@@ -29,7 +29,7 @@ const STRATEGY_NAMES: Record<string, string> = {
   r1:'Freeze', r2:'Big Breaths', r3:'Safe Space', r4:'Ask for Help',
   p_b1:'Side-by-Side Presence', p_b2:'Warm Drink Ritual', p_b3:'Name It to Tame It', p_b4:'Movement Invitation', p_b5:'Comfort & Closeness',
   p_g1:'Gratitude Round', p_g2:'Strength Spotting', p_g3:'Creative Together', p_g4:'Family Dance', p_g5:'Calm Problem Solving',
-  p_y1:'Box Breathing Together', p_y2:'Validate First', p_y3:'Body Check-In', p_y4:'Feelings Journal', p_y5:'Give Space with Love',
+  p_y1:'Box Breathing Together', p_y2:'Validate Feelings First', p_y3:'Body Check-In', p_y4:'Feelings Journal', p_y5:'Give Space with Love',
   p_r1:'Stay Calm Yourself', p_r2:'Safe Space Together', p_r3:'Cold Water Reset', p_r4:'No Teaching Now', p_r5:'Reconnect with Warmth',
 };
 const resolveName = (id: string) => STRATEGY_NAMES[id] || id.replace(/_/g, ' ').replace(/\w/g, c => c.toUpperCase());
@@ -325,7 +325,7 @@ export default function MyWellbeingScreen() {
       '',
       '─── Check-in Log ──────────────────────',
       ...entries.slice(0,50).map(e => {
-        const d = new Date(e.timestamp).toLocaleDateString();
+        const d = new Date(e.timestamp).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
         const time = new Date(e.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
         const note = e.comment ? `
     💬 "${e.comment}"` : '';
@@ -538,7 +538,7 @@ export default function MyWellbeingScreen() {
             entries.slice(0, 20).map(entry => {
               const d = new Date(entry.timestamp);
               const dateStr = d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
-              const timeStr = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+              const timeStr = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
               const strats = ((entry as any).strategies_selected || []).map(resolveName).join(', ');
               const j = journals[entry.id] || '';
               return (
