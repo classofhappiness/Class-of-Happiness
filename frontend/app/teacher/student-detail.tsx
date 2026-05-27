@@ -869,6 +869,26 @@ export default function StudentDetailScreen() {
                   ? t('data_shared_desc') || 'Student emotional wellbeing data is being shared between school and home.'
                   : t('sharing_paused_desc') || 'Parent has not enabled home sharing. Home check-in data is not visible.'}
               </Text>
+              {sharingStatus.home_sharing_enabled && (
+                <TouchableOpacity
+                  onPress={async () => {
+                    try {
+                      const token = await AsyncStorage.getItem('session_token');
+                      await fetch(`${BACKEND_URL}/api/parent-links/school-sharing`, {
+                        method: 'POST',
+                        headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}` },
+                        body: JSON.stringify({ student_id: studentId, school_sharing_enabled: !sharingStatus.school_sharing_enabled })
+                      });
+                      loadData();
+                    } catch {}
+                  }}
+                  style={{ flexDirection:'row', alignItems:'center', gap:8, marginTop:10, backgroundColor: sharingStatus.school_sharing_enabled ? '#FFEBEE' : '#E8F5E9', borderRadius:8, padding:10 }}>
+                  <MaterialIcons name={sharingStatus.school_sharing_enabled ? 'pause-circle-filled' : 'play-circle-filled'} size={18} color={sharingStatus.school_sharing_enabled ? '#F44336' : '#4CAF50'} />
+                  <Text style={{ fontSize:12, fontWeight:'600', color: sharingStatus.school_sharing_enabled ? '#F44336' : '#4CAF50' }}>
+                    {sharingStatus.school_sharing_enabled ? 'Pause sharing with parent' : 'Resume sharing with parent'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
             
             {sharingStatus.home_sharing_enabled && homeData ? (
@@ -893,6 +913,11 @@ export default function StudentDetailScreen() {
                           <Text style={styles.homeCheckinTime}>
                             {new Date(checkin.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           </Text>
+                          {(checkin.helpers_selected || checkin.strategies_selected || []).length > 0 && (
+                            <Text style={{ fontSize:10, color:'#5C6BC0', marginTop:2 }}>
+                              💡 {(checkin.helpers_selected || checkin.strategies_selected).slice(0,2).map((s:string)=>s.replace(/_/g,' ')).join(', ')}
+                            </Text>
+                          )}
                         </View>
                         <View style={styles.homeBadge}>
                           <MaterialIcons name="home" size={12} color="#4CAF50" />

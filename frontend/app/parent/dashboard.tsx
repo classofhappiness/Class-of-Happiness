@@ -886,12 +886,20 @@ export default function ParentDashboard() {
                         <Text style={styles.wellbeingBtnTxt}>{t('wellbeing') || 'Wellbeing'}</Text>
                       </TouchableOpacity>
                     )}
-                    {isLinked && (
+                    {isChild && (
                       <TouchableOpacity
                         style={[styles.wellbeingBtn, { backgroundColor:'#E8F5E9', borderColor:'#4CAF50', marginTop:2, flexDirection:'row', gap:3 }]}
-                        onPress={(e) => { e.stopPropagation?.(); (() => { const lc = linkedChildren.find((lc: any) => lc.name === member.name); router.push(`/parent/linked-child/${(member as any).student_id || lc?.id || member.id}`); })(); }}
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          if (isLinked || isLinkedChild) {
+                            const lc = linkedChildren.find((lc: any) => lc.name === member.name);
+                            router.push(`/parent/linked-child/${(member as any).student_id || lc?.id || member.id}`);
+                          } else {
+                            router.push(`/parent/family-member-stats/${member.id}?name=${encodeURIComponent(member.name)}`);
+                          }
+                        }}
                       >
-                        <MaterialIcons name="school" size={10} color="#4CAF50" />
+                        <MaterialIcons name={isLinked || isLinkedChild ? "school" : "home"} size={10} color="#4CAF50" />
                         <Text style={[styles.wellbeingBtnTxt, { color:'#4CAF50' }]}>{t('stats') || 'Stats'}</Text>
                         <MaterialIcons name="chevron-right" size={10} color="#4CAF50" />
                       </TouchableOpacity>
