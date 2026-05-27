@@ -100,7 +100,7 @@ export default function LinkedChildDetailScreen() {
   const [secCalendar,       setSecCalendar]       = useState(false);
   const [secStrategies,     setSecStrategies]     = useState(false);
   const [secPdfReport,      setSecPdfReport]      = useState(false);
-  const [downloading,       setDownloading]       = useState(false);
+  const [downloadingMonth, setDownloadingMonth] = useState<string|null>(null);
 
   const [activeDistTab, setActiveDistTab] = useState<'combined' | 'home' | 'school'>('combined');
   const [activeTab,     setActiveTab]     = useState<'combined' | 'home' | 'school'>('combined');
@@ -117,7 +117,7 @@ export default function LinkedChildDetailScreen() {
 
   const downloadReport = async (monthStr: string) => {
     if (!id) return;
-    setDownloading(true);
+    setDownloadingMonth(monthStr);
     try {
       const token = await AsyncStorage.getItem('session_token');
       const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -134,7 +134,7 @@ export default function LinkedChildDetailScreen() {
     } catch (error: any) {
       Alert.alert('Download Error', error.message || 'Could not download report');
     } finally {
-      setDownloading(false);
+      setDownloadingMonth(null);
     }
   };
 
@@ -645,11 +645,11 @@ export default function LinkedChildDetailScreen() {
                       key={m}
                       style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF3F3', borderRadius: 10, padding: 12, gap: 10, borderWidth: 1, borderColor: '#FFCDD2' }}
                       onPress={() => downloadReport(m)}
-                      disabled={downloading}
+                      disabled={downloadingMonth === m}
                     >
                       <MaterialIcons name="picture-as-pdf" size={20} color="#E53935" />
                       <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: '#333' }}>{label}</Text>
-                      {downloading
+                      {downloadingMonth === m
                         ? <ActivityIndicator size="small" color="#E53935" />
                         : <MaterialIcons name="download" size={18} color="#E53935" />}
                     </TouchableOpacity>

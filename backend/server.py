@@ -1669,7 +1669,7 @@ TRANSLATIONS = {
         "yellow_description": "You are starting to feel wobbly. You might feel silly, nervous or frustrated.",
         "red_description": "Your body has big feelings right now. You might feel angry or out of control.",
         "blue_feeling": "Quiet Energy", "green_feeling": "Balanced Energy",
-        "yellow_feeling": "Fizzing Energy", "red_feeling": "Big Energy",
+        "yellow_feeling": "Feeling tense or unsettled Energy", "red_feeling": "High stress or overwhelm",
         "hi": "Hi", "need_help": "Need help? Tap here!",
         "support_message": "You can always ask an adult and friends for support",
         "how_i_feel": "How I Feel", "my_helpers": "My Helpers",
@@ -3529,6 +3529,190 @@ async def get_available_months(student_id: str):
         month = log["timestamp"][:7]
         months.add(month)
     return sorted(list(months), reverse=True)
+
+@api_router.get("/reports/pdf/family/{family_member_id}/month/{year}/{month}")
+async def generate_family_pdf_report(family_member_id: str, year: int, month: int, request: Request, lang: str = ""):
+    """Generate PDF report for a family member (home check-ins only)."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    fm_r = supabase.table("family_members").select("*").eq("id", family_member_id).execute()
+    if not fm_r.data:
+        raise HTTPException(status_code=404, detail="Family member not found")
+    fm = fm_r.data[0]
+
+    # Use student record if available, else create synthetic student_data
+    student_data = {
+        "name": fm.get("name", "Family Member"),
+        "id": family_member_id,
+        "classroom_id": None,
+        "language": lang or "en",
+    }
+
+    start = datetime(year, month, 1, tzinfo=timezone.utc).isoformat()
+    _, last_day = calendar.monthrange(year, month)
+    end = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc).isoformat()
+
+    logs_r = supabase.table("family_zone_logs").select("*").eq("family_member_id", family_member_id).gte("timestamp", start).lte("timestamp", end).order("timestamp", desc=False).execute()
+    home_logs = logs_r.data or []
+    for l in home_logs:
+        l["_source"] = "home"
+        l["zone"] = l.get("zone", l.get("feeling_colour", ""))
+        l["strategies_selected"] = l.get("strategies_selected", l.get("helpers_selected", []))
+
+    if not home_logs:
+        raise HTTPException(status_code=404, detail=f"No check-ins found for {fm.get('name')} in {year}/{month:02d}")
+
+    logs_data = home_logs
+    has_home_data = True
+
+    # Detect language
+    report_lang = lang if lang in ["pt","es","fr","de","it","en"] else "en"
+    student_data["language"] = report_lang
+
+    # Reuse the same PDF builder by forwarding to generate_pdf_report logic
+    # Build aggregates
+    feeling_counts = {"blue":0,"green":0,"yellow":0,"red":0}
+    helper_counts = {}
+    daily_counts = {}
+    week_counts = {0:0,1:0,2:0,3:0,4:0,5:0,6:0}
+    hour_counts = {}
+    for log in logs_data:
+        colour = log.get("feeling_colour", log.get("zone",""))
+        if colour in feeling_counts: feeling_counts[colour] += 1
+        for h in log.get("helpers_selected", log.get("strategies_selected",[])):
+            if h: helper_counts[h] = helper_counts.get(h,0)+1
+        try:
+            ts = datetime.fromisoformat(log["timestamp"].replace("Z","+00:00"))
+            dk = ts.strftime("%Y-%m-%d")
+            if dk not in daily_counts: daily_counts[dk] = {"blue":0,"green":0,"yellow":0,"red":0}
+            if colour in daily_counts[dk]: daily_counts[dk][colour] += 1
+            week_counts[ts.weekday()] = week_counts.get(ts.weekday(),0)+1
+            hour_counts[ts.hour] = hour_counts.get(ts.hour,0)+1
+        except: pass
+
+    # Import PDF builder deps
+    import io, calendar as cal_mod
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+
+    buffer = io.BytesIO()
+    PAGE_W, PAGE_H = A4
+    doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36)
+
+    INDIGO = colors.HexColor("#5C6BC0")
+    GREEN_C = colors.HexColor("#4CAF50")
+    ZONE_COLORS_PDF = {"blue":colors.HexColor("#4A90D9"),"green":GREEN_C,"yellow":colors.HexColor("#FFC107"),"red":colors.HexColor("#F44336")}
+
+    ZONE_LABELS_BY_LANG = {
+        "en":{"blue":"Blue Emotions","green":"Green Emotions","yellow":"Yellow Emotions","red":"Red Emotions"},
+        "pt":{"blue":"Emoções Azuis","green":"Emoções Verdes","yellow":"Emoções Amarelas","red":"Emoções Vermelhas"},
+        "es":{"blue":"Emociones Azules","green":"Emociones Verdes","yellow":"Emociones Amarillas","red":"Emociones Rojas"},
+        "fr":{"blue":"Émotions Bleues","green":"Émotions Vertes","yellow":"Émotions Jaunes","red":"Émotions Rouges"},
+        "de":{"blue":"Blaue Emotionen","green":"Grüne Emotionen","yellow":"Gelbe Emotionen","red":"Rote Emotionen"},
+        "it":{"blue":"Emozioni Blu","green":"Emozioni Verdi","yellow":"Emozioni Gialle","red":"Emozioni Rosse"},
+    }
+    ZL = ZONE_LABELS_BY_LANG.get(report_lang, ZONE_LABELS_BY_LANG["en"])
+
+    MONTH_NAMES = {
+        "en":["January","February","March","April","May","June","July","August","September","October","November","December"],
+        "pt":["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"],
+        "es":["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"],
+        "fr":["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"],
+        "de":["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"],
+        "it":["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"],
+    }
+    month_name = MONTH_NAMES.get(report_lang, MONTH_NAMES["en"])[month-1]
+
+    styles = getSampleStyleSheet()
+    ST_H1 = ParagraphStyle("H1", fontSize=22, textColor=colors.white, fontName="Helvetica-Bold", leading=28)
+    ST_H2 = ParagraphStyle("H2", fontSize=13, textColor=INDIGO, fontName="Helvetica-Bold", spaceBefore=10, spaceAfter=4)
+    ST_BODY = ParagraphStyle("Body", fontSize=10, textColor=colors.HexColor("#444444"), leading=14)
+    ST_SMALL = ParagraphStyle("Small", fontSize=8, textColor=colors.HexColor("#888888"), leading=11)
+
+    story = []
+
+    # Header
+    header_data = [[
+        Paragraph(f"🏠 {fm.get('name','Family Member')}", ST_H1),
+        Paragraph(f"{month_name} {year}<br/><font size=9>Home Wellbeing Report</font>", ParagraphStyle("HR", fontSize=11, textColor=colors.HexColor("#C5CAE9"), leading=16)),
+    ]]
+    header_table = Table(header_data, colWidths=[PAGE_W*0.6, PAGE_W*0.3])
+    header_table.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,-1), INDIGO),
+        ("PADDING", (0,0), (-1,-1), 16),
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+    ]))
+    story.append(header_table)
+    story.append(Spacer(1, 16))
+
+    # Summary stats
+    total = sum(feeling_counts.values())
+    story.append(Paragraph(f"Total home check-ins: {total}", ST_H2))
+    story.append(Spacer(1, 8))
+
+    # Emotion distribution
+    dist_data = [["Emotion", "Count", "%"]]
+    for z in ["green","yellow","blue","red"]:
+        pct = round((feeling_counts[z]/total*100)) if total>0 else 0
+        dist_data.append([ZL.get(z,z), str(feeling_counts[z]), f"{pct}%"])
+    dist_table = Table(dist_data, colWidths=[200, 80, 80])
+    dist_table.setStyle(TableStyle([
+        ("BACKGROUND",(0,0),(-1,0),INDIGO),
+        ("TEXTCOLOR",(0,0),(-1,0),colors.white),
+        ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),
+        ("FONTSIZE",(0,0),(-1,-1),9),
+        ("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.HexColor("#F8F9FA"),colors.white]),
+        ("GRID",(0,0),(-1,-1),0.5,colors.HexColor("#E0E0E0")),
+        ("PADDING",(0,0),(-1,-1),6),
+    ]))
+    story.append(dist_table)
+    story.append(Spacer(1, 12))
+
+    # Check-in log
+    story.append(Paragraph("Check-in Log", ST_H2))
+    log_data = [["Date", "Time", "Emotion", "🏠"]]
+    for log in logs_data[-30:]:
+        try:
+            ts = datetime.fromisoformat(log["timestamp"].replace("Z","+00:00"))
+            date_str = ts.strftime("%d %b")
+            time_str = ts.strftime("%H:%M")
+        except:
+            date_str = time_str = "—"
+        zone = log.get("feeling_colour", log.get("zone",""))
+        log_data.append([date_str, time_str, ZL.get(zone, zone), "🏠"])
+
+    log_table = Table(log_data, colWidths=[80,60,180,40])
+    log_table.setStyle(TableStyle([
+        ("BACKGROUND",(0,0),(-1,0),INDIGO),
+        ("TEXTCOLOR",(0,0),(-1,0),colors.white),
+        ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),
+        ("FONTSIZE",(0,0),(-1,-1),8),
+        ("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.HexColor("#F8F9FA"),colors.white]),
+        ("GRID",(0,0),(-1,-1),0.5,colors.HexColor("#E0E0E0")),
+        ("PADDING",(0,0),(-1,-1),5),
+    ]))
+    story.append(log_table)
+    story.append(Spacer(1,12))
+    story.append(Paragraph("This report is generated by Class of Happiness · classofhappiness.com", ST_SMALL))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    import urllib.parse
+    safe_name = urllib.parse.quote(fm.get("name","family"))
+    from fastapi.responses import StreamingResponse
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="wellbeing_{safe_name}_{year}_{month:02d}.pdf"'}
+    )
+
+
 
 @api_router.get("/reports/pdf/student/{student_id}/month/{year}/{month}")
 async def generate_pdf_report(student_id: str, year: int, month: int, request: Request, lang: str = ""):

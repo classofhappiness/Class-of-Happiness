@@ -141,7 +141,7 @@ export default function TeacherDashboardScreen() {
 
   const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
 
-  const getStudentName = (id:string) => students.find(s=>s.id===id)?.name || 'Student';
+  const getStudentName = (id:string) => students.find(s=>s.id===id)?.name || t('student') || 'Student';
   const getStudent = (id:string) => students.find(s=>s.id===id);
   const formatTime = (ts:string) => { try { return new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); } catch { return ''; } };
   const periodLabel = (p:Period) => p===1?(t('today')||'Today'):p===7?(t('week')||'Week'):p===14?'Fortnight':'Month';
