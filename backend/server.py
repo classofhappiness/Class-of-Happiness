@@ -116,6 +116,16 @@ CREATURES = [
         "name": "Aqua Buddy",
         "zone": "blue",
         "description": "Water creature that grows stronger with calm check-ins.",
+        "description_pt": "Criatura aquática que fica mais forte com check-ins calmos.",
+        "description_es": "Criatura acuática que se vuelve más fuerte con check-ins tranquilos.",
+        "description_fr": "Créature aquatique qui devient plus forte avec des enregistrements calmes.",
+        "description_de": "Wasserwesen, das mit ruhigen Check-ins stärker wird.",
+        "description_it": "Creatura acquatica che diventa più forte con i check-in tranquilli.",
+        "description_pt": "Criatura aquática que fica mais forte com check-ins calmos.",
+        "description_es": "Criatura acuática que se vuelve más fuerte con check-ins tranquilos.",
+        "description_fr": "Créature aquatique qui devient plus forte avec des enregistrements calmes.",
+        "description_de": "Wasserwesen, das mit ruhigen Check-ins stärker wird.",
+        "description_it": "Creatura acquatica che diventa più forte con i check-in tranquilli.",
         "color": "#4A90D9",
         "feeling_colour": "blue",
         "emoji_stages": ["🐟", "🐬", "🦈", "🐋"],
@@ -270,6 +280,360 @@ PRESET_AVATARS = [
 
 # ================== TRANSLATED HELPERS ==================
 # Helpers translated per language - used when lang != "en"
+
+# ── Translated helper/strategy cards per language ──────────────────────────
+HELPERS_PT = {
+    "blue": [
+        {"id":"b1","name":"Alongamento Suave","description":"Estira o corpo lentamente. Isto ajuda quando te sentes cansado ou triste.","feeling_colour":"blue","icon":"self-improvement","emoji":"🧘"},
+        {"id":"b2","name":"Canção Favorita","description":"Ouve ou canta a tua música favorita. A música pode fazer-nos sentir melhor.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
+        {"id":"b3","name":"Dizer a Alguém","description":"Fala com alguém em quem confias sobre como te sentes.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
+        {"id":"b4","name":"Respiração Lenta","description":"Inspira devagar pelo nariz e expira pela boca. Repete 5 vezes.","feeling_colour":"blue","icon":"air","emoji":"💨"},
+        {"id":"b5","name":"Bebida Quente","description":"Bebe uma bebida quente e confortante. Deixa-te aquecer por dentro.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b6","name":"Canto Aconchegante","description":"Encontra um lugar confortável e senta-te ou deita-te por alguns minutos.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
+    ],
+    "green": [
+        {"id":"g1","name":"Continua!","description":"Estás a ir muito bem! Continua com o que estás a fazer.","feeling_colour":"green","icon":"star","emoji":"⭐"},
+        {"id":"g2","name":"Ajudar um Amigo","description":"Oferece ajuda a alguém. Ajudar os outros faz-nos sentir bem.","feeling_colour":"green","icon":"favorite","emoji":"❤️"},
+        {"id":"g3","name":"Definir um Objetivo","description":"Pensa num objetivo pequeno para hoje. O que queres alcançar?","feeling_colour":"green","icon":"flag","emoji":"🎯"},
+        {"id":"g4","name":"Gratidão","description":"Pensa em 3 coisas pelas quais és grato. Isso ajuda-nos a sentir felizes.","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
+        {"id":"g5","name":"Tenta Algo Novo","description":"Experimenta uma atividade ou ideia nova hoje.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
+        {"id":"g6","name":"Partilha o Teu Sorriso","description":"Sorri para alguém. Os sorrisos são contagiantes!","feeling_colour":"green","icon":"mood","emoji":"😊"},
+    ],
+    "yellow": [
+        {"id":"y1","name":"Respiração de Bolhas","description":"Imagina que estás a soprar bolhas de sabão. Inspira fundo e expira devagar.","feeling_colour":"yellow","icon":"bubble-chart","emoji":"🫧"},
+        {"id":"y2","name":"Conta até 10","description":"Conta devagar até 10. Isto ajuda o teu cérebro a acalmar.","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
+        {"id":"y3","name":"5 Sentidos","description":"Nomeia 5 coisas que vês, 4 que tocas, 3 que ouves, 2 que cheiras, 1 que sentes.","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
+        {"id":"y4","name":"Falar Sobre Isso","description":"Fala com alguém sobre o que te está a preocupar.","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
+        {"id":"y5","name":"Sacudir o Corpo","description":"Agita as mãos e o corpo por 30 segundos para libertar a tensão.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
+        {"id":"y6","name":"Apertar e Soltar","description":"Aperta os punhos com força e depois solta. Repete 5 vezes.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
+    ],
+    "red": [
+        {"id":"r1","name":"Parar","description":"Para e fica imóvel por um momento. Não faças nada ainda.","feeling_colour":"red","icon":"stop","emoji":"✋"},
+        {"id":"r2","name":"Respirações Profundas","description":"Faz 5 respirações profundas. Inspira pelo nariz, expira pela boca.","feeling_colour":"red","icon":"air","emoji":"🌬️"},
+        {"id":"r3","name":"Contar ao Contrário","description":"Conta de 10 até 1 devagar. Isto acalma o teu cérebro.","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
+        {"id":"r4","name":"Espaço Seguro","description":"Vai para um lugar calmo onde te sintas seguro.","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
+        {"id":"r5","name":"Pedir Ajuda","description":"Diz a um adulto em quem confias que precisas de ajuda agora.","feeling_colour":"red","icon":"support-agent","emoji":"🆘"},
+        {"id":"r6","name":"Abraço a Si Mesmo","description":"Abraça-te a ti mesmo. Cruza os braços e aperta-te suavemente.","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
+    ],
+}
+
+HELPERS_ES = {
+    "blue": [
+        {"id":"b1","name":"Estiramiento Suave","description":"Estira el cuerpo lentamente. Esto ayuda cuando te sientes cansado o triste.","feeling_colour":"blue","icon":"self-improvement","emoji":"🧘"},
+        {"id":"b2","name":"Canción Favorita","description":"Escucha o canta tu canción favorita. La música puede hacernos sentir mejor.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
+        {"id":"b3","name":"Díselo a Alguien","description":"Habla con alguien de confianza sobre cómo te sientes.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
+        {"id":"b4","name":"Respiración Lenta","description":"Inhala despacio por la nariz y exhala por la boca. Repite 5 veces.","feeling_colour":"blue","icon":"air","emoji":"💨"},
+        {"id":"b5","name":"Bebida Caliente","description":"Bebe algo caliente y reconfortante. Deja que te caliente por dentro.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b6","name":"Rincón Acogedor","description":"Encuentra un lugar cómodo y siéntate o túmbate unos minutos.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
+    ],
+    "green": [
+        {"id":"g1","name":"¡Sigue Adelante!","description":"¡Lo estás haciendo muy bien! Continúa con lo que estás haciendo.","feeling_colour":"green","icon":"star","emoji":"⭐"},
+        {"id":"g2","name":"Ayudar a un Amigo","description":"Ofrece ayuda a alguien. Ayudar a otros nos hace sentir bien.","feeling_colour":"green","icon":"favorite","emoji":"❤️"},
+        {"id":"g3","name":"Establecer un Objetivo","description":"Piensa en un pequeño objetivo para hoy. ¿Qué quieres lograr?","feeling_colour":"green","icon":"flag","emoji":"🎯"},
+        {"id":"g4","name":"Gratitud","description":"Piensa en 3 cosas por las que estás agradecido. Eso nos ayuda a sentirnos felices.","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
+        {"id":"g5","name":"Prueba Algo Nuevo","description":"Experimenta con una actividad o idea nueva hoy.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
+        {"id":"g6","name":"Comparte tu Sonrisa","description":"Sonríe a alguien. ¡Las sonrisas son contagiosas!","feeling_colour":"green","icon":"mood","emoji":"😊"},
+    ],
+    "yellow": [
+        {"id":"y1","name":"Respiración de Burbujas","description":"Imagina que estás soplando burbujas de jabón. Inhala profundo y exhala despacio.","feeling_colour":"yellow","icon":"bubble-chart","emoji":"🫧"},
+        {"id":"y2","name":"Contar hasta 10","description":"Cuenta despacio hasta 10. Esto ayuda a tu cerebro a calmarse.","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
+        {"id":"y3","name":"5 Sentidos","description":"Nombra 5 cosas que ves, 4 que tocas, 3 que oyes, 2 que hueles, 1 que sientes.","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
+        {"id":"y4","name":"Hablar de Ello","description":"Habla con alguien sobre lo que te preocupa.","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
+        {"id":"y5","name":"Sacudir el Cuerpo","description":"Agita las manos y el cuerpo durante 30 segundos para liberar la tensión.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
+        {"id":"y6","name":"Apretar y Soltar","description":"Aprieta los puños con fuerza y luego suéltalos. Repite 5 veces.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
+    ],
+    "red": [
+        {"id":"r1","name":"Parar","description":"Para y quédate quieto un momento. No hagas nada todavía.","feeling_colour":"red","icon":"stop","emoji":"✋"},
+        {"id":"r2","name":"Respiraciones Profundas","description":"Haz 5 respiraciones profundas. Inhala por la nariz, exhala por la boca.","feeling_colour":"red","icon":"air","emoji":"🌬️"},
+        {"id":"r3","name":"Contar al Revés","description":"Cuenta de 10 a 1 despacio. Esto calma tu cerebro.","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
+        {"id":"r4","name":"Espacio Seguro","description":"Ve a un lugar tranquilo donde te sientas seguro.","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
+        {"id":"r5","name":"Pedir Ayuda","description":"Dile a un adulto de confianza que necesitas ayuda ahora.","feeling_colour":"red","icon":"support-agent","emoji":"🆘"},
+        {"id":"r6","name":"Abrazo a Uno Mismo","description":"Date un abrazo. Cruza los brazos y apriétate suavemente.","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
+    ],
+}
+
+HELPERS_FR = {
+    "blue": [
+        {"id":"b1","name":"Étirement Doux","description":"Étire ton corps lentement. Cela aide quand tu te sens fatigué ou triste.","feeling_colour":"blue","icon":"self-improvement","emoji":"🧘"},
+        {"id":"b2","name":"Chanson Préférée","description":"Écoute ou chante ta chanson préférée. La musique peut nous aider à aller mieux.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
+        {"id":"b3","name":"Le Dire à Quelqu'un","description":"Parle à quelqu'un en qui tu as confiance de ce que tu ressens.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
+        {"id":"b4","name":"Respiration Lente","description":"Inspire lentement par le nez et expire par la bouche. Répète 5 fois.","feeling_colour":"blue","icon":"air","emoji":"💨"},
+        {"id":"b5","name":"Boisson Chaude","description":"Bois quelque chose de chaud et réconfortant. Laisse-toi réchauffer de l'intérieur.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b6","name":"Coin Douillet","description":"Trouve un endroit confortable et assieds-toi ou allonge-toi quelques minutes.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
+    ],
+    "green": [
+        {"id":"g1","name":"Continue!","description":"Tu t'en sors très bien! Continue ce que tu fais.","feeling_colour":"green","icon":"star","emoji":"⭐"},
+        {"id":"g2","name":"Aider un Ami","description":"Propose ton aide à quelqu'un. Aider les autres nous fait du bien.","feeling_colour":"green","icon":"favorite","emoji":"❤️"},
+        {"id":"g3","name":"Fixer un Objectif","description":"Pense à un petit objectif pour aujourd'hui. Qu'est-ce que tu veux accomplir?","feeling_colour":"green","icon":"flag","emoji":"🎯"},
+        {"id":"g4","name":"Gratitude","description":"Pense à 3 choses dont tu es reconnaissant. Cela nous aide à nous sentir heureux.","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
+        {"id":"g5","name":"Essayer Quelque Chose de Nouveau","description":"Expérimente une nouvelle activité ou idée aujourd'hui.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
+        {"id":"g6","name":"Partage ton Sourire","description":"Souris à quelqu'un. Les sourires sont contagieux!","feeling_colour":"green","icon":"mood","emoji":"😊"},
+    ],
+    "yellow": [
+        {"id":"y1","name":"Respiration en Bulles","description":"Imagine que tu souffles des bulles de savon. Inspire profondément et expire lentement.","feeling_colour":"yellow","icon":"bubble-chart","emoji":"🫧"},
+        {"id":"y2","name":"Compter jusqu'à 10","description":"Compte lentement jusqu'à 10. Cela aide ton cerveau à se calmer.","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
+        {"id":"y3","name":"5 Sens","description":"Nomme 5 choses que tu vois, 4 que tu touches, 3 que tu entends, 2 que tu sens, 1 que tu ressens.","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
+        {"id":"y4","name":"En Parler","description":"Parle à quelqu'un de ce qui te préoccupe.","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
+        {"id":"y5","name":"Secouer le Corps","description":"Agite tes mains et ton corps pendant 30 secondes pour libérer la tension.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
+        {"id":"y6","name":"Serrer et Relâcher","description":"Serre les poings fort puis relâche. Répète 5 fois.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
+    ],
+    "red": [
+        {"id":"r1","name":"S'arrêter","description":"Arrête-toi et reste immobile un moment. Ne fais rien encore.","feeling_colour":"red","icon":"stop","emoji":"✋"},
+        {"id":"r2","name":"Grandes Respirations","description":"Fais 5 grandes respirations. Inspire par le nez, expire par la bouche.","feeling_colour":"red","icon":"air","emoji":"🌬️"},
+        {"id":"r3","name":"Compter à Rebours","description":"Compte de 10 à 1 lentement. Cela calme ton cerveau.","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
+        {"id":"r4","name":"Espace Sécurisé","description":"Va dans un endroit calme où tu te sens en sécurité.","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
+        {"id":"r5","name":"Demander de l'Aide","description":"Dis à un adulte de confiance que tu as besoin d'aide maintenant.","feeling_colour":"red","icon":"support-agent","emoji":"🆘"},
+        {"id":"r6","name":"Se Serrer dans ses Bras","description":"Serre-toi dans tes bras. Croise les bras et presse doucement.","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
+    ],
+}
+
+HELPERS_DE = {
+    "blue": [
+        {"id":"b1","name":"Sanfte Dehnung","description":"Strecke deinen Körper langsam. Das hilft, wenn du dich müde oder traurig fühlst.","feeling_colour":"blue","icon":"self-improvement","emoji":"🧘"},
+        {"id":"b2","name":"Lieblingslied","description":"Hör dir dein Lieblingslied an oder singe es. Musik kann uns besser fühlen lassen.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
+        {"id":"b3","name":"Jemandem Sagen","description":"Sprich mit jemandem, dem du vertraust, über deine Gefühle.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
+        {"id":"b4","name":"Langsames Atmen","description":"Atme langsam durch die Nase ein und durch den Mund aus. Wiederhole 5 mal.","feeling_colour":"blue","icon":"air","emoji":"💨"},
+        {"id":"b5","name":"Warmes Getränk","description":"Trink etwas Warmes und Tröstliches. Lass dich von innen erwärmen.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b6","name":"Gemütliche Ecke","description":"Finde einen bequemen Platz und sitz oder leg dich ein paar Minuten hin.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
+    ],
+    "green": [
+        {"id":"g1","name":"Weitermachen!","description":"Du machst das sehr gut! Mach weiter, was du tust.","feeling_colour":"green","icon":"star","emoji":"⭐"},
+        {"id":"g2","name":"Einem Freund Helfen","description":"Biete jemandem deine Hilfe an. Anderen zu helfen macht uns glücklich.","feeling_colour":"green","icon":"favorite","emoji":"❤️"},
+        {"id":"g3","name":"Ein Ziel Setzen","description":"Denke an ein kleines Ziel für heute. Was möchtest du erreichen?","feeling_colour":"green","icon":"flag","emoji":"🎯"},
+        {"id":"g4","name":"Dankbarkeit","description":"Denke an 3 Dinge, für die du dankbar bist. Das hilft uns, glücklich zu sein.","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
+        {"id":"g5","name":"Etwas Neues Ausprobieren","description":"Probiere heute eine neue Aktivität oder Idee aus.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
+        {"id":"g6","name":"Dein Lächeln Teilen","description":"Lächle jemanden an. Lächeln sind ansteckend!","feeling_colour":"green","icon":"mood","emoji":"😊"},
+    ],
+    "yellow": [
+        {"id":"y1","name":"Blasen-Atmung","description":"Stell dir vor, du pustest Seifenblasen. Tief einatmen und langsam ausatmen.","feeling_colour":"yellow","icon":"bubble-chart","emoji":"🫧"},
+        {"id":"y2","name":"Bis 10 Zählen","description":"Zähle langsam bis 10. Das hilft deinem Gehirn, sich zu beruhigen.","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
+        {"id":"y3","name":"5 Sinne","description":"Nenne 5 Dinge die du siehst, 4 die du anfasst, 3 die du hörst, 2 die du riechst, 1 die du fühlst.","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
+        {"id":"y4","name":"Darüber Sprechen","description":"Sprich mit jemandem über das, was dich besorgt.","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
+        {"id":"y5","name":"Körper Schütteln","description":"Schüttle deine Hände und deinen Körper 30 Sekunden lang, um Anspannung loszulassen.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
+        {"id":"y6","name":"Drücken und Loslassen","description":"Drücke deine Fäuste fest zusammen und lass dann los. Wiederhole 5 mal.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
+    ],
+    "red": [
+        {"id":"r1","name":"Stopp","description":"Halte an und bleibe einen Moment still. Tu noch nichts.","feeling_colour":"red","icon":"stop","emoji":"✋"},
+        {"id":"r2","name":"Tiefe Atemzüge","description":"Mache 5 tiefe Atemzüge. Einatmen durch die Nase, ausatmen durch den Mund.","feeling_colour":"red","icon":"air","emoji":"🌬️"},
+        {"id":"r3","name":"Rückwärts Zählen","description":"Zähle langsam von 10 bis 1. Das beruhigt dein Gehirn.","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
+        {"id":"r4","name":"Sicherer Ort","description":"Geh an einen ruhigen Ort, wo du dich sicher fühlst.","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
+        {"id":"r5","name":"Hilfe Holen","description":"Sag einem vertrauenswürdigen Erwachsenen, dass du jetzt Hilfe brauchst.","feeling_colour":"red","icon":"support-agent","emoji":"🆘"},
+        {"id":"r6","name":"Sich Selbst Umarmen","description":"Umarme dich selbst. Verschränke die Arme und drücke sanft.","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
+    ],
+}
+
+HELPERS_IT = {
+    "blue": [
+        {"id":"b1","name":"Stretching Leggero","description":"Stira il corpo lentamente. Questo aiuta quando ti senti stanco o triste.","feeling_colour":"blue","icon":"self-improvement","emoji":"🧘"},
+        {"id":"b2","name":"Canzone Preferita","description":"Ascolta o canta la tua canzone preferita. La musica può farci sentire meglio.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
+        {"id":"b3","name":"Dillo a Qualcuno","description":"Parla con qualcuno di cui ti fidi di come ti senti.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
+        {"id":"b4","name":"Respirazione Lenta","description":"Inspira lentamente dal naso ed espira dalla bocca. Ripeti 5 volte.","feeling_colour":"blue","icon":"air","emoji":"💨"},
+        {"id":"b5","name":"Bevanda Calda","description":"Bevi qualcosa di caldo e confortante. Lasciati riscaldare dall'interno.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b6","name":"Angolo Accogliente","description":"Trova un posto comodo e siediti o sdraiati per qualche minuto.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
+    ],
+    "green": [
+        {"id":"g1","name":"Continua!","description":"Stai andando molto bene! Continua con quello che stai facendo.","feeling_colour":"green","icon":"star","emoji":"⭐"},
+        {"id":"g2","name":"Aiuta un Amico","description":"Offri il tuo aiuto a qualcuno. Aiutare gli altri ci fa stare bene.","feeling_colour":"green","icon":"favorite","emoji":"❤️"},
+        {"id":"g3","name":"Fissa un Obiettivo","description":"Pensa a un piccolo obiettivo per oggi. Cosa vuoi raggiungere?","feeling_colour":"green","icon":"flag","emoji":"🎯"},
+        {"id":"g4","name":"Gratitudine","description":"Pensa a 3 cose per cui sei grato. Questo ci aiuta a sentirci felici.","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
+        {"id":"g5","name":"Prova Qualcosa di Nuovo","description":"Sperimenta una nuova attività o idea oggi.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
+        {"id":"g6","name":"Condividi il Tuo Sorriso","description":"Sorridi a qualcuno. I sorrisi sono contagiosi!","feeling_colour":"green","icon":"mood","emoji":"😊"},
+    ],
+    "yellow": [
+        {"id":"y1","name":"Respirazione a Bolle","description":"Immagina di soffiare bolle di sapone. Inspira profondamente ed espira lentamente.","feeling_colour":"yellow","icon":"bubble-chart","emoji":"🫧"},
+        {"id":"y2","name":"Conta fino a 10","description":"Conta lentamente fino a 10. Questo aiuta il tuo cervello a calmarsi.","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
+        {"id":"y3","name":"5 Sensi","description":"Nomina 5 cose che vedi, 4 che tocchi, 3 che senti, 2 che annusi, 1 che provi.","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
+        {"id":"y4","name":"Parlarne","description":"Parla con qualcuno di ciò che ti preoccupa.","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
+        {"id":"y5","name":"Scuotere il Corpo","description":"Agita le mani e il corpo per 30 secondi per rilasciare la tensione.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
+        {"id":"y6","name":"Stringi e Rilascia","description":"Stringi i pugni con forza e poi rilascia. Ripeti 5 volte.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
+    ],
+    "red": [
+        {"id":"r1","name":"Fermati","description":"Fermati e resta immobile per un momento. Non fare ancora nulla.","feeling_colour":"red","icon":"stop","emoji":"✋"},
+        {"id":"r2","name":"Respiri Profondi","description":"Fai 5 respiri profondi. Inspira dal naso, espira dalla bocca.","feeling_colour":"red","icon":"air","emoji":"🌬️"},
+        {"id":"r3","name":"Conta al Contrario","description":"Conta lentamente da 10 a 1. Questo calma il tuo cervello.","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
+        {"id":"r4","name":"Spazio Sicuro","description":"Vai in un posto tranquillo dove ti senti al sicuro.","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
+        {"id":"r5","name":"Chiedi Aiuto","description":"Dì a un adulto di cui ti fidi che hai bisogno di aiuto ora.","feeling_colour":"red","icon":"support-agent","emoji":"🆘"},
+        {"id":"r6","name":"Abbracciati","description":"Abbraccia te stesso. Incrocia le braccia e stringi delicatamente.","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
+    ],
+}
+
+
+# ── Translated helper/strategy cards per language ──────────────────────────
+HELPERS_PT = {
+    "blue": [
+        {"id":"b1","name":"Alongamento Suave","description":"Estira o corpo lentamente. Isto ajuda quando te sentes cansado ou triste.","feeling_colour":"blue","icon":"self-improvement","emoji":"🧘"},
+        {"id":"b2","name":"Canção Favorita","description":"Ouve ou canta a tua música favorita. A música pode fazer-nos sentir melhor.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
+        {"id":"b3","name":"Dizer a Alguém","description":"Fala com alguém em quem confias sobre como te sentes.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
+        {"id":"b4","name":"Respiração Lenta","description":"Inspira devagar pelo nariz e expira pela boca. Repete 5 vezes.","feeling_colour":"blue","icon":"air","emoji":"💨"},
+        {"id":"b5","name":"Bebida Quente","description":"Bebe uma bebida quente e confortante. Deixa-te aquecer por dentro.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b6","name":"Canto Aconchegante","description":"Encontra um lugar confortável e senta-te ou deita-te por alguns minutos.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
+    ],
+    "green": [
+        {"id":"g1","name":"Continua!","description":"Estás a ir muito bem! Continua com o que estás a fazer.","feeling_colour":"green","icon":"star","emoji":"⭐"},
+        {"id":"g2","name":"Ajudar um Amigo","description":"Oferece ajuda a alguém. Ajudar os outros faz-nos sentir bem.","feeling_colour":"green","icon":"favorite","emoji":"❤️"},
+        {"id":"g3","name":"Definir um Objetivo","description":"Pensa num objetivo pequeno para hoje. O que queres alcançar?","feeling_colour":"green","icon":"flag","emoji":"🎯"},
+        {"id":"g4","name":"Gratidão","description":"Pensa em 3 coisas pelas quais és grato. Isso ajuda-nos a sentir felizes.","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
+        {"id":"g5","name":"Tenta Algo Novo","description":"Experimenta uma atividade ou ideia nova hoje.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
+        {"id":"g6","name":"Partilha o Teu Sorriso","description":"Sorri para alguém. Os sorrisos são contagiantes!","feeling_colour":"green","icon":"mood","emoji":"😊"},
+    ],
+    "yellow": [
+        {"id":"y1","name":"Respiração de Bolhas","description":"Imagina que estás a soprar bolhas de sabão. Inspira fundo e expira devagar.","feeling_colour":"yellow","icon":"bubble-chart","emoji":"🫧"},
+        {"id":"y2","name":"Conta até 10","description":"Conta devagar até 10. Isto ajuda o teu cérebro a acalmar.","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
+        {"id":"y3","name":"5 Sentidos","description":"Nomeia 5 coisas que vês, 4 que tocas, 3 que ouves, 2 que cheiras, 1 que sentes.","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
+        {"id":"y4","name":"Falar Sobre Isso","description":"Fala com alguém sobre o que te está a preocupar.","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
+        {"id":"y5","name":"Sacudir o Corpo","description":"Agita as mãos e o corpo por 30 segundos para libertar a tensão.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
+        {"id":"y6","name":"Apertar e Soltar","description":"Aperta os punhos com força e depois solta. Repete 5 vezes.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
+    ],
+    "red": [
+        {"id":"r1","name":"Parar","description":"Para e fica imóvel por um momento. Não faças nada ainda.","feeling_colour":"red","icon":"stop","emoji":"✋"},
+        {"id":"r2","name":"Respirações Profundas","description":"Faz 5 respirações profundas. Inspira pelo nariz, expira pela boca.","feeling_colour":"red","icon":"air","emoji":"🌬️"},
+        {"id":"r3","name":"Contar ao Contrário","description":"Conta de 10 até 1 devagar. Isto acalma o teu cérebro.","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
+        {"id":"r4","name":"Espaço Seguro","description":"Vai para um lugar calmo onde te sintas seguro.","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
+        {"id":"r5","name":"Pedir Ajuda","description":"Diz a um adulto em quem confias que precisas de ajuda agora.","feeling_colour":"red","icon":"support-agent","emoji":"🆘"},
+        {"id":"r6","name":"Abraço a Si Mesmo","description":"Abraça-te a ti mesmo. Cruza os braços e aperta-te suavemente.","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
+    ],
+}
+
+HELPERS_ES = {
+    "blue": [
+        {"id":"b1","name":"Estiramiento Suave","description":"Estira el cuerpo lentamente. Esto ayuda cuando te sientes cansado o triste.","feeling_colour":"blue","icon":"self-improvement","emoji":"🧘"},
+        {"id":"b2","name":"Canción Favorita","description":"Escucha o canta tu canción favorita. La música puede hacernos sentir mejor.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
+        {"id":"b3","name":"Díselo a Alguien","description":"Habla con alguien de confianza sobre cómo te sientes.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
+        {"id":"b4","name":"Respiración Lenta","description":"Inhala despacio por la nariz y exhala por la boca. Repite 5 veces.","feeling_colour":"blue","icon":"air","emoji":"💨"},
+        {"id":"b5","name":"Bebida Caliente","description":"Bebe algo caliente y reconfortante. Deja que te caliente por dentro.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b6","name":"Rincón Acogedor","description":"Encuentra un lugar cómodo y siéntate o túmbate unos minutos.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
+    ],
+    "green": [
+        {"id":"g1","name":"¡Sigue Adelante!","description":"¡Lo estás haciendo muy bien! Continúa con lo que estás haciendo.","feeling_colour":"green","icon":"star","emoji":"⭐"},
+        {"id":"g2","name":"Ayudar a un Amigo","description":"Ofrece ayuda a alguien. Ayudar a otros nos hace sentir bien.","feeling_colour":"green","icon":"favorite","emoji":"❤️"},
+        {"id":"g3","name":"Establecer un Objetivo","description":"Piensa en un pequeño objetivo para hoy. ¿Qué quieres lograr?","feeling_colour":"green","icon":"flag","emoji":"🎯"},
+        {"id":"g4","name":"Gratitud","description":"Piensa en 3 cosas por las que estás agradecido. Eso nos ayuda a sentirnos felices.","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
+        {"id":"g5","name":"Prueba Algo Nuevo","description":"Experimenta con una actividad o idea nueva hoy.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
+        {"id":"g6","name":"Comparte tu Sonrisa","description":"Sonríe a alguien. ¡Las sonrisas son contagiosas!","feeling_colour":"green","icon":"mood","emoji":"😊"},
+    ],
+    "yellow": [
+        {"id":"y1","name":"Respiración de Burbujas","description":"Imagina que estás soplando burbujas de jabón. Inhala profundo y exhala despacio.","feeling_colour":"yellow","icon":"bubble-chart","emoji":"🫧"},
+        {"id":"y2","name":"Contar hasta 10","description":"Cuenta despacio hasta 10. Esto ayuda a tu cerebro a calmarse.","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
+        {"id":"y3","name":"5 Sentidos","description":"Nombra 5 cosas que ves, 4 que tocas, 3 que oyes, 2 que hueles, 1 que sientes.","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
+        {"id":"y4","name":"Hablar de Ello","description":"Habla con alguien sobre lo que te preocupa.","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
+        {"id":"y5","name":"Sacudir el Cuerpo","description":"Agita las manos y el cuerpo durante 30 segundos para liberar la tensión.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
+        {"id":"y6","name":"Apretar y Soltar","description":"Aprieta los puños con fuerza y luego suéltalos. Repite 5 veces.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
+    ],
+    "red": [
+        {"id":"r1","name":"Parar","description":"Para y quédate quieto un momento. No hagas nada todavía.","feeling_colour":"red","icon":"stop","emoji":"✋"},
+        {"id":"r2","name":"Respiraciones Profundas","description":"Haz 5 respiraciones profundas. Inhala por la nariz, exhala por la boca.","feeling_colour":"red","icon":"air","emoji":"🌬️"},
+        {"id":"r3","name":"Contar al Revés","description":"Cuenta de 10 a 1 despacio. Esto calma tu cerebro.","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
+        {"id":"r4","name":"Espacio Seguro","description":"Ve a un lugar tranquilo donde te sientas seguro.","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
+        {"id":"r5","name":"Pedir Ayuda","description":"Dile a un adulto de confianza que necesitas ayuda ahora.","feeling_colour":"red","icon":"support-agent","emoji":"🆘"},
+        {"id":"r6","name":"Abrazo a Uno Mismo","description":"Date un abrazo. Cruza los brazos y apriétate suavemente.","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
+    ],
+}
+
+HELPERS_FR = {
+    "blue": [
+        {"id":"b1","name":"Étirement Doux","description":"Étire ton corps lentement. Cela aide quand tu te sens fatigué ou triste.","feeling_colour":"blue","icon":"self-improvement","emoji":"🧘"},
+        {"id":"b2","name":"Chanson Préférée","description":"Écoute ou chante ta chanson préférée. La musique peut nous aider à aller mieux.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
+        {"id":"b3","name":"Le Dire à Quelqu'un","description":"Parle à quelqu'un en qui tu as confiance de ce que tu ressens.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
+        {"id":"b4","name":"Respiration Lente","description":"Inspire lentement par le nez et expire par la bouche. Répète 5 fois.","feeling_colour":"blue","icon":"air","emoji":"💨"},
+        {"id":"b5","name":"Boisson Chaude","description":"Bois quelque chose de chaud et réconfortant. Laisse-toi réchauffer de l'intérieur.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b6","name":"Coin Douillet","description":"Trouve un endroit confortable et assieds-toi ou allonge-toi quelques minutes.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
+    ],
+    "green": [
+        {"id":"g1","name":"Continue!","description":"Tu t'en sors très bien! Continue ce que tu fais.","feeling_colour":"green","icon":"star","emoji":"⭐"},
+        {"id":"g2","name":"Aider un Ami","description":"Propose ton aide à quelqu'un. Aider les autres nous fait du bien.","feeling_colour":"green","icon":"favorite","emoji":"❤️"},
+        {"id":"g3","name":"Fixer un Objectif","description":"Pense à un petit objectif pour aujourd'hui. Qu'est-ce que tu veux accomplir?","feeling_colour":"green","icon":"flag","emoji":"🎯"},
+        {"id":"g4","name":"Gratitude","description":"Pense à 3 choses dont tu es reconnaissant. Cela nous aide à nous sentir heureux.","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
+        {"id":"g5","name":"Essayer Quelque Chose de Nouveau","description":"Expérimente une nouvelle activité ou idée aujourd'hui.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
+        {"id":"g6","name":"Partage ton Sourire","description":"Souris à quelqu'un. Les sourires sont contagieux!","feeling_colour":"green","icon":"mood","emoji":"😊"},
+    ],
+    "yellow": [
+        {"id":"y1","name":"Respiration en Bulles","description":"Imagine que tu souffles des bulles de savon. Inspire profondément et expire lentement.","feeling_colour":"yellow","icon":"bubble-chart","emoji":"🫧"},
+        {"id":"y2","name":"Compter jusqu'à 10","description":"Compte lentement jusqu'à 10. Cela aide ton cerveau à se calmer.","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
+        {"id":"y3","name":"5 Sens","description":"Nomme 5 choses que tu vois, 4 que tu touches, 3 que tu entends, 2 que tu sens, 1 que tu ressens.","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
+        {"id":"y4","name":"En Parler","description":"Parle à quelqu'un de ce qui te préoccupe.","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
+        {"id":"y5","name":"Secouer le Corps","description":"Agite tes mains et ton corps pendant 30 secondes pour libérer la tension.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
+        {"id":"y6","name":"Serrer et Relâcher","description":"Serre les poings fort puis relâche. Répète 5 fois.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
+    ],
+    "red": [
+        {"id":"r1","name":"S'arrêter","description":"Arrête-toi et reste immobile un moment. Ne fais rien encore.","feeling_colour":"red","icon":"stop","emoji":"✋"},
+        {"id":"r2","name":"Grandes Respirations","description":"Fais 5 grandes respirations. Inspire par le nez, expire par la bouche.","feeling_colour":"red","icon":"air","emoji":"🌬️"},
+        {"id":"r3","name":"Compter à Rebours","description":"Compte de 10 à 1 lentement. Cela calme ton cerveau.","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
+        {"id":"r4","name":"Espace Sécurisé","description":"Va dans un endroit calme où tu te sens en sécurité.","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
+        {"id":"r5","name":"Demander de l'Aide","description":"Dis à un adulte de confiance que tu as besoin d'aide maintenant.","feeling_colour":"red","icon":"support-agent","emoji":"🆘"},
+        {"id":"r6","name":"Se Serrer dans ses Bras","description":"Serre-toi dans tes bras. Croise les bras et presse doucement.","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
+    ],
+}
+
+HELPERS_DE = {
+    "blue": [
+        {"id":"b1","name":"Sanfte Dehnung","description":"Strecke deinen Körper langsam. Das hilft, wenn du dich müde oder traurig fühlst.","feeling_colour":"blue","icon":"self-improvement","emoji":"🧘"},
+        {"id":"b2","name":"Lieblingslied","description":"Hör dir dein Lieblingslied an oder singe es. Musik kann uns besser fühlen lassen.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
+        {"id":"b3","name":"Jemandem Sagen","description":"Sprich mit jemandem, dem du vertraust, über deine Gefühle.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
+        {"id":"b4","name":"Langsames Atmen","description":"Atme langsam durch die Nase ein und durch den Mund aus. Wiederhole 5 mal.","feeling_colour":"blue","icon":"air","emoji":"💨"},
+        {"id":"b5","name":"Warmes Getränk","description":"Trink etwas Warmes und Tröstliches. Lass dich von innen erwärmen.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b6","name":"Gemütliche Ecke","description":"Finde einen bequemen Platz und sitz oder leg dich ein paar Minuten hin.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
+    ],
+    "green": [
+        {"id":"g1","name":"Weitermachen!","description":"Du machst das sehr gut! Mach weiter, was du tust.","feeling_colour":"green","icon":"star","emoji":"⭐"},
+        {"id":"g2","name":"Einem Freund Helfen","description":"Biete jemandem deine Hilfe an. Anderen zu helfen macht uns glücklich.","feeling_colour":"green","icon":"favorite","emoji":"❤️"},
+        {"id":"g3","name":"Ein Ziel Setzen","description":"Denke an ein kleines Ziel für heute. Was möchtest du erreichen?","feeling_colour":"green","icon":"flag","emoji":"🎯"},
+        {"id":"g4","name":"Dankbarkeit","description":"Denke an 3 Dinge, für die du dankbar bist. Das hilft uns, glücklich zu sein.","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
+        {"id":"g5","name":"Etwas Neues Ausprobieren","description":"Probiere heute eine neue Aktivität oder Idee aus.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
+        {"id":"g6","name":"Dein Lächeln Teilen","description":"Lächle jemanden an. Lächeln sind ansteckend!","feeling_colour":"green","icon":"mood","emoji":"😊"},
+    ],
+    "yellow": [
+        {"id":"y1","name":"Blasen-Atmung","description":"Stell dir vor, du pustest Seifenblasen. Tief einatmen und langsam ausatmen.","feeling_colour":"yellow","icon":"bubble-chart","emoji":"🫧"},
+        {"id":"y2","name":"Bis 10 Zählen","description":"Zähle langsam bis 10. Das hilft deinem Gehirn, sich zu beruhigen.","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
+        {"id":"y3","name":"5 Sinne","description":"Nenne 5 Dinge die du siehst, 4 die du anfasst, 3 die du hörst, 2 die du riechst, 1 die du fühlst.","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
+        {"id":"y4","name":"Darüber Sprechen","description":"Sprich mit jemandem über das, was dich besorgt.","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
+        {"id":"y5","name":"Körper Schütteln","description":"Schüttle deine Hände und deinen Körper 30 Sekunden lang, um Anspannung loszulassen.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
+        {"id":"y6","name":"Drücken und Loslassen","description":"Drücke deine Fäuste fest zusammen und lass dann los. Wiederhole 5 mal.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
+    ],
+    "red": [
+        {"id":"r1","name":"Stopp","description":"Halte an und bleibe einen Moment still. Tu noch nichts.","feeling_colour":"red","icon":"stop","emoji":"✋"},
+        {"id":"r2","name":"Tiefe Atemzüge","description":"Mache 5 tiefe Atemzüge. Einatmen durch die Nase, ausatmen durch den Mund.","feeling_colour":"red","icon":"air","emoji":"🌬️"},
+        {"id":"r3","name":"Rückwärts Zählen","description":"Zähle langsam von 10 bis 1. Das beruhigt dein Gehirn.","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
+        {"id":"r4","name":"Sicherer Ort","description":"Geh an einen ruhigen Ort, wo du dich sicher fühlst.","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
+        {"id":"r5","name":"Hilfe Holen","description":"Sag einem vertrauenswürdigen Erwachsenen, dass du jetzt Hilfe brauchst.","feeling_colour":"red","icon":"support-agent","emoji":"🆘"},
+        {"id":"r6","name":"Sich Selbst Umarmen","description":"Umarme dich selbst. Verschränke die Arme und drücke sanft.","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
+    ],
+}
+
+HELPERS_IT = {
+    "blue": [
+        {"id":"b1","name":"Stretching Leggero","description":"Stira il corpo lentamente. Questo aiuta quando ti senti stanco o triste.","feeling_colour":"blue","icon":"self-improvement","emoji":"🧘"},
+        {"id":"b2","name":"Canzone Preferita","description":"Ascolta o canta la tua canzone preferita. La musica può farci sentire meglio.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
+        {"id":"b3","name":"Dillo a Qualcuno","description":"Parla con qualcuno di cui ti fidi di come ti senti.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
+        {"id":"b4","name":"Respirazione Lenta","description":"Inspira lentamente dal naso ed espira dalla bocca. Ripeti 5 volte.","feeling_colour":"blue","icon":"air","emoji":"💨"},
+        {"id":"b5","name":"Bevanda Calda","description":"Bevi qualcosa di caldo e confortante. Lasciati riscaldare dall'interno.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b6","name":"Angolo Accogliente","description":"Trova un posto comodo e siediti o sdraiati per qualche minuto.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
+    ],
+    "green": [
+        {"id":"g1","name":"Continua!","description":"Stai andando molto bene! Continua con quello che stai facendo.","feeling_colour":"green","icon":"star","emoji":"⭐"},
+        {"id":"g2","name":"Aiuta un Amico","description":"Offri il tuo aiuto a qualcuno. Aiutare gli altri ci fa stare bene.","feeling_colour":"green","icon":"favorite","emoji":"❤️"},
+        {"id":"g3","name":"Fissa un Obiettivo","description":"Pensa a un piccolo obiettivo per oggi. Cosa vuoi raggiungere?","feeling_colour":"green","icon":"flag","emoji":"🎯"},
+        {"id":"g4","name":"Gratitudine","description":"Pensa a 3 cose per cui sei grato. Questo ci aiuta a sentirci felici.","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
+        {"id":"g5","name":"Prova Qualcosa di Nuovo","description":"Sperimenta una nuova attività o idea oggi.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
+        {"id":"g6","name":"Condividi il Tuo Sorriso","description":"Sorridi a qualcuno. I sorrisi sono contagiosi!","feeling_colour":"green","icon":"mood","emoji":"😊"},
+    ],
+    "yellow": [
+        {"id":"y1","name":"Respirazione a Bolle","description":"Immagina di soffiare bolle di sapone. Inspira profondamente ed espira lentamente.","feeling_colour":"yellow","icon":"bubble-chart","emoji":"🫧"},
+        {"id":"y2","name":"Conta fino a 10","description":"Conta lentamente fino a 10. Questo aiuta il tuo cervello a calmarsi.","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
+        {"id":"y3","name":"5 Sensi","description":"Nomina 5 cose che vedi, 4 che tocchi, 3 che senti, 2 che annusi, 1 che provi.","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
+        {"id":"y4","name":"Parlarne","description":"Parla con qualcuno di ciò che ti preoccupa.","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
+        {"id":"y5","name":"Scuotere il Corpo","description":"Agita le mani e il corpo per 30 secondi per rilasciare la tensione.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
+        {"id":"y6","name":"Stringi e Rilascia","description":"Stringi i pugni con forza e poi rilascia. Ripeti 5 volte.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
+    ],
+    "red": [
+        {"id":"r1","name":"Fermati","description":"Fermati e resta immobile per un momento. Non fare ancora nulla.","feeling_colour":"red","icon":"stop","emoji":"✋"},
+        {"id":"r2","name":"Respiri Profondi","description":"Fai 5 respiri profondi. Inspira dal naso, espira dalla bocca.","feeling_colour":"red","icon":"air","emoji":"🌬️"},
+        {"id":"r3","name":"Conta al Contrario","description":"Conta lentamente da 10 a 1. Questo calma il tuo cervello.","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
+        {"id":"r4","name":"Spazio Sicuro","description":"Vai in un posto tranquillo dove ti senti al sicuro.","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
+        {"id":"r5","name":"Chiedi Aiuto","description":"Dì a un adulto di cui ti fidi che hai bisogno di aiuto ora.","feeling_colour":"red","icon":"support-agent","emoji":"🆘"},
+        {"id":"r6","name":"Abbracciati","description":"Abbraccia te stesso. Incrocia le braccia e stringi delicatamente.","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
+    ],
+}
+
 TRANSLATED_HELPERS = {
     "es": {
         "app_name": "Clase de Felicidad",
@@ -2364,8 +2728,12 @@ async def get_zone_logs_all(
 async def get_helpers(feeling_colour: Optional[str] = None, student_id: Optional[str] = None, lang: str = "en"):
     helpers = []
     colours = [feeling_colour] if feeling_colour else FEELING_COLOURS
-    # Use translated helpers if available, otherwise fall back to English
-    lang_helpers = TRANSLATED_HELPERS.get(lang, DEFAULT_HELPERS)
+    # Use language-specific helper cards if available
+    LANG_HELPERS = {
+        "pt": HELPERS_PT, "es": HELPERS_ES, "fr": HELPERS_FR,
+        "de": HELPERS_DE, "it": HELPERS_IT,
+    }
+    lang_helpers = LANG_HELPERS.get(lang, DEFAULT_HELPERS)
     for colour in colours:
         colour_helpers = lang_helpers.get(colour, DEFAULT_HELPERS.get(colour, []))
         helpers.extend(colour_helpers)
@@ -4245,12 +4613,25 @@ async def send_parent_message(request: Request):
     except Exception as e:
         logger.error(f"Parent message store error: {e}")
 
-    # Find parent tokens
+    # Find parent tokens — check both parent_links (school) and family_members (home)
     tokens_to_notify = []
+    parent_user_ids = set()
     try:
-        parent_links = supabase.table("parent_links").select("parent_id").eq("student_id", student_id).execute()
+        # School-linked parents
+        parent_links = supabase.table("parent_links").select("parent_id,parent_user_id").eq("student_id", student_id).execute()
         for link in (parent_links.data or []):
-            parent_r = supabase.table("users").select("push_token").eq("user_id", link["parent_id"]).execute()
+            uid = link.get("parent_user_id") or link.get("parent_id")
+            if uid: parent_user_ids.add(uid)
+    except: pass
+    try:
+        # Family member parents (home flow)
+        fm_links = supabase.table("family_members").select("user_id").eq("student_id", student_id).execute()
+        for link in (fm_links.data or []):
+            if link.get("user_id"): parent_user_ids.add(link["user_id"])
+    except: pass
+    try:
+        for uid in parent_user_ids:
+            parent_r = supabase.table("users").select("push_token").eq("user_id", uid).execute()
             if parent_r.data and parent_r.data[0].get("push_token"):
                 tokens_to_notify.append(parent_r.data[0]["push_token"])
     except: pass
