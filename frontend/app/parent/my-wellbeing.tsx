@@ -293,7 +293,6 @@ export default function MyWellbeingScreen() {
       const canOpen = await Linking.canOpenURL(fullUrl);
       if (canOpen) { await Linking.openURL(fullUrl); }
       else { Alert.alert('Error', 'No check-ins found for this month yet'); }
-      else { Alert.alert('Error', 'Cannot open PDF — no data may exist for this month yet'); }
     } catch (error: any) {
       Alert.alert('Download Error', error.message || 'Could not download report');
     } finally { setDownloading(false); }
