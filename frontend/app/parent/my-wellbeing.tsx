@@ -395,7 +395,7 @@ export default function MyWellbeingScreen() {
         {/* DAILY VIEW */}
         <View style={st.section}>
           <TouchableOpacity onPress={() => setSecDaily(e => !e)} style={st.sectionHeader}>
-            <View style={st.sectionHeaderLeft}><MaterialIcons name="calendar-today" size={17} color="#5C6BC0" /><Text style={st.sectionTitle}>Daily View</Text></View>
+            <View style={st.sectionHeaderLeft}><MaterialIcons name="calendar-today" size={17} color="#5C6BC0" /><Text style={st.sectionTitle}>{t('check_in') || t('check_ins') || 'Daily View'}</Text></View>
             <MaterialIcons name={secDaily ? 'expand-less' : 'expand-more'} size={20} color="#666" />
           </TouchableOpacity>
           {secDaily && <View style={{marginTop:12}}>
@@ -459,7 +459,7 @@ export default function MyWellbeingScreen() {
         {/* EMOTION DISTRIBUTION */}
         <View style={st.section}>
           <TouchableOpacity onPress={() => setSecDistrib(e => !e)} style={st.sectionHeader}>
-            <View style={st.sectionHeaderLeft}><MaterialIcons name="donut-large" size={17} color="#5C6BC0" /><Text style={st.sectionTitle}>Emotion Distribution</Text></View>
+            <View style={st.sectionHeaderLeft}><MaterialIcons name="donut-large" size={17} color="#5C6BC0" /><Text style={st.sectionTitle}>{t('emotion_distribution') || t('emotion_distribution') || 'Emotion Distribution'}</Text></View>
             <MaterialIcons name={secDistrib ? 'expand-less' : 'expand-more'} size={20} color="#666" />
           </TouchableOpacity>
           {secDistrib && (total === 0 ? (
@@ -482,7 +482,7 @@ export default function MyWellbeingScreen() {
         {/* EMOTION COMPARISON */}
         <View style={st.section}>
           <TouchableOpacity onPress={() => setSecCompare(e => !e)} style={st.sectionHeader}>
-            <View style={st.sectionHeaderLeft}><MaterialIcons name="bar-chart" size={17} color="#5C6BC0" /><Text style={st.sectionTitle}>Emotion Comparison</Text></View>
+            <View style={st.sectionHeaderLeft}><MaterialIcons name="bar-chart" size={17} color="#5C6BC0" /><Text style={st.sectionTitle}>{t('zone_comparison') || t('zone_comparison') || 'Emotion Comparison'}</Text></View>
             <MaterialIcons name={secCompare ? 'expand-less' : 'expand-more'} size={20} color="#666" />
           </TouchableOpacity>
           {secCompare && (total > 0 ? (
@@ -499,13 +499,13 @@ export default function MyWellbeingScreen() {
                 isAnimated barBorderRadius={6} width={width-100}
               />
             </View>
-          ) : <Text style={[st.noData,{marginTop:10}]}>No data for this period</Text>)}
+          ) : <Text style={[st.noData,{marginTop:10}]}>{t('no_data_period') || t('no_data_period') || 'No data for this period'}</Text>)}
         </View>
 
         {/* MOST USED STRATEGIES */}
         <View style={st.section}>
           <TouchableOpacity onPress={() => setSecStrategies(e => !e)} style={st.sectionHeader}>
-            <View style={st.sectionHeaderLeft}><MaterialIcons name="star" size={17} color="#FFC107" /><Text style={st.sectionTitle}>Most Used Strategies</Text></View>
+            <View style={st.sectionHeaderLeft}><MaterialIcons name="star" size={17} color="#FFC107" /><Text style={st.sectionTitle}>{t('most_used_strategies') || t('most_used_strategies') || 'Most Used Strategies'}</Text></View>
             <MaterialIcons name={secStrategies ? 'expand-less' : 'expand-more'} size={20} color="#666" />
           </TouchableOpacity>
           {secStrategies && (() => {
@@ -513,7 +513,7 @@ export default function MyWellbeingScreen() {
             entries.forEach(e => { ((e as any).strategies_selected||[]).forEach((s:string) => { stratCounts[s]=(stratCounts[s]||0)+1; }); });
             const sorted = Object.entries(stratCounts).sort(([,a],[,b])=>(b as number)-(a as number));
             return sorted.length === 0
-              ? <Text style={[st.noData,{marginTop:8}]}>No strategies used yet</Text>
+              ? <Text style={[st.noData,{marginTop:8}]}>{t('no_data_period') || t('no_data_period') || 'No strategies yet'}</Text>
               : sorted.map(([id,count]) => {
                   const zc = id.startsWith('blue')?'#4A90D9':id.startsWith('green')?'#4CAF50':id.startsWith('yellow')?'#FFC107':id.startsWith('red')?'#F44336':'#999';
                   const name = resolveName(id);
@@ -633,7 +633,7 @@ export default function MyWellbeingScreen() {
         {/* DOWNLOAD PDF */}
         <View style={st.section}>
           <TouchableOpacity onPress={() => setSecPdf(e => !e)} style={st.sectionHeader}>
-            <View style={st.sectionHeaderLeft}><MaterialIcons name="picture-as-pdf" size={17} color="#E53935" /><Text style={st.sectionTitle}>Download Monthly Report</Text></View>
+            <View style={st.sectionHeaderLeft}><MaterialIcons name="picture-as-pdf" size={17} color="#E53935" /><Text style={st.sectionTitle}>{t('download_monthly_reports') || 'Download Monthly Reports'}</Text></View>
             <MaterialIcons name={secPdf ? 'expand-less' : 'expand-more'} size={20} color="#666" />
           </TouchableOpacity>
           {secPdf && (() => {

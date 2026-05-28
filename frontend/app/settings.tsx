@@ -286,7 +286,7 @@ export default function SettingsScreen() {
           <View style={styles.settingLeft}>
             <MaterialIcons name="card-membership" size={24} color="#5C6BC0" />
             <View style={styles.settingText}>
-              <Text style={styles.settingLabel}>Status</Text>
+              <Text style={styles.settingLabel}>{t('stats') || t('stats') || 'Status'}</Text>
               <Text style={[styles.settingValue, { color: hasActiveSubscription ? '#4CAF50' : '#F44336' }]}>
                 {user?.subscription_status === 'trial' ? t('free_trial')||'Free Trial' :
                  user?.subscription_status === 'active' ? `${user.subscription_plan || 'Active'}` :

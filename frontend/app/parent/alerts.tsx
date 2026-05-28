@@ -219,7 +219,7 @@ export default function ParentAlertsScreen() {
                 {!selectMode && (
                   <TouchableOpacity style={st.resolveBtn} onPress={() => handleResolve(alert.id)}>
                     <MaterialIcons name="check" size={13} color="#4CAF50" />
-                    <Text style={st.resolveTxt}>Resolve</Text>
+                    <Text style={st.resolveTxt}>{t('resolved') || 'Resolve'}</Text>
                   </TouchableOpacity>
                 )}
               </View>

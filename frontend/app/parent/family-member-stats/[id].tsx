@@ -173,7 +173,7 @@ export default function FamilyMemberStatsScreen() {
             {secMostUsed && (
               <View style={{gap:8, marginTop:12}}>
                 {topStrategies.length === 0
-                  ? <Text style={s.emptyText}>{t('no_data_period')||'No strategies recorded yet'}</Text>
+                  ? <Text style={s.emptyText}>{t('no_data_period')||t('no_data_period') || 'No strategies recorded yet'}</Text>
                   : topStrategies.map(([strat, count]) => (
                     <View key={strat} style={{flexDirection:'row', alignItems:'center', gap:10, paddingVertical:4, borderBottomWidth:1, borderBottomColor:'#F5F5F5'}}>
                       <MaterialIcons name="lightbulb" size={16} color="#FF9800" />
@@ -277,7 +277,7 @@ export default function FamilyMemberStatsScreen() {
                   {t('select_month_pdf')||'Select a month to download a PDF report'}
                 </Text>
                 {months.length === 0
-                  ? <Text style={s.emptyText}>{t('no_checkin_yet')||'No check-ins yet'}</Text>
+                  ? <Text style={s.emptyText}>{t('no_checkin_yet')||t('no_checkin_yet') || 'No check-ins yet'}</Text>
                   : months.map(m => {
                       const label = new Date(m+'-15').toLocaleDateString(undefined, {month:'long', year:'numeric'});
                       return (

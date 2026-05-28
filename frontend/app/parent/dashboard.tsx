@@ -900,7 +900,7 @@ export default function ParentDashboard() {
                         }}
                       >
                         <MaterialIcons name={isLinked || isLinkedChild ? "school" : "home"} size={10} color="#4CAF50" />
-                        <Text style={[styles.wellbeingBtnTxt, { color:'#4CAF50' }]}>{t('stats') || 'Stats'}</Text>
+                        <Text style={[styles.wellbeingBtnTxt, { color:'#4CAF50' }]}>{t('stats') || t('stats') || 'Stats'}</Text>
                         <MaterialIcons name="chevron-right" size={10} color="#4CAF50" />
                       </TouchableOpacity>
                     )}
@@ -1016,7 +1016,7 @@ export default function ParentDashboard() {
                     }}
                   >
                     <Text style={{ fontSize: 14 }}>{childCreatures[child.id]?.emoji || '🥚'}</Text>
-                    <Text style={[styles.wellbeingBtnTxt, { color: childCreatures[child.id]?.color || '#4CAF50' }]}>{t('creatures') || 'Creatures'}</Text>
+                    <Text style={[styles.wellbeingBtnTxt, { color: childCreatures[child.id]?.color || '#4CAF50' }]}>{t('creatures') || t('creatures') || 'Creatures'}</Text>
                   </TouchableOpacity>
                 </TouchableOpacity>
               ))}

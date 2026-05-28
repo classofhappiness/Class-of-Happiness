@@ -349,7 +349,7 @@ export default function TeacherDashboardScreen() {
         {/* Widget button at bottom */}
         <TouchableOpacity style={st.widgetBtn} onPress={() => router.push('/teacher/widget')}>
           <MaterialIcons name="widgets" size={16} color="#9C27B0"/>
-          <Text style={st.widgetTxt}>Classroom Widget</Text>
+          <Text style={st.widgetTxt}>{t('classroom_widget') || 'Classroom Widget'}</Text>
           <MaterialIcons name="chevron-right" size={16} color="#9C27B0"/>
         </TouchableOpacity>
 

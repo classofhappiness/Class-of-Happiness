@@ -415,7 +415,7 @@ export default function LinkedChildDetailScreen() {
         {/* EMOTION COMPARISON */}
         <View style={s.section}>
           <TouchableOpacity onPress={() => setSecEmoCompare(e => !e)} style={s.sectionHeader}>
-            <View style={s.sectionHeaderLeft}><MaterialIcons name="bar-chart" size={17} color="#5C6BC0" /><Text style={s.sectionTitle}>Emotion Comparison</Text></View>
+            <View style={s.sectionHeaderLeft}><MaterialIcons name="bar-chart" size={17} color="#5C6BC0" /><Text style={s.sectionTitle}>{t('zone_comparison') || 'Emotion Comparison'}</Text></View>
             <MaterialIcons name={secEmoCompare ? 'expand-less' : 'expand-more'} size={20} color="#666" />
           </TouchableOpacity>
           {secEmoCompare && (totalCheckins > 0 ? (
@@ -425,13 +425,13 @@ export default function LinkedChildDetailScreen() {
                 noOfSections={4} maxValue={Math.max(1,...Object.values(zoneCounts).map(Number))+1}
                 isAnimated barBorderRadius={6} width={width-100} />
             </View>
-          ) : <Text style={[s.empty,{marginTop:10}]}>No data for this period</Text>)}
+          ) : <Text style={[s.empty,{marginTop:10}]}>{t('no_data_period') || 'No data for this period'}</Text>)}
         </View>
 
         {/* MOST USED STRATEGIES */}
         <View style={s.section}>
           <TouchableOpacity onPress={() => setSecMostUsed(e => !e)} style={s.sectionHeader}>
-            <View style={s.sectionHeaderLeft}><MaterialIcons name="star" size={17} color="#FFC107" /><Text style={s.sectionTitle}>Most Used Strategies</Text></View>
+            <View style={s.sectionHeaderLeft}><MaterialIcons name="star" size={17} color="#FFC107" /><Text style={s.sectionTitle}>{t('most_used_strategies') || 'Most Used Strategies'}</Text></View>
             <MaterialIcons name={secMostUsed ? 'expand-less' : 'expand-more'} size={20} color="#666" />
           </TouchableOpacity>
           {secMostUsed && (Object.keys(stratCounts).length > 0
@@ -593,7 +593,7 @@ export default function LinkedChildDetailScreen() {
               ))}
             </>)}
             <Text style={[s.stratSubtitle,{marginTop:!isFamilyChild&&schoolStrats.length>0?10:0}]}>
-              {'\u{1F3E0}'} {isFamilyChild?'Strategies':'Family Strategies'}
+              {'\u{1F3E0}'} {isFamilyChild?t('strategy_btn') || 'Strategies':'Family Strategies'}
             </Text>
             {familyStrats.length===0
               ? <Text style={s.empty}>No strategies yet — tap Add to create one</Text>
@@ -620,7 +620,7 @@ export default function LinkedChildDetailScreen() {
           <TouchableOpacity onPress={() => setSecPdfReport(e => !e)} style={s.sectionHeader}>
             <View style={s.sectionHeaderLeft}>
               <MaterialIcons name="picture-as-pdf" size={17} color="#E53935" />
-              <Text style={s.sectionTitle}>Download Monthly Report</Text>
+              <Text style={s.sectionTitle}>{t('download_monthly_reports') || 'Download Monthly Reports'}</Text>
             </View>
             <MaterialIcons name={secPdfReport ? 'expand-less' : 'expand-more'} size={20} color="#666" />
           </TouchableOpacity>
@@ -634,7 +634,7 @@ export default function LinkedChildDetailScreen() {
             return (
               <View style={{ gap: 8, marginTop: 12 }}>
                 <Text style={[s.empty, { paddingVertical: 4, textAlign: 'left', color: '#666' }]}>
-                  Select a month to download a PDF report
+                  {t('select_month_pdf') || 'Select a month to download a PDF report'}
                 </Text>
                 {months.map(m => {
                   const [y, mo] = m.split('-');
@@ -697,7 +697,7 @@ export default function LinkedChildDetailScreen() {
       <Modal visible={showAddStrat} animationType="slide" transparent onRequestClose={()=>setShowAddStrat(false)}>
         <View style={s.overlay}><View style={s.sheet}>
           <View style={s.sheetHeader}>
-            <Text style={s.sheetTitle}>Add Strategy</Text>
+            <Text style={s.sheetTitle}>{t('add_strategy') || 'Add Strategy'}</Text>
             <TouchableOpacity onPress={()=>setShowAddStrat(false)}><MaterialIcons name="close" size={24} color="#666" /></TouchableOpacity>
           </View>
           <ScrollView style={s.sheetScroll}>
@@ -737,7 +737,7 @@ export default function LinkedChildDetailScreen() {
           <View style={s.sheetActions}>
             <TouchableOpacity style={s.cancelBtn} onPress={()=>setShowAddStrat(false)}><Text style={s.cancelBtnText}>Cancel</Text></TouchableOpacity>
             <TouchableOpacity style={[s.submitBtn,!newStrat.name.trim()&&{opacity:0.5}]} onPress={handleAddStrat} disabled={!newStrat.name.trim()}>
-              <Text style={s.submitBtnText}>Add Strategy</Text>
+              <Text style={s.submitBtnText}>{t('add_strategy') || 'Add Strategy'}</Text>
             </TouchableOpacity>
           </View>
         </View></View>
