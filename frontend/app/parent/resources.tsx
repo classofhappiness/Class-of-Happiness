@@ -155,7 +155,7 @@ export default function ResourcesScreen() {
       }
     } catch (error: any) {
       console.error('Download error:', error);
-      Alert.alert('Download Error', `Failed to download PDF: ${error.message || 'Unknown error'}`);
+      Alert.alert(t('download_error') || 'Download Error', `Failed to download PDF: ${error.message || 'Unknown error'}`);
     } finally {
       setDownloading(false);
     }
@@ -386,7 +386,7 @@ export default function ResourcesScreen() {
                     disabled={downloading}
                   >
                     <MaterialIcons name={downloading ? 'hourglass-empty' : 'file-download'} size={24} color="white" />
-                    <Text style={styles.downloadButtonText}>{downloading ? 'Preparing...' : 'Download & Share PDF'}</Text>
+                    <Text style={styles.downloadButtonText}>{downloading ? t('saving') || 'Preparing...' : t('download_report') || 'Download & Share PDF'}</Text>
                   </TouchableOpacity>
                   <View style={styles.sharingInfo}>
                     <MaterialIcons name="share" size={16} color="#666" />

@@ -150,9 +150,9 @@ export default function FamilyStrategiesScreen() {
   };
 
   const deleteStrategy = (s: any) => {
-    Alert.alert('Delete', `Delete "${((s as any).nameKey && t((s as any).nameKey)) || s.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
+    Alert.alert(t('delete_btn') || 'Delete', `Delete "${((s as any).nameKey && t((s as any).nameKey)) || s.name}"?`, [
+      { text: t('go_back') || 'Cancel', style: 'cancel' },
+      { text: t('delete_btn') || 'Delete', style: 'destructive', onPress: async () => {
         try { await familyStratApi(`/custom-strategies/${s.id}`, 'DELETE'); loadCustomStrategies(); }
         catch { Alert.alert('Error', 'Could not delete'); }
       }},
@@ -169,9 +169,9 @@ export default function FamilyStrategiesScreen() {
 
   const deleteSelected = () => {
     if (selectedIds.size === 0) return;
-    Alert.alert('Delete', `Delete ${selectedIds.size} strategy${selectedIds.size > 1 ? 'ies' : 'y'}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete All', style: 'destructive', onPress: async () => {
+    Alert.alert(t('delete_btn') || 'Delete', `Delete ${selectedIds.size} strategy${selectedIds.size > 1 ? 'ies' : 'y'}?`, [
+      { text: t('go_back') || 'Cancel', style: 'cancel' },
+      { text: t('delete_btn') || 'Delete All', style: 'destructive', onPress: async () => {
         try {
           await Promise.all([...selectedIds].map(id => familyStratApi(`/custom-strategies/${id}`, 'DELETE')));
           setSelectedIds(new Set());
@@ -497,7 +497,7 @@ export default function FamilyStrategiesScreen() {
                   <Text style={{ fontSize: 15, color: '#666' }}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: '#5C6BC0', opacity: saving ? 0.6 : 1 }} onPress={saveStrategy} disabled={saving}>
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: 'white' }}>{saving ? 'Saving...' : 'Save'}</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: 'white' }}>{saving ? (t('saving') || 'Saving...') : (t('save_changes') || 'Save')}</Text>
                 </TouchableOpacity>
               </View>
             </View>

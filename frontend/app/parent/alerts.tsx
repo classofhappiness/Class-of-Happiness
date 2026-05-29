@@ -116,7 +116,7 @@ export default function ParentAlertsScreen() {
 
   return (
     <SafeAreaView style={st.container}>
-      <TranslatedHeader title={t('alerts') || 'Alerts'} />
+      <TranslatedHeader title={t('alerts') || t('alerts') || 'Alerts'} />
 
       {/* Period tabs — matching teacher flow */}
       <View style={{ flexDirection:'row', backgroundColor:'white', paddingHorizontal:12, paddingVertical:4, gap:6, borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}>
@@ -189,7 +189,7 @@ export default function ParentAlertsScreen() {
           : unresolved.length === 0 ? (
             <View style={st.emptyBox}>
               <Text style={{ fontSize: 40 }}>✅</Text>
-              <Text style={st.empty}>{t('no_alerts') || 'No pending alerts'}</Text>
+              <Text style={st.empty}>{t('no_alerts') || t('no_alerts') || 'No pending alerts'}</Text>
             </View>
           ) : null}
 
