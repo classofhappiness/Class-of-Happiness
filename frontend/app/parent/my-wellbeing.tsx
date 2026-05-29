@@ -32,7 +32,7 @@ const STRATEGY_NAMES: Record<string, string> = {
   p_y1:'Box Breathing Together', p_y2:'Validate Feelings First', p_y3:'Body Check-In', p_y4:'Feelings Journal', p_y5:'Give Space with Love',
   p_r1:'Stay Calm Yourself', p_r2:'Safe Space Together', p_r3:'Cold Water Reset', p_r4:'No Teaching Now', p_r5:'Reconnect with Warmth',
 };
-const resolveName = (id: string) => STRATEGY_NAMES[id] || id.replace(/_/g, ' ').replace(/\w/g, c => c.toUpperCase());
+const resolveName = (id: string) => STRATEGY_NAMES[id] || id.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
 
 type Entry = {
   id: string;

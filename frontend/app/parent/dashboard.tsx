@@ -1155,7 +1155,7 @@ export default function ParentDashboard() {
                   style={{ flex:1, paddingVertical:6, borderRadius:8, alignItems:'center',
                     backgroundColor: analyticsPeriod===p?'#5C6BC0':'#F0F0F0' }}>
                   <Text style={{ fontSize:11, fontWeight:'700', color: analyticsPeriod===p?'white':'#888' }}>
-                    {p===1?'Today':p===7?'Week':p===14?'Fortnight':'Month'}
+                    {p===1?(t('today')||'Today'):p===7?(t('this_week')||'Week'):p===14?(t('days_14')||'Fortnight'):(t('month')||'Month')}
                   </Text>
                 </TouchableOpacity>
               ))}

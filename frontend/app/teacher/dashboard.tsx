@@ -144,7 +144,7 @@ export default function TeacherDashboardScreen() {
   const getStudentName = (id:string) => students.find(s=>s.id===id)?.name || t('student') || 'Student';
   const getStudent = (id:string) => students.find(s=>s.id===id);
   const formatTime = (ts:string) => { try { return new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); } catch { return ''; } };
-  const periodLabel = (p:Period) => p===1?(t('today')||'Today'):p===7?(t('week')||'Week'):p===14?'Fortnight':'Month';
+  const periodLabel = (p:Period) => p===1?(t('today')||t('today') || 'Today'):p===7?(t('week')||t('this_week') || 'Week'):p===14?t('days_14') || 'Fortnight':t('month') || 'Month';
 
   const zc = analytics?.zone_counts || { blue:0, green:0, yellow:0, red:0 };
   const chartData = [
@@ -231,7 +231,7 @@ export default function TeacherDashboardScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.chipScroll}>
           <View style={st.chipRow}>
             <TouchableOpacity style={[st.chip,!selectedClassroom&&st.chipActive]} onPress={() => setSelectedClassroom(null)}>
-              <Text style={[st.chipTxt,!selectedClassroom&&st.chipTxtActive]}>{t('all')||'All'}</Text>
+              <Text style={[st.chipTxt,!selectedClassroom&&st.chipTxtActive]}>{t('all')||t('zone_all') || 'All'}</Text>
             </TouchableOpacity>
             {classrooms.map(c => (
               <TouchableOpacity key={c.id} style={[st.chip,selectedClassroom===c.id&&st.chipActive]}

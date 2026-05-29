@@ -165,7 +165,7 @@ export default function RewardsScreen() {
   };
 
   const handleContinue = () => {
-    if (params.fromFamily === 'true') {
+    if (params.fromFamily === 'true' && params.location !== 'student_flow') {
       router.replace('/parent/dashboard');
       return;
     }
