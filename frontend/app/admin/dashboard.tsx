@@ -277,12 +277,12 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
         </SectionCard>
 
         {/* Student Emotions */}
-        <SectionCard title="Student Emotion Distribution" subtitle="% of all check-ins · no names shown" icon="donut-large" color="#4A90D9">
+        <SectionCard title={t("student_emotion_distribution") || "Student Emotion Distribution"} subtitle="% of all check-ins · no names shown" icon="donut-large" color="#4A90D9">
           {ZONES.map(z => <ColourBar key={z} zone={z} count={zc[z] ?? 0} total={tzc} />)}
         </SectionCard>
 
         {/* Teacher Wellbeing */}
-        <SectionCard title="Teacher Wellbeing" subtitle="Teacher self check-in data · anonymised" icon="spa" color="#4CAF50">
+        <SectionCard title={t("teacher_wellbeing") || "Teacher Wellbeing"} subtitle="Teacher self check-in data · anonymised" icon="spa" color="#4CAF50">
           {ZONES.map(z => <ColourBar key={z} zone={z} count={tc[z] ?? 0} total={ttc} />)}
           <StatRow label="Support requests this month" value={stats?.support_requests} icon="notifications-active" color="#F44336" />
         </SectionCard>
@@ -354,6 +354,7 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
 // ── School Admin Dashboard ────────────────────────────────────────────────────
 
 function SchoolAdminDashboard({ authToken, stats, statsLoading }: any) {
+  const { t } = useApp();
   const zc = stats?.zone_counts || {};
   const tzc = Object.values(zc).reduce((a: any, b: any) => a + b, 0) as number;
 
@@ -362,7 +363,7 @@ function SchoolAdminDashboard({ authToken, stats, statsLoading }: any) {
       {statsLoading ? <ActivityIndicator color={INDIGO} style={{ marginTop: 20 }} /> : <>
 
         {/* School overview */}
-        <SectionCard title="Your School Overview" subtitle="Your school's anonymised data" icon="account-balance" color={INDIGO} defaultOpen>
+        <SectionCard title={t("your_school_overview") || "Your School Overview"} subtitle={t("anonymised_data") || "Your school's data"} icon="account-balance" color={INDIGO} defaultOpen>
           <StatRow label="Students" value={stats?.total_students} icon="child-care" color="#4CAF50" />
           <StatRow label="Teachers" value={stats?.total_teachers} icon="school" color="#FFC107" />
           <StatRow label="Check-ins today" value={stats?.checkins_today} icon="favorite" color="#4A90D9" />
@@ -370,25 +371,25 @@ function SchoolAdminDashboard({ authToken, stats, statsLoading }: any) {
         </SectionCard>
 
         {/* Student emotions */}
-        <SectionCard title="Student Emotion Distribution" subtitle="No individual names or comments shown" icon="donut-large" color="#4A90D9">
+        <SectionCard title={t("student_emotion_distribution") || "Student Emotion Distribution"} subtitle={t("no_names_shown") || "No names shown"} icon="donut-large" color="#4A90D9">
           {ZONES.map(z => <ColourBar key={z} zone={z} count={zc[z] ?? 0} total={tzc} />)}
           <View style={s.privacyBox}>
             <MaterialIcons name="lock" size={12} color="#888" />
-            <Text style={s.privacyText}>Individual student data is never shown here. Aggregated by emotion colour only.</Text>
+            <Text style={s.privacyText}>{t("individual_data_never_shown") || "Individual student data is never shown here."}</Text>
           </View>
         </SectionCard>
 
         {/* Teacher wellbeing */}
-        <SectionCard title="Teacher Wellbeing" subtitle="Your teachers' anonymised check-in data" icon="spa" color="#4CAF50">
+        <SectionCard title={t("teacher_wellbeing") || "Teacher Wellbeing"} subtitle={t("teacher_checkin_private") || "Anonymised data"} icon="spa" color="#4CAF50">
           <StatRow label="Support requests" value={stats?.support_requests} icon="notifications-active" color="#F44336" />
           <View style={s.privacyBox}>
             <MaterialIcons name="lock" size={12} color="#888" />
-            <Text style={s.privacyText}>Teacher check-ins are private. Only aggregated zone data shown.</Text>
+            <Text style={s.privacyText}>{t("teacher_checkin_private") || "Teacher check-ins are private."}</Text>
           </View>
         </SectionCard>
 
         {/* Engagement */}
-        <SectionCard title="Engagement" subtitle="How your school is using the app" icon="trending-up" color="#FF9800">
+        <SectionCard title={t("engagement") || "Engagement"} subtitle={t("how_school_using") || "App usage"} icon="trending-up" color="#FF9800">
           <StatRow label="Most used student strategy" value={stats?.top_strategy} icon="lightbulb" color="#4CAF50" />
           <StatRow label="Students with 7+ day streak" value={stats?.streak_students} icon="local-fire-department" color="#FF9800" />
           <StatRow label="Total creatures collected" value={stats?.total_creatures} icon="pets" color="#9C27B0" />
@@ -414,6 +415,7 @@ const SCHOOL_TYPES = ['International', 'Public', 'Private', 'Charter', 'Faith-ba
 const CURRICULA = ['IB (International Baccalaureate)', 'National', 'Cambridge', 'Montessori', 'Mixed/Other'];
 
 function SchoolSettings({ authToken, user }: any) {
+  const { t } = useApp();
   const [schoolName, setSchoolName] = useState('');
   const [city, setCity] = useState('');
   const [country, setCountry] = useState('🌍');
@@ -451,10 +453,10 @@ function SchoolSettings({ authToken, user }: any) {
 
   return (
     <View style={{ gap: 12 }}>
-      <SectionCard title="School Profile" subtitle="Appears on the world wall" icon="account-balance" color={INDIGO} defaultOpen>
+      <SectionCard title={t("school_profile") || "School Profile"} subtitle={t("appears_world_wall") || "Appears on world wall"} icon="account-balance" color={INDIGO} defaultOpen>
         <TextInput style={s.input} placeholder="School name" value={schoolName} onChangeText={setSchoolName} placeholderTextColor="#AAA" />
         <TextInput style={s.input} placeholder="City" value={city} onChangeText={setCity} placeholderTextColor="#AAA" />
-        <Text style={s.fieldLabel}>Country</Text>
+        <Text style={s.fieldLabel}>{t("school") || "Country"}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {COUNTRY_FLAGS.map(c => (
@@ -465,7 +467,7 @@ function SchoolSettings({ authToken, user }: any) {
             ))}
           </View>
         </ScrollView>
-        <Text style={s.fieldLabel}>School Type</Text>
+        <Text style={s.fieldLabel}>{t("school_type") || "School Type"}</Text>
         <View style={s.chipRow}>
           {SCHOOL_TYPES.map(t => (
             <TouchableOpacity key={t} style={[s.chip, schoolType === t && s.chipActive]} onPress={() => setSchoolType(t)}>
@@ -473,7 +475,7 @@ function SchoolSettings({ authToken, user }: any) {
             </TouchableOpacity>
           ))}
         </View>
-        <Text style={s.fieldLabel}>Curriculum</Text>
+        <Text style={s.fieldLabel}>{t("curriculum") || "Curriculum"}</Text>
         <View style={s.chipRow}>
           {CURRICULA.map(c => (
             <TouchableOpacity key={c} style={[s.chip, curriculum === c && s.chipActive]} onPress={() => setCurriculum(c)}>
@@ -484,14 +486,14 @@ function SchoolSettings({ authToken, user }: any) {
         <TextInput style={s.input} placeholder="Approximate number of students" value={studentCount} onChangeText={setStudentCount} keyboardType="numeric" placeholderTextColor="#AAA" />
       </SectionCard>
 
-      <SectionCard title="Wellbeing Alerts" subtitle="Get notified about support requests" icon="notifications-active" color="#F44336">
-        <Text style={s.hint}>Receive email alerts when students or teachers request support.</Text>
+      <SectionCard title={t("wellbeing_alerts") || "Wellbeing Alerts"} subtitle={t("get_notified") || "Get notified"} icon="notifications-active" color="#F44336">
+        <Text style={s.hint}>{t("wellbeing_alert_desc") || "Receive email alerts when students or teachers request support."}</Text>
         <TextInput style={s.input} placeholder="Wellbeing alert email" value={wellbeingEmail} onChangeText={setWellbeingEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#AAA" />
       </SectionCard>
 
       <TouchableOpacity style={s.btn} onPress={save} disabled={saving}>
         <MaterialIcons name="save" size={16} color="white" />
-        <Text style={s.btnText}>{saving ? 'Saving...' : 'Save School Profile'}</Text>
+        <Text style={s.btnText}>{saving ? (t("saving") || "Saving...") : (t("save_school_profile") || "Save School Profile")}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -500,6 +502,7 @@ function SchoolSettings({ authToken, user }: any) {
 // ── Resource Upload ───────────────────────────────────────────────────────────
 
 function ResourceUpload({ authToken }: { authToken: string|null }) {
+  const { t } = useApp();
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [audience, setAudience] = useState<'teacher'|'parent'|'both'>('teacher');
@@ -539,10 +542,10 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
 
   return (
     <View style={{ gap: 12 }}>
-      <SectionCard title="Add Resource" subtitle="Share PDFs or links with teachers and parents" icon="add-circle" color={INDIGO} defaultOpen>
+      <SectionCard title={t("add_resource") || "Add Resource"} subtitle={t("share_pdfs") || "Share PDFs or links"} icon="add-circle" color={INDIGO} defaultOpen>
         <TextInput style={s.input} placeholder="Title" value={title} onChangeText={setTitle} placeholderTextColor="#AAA" />
         <TextInput style={s.input} placeholder="URL or PDF link" value={url} onChangeText={setUrl} autoCapitalize="none" placeholderTextColor="#AAA" />
-        <Text style={s.fieldLabel}>Audience</Text>
+        <Text style={s.fieldLabel}>{t("audience") || "Audience"}</Text>
         <View style={s.chipRow}>
           {(['teacher', 'parent', 'both'] as const).map(a => (
             <TouchableOpacity key={a} style={[s.chip, audience === a && s.chipActive]} onPress={() => setAudience(a)}>
@@ -556,9 +559,9 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
         </TouchableOpacity>
       </SectionCard>
 
-      <SectionCard title="Current Resources" subtitle={`${resources.length} resources shared`} icon="folder" color="#FF9800">
+      <SectionCard title={t("current_resources") || "Current Resources"} subtitle={`${resources.length} resources shared`} icon="folder" color="#FF9800">
         {resources.length === 0
-          ? <Text style={s.hint}>No resources yet.</Text>
+          ? <Text style={s.hint}>{t("no_resources_added") || "No resources yet."}</Text>
           : resources.map((r, i) => (
             <View key={r.id || i} style={s.stratRow}>
               <MaterialIcons name="description" size={16} color={INDIGO} />
@@ -654,7 +657,7 @@ export default function AdminDashboard() {
             <Text style={s.logoTitle}>Class of Happiness</Text>
             <Text style={s.logoSub}>{isSuperAdmin ? 'Super Admin' : 'Admin'} Dashboard</Text>
           </View>
-          <Text style={s.lockHint}>Enter your admin code to unlock</Text>
+          <Text style={s.lockHint}>{t("unlock_admin") || "Enter your admin code to unlock"}</Text>
           <TextInput
             style={[s.input, { textAlign: 'center', letterSpacing: 4, fontSize: 18 }]}
             placeholder="••••••"
