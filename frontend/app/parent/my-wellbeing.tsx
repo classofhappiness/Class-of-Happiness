@@ -373,7 +373,7 @@ export default function MyWellbeingScreen() {
                 onPress={() => setRange(r)}
               >
                 <Text style={[st.rangeTxt, range === r && st.rangeTxtActive]}>
-                  {r === '1' ? (t('today') || t('today') || 'Today') : `${r} Days`}
+                  {r === '1' ? (t('today') || 'Today') : r === '7' ? (t('days_7') || '7 Days') : r === '14' ? (t('days_14') || '14 Days') : (t('days_30') || '30 Days')}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -533,7 +533,7 @@ export default function MyWellbeingScreen() {
         {/* RECENT CHECK-INS / TIMELINE */}
         <View style={st.section}>
           <TouchableOpacity onPress={() => setSecTimeline(e => !e)} style={st.sectionHeader}>
-            <View style={st.sectionHeaderLeft}><MaterialIcons name="history" size={17} color="#5C6BC0" /><Text style={st.sectionTitle}>Recent Check-ins</Text></View>
+            <View style={st.sectionHeaderLeft}><MaterialIcons name="history" size={17} color="#5C6BC0" /><Text style={st.sectionTitle}>{t('recent_checkins') || 'Recent Check-ins'}</Text></View>
             <MaterialIcons name={secTimeline ? 'expand-less' : 'expand-more'} size={20} color="#666" />
           </TouchableOpacity>
           {secTimeline && (entries.length === 0 ? (
@@ -597,7 +597,7 @@ export default function MyWellbeingScreen() {
         {/* CHECK-IN CALENDAR */}
         <View style={st.section}>
           <TouchableOpacity onPress={() => setSecCalendar(e => !e)} style={st.sectionHeader}>
-            <View style={st.sectionHeaderLeft}><MaterialIcons name="event" size={17} color="#5C6BC0" /><Text style={st.sectionTitle}>Check-in Calendar</Text></View>
+            <View style={st.sectionHeaderLeft}><MaterialIcons name="event" size={17} color="#5C6BC0" /><Text style={st.sectionTitle}>{t('checkin_calendar') || 'Check-in Calendar'}</Text></View>
             <MaterialIcons name={secCalendar ? 'expand-less' : 'expand-more'} size={20} color="#666" />
           </TouchableOpacity>
           {secCalendar && (() => {

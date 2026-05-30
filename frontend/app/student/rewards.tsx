@@ -49,7 +49,7 @@ export default function RewardsScreen() {
     if (currentStudent) {
       addPointsAndFetchRewards();
     } else if (params.fromFamily === 'true') {
-      // Family member checkin with no student — just show celebration
+      // Family member via student flow — still show rewards, return to student select
       setLoading(false);
     }
   }, [currentStudent]);
@@ -168,7 +168,7 @@ export default function RewardsScreen() {
     // Always return to student select after checkin from student flow
     // Family dashboard checkins are handled separately
     if (false) {
-      router.replace('/parent/dashboard');
+      router.replace('/student/select');
       return;
     }
     playButtonFeedback(); // Sound effect for button press
