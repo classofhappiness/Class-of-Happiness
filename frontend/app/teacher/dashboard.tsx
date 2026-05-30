@@ -18,19 +18,31 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const ZONE_COLORS: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
 
 const STRATEGY_NAMES: Record<string, string> = {
-  b1:'Gentle Stretch', b2:'Favourite Song', b3:'Tell Someone', b4:'Slow Breathing',
-  g1:'Keep Going!', g2:'Help a Friend', g3:'Set a Goal', g4:'Gratitude',
-  y1:'Bubble Breathing', y2:'Count to 10', y3:'5 Senses', y4:'Talk About It',
-  r1:'Freeze', r2:'Big Breaths', r3:'Safe Space', r4:'Ask for Help',
-  p_b1:'Side-by-Side', p_b2:'Warm Drink', p_b3:'Name It',
-  p_g1:'Gratitude Round', p_g2:'Strength Spotting', p_g3:'Creative Together',
-  p_y1:'Box Breathing', p_y2:'Validate First', p_y3:'Body Check-In',
-  p_r1:'Stay Calm', p_r2:'Safe Space Together', p_r3:'Cold Water Reset',
-  // zone_ prefix variants
-  blue_1:'Gentle Stretch', blue_2:'Favourite Song', blue_3:'Tell Someone', blue_4:'Slow Breathing',
-  green_1:'Keep Going!', green_2:'Help a Friend', green_3:'Set a Goal', green_4:'Gratitude',
-  yellow_1:'Bubble Breathing', yellow_2:'Count to 10', yellow_3:'5 Senses', yellow_4:'Talk About It',
-  red_1:'Freeze', red_2:'Big Breaths', red_3:'Safe Space', red_4:'Ask for Help',
+  // Parent strategies
+  p_b1:'Slow Breathing', p_b2:'Quiet Time', p_b3:'Gentle Walk', p_b4:'Rest Together', p_b5:'Safe Space',
+  p_g1:'Celebrate Together', p_g2:'Keep Going', p_g3:'Set a Goal', p_g4:'Gratitude', p_g5:'Help a Friend',
+  p_y1:'Box Breathing', p_y2:'Validate First', p_y3:'Body Check-In', p_y4:'Feelings Journal', p_y5:'Give Space',
+  p_r1:'Stay Calm', p_r2:'Safe Space Together', p_r3:'Cold Water Reset', p_r4:'Talk It Through', p_r5:'Take a Break',
+  // Student strategies
+  s_b1:'Slow Breathing', s_b2:'Safe Space', s_b3:'Gentle Stretch', s_b4:'Favourite Song', s_b5:'Talk About It',
+  s_g1:'Keep Going', s_g2:'Set a Goal', s_g3:'Help a Friend', s_g4:'Gratitude', s_g5:'5 Senses',
+  s_y1:'Bubble Breathing', s_y2:'Count to 10', s_y3:'Walk Away', s_y4:'Squeeze & Release', s_y5:'Tell Someone',
+  s_r1:'Walk Away', s_r2:'Cold Water', s_r3:'Safe Space', s_r4:'Tell Someone', s_r5:'Slow Breathing',
+  // Raw codes R1-R9, G1-G9, Y1-Y9, B1-B9
+  R1:'Tell Someone', R2:'Walk Away', R3:'Safe Space', R4:'Slow Breathing', R5:'Take a Break',
+  R6:'Cold Water', R7:'Squeeze & Release', R8:'Talk It Through', R9:'Count to 10',
+  G1:'Keep Going', G2:'Set a Goal', G3:'Help a Friend', G4:'Gratitude', G5:'Celebrate',
+  G6:'5 Senses', G7:'Favourite Song', G8:'Gentle Stretch', G9:'Creative Time',
+  Y1:'Bubble Breathing', Y2:'Count to 10', Y3:'Walk Away', Y4:'Body Check-In', Y5:'Box Breathing',
+  Y6:'Feelings Journal', Y7:'Give Space', Y8:'Validate First', Y9:'5 Senses',
+  B1:'Slow Breathing', B2:'Safe Space', B3:'Gentle Walk', B4:'Rest Together', B5:'Quiet Time',
+  B6:'Favourite Song', B7:'Gentle Stretch', B8:'Talk About It', B9:'Help a Friend',
+  // Named strategies
+  bubble_breathing:'Bubble Breathing', slow_breathing:'Slow Breathing', count_to_10:'Count to 10',
+  walk_away:'Walk Away', safe_space:'Safe Space', talk_about_it:'Talk About It',
+  tell_someone:'Tell Someone', gentle_stretch:'Gentle Stretch', favourite_song:'Favourite Song',
+  gratitude:'Gratitude', help_friend:'Help a Friend', keep_going:'Keep Going',
+  set_goal:'Set a Goal', five_senses:'5 Senses', squeeze_release:'Squeeze & Release',
 };
 const resolveStrategy = (id: string): string => {
   if (!id) return '';

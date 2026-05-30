@@ -1392,34 +1392,36 @@ export default function ParentDashboard() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('add_family_member')}</Text>
-              {/* Link existing student from student flow */}
-              {students.filter((s:any) => !s.is_family_member && !familyMembers.some((fm:any) => fm.student_id === s.id || fm.name === s.name)).length > 0 && (
-                <View style={{marginBottom:16}}>
-                  <Text style={{fontSize:13,fontWeight:'700',color:'#5C6BC0',marginBottom:8}}>
-                    {t('link_children_school') || 'Link existing student'}
-                  </Text>
-                  {students.filter((s:any) => !s.is_family_member && !familyMembers.some((fm:any) => fm.student_id === s.id || fm.name === s.name)).map((s:any) => (
-                    <TouchableOpacity key={s.id}
-                      style={{flexDirection:'row',alignItems:'center',gap:10,padding:10,backgroundColor:'#F0F4FF',borderRadius:10,marginBottom:6}}
-                      onPress={async () => {
-                        try {
-                          const token = await AsyncStorage.getItem('session_token');
-                          const res = await fetch(`${BACKEND_URL}/api/family/members`, {
-                            method:'POST',
-                            headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
-                            body: JSON.stringify({name:s.name,relationship:'child',student_id:s.id,avatar_preset:s.avatar_preset||'bear',avatar_type:'preset'})
-                          });
-                          if (res.ok) { setShowAddModal(false); loadFamilyData(); }
-                        } catch {}
-                      }}>
-                      <MaterialIcons name="person-add" size={18} color="#5C6BC0"/>
-                      <Text style={{fontSize:13,fontWeight:'600',color:'#333'}}>{s.name}</Text>
-                      <MaterialIcons name="chevron-right" size={16} color="#5C6BC0" style={{marginLeft:'auto'}}/>
-                    </TouchableOpacity>
-                  ))}
-                  <View style={{height:1,backgroundColor:'#EEE',marginVertical:12}}/>
-                  <Text style={{fontSize:12,color:'#888',marginBottom:8}}>{t('add_new_student') || 'Or create new'}</Text>
-                </View>
+
+            {/* Link existing student from student flow */}
+            {students.filter((s:any) => !s.is_family_member && !familyMembers.some((fm:any) => fm.student_id === s.id || fm.name === s.name)).length > 0 && (
+              <View style={{marginBottom:16, paddingHorizontal:4}}>
+                <Text style={{fontSize:13,fontWeight:'700',color:'#5C6BC0',marginBottom:8}}>
+                  🔗 {t('link_children_school') || 'Link existing student'}
+                </Text>
+                {students.filter((s:any) => !s.is_family_member && !familyMembers.some((fm:any) => fm.student_id === s.id || fm.name === s.name)).map((s:any) => (
+                  <TouchableOpacity key={s.id}
+                    style={{flexDirection:'row',alignItems:'center',gap:10,padding:12,backgroundColor:'#F0F4FF',borderRadius:12,marginBottom:8,borderWidth:1,borderColor:'#C5CAE9'}}
+                    onPress={async () => {
+                      try {
+                        const token = await AsyncStorage.getItem('session_token');
+                        const res = await fetch(`${BACKEND_URL}/api/family/members`, {
+                          method:'POST',
+                          headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+                          body: JSON.stringify({name:s.name,relationship:'child',student_id:s.id,avatar_preset:s.avatar_preset||'bear',avatar_type:'preset'})
+                        });
+                        if (res.ok) { setShowAddFamilyModal(false); loadFamilyData(); }
+                      } catch {}
+                    }}>
+                    <MaterialIcons name="person-add" size={18} color="#5C6BC0"/>
+                    <Text style={{fontSize:14,fontWeight:'600',color:'#333',flex:1}}>{s.name}</Text>
+                    <MaterialIcons name="chevron-right" size={16} color="#5C6BC0"/>
+                  </TouchableOpacity>
+                ))}
+                <View style={{height:1,backgroundColor:'#EEE',marginVertical:8}}/>
+                <Text style={{fontSize:12,color:'#888',marginBottom:4}}>{t('add_new_student') || 'Or create new'}</Text>
+              </View>
+            )}
               )}
               <TouchableOpacity onPress={() => setShowAddFamilyModal(false)}>
                 <MaterialIcons name="close" size={24} color="#666" />
