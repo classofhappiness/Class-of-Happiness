@@ -97,10 +97,19 @@ export default function ParentWidgetScreen() {
     return (
       <TouchableOpacity
         style={[st.memberCard, zone && { borderColor: color, backgroundColor: color + '08' }]}
-        onPress={() => router.push({
-          pathname: '/parent/checkin',
-          params: { memberId: member.id, memberName: member.name, memberRelationship: member.relationship }
-        })}
+        onPress={() => {
+          if (member.relationship === 'child') {
+            router.push({
+              pathname: '/student/zone',
+              params: { fromFamily: 'true', location: 'home', memberName: member.name, memberId: member.id, returnTo: 'family' }
+            });
+          } else {
+            router.push({
+              pathname: '/parent/checkin',
+              params: { memberId: member.id, memberName: member.name, memberRelationship: member.relationship }
+            });
+          }
+        }}
         activeOpacity={0.75}>
         {hasAlert && (
           <View style={st.alertDot}>

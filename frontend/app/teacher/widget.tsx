@@ -222,7 +222,7 @@ export default function TeacherWidgetScreen() {
             <Text style={st.kioskHint}>Let students check in from this shared device</Text>
           </View>
           <TouchableOpacity style={st.kioskBtn} onPress={() => router.push('/kiosk')}>
-            <Text style={st.kioskBtnText}>Launch</Text>
+            <Text style={st.kioskBtnText}>{t('checkin_btn') || 'Launch'}</Text>
             <MaterialIcons name="open-in-new" size={14} color="white" />
           </TouchableOpacity>
         </View>
