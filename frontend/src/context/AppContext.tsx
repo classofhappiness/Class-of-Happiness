@@ -345,9 +345,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const members = await res.json();
           // Only include family children who have a linked student_id
           familyStudents = members
-            .filter((m: any) => m.relationship === 'child' && m.student_id)
+            .filter((m: any) => m.relationship === 'child')
             .map((m: any) => ({
-              id: m.student_id,
+              id: m.student_id || m.id, // use student_id if linked, else family_member_id
               name: m.name,
               avatar_type: m.avatar_type || 'preset',
               avatar_preset: m.avatar_preset || 'bear',
@@ -355,6 +355,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               classroom_id: null,
               is_family_member: true,
               family_member_id: m.id,
+              student_id: m.student_id || null,
               relationship: m.relationship,
             }));
         }
