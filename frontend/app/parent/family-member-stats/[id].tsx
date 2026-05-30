@@ -296,7 +296,6 @@ export default function FamilyMemberStatsScreen() {
             )}
           </View>
 
-        </>)}
       </ScrollView>
     </SafeAreaView>
   );
