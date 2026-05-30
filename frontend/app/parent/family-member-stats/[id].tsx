@@ -31,13 +31,28 @@ export default function FamilyMemberStatsScreen() {
   const loadData = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('session_token');
-      const res = await fetch(`${BACKEND_URL}/api/family/zone-logs/${id}?days=365`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setLogs(Array.isArray(data) ? data : []);
-      }
+      // Fetch from both sources: family_zone_logs (unlinked) and feeling_logs via student_id (linked child)
+      const [res1, res2] = await Promise.allSettled([
+        fetch(`${BACKEND_URL}/api/family/zone-logs/${id}?days=365`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        fetch(`${BACKEND_URL}/api/family/members/${id}/checkins?days=365`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+      ]);
+      const logs1 = res1.status === 'fulfilled' && res1.value.ok ? await res1.value.json() : [];
+      const logs2 = res2.status === 'fulfilled' && res2.value.ok ? await res2.value.json() : [];
+      // Normalise feeling_logs shape to match family_zone_logs shape
+      const normalised2 = (Array.isArray(logs2) ? logs2 : []).map((l: any) => ({
+        ...l,
+        zone: l.zone || l.feeling_colour,
+        strategies_selected: l.strategies_selected || l.helpers_selected || [],
+      }));
+      const combined = [...(Array.isArray(logs1) ? logs1 : []), ...normalised2];
+      // Deduplicate by id
+      const seen = new Set();
+      const deduped = combined.filter(l => { if (seen.has(l.id)) return false; seen.add(l.id); return true; });
+      setLogs(deduped);
     } catch {}
     setLoading(false);
     setRefreshing(false);
@@ -117,9 +132,9 @@ export default function FamilyMemberStatsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={{padding:8}}>
           <MaterialIcons name="arrow-back" size={22} color="#333" />
         </TouchableOpacity>
-        <View style={{flex:1}}>
+        <View style={{flex:1, justifyContent:'center'}}>
           <Text style={s.headerName}>{decodeURIComponent(name||'')} — {t('stats')||'Stats'}</Text>
-          <Text style={s.headerSub}>🏠 {total} {t('wellbeing_total')||'total check-ins'}</Text>
+
         </View>
       </View>
 
