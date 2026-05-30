@@ -109,7 +109,7 @@ export default function StudentSelectScreen() {
     };
     setCurrentStudent(enriched as any);
     setTimeout(() => {
-      router.push('/student/zone');
+      router.push({ pathname: '/student/zone', params: { returnTo: returnTo || '' } });
     }, 200);
   }, [setCurrentStudent, router]);
 
