@@ -137,13 +137,12 @@ export default function FamilyMemberStatsScreen() {
           </View>
         </View>
 
-        {total === 0 ? (
-          <View style={s.emptyBox}>
-            <Text style={{fontSize:48}}>🏠</Text>
-            <Text style={s.emptyText}>{t('no_home_data_yet')||'No home check-ins yet'}</Text>
-            <Text style={s.emptyHint}>Check-in from the family dashboard to start tracking wellbeing</Text>
+        {total === 0 && (
+          <View style={[s.emptyBox, {marginBottom:8}]}>
+            <Text style={s.emptyHint}>No check-ins yet — tap Harry's card to do the first one!</Text>
           </View>
-        ) : (<>
+        )}
+        {(<>
 
           {/* Emotion Distribution */}
           <View style={s.card}>
