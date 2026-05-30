@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Animated, Pressable } from 'react-native';
-import { useRouter, useNavigation } from 'expo-router';
+import { useRouter, useNavigation, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
@@ -20,6 +20,7 @@ interface StudentCreatureData {
 export default function StudentSelectScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const { students, classrooms, presetAvatars, setCurrentStudent, currentStudent, refreshStudents, t, language, translations } = useApp();
   const [showCollection, setShowCollection] = useState(false);
   const [selectedClassroom, setSelectedClassroom] = useState<string | null>(null);
