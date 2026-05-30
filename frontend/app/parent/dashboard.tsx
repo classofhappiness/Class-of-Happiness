@@ -1392,6 +1392,7 @@ export default function ParentDashboard() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('add_family_member')}</Text>
+            </View>
 
             {/* Link existing student from student flow */}
             {students.filter((s:any) => !s.is_family_member && !familyMembers.some((fm:any) => fm.student_id === s.id || fm.name === s.name)).length > 0 && (

@@ -97,6 +97,9 @@ export default function FamilyMemberStatsScreen() {
       monthsSet.add(mk);
       if (!calendarMap[dk]) calendarMap[dk] = [];
       if (!calendarMap[dk].includes(z)) calendarMap[dk].push(z);
+      // Store AM/PM indicator for multi-checkin days
+      const hr = d.getHours();
+      const ampm = hr < 12 ? '🌅' : '🌙';
     } catch {}
   });
 
@@ -142,24 +145,7 @@ export default function FamilyMemberStatsScreen() {
         contentContainerStyle={{padding:16, paddingBottom:40}}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4CAF50" />}>
 
-        {/* Home only notice */}
-        <View style={[s.card, {backgroundColor:'#E8F5E9', borderColor:'#A5D6A7', borderWidth:1}]}>
-          <View style={{flexDirection:'row', alignItems:'center', gap:8}}>
-            <MaterialIcons name="home" size={18} color="#4CAF50" />
-            <Text style={{fontSize:13, color:'#2E7D32', flex:1}}>
-              🏠 Home check-ins only · Not linked to school
-            </Text>
-          </View>
-        </View>
-
-        {total === 0 && (
-          <View style={[s.emptyBox, {marginBottom:8}]}>
-            <Text style={s.emptyHint}>No check-ins yet — tap Harry's card to do the first one!</Text>
-          </View>
-        )}
-        {(<>
-
-          {/* Emotion Distribution */}
+        {/* Emotion Distribution */}
           <View style={s.card}>
             <SectionHeader label={t('emotion_distribution')||'Emotion Distribution'} open={secEmoDistrib} onPress={()=>setSecEmoDistrib(v=>!v)} icon="donut-large" />
             {secEmoDistrib && (
@@ -218,7 +204,7 @@ export default function FamilyMemberStatsScreen() {
                       <View style={{flex:1}}>
                         <Text style={{fontSize:13, fontWeight:'600', color:'#333'}}>
                           {new Date(log.timestamp).toLocaleDateString(undefined, {weekday:'short', month:'short', day:'numeric'})}
-                          {' · '}{new Date(log.timestamp).toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'})}
+                          {' · '}{new Date(log.timestamp).toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit', hour12:true})}
                         </Text>
                         {strats.length > 0 && (
                           <Text style={{fontSize:11, color:'#5C6BC0', marginTop:2}}>
@@ -262,7 +248,7 @@ export default function FamilyMemberStatsScreen() {
                           return (
                             <View key={day} style={{width:32, height:32, borderRadius:6, backgroundColor: topZone ? ZONE_COLORS[topZone] : '#F5F5F5', alignItems:'center', justifyContent:'center'}}>
                               <Text style={{fontSize:10, fontWeight:'600', color: topZone ? 'white' : '#CCC'}}>{day}</Text>
-                              {zones.length > 1 && <View style={{width:4, height:4, borderRadius:2, backgroundColor:'rgba(255,255,255,0.8)', position:'absolute', bottom:2}} />}
+                              {zones.length > 1 && <Text style={{fontSize:7, color:'rgba(255,255,255,0.9)', position:'absolute', bottom:1}}>{zones.length}×</Text>}
                             </View>
                           );
                         })}
