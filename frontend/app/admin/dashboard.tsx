@@ -446,7 +446,7 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
                 <Text style={[styles.settingTitle,{color:'#F44336'}]}>Unlink Parent / Teacher</Text>
                 <Text style={styles.settingDesc}>Remove a parent-teacher connection following a complaint or verified request.</Text>
                 <TouchableOpacity style={[styles.saveBtn,{backgroundColor:'#F44336',marginTop:8}]} onPress={()=>setShowUnlink(true)}>
-                  <Text style={styles.saveBtnText}>Unlink a User</Text>
+                  <Text style={styles.saveBtnText}>{t('unlink') || 'Unlink'}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -459,7 +459,7 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-              <Text style={styles.modalTitle}>Unlink User</Text>
+              <Text style={styles.modalTitle}>{t('unlink') || t('unlink') || 'Unlink User'}</Text>
               <TouchableOpacity onPress={()=>setShowUnlink(false)}><MaterialIcons name="close" size={24} color="#666"/></TouchableOpacity>
             </View>
             <Text style={{fontSize:13,color:'#888',marginBottom:16,lineHeight:20}}>Use only following a formal complaint or verified request.</Text>
@@ -473,7 +473,7 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
             <TextInput style={styles.input} placeholder="User email..." value={unlinkEmail} onChangeText={setUnlinkEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#AAA" returnKeyType="done" blurOnSubmit={true}/>
             <TouchableOpacity style={[styles.addBtn,{backgroundColor:'#F44336'}]} onPress={doUnlink}>
               <MaterialIcons name="link-off" size={18} color="white"/>
-              <Text style={styles.addBtnText}>Confirm Unlink</Text>
+              <Text style={styles.addBtnText}>{t('confirm_unlink_student') || t('confirm_unlink_student') || 'Confirm Unlink'}</Text>
             </TouchableOpacity>
           </View>
         </View>

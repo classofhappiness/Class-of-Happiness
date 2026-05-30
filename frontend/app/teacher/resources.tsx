@@ -647,7 +647,7 @@ export default function TeacherResourcesScreen() {
               {/* Previous Ratings */}
               {ratings.length > 0 && (
                 <View style={styles.ratingsSection}>
-                  <Text style={styles.rateSectionTitle}>Teacher Reviews</Text>
+                  <Text style={styles.rateSectionTitle}>{t('teacher_resources') || 'Reviews'}</Text>
                   {ratings.map((rating) => (
                     <View key={rating.id} style={styles.ratingItem}>
                       <View style={styles.ratingHeader}>
@@ -742,7 +742,7 @@ export default function TeacherResourcesScreen() {
                 }}
               >
                 <MaterialIcons name="rate-review" size={20} color="#5C6BC0" />
-                <Text style={styles.rateButtonText}>Rate this Resource</Text>
+                <Text style={styles.rateButtonText}>{t('research_basis') || 'Rate'}</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>

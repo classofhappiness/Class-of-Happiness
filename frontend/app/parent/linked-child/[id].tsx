@@ -726,8 +726,8 @@ export default function LinkedChildDetailScreen() {
             {!isFamilyChild && (
               <View style={{flexDirection:'row',alignItems:'center',backgroundColor:'#F8F9FA',borderRadius:12,padding:14,marginTop:12}}>
                 <View style={{flex:1}}>
-                  <Text style={s.stratName}>Share with Teacher</Text>
-                  <Text style={s.stratDesc}>Teacher will see this strategy</Text>
+                  <Text style={s.stratName}>{t('share_with_teacher') || t('share_with_teacher') || 'Share with Teacher'}</Text>
+                  <Text style={s.stratDesc}>{t('teacher_can_see_strategy') || 'Teacher can see this'}</Text>
                 </View>
                 <Switch value={newStrat.shareWithTeacher} onValueChange={v=>setNewStrat({...newStrat,shareWithTeacher:v})}
                   trackColor={{false:'#ddd',true:'#81C784'}} thumbColor={newStrat.shareWithTeacher?'#4CAF50':'#999'} />

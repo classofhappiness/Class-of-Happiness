@@ -130,7 +130,7 @@ export default function EditProfileScreen() {
 
   const handleDelete = () => {
     Alert.alert(
-      'Delete Profile',
+      t('delete_student') || 'Delete Profile',
       `Are you sure you want to delete ${name}'s profile? This will also delete all their zone logs.`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -292,7 +292,7 @@ export default function EditProfileScreen() {
             onPress={handleDelete}
           >
             <MaterialIcons name="delete" size={20} color="#F44336" />
-            <Text style={styles.deleteButtonText}>Delete Profile</Text>
+            <Text style={styles.deleteButtonText}>{t('delete_student') || t('delete_student') || 'Delete Profile'}</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
