@@ -532,7 +532,7 @@ export default function TeacherResourcesScreen() {
                 numberOfLines={3}
               />
 
-              <Text style={styles.inputLabel}>PDF File</Text>
+              <Text style={styles.inputLabel}>{t('select_pdf') || t('select_pdf') || 'PDF File'}</Text>
               <TouchableOpacity style={styles.filePickerButton} onPress={handlePickDocument}>
                 <MaterialIcons name="attach-file" size={24} color="#5C6BC0" />
                 <Text style={styles.filePickerText}>
@@ -541,7 +541,7 @@ export default function TeacherResourcesScreen() {
               </TouchableOpacity>
 
               {/* Audience Selector */}
-              <Text style={styles.inputLabel}>Share With</Text>
+              <Text style={styles.inputLabel}>{t('share_with_teachers') || t('share_with_teachers') || 'Share'}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                 {[
                   { id: 'teachers', label: '👩‍🏫 Teachers' },
@@ -618,7 +618,7 @@ export default function TeacherResourcesScreen() {
 
               {/* Rate This Resource */}
               <View style={styles.rateSection}>
-                <Text style={styles.rateSectionTitle}>Rate This Resource</Text>
+                <Text style={styles.rateSectionTitle}>{t('research_basis') || 'Rate'}</Text>
                 <View style={styles.starRating}>
                   {renderStars(userRating, 40, true)}
                 </View>

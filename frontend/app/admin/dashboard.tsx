@@ -126,7 +126,7 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken:string|null, i
 
   const del = (s: any) => {
     Alert.alert('Delete',`Delete "${s.name}"?`,[
-      {text:'Cancel',style:'cancel'},
+      {text:t('go_back') || 'Cancel',style:'cancel'},
       {text:'Delete',style:'destructive',onPress:async()=>{
         const ep = type==='teacher' ? '/admin/teacher-strategies' : '/strategies';
         try { await apiCall(`${ep}/${s.id}`,authToken,{method:'DELETE'}); load(); }
@@ -164,7 +164,7 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken:string|null, i
           </TouchableOpacity>
           {editing && (
             <TouchableOpacity style={[styles.addBtn,{backgroundColor:'#E0E0E0',paddingHorizontal:16,flex:0}]} onPress={()=>{setEditing(null);setName('');setDesc('');}}>
-              <Text style={[styles.addBtnText,{color:'#666'}]}>Cancel</Text>
+              <Text style={[styles.addBtnText,{color:'#666'}]}>{t('go_back') || t('go_back') || 'Cancel'}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -315,7 +315,7 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
 
         {!loading && tab==='analytics' && (
           <View>
-            <Text style={styles.sectionTitle}>Global Analytics</Text>
+            <Text style={styles.sectionTitle}>{t('administration') || t('administration') || 'Analytics'}</Text>
             <Text style={styles.sectionSubtitle}>Tap any card to expand. No individual names or comments shown.</Text>
 
             {/* Period Toggle */}
@@ -390,7 +390,7 @@ function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:
             <Text style={styles.sectionSubtitle}>Every school using Class of Happiness. Tap a school to see their data.</Text>
             <WorldWall authToken={authToken} t={t}/>
 
-            <Text style={[styles.sectionTitle,{marginTop:16}]}>Schools Breakdown</Text>
+            <Text style={[styles.sectionTitle,{marginTop:16}]}>{t('school') || 'Schools'}</Text>
             <Text style={styles.sectionSubtitle}>Emotion colour data per school this week.</Text>
             {(stats?.schools_breakdown||[]).length===0 ? (
               <View style={styles.infoBox}>
@@ -727,7 +727,7 @@ function AdminResourceUpload({ authToken }: { authToken: string | null }) {
 
   const deleteResource = (id: string) => {
     Alert.alert('Delete', 'Remove this resource?', [
-      {text:'Cancel',style:'cancel'},
+      {text:t('go_back') || 'Cancel',style:'cancel'},
       {text:'Delete',style:'destructive',onPress:async()=>{
         try { await apiCall(`/admin/resources/${id}`, authToken, {method:'DELETE'}); loadResources(); }
         catch { Alert.alert('Error','Could not delete'); }
@@ -1041,7 +1041,7 @@ export default function AdminDashboardScreen() {
           </View>
           <TouchableOpacity
             onPress={() => Alert.alert('Logout', 'Are you sure you want to logout?', [
-              {text:'Cancel',style:'cancel'},
+              {text:t('go_back') || 'Cancel',style:'cancel'},
               {text:"Logout",style:"destructive",onPress:async()=>{const AS=(await import("@react-native-async-storage/async-storage")).default;await AS.clear(); logout();}}
             ])}
             style={{backgroundColor:'rgba(255,255,255,0.2)',padding:10,borderRadius:10,alignItems:'center'}}>

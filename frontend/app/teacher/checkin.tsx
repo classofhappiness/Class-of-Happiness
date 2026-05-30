@@ -493,7 +493,7 @@ export default function TeacherCheckInScreen() {
             <Text style={styles.modalSubtitle}>
               Your principal, psychologist, or wellbeing lead will be notified privately and confidentially.
             </Text>
-            <Text style={styles.inputLabel}>Your message</Text>
+            <Text style={styles.inputLabel}>{t('support_message_placeholder') || t('support_message_placeholder') || 'Your message'}</Text>
             <TextInput
               style={styles.alertInput}
               placeholder="e.g. I'm struggling this week and would appreciate a check-in..."

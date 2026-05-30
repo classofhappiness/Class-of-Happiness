@@ -1035,7 +1035,7 @@ export default function ParentDashboard() {
               <Text style={{ fontSize: 11, color: '#666' }}>Unlock PDF reports, unlimited family & school linking</Text>
             </View>
             <View style={{ backgroundColor: '#FF9800', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
-              <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>Upgrade</Text>
+              <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>{t('trial') || t('trial') || 'Upgrade'}</Text>
             </View>
           </TouchableOpacity>
         )}
@@ -1114,7 +1114,7 @@ export default function ParentDashboard() {
             </TouchableOpacity>
             <TouchableOpacity style={styles.compactAction} onPress={() => router.push('/parent/widget')}>
               <MaterialIcons name="widgets" size={22} color="#9C27B0" />
-              <Text style={styles.compactActionTxt}>Widget</Text>
+              <Text style={styles.compactActionTxt}>{t('add_widget_title') || t('add_widget_title') || 'Widget'}</Text>
             </TouchableOpacity>
           </View>
         </View>

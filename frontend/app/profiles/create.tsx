@@ -159,7 +159,7 @@ export default function CreateProfileScreen() {
                 onPress={() => setAvatarType('custom')}
               >
                 <Image source={{ uri: customImage }} style={styles.customImage} />
-                <Text style={styles.customLabel}>Your Photo</Text>
+                <Text style={styles.customLabel}>{t('photo') || t('photo') || 'Your Photo'}</Text>
                 {avatarType === 'custom' && (
                   <View style={styles.checkBadge}>
                     <MaterialIcons name="check" size={16} color="white" />

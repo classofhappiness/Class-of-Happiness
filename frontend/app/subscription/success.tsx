@@ -69,7 +69,7 @@ export default function SubscriptionSuccessScreen() {
             <View style={styles.errorIcon}>
               <MaterialIcons name="error" size={80} color="#F44336" />
             </View>
-            <Text style={styles.errorTitle}>Payment Issue</Text>
+            <Text style={styles.errorTitle}>{t('error') || 'Payment Issue'}</Text>
             <Text style={styles.errorDesc}>
               We couldn't verify your payment. Please contact support if you were charged.
             </Text>

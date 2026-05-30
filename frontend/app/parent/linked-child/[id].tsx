@@ -448,7 +448,7 @@ export default function LinkedChildDetailScreen() {
                   </View>
                 );
               })
-            : <Text style={[s.empty,{marginTop:8}]}>No strategies used yet</Text>
+            : <Text style={[s.empty,{marginTop:8}]}>{t('no_data_period') || 'No strategies yet'}</Text>
           )}
         </View>
 
@@ -685,7 +685,7 @@ export default function LinkedChildDetailScreen() {
             <TextInput style={s.textarea} value={comment} onChangeText={setComment} placeholder="Add a comment..." multiline maxLength={100} />
           </ScrollView>
           <View style={s.sheetActions}>
-            <TouchableOpacity style={s.cancelBtn} onPress={()=>setShowCheckIn(false)}><Text style={s.cancelBtnText}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity style={s.cancelBtn} onPress={()=>setShowCheckIn(false)}><Text style={s.cancelBtnText}>{t('go_back') || t('go_back') || 'Cancel'}</Text></TouchableOpacity>
             <TouchableOpacity style={[s.submitBtn,!selectedZone&&{opacity:0.5}]} onPress={handleCheckIn} disabled={!selectedZone||submitting}>
               {submitting?<ActivityIndicator size="small" color="#fff"/>:<Text style={s.submitBtnText}>Save Check-in</Text>}
             </TouchableOpacity>
@@ -703,7 +703,7 @@ export default function LinkedChildDetailScreen() {
           <ScrollView style={s.sheetScroll}>
             <Text style={s.inputLabel}>Strategy Name *</Text>
             <TextInput style={s.input} value={newStrat.name} onChangeText={v=>setNewStrat({...newStrat,name:v})} placeholder="e.g. Deep breathing" />
-            <Text style={s.inputLabel}>Description</Text>
+            <Text style={s.inputLabel}>{t('description_label') || t('description_label') || 'Description'}</Text>
             <TextInput style={[s.input,s.textarea]} value={newStrat.description} onChangeText={v=>setNewStrat({...newStrat,description:v})} placeholder="How to use this..." multiline />
             <Text style={s.inputLabel}>Zone</Text>
             <View style={s.zoneGrid}>
@@ -735,7 +735,7 @@ export default function LinkedChildDetailScreen() {
             )}
           </ScrollView>
           <View style={s.sheetActions}>
-            <TouchableOpacity style={s.cancelBtn} onPress={()=>setShowAddStrat(false)}><Text style={s.cancelBtnText}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity style={s.cancelBtn} onPress={()=>setShowAddStrat(false)}><Text style={s.cancelBtnText}>{t('go_back') || t('go_back') || 'Cancel'}</Text></TouchableOpacity>
             <TouchableOpacity style={[s.submitBtn,!newStrat.name.trim()&&{opacity:0.5}]} onPress={handleAddStrat} disabled={!newStrat.name.trim()}>
               <Text style={s.submitBtnText}>{t('add_strategy') || 'Add Strategy'}</Text>
             </TouchableOpacity>

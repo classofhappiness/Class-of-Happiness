@@ -409,13 +409,13 @@ export default function ResourcesScreen() {
                         <Text style={styles.ratingsCount}>({ratings.length} reviews)</Text>
                       </View>
                     ) : (
-                      <Text style={styles.noRatingsText}>No ratings yet</Text>
+                      <Text style={styles.noRatingsText}>{t('no_data_yet') || t('no_data_yet') || 'No ratings yet'}</Text>
                     )}
                   </View>
                   {isAuthenticated && (
                     <TouchableOpacity style={styles.rateButton} onPress={handleOpenRatingModal}>
                       <MaterialIcons name="rate-review" size={20} color="#5C6BC0" />
-                      <Text style={styles.rateButtonText}>Rate this resource</Text>
+                      <Text style={styles.rateButtonText}>{t('research_basis') || 'Rate'}</Text>
                     </TouchableOpacity>
                   )}
                   {ratings.length > 0 && (
@@ -446,7 +446,7 @@ export default function ResourcesScreen() {
       <Modal visible={showRatingModal} transparent animationType="fade" onRequestClose={() => setShowRatingModal(false)}>
         <TouchableOpacity style={styles.ratingModalOverlay} activeOpacity={1} onPress={() => setShowRatingModal(false)}>
           <View style={styles.ratingModalContent} onStartShouldSetResponder={() => true}>
-            <Text style={styles.ratingModalTitle}>Rate this resource</Text>
+            <Text style={styles.ratingModalTitle}>{t('research_basis') || 'Rate'}</Text>
             <View style={styles.starRating}>
               {[1,2,3,4,5].map((star) => (
                 <TouchableOpacity key={star} onPress={() => setSelectedRating(star)} style={styles.interactiveStar} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }}>
@@ -465,7 +465,7 @@ export default function ResourcesScreen() {
             />
             <View style={styles.ratingButtons}>
               <TouchableOpacity style={styles.cancelButton} onPress={() => setShowRatingModal(false)}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={styles.cancelButtonText}>{t('go_back') || t('go_back') || 'Cancel'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.submitButton, selectedRating === 0 && styles.submitButtonDisabled]}

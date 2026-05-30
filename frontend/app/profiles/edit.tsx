@@ -192,7 +192,7 @@ export default function EditProfileScreen() {
 
           {/* Avatar Selection */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Avatar</Text>
+            <Text style={styles.sectionTitle}>{t('icon') || t('icon') || 'Avatar'}</Text>
             
             <View style={styles.photoOptions}>
               <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
@@ -215,7 +215,7 @@ export default function EditProfileScreen() {
                 onPress={() => setAvatarType('custom')}
               >
                 <Image source={{ uri: customImage }} style={styles.customImage} />
-                <Text style={styles.customLabel}>Your Photo</Text>
+                <Text style={styles.customLabel}>{t('photo') || t('photo') || 'Your Photo'}</Text>
                 {avatarType === 'custom' && (
                   <View style={styles.checkBadge}>
                     <MaterialIcons name="check" size={16} color="white" />
@@ -248,7 +248,7 @@ export default function EditProfileScreen() {
           {/* Classroom Selection */}
           {classrooms.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Classroom</Text>
+              <Text style={styles.sectionTitle}>{t('classroom') || t('classroom') || 'Classroom'}</Text>
               <View style={styles.classroomList}>
                 <TouchableOpacity
                   style={[

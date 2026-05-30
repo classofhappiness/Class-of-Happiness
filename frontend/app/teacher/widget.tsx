@@ -259,7 +259,7 @@ export default function TeacherWidgetScreen() {
           </Text>
           <TouchableOpacity style={styles.instructionsButton} onPress={handleAddToHomeScreen}>
             <MaterialIcons name="help-outline" size={18} color="white" />
-            <Text style={styles.instructionsButtonText}>Show Instructions</Text>
+            <Text style={styles.instructionsButtonText}>{t('how_to_use') || t('how_to_use') || 'Show Instructions'}</Text>
           </TouchableOpacity>
         </View>
 
