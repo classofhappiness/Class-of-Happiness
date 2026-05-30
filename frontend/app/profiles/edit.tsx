@@ -155,7 +155,7 @@ export default function EditProfileScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Student not found</Text>
+          <Text style={styles.errorText}>{t('student_not_found') || t('student_not_found') || 'Student not found'}</Text>
         </View>
       </SafeAreaView>
     );
@@ -197,12 +197,12 @@ export default function EditProfileScreen() {
             <View style={styles.photoOptions}>
               <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
                 <MaterialIcons name="photo-library" size={28} color="#5C6BC0" />
-                <Text style={styles.photoButtonText}>Gallery</Text>
+                <Text style={styles.photoButtonText}>{t('upload_photo') || 'Gallery'}</Text>
               </TouchableOpacity>
               
               <TouchableOpacity style={styles.photoButton} onPress={takePhoto}>
                 <MaterialIcons name="camera-alt" size={28} color="#5C6BC0" />
-                <Text style={styles.photoButtonText}>Camera</Text>
+                <Text style={styles.photoButtonText}>{t('change_photo') || 'Camera'}</Text>
               </TouchableOpacity>
             </View>
 
@@ -257,7 +257,7 @@ export default function EditProfileScreen() {
                   ]}
                   onPress={() => setSelectedClassroom(null)}
                 >
-                  <Text style={styles.classroomText}>No Classroom</Text>
+                  <Text style={styles.classroomText}>{t('no_classroom') || t('no_classroom') || 'No Classroom'}</Text>
                 </TouchableOpacity>
                 {classrooms.map((classroom) => (
                   <TouchableOpacity

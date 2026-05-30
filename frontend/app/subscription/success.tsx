@@ -59,7 +59,7 @@ export default function SubscriptionSuccessScreen() {
               style={styles.continueButton}
               onPress={() => router.replace('/teacher/dashboard')}
             >
-              <Text style={styles.continueButtonText}>Continue to Dashboard</Text>
+              <Text style={styles.continueButtonText}>{t('teacher_dashboard') || t('teacher_dashboard') || 'Continue to Dashboard'}</Text>
             </TouchableOpacity>
           </>
         )}
@@ -77,7 +77,7 @@ export default function SubscriptionSuccessScreen() {
               style={styles.retryButton}
               onPress={() => router.replace('/subscription')}
             >
-              <Text style={styles.retryButtonText}>Try Again</Text>
+              <Text style={styles.retryButtonText}>{t('try_again') || t('try_again') || 'Try Again'}</Text>
             </TouchableOpacity>
           </>
         )}

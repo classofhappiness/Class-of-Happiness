@@ -213,7 +213,7 @@ export default function TeacherWidgetScreen() {
 
         {/* Large Widget Preview */}
         <View style={styles.widgetPreviewContainer}>
-          <Text style={styles.widgetSize}>Large Widget</Text>
+          <Text style={styles.widgetSize}>{t('large_widget') || t('large_widget') || 'Large Widget'}</Text>
           <View style={styles.largeWidget}>
             <View style={styles.largeWidgetHeader}>
               <Text style={styles.largeWidgetTitle}>🏫 Classroom Emotional Status</Text>
@@ -234,12 +234,12 @@ export default function TeacherWidgetScreen() {
               <View style={[styles.statCard, { backgroundColor: '#FFF8E1' }]}>
                 <Text style={styles.statEmoji}>{ZONE_CONFIG.yellow.emoji}</Text>
                 <Text style={styles.statCount}>{overallCounts.yellow}</Text>
-                <Text style={styles.statLabel}>Anxious</Text>
+                <Text style={styles.statLabel}>{t('strat_5_senses') || 'Anxious'}</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: '#FFEBEE' }]}>
                 <Text style={styles.statEmoji}>{ZONE_CONFIG.red.emoji}</Text>
                 <Text style={styles.statCount}>{overallCounts.red}</Text>
-                <Text style={styles.statLabel}>Angry</Text>
+                <Text style={styles.statLabel}>{t('zone_red') || 'Angry'}</Text>
               </View>
             </View>
             
@@ -253,7 +253,7 @@ export default function TeacherWidgetScreen() {
         {/* How to Add Section */}
         <View style={styles.instructionsCard}>
           <MaterialIcons name="widgets" size={32} color="#FFC107" />
-          <Text style={styles.instructionsTitle}>Add Widget to Home Screen</Text>
+          <Text style={styles.instructionsTitle}>{t('add_widget_android') || 'Add Widget to Home Screen'}</Text>
           <Text style={styles.instructionsText}>
             Get instant updates on your classroom emotional status right from your home screen.
           </Text>
@@ -270,7 +270,7 @@ export default function TeacherWidgetScreen() {
             onPress={() => router.push('/teacher/dashboard')}
           >
             <MaterialIcons name="dashboard" size={24} color="#FFC107" />
-            <Text style={styles.quickActionText}>Open Dashboard</Text>
+            <Text style={styles.quickActionText}>{t('teacher_dashboard') || t('teacher_dashboard') || 'Open Dashboard'}</Text>
           </TouchableOpacity>
         </View>
 

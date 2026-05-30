@@ -278,8 +278,8 @@ export default function ManageClassroomsScreen() {
         }) : (
           <View style={styles.emptyState}>
             <MaterialIcons name="school" size={64} color="#CCC" />
-            <Text style={styles.emptyText}>No classrooms yet</Text>
-            <Text style={styles.emptySubtext}>Create a classroom to organise your students</Text>
+            <Text style={styles.emptyText}>{t('no_classrooms_yet') || t('no_classrooms_yet') || 'No classrooms yet'}</Text>
+            <Text style={styles.emptySubtext}>{t('add_first_student') || 'Create a classroom to get started'}</Text>
           </View>
         )}
       </ScrollView>
@@ -341,7 +341,7 @@ export default function ManageClassroomsScreen() {
               {/* Unassigned students */}
               {unassigned.length > 0 && (
                 <>
-                  <Text style={[styles.sectionLabel, { marginTop: 16 }]}>Add existing students</Text>
+                  <Text style={[styles.sectionLabel, { marginTop: 16 }]}>{t('add_new_student') || 'Add students'}</Text>
                   {unassigned.map(s => (
                     <View key={s.id} style={styles.studentRow}>
                       <Text style={styles.studentRowName}>{s.name}</Text>

@@ -134,18 +134,18 @@ export default function CreateProfileScreen() {
 
           {/* Avatar Selection */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Choose an Avatar</Text>
+            <Text style={styles.sectionTitle}>{t('choose_icon') || 'Choose an Avatar'}</Text>
             
             {/* Custom Photo Options */}
             <View style={styles.photoOptions}>
               <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
                 <MaterialIcons name="photo-library" size={28} color="#5C6BC0" />
-                <Text style={styles.photoButtonText}>Gallery</Text>
+                <Text style={styles.photoButtonText}>{t('upload_photo') || t('upload_photo') || 'Gallery'}</Text>
               </TouchableOpacity>
               
               <TouchableOpacity style={styles.photoButton} onPress={takePhoto}>
                 <MaterialIcons name="camera-alt" size={28} color="#5C6BC0" />
-                <Text style={styles.photoButtonText}>Camera</Text>
+                <Text style={styles.photoButtonText}>{t('change_photo') || t('change_photo') || 'Camera'}</Text>
               </TouchableOpacity>
             </View>
 
@@ -202,7 +202,7 @@ export default function CreateProfileScreen() {
                   ]}
                   onPress={() => setSelectedClassroom(null)}
                 >
-                  <Text style={styles.classroomText}>No Classroom</Text>
+                  <Text style={styles.classroomText}>{t('no_classroom') || t('no_classroom') || 'No Classroom'}</Text>
                 </TouchableOpacity>
                 {classrooms.map((classroom) => (
                   <TouchableOpacity

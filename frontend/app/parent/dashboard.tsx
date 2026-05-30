@@ -870,7 +870,7 @@ export default function ParentDashboard() {
                     </View>
 
                     <Text style={styles.gridName} numberOfLines={1}>{member.name}</Text>
-                    {isLinkedChild && <Text style={styles.linkedLabel}>School Linked</Text>}
+                    {isLinkedChild && <Text style={styles.linkedLabel}>{t('children_school') || t('children_school') || 'School Linked'}</Text>}
 
 
 
@@ -937,9 +937,9 @@ export default function ParentDashboard() {
                 <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#EDE7F6', justifyContent: 'center', alignItems: 'center' }}>
                   <MaterialIcons name="lock" size={20} color="#5C6BC0" />
                 </View>
-                <Text style={{ fontSize: 10, fontWeight: '700', color: '#5C6BC0', textAlign: 'center' }}>Add more</Text>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#5C6BC0', textAlign: 'center' }}>{t('add_member') || t('add_member') || 'Add more'}</Text>
                 <View style={{ backgroundColor: '#5C6BC0', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                  <Text style={{ fontSize: 9, color: 'white', fontWeight: '700' }}>UPGRADE</Text>
+                  <Text style={{ fontSize: 9, color: 'white', fontWeight: '700' }}>{t('trial') || t('trial') || 'UPGRADE'}</Text>
                 </View>
               </TouchableOpacity>
             )}
@@ -955,7 +955,7 @@ export default function ParentDashboard() {
                   <View style={styles.gridCardActions}>
                     <View style={[styles.linkedBadge, { flexDirection: 'row', gap: 2 }]}>
                       <MaterialIcons name="link" size={9} color="#4CAF50" />
-                      <Text style={{ fontSize: 7, color: '#4CAF50', fontWeight: '700' }}>SCHOOL</Text>
+                      <Text style={{ fontSize: 7, color: '#4CAF50', fontWeight: '700' }}>{t('school') || t('school') || 'SCHOOL'}</Text>
                     </View>
                   </View>
                   <View style={[styles.gridAvatar, { backgroundColor: '#4CAF5015' }]}>
@@ -970,7 +970,7 @@ export default function ParentDashboard() {
                     )}
                   </View>
                   <Text style={styles.gridName} numberOfLines={1}>{child.name}</Text>
-                  <Text style={styles.linkedLabel}>Linked Child</Text>
+                  <Text style={styles.linkedLabel}>{t('linked_child') || t('linked_child') || 'Linked Child'}</Text>
                   <TouchableOpacity
                     style={{ alignItems:'center', marginBottom:2, borderWidth:1, borderColor:'#A5D6A7', borderRadius:8, paddingVertical:3, paddingHorizontal:4, backgroundColor:'#F1F8E9' }}
                     onPress={(e) => { e.stopPropagation?.(); setCollectionMember(child); setShowCollection(true); }}
@@ -984,7 +984,7 @@ export default function ParentDashboard() {
                         <Text style={{ fontSize:20 }}>{childCreatures[child.id]?.emoji || '\U0001f95a'}</Text>
                       )}
                     </View>
-                    <Text style={{ fontSize:8, color:'#4CAF50', marginTop:1 }}>Creatures</Text>
+                    <Text style={{ fontSize:8, color:'#4CAF50', marginTop:1 }}>{t('creatures') || t('creatures') || 'Creatures'}</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -1016,7 +1016,7 @@ export default function ParentDashboard() {
                     }}
                   >
                     <Text style={{ fontSize: 14 }}>{childCreatures[child.id]?.emoji || '🥚'}</Text>
-                    <Text style={[styles.wellbeingBtnTxt, { color: childCreatures[child.id]?.color || '#4CAF50' }]}>{t('creatures') || t('creatures') || 'Creatures'}</Text>
+                    <Text style={[styles.wellbeingBtnTxt, { color: childCreatures[child.id]?.color || '#4CAF50' }]}>{t('creatures') || t('creatures') || t('creatures') || 'Creatures'}</Text>
                   </TouchableOpacity>
                 </TouchableOpacity>
               ))}
@@ -1299,7 +1299,7 @@ export default function ParentDashboard() {
                       <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                         <Text style={styles.logTime}>{new Date((log as any).timestamp||(log as any).created_at).toLocaleDateString(undefined,{month:'short',day:'numeric'})} · {formatTime((log as any).timestamp||(log as any).created_at)}</Text>
                         {(log as any).logged_by === 'parent' && <Text style={{ fontSize: 9, color: '#4CAF50', fontWeight: '700' }}>HOME</Text>}
-                        {(log as any).logged_by === 'student' && <Text style={{ fontSize: 9, color: '#5C6BC0', fontWeight: '700' }}>SCHOOL</Text>}
+                        {(log as any).logged_by === 'student' && <Text style={{ fontSize: 9, color: '#5C6BC0', fontWeight: '700' }}>{t('school') || t('school') || 'SCHOOL'}</Text>}
                       </View>
                       {(log as any).strategies_selected?.length > 0 && (
                         <Text style={[styles.logTime, { color: '#AAA', fontSize: 10 }]} numberOfLines={1}>

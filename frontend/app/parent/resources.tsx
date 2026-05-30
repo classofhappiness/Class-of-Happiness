@@ -237,7 +237,7 @@ export default function ResourcesScreen() {
           >
             <MaterialIcons name="school" size={20} color={activeTab === 'teacher' ? '#5C6BC0' : '#999'} />
             <Text style={[styles.tabText, activeTab === 'teacher' && styles.tabTextActive]}>
-              {t('from_teacher') || 'From Teacher'} ({filteredTeacherResources.length})
+              {t('from_teacher') || t('from_teacher') || 'From Teacher'} ({filteredTeacherResources.length})
             </Text>
           </TouchableOpacity>
         </View>
@@ -268,7 +268,7 @@ export default function ResourcesScreen() {
             <View style={styles.emptyState}>
               <MaterialIcons name="folder-open" size={64} color="#CCC" />
               <Text style={styles.emptyStateText}>{t('no_resources_yet') || 'No resources available yet'}</Text>
-              <Text style={styles.emptyStateSubtext}>Check back later for helpful articles and guides</Text>
+              <Text style={styles.emptyStateSubtext}>{t('no_resources_yet') || 'No resources yet'}</Text>
             </View>
           ) : (
             filteredResources.map((resource) => (
@@ -294,7 +294,7 @@ export default function ResourcesScreen() {
                     {resource.content_type === 'pdf' && (
                       <View style={styles.downloadBadge}>
                         <MaterialIcons name="download" size={12} color="#4CAF50" />
-                        <Text style={styles.downloadBadgeText}>Download</Text>
+                        <Text style={styles.downloadBadgeText}>{t('download_report') || t('download_report') || 'Download'}</Text>
                       </View>
                     )}
                   </View>
@@ -307,7 +307,7 @@ export default function ResourcesScreen() {
           filteredTeacherResources.length === 0 ? (
             <View style={styles.emptyState}>
               <MaterialIcons name="school" size={64} color="#CCC" />
-              <Text style={styles.emptyStateText}>No resources shared yet</Text>
+              <Text style={styles.emptyStateText}>{t('no_resources_yet') || 'No resources yet'}</Text>
               <Text style={styles.emptyStateSubtext}>
                 Your child's teacher will share resources here. Teachers upload and set audience to "Parents" or "Both".
               </Text>
@@ -329,7 +329,7 @@ export default function ResourcesScreen() {
                 <View style={styles.resourceContent}>
                   <View style={styles.teacherBadge}>
                     <MaterialIcons name="verified" size={14} color="#4CAF50" />
-                    <Text style={styles.teacherBadgeText}>From Teacher</Text>
+                    <Text style={styles.teacherBadgeText}>{t('from_teacher') || t('from_teacher') || 'From Teacher'}</Text>
                   </View>
                   <Text style={styles.resourceTitle}>{resource.title}</Text>
                   <Text style={styles.resourceDescription} numberOfLines={2}>{resource.description}</Text>
@@ -340,7 +340,7 @@ export default function ResourcesScreen() {
                     {resource.content_type === 'pdf' && (
                       <View style={styles.downloadBadge}>
                         <MaterialIcons name="download" size={12} color="#4CAF50" />
-                        <Text style={styles.downloadBadgeText}>Download</Text>
+                        <Text style={styles.downloadBadgeText}>{t('download_report') || t('download_report') || 'Download'}</Text>
                       </View>
                     )}
                   </View>

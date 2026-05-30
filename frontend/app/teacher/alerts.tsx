@@ -198,7 +198,7 @@ export default function AlertsScreen() {
           : filtered.length === 0 ? (
           <View style={st.emptyBox}>
             <Text style={{ fontSize: 40 }}>✅</Text>
-            <Text style={st.empty}>No alerts for this period</Text>
+            <Text style={st.empty}>{t('no_alerts') || 'No alerts'}</Text>
           </View>
         ) : null}
 

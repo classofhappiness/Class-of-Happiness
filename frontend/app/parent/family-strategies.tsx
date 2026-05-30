@@ -151,7 +151,7 @@ export default function FamilyStrategiesScreen() {
 
   const deleteStrategy = (s: any) => {
     Alert.alert(t('delete_btn') || 'Delete', `Delete "${((s as any).nameKey && t((s as any).nameKey)) || s.name}"?`, [
-      { text: t('go_back') || 'Cancel', style: 'cancel' },
+      { text: t('go_back') || t('go_back') || 'Cancel', style: 'cancel' },
       { text: t('delete_btn') || 'Delete', style: 'destructive', onPress: async () => {
         try { await familyStratApi(`/custom-strategies/${s.id}`, 'DELETE'); loadCustomStrategies(); }
         catch { Alert.alert('Error', 'Could not delete'); }
@@ -170,7 +170,7 @@ export default function FamilyStrategiesScreen() {
   const deleteSelected = () => {
     if (selectedIds.size === 0) return;
     Alert.alert(t('delete_btn') || 'Delete', `Delete ${selectedIds.size} strategy${selectedIds.size > 1 ? 'ies' : 'y'}?`, [
-      { text: t('go_back') || 'Cancel', style: 'cancel' },
+      { text: t('go_back') || t('go_back') || 'Cancel', style: 'cancel' },
       { text: t('delete_btn') || 'Delete All', style: 'destructive', onPress: async () => {
         try {
           await Promise.all([...selectedIds].map(id => familyStratApi(`/custom-strategies/${id}`, 'DELETE')));
@@ -450,7 +450,7 @@ export default function FamilyStrategiesScreen() {
                 onChangeText={v => setNewStrat(p => ({ ...p, name: v }))}
                 placeholder="e.g. Breathing together"
               />
-              <Text style={{ fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 6 }}>Description</Text>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 6 }}>{t('description_label') || t('description_label') || 'Description'}</Text>
               <TextInput
                 style={{ borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 10, padding: 12, fontSize: 15, marginBottom: 14, height: 70, textAlignVertical: 'top' }}
                 value={newStrat.description}
@@ -494,7 +494,7 @@ export default function FamilyStrategiesScreen() {
               </View>
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: '#F5F5F5' }} onPress={() => setShowAddModal(false)}>
-                  <Text style={{ fontSize: 15, color: '#666' }}>Cancel</Text>
+                  <Text style={{ fontSize: 15, color: '#666' }}>{t('go_back') || t('go_back') || 'Cancel'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: '#5C6BC0', opacity: saving ? 0.6 : 1 }} onPress={saveStrategy} disabled={saving}>
                   <Text style={{ fontSize: 15, fontWeight: '600', color: 'white' }}>{saving ? (t('saving') || 'Saving...') : (t('save_changes') || 'Save')}</Text>

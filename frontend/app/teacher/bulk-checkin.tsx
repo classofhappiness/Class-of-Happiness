@@ -211,7 +211,7 @@ export default function BulkCheckinScreen() {
       {classroomStudents.length === 0 ? (
         <View style={styles.empty}>
           <MaterialIcons name="people-outline" size={64} color="#CCC" />
-          <Text style={styles.emptyText}>No students in this classroom</Text>
+          <Text style={styles.emptyText}>{t('no_students_yet') || 'No students yet'}</Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.list}>

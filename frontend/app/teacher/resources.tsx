@@ -424,7 +424,7 @@ export default function TeacherResourcesScreen() {
               onPress={() => setShowUploadModal(true)}
             >
               <MaterialIcons name="cloud-upload" size={20} color="white" />
-              <Text style={styles.uploadButtonText}>Upload</Text>
+              <Text style={styles.uploadButtonText}>{t('upload_photo') || t('upload_photo') || 'Upload'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -437,7 +437,7 @@ export default function TeacherResourcesScreen() {
         ) : resources.length === 0 ? (
           <View style={styles.emptyState}>
             <MaterialIcons name="folder-open" size={64} color="#CCC" />
-            <Text style={styles.emptyStateText}>No resources yet</Text>
+            <Text style={styles.emptyStateText}>{t('no_resources_yet') || t('no_resources_yet') || 'No resources yet'}</Text>
             <Text style={styles.emptyStateSubtext}>
               Be the first to upload a resource for this topic!
             </Text>
@@ -507,14 +507,14 @@ export default function TeacherResourcesScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Upload Resource</Text>
+              <Text style={styles.modalTitle}>{t('upload_photo') || 'Upload Resource'}</Text>
               <TouchableOpacity onPress={() => setShowUploadModal(false)}>
                 <MaterialIcons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.modalBody}>
-              <Text style={styles.inputLabel}>Title</Text>
+              <Text style={styles.inputLabel}>{t('name') || t('name') || 'Title'}</Text>
               <TextInput
                 style={styles.textInput}
                 value={uploadData.title}
@@ -522,7 +522,7 @@ export default function TeacherResourcesScreen() {
                 placeholder="Resource title"
               />
 
-              <Text style={styles.inputLabel}>Description</Text>
+              <Text style={styles.inputLabel}>{t('description_label') || 'Description'}</Text>
               <TextInput
                 style={[styles.textInput, styles.textArea]}
                 value={uploadData.description}

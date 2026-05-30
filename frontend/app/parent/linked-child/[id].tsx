@@ -294,8 +294,8 @@ export default function LinkedChildDetailScreen() {
   if (!child) return (
     <SafeAreaView style={s.container}><View style={s.center}>
       <MaterialIcons name="error" size={48} color="#F44336" />
-      <Text style={s.errorText}>Child not found</Text>
-      <TouchableOpacity style={s.backBtn} onPress={() => router.back()}><Text style={s.backBtnText}>Go Back</Text></TouchableOpacity>
+      <Text style={s.errorText}>{t('child_not_found') || t('child_not_found') || 'Child not found'}</Text>
+      <TouchableOpacity style={s.backBtn} onPress={() => router.back()}><Text style={s.backBtnText}>{t('go_back') || t('go_back') || 'Go Back'}</Text></TouchableOpacity>
     </View></SafeAreaView>
   );
 
@@ -360,19 +360,19 @@ export default function LinkedChildDetailScreen() {
         </View>
 
         <View style={s.statsRow}>
-          <View style={s.statCard}><Text style={s.statVal}>{totalCheckins}</Text><Text style={s.statLbl}>Total</Text></View>
-          <View style={s.statCard}><Text style={[s.statVal,{color:'#4CAF50'}]}>{zoneCounts.green||0}</Text><Text style={s.statLbl}>Positive</Text></View>
+          <View style={s.statCard}><Text style={s.statVal}>{totalCheckins}</Text><Text style={s.statLbl}>{t('wellbeing_total') || t('wellbeing_total') || 'Total'}</Text></View>
+          <View style={s.statCard}><Text style={[s.statVal,{color:'#4CAF50'}]}>{zoneCounts.green||0}</Text><Text style={s.statLbl}>{t('steady') || t('steady') || 'Positive'}</Text></View>
           {!isFamilyChild && <>
             <View style={s.statCard}><Text style={s.statVal}>{homeCheckIns.length}</Text><Text style={s.statLbl}>{'\u{1F3E0}'} Home</Text></View>
             <View style={s.statCard}><Text style={s.statVal}>{schoolCheckIns.length}</Text><Text style={s.statLbl}>{'\u{1F3EB}'} School</Text></View>
           </>}
-          <View style={s.statCard}><Text style={s.statVal}>{Object.keys(stratCounts).length}</Text><Text style={s.statLbl}>Strategies</Text></View>
+          <View style={s.statCard}><Text style={s.statVal}>{Object.keys(stratCounts).length}</Text><Text style={s.statLbl}>{t('strategy_btn') || t('strategy_btn') || 'Strategies'}</Text></View>
         </View>
 
         {/* EMOTION DISTRIBUTION */}
         <View style={s.section}>
           <TouchableOpacity onPress={() => setSecEmoDistrib(e => !e)} style={s.sectionHeader}>
-            <View style={s.sectionHeaderLeft}><MaterialIcons name="donut-large" size={17} color="#5C6BC0" /><Text style={s.sectionTitle}>Emotion Distribution</Text></View>
+            <View style={s.sectionHeaderLeft}><MaterialIcons name="donut-large" size={17} color="#5C6BC0" /><Text style={s.sectionTitle}>{t('emotion_distribution') || t('emotion_distribution') || 'Emotion Distribution'}</Text></View>
             <MaterialIcons name={secEmoDistrib ? 'expand-less' : 'expand-more'} size={20} color="#666" />
           </TouchableOpacity>
           {secEmoDistrib && (<>
@@ -568,7 +568,7 @@ export default function LinkedChildDetailScreen() {
         {/* STRATEGIES */}
         <View style={s.section}>
           <TouchableOpacity onPress={() => setSecStrategies(e => !e)} style={s.sectionHeader}>
-            <View style={s.sectionHeaderLeft}><MaterialIcons name="lightbulb" size={17} color="#FFC107" /><Text style={s.sectionTitle}>Strategies</Text></View>
+            <View style={s.sectionHeaderLeft}><MaterialIcons name="lightbulb" size={17} color="#FFC107" /><Text style={s.sectionTitle}>{t('strategy_btn') || t('strategy_btn') || 'Strategies'}</Text></View>
             <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
               <TouchableOpacity style={s.addBtn} onPress={() => setShowAddStrat(true)}>
                 <MaterialIcons name="add" size={15} color="#fff" /><Text style={s.addBtnText}>Add</Text>
@@ -593,7 +593,7 @@ export default function LinkedChildDetailScreen() {
               ))}
             </>)}
             <Text style={[s.stratSubtitle,{marginTop:!isFamilyChild&&schoolStrats.length>0?10:0}]}>
-              {'\u{1F3E0}'} {isFamilyChild?t('strategy_btn') || 'Strategies':'Family Strategies'}
+              {'\u{1F3E0}'} {isFamilyChild?t('strategy_btn') || t('strategy_btn') || 'Strategies':'Family Strategies'}
             </Text>
             {familyStrats.length===0
               ? <Text style={s.empty}>No strategies yet — tap Add to create one</Text>

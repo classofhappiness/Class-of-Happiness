@@ -215,13 +215,13 @@ export default function ParentStrategiesScreen() {
           }}
         >
           <MaterialIcons name="add" size={24} color="white" />
-          <Text style={styles.addButtonText}>Add Custom Strategy</Text>
+          <Text style={styles.addButtonText}>{t('add_custom_strategy') || t('add_custom_strategy') || 'Add Custom Strategy'}</Text>
         </TouchableOpacity>
 
         {/* Custom Strategies */}
         {customStrategies.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Your Custom Strategies</Text>
+            <Text style={styles.sectionTitle}>{t('my_strategies') || 'My Strategies'}</Text>
             {customStrategies.map((strategy) => (
               <View key={strategy.id} style={styles.strategyCard}>
                 <View style={[styles.strategyIcon, { backgroundColor: zoneConfig.color }]}>
@@ -271,7 +271,7 @@ export default function ParentStrategiesScreen() {
         {/* Default Strategies (when student selected) */}
         {studentId && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Default Strategies</Text>
+          <Text style={styles.sectionTitle}>{t('default_zone_strategies') || t('default_zone_strategies') || 'Default Strategies'}</Text>
           {strategies.map((strategy) => (
             <View key={strategy.id} style={styles.strategyCard}>
               <View style={[styles.strategyIcon, { backgroundColor: zoneConfig.color + '40' }]}>
@@ -298,14 +298,14 @@ export default function ParentStrategiesScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Custom Strategy</Text>
+              <Text style={styles.modalTitle}>{t('add_custom_strategy') || t('add_custom_strategy') || 'Add Custom Strategy'}</Text>
               <TouchableOpacity onPress={() => setShowAddModal(false)}>
                 <MaterialIcons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.modalBody}>
-              <Text style={styles.inputLabel}>Strategy Name</Text>
+              <Text style={styles.inputLabel}>{t('strategy_name') || t('strategy_name') || 'Strategy Name'}</Text>
               <TextInput
                 style={styles.input}
                 value={newStrategy.name}
@@ -313,7 +313,7 @@ export default function ParentStrategiesScreen() {
                 placeholder="e.g., Count backwards"
               />
 
-              <Text style={styles.inputLabel}>Description</Text>
+              <Text style={styles.inputLabel}>{t('description_label') || 'Description'}</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={newStrategy.description}
@@ -333,7 +333,7 @@ export default function ParentStrategiesScreen() {
                     size={24}
                     color={newStrategy.is_shared ? '#4CAF50' : '#999'}
                   />
-                  <Text style={styles.shareLabel}>Share with teacher</Text>
+                  <Text style={styles.shareLabel}>{t('share_with_teacher') || t('share_with_teacher') || 'Share with teacher'}</Text>
                 </TouchableOpacity>
                 <Text style={styles.shareHint}>
                   When shared, your child's teacher can also see and use this strategy

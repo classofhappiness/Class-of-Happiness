@@ -303,7 +303,7 @@ export default function TeacherCheckInScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
         {/* STEP 1: Colour Selection */}
-        <Text style={styles.sectionLabel}>Select your emotion colour</Text>
+        <Text style={styles.sectionLabel}>{t('select_emotion') || 'Select your emotion'}</Text>
         <View style={styles.zonesStack}>
           {ZONES.map(zone => (
             <TouchableOpacity
@@ -343,7 +343,7 @@ export default function TeacherCheckInScreen() {
             {/* Custom personal strategies */}
             {customStrategies.length > 0 && (
               <>
-                <Text style={styles.customStratLabel}>Your personal strategies</Text>
+                <Text style={styles.customStratLabel}>{t('my_strategies') || 'My Strategies'}</Text>
                 {customStrategies.map(s => (
                   <TouchableOpacity
                     key={s.id}
@@ -364,14 +364,14 @@ export default function TeacherCheckInScreen() {
             )}
             <TouchableOpacity style={styles.addStrategyBtn} onPress={() => setShowAddStrategy(!showAddStrategy)}>
               <MaterialIcons name="add-circle-outline" size={20} color="#5C6BC0" />
-              <Text style={styles.addStrategyText}>Add your own strategy</Text>
+              <Text style={styles.addStrategyText}>{t('add_custom_strategy') || 'Add Custom Strategy'}</Text>
             </TouchableOpacity>
             {showAddStrategy && (
               <View style={styles.addStrategyForm}>
                 <TextInput style={styles.addStrategyInput} placeholder="Strategy name..." value={newStrategyName} onChangeText={setNewStrategyName} placeholderTextColor="#AAA" />
                 <TextInput style={styles.addStrategyInput} placeholder="Description (optional)..." value={newStrategyDesc} onChangeText={setNewStrategyDesc} placeholderTextColor="#AAA" />
                 <TouchableOpacity style={styles.addStrategySubmit} onPress={saveCustomStrategy}>
-                  <Text style={styles.addStrategySubmitText}>Save Strategy</Text>
+                  <Text style={styles.addStrategySubmitText}>{t('add_strategy') || t('add_strategy') || 'Save Strategy'}</Text>
                 </TouchableOpacity>
               </View>
             )}

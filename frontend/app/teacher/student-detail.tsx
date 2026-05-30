@@ -452,7 +452,7 @@ export default function StudentDetailScreen() {
             <Text style={styles.statValue}>
               {Object.keys(analytics?.strategy_counts || {}).length}
             </Text>
-            <Text style={styles.statLabel}>Strategies</Text>
+            <Text style={styles.statLabel}>{t('strategy_btn') || t('strategy_btn') || 'Strategies'}</Text>
           </View>
         </View>
 
@@ -764,7 +764,7 @@ export default function StudentDetailScreen() {
                   placeholder={t('strategy_example') || 'e.g. Deep breathing, Take a walk...'}
                   placeholderTextColor="#AAA"
                 />
-                <Text style={styles.inputLabel}>Description</Text>
+                <Text style={styles.inputLabel}>{t('description_label') || 'Description'}</Text>
                 <TextInput
                   style={[styles.textInput, {height:60, textAlignVertical:'top'}]}
                   value={newStrategy.description}
@@ -793,8 +793,8 @@ export default function StudentDetailScreen() {
                   onPress={() => setNewStrategy({...newStrategy, shareWithParent: !newStrategy.shareWithParent})}>
                   <MaterialIcons name={newStrategy.shareWithParent ? 'check-box' : 'check-box-outline-blank'} size={22} color={newStrategy.shareWithParent ? '#4CAF50' : '#999'} />
                   <View>
-                    <Text style={{fontSize:14, fontWeight:'600', color:'#333'}}>Share with parent at home</Text>
-                    <Text style={{fontSize:11, color:'#888'}}>Parent will see this strategy in their app</Text>
+                    <Text style={{fontSize:14, fontWeight:'600', color:'#333'}}>{t('share_with_home') || t('share_with_home') || 'Share with home'}</Text>
+                    <Text style={{fontSize:11, color:'#888'}}>{t('share_with_home_desc') || 'Parent will see this strategy'}</Text>
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1010,7 +1010,7 @@ export default function StudentDetailScreen() {
               
               {availableMonths.length === 0 && (
                 <View style={styles.noMonthsContainer}>
-                  <Text style={styles.noMonthsText}>No data available yet</Text>
+                  <Text style={styles.noMonthsText}>{t('no_data_yet') || 'No data yet'}</Text>
                 </View>
               )}
             </ScrollView>
