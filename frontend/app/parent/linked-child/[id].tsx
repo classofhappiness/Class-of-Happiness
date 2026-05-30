@@ -353,7 +353,7 @@ export default function LinkedChildDetailScreen() {
           {([1, 7, 14, 30] as const).map(d => (
             <TouchableOpacity key={d} style={[s.periodBtn, selectedPeriod === d && s.periodBtnActive]} onPress={() => setSelectedPeriod(d)}>
               <Text style={[s.periodBtnText, selectedPeriod === d && s.periodBtnTextActive]}>
-                {d === 1 ? 'Today' : d === 7 ? '7 Days' : d === 14 ? '2 Weeks' : '30 Days'}
+                {d === 1 ? t('today') || 'Today' : d === 7 ? t('days_7') || '7 Days' : d === 14 ? '2 Weeks' : t('days_30') || '30 Days'}
               </Text>
             </TouchableOpacity>
           ))}

@@ -517,7 +517,7 @@ export default function FamilyStrategiesScreen() {
           onPress={() => setImportantNoticeExpanded(e => !e)}
         >
           <MaterialIcons name="gavel" size={14} color="#999" />
-          <Text style={{ fontSize: 12, color: '#999', flex: 1 }}>{t('important_notice') || 'Important Notice'}</Text>
+          <Text style={{ fontSize: 12, color: '#999', flex: 1 }}>{t('important_notice') || t('important_notice') || 'Important Notice'}</Text>
           <MaterialIcons name={importantNoticeExpanded ? 'expand-less' : 'expand-more'} size={18} color="#CCC" />
         </TouchableOpacity>
         {importantNoticeExpanded && <View style={styles.disclaimer}>

@@ -165,7 +165,9 @@ export default function RewardsScreen() {
   };
 
   const handleContinue = () => {
-    if (params.fromFamily === 'true' && params.location !== 'student_flow') {
+    // Always return to student select after checkin from student flow
+    // Family dashboard checkins are handled separately
+    if (false) {
       router.replace('/parent/dashboard');
       return;
     }

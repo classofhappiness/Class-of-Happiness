@@ -114,7 +114,7 @@ export default function CreatureCollectionScreen({ studentId, authToken, onBack 
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>🐾 {t('my_creatures') || 'My Creatures'}</Text>
+        <Text style={styles.title}>🐾 {t('my_creatures') || t('my_creatures') || 'My Creatures'}</Text>
         <View style={styles.backButton} />
       </View>
 

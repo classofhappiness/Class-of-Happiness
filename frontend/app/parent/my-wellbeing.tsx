@@ -373,7 +373,7 @@ export default function MyWellbeingScreen() {
                 onPress={() => setRange(r)}
               >
                 <Text style={[st.rangeTxt, range === r && st.rangeTxtActive]}>
-                  {r === '1' ? (t('today') || 'Today') : `${r} Days`}
+                  {r === '1' ? (t('today') || t('today') || 'Today') : `${r} Days`}
                 </Text>
               </TouchableOpacity>
             ))}

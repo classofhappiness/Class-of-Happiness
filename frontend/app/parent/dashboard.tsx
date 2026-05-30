@@ -789,7 +789,7 @@ export default function ParentDashboard() {
         {/* Family Members — Whole card taps to check in */}
         <View style={styles.familySection}>
           <View style={styles.familySectionHeader}>
-            <Text style={styles.familySectionTitle}>{t('my_family') || 'My Family'}</Text>
+            <Text style={styles.familySectionTitle}>{t('my_family') || t('my_family') || 'My Family'}</Text>
             <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
               {orderedMembers.length > 1 && (
                 <TouchableOpacity
