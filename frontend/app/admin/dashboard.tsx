@@ -553,14 +553,14 @@ function SchoolSettingsTab({ authToken, user, wellbeingEmail, setWellbeingEmail,
 
   return (
     <ScrollView contentContainerStyle={{padding:16,paddingBottom:40}}>
-      <Text style={styles.sectionTitle}>School Profile</Text>
+      <Text style={styles.sectionTitle}>{t('save_school_profile') || t('save_school_profile') || 'School Profile'}</Text>
       <Text style={styles.sectionSubtitle}>
         This information helps the Class of Happiness team support your school. 
         Your school also appears on the global schools wall in the app. 🌍
       </Text>
 
       {/* Country Flag selector */}
-      <Text style={styles.inputLabel}>Country</Text>
+      <Text style={styles.inputLabel}>{t('school') || t('school') || 'Country'}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom:12}}>
         <View style={{flexDirection:'row',gap:8}}>
           {COUNTRY_FLAGS.map(c => (
@@ -585,7 +585,7 @@ function SchoolSettingsTab({ authToken, user, wellbeingEmail, setWellbeingEmail,
       <TextInput style={styles.input} placeholder="e.g. Lisbon"
         value={profile.city} onChangeText={v=>setProfile(p=>({...p,city:v}))} placeholderTextColor="#AAA"/>
 
-      <Text style={styles.inputLabel}>School Type</Text>
+      <Text style={styles.inputLabel}>{t('school_admin_label') || t('school_admin_label') || 'School Type'}</Text>
       <View style={{flexDirection:'row',flexWrap:'wrap',gap:6,marginBottom:12}}>
         {SCHOOL_TYPES.map(t=>(
           <TouchableOpacity key={t}
