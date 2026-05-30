@@ -97,9 +97,7 @@ export default function FamilyMemberStatsScreen() {
       monthsSet.add(mk);
       if (!calendarMap[dk]) calendarMap[dk] = [];
       if (!calendarMap[dk].includes(z)) calendarMap[dk].push(z);
-      // Store AM/PM indicator for multi-checkin days
-      const hr = d.getHours();
-      const ampm = hr < 12 ? '🌅' : '🌙';
+
     } catch {}
   });
 
