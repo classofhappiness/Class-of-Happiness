@@ -166,14 +166,12 @@ export default function RewardsScreen() {
   };
 
   const handleContinue = () => {
-    // Always return to student select after checkin from student flow
-    // Family dashboard checkins are handled separately
-    if (false) {
+    playButtonFeedback();
+    if (params.returnTo === 'family') {
+      router.replace('/parent/dashboard');
+    } else {
       router.replace('/student/select');
-      return;
     }
-    playButtonFeedback(); // Sound effect for button press
-    router.replace('/student/select');
   };
 
   const celebrateScale = celebrateAnim.interpolate({
