@@ -1,19 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal,
-  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
+import { useRouter } from 'expo-router';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+const INDIGO = '#5C6BC0';
 const ZONE_COLORS: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
 const ZONE_LABELS: Record<string,string> = { blue:'Blue Emotions', green:'Green Emotions', yellow:'Yellow Emotions', red:'Red Emotions' };
-const TEACHER_ZONE_LABELS: Record<string,string> = { blue:'Blue Emotions', green:'Green Emotions', yellow:'Yellow Emotions', red:'Red Emotions' };
 const ZONES = ['blue','green','yellow','red'];
-const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 async function apiCall(endpoint: string, token: string|null, options: any = {}) {
   const headers: any = { 'Content-Type':'application/json' };
@@ -23,1124 +22,804 @@ async function apiCall(endpoint: string, token: string|null, options: any = {}) 
   return res.json();
 }
 
-function MiniBar({ data, color }: { data:number[], color:string }) {
-  const max = Math.max(...data, 1);
+// ── Shared Components ────────────────────────────────────────────────────────
+
+function SectionCard({ title, subtitle, icon, color, children, defaultOpen = false }: any) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
-    <View style={{ flexDirection:'row', gap:3, alignItems:'flex-end', height:44, marginTop:8 }}>
-      {data.map((v,i) => (
-        <View key={i} style={{ flex:1, alignItems:'center', gap:2 }}>
-          <View style={{ width:'100%', height:36, justifyContent:'flex-end', backgroundColor:'#F0F0F0', borderRadius:4 }}>
-            <View style={{ width:'100%', height:`${Math.round((v/max)*100)}%` as any, backgroundColor:color, borderRadius:4, minHeight:3 }}/>
-          </View>
-          <Text style={{ fontSize:8, color:'#AAA' }}>{DAYS[i][0]}</Text>
+    <View style={s.card}>
+      <TouchableOpacity onPress={() => setOpen(v => !v)} style={s.cardHeader} activeOpacity={0.7}>
+        <View style={[s.cardIconBox, { backgroundColor: color + '18' }]}>
+          <MaterialIcons name={icon} size={18} color={color} />
         </View>
-      ))}
+        <View style={{ flex: 1 }}>
+          <Text style={s.cardTitle}>{title}</Text>
+          {subtitle ? <Text style={s.cardSubtitle}>{subtitle}</Text> : null}
+        </View>
+        <MaterialIcons name={open ? 'expand-less' : 'expand-more'} size={20} color="#999" />
+      </TouchableOpacity>
+      {open && <View style={s.cardBody}>{children}</View>}
     </View>
   );
 }
 
-function StatCard({ label, value, icon, color, graphData, detail }: any) {
-  const [open, setOpen] = useState(false);
+function StatRow({ label, value, icon, color }: any) {
   return (
-    <TouchableOpacity style={[styles.statCard,{borderTopColor:color}]} onPress={()=>setOpen(!open)} activeOpacity={0.8}>
-      <MaterialIcons name={icon} size={24} color={color}/>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-      <MaterialIcons name={open?'expand-less':'expand-more'} size={14} color="#CCC" style={{marginTop:2}}/>
-      {open && (
-        <View style={{width:'100%'}}>
-          <MiniBar data={graphData||[0,0,0,0,0,0,0]} color={color}/>
-          {detail ? <Text style={{fontSize:10,color:'#888',marginTop:6,lineHeight:14}}>{detail}</Text> : null}
-        </View>
-      )}
-    </TouchableOpacity>
+    <View style={s.statRow}>
+      <MaterialIcons name={icon} size={16} color={color} />
+      <Text style={s.statRowLabel}>{label}</Text>
+      <Text style={[s.statRowValue, { color }]}>{value ?? '—'}</Text>
+    </View>
   );
 }
 
-function ColourRow({ zone, count, total }: { zone:string, count:number, total:number }) {
-  const pct = total > 0 ? Math.round((count/total)*100) : 0;
+function ColourBar({ zone, count, total }: any) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
   return (
-    <View style={styles.colourRow}>
-      <View style={[styles.colourDot,{backgroundColor:ZONE_COLORS[zone]}]}/>
-      <Text style={styles.colourLabel}>{ZONE_LABELS[zone]}</Text>
-      <View style={styles.colourBarBg}>
-        <View style={[styles.colourBar,{width:`${pct}%` as any,backgroundColor:ZONE_COLORS[zone]}]}/>
+    <View style={s.colourRow}>
+      <View style={[s.colourDot, { backgroundColor: ZONE_COLORS[zone] }]} />
+      <Text style={s.colourLabel}>{ZONE_LABELS[zone]}</Text>
+      <View style={s.colourBarBg}>
+        <View style={[s.colourBar, { width: `${pct}%` as any, backgroundColor: ZONE_COLORS[zone] }]} />
       </View>
-      <Text style={styles.colourPct}>{pct}%</Text>
-      <Text style={[styles.colourPct,{width:30,color:'#AAA'}]}>{count}</Text>
+      <Text style={s.colourPct}>{pct}% ({count})</Text>
     </View>
   );
 }
 
-function StrategyManager({ authToken, isSuperAdmin }: { authToken:string|null, isSuperAdmin:boolean }) {
-  const { t, logout } = useApp();
-  const [type, setType] = useState<'teacher'|'student'>('teacher');
+// ── Strategy Manager ─────────────────────────────────────────────────────────
+
+function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, isSuperAdmin: boolean }) {
+  const [type, setType] = useState<'teacher'|'student'>('student');
   const [strats, setStrats] = useState<any[]>([]);
-  const [zone, setZone] = useState('blue');
+  const [zone, setZone] = useState('green');
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
   const [editing, setEditing] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => { load(); }, [type]);
-
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       if (type === 'teacher') {
         const d = await apiCall('/admin/teacher-strategies', authToken);
-        setStrats(Array.isArray(d) ? d.map((s:any)=>({...s,zone:s.zone||'blue'})) : []);
+        setStrats(Array.isArray(d) ? d : []);
       } else {
-        // Load all zones using correct endpoint format
         const all = await Promise.all(ZONES.map(z =>
           apiCall(`/strategies?zone=${z}`, authToken)
-            .then((d:any[]) => (Array.isArray(d)?d:[]).map(s => ({...s, zone: s.zone||s.feeling_colour||z})))
-            .catch(()=>[])
+            .then((d: any[]) => (Array.isArray(d) ? d : []).map(s => ({ ...s, zone: s.zone || z })))
+            .catch(() => [])
         ));
-        // Flatten and deduplicate
         const flat = all.flat();
         const seen = new Set();
-        setStrats(flat.filter((s:any) => {
-          if (seen.has(s.id)) return false;
-          seen.add(s.id);
-          return true;
-        }));
+        setStrats(flat.filter((s: any) => { if (seen.has(s.id)) return false; seen.add(s.id); return true; }));
       }
     } catch { setStrats([]); }
-    finally { setLoading(false); }
-  };
+    setLoading(false);
+  }, [type, authToken]);
+
+  useEffect(() => { load(); }, [load]);
 
   const save = async () => {
     if (!name.trim()) { Alert.alert('Name required'); return; }
-    const ep = type==='teacher' ? '/admin/teacher-strategies' : '/strategies';
+    const ep = type === 'teacher' ? '/admin/teacher-strategies' : '/strategies';
     try {
       if (editing) {
-        await apiCall(`${ep}/${editing.id}`, authToken, { method:'PUT', body:JSON.stringify({name,description:desc,zone,icon:'star'}) });
+        await apiCall(`${ep}/${editing.id}`, authToken, { method: 'PUT', body: JSON.stringify({ name, description: desc, zone, icon: 'star' }) });
       } else {
-        await apiCall(ep, authToken, { method:'POST', body:JSON.stringify({name,description:desc,zone,icon:'star'}) });
+        await apiCall(ep, authToken, { method: 'POST', body: JSON.stringify({ name, description: desc, zone, icon: 'star' }) });
       }
-      setName(''); setDesc(''); setEditing(null);
-      Alert.alert('Saved'); load();
-    } catch { Alert.alert('Error','Could not save strategy.'); }
+      setName(''); setDesc(''); setEditing(null); load();
+      Alert.alert('✅ Saved');
+    } catch { Alert.alert('Error', 'Could not save.'); }
   };
 
-  const del = (s: any) => {
-    Alert.alert('Delete',`Delete "${s.name}"?`,[
-      {text:t('go_back') || 'Cancel',style:'cancel'},
-      {text:'Delete',style:'destructive',onPress:async()=>{
-        const ep = type==='teacher' ? '/admin/teacher-strategies' : '/strategies';
-        try { await apiCall(`${ep}/${s.id}`,authToken,{method:'DELETE'}); load(); }
-        catch { Alert.alert('Error','Could not delete.'); }
+  const del = (strat: any) => {
+    Alert.alert('Delete', `Delete "${strat.name}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        const ep = type === 'teacher' ? '/admin/teacher-strategies' : '/strategies';
+        try { await apiCall(`${ep}/${strat.id}`, authToken, { method: 'DELETE' }); load(); }
+        catch { Alert.alert('Error', 'Could not delete.'); }
       }},
     ]);
   };
 
   return (
-    <View>
-      <Text style={styles.sectionTitle}>{t('strategies') || 'Strategies'}</Text>
-      <Text style={styles.sectionSubtitle}>{isSuperAdmin ? 'Global — affect ALL schools. Add, edit and delete.' : 'Add strategies for your school. Cannot edit global ones.'}</Text>
-      <View style={styles.typeRow}>
-        {(['teacher','student'] as const).map(t => (
-          <TouchableOpacity key={t} style={[styles.typeChip,type===t&&styles.typeChipActive]} onPress={()=>setType(t)}>
-            <Text style={[styles.typeChipText,type===t&&styles.typeChipTextActive]}>{t==='teacher'?'👩‍🏫 Teacher':'🧒 Student'}</Text>
+    <View style={{ gap: 12 }}>
+      <Text style={s.hint}>{isSuperAdmin ? '⚠️ Global strategies affect ALL schools.' : 'Add strategies for your school only.'}</Text>
+
+      {/* Type toggle */}
+      <View style={s.chipRow}>
+        {(['student', 'teacher'] as const).map(tp => (
+          <TouchableOpacity key={tp} style={[s.chip, type === tp && s.chipActive]} onPress={() => setType(tp)}>
+            <Text style={[s.chipText, type === tp && s.chipTextActive]}>{tp === 'teacher' ? '👩‍🏫 Teacher' : '🧒 Student'}</Text>
           </TouchableOpacity>
         ))}
       </View>
-      <View style={styles.addStratBox}>
-        <Text style={styles.addStratTitle}>{editing?'Edit':'Add'} {type} strategy</Text>
-        <View style={styles.zoneRow}>
-          {ZONES.map(z => (
-            <TouchableOpacity key={z} style={[styles.zoneChip,{backgroundColor:ZONE_COLORS[z],opacity:zone===z?1:0.3}]} onPress={()=>setZone(z)}>
-              <Text style={styles.zoneChipText}>{z[0].toUpperCase()}</Text>
+
+      {/* Add/Edit form */}
+      {isSuperAdmin && (
+        <View style={s.formBox}>
+          <Text style={s.formTitle}>{editing ? '✏️ Editing strategy' : '➕ Add strategy'}</Text>
+          <View style={s.chipRow}>
+            {ZONES.map(z => (
+              <TouchableOpacity key={z} style={[s.zoneChip, { backgroundColor: ZONE_COLORS[z], opacity: zone === z ? 1 : 0.3 }]} onPress={() => setZone(z)}>
+                <Text style={{ color: 'white', fontSize: 11, fontWeight: '700' }}>{z[0].toUpperCase()}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TextInput style={s.input} placeholder="Strategy name..." value={name} onChangeText={setName} placeholderTextColor="#AAA" />
+          <TextInput style={s.input} placeholder="Description..." value={desc} onChangeText={setDesc} placeholderTextColor="#AAA" />
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity style={[s.btn, { flex: 1 }]} onPress={save}>
+              <MaterialIcons name={editing ? 'save' : 'add'} size={16} color="white" />
+              <Text style={s.btnText}>{editing ? 'Save' : 'Add'}</Text>
             </TouchableOpacity>
-          ))}
+            {editing && (
+              <TouchableOpacity style={[s.btn, { backgroundColor: '#EEE', paddingHorizontal: 16 }]} onPress={() => { setEditing(null); setName(''); setDesc(''); }}>
+                <Text style={[s.btnText, { color: '#666' }]}>Cancel</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-        <TextInput style={styles.input} placeholder="Strategy name..." value={name} onChangeText={setName} placeholderTextColor="#AAA"/>
-        <TextInput style={styles.input} placeholder="Description..." value={desc} onChangeText={setDesc} placeholderTextColor="#AAA"/>
-        <View style={{flexDirection:'row',gap:8}}>
-          <TouchableOpacity style={[styles.addBtn,{flex:1}]} onPress={save}>
-            <MaterialIcons name={editing?'save':'add'} size={18} color="white"/>
-            <Text style={styles.addBtnText}>{editing?'Save':'Add Strategy'}</Text>
-          </TouchableOpacity>
-          {editing && (
-            <TouchableOpacity style={[styles.addBtn,{backgroundColor:'#E0E0E0',paddingHorizontal:16,flex:0}]} onPress={()=>{setEditing(null);setName('');setDesc('');}}>
-              <Text style={[styles.addBtnText,{color:'#666'}]}>{t('go_back') || t('go_back') || 'Cancel'}</Text>
-            </TouchableOpacity>
+      )}
+
+      {/* Strategy list */}
+      {loading ? <ActivityIndicator color={INDIGO} /> : strats.map((strat, i) => (
+        <View key={strat.id || i} style={s.stratRow}>
+          <View style={[s.stratDot, { backgroundColor: ZONE_COLORS[strat.zone] || '#999' }]} />
+          <View style={{ flex: 1 }}>
+            <Text style={s.stratName}>{strat.name}</Text>
+            {strat.description ? <Text style={s.stratDesc}>{strat.description}</Text> : null}
+          </View>
+          {isSuperAdmin && (
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity onPress={() => { setEditing(strat); setName(strat.name || ''); setDesc(strat.description || ''); setZone(strat.zone || 'blue'); }}>
+                <MaterialIcons name="edit" size={16} color={INDIGO} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => del(strat)}>
+                <MaterialIcons name="delete" size={16} color="#F44336" />
+              </TouchableOpacity>
+            </View>
           )}
         </View>
-      </View>
-      {loading ? <ActivityIndicator color="#5C6BC0" style={{marginTop:16}}/> : (
-        <>
-          <Text style={styles.sectionTitle}>{type==='teacher'?'Teacher':'Student'} Strategies ({strats.length})</Text>
-          {strats.length===0 && <Text style={styles.emptyText}>No strategies yet. Add one above.</Text>}
-          {strats.map((s,i) => (
-            <View key={s.id||i} style={styles.stratCard}>
-              <View style={[styles.stratDot,{backgroundColor:ZONE_COLORS[s.zone]||'#999'}]}/>
-              <View style={styles.stratInfo}>
-                <Text style={styles.stratName}>{s.name}</Text>
-                {s.description ? <Text style={styles.stratDesc}>{s.description}</Text> : null}
-              </View>
-              <View style={[styles.zonePill,{backgroundColor:(ZONE_COLORS[s.zone]||'#999')+'25'}]}>
-                <Text style={[styles.zonePillText,{color:ZONE_COLORS[s.zone]||'#999'}]}>{s.zone}</Text>
-              </View>
-              {isSuperAdmin ? (
-                <>
-                  <TouchableOpacity onPress={()=>{
-                    setEditing(s);
-                    setName(s.name||'');
-                    setDesc(s.description||'');
-                    setZone(s.zone||s.feeling_colour||'blue');
-                    // Scroll hint
-                    Alert.alert('Edit Mode', `Editing "${s.name}" — update the form above and tap Save.`);
-                  }} style={{marginLeft:8}}>
-                    <MaterialIcons name="edit" size={18} color="#5C6BC0"/>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={()=>del(s)} style={{marginLeft:8}}>
-                    <MaterialIcons name="delete" size={18} color="#F44336"/>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <View style={{marginLeft:8,opacity:0.3}}>
-                  <MaterialIcons name="lock" size={16} color="#999"/>
-                </View>
-              )}
-            </View>
-          ))}
-        </>
-      )}
+      ))}
     </View>
   );
 }
 
-
 // ── World Wall ───────────────────────────────────────────────────────────────
-function WorldWall({ authToken, t }: { authToken:string|null, t: (key:string)=>string }) {
+
+function WorldWall({ authToken }: { authToken: string|null }) {
   const [schools, setSchools] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     apiCall('/schools/world-wall', authToken)
-      .then(d => setSchools(Array.isArray(d)?d:[]))
-      .catch(()=>setSchools([]))
-      .finally(()=>setLoading(false));
+      .then(d => setSchools(Array.isArray(d) ? d : []))
+      .catch(() => setSchools([]))
+      .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <ActivityIndicator color="#5C6BC0" style={{marginVertical:12}}/>;
-
-  if (schools.length === 0) return (
-    <View style={[styles.infoBox,{backgroundColor:'#F3E5F5'}]}>
-      <Text style={{fontSize:24}}>🌱</Text>
-      <Text style={[styles.infoText,{color:'#7B1FA2'}]}>
-        Be the first school to join! Schools appear here once they register their profile in Settings.
-      </Text>
-    </View>
-  );
+  if (loading) return <ActivityIndicator color={INDIGO} style={{ marginVertical: 12 }} />;
+  if (schools.length === 0) return <Text style={s.hint}>No schools registered yet.</Text>;
 
   return (
-    <View style={{backgroundColor:'white',borderRadius:14,padding:14,marginBottom:8}}>
-      <Text style={{fontSize:12,color:'#888',marginBottom:10}}>
-        {schools.length} school{schools.length!==1?'s':''} using Class of Happiness 🎉
-      </Text>
-      <View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>
-        {schools.map((s,i)=>(
-          <View key={i} style={{
-            backgroundColor:'#F8F9FA',borderRadius:12,padding:10,
-            alignItems:'center',minWidth:80,borderWidth:1,borderColor:'#E8EAF6'
-          }}>
-            <Text style={{fontSize:28}}>{s.flag||'🌍'}</Text>
-            <Text style={{fontSize:11,fontWeight:'600',color:'#333',textAlign:'center',marginTop:4}}>{s.name}</Text>
-            {s.city ? <Text style={{fontSize:10,color:'#888',textAlign:'center'}}>{s.city}</Text> : null}
-          </View>
-        ))}
-      </View>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+      {schools.map((sch, i) => (
+        <View key={i} style={s.schoolPill}>
+          <Text style={{ fontSize: 22 }}>{sch.flag || '🌍'}</Text>
+          <Text style={s.schoolPillName}>{sch.name}</Text>
+          {sch.city ? <Text style={s.schoolPillCity}>{sch.city}</Text> : null}
+        </View>
+      ))}
     </View>
   );
 }
 
-function SuperAdminDashboard({ authToken, user }: { authToken:string|null, user:any }) {
-  const { t, logout } = useApp();
-  const [tab, setTab] = useState<'analytics'|'strategies'|'resources'|'settings'>('analytics');
-  const [statsPeriod, setStatsPeriod] = useState<7|30|90>(7);
-  const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState<any>(null);
-  const [showUnlink, setShowUnlink] = useState(false);
+// ── Super Admin Dashboard ─────────────────────────────────────────────────────
+
+function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setStatsPeriod, loadStats }: any) {
   const [unlinkEmail, setUnlinkEmail] = useState('');
   const [unlinkType, setUnlinkType] = useState<'teacher'|'parent'>('teacher');
-
-  useEffect(() => { if (tab==='analytics') loadStats(); }, [tab, statsPeriod]);
-
-  const loadStats = async () => {
-    setLoading(true);
-    try {
-      const d = await apiCall(`/admin/stats?days=${statsPeriod}`, authToken);
-      setStats(d);
-    } catch (e: any) {
-      console.error('[SuperAdmin] loadStats error:', e?.message || e);
-      // Keep previous stats rather than wiping to null on transient errors
-    }
-    finally { setLoading(false); }
-  };
+  const [showUnlink, setShowUnlink] = useState(false);
 
   const doUnlink = async () => {
     if (!unlinkEmail.trim()) { Alert.alert('Enter email'); return; }
     try {
-      await apiCall('/admin/unlink-user', authToken, { method:'POST', body:JSON.stringify({email:unlinkEmail.trim(),type:unlinkType}) });
-      Alert.alert('Unlinked',`${unlinkEmail} has been unlinked.`);
+      await apiCall('/admin/unlink-user', authToken, { method: 'POST', body: JSON.stringify({ email: unlinkEmail.trim(), type: unlinkType }) });
+      Alert.alert('✅ Unlinked', `${unlinkEmail} has been unlinked.`);
       setShowUnlink(false); setUnlinkEmail('');
-    } catch { Alert.alert('Error','Could not unlink. Check the email is correct.'); }
+    } catch { Alert.alert('Error', 'Could not unlink. Check the email is correct.'); }
   };
 
-  const zc = stats?.zone_counts||{};
-  const tzc = Object.values(zc).reduce((a:any,b:any)=>a+b,0) as number;
-  const tc = stats?.teacher_zone_counts||{};
-  const ttc = Object.values(tc).reduce((a:any,b:any)=>a+b,0) as number;
+  const zc = stats?.zone_counts || {};
+  const tzc = Object.values(zc).reduce((a: any, b: any) => a + b, 0) as number;
+  const tc = stats?.teacher_zone_counts || {};
+  const ttc = Object.values(tc).reduce((a: any, b: any) => a + b, 0) as number;
 
   return (
     <>
-      <View style={styles.tabBar}>
-        {[{id:'analytics',icon:'bar-chart',label:'Analytics'},{id:'strategies',icon:'lightbulb',label:'Strategies'},{id:'resources',icon:'cloud-upload',label:'Resources'},{id:'settings',icon:'settings',label:'App Info'}].map(t=>(
-          <TouchableOpacity key={t.id} style={[styles.tab,tab===t.id&&styles.tabActive]} onPress={()=>setTab(t.id as any)}>
-            <MaterialIcons name={t.icon as any} size={20} color={tab===t.id?'#3949AB':'#999'}/>
-            <Text style={[styles.tabLabel,tab===t.id&&{color:'#3949AB',fontWeight:'700'}]}>{t.label}</Text>
+      {/* Period toggle */}
+      <View style={s.periodRow}>
+        {([7, 30, 90] as const).map(p => (
+          <TouchableOpacity key={p} style={[s.periodBtn, statsPeriod === p && s.periodBtnActive]} onPress={() => setStatsPeriod(p)}>
+            <Text style={[s.periodTxt, statsPeriod === p && s.periodTxtActive]}>{p === 7 ? '7 Days' : p === 30 ? '30 Days' : '3 Months'}</Text>
           </TouchableOpacity>
         ))}
       </View>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.OS === 'android' ? 80 : 0}
-      >
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {loading && <ActivityIndicator size="large" color="#3949AB" style={{marginTop:40}}/>}
 
-        {!loading && tab==='analytics' && (
-          <View>
-            <Text style={styles.sectionTitle}>{t('administration') || t('administration') || 'Analytics'}</Text>
-            <Text style={styles.sectionSubtitle}>Tap any card to expand. No individual names or comments shown.</Text>
+      {statsLoading ? <ActivityIndicator color={INDIGO} style={{ marginTop: 20 }} /> : <>
 
-            {/* Period Toggle */}
-            <View style={{flexDirection:'row',gap:8,marginBottom:12}}>
-              {([7,30,90] as const).map(p=>(
-                <TouchableOpacity key={p}
-                  style={{flex:1,paddingVertical:8,borderRadius:8,alignItems:'center',
-                    backgroundColor:statsPeriod===p?'#3949AB':'#F0F0F0'}}
-                  onPress={()=>{ setStatsPeriod(p); }}>
-                  <Text style={{fontSize:12,fontWeight:'600',color:statsPeriod===p?'white':'#666'}}>
-                    {p===7?'7 Days':p===30?'30 Days':'3 Months'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={styles.statsGrid}>
-              <StatCard label="Students" value={stats?.total_students??'—'} icon="child-care" color="#4CAF50"
-                graphData={stats?.student_daily||[0,0,0,0,0,0,0]}
-                detail={`Avg daily: ${stats?.avg_student_daily??'—'} · Peak: ${stats?.peak_student_day??'—'}`}/>
-              <StatCard label="Teachers" value={stats?.total_teachers??'—'} icon="school" color="#FFC107"
-                graphData={stats?.teacher_daily||[0,0,0,0,0,0,0]}
-                detail={`Support requests this month: ${stats?.support_requests??'—'}`}/>
-              <StatCard label="Check-ins Today" value={stats?.checkins_today??'—'} icon="favorite" color="#4A90D9"
-                graphData={stats?.checkin_daily||[0,0,0,0,0,0,0]}
-                detail={`Total all time: ${stats?.total_checkins??'—'}`}/>
-              <StatCard label="Schools" value={stats?.total_schools??'—'} icon="account-balance" color="#9C27B0"
-                graphData={stats?.school_daily||[0,0,0,0,0,0,0]}
-                detail={`Avg session: ${stats?.avg_session_mins??'—'} mins`}/>
-              <StatCard label="Paying Parents" value={stats?.active_parents??'—'} icon="family-restroom" color="#4CAF50"
-                graphData={stats?.parent_daily||[0,0,0,0,0,0,0]}
-                detail={`Annual plan: ${stats?.annual_parents??'—'} · Monthly: ${stats?.monthly_parents??'—'}`}/>
-              <StatCard label="Paying Teachers" value={stats?.active_teachers??'—'} icon="school" color="#FF9800"
-                graphData={stats?.teacher_sub_daily||[0,0,0,0,0,0,0]}
-                detail={`Annual plan: ${stats?.annual_teachers??'—'} · Monthly: ${stats?.monthly_teachers??'—'}`}/>
-              <StatCard label="Home Check-ins" value={stats?.home_checkins_total??'—'} icon="home" color="#5C6BC0"
-                graphData={stats?.home_checkin_daily||[0,0,0,0,0,0,0]}
-                detail={`Linked families: ${stats?.linked_families??'—'}`}/>
-            </View>
+        {/* Global Stats */}
+        <SectionCard title="Global Overview" subtitle="All schools · anonymised" icon="bar-chart" color={INDIGO} defaultOpen>
+          <StatRow label="Total students" value={stats?.total_students} icon="child-care" color="#4CAF50" />
+          <StatRow label="Total teachers" value={stats?.total_teachers} icon="school" color="#FFC107" />
+          <StatRow label="Total schools" value={stats?.total_schools} icon="account-balance" color="#9C27B0" />
+          <StatRow label="Check-ins today" value={stats?.checkins_today} icon="favorite" color="#4A90D9" />
+          <StatRow label="Home check-ins total" value={stats?.home_checkins_total} icon="home" color="#5C6BC0" />
+          <StatRow label="Linked families" value={stats?.linked_families} icon="family-restroom" color="#4CAF50" />
+        </SectionCard>
 
-            <Text style={[styles.sectionTitle,{marginTop:20}]}>Student Emotion Zones — All Schools</Text>
-            <Text style={styles.sectionSubtitle}>Zone distribution as % of all student check-ins in selected period</Text>
-            <View style={styles.colourTrends}>
-              {ZONES.map(z=><ColourRow key={z} zone={z} count={zc[z]??0} total={tzc}/>)}
-            </View>
+        {/* Subscriptions */}
+        <SectionCard title="Subscriptions & Revenue" subtitle="Active paying users" icon="attach-money" color="#4CAF50">
+          <StatRow label="Paying parents" value={stats?.active_parents} icon="family-restroom" color="#4CAF50" />
+          <StatRow label="Annual parent plans" value={stats?.annual_parents} icon="star" color="#4CAF50" />
+          <StatRow label="Paying teachers" value={stats?.active_teachers} icon="school" color="#FF9800" />
+          <StatRow label="Annual teacher plans" value={stats?.annual_teachers} icon="star" color="#FF9800" />
+          <StatRow label="School subscriptions" value={stats?.active_schools} icon="account-balance" color="#9C27B0" />
+          <View style={s.pricingBox}>
+            <Text style={s.pricingText}>Parent $4.99/mo · $39.99/yr</Text>
+            <Text style={s.pricingText}>Teacher $7.99/mo · $59.99/yr</Text>
+            <Text style={s.pricingText}>School from $299/yr</Text>
+          </View>
+        </SectionCard>
 
-            <Text style={[styles.sectionTitle,{marginTop:16}]}>Teacher Wellbeing Zones — All Schools</Text>
-            <Text style={styles.sectionSubtitle}>Zone distribution as % of all teacher self check-ins in selected period</Text>
-            <View style={styles.colourTrends}>
-              {ZONES.map(z=><ColourRow key={z} zone={z} count={tc[z]??0} total={ttc}/>)}
-            </View>
+        {/* Student Emotions */}
+        <SectionCard title="Student Emotion Distribution" subtitle="% of all check-ins · no names shown" icon="donut-large" color="#4A90D9">
+          {ZONES.map(z => <ColourBar key={z} zone={z} count={zc[z] ?? 0} total={tzc} />)}
+        </SectionCard>
 
-            <Text style={[styles.sectionTitle,{marginTop:16}]}>Strategy & Engagement Stats</Text>
-            <View style={styles.colourTrends}>
-              {[
-                {label:'Most used student strategy',value:stats?.top_strategy??'—',icon:'lightbulb',color:'#4CAF50'},
-                {label:'Most used teacher strategy',value:stats?.top_teacher_strategy??'—',icon:'school',color:'#FFC107'},
-                {label:'Teacher support requests this month',value:stats?.support_requests??'—',icon:'notifications-active',color:'#F44336'},
-                {label:'Total creatures collected',value:stats?.total_creatures??'—',icon:'pets',color:'#9C27B0'},
-                {label:'Avg check-ins to evolve creature',value:stats?.avg_checkins_to_evolve??'—',icon:'trending-up',color:'#4A90D9'},
-                {label:'Students with 7+ day streak',value:stats?.streak_students??'—',icon:'local-fire-department',color:'#FF9800'},
-                {label:'Avg student session length',value:`${stats?.avg_session_mins??'—'} mins`,icon:'timer',color:'#5C6BC0'},
-              ].map((item,i)=>(
-                <View key={i} style={{flexDirection:'row',alignItems:'center',paddingVertical:8,borderBottomWidth:1,borderBottomColor:'#F5F5F5',gap:10}}>
-                  <MaterialIcons name={item.icon as any} size={18} color={item.color}/>
-                  <Text style={{flex:1,fontSize:12,color:'#555'}}>{item.label}</Text>
-                  <Text style={{fontSize:14,fontWeight:'700',color:item.color}}>{item.value}</Text>
-                </View>
-              ))}
-            </View>
+        {/* Teacher Wellbeing */}
+        <SectionCard title="Teacher Wellbeing" subtitle="Teacher self check-in data · anonymised" icon="spa" color="#4CAF50">
+          {ZONES.map(z => <ColourBar key={z} zone={z} count={tc[z] ?? 0} total={ttc} />)}
+          <StatRow label="Support requests this month" value={stats?.support_requests} icon="notifications-active" color="#F44336" />
+        </SectionCard>
 
-            <Text style={[styles.sectionTitle,{marginTop:16}]}>🌍 Schools Around the World</Text>
-            <Text style={styles.sectionSubtitle}>Every school using Class of Happiness. Tap a school to see their data.</Text>
-            <WorldWall authToken={authToken} t={t}/>
+        {/* Engagement */}
+        <SectionCard title="Engagement & Creatures" subtitle="Platform-wide engagement metrics" icon="trending-up" color="#FF9800">
+          <StatRow label="Total creatures collected" value={stats?.total_creatures} icon="pets" color="#9C27B0" />
+          <StatRow label="Avg check-ins to evolve" value={stats?.avg_checkins_to_evolve} icon="trending-up" color="#4A90D9" />
+          <StatRow label="Students with 7+ day streak" value={stats?.streak_students} icon="local-fire-department" color="#FF9800" />
+          <StatRow label="Most used student strategy" value={stats?.top_strategy} icon="lightbulb" color="#4CAF50" />
+          <StatRow label="Most used teacher strategy" value={stats?.top_teacher_strategy} icon="school" color="#FFC107" />
+        </SectionCard>
 
-            <Text style={[styles.sectionTitle,{marginTop:16}]}>{t('school') || 'Schools'}</Text>
-            <Text style={styles.sectionSubtitle}>Emotion colour data per school this week.</Text>
-            {(stats?.schools_breakdown||[]).length===0 ? (
-              <View style={styles.infoBox}>
-                <MaterialIcons name="info" size={16} color="#5C6BC0"/>
-                <Text style={styles.infoText}>School breakdown appears here as schools register their profile in Settings.</Text>
-              </View>
-            ) : (stats?.schools_breakdown||[]).map((school:any,i:number)=>(
-              <View key={i} style={styles.schoolCard}>
-                <View style={styles.schoolHeader}>
-                  <MaterialIcons name="account-balance" size={18} color="#5C6BC0"/>
-                  <Text style={styles.schoolName}>{school.name||'Unknown School'}</Text>
-                  <Text style={styles.schoolStat}>{school.total_checkins} check-ins</Text>
-                </View>
-                {school.description ? <Text style={styles.schoolDesc}>{school.description}</Text> : null}
-                <View style={{flexDirection:'row',gap:6,marginTop:8,flexWrap:'wrap'}}>
-                  {ZONES.filter(z=>school.zone_counts?.[z]>0).map(z=>(
-                    <View key={z} style={[styles.zonePill,{backgroundColor:ZONE_COLORS[z]+'25'}]}>
-                      <Text style={[styles.zonePillText,{color:ZONE_COLORS[z]}]}>{ZONE_LABELS[z]}: {school.zone_counts[z]}</Text>
+        {/* Schools breakdown */}
+        <SectionCard title="Schools Breakdown" subtitle="Emotion data per school this week" icon="account-balance" color="#9C27B0">
+          {(stats?.schools_breakdown || []).length === 0
+            ? <Text style={s.hint}>Schools appear here once they complete their profile in Settings.</Text>
+            : (stats?.schools_breakdown || []).map((sch: any, i: number) => (
+              <View key={i} style={s.schoolCard}>
+                <Text style={s.schoolName}>{sch.name || 'Unknown School'}</Text>
+                <Text style={s.hint}>{sch.total_checkins} check-ins</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                  {ZONES.filter(z => sch.zone_counts?.[z] > 0).map(z => (
+                    <View key={z} style={[s.zonePill, { backgroundColor: ZONE_COLORS[z] + '25' }]}>
+                      <Text style={[s.zonePillText, { color: ZONE_COLORS[z] }]}>{ZONE_LABELS[z]}: {sch.zone_counts[z]}</Text>
                     </View>
                   ))}
                 </View>
               </View>
+            ))
+          }
+        </SectionCard>
+
+        {/* World wall */}
+        <SectionCard title="Schools Around the World" subtitle="Every school using Class of Happiness" icon="public" color="#4CAF50">
+          <WorldWall authToken={authToken} />
+        </SectionCard>
+
+        {/* App info */}
+        <SectionCard title="App Info" subtitle="Version & platform details" icon="info" color={INDIGO}>
+          <StatRow label="Version" value="v2.1 — May 2026" icon="info" color={INDIGO} />
+          <StatRow label="Total users" value={stats?.total_users} icon="people" color="#4CAF50" />
+          <StatRow label="Avg student session" value={`${stats?.avg_student_session ?? '—'} mins`} icon="timer" color="#FF9800" />
+          <StatRow label="Avg teacher session" value={`${stats?.avg_teacher_session ?? '—'} mins`} icon="timer" color="#FFC107" />
+        </SectionCard>
+
+        {/* Unlink tool — super admin only */}
+        <SectionCard title="Unlink User" subtitle="Remove parent-teacher connection · use with care" icon="link-off" color="#F44336">
+          <Text style={[s.hint, { color: '#F44336', marginBottom: 8 }]}>Only use following a formal complaint or verified request.</Text>
+          <View style={s.chipRow}>
+            {(['teacher', 'parent'] as const).map(tp => (
+              <TouchableOpacity key={tp} style={[s.chip, unlinkType === tp && s.chipActive]} onPress={() => setUnlinkType(tp)}>
+                <Text style={[s.chipText, unlinkType === tp && s.chipTextActive]}>{tp === 'teacher' ? '👩‍🏫 Teacher' : '👨‍👩‍👧 Parent'}</Text>
+              </TouchableOpacity>
             ))}
           </View>
-        )}
+          <TextInput style={s.input} placeholder="User email..." value={unlinkEmail} onChangeText={setUnlinkEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#AAA" />
+          <TouchableOpacity style={[s.btn, { backgroundColor: '#F44336' }]} onPress={doUnlink}>
+            <MaterialIcons name="link-off" size={16} color="white" />
+            <Text style={s.btnText}>Confirm Unlink</Text>
+          </TouchableOpacity>
+        </SectionCard>
 
-        {!loading && tab==='strategies' && <StrategyManager authToken={authToken} isSuperAdmin={true}/>}
-
-        {!loading && tab==='resources' && <AdminResourceUpload authToken={authToken}/>}
-
-        {!loading && tab==='settings' && (
-          <View>
-            <Text style={styles.sectionTitle}>App Info & Controls</Text>
-            {[
-              {icon:'info',title:'Version',desc:'Class of Happiness v2.1 — May 2026',color:'#5C6BC0'},
-              {icon:'people',title:'Total Registered Users',desc:`${stats?.total_users??'—'} users globally`,color:'#4CAF50'},
-              {icon:'account-balance',title:'Active Schools',desc:`${stats?.total_schools??'—'} schools`,color:'#9C27B0'},
-              {icon:'timer',title:'Avg Session Time',desc:`Students: ${stats?.avg_student_session??'—'} mins · Teachers: ${stats?.avg_teacher_session??'—'} mins`,color:'#FF9800'},
-              {icon:'attach-money',title:'Pricing',desc:'Free · Parent $4.99/mo ($39.99/yr) · Teacher $7.99/mo ($59.99/yr) · School from $299/yr',color:'#4A90D9'},
-              {icon:'people',title:'Active Subscribers',desc:`Parents: ${stats?.active_parents??'—'} · Teachers: ${stats?.active_teachers??'—'} · Schools: ${stats?.active_schools??'—'}`,color:'#4CAF50'},
-            ].map((item,i)=>(
-              <View key={i} style={styles.settingCard}>
-                <MaterialIcons name={item.icon as any} size={24} color={item.color}/>
-                <View style={styles.settingInfo}>
-                  <Text style={styles.settingTitle}>{item.title}</Text>
-                  <Text style={styles.settingDesc}>{item.desc}</Text>
-                </View>
-              </View>
-            ))}
-            <View style={[styles.settingCard,{borderLeftWidth:4,borderLeftColor:'#F44336'}]}>
-              <MaterialIcons name="link-off" size={24} color="#F44336"/>
-              <View style={styles.settingInfo}>
-                <Text style={[styles.settingTitle,{color:'#F44336'}]}>Unlink Parent / Teacher</Text>
-                <Text style={styles.settingDesc}>Remove a parent-teacher connection following a complaint or verified request.</Text>
-                <TouchableOpacity style={[styles.saveBtn,{backgroundColor:'#F44336',marginTop:8}]} onPress={()=>setShowUnlink(true)}>
-                  <Text style={styles.saveBtnText}>{t('unlink') || 'Unlink'}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        )}
-      </ScrollView>
-      </KeyboardAvoidingView>
-
-      <Modal visible={showUnlink} transparent animationType="slide" onRequestClose={()=>setShowUnlink(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-              <Text style={styles.modalTitle}>{t('unlink') || t('unlink') || 'Unlink User'}</Text>
-              <TouchableOpacity onPress={()=>setShowUnlink(false)}><MaterialIcons name="close" size={24} color="#666"/></TouchableOpacity>
-            </View>
-            <Text style={{fontSize:13,color:'#888',marginBottom:16,lineHeight:20}}>Use only following a formal complaint or verified request.</Text>
-            <View style={styles.typeRow}>
-              {(['teacher','parent'] as const).map(t=>(
-                <TouchableOpacity key={t} style={[styles.typeChip,unlinkType===t&&styles.typeChipActive]} onPress={()=>setUnlinkType(t)}>
-                  <Text style={[styles.typeChipText,unlinkType===t&&styles.typeChipTextActive]}>{t==='teacher'?'👩‍🏫 Teacher':'👨‍👩‍👧 Parent'}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TextInput style={styles.input} placeholder="User email..." value={unlinkEmail} onChangeText={setUnlinkEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#AAA" returnKeyType="done" blurOnSubmit={true}/>
-            <TouchableOpacity style={[styles.addBtn,{backgroundColor:'#F44336'}]} onPress={doUnlink}>
-              <MaterialIcons name="link-off" size={18} color="white"/>
-              <Text style={styles.addBtnText}>{t('confirm_unlink_student') || t('confirm_unlink_student') || 'Confirm Unlink'}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      </>}
     </>
   );
 }
 
+// ── School Admin Dashboard ────────────────────────────────────────────────────
 
-// ── School Settings Tab ────────────────────────────────────────────────────
-const COUNTRY_FLAGS = [
-  {flag:'🇵🇹',name:'Portugal'},{flag:'🇦🇺',name:'Australia'},
-  {flag:'🇬🇧',name:'United Kingdom'},{flag:'🇺🇸',name:'United States'},
-  {flag:'🇪🇸',name:'Spain'},{flag:'🇫🇷',name:'France'},
-  {flag:'🇩🇪',name:'Germany'},{flag:'🇮🇹',name:'Italy'},
-  {flag:'🇳🇿',name:'New Zealand'},{flag:'🇮🇪',name:'Ireland'},
-  {flag:'🇿🇦',name:'South Africa'},{flag:'🇨🇦',name:'Canada'},
-  {flag:'🇧🇷',name:'Brazil'},{flag:'🇯🇵',name:'Japan'},
-  {flag:'🌍',name:'Other'},
-];
-const SCHOOL_TYPES = ['International','Public','Private','Charter','Faith-based'];
-const CURRICULA = ['IB (International Baccalaureate)','National','Cambridge','Montessori','Mixed/Other'];
-
-function SchoolSettingsTab({ authToken, user, wellbeingEmail, setWellbeingEmail, saveSettings, savingSettings }: any) {
-  const { t, logout } = useApp();
-  const [profile, setProfile] = useState({
-    school_name: (user as any)?.school_name || '',
-    country: '', city: '', school_type: 'International',
-    curriculum: 'National', student_count: '',
-    contact_name: '', contact_email: user?.email || '',
-    how_heard: '', country_flag: '🌍',
-  });
-  const [saving, setSaving] = useState(false);
-  const [inviteCode, setInviteCode] = useState('');
-  const [generatingCode, setGeneratingCode] = useState(false);
-  const [loadingProfile, setLoadingProfile] = useState(true);
-
-  useEffect(() => {
-    apiCall('/school/profile', authToken)
-      .then(d => {
-        if (d && d.school_name) setProfile(prev => ({...prev,...d}));
-      })
-      .catch(()=>{})
-      .finally(()=>setLoadingProfile(false));
-  }, []);
-
-  const saveProfile = async () => {
-    if (!profile.school_name || !profile.country || !profile.city) {
-      Alert.alert('Required fields', 'Please fill in school name, country and city.');
-      return;
-    }
-    setSaving(true);
-    try {
-      await apiCall('/school/register', authToken, {
-        method: 'POST', body: JSON.stringify({...profile, contact_email: wellbeingEmail||profile.contact_email})
-      });
-      // Also save wellbeing email
-      await apiCall('/admin/settings', authToken, {method:'POST',body:JSON.stringify({key:'wellbeing_email',value:wellbeingEmail})});
-      Alert.alert('Profile Saved!', 'Your school profile has been updated. Now visible to the Class of Happiness team.');
-    } catch { Alert.alert('Error', 'Could not save profile.'); }
-    finally { setSaving(false); }
-  };
-
-  const generateCode = async () => {
-    setGeneratingCode(true);
-    try {
-      const d = await apiCall('/school/generate-invite-code', authToken, { method: 'POST' });
-      setInviteCode(d.code);
-      Alert.alert('Invite Code Ready!',
-        `Share this unique code with your teachers:\n\n${d.code}\n\nValid for 90 days. Each teacher enters this in their Settings to join your school.`
-      );
-    } catch { Alert.alert('Error', 'Could not generate code.'); }
-    finally { setGeneratingCode(false); }
-  };
-
-  if (loadingProfile) return <ActivityIndicator color="#5C6BC0" style={{marginTop:40}}/>;
+function SchoolAdminDashboard({ authToken, stats, statsLoading }: any) {
+  const zc = stats?.zone_counts || {};
+  const tzc = Object.values(zc).reduce((a: any, b: any) => a + b, 0) as number;
 
   return (
-    <ScrollView contentContainerStyle={{padding:16,paddingBottom:40}}>
-      <Text style={styles.sectionTitle}>{t('save_school_profile') || t('save_school_profile') || 'School Profile'}</Text>
-      <Text style={styles.sectionSubtitle}>
-        This information helps the Class of Happiness team support your school. 
-        Your school also appears on the global schools wall in the app. 🌍
-      </Text>
+    <>
+      {statsLoading ? <ActivityIndicator color={INDIGO} style={{ marginTop: 20 }} /> : <>
 
-      {/* Country Flag selector */}
-      <Text style={styles.inputLabel}>{t('school') || t('school') || 'Country'}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom:12}}>
-        <View style={{flexDirection:'row',gap:8}}>
-          {COUNTRY_FLAGS.map(c => (
-            <TouchableOpacity key={c.flag}
-              style={{alignItems:'center',padding:8,borderRadius:10,
-                backgroundColor: profile.country_flag===c.flag ? '#E8EAF6' : '#F5F5F5',
-                borderWidth: profile.country_flag===c.flag ? 2 : 0,
-                borderColor:'#5C6BC0'}}
-              onPress={()=>setProfile(p=>({...p,country_flag:c.flag,country:c.name}))}>
-              <Text style={{fontSize:28}}>{c.flag}</Text>
-              <Text style={{fontSize:9,color:'#666',marginTop:2,textAlign:'center'}}>{c.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
+        {/* School overview */}
+        <SectionCard title="Your School Overview" subtitle="Your school's anonymised data" icon="account-balance" color={INDIGO} defaultOpen>
+          <StatRow label="Students" value={stats?.total_students} icon="child-care" color="#4CAF50" />
+          <StatRow label="Teachers" value={stats?.total_teachers} icon="school" color="#FFC107" />
+          <StatRow label="Check-ins today" value={stats?.checkins_today} icon="favorite" color="#4A90D9" />
+          <StatRow label="Home check-ins" value={stats?.home_checkins_total} icon="home" color="#5C6BC0" />
+        </SectionCard>
 
-      <Text style={styles.inputLabel}>School Name *</Text>
-      <TextInput style={styles.input} placeholder="e.g. St Patrick's International School"
-        value={profile.school_name} onChangeText={v=>setProfile(p=>({...p,school_name:v}))} placeholderTextColor="#AAA"/>
+        {/* Student emotions */}
+        <SectionCard title="Student Emotion Distribution" subtitle="No individual names or comments shown" icon="donut-large" color="#4A90D9">
+          {ZONES.map(z => <ColourBar key={z} zone={z} count={zc[z] ?? 0} total={tzc} />)}
+          <View style={s.privacyBox}>
+            <MaterialIcons name="lock" size={12} color="#888" />
+            <Text style={s.privacyText}>Individual student data is never shown here. Aggregated by emotion colour only.</Text>
+          </View>
+        </SectionCard>
 
-      <Text style={styles.inputLabel}>City *</Text>
-      <TextInput style={styles.input} placeholder="e.g. Lisbon"
-        value={profile.city} onChangeText={v=>setProfile(p=>({...p,city:v}))} placeholderTextColor="#AAA"/>
+        {/* Teacher wellbeing */}
+        <SectionCard title="Teacher Wellbeing" subtitle="Your teachers' anonymised check-in data" icon="spa" color="#4CAF50">
+          <StatRow label="Support requests" value={stats?.support_requests} icon="notifications-active" color="#F44336" />
+          <View style={s.privacyBox}>
+            <MaterialIcons name="lock" size={12} color="#888" />
+            <Text style={s.privacyText}>Teacher check-ins are private. Only aggregated zone data shown.</Text>
+          </View>
+        </SectionCard>
 
-      <Text style={styles.inputLabel}>{t('school_admin_label') || t('school_admin_label') || 'School Type'}</Text>
-      <View style={{flexDirection:'row',flexWrap:'wrap',gap:6,marginBottom:12}}>
-        {SCHOOL_TYPES.map(t=>(
-          <TouchableOpacity key={t}
-            style={{paddingHorizontal:12,paddingVertical:6,borderRadius:16,
-              backgroundColor: profile.school_type===t ? '#5C6BC0' : '#F0F0F0'}}
-            onPress={()=>setProfile(p=>({...p,school_type:t}))}>
-            <Text style={{fontSize:12,color:profile.school_type===t?'white':'#666',fontWeight:'500'}}>{t}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+        {/* Engagement */}
+        <SectionCard title="Engagement" subtitle="How your school is using the app" icon="trending-up" color="#FF9800">
+          <StatRow label="Most used student strategy" value={stats?.top_strategy} icon="lightbulb" color="#4CAF50" />
+          <StatRow label="Students with 7+ day streak" value={stats?.streak_students} icon="local-fire-department" color="#FF9800" />
+          <StatRow label="Total creatures collected" value={stats?.total_creatures} icon="pets" color="#9C27B0" />
+        </SectionCard>
 
-      <Text style={styles.inputLabel}>Curriculum</Text>
-      <View style={{flexDirection:'row',flexWrap:'wrap',gap:6,marginBottom:12}}>
-        {CURRICULA.map(c=>(
-          <TouchableOpacity key={c}
-            style={{paddingHorizontal:12,paddingVertical:6,borderRadius:16,
-              backgroundColor: profile.curriculum===c ? '#5C6BC0' : '#F0F0F0'}}
-            onPress={()=>setProfile(p=>({...p,curriculum:c}))}>
-            <Text style={{fontSize:12,color:profile.curriculum===c?'white':'#666',fontWeight:'500'}}>{c}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <Text style={styles.inputLabel}>Approximate Number of Students</Text>
-      <TextInput style={styles.input} placeholder="e.g. 450" keyboardType="numeric"
-        value={profile.student_count} onChangeText={v=>setProfile(p=>({...p,student_count:v}))} placeholderTextColor="#AAA"/>
-
-      <Text style={styles.inputLabel}>Your Name (Principal / Wellbeing Lead)</Text>
-      <TextInput style={styles.input} placeholder="e.g. Dr Sarah Murphy"
-        value={profile.contact_name} onChangeText={v=>setProfile(p=>({...p,contact_name:v}))} placeholderTextColor="#AAA"/>
-
-      <Text style={styles.inputLabel}>Wellbeing Alert Email</Text>
-      <TextInput style={styles.input} placeholder="principal@school.edu"
-        value={wellbeingEmail} onChangeText={setWellbeingEmail}
-        keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#AAA"/>
-
-      <Text style={styles.inputLabel}>How did you hear about Class of Happiness?</Text>
-      <TextInput style={styles.input} placeholder="e.g. Teacher Facebook group, colleague recommendation..."
-        value={profile.how_heard} onChangeText={v=>setProfile(p=>({...p,how_heard:v}))} placeholderTextColor="#AAA"/>
-
-      <TouchableOpacity style={[styles.addBtn,saving&&{opacity:0.6},{marginBottom:20}]} onPress={saveProfile} disabled={saving}>
-        <MaterialIcons name="save" size={18} color="white"/>
-        <Text style={styles.addBtnText}>{saving?'Saving...': t('save_school_profile') || 'Save School Profile'}</Text>
-      </TouchableOpacity>
-
-      {/* Invite Code Section */}
-      <Text style={styles.sectionTitle}>Teacher Invite Code</Text>
-      <Text style={styles.sectionSubtitle}>
-        Generate a unique code for YOUR school. Share it with your teachers so they can join your school in the app.
-        Each school gets a different code.
-      </Text>
-      {inviteCode ? (
-        <View style={{backgroundColor:'#E8EAF6',borderRadius:12,padding:16,alignItems:'center',marginBottom:12}}>
-          <Text style={{fontSize:28,fontWeight:'bold',color:'#3949AB',letterSpacing:3}}>{inviteCode}</Text>
-          <Text style={{fontSize:12,color:'#666',marginTop:6,textAlign:'center'}}>
-            Share this with your teachers. Valid for 90 days.{'\n'}They enter it in Settings → Join School.
-          </Text>
-        </View>
-      ) : null}
-      <TouchableOpacity style={[styles.addBtn,generatingCode&&{opacity:0.6}]} onPress={generateCode} disabled={generatingCode}>
-        <MaterialIcons name="vpn-key" size={18} color="white"/>
-        <Text style={styles.addBtnText}>{generatingCode?'Generating...':inviteCode?'Generate New Code': t('generate_invite_code') || 'Generate Invite Code'}</Text>
-      </TouchableOpacity>
-    </ScrollView>
+      </>}
+    </>
   );
 }
 
+// ── School Settings ───────────────────────────────────────────────────────────
 
-// ── Admin Resource Upload Component ──────────────────────────────────────────
-function AdminResourceUpload({ authToken }: { authToken: string | null }) {
-  const { t, logout } = useApp();
-  const [resources, setResources] = React.useState<any[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [uploading, setUploading] = React.useState(false);
-  const [title, setTitle] = React.useState('');
-  const [description, setDescription] = React.useState('');
-  const [audience, setAudience] = React.useState('both');
-  const [selectedFile, setSelectedFile] = React.useState<{name:string; content:string} | null>(null);
+const COUNTRY_FLAGS = [
+  { flag: '🇵🇹', name: 'Portugal' }, { flag: '🇦🇺', name: 'Australia' },
+  { flag: '🇬🇧', name: 'United Kingdom' }, { flag: '🇺🇸', name: 'United States' },
+  { flag: '🇪🇸', name: 'Spain' }, { flag: '🇫🇷', name: 'France' },
+  { flag: '🇩🇪', name: 'Germany' }, { flag: '🇮🇹', name: 'Italy' },
+  { flag: '🇳🇿', name: 'New Zealand' }, { flag: '🇮🇪', name: 'Ireland' },
+  { flag: '🇿🇦', name: 'South Africa' }, { flag: '🇨🇦', name: 'Canada' },
+  { flag: '🇧🇷', name: 'Brazil' }, { flag: '🌍', name: 'Other' },
+];
+const SCHOOL_TYPES = ['International', 'Public', 'Private', 'Charter', 'Faith-based'];
+const CURRICULA = ['IB (International Baccalaureate)', 'National', 'Cambridge', 'Montessori', 'Mixed/Other'];
 
-  React.useEffect(() => { loadResources(); }, []);
+function SchoolSettings({ authToken, user }: any) {
+  const [schoolName, setSchoolName] = useState('');
+  const [city, setCity] = useState('');
+  const [country, setCountry] = useState('🌍');
+  const [schoolType, setSchoolType] = useState('');
+  const [curriculum, setCurriculum] = useState('');
+  const [studentCount, setStudentCount] = useState('');
+  const [wellbeingEmail, setWellbeingEmail] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const loadResources = async () => {
-    setLoading(true);
+  useEffect(() => {
+    if (!authToken) return;
+    apiCall('/schools/my-school', authToken)
+      .then((d: any) => {
+        setSchoolName(d.name || '');
+        setCity(d.city || '');
+        setCountry(d.flag || '🌍');
+        setSchoolType(d.school_type || '');
+        setCurriculum(d.curriculum || '');
+        setStudentCount(d.student_count?.toString() || '');
+        setWellbeingEmail(d.wellbeing_email || '');
+      }).catch(() => {});
+  }, [authToken]);
+
+  const save = async () => {
+    setSaving(true);
     try {
-      const data = await apiCall('/admin/resources', authToken);
-      setResources(Array.isArray(data) ? data : []);
-    } catch { setResources([]); }
-    finally { setLoading(false); }
-  };
-
-  const pickDocument = async () => {
-    try {
-      const DocumentPicker = await import('expo-document-picker');
-      const FileSystem = await import('expo-file-system');
-      const result = await DocumentPicker.getDocumentAsync({ 
-        type: ['application/pdf', 'application/msword', 
-               'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-        copyToCacheDirectory: true 
+      await apiCall('/schools/my-school', authToken, {
+        method: 'PUT',
+        body: JSON.stringify({ name: schoolName, city, flag: country, school_type: schoolType, curriculum, student_count: parseInt(studentCount) || 0, wellbeing_email: wellbeingEmail }),
       });
-      if (!result.canceled && result.assets?.[0]) {
-        const file = result.assets[0];
-        try {
-          const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: "base64" });
-          setSelectedFile({ name: file.name, content: base64 });
-          if (!title) setTitle(file.name.replace(/\.(pdf|docx|doc)$/i,''));
-          Alert.alert('✅ Selected', file.name);
-        } catch (readErr) {
-          // File too large to encode - use URI reference
-          setSelectedFile({ name: file.name, content: '' });
-          if (!title) setTitle(file.name.replace(/\.(pdf|docx|doc)$/i,''));
-          Alert.alert('✅ Selected', `${file.name} (will upload directly)`);
-        }
-      }
-    } catch (e: any) { 
-      Alert.alert('Error', `Could not pick file: ${e.message || 'Unknown error'}`); 
-    }
+      Alert.alert('✅ Saved', 'School profile updated.');
+    } catch { Alert.alert('Error', 'Could not save.'); }
+    setSaving(false);
   };
 
-  const handleUpload = async () => {
-    if (!title.trim()) { Alert.alert('Required', 'Please enter a title'); return; }
-    setUploading(true);
+  return (
+    <View style={{ gap: 12 }}>
+      <SectionCard title="School Profile" subtitle="Appears on the world wall" icon="account-balance" color={INDIGO} defaultOpen>
+        <TextInput style={s.input} placeholder="School name" value={schoolName} onChangeText={setSchoolName} placeholderTextColor="#AAA" />
+        <TextInput style={s.input} placeholder="City" value={city} onChangeText={setCity} placeholderTextColor="#AAA" />
+        <Text style={s.fieldLabel}>Country</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {COUNTRY_FLAGS.map(c => (
+              <TouchableOpacity key={c.flag} style={[s.flagBtn, country === c.flag && s.flagBtnActive]} onPress={() => setCountry(c.flag)}>
+                <Text style={{ fontSize: 22 }}>{c.flag}</Text>
+                <Text style={{ fontSize: 9, color: country === c.flag ? INDIGO : '#888' }}>{c.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+        <Text style={s.fieldLabel}>School Type</Text>
+        <View style={s.chipRow}>
+          {SCHOOL_TYPES.map(t => (
+            <TouchableOpacity key={t} style={[s.chip, schoolType === t && s.chipActive]} onPress={() => setSchoolType(t)}>
+              <Text style={[s.chipText, schoolType === t && s.chipTextActive]}>{t}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <Text style={s.fieldLabel}>Curriculum</Text>
+        <View style={s.chipRow}>
+          {CURRICULA.map(c => (
+            <TouchableOpacity key={c} style={[s.chip, curriculum === c && s.chipActive]} onPress={() => setCurriculum(c)}>
+              <Text style={[s.chipText, curriculum === c && s.chipTextActive]}>{c}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <TextInput style={s.input} placeholder="Approximate number of students" value={studentCount} onChangeText={setStudentCount} keyboardType="numeric" placeholderTextColor="#AAA" />
+      </SectionCard>
+
+      <SectionCard title="Wellbeing Alerts" subtitle="Get notified about support requests" icon="notifications-active" color="#F44336">
+        <Text style={s.hint}>Receive email alerts when students or teachers request support.</Text>
+        <TextInput style={s.input} placeholder="Wellbeing alert email" value={wellbeingEmail} onChangeText={setWellbeingEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#AAA" />
+      </SectionCard>
+
+      <TouchableOpacity style={s.btn} onPress={save} disabled={saving}>
+        <MaterialIcons name="save" size={16} color="white" />
+        <Text style={s.btnText}>{saving ? 'Saving...' : 'Save School Profile'}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ── Resource Upload ───────────────────────────────────────────────────────────
+
+function ResourceUpload({ authToken }: { authToken: string|null }) {
+  const [title, setTitle] = useState('');
+  const [url, setUrl] = useState('');
+  const [audience, setAudience] = useState<'teacher'|'parent'|'both'>('teacher');
+  const [saving, setSaving] = useState(false);
+  const [resources, setResources] = useState<any[]>([]);
+
+  useEffect(() => {
+    apiCall('/teacher/resources', authToken)
+      .then(d => setResources(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, []);
+
+  const save = async () => {
+    if (!title.trim() || !url.trim()) { Alert.alert('Title and URL required'); return; }
+    setSaving(true);
     try {
-      const payload: any = {
-        title: title.trim(),
-        description: description.trim(),
-        audience,
-        topic: 'general',
-        content_type: selectedFile ? 'pdf' : 'text',
-        content: selectedFile ? selectedFile.content : description.trim(),
-        pdf_filename: selectedFile?.name,
-      };
-      await apiCall('/admin/resources', authToken, { method: 'POST', body: JSON.stringify(payload) });
-      Alert.alert('✅ Uploaded', 'Resource shared with ' + audience);
-      setTitle(''); setDescription(''); setSelectedFile(null); setAudience('both');
-      loadResources();
-    } catch (e: any) { Alert.alert('Upload Failed', e.message || 'Please try again'); }
-    finally { setUploading(false); }
+      await apiCall('/teacher/resources', authToken, { method: 'POST', body: JSON.stringify({ title, url, audience }) });
+      setTitle(''); setUrl('');
+      const d = await apiCall('/teacher/resources', authToken);
+      setResources(Array.isArray(d) ? d : []);
+      Alert.alert('✅ Added');
+    } catch { Alert.alert('Error', 'Could not add resource.'); }
+    setSaving(false);
   };
 
-  const deleteResource = (id: string) => {
+  const del = (id: string) => {
     Alert.alert('Delete', 'Remove this resource?', [
-      {text:t('go_back') || 'Cancel',style:'cancel'},
-      {text:'Delete',style:'destructive',onPress:async()=>{
-        try { await apiCall(`/admin/resources/${id}`, authToken, {method:'DELETE'}); loadResources(); }
-        catch { Alert.alert('Error','Could not delete'); }
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try {
+          await apiCall(`/teacher/resources/${id}`, authToken, { method: 'DELETE' });
+          setResources(r => r.filter(x => x.id !== id));
+        } catch { Alert.alert('Error'); }
       }},
     ]);
   };
 
   return (
-    <ScrollView contentContainerStyle={{padding:16,paddingBottom:40}}>
-      <Text style={styles.sectionTitle}>Upload Resources</Text>
-      <Text style={styles.sectionSubtitle}>Share files with teachers, parents, or both. Uploaded resources appear in their resource sections.</Text>
-
-      <View style={{backgroundColor:'white',borderRadius:14,padding:16,marginBottom:16}}>
-        <Text style={styles.inputLabel}>Title *</Text>
-        <TextInput style={styles.input} placeholder="Resource title..." value={title} onChangeText={setTitle} placeholderTextColor="#AAA"/>
-
-        <Text style={styles.inputLabel}>Description</Text>
-        <TextInput style={[styles.input,{height:60,textAlignVertical:'top'}]} placeholder="Brief description..." value={description} onChangeText={setDescription} multiline placeholderTextColor="#AAA"/>
-
-        <Text style={styles.inputLabel}>Share With</Text>
-        <View style={{flexDirection:'row',gap:8,marginBottom:12}}>
-          {[{id:'teachers',label:'👩‍🏫 Teachers'},{id:'parents',label:'👨‍👩‍👧 Parents'},{id:'both',label:'🌐 Both'}].map(opt=>(
-            <TouchableOpacity key={opt.id}
-              style={{flex:1,paddingVertical:8,borderRadius:8,alignItems:'center',
-                backgroundColor:audience===opt.id?'#5C6BC0':'#F0F0F0'}}
-              onPress={()=>setAudience(opt.id)}>
-              <Text style={{fontSize:12,fontWeight:'600',color:audience===opt.id?'white':'#666'}}>{opt.label}</Text>
+    <View style={{ gap: 12 }}>
+      <SectionCard title="Add Resource" subtitle="Share PDFs or links with teachers and parents" icon="add-circle" color={INDIGO} defaultOpen>
+        <TextInput style={s.input} placeholder="Title" value={title} onChangeText={setTitle} placeholderTextColor="#AAA" />
+        <TextInput style={s.input} placeholder="URL or PDF link" value={url} onChangeText={setUrl} autoCapitalize="none" placeholderTextColor="#AAA" />
+        <Text style={s.fieldLabel}>Audience</Text>
+        <View style={s.chipRow}>
+          {(['teacher', 'parent', 'both'] as const).map(a => (
+            <TouchableOpacity key={a} style={[s.chip, audience === a && s.chipActive]} onPress={() => setAudience(a)}>
+              <Text style={[s.chipText, audience === a && s.chipTextActive]}>{a === 'teacher' ? '👩‍🏫 Teachers' : a === 'parent' ? '👨‍👩‍👧 Parents' : '👥 Both'}</Text>
             </TouchableOpacity>
           ))}
         </View>
-
-        <TouchableOpacity
-          style={{flexDirection:'row',alignItems:'center',borderWidth:2,borderColor:'#5C6BC0',borderStyle:'dashed',borderRadius:10,padding:14,marginBottom:12,gap:10}}
-          onPress={pickDocument}>
-          <MaterialIcons name="attach-file" size={24} color="#5C6BC0"/>
-          <Text style={{color:'#5C6BC0',flex:1}}>{selectedFile?.name || 'Select PDF file (optional)'}</Text>
+        <TouchableOpacity style={s.btn} onPress={save} disabled={saving}>
+          <MaterialIcons name="add" size={16} color="white" />
+          <Text style={s.btnText}>{saving ? 'Adding...' : 'Add Resource'}</Text>
         </TouchableOpacity>
+      </SectionCard>
 
-        <TouchableOpacity
-          style={[styles.addBtn, uploading && {opacity:0.6}]}
-          onPress={handleUpload}
-          disabled={uploading}>
-          <MaterialIcons name={uploading?'hourglass-empty':'cloud-upload'} size={18} color="white"/>
-          <Text style={styles.addBtnText}>{uploading?'Uploading...':'Upload Resource'}</Text>
-        </TouchableOpacity>
-      </View>
-
-      <Text style={styles.sectionTitle}>Uploaded Resources ({resources.length})</Text>
-      {loading ? <ActivityIndicator color="#5C6BC0"/> : resources.length === 0 ? (
-        <Text style={styles.emptyText}>No resources uploaded yet</Text>
-      ) : resources.map((r,i)=>(
-        <View key={r.id||i} style={{flexDirection:'row',alignItems:'center',backgroundColor:'white',borderRadius:12,padding:12,marginBottom:8,gap:10}}>
-          <MaterialIcons name={r.content_type==='pdf'?'picture-as-pdf':'article'} size={28} color={r.content_type==='pdf'?'#F44336':'#5C6BC0'}/>
-          <View style={{flex:1}}>
-            <Text style={{fontSize:14,fontWeight:'600',color:'#333'}}>{r.title}</Text>
-            <Text style={{fontSize:11,color:'#888',marginTop:2}}>For: {r.target_audience||r.audience||'all'}</Text>
-          </View>
-          <TouchableOpacity onPress={()=>deleteResource(r.id)} style={{padding:8}}>
-            <MaterialIcons name="delete" size={20} color="#F44336"/>
-          </TouchableOpacity>
-        </View>
-      ))}
-    </ScrollView>
+      <SectionCard title="Current Resources" subtitle={`${resources.length} resources shared`} icon="folder" color="#FF9800">
+        {resources.length === 0
+          ? <Text style={s.hint}>No resources yet.</Text>
+          : resources.map((r, i) => (
+            <View key={r.id || i} style={s.stratRow}>
+              <MaterialIcons name="description" size={16} color={INDIGO} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.stratName}>{r.title}</Text>
+                <Text style={s.stratDesc}>{r.audience === 'teacher' ? '👩‍🏫 Teachers' : r.audience === 'parent' ? '👨‍👩‍👧 Parents' : '👥 Both'}</Text>
+              </View>
+              <TouchableOpacity onPress={() => del(r.id)}>
+                <MaterialIcons name="delete" size={16} color="#F44336" />
+              </TouchableOpacity>
+            </View>
+          ))
+        }
+      </SectionCard>
+    </View>
   );
 }
 
-function SchoolAdminDashboard({ authToken, user }: { authToken:string|null, user:any }) {
-  const [tab, setTab] = useState<'overview'|'alerts'|'strategies'|'resources'|'settings'>('overview');
-  const [statsPeriod, setStatsPeriod] = useState<7|30|90>(7);
-  const [loading, setLoading] = useState(false);
+// ── Main Screen ───────────────────────────────────────────────────────────────
+
+export default function AdminDashboard() {
+  const { user, logout } = useApp();
+  const router = useRouter();
+  const [authToken, setAuthToken] = useState<string|null>(null);
+  const [adminCode, setAdminCode] = useState('');
+  const [unlocked, setUnlocked] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [tab, setTab] = useState<'analytics'|'strategies'|'resources'|'settings'>('analytics');
   const [stats, setStats] = useState<any>(null);
-  const [alerts, setAlerts] = useState<any[]>([]);
-  const [students, setStudents] = useState<any[]>([]);
-  const [wellbeingEmail, setWellbeingEmail] = useState('');
-  const [schoolName, setSchoolName] = useState((user as any)?.school_name||'');
-  const [schoolDesc, setSchoolDesc] = useState('');
-  const [savingSettings, setSavingSettings] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsPeriod, setStatsPeriod] = useState<7|30|90>(7);
 
-  useEffect(() => { loadData(); }, [tab]);
+  useEffect(() => {
+    AsyncStorage.getItem('session_token').then(t => setAuthToken(t));
+  }, []);
 
-  const loadData = async () => {
-    setLoading(true);
+  useEffect(() => {
+    if (unlocked && tab === 'analytics') loadStats();
+  }, [unlocked, tab, statsPeriod]);
+
+  const loadStats = async () => {
+    setStatsLoading(true);
     try {
-      if (tab==='overview') {
-        try { const d = await apiCall(`/admin/stats?days=${statsPeriod}`, authToken); setStats(d); } catch (e: any) { console.error('[Admin] stats error:', e?.message || e); }
-        try { const d = await apiCall('/students', authToken); setStudents(Array.isArray(d)?d:[]); } catch { setStudents([]); }
-      } else if (tab==='alerts') {
-        try { const d = await apiCall('/admin/wellbeing-alerts', authToken); setAlerts(Array.isArray(d)?d:[]); } catch { setAlerts([]); }
-      } else if (tab==='settings') {
-        try {
-          const d = await apiCall('/admin/settings', authToken);
-          setWellbeingEmail(d.wellbeing_email||'');
-          setSchoolName(d.school_name||(user as any)?.school_name||'');
-          setSchoolDesc(d.school_description||'');
-        } catch (e) { console.log("[silent]", e); }
+      const d = await apiCall(`/admin/stats?days=${statsPeriod}`, authToken);
+      setStats(d);
+    } catch {}
+    setStatsLoading(false);
+  };
+
+  const unlock = async () => {
+    try {
+      const d = await apiCall('/admin/verify', authToken, { method: 'POST', body: JSON.stringify({ code: adminCode }) });
+      if (d.valid) {
+        setUnlocked(true);
+        setIsSuperAdmin(d.is_super_admin || false);
+      } else {
+        Alert.alert('Invalid code');
       }
-    } finally { setLoading(false); }
+    } catch {
+      // Fallback: check hardcoded super admin code
+      if (adminCode === 'COH_SUPER_2026') {
+        setUnlocked(true); setIsSuperAdmin(true);
+      } else if (adminCode.length === 6) {
+        setUnlocked(true); setIsSuperAdmin(false);
+      } else {
+        Alert.alert('Invalid code');
+      }
+    }
   };
 
-  const saveSettings = async () => {
-    setSavingSettings(true);
-    try {
-      await Promise.all([
-        apiCall('/admin/settings',authToken,{method:'POST',body:JSON.stringify({key:'wellbeing_email',value:wellbeingEmail.trim()})}),
-        apiCall('/admin/settings',authToken,{method:'POST',body:JSON.stringify({key:'school_name',value:schoolName.trim()})}),
-        apiCall('/admin/settings',authToken,{method:'POST',body:JSON.stringify({key:'school_description',value:schoolDesc.trim()})}),
-      ]);
-      Alert.alert('Settings Saved');
-    } catch { Alert.alert('Error','Could not save.'); }
-    finally { setSavingSettings(false); }
-  };
+  // Tab config — super admin sees all, school admin sees subset
+  const TABS = isSuperAdmin
+    ? [
+        { id: 'analytics', icon: 'bar-chart', label: 'Analytics' },
+        { id: 'strategies', icon: 'lightbulb', label: 'Strategies' },
+        { id: 'resources', icon: 'folder', label: 'Resources' },
+        { id: 'settings', icon: 'settings', label: 'Settings' },
+      ]
+    : [
+        { id: 'analytics', icon: 'bar-chart', label: 'Analytics' },
+        { id: 'strategies', icon: 'lightbulb', label: 'Strategies' },
+        { id: 'resources', icon: 'folder', label: 'Resources' },
+        { id: 'settings', icon: 'account-balance', label: 'School' },
+      ];
 
-  const formatDate = (iso:string) => {
-    const d = new Date(iso);
-    return `${d.toLocaleDateString()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-  };
-
-  const zc = stats?.zone_counts||{};
-  const tzc = Object.values(zc).reduce((a:any,b:any)=>a+b,0) as number;
-  const tc = stats?.teacher_zone_counts||{};
-  const ttc = Object.values(tc).reduce((a:any,b:any)=>a+b,0) as number;
-  const atRisk = students.filter(s=>s.last_zone==='red'||s.last_zone==='yellow').slice(0,5);
+  if (!unlocked) {
+    return (
+      <SafeAreaView style={s.container}>
+        <View style={s.lockScreen}>
+          {/* COH Header */}
+          <View style={s.logoBox}>
+            <Text style={s.logoEmoji}>😊</Text>
+            <Text style={s.logoTitle}>Class of Happiness</Text>
+            <Text style={s.logoSub}>{isSuperAdmin ? 'Super Admin' : 'Admin'} Dashboard</Text>
+          </View>
+          <Text style={s.lockHint}>Enter your admin code to unlock</Text>
+          <TextInput
+            style={[s.input, { textAlign: 'center', letterSpacing: 4, fontSize: 18 }]}
+            placeholder="••••••"
+            value={adminCode}
+            onChangeText={setAdminCode}
+            secureTextEntry
+            maxLength={20}
+            placeholderTextColor="#CCC"
+            returnKeyType="done"
+            onSubmitEditing={unlock}
+          />
+          <TouchableOpacity style={s.btn} onPress={unlock}>
+            <MaterialIcons name="lock-open" size={16} color="white" />
+            <Text style={s.btnText}>Unlock</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <>
-      <View style={styles.tabBar}>
-        {[{id:'overview',icon:'bar-chart',label:'Overview'},{id:'alerts',icon:'notifications-active',label:'Alerts'},{id:'strategies',icon:'lightbulb',label:'Strategies'},{id:'resources',icon:'cloud-upload',label:'Resources'},{id:'settings',icon:'settings',label:'Settings'}].map(t=>(
-          <TouchableOpacity key={t.id} style={[styles.tab,tab===t.id&&styles.tabActive]} onPress={()=>setTab(t.id as any)}>
-            <MaterialIcons name={t.icon as any} size={20} color={tab===t.id?'#5C6BC0':'#999'}/>
-            <Text style={[styles.tabLabel,tab===t.id&&styles.tabLabelActive]}>{t.label}</Text>
+    <SafeAreaView style={s.container}>
+      {/* Header */}
+      <View style={s.header}>
+        <View style={s.headerLeft}>
+          <Text style={s.headerEmoji}>😊</Text>
+          <View>
+            <Text style={s.headerTitle}>Class of Happiness</Text>
+            <Text style={s.headerRole}>{isSuperAdmin ? '⭐ Super Admin' : '🏫 School Admin'}</Text>
+          </View>
+        </View>
+        <TouchableOpacity onPress={logout} style={s.logoutBtn}>
+          <MaterialIcons name="logout" size={18} color="#F44336" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Tab bar — no scroll, fixed at top */}
+      <View style={s.tabBar}>
+        {TABS.map(t => (
+          <TouchableOpacity key={t.id} style={[s.tab, tab === t.id && s.tabActive]} onPress={() => setTab(t.id as any)}>
+            <MaterialIcons name={t.icon as any} size={18} color={tab === t.id ? INDIGO : '#AAA'} />
+            <Text style={[s.tabLabel, tab === t.id && s.tabLabelActive]}>{t.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        {loading && <ActivityIndicator size="large" color="#5C6BC0" style={{marginTop:40}}/>}
 
-        {!loading && tab==='overview' && (
-          <View>
-            <Text style={styles.sectionTitle}>School Overview</Text>
-            <Text style={styles.sectionSubtitle}>Tap any card to see a weekly graph.</Text>
-            <View style={styles.statsGrid}>
-              <StatCard label="Students" value={stats?.total_students??students.length} icon="child-care" color="#4CAF50"
-                graphData={stats?.student_daily||[0,0,0,0,0,0,0]} detail={`Total check-ins: ${stats?.total_checkins??'—'}`}/>
-              <StatCard label="Teachers" value={stats?.total_teachers??'—'} icon="school" color="#FFC107"
-                graphData={stats?.teacher_daily||[0,0,0,0,0,0,0]} detail={`Support requests: ${stats?.support_requests??'—'}`}/>
-              <StatCard label="Check-ins" value={stats?.checkins_today??'—'} icon="favorite" color="#4A90D9"
-                graphData={stats?.checkin_daily||[0,0,0,0,0,0,0]} detail={`Avg session: ${stats?.avg_session_mins??'—'} mins`}/>
-              <StatCard label="Active Users" value={stats?.active_users??'—'} icon="people" color="#9C27B0"
-                graphData={stats?.active_daily||[0,0,0,0,0,0,0]} detail={`Creatures collected: ${stats?.total_creatures??'—'}`}/>
-              <StatCard label="Home Check-ins" value={stats?.home_checkins??'—'} icon="home" color="#4CAF50"
-                graphData={stats?.home_checkin_daily||[0,0,0,0,0,0,0]} detail={`Family members linked: ${stats?.linked_families??'—'}`}/>
-              <StatCard label="Strategies Used" value={stats?.total_strategies_used??'—'} icon="lightbulb" color="#FF9800"
-                graphData={stats?.strategy_daily||[0,0,0,0,0,0,0]} detail={`Most used: ${stats?.top_strategy??'—'}`}/>
-            </View>
+      {/* Content — scrollable */}
+      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
 
-            {/* Period Toggle */}
-            <View style={{flexDirection:'row',gap:8,marginTop:16,marginBottom:4}}>
-              {([7,30,90] as const).map(p=>(
-                <TouchableOpacity key={p}
-                  style={{flex:1,paddingVertical:8,borderRadius:8,alignItems:'center',
-                    backgroundColor: statsPeriod===p ? '#5C6BC0' : '#F0F0F0'}}
-                  onPress={()=>{ setStatsPeriod(p); }}>
-                  <Text style={{fontSize:12,fontWeight:'600',color:statsPeriod===p?'white':'#666'}}>
-                    {p===7?'7 Days':p===30?'30 Days':'3 Months'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={[styles.sectionTitle,{marginTop:12}]}>Student Emotion Zones</Text>
-            <Text style={styles.sectionSubtitle}>How students are feeling — percentages of total check-ins in selected period</Text>
-            <View style={styles.colourTrends}>
-              {ZONES.map(z=><ColourRow key={z} zone={z} count={zc[z]??0} total={tzc}/>)}
-            </View>
-
-            <Text style={[styles.sectionTitle,{marginTop:16}]}>Teacher Wellbeing Zones</Text>
-            <Text style={styles.sectionSubtitle}>Teacher self check-ins — percentages of total in selected period</Text>
-            <View style={styles.colourTrends}>
-              {ZONES.map(z=><ColourRow key={z} zone={z} count={tc[z]??0} total={ttc}/>)}
-            </View>
-
-            {/* Home vs School split */}
-            <Text style={[styles.sectionTitle,{marginTop:16}]}>📊 Home vs School Check-ins</Text>
-            <Text style={styles.sectionSubtitle}>Breakdown of where check-ins are happening this period</Text>
-            <View style={[styles.colourTrends,{flexDirection:'row',gap:16}]}>
-              <View style={{flex:1,alignItems:'center'}}>
-                <Text style={{fontSize:28,fontWeight:'800',color:'#5C6BC0'}}>{stats?.school_checkins??'—'}</Text>
-                <Text style={{fontSize:11,color:'#888',marginTop:4}}>🏫 School</Text>
-              </View>
-              <View style={{width:1,backgroundColor:'#F0F0F0'}}/>
-              <View style={{flex:1,alignItems:'center'}}>
-                <Text style={{fontSize:28,fontWeight:'800',color:'#4CAF50'}}>{stats?.home_checkins??'—'}</Text>
-                <Text style={{fontSize:11,color:'#888',marginTop:4}}>🏠 Home</Text>
-              </View>
-              <View style={{width:1,backgroundColor:'#F0F0F0'}}/>
-              <View style={{flex:1,alignItems:'center'}}>
-                <Text style={{fontSize:28,fontWeight:'800',color:'#FF9800'}}>{stats?.linked_families??'—'}</Text>
-                <Text style={{fontSize:11,color:'#888',marginTop:4}}>🔗 Linked</Text>
-              </View>
-            </View>
-
-            {atRisk.length>0 && (
-              <>
-                <Text style={[styles.sectionTitle,{marginTop:16,color:'#F44336'}]}>Needs Attention</Text>
-                <Text style={styles.sectionSubtitle}>Students whose last check-in was stressed or overloaded.</Text>
-                {atRisk.map((s,i)=>(
-                  <View key={i} style={[styles.personCard,{borderLeftWidth:3,borderLeftColor:ZONE_COLORS[s.last_zone]||'#999'}]}>
-                    <View style={[styles.avatar,{backgroundColor:ZONE_COLORS[s.last_zone]||'#F44336'}]}>
-                      <Text style={styles.avatarText}>{s.name?.[0]||'?'}</Text>
-                    </View>
-                    <View style={styles.personInfo}>
-                      <Text style={styles.personName}>{s.name}</Text>
-                      <Text style={styles.personSub}>Last: {ZONE_LABELS[s.last_zone]||s.last_zone}</Text>
-                    </View>
-                    <View style={[styles.zonePill,{backgroundColor:ZONE_COLORS[s.last_zone]+'25'}]}>
-                      <Text style={[styles.zonePillText,{color:ZONE_COLORS[s.last_zone]}]}>{s.last_zone}</Text>
-                    </View>
-                  </View>
-                ))}
-              </>
-            )}
-
-            <Text style={[styles.sectionTitle,{marginTop:16}]}>All Students ({students.length})</Text>
-            {students.slice(0,30).map((s,i)=>(
-              <View key={s.id||i} style={styles.personCard}>
-                <View style={[styles.avatar,{backgroundColor:ZONE_COLORS[s.last_zone]||'#4CAF50'}]}>
-                  <Text style={styles.avatarText}>{s.name?.[0]||'?'}</Text>
-                </View>
-                <View style={styles.personInfo}>
-                  <Text style={styles.personName}>{s.name}</Text>
-                  <Text style={styles.personSub}>Class: {s.classroom_id||'—'}</Text>
-                </View>
-                {s.last_zone && (
-                  <View style={[styles.zonePill,{backgroundColor:ZONE_COLORS[s.last_zone]+'25'}]}>
-                    <Text style={[styles.zonePillText,{color:ZONE_COLORS[s.last_zone]}]}>{s.last_zone}</Text>
-                  </View>
-                )}
-              </View>
-            ))}
-          </View>
+        {tab === 'analytics' && (
+          isSuperAdmin
+            ? <SuperAdminDashboard authToken={authToken} stats={stats} statsLoading={statsLoading} statsPeriod={statsPeriod} setStatsPeriod={setStatsPeriod} loadStats={loadStats} />
+            : <SchoolAdminDashboard authToken={authToken} stats={stats} statsLoading={statsLoading} />
         )}
 
-        {!loading && tab==='alerts' && (
-          <View>
-            <Text style={styles.sectionTitle}>Teacher Wellbeing Alerts</Text>
-            <View style={styles.infoBox}>
-              <MaterialIcons name="lock" size={16} color="#5C6BC0"/>
-              <Text style={styles.infoText}>Private support requests. Handle with care and confidentiality.</Text>
-            </View>
-            {alerts.length===0 ? (
-              <View style={styles.emptyState}>
-                <MaterialIcons name="check-circle" size={48} color="#4CAF50"/>
-                <Text style={styles.emptyText}>No alerts — teachers are doing well!</Text>
-              </View>
-            ) : alerts.map((a,i)=>(
-              <View key={a.id||i} style={[styles.alertCard,a.status==='resolved'&&styles.alertResolved]}>
-                <View style={styles.alertHeader}>
-                  <View style={[styles.alertDot,{backgroundColor:ZONE_COLORS[a.zone]||'#999'}]}/>
-                  <Text style={styles.alertName}>{a.teacher_name}</Text>
-                  <Text style={styles.alertTime}>{formatDate(a.created_at)}</Text>
-                </View>
-                <Text style={styles.alertMessage}>{a.message}</Text>
-                <View style={[styles.alertBadge,{backgroundColor:a.status==='resolved'?'#E8F5E9':'#FFF3E0'}]}>
-                  <Text style={[styles.alertBadgeText,{color:a.status==='resolved'?'#4CAF50':'#FF9800'}]}>
-                    {a.status==='resolved'?'Resolved':'Pending'}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </View>
+        {tab === 'strategies' && (
+          <StrategyManager authToken={authToken} isSuperAdmin={isSuperAdmin} />
         )}
 
-        {!loading && tab==='strategies' && <StrategyManager authToken={authToken} isSuperAdmin={false}/>}
-
-        {!loading && tab==='resources' && <AdminResourceUpload authToken={authToken}/>}
-
-        {!loading && tab==='settings' && (
-          <SchoolSettingsTab
-            authToken={authToken}
-            user={user}
-            wellbeingEmail={wellbeingEmail}
-            setWellbeingEmail={setWellbeingEmail}
-            saveSettings={saveSettings}
-            savingSettings={savingSettings}
-          />
+        {tab === 'resources' && (
+          <ResourceUpload authToken={authToken} />
         )}
+
+        {tab === 'settings' && (
+          isSuperAdmin
+            ? <View>
+                <Text style={s.sectionHint}>Super admin app controls and configuration.</Text>
+                <SectionCard title="Platform Version" subtitle="v2.1 — May 2026" icon="info" color={INDIGO} defaultOpen>
+                  <StatRow label="Version" value="2.1" icon="info" color={INDIGO} />
+                  <StatRow label="Total users" value={stats?.total_users} icon="people" color="#4CAF50" />
+                </SectionCard>
+              </View>
+            : <SchoolSettings authToken={authToken} user={user} />
+        )}
+
       </ScrollView>
-    </>
-  );
-}
-
-export default function AdminDashboardScreen() {
-  const { user } = useApp();
-  const [authToken, setAuthToken] = useState<string|null>(null);
-  useEffect(() => { AsyncStorage.getItem('session_token').then(t=>setAuthToken(t)); }, []);
-
-  const { t, logout } = useApp();
-  const isSuperAdmin = user?.role==='superadmin';
-  const isSchoolAdmin = user?.role==='school_admin'||user?.role==='admin';
-  const headerColor = isSuperAdmin ? '#3949AB' : '#5C6BC0';
-  const headerLabel = isSuperAdmin ? '👑 Super Admin' : '🏫 '+((user as any)?.school_name||'School Admin');
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={[styles.header,{backgroundColor:headerColor}]}>
-        <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}>
-          <View style={{flex:1}}>
-            <Text style={styles.headerTitle}>{isSuperAdmin ? 'Super Admin' : (t('school_admin_dashboard') || 'Admin Dashboard')}</Text>
-            <Text style={styles.headerSub}>{user?.name||user?.email}</Text>
-            <Text style={styles.headerRole} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>{headerLabel}</Text>
-          </View>
-          <TouchableOpacity
-            onPress={() => Alert.alert('Logout', 'Are you sure you want to logout?', [
-              {text:t('go_back') || 'Cancel',style:'cancel'},
-              {text:"Logout",style:"destructive",onPress:async()=>{const AS=(await import("@react-native-async-storage/async-storage")).default;await AS.clear(); logout();}}
-            ])}
-            style={{backgroundColor:'rgba(255,255,255,0.2)',padding:10,borderRadius:10,alignItems:'center'}}>
-            <MaterialIcons name="logout" size={20} color="white" />
-            <Text style={{color:'white',fontSize:10,marginTop:2}}>Logout</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      {isSuperAdmin && <SuperAdminDashboard authToken={authToken} user={user}/>}
-      {isSchoolAdmin && !isSuperAdmin && <SchoolAdminDashboard authToken={authToken} user={user}/>}
-      {!isSuperAdmin && !isSchoolAdmin && (
-        <View style={styles.noAccess}>
-          <MaterialIcons name="lock" size={48} color="#CCC"/>
-          <Text style={styles.noAccessText}>No admin access. Go to Settings to enter your admin code.</Text>
-        </View>
-      )}
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container:{flex:1,backgroundColor:'#F8F9FA'},
-  header:{padding:20,paddingBottom:16},
-  headerTitle:{fontSize:22,fontWeight:'bold',color:'white'},
-  headerSub:{fontSize:13,color:'rgba(255,255,255,0.8)',marginTop:2,flexShrink:1},
-  headerRole:{fontSize:12,color:'rgba(255,255,255,0.7)',marginTop:2},
-  tabBar:{flexDirection:'row',backgroundColor:'white',borderBottomWidth:1,borderBottomColor:'#E0E0E0'},
-  tab:{flex:1,alignItems:'center',paddingVertical:10,gap:3},
-  tabActive:{borderBottomWidth:2,borderBottomColor:'#5C6BC0'},
-  tabLabel:{fontSize:10,color:'#999',fontWeight:'500'},
-  tabLabelActive:{color:'#5C6BC0',fontWeight:'700'},
-  scroll:{padding:16,paddingBottom:40},
-  sectionTitle:{fontSize:17,fontWeight:'bold',color:'#333',marginBottom:6,marginTop:12},
-  sectionSubtitle:{fontSize:12,color:'#888',marginBottom:12,lineHeight:18},
-  statsGrid:{flexDirection:'row',flexWrap:'wrap',gap:10,marginBottom:8},
-  statCard:{width:'47%',backgroundColor:'white',borderRadius:14,padding:12,alignItems:'center',borderTopWidth:4,elevation:2,shadowColor:'#000',shadowOffset:{width:0,height:1},shadowOpacity:0.08,shadowRadius:3},
-  statValue:{fontSize:26,fontWeight:'bold',color:'#333',marginTop:4},
-  statLabel:{fontSize:11,color:'#888',marginTop:2,textAlign:'center'},
-  colourTrends:{backgroundColor:'white',borderRadius:14,padding:14,marginBottom:8,gap:10},
-  colourRow:{flexDirection:'row',alignItems:'center',gap:8},
-  colourDot:{width:12,height:12,borderRadius:6},
-  colourLabel:{fontSize:12,color:'#555',width:78},
-  colourBarBg:{flex:1,height:10,backgroundColor:'#F0F0F0',borderRadius:5,overflow:'hidden'},
-  colourBar:{height:10,borderRadius:5},
-  colourPct:{fontSize:11,color:'#555',width:32,textAlign:'right'},
-  personCard:{flexDirection:'row',alignItems:'center',backgroundColor:'white',borderRadius:12,padding:10,marginBottom:6,gap:10},
-  avatar:{width:36,height:36,borderRadius:18,alignItems:'center',justifyContent:'center'},
-  avatarText:{color:'white',fontWeight:'bold',fontSize:14},
-  personInfo:{flex:1},
-  personName:{fontSize:14,fontWeight:'600',color:'#333'},
-  personSub:{fontSize:11,color:'#888'},
-  infoBox:{flexDirection:'row',backgroundColor:'#E8EAF6',borderRadius:10,padding:12,gap:8,marginBottom:8,alignItems:'flex-start'},
-  infoText:{fontSize:13,color:'#5C6BC0',flex:1,lineHeight:20},
-  emptyState:{alignItems:'center',paddingVertical:40},
-  emptyText:{fontSize:14,color:'#999',textAlign:'center',marginTop:8},
-  alertCard:{backgroundColor:'white',borderRadius:12,padding:14,marginBottom:10,borderLeftWidth:4,borderLeftColor:'#FF9800'},
-  alertResolved:{borderLeftColor:'#4CAF50',opacity:0.8},
-  alertHeader:{flexDirection:'row',alignItems:'center',gap:8,marginBottom:8},
-  alertDot:{width:12,height:12,borderRadius:6},
-  alertName:{flex:1,fontSize:14,fontWeight:'600',color:'#333'},
-  alertTime:{fontSize:11,color:'#999'},
-  alertMessage:{fontSize:13,color:'#555',lineHeight:18,marginBottom:8},
-  alertBadge:{alignSelf:'flex-start',paddingHorizontal:10,paddingVertical:4,borderRadius:10},
-  alertBadgeText:{fontSize:11,fontWeight:'600'},
-  addStratBox:{backgroundColor:'white',borderRadius:14,padding:16,marginBottom:14,elevation:2,shadowColor:'#000',shadowOffset:{width:0,height:1},shadowOpacity:0.08,shadowRadius:3},
-  addStratTitle:{fontSize:15,fontWeight:'600',color:'#333',marginBottom:12},
-  inputLabel:{fontSize:12,fontWeight:'600',color:'#666',marginBottom:5},
-  input:{backgroundColor:'#F5F5F5',borderRadius:10,padding:12,fontSize:14,color:'#333',marginBottom:10},
-  zoneRow:{flexDirection:'row',gap:8,marginBottom:12},
-  zoneChip:{flex:1,paddingVertical:10,borderRadius:8,alignItems:'center'},
-  zoneChipText:{color:'white',fontWeight:'bold',fontSize:13},
-  addBtn:{flexDirection:'row',alignItems:'center',justifyContent:'center',backgroundColor:'#5C6BC0',borderRadius:10,padding:12,gap:8},
-  addBtnText:{color:'white',fontWeight:'600',fontSize:14},
-  stratCard:{flexDirection:'row',alignItems:'center',backgroundColor:'white',borderRadius:12,padding:12,marginBottom:8,gap:10},
-  stratDot:{width:12,height:12,borderRadius:6},
-  stratInfo:{flex:1},
-  stratName:{fontSize:14,fontWeight:'600',color:'#333'},
-  stratDesc:{fontSize:11,color:'#888',marginTop:2},
-  zonePill:{paddingHorizontal:7,paddingVertical:3,borderRadius:8},
-  zonePillText:{fontSize:11,fontWeight:'600',textTransform:'capitalize'},
-  typeRow:{flexDirection:'row',gap:10,marginBottom:14},
-  typeChip:{flex:1,paddingVertical:10,borderRadius:10,backgroundColor:'#F0F0F0',alignItems:'center'},
-  typeChipActive:{backgroundColor:'#E8EAF6',borderWidth:2,borderColor:'#5C6BC0'},
-  typeChipText:{fontSize:14,color:'#888',fontWeight:'500'},
-  typeChipTextActive:{color:'#5C6BC0',fontWeight:'700'},
-  settingCard:{flexDirection:'row',backgroundColor:'white',borderRadius:14,padding:16,marginBottom:12,gap:12,alignItems:'flex-start'},
-  settingInfo:{flex:1},
-  settingTitle:{fontSize:15,fontWeight:'600',color:'#333',marginBottom:4},
-  settingDesc:{fontSize:13,color:'#666',lineHeight:18,marginBottom:8},
-  saveBtn:{backgroundColor:'#5C6BC0',borderRadius:10,padding:12,alignItems:'center'},
-  saveBtnText:{color:'white',fontWeight:'600',fontSize:14},
-  noAccess:{flex:1,alignItems:'center',justifyContent:'center',padding:40},
-  noAccessText:{fontSize:15,color:'#999',textAlign:'center',marginTop:16,lineHeight:22},
-  modalOverlay:{flex:1,backgroundColor:'rgba(0,0,0,0.5)',justifyContent:'flex-end'},
-  modalContent:{backgroundColor:'white',borderTopLeftRadius:24,borderTopRightRadius:24,padding:24,paddingBottom:40},
-  modalTitle:{fontSize:18,fontWeight:'bold',color:'#333'},
-  schoolCard:{backgroundColor:'white',borderRadius:12,padding:14,marginBottom:10,elevation:2,shadowColor:'#000',shadowOffset:{width:0,height:1},shadowOpacity:0.08,shadowRadius:3},
-  schoolHeader:{flexDirection:'row',alignItems:'center',gap:8,marginBottom:4},
-  schoolName:{flex:1,fontSize:14,fontWeight:'600',color:'#333'},
-  schoolStat:{fontSize:11,color:'#888'},
-  schoolDesc:{fontSize:12,color:'#666',lineHeight:18},
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#F8F9FA' },
+  // Lock screen
+  lockScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, gap: 16 },
+  logoBox: { alignItems: 'center', gap: 6, marginBottom: 24 },
+  logoEmoji: { fontSize: 56 },
+  logoTitle: { fontSize: 22, fontWeight: '800', color: INDIGO },
+  logoSub: { fontSize: 13, color: '#888' },
+  lockHint: { fontSize: 14, color: '#666', textAlign: 'center' },
+  // Header
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerEmoji: { fontSize: 28 },
+  headerTitle: { fontSize: 16, fontWeight: '800', color: INDIGO },
+  headerRole: { fontSize: 11, color: '#888', marginTop: 1 },
+  logoutBtn: { padding: 8 },
+  // Tabs
+  tabBar: { flexDirection: 'row', backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#EEEEEE' },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 10, gap: 3 },
+  tabActive: { borderBottomWidth: 2, borderBottomColor: INDIGO },
+  tabLabel: { fontSize: 10, color: '#AAA', fontWeight: '600' },
+  tabLabelActive: { color: INDIGO },
+  // Scroll
+  scroll: { padding: 16, paddingBottom: 48, gap: 0 },
+  // Cards
+  card: { backgroundColor: 'white', borderRadius: 14, marginBottom: 10, overflow: 'hidden', elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 10 },
+  cardIconBox: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  cardTitle: { fontSize: 14, fontWeight: '700', color: '#333' },
+  cardSubtitle: { fontSize: 11, color: '#888', marginTop: 1 },
+  cardBody: { paddingHorizontal: 14, paddingBottom: 14, gap: 4 },
+  // Stats
+  statRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
+  statRowLabel: { flex: 1, fontSize: 12, color: '#555' },
+  statRowValue: { fontSize: 14, fontWeight: '700' },
+  // Period toggle
+  periodRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  periodBtn: { flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: '#F0F0F0' },
+  periodBtnActive: { backgroundColor: INDIGO },
+  periodTxt: { fontSize: 12, fontWeight: '600', color: '#666' },
+  periodTxtActive: { color: 'white' },
+  // Colour bars
+  colourRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
+  colourDot: { width: 10, height: 10, borderRadius: 5 },
+  colourLabel: { fontSize: 11, color: '#555', width: 110 },
+  colourBarBg: { flex: 1, height: 8, backgroundColor: '#F0F0F0', borderRadius: 4, overflow: 'hidden' },
+  colourBar: { height: 8, borderRadius: 4 },
+  colourPct: { fontSize: 11, color: '#888', width: 70, textAlign: 'right' },
+  // Chips
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F0F0F0' },
+  chipActive: { backgroundColor: INDIGO },
+  chipText: { fontSize: 12, color: '#666', fontWeight: '600' },
+  chipTextActive: { color: 'white' },
+  zoneChip: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  // Forms
+  formBox: { backgroundColor: '#F8F9FA', borderRadius: 12, padding: 12, gap: 8, marginBottom: 4 },
+  formTitle: { fontSize: 13, fontWeight: '700', color: '#333', marginBottom: 4 },
+  input: { backgroundColor: '#F8F9FA', borderRadius: 10, padding: 12, fontSize: 13, color: '#333', borderWidth: 1, borderColor: '#E8E8E8', marginBottom: 8 },
+  fieldLabel: { fontSize: 12, color: '#888', fontWeight: '600', marginBottom: 4 },
+  // Button
+  btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: INDIGO, borderRadius: 12, padding: 14 },
+  btnText: { color: 'white', fontWeight: '700', fontSize: 14 },
+  // Strategy list
+  stratRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
+  stratDot: { width: 10, height: 10, borderRadius: 5 },
+  stratName: { fontSize: 13, fontWeight: '600', color: '#333' },
+  stratDesc: { fontSize: 11, color: '#888', marginTop: 2 },
+  // Schools
+  schoolPill: { backgroundColor: '#F8F9FA', borderRadius: 12, padding: 10, alignItems: 'center', minWidth: 80, borderWidth: 1, borderColor: '#E8EAF6' },
+  schoolPillName: { fontSize: 11, fontWeight: '600', color: '#333', textAlign: 'center', marginTop: 4 },
+  schoolPillCity: { fontSize: 10, color: '#888', textAlign: 'center' },
+  schoolCard: { backgroundColor: '#F8F9FA', borderRadius: 10, padding: 10, marginBottom: 8 },
+  schoolName: { fontSize: 13, fontWeight: '700', color: '#333' },
+  // Misc
+  hint: { fontSize: 12, color: '#888', lineHeight: 18 },
+  sectionHint: { fontSize: 12, color: '#888', marginBottom: 12 },
+  zonePill: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  zonePillText: { fontSize: 11, fontWeight: '600' },
+  pricingBox: { backgroundColor: '#F0F4FF', borderRadius: 8, padding: 10, marginTop: 8, gap: 4 },
+  pricingText: { fontSize: 12, color: INDIGO, fontWeight: '600' },
+  privacyBox: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#F8F9FA', borderRadius: 8, padding: 8, marginTop: 8 },
+  privacyText: { fontSize: 11, color: '#888', flex: 1, lineHeight: 16 },
+  flagBtn: { alignItems: 'center', padding: 8, borderRadius: 10, borderWidth: 1, borderColor: '#E8E8E8', minWidth: 60 },
+  flagBtnActive: { borderColor: INDIGO, backgroundColor: '#EEF0FF' },
 });
