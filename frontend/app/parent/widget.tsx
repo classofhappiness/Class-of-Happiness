@@ -179,6 +179,9 @@ export default function ParentWidgetScreen() {
                     <>
                       <Text style={{ fontSize: 28, marginTop: 4 }}>😶</Text>
                       <Text style={[st.zoneLabel, { color: '#BBB' }]}>{labels.none}</Text>
+                      <Text style={{ fontSize: 9, color: '#CCC', marginTop: 2 }}>
+                        {t('tap_to_check_in') || 'Tap to check in'}
+                      </Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -196,6 +199,36 @@ export default function ParentWidgetScreen() {
             <Text style={st.checkinBtnText}>{t('checkin_btn') || 'Check In'}</Text>
           </TouchableOpacity>
         )}
+
+        {/* Family emotion summary */}
+        {members.length > 0 && Object.keys(logs).length > 0 && (() => {
+          const counts: Record<string,number> = {green:0,yellow:0,blue:0,red:0};
+          members.forEach(m => {
+            const z = logs[m.id]?.zone || logs[m.id]?.feeling_colour;
+            if (z && counts[z] !== undefined) counts[z]++;
+          });
+          const total = Object.values(counts).reduce((a,b) => a+b, 0);
+          if (total === 0) return null;
+          return (
+            <View style={{ marginHorizontal: 16, marginTop: 8, backgroundColor: 'white', borderRadius: 14, padding: 12 }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#333', marginBottom: 8 }}>
+                {t('family_emotional_status') || 'Family Emotional Status'}
+              </Text>
+              {(['green','yellow','blue','red'] as const).filter(z => counts[z] > 0).map(z => {
+                const pct = Math.round((counts[z]/total)*100);
+                return (
+                  <View key={z} style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:4 }}>
+                    <Text style={{ fontSize: 14 }}>{ZONE_CONFIG[z].emoji}</Text>
+                    <View style={{ flex:1, height:8, backgroundColor:'#F0F0F0', borderRadius:4, overflow:'hidden' }}>
+                      <View style={{ width:`${pct}%` as any, height:8, backgroundColor:ZONE_CONFIG[z].color, borderRadius:4 }}/>
+                    </View>
+                    <Text style={{ fontSize: 11, color:'#666', width: 40 }}>{pct}%</Text>
+                  </View>
+                );
+              })}
+            </View>
+          );
+        })()}
 
         {/* Legend */}
         <View style={st.legend}>
