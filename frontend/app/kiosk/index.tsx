@@ -1,0 +1,364 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
+  ScrollView, ActivityIndicator, Animated, Dimensions, Image
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { MaterialIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Avatar } from '../../src/components/Avatar';
+
+const { width } = Dimensions.get('window');
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+const INDIGO = '#5C6BC0';
+const ZONE_COLORS: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
+const ZONE_EMOJI: Record<string,string> = { blue:'😢', green:'😊', yellow:'😰', red:'😠' };
+const INACTIVITY_TIMEOUT = 60000; // 60 seconds
+
+export default function KioskScreen() {
+  const router = useRouter();
+  const [students, setStudents] = useState<any[]>([]);
+  const [presetAvatars, setPresetAvatars] = useState<any[]>([]);
+  const [recentLogs, setRecentLogs] = useState<Record<string,any>>({});
+  const [loading, setLoading] = useState(true);
+  const [kioskToken, setKioskToken] = useState<string|null>(null);
+  const [teacherName, setTeacherName] = useState('');
+  const [classroomName, setClassroomName] = useState('');
+  const [setupCode, setSetupCode] = useState('');
+  const [setupMode, setSetupMode] = useState(false);
+  const [setupLoading, setSetupLoading] = useState(false);
+  const [lastActivity, setLastActivity] = useState(Date.now());
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const inactivityTimer = useRef<any>(null);
+
+  // Pulse animation for idle state
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.05, duration: 1500, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, []);
+
+  // Inactivity reset
+  useEffect(() => {
+    const reset = () => {
+      setLastActivity(Date.now());
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+      inactivityTimer.current = setTimeout(() => {
+        // Auto-refresh student list after inactivity
+        if (kioskToken) loadStudents(kioskToken);
+      }, INACTIVITY_TIMEOUT);
+    };
+    reset();
+    return () => { if (inactivityTimer.current) clearTimeout(inactivityTimer.current); };
+  }, [kioskToken]);
+
+  const loadKioskData = useCallback(async () => {
+    const token = await AsyncStorage.getItem('kiosk_token');
+    const tName = await AsyncStorage.getItem('kiosk_teacher_name') || '';
+    const cName = await AsyncStorage.getItem('kiosk_classroom_name') || '';
+    setTeacherName(tName);
+    setClassroomName(cName);
+    if (token) {
+      setKioskToken(token);
+      await loadStudents(token);
+    } else {
+      setSetupMode(true);
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadKioskData(); }, [loadKioskData]);
+
+  const loadStudents = async (token: string) => {
+    setLoading(true);
+    try {
+      const [studentsRes, avatarsRes] = await Promise.all([
+        fetch(`${BACKEND_URL}/api/students`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${BACKEND_URL}/api/avatars/presets`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (studentsRes.ok) {
+        const data = await studentsRes.json();
+        setStudents(Array.isArray(data) ? data : []);
+        // Load recent checkins
+        await loadRecentLogs(token, Array.isArray(data) ? data : []);
+      }
+      if (avatarsRes.ok) {
+        const avData = await avatarsRes.json();
+        setPresetAvatars(Array.isArray(avData) ? avData : []);
+      }
+    } catch {}
+    setLoading(false);
+  };
+
+  const loadRecentLogs = async (token: string, studentList: any[]) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/zone-logs?days=1`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const logs = await res.json();
+        const logMap: Record<string,any> = {};
+        if (Array.isArray(logs)) {
+          logs.forEach((log: any) => {
+            if (!logMap[log.student_id] || new Date(log.timestamp) > new Date(logMap[log.student_id].timestamp)) {
+              logMap[log.student_id] = log;
+            }
+          });
+        }
+        setRecentLogs(logMap);
+      }
+    } catch {}
+  };
+
+  const setupKiosk = async () => {
+    if (!setupCode.trim()) return;
+    setSetupLoading(true);
+    try {
+      // Try to login with teacher code
+      const res = await fetch(`${BACKEND_URL}/api/auth/kiosk-setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: setupCode.trim() })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        await AsyncStorage.setItem('kiosk_token', data.token);
+        await AsyncStorage.setItem('kiosk_teacher_name', data.teacher_name || '');
+        await AsyncStorage.setItem('kiosk_classroom_name', data.classroom_name || '');
+        setKioskToken(data.token);
+        setTeacherName(data.teacher_name || '');
+        setClassroomName(data.classroom_name || '');
+        setSetupMode(false);
+        await loadStudents(data.token);
+      } else {
+        // Fallback: use as session token directly
+        await AsyncStorage.setItem('kiosk_token', setupCode.trim());
+        setKioskToken(setupCode.trim());
+        setSetupMode(false);
+        await loadStudents(setupCode.trim());
+      }
+    } catch {
+      // Fallback
+      await AsyncStorage.setItem('kiosk_token', setupCode.trim());
+      setKioskToken(setupCode.trim());
+      setSetupMode(false);
+      await loadStudents(setupCode.trim());
+    }
+    setSetupLoading(false);
+  };
+
+  const resetKiosk = async () => {
+    await AsyncStorage.removeItem('kiosk_token');
+    await AsyncStorage.removeItem('kiosk_teacher_name');
+    await AsyncStorage.removeItem('kiosk_classroom_name');
+    setKioskToken(null);
+    setStudents([]);
+    setSetupMode(true);
+    setSetupCode('');
+  };
+
+  const handleStudentPress = (student: any) => {
+    setLastActivity(Date.now());
+    router.push({
+      pathname: '/student/zone',
+      params: {
+        studentId: student.id,
+        studentName: student.name,
+        fromKiosk: 'true',
+        returnTo: 'kiosk'
+      }
+    });
+  };
+
+  const timeAgo = (iso: string) => {
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 2) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    return `${Math.floor(mins/60)}h ago`;
+  };
+
+  // Setup screen
+  if (setupMode) {
+    return (
+      <SafeAreaView style={st.container}>
+        <View style={st.setupScreen}>
+          {/* COH Branding */}
+          <View style={st.brandBox}>
+            <Text style={st.brandEmoji}>😊</Text>
+            <Text style={st.brandTitle}>Class of Happiness</Text>
+            <Text style={st.brandTagline}>Emotional Wellbeing for Schools</Text>
+          </View>
+
+          <View style={st.setupCard}>
+            <Text style={st.setupTitle}>Set Up Classroom Kiosk</Text>
+            <Text style={st.setupHint}>
+              Enter your teacher session token to link this device to your classroom.
+              Students can then check in without logging in.
+            </Text>
+            <View style={st.codeInput}>
+              {setupCode.split('').map((c, i) => (
+                <View key={i} style={st.codeDot}><Text style={st.codeDotText}>{c}</Text></View>
+              ))}
+              {Array.from({length: Math.max(0, 8 - setupCode.length)}).map((_, i) => (
+                <View key={`e${i}`} style={[st.codeDot, {opacity:0.3}]}><Text style={st.codeDotText}>·</Text></View>
+              ))}
+            </View>
+            {/* Number pad */}
+            <View style={st.numPad}>
+              {['1','2','3','4','5','6','7','8','9','←','0','✓'].map(k => (
+                <TouchableOpacity key={k} style={[st.numKey, k==='✓' && {backgroundColor:INDIGO}]}
+                  onPress={() => {
+                    if (k === '←') setSetupCode(c => c.slice(0,-1));
+                    else if (k === '✓') setupKiosk();
+                    else setSetupCode(c => c + k);
+                  }}>
+                  {setupLoading && k === '✓'
+                    ? <ActivityIndicator color="white" size="small"/>
+                    : <Text style={[st.numKeyText, k==='✓' && {color:'white'}]}>{k}</Text>
+                  }
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={st.setupHint}>
+              Find your session token in Settings → Admin Code
+            </Text>
+          </View>
+
+          <Text style={st.copyright}>© {new Date().getFullYear()} Class of Happiness · classofhappiness.com</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={st.container}>
+      {/* Header */}
+      <View style={st.header}>
+        <View style={st.headerBrand}>
+          <Text style={st.headerEmoji}>😊</Text>
+          <View>
+            <Text style={st.headerTitle}>Class of Happiness</Text>
+            {classroomName ? <Text style={st.headerSub}>{classroomName}{teacherName ? ` · ${teacherName}` : ''}</Text> : null}
+          </View>
+        </View>
+        <TouchableOpacity onPress={() => loadStudents(kioskToken!)} style={st.refreshBtn}>
+          <MaterialIcons name="refresh" size={22} color={INDIGO} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Main prompt */}
+      <Animated.View style={[st.promptBox, { transform: [{ scale: pulseAnim }] }]}>
+        <Text style={st.promptTitle}>How are you feeling today?</Text>
+        <Text style={st.promptSub}>Tap your name to check in 👇</Text>
+      </Animated.View>
+
+      {/* Student grid */}
+      {loading ? (
+        <ActivityIndicator size="large" color={INDIGO} style={{ marginTop: 60 }} />
+      ) : students.length === 0 ? (
+        <View style={st.emptyBox}>
+          <Text style={{ fontSize: 48 }}>🏫</Text>
+          <Text style={st.emptyText}>No students found</Text>
+          <Text style={st.emptyHint}>Ask your teacher to add students to the class</Text>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={st.grid}>
+          {students.map(student => {
+            const log = recentLogs[student.id];
+            const zone = log?.zone || log?.feeling_colour;
+            const cfg = zone ? { color: ZONE_COLORS[zone], emoji: ZONE_EMOJI[zone] } : null;
+            const checkedIn = !!log && (Date.now() - new Date(log.timestamp).getTime()) < 8 * 3600000;
+            return (
+              <TouchableOpacity
+                key={student.id}
+                style={[st.studentCard, checkedIn && { borderColor: cfg?.color || INDIGO, borderWidth: 3, backgroundColor: (cfg?.color || INDIGO) + '10' }]}
+                onPress={() => handleStudentPress(student)}
+                activeOpacity={0.75}>
+                {checkedIn && (
+                  <View style={[st.checkedBadge, { backgroundColor: cfg?.color || INDIGO }]}>
+                    <Text style={{ fontSize: 14 }}>{cfg?.emoji || '✅'}</Text>
+                  </View>
+                )}
+                <Avatar
+                  type={student.avatar_type || 'preset'}
+                  preset={student.avatar_preset || 'bear'}
+                  custom={student.avatar_custom}
+                  size={64}
+                  presetAvatars={presetAvatars}
+                />
+                <Text style={st.studentName} numberOfLines={1}>{student.name}</Text>
+                {checkedIn ? (
+                  <Text style={[st.checkinTime, { color: cfg?.color || INDIGO }]}>{timeAgo(log.timestamp)}</Text>
+                ) : (
+                  <Text style={st.notCheckedIn}>Tap to check in</Text>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+
+      {/* Footer */}
+      <View style={st.footer}>
+        <Text style={st.footerText}>© {new Date().getFullYear()} Class of Happiness · classofhappiness.com</Text>
+        <TouchableOpacity onPress={resetKiosk} style={st.resetBtn}>
+          <MaterialIcons name="settings" size={14} color="#CCC" />
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const CARD_W = (width - 48) / 3;
+
+const st = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#F8F9FA' },
+  // Setup
+  setupScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 24 },
+  brandBox: { alignItems: 'center', gap: 6 },
+  brandEmoji: { fontSize: 64 },
+  brandTitle: { fontSize: 28, fontWeight: '800', color: INDIGO },
+  brandTagline: { fontSize: 14, color: '#888' },
+  setupCard: { width: '100%', backgroundColor: 'white', borderRadius: 20, padding: 24, gap: 16, elevation: 4, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
+  setupTitle: { fontSize: 18, fontWeight: '700', color: '#333', textAlign: 'center' },
+  setupHint: { fontSize: 12, color: '#888', textAlign: 'center', lineHeight: 18 },
+  codeInput: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginVertical: 8 },
+  codeDot: { width: 36, height: 44, backgroundColor: '#F0F0F0', borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  codeDotText: { fontSize: 18, fontWeight: '700', color: INDIGO },
+  numPad: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
+  numKey: { width: 72, height: 52, backgroundColor: '#F0F0F0', borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  numKeyText: { fontSize: 20, fontWeight: '600', color: '#333' },
+  copyright: { fontSize: 11, color: '#CCC', textAlign: 'center' },
+  // Header
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  headerBrand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerEmoji: { fontSize: 28 },
+  headerTitle: { fontSize: 16, fontWeight: '800', color: INDIGO },
+  headerSub: { fontSize: 11, color: '#888' },
+  refreshBtn: { padding: 8 },
+  // Prompt
+  promptBox: { alignItems: 'center', paddingVertical: 20, paddingHorizontal: 16 },
+  promptTitle: { fontSize: 24, fontWeight: '800', color: '#333', textAlign: 'center' },
+  promptSub: { fontSize: 14, color: '#888', marginTop: 6 },
+  // Grid
+  grid: { padding: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'center' },
+  studentCard: { width: CARD_W, backgroundColor: 'white', borderRadius: 16, padding: 12, alignItems: 'center', gap: 6, borderWidth: 1.5, borderColor: '#E8E8E8', elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4 },
+  checkedBadge: { position: 'absolute', top: -6, right: -6, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
+  studentName: { fontSize: 13, fontWeight: '700', color: '#333', textAlign: 'center' },
+  checkinTime: { fontSize: 10, fontWeight: '600' },
+  notCheckedIn: { fontSize: 10, color: '#BBB' },
+  // Empty
+  emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  emptyText: { fontSize: 16, fontWeight: '700', color: '#999' },
+  emptyHint: { fontSize: 13, color: '#BBB', textAlign: 'center' },
+  // Footer
+  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, gap: 8, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
+  footerText: { fontSize: 10, color: '#CCC' },
+  resetBtn: { padding: 4 },
+});

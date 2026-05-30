@@ -1,372 +1,275 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigation } from '@react-navigation/native';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-  Dimensions,
-  Platform,
-  Alert,
+  View, Text, StyleSheet, SafeAreaView, ScrollView,
+  TouchableOpacity, ActivityIndicator, RefreshControl, Dimensions, Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
-import { studentsApi, classroomsApi, zoneLogsApi } from '../../src/utils/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
-
-interface ClassroomSummary {
-  id: string;
-  name: string;
-  studentCount: number;
-  emotionCounts: { blue: number; green: number; yellow: number; red: number };
-  lastUpdate: string;
-}
-
-const ZONE_CONFIG: Record<string, { color: string; emoji: string; labelKey: string }> = {
-  blue: { color: '#4A90D9', emoji: '😢', labelKey: 'blue_desc_short' },
-  green: { color: '#4CAF50', emoji: '😊', labelKey: 'green_desc_short' },
-  yellow: { color: '#FFC107', emoji: '😰', labelKey: 'yellow_desc_short' },
-  red: { color: '#F44336', emoji: '😠', labelKey: 'red_desc_short' },
-};
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+const INDIGO = '#5C6BC0';
+const ZONE_COLORS: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
+const ZONE_EMOJI: Record<string,string> = { blue:'😢', green:'😊', yellow:'😰', red:'😠' };
+const ZONE_LABELS: Record<string,string> = { blue:'Blue', green:'Green', yellow:'Yellow', red:'Red' };
 
 export default function TeacherWidgetScreen() {
   const router = useRouter();
-  const navigation = useNavigation() as any;
-  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
-  const { user, t } = useApp();
-  const [refreshing, setRefreshing] = useState(false);
+  const { t, user, students, classrooms } = useApp();
   const [loading, setLoading] = useState(true);
-  const [classrooms, setClassrooms] = useState<ClassroomSummary[]>([]);
-  const [totalStudents, setTotalStudents] = useState(0);
-  const [todayCheckIns, setTodayCheckIns] = useState(0);
-  const [overallCounts, setOverallCounts] = useState({ blue: 0, green: 0, yellow: 0, red: 0 });
-  
-  // Helper to get translated zone label
-  const getZoneLabel = (zone: string) => {
-    const config = ZONE_CONFIG[zone];
-    if (!config) return zone;
-    return t(config.labelKey) || config.labelKey;
-  };
+  const [refreshing, setRefreshing] = useState(false);
+  const [recentLogs, setRecentLogs] = useState<any[]>([]);
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [selectedClassroom, setSelectedClassroom] = useState<string|null>(null);
 
-  useEffect(() => {
-    fetchWidgetData();
+  const loadData = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('session_token');
+      const [logsRes, alertsRes] = await Promise.all([
+        fetch(`${BACKEND_URL}/api/zone-logs?days=1`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${BACKEND_URL}/api/alerts`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (logsRes.ok) {
+        const data = await logsRes.json();
+        setRecentLogs(Array.isArray(data) ? data : []);
+      }
+      if (alertsRes.ok) {
+        const aData = await alertsRes.json();
+        setAlerts(Array.isArray(aData) ? aData.filter((a:any) => !a.resolved) : []);
+      }
+    } catch {}
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
-  const fetchWidgetData = async () => {
-    try {
-      // Get all students
-      const students = await studentsApi.getAll();
-      setTotalStudents(students.length);
-      
-      // Get classrooms
-      const classroomList = await classroomsApi.getAll();
-      
-      // Calculate emotion counts from today's check-ins
-      const counts = { blue: 0, green: 0, yellow: 0, red: 0 };
-      let checkInCount = 0;
-      const todayKey = new Date().toISOString().split('T')[0];
+  useEffect(() => { loadData(); }, [loadData]);
 
-      try {
-        const logs = await zoneLogsApi.getAll(undefined, undefined, 1);
-        logs.forEach((log: any) => {
-          if (!log?.timestamp?.startsWith(todayKey)) return;
-          if (log.zone in counts) {
-            counts[log.zone as keyof typeof counts] += 1;
-            checkInCount += 1;
-          }
-        });
-      } catch (error) {
-        console.error('Error loading mood counts:', error);
-      }
+  const onRefresh = () => { setRefreshing(true); loadData(); };
 
-      // Classroom summaries with rough proportional split (UI preview purpose)
-      const totalCount = Math.max(1, checkInCount);
-      const classroomSummaries: ClassroomSummary[] = classroomList.map((classroom: any) => {
-        const classroomStudentCount = students.filter((s: any) => s.classroom_id === classroom.id).length;
-        const weightedCounts = {
-          blue: Math.round((counts.blue / totalCount) * classroomStudentCount),
-          green: Math.round((counts.green / totalCount) * classroomStudentCount),
-          yellow: Math.round((counts.yellow / totalCount) * classroomStudentCount),
-          red: Math.round((counts.red / totalCount) * classroomStudentCount),
-        };
-        return {
-          id: classroom.id,
-          name: classroom.name,
-          studentCount: classroomStudentCount,
-          emotionCounts: weightedCounts,
-          lastUpdate: new Date().toISOString(),
-        };
-      });
-
-      setOverallCounts(counts);
-      setTodayCheckIns(checkInCount);
-      setClassrooms(classroomSummaries);
-    } catch (error) {
-      console.error('Error fetching widget data:', error);
-    } finally {
-      setLoading(false);
+  // Get latest log per student
+  const latestByStudent: Record<string,any> = {};
+  recentLogs.forEach(log => {
+    const sid = log.student_id;
+    if (!latestByStudent[sid] || new Date(log.timestamp) > new Date(latestByStudent[sid].timestamp)) {
+      latestByStudent[sid] = log;
     }
-  };
+  });
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchWidgetData();
-    setRefreshing(false);
-  };
+  const filteredStudents = selectedClassroom
+    ? students.filter(s => s.classroom_id === selectedClassroom)
+    : students;
 
-  const handleAddToHomeScreen = () => {
-    Alert.alert(
-      t('add_widget_title') || 'Add Widget to Home Screen',
-      Platform.OS === 'ios' 
-        ? t('add_widget_ios') || 'To add this widget:\n\n1. Long press on your home screen\n2. Tap the + button (top left)\n3. Search for "Class of Happiness"\n4. Choose a widget size\n5. Tap "Add Widget"'
-        : t('add_widget_android') || 'To add this widget:\n\n1. Long press on your home screen\n2. Tap "Widgets"\n3. Find "Class of Happiness"\n4. Long press and drag to home screen',
-      [{ text: t('got_it') || 'Got it!' }]
-    );
-  };
+  const checkedInCount = filteredStudents.filter(s => latestByStudent[s.id]).length;
+  const total = filteredStudents.length;
 
-  const getDominantEmotion = () => {
-    const max = Math.max(overallCounts.blue, overallCounts.green, overallCounts.yellow, overallCounts.red);
-    if (max === 0) return 'green';
-    if (overallCounts.red === max) return 'red';
-    if (overallCounts.yellow === max) return 'yellow';
-    if (overallCounts.blue === max) return 'blue';
-    return 'green';
-  };
+  // Zone distribution
+  const zoneDist: Record<string,number> = { green:0, yellow:0, blue:0, red:0 };
+  filteredStudents.forEach(s => {
+    const z = latestByStudent[s.id]?.zone || latestByStudent[s.id]?.feeling_colour;
+    if (z && zoneDist[z] !== undefined) zoneDist[z]++;
+  });
 
-  const dominantEmotion = getDominantEmotion();
-  const total = overallCounts.blue + overallCounts.green + overallCounts.yellow + overallCounts.red;
+  const timeAgo = (iso: string) => {
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 2) return t('just_now') || 'Just now';
+    if (mins < 60) return `${mins}m`;
+    return `${Math.floor(mins/60)}h`;
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={st.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
+      <View style={st.header}>
+        <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }}>
+          <MaterialIcons name="arrow-back" size={22} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('classroom_widget') || 'Classroom Widget'}</Text>
-        <TouchableOpacity onPress={handleAddToHomeScreen} style={styles.infoButton}>
-          <MaterialIcons name="add-to-home-screen" size={24} color="#FFC107" />
+        <View style={{ flex: 1 }}>
+          <Text style={st.headerTitle}>😊 {t('classroom_widget') || 'Classroom Widget'}</Text>
+          <Text style={st.headerSub}>{checkedInCount}/{total} {t('check_ins') || 'checked in today'}</Text>
+        </View>
+        {alerts.length > 0 && (
+          <TouchableOpacity onPress={() => router.push('/teacher/alerts')} style={st.alertBadge}>
+            <Text style={st.alertBadgeText}>{alerts.length}</Text>
+            <MaterialIcons name="notifications-active" size={18} color="white" />
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity onPress={onRefresh} style={{ padding: 8 }}>
+          <MaterialIcons name="refresh" size={22} color={INDIGO} />
         </TouchableOpacity>
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {/* Widget Preview Section */}
-        <Text style={styles.sectionTitle}>{t('widget_preview') || 'Widget Preview'}</Text>
-        <Text style={styles.sectionSubtitle}>{t('widget_preview_desc_teacher') || 'Quick classroom emotional status at a glance'}</Text>
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={INDIGO} />}
+        contentContainerStyle={{ paddingBottom: 40 }}>
 
-        {/* Small Widget Preview */}
-        <View style={styles.widgetPreviewContainer}>
-          <Text style={styles.widgetSize}>{t('small_widget') || 'Small Widget'}</Text>
-          <View style={[styles.smallWidget, { backgroundColor: ZONE_CONFIG[dominantEmotion].color + '20', borderColor: ZONE_CONFIG[dominantEmotion].color }]}>
-            <Text style={styles.smallWidgetEmoji}>{ZONE_CONFIG[dominantEmotion].emoji}</Text>
-            <Text style={styles.smallWidgetTitle}>{t('classroom') || 'Classroom'}</Text>
-            <Text style={[styles.smallWidgetStatus, { color: ZONE_CONFIG[dominantEmotion].color }]}>
-              {totalStudents} {t('students') || 'Students'}
-            </Text>
-          </View>
-        </View>
-
-        {/* Medium Widget Preview - Emotion Bar */}
-        <View style={styles.widgetPreviewContainer}>
-          <Text style={styles.widgetSize}>{t('medium_widget') || 'Medium Widget'}</Text>
-          <View style={styles.mediumWidget}>
-            <View style={styles.mediumWidgetHeader}>
-              <Text style={styles.mediumWidgetTitle}>🏫 Classroom Emotions</Text>
-              <Text style={styles.mediumWidgetTime}>{todayCheckIns} check-ins</Text>
-            </View>
-            
-            {/* Emotion Bar Chart */}
-            <View style={styles.emotionBarContainer}>
-              {total > 0 ? (
-                <View style={styles.emotionBar}>
-                  <View style={[styles.emotionSegment, { flex: overallCounts.blue || 0.1, backgroundColor: ZONE_CONFIG.blue.color }]} />
-                  <View style={[styles.emotionSegment, { flex: overallCounts.green || 0.1, backgroundColor: ZONE_CONFIG.green.color }]} />
-                  <View style={[styles.emotionSegment, { flex: overallCounts.yellow || 0.1, backgroundColor: ZONE_CONFIG.yellow.color }]} />
-                  <View style={[styles.emotionSegment, { flex: overallCounts.red || 0.1, backgroundColor: ZONE_CONFIG.red.color }]} />
-                </View>
-              ) : (
-                <View style={styles.emotionBar}>
-                  <View style={[styles.emotionSegment, { flex: 1, backgroundColor: '#E0E0E0' }]} />
-                </View>
-              )}
-            </View>
-            
-            {/* Legend */}
-            <View style={styles.emotionLegend}>
-              {Object.entries(ZONE_CONFIG).map(([key, config]) => (
-                <View key={key} style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: config.color }]} />
-                  <Text style={styles.legendCount}>{overallCounts[key as keyof typeof overallCounts]}</Text>
-                </View>
+        {/* Classroom filter */}
+        {classrooms.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                style={[st.classChip, !selectedClassroom && st.classChipActive]}
+                onPress={() => setSelectedClassroom(null)}>
+                <Text style={[st.classChipText, !selectedClassroom && st.classChipTextActive]}>
+                  {t('zone_all') || 'All'}
+                </Text>
+              </TouchableOpacity>
+              {classrooms.map(c => (
+                <TouchableOpacity key={c.id}
+                  style={[st.classChip, selectedClassroom === c.id && st.classChipActive]}
+                  onPress={() => setSelectedClassroom(c.id)}>
+                  <Text style={[st.classChipText, selectedClassroom === c.id && st.classChipTextActive]}>
+                    {c.name}
+                  </Text>
+                </TouchableOpacity>
               ))}
             </View>
-          </View>
-        </View>
+          </ScrollView>
+        )}
 
-        {/* Large Widget Preview */}
-        <View style={styles.widgetPreviewContainer}>
-          <Text style={styles.widgetSize}>{t('large_widget') || t('large_widget') || 'Large Widget'}</Text>
-          <View style={styles.largeWidget}>
-            <View style={styles.largeWidgetHeader}>
-              <Text style={styles.largeWidgetTitle}>🏫 Classroom Emotional Status</Text>
+        {/* Zone distribution bar */}
+        {checkedInCount > 0 && (
+          <View style={st.distCard}>
+            <Text style={st.distTitle}>{t('emotion_distribution') || 'Class Emotions Today'}</Text>
+            <View style={st.distBar}>
+              {(['green','yellow','blue','red'] as const).map(z => {
+                const pct = total > 0 ? (zoneDist[z] / total) * 100 : 0;
+                return pct > 0 ? (
+                  <View key={z} style={{ width: `${pct}%` as any, height: '100%', backgroundColor: ZONE_COLORS[z] }} />
+                ) : null;
+              })}
             </View>
-            
-            {/* Stats Grid */}
-            <View style={styles.statsGrid}>
-              <View style={[styles.statCard, { backgroundColor: '#E3F2FD' }]}>
-                <Text style={styles.statEmoji}>{ZONE_CONFIG.blue.emoji}</Text>
-                <Text style={styles.statCount}>{overallCounts.blue}</Text>
-                <Text style={styles.statLabel}>Sad/Tired</Text>
-              </View>
-              <View style={[styles.statCard, { backgroundColor: '#E8F5E9' }]}>
-                <Text style={styles.statEmoji}>{ZONE_CONFIG.green.emoji}</Text>
-                <Text style={styles.statCount}>{overallCounts.green}</Text>
-                <Text style={styles.statLabel}>Calm/Happy</Text>
-              </View>
-              <View style={[styles.statCard, { backgroundColor: '#FFF8E1' }]}>
-                <Text style={styles.statEmoji}>{ZONE_CONFIG.yellow.emoji}</Text>
-                <Text style={styles.statCount}>{overallCounts.yellow}</Text>
-                <Text style={styles.statLabel}>{t('strat_5_senses') || 'Anxious'}</Text>
-              </View>
-              <View style={[styles.statCard, { backgroundColor: '#FFEBEE' }]}>
-                <Text style={styles.statEmoji}>{ZONE_CONFIG.red.emoji}</Text>
-                <Text style={styles.statCount}>{overallCounts.red}</Text>
-                <Text style={styles.statLabel}>{t('zone_red') || 'Angry'}</Text>
-              </View>
-            </View>
-            
-            <View style={styles.largeWidgetFooter}>
-              <MaterialIcons name="school" size={16} color="#888" />
-              <Text style={styles.largeWidgetFooterText}>{totalStudents} students total</Text>
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
+              {(['green','yellow','blue','red'] as const).map(z => zoneDist[z] > 0 ? (
+                <View key={z} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text style={{ fontSize: 16 }}>{ZONE_EMOJI[z]}</Text>
+                  <Text style={{ fontSize: 12, color: ZONE_COLORS[z], fontWeight: '700' }}>{zoneDist[z]}</Text>
+                </View>
+              ) : null)}
+              <Text style={{ fontSize: 12, color: '#AAA', marginLeft: 'auto' as any }}>
+                {total - checkedInCount} {t('no_checkin_yet') || 'not checked in'}
+              </Text>
             </View>
           </View>
-        </View>
+        )}
 
-        {/* How to Add Section */}
-        <View style={styles.instructionsCard}>
-          <MaterialIcons name="widgets" size={32} color="#FFC107" />
-          <Text style={styles.instructionsTitle}>{t('add_widget_android') || 'Add Widget to Home Screen'}</Text>
-          <Text style={styles.instructionsText}>
-            Get instant updates on your classroom emotional status right from your home screen.
-          </Text>
-          <TouchableOpacity style={styles.instructionsButton} onPress={handleAddToHomeScreen}>
-            <MaterialIcons name="help-outline" size={18} color="white" />
-            <Text style={styles.instructionsButtonText}>{t('how_to_use') || t('how_to_use') || 'Show Instructions'}</Text>
+        {/* Alerts section */}
+        {alerts.length > 0 && (
+          <View style={[st.distCard, { borderLeftWidth: 4, borderLeftColor: '#F44336' }]}>
+            <Text style={[st.distTitle, { color: '#F44336' }]}>
+              🚨 {alerts.length} {t('no_alerts') ? '' : 'Support Request'}{alerts.length > 1 ? 's' : ''}
+            </Text>
+            {alerts.slice(0, 3).map((alert, i) => (
+              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                <MaterialIcons name="notifications-active" size={16} color="#F44336" />
+                <Text style={{ fontSize: 12, color: '#333', flex: 1 }}>
+                  {students.find(s => s.id === alert.student_id)?.name || 'Student'} needs support
+                </Text>
+                <Text style={{ fontSize: 11, color: '#AAA' }}>{timeAgo(alert.created_at)}</Text>
+              </View>
+            ))}
+            <TouchableOpacity onPress={() => router.push('/teacher/alerts')} style={{ marginTop: 10 }}>
+              <Text style={{ fontSize: 12, color: '#F44336', fontWeight: '700' }}>
+                {t('view_my_wellbeing') || 'View all alerts'} →
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Student grid */}
+        {loading ? (
+          <ActivityIndicator color={INDIGO} size="large" style={{ marginTop: 40 }} />
+        ) : (
+          <View style={{ padding: 16 }}>
+            <Text style={st.distTitle}>{t('students_in_class') || 'Students'}</Text>
+            <View style={st.studentGrid}>
+              {filteredStudents.map(student => {
+                const log = latestByStudent[student.id];
+                const zone = log?.zone || log?.feeling_colour;
+                const color = zone ? ZONE_COLORS[zone] : '#E0E0E0';
+                const emoji = zone ? ZONE_EMOJI[zone] : '😶';
+                const hasAlert = alerts.some(a => a.student_id === student.id);
+                return (
+                  <TouchableOpacity
+                    key={student.id}
+                    style={[st.studentCard, { borderColor: color }]}
+                    onPress={() => router.push({ pathname: '/teacher/student-detail', params: { studentId: student.id } })}>
+                    {hasAlert && (
+                      <View style={st.alertDot}>
+                        <MaterialIcons name="priority-high" size={10} color="white" />
+                      </View>
+                    )}
+                    <Text style={{ fontSize: 28 }}>{emoji}</Text>
+                    <Text style={st.studentName} numberOfLines={1}>{student.name.split(' ')[0]}</Text>
+                    {log ? (
+                      <Text style={[st.studentTime, { color }]}>{timeAgo(log.timestamp)}</Text>
+                    ) : (
+                      <Text style={st.studentNotIn}>—</Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* Kiosk launcher */}
+        <View style={st.kioskCard}>
+          <View style={{ flex: 1 }}>
+            <Text style={st.kioskTitle}>📱 Classroom Kiosk</Text>
+            <Text style={st.kioskHint}>Let students check in from this shared device</Text>
+          </View>
+          <TouchableOpacity style={st.kioskBtn} onPress={() => router.push('/kiosk')}>
+            <Text style={st.kioskBtnText}>Launch</Text>
+            <MaterialIcons name="open-in-new" size={14} color="white" />
           </TouchableOpacity>
         </View>
 
-        {/* Quick Actions */}
-        <View style={styles.quickActions}>
-          <TouchableOpacity 
-            style={styles.quickAction}
-            onPress={() => router.push('/teacher/dashboard')}
-          >
-            <MaterialIcons name="dashboard" size={24} color="#FFC107" />
-            <Text style={styles.quickActionText}>{t('teacher_dashboard') || t('teacher_dashboard') || 'Open Dashboard'}</Text>
-          </TouchableOpacity>
-        </View>
+        {/* My wellbeing */}
+        <TouchableOpacity style={st.myWellbeing} onPress={() => router.push('/teacher/checkin')}>
+          <MaterialIcons name="spa" size={20} color={INDIGO} />
+          <Text style={st.myWellbeingText}>{t('teacher_checkin') || 'Check in on my own wellbeing'}</Text>
+          <MaterialIcons name="chevron-right" size={18} color={INDIGO} />
+        </TouchableOpacity>
 
-        <View style={{ height: 40 }} />
+        {/* COH branding footer */}
+        <Text style={st.copyright}>😊 Class of Happiness · classofhappiness.com · © {new Date().getFullYear()}</Text>
+
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#EEE' },
-  backButton: { padding: 4 },
-  headerTitle: { flex: 1, fontSize: 18, fontWeight: '600', color: '#333', marginLeft: 12 },
-  infoButton: { padding: 4 },
-  scrollContent: { padding: 16 },
-  sectionTitle: { fontSize: 20, fontWeight: '700', color: '#333', marginBottom: 4 },
-  sectionSubtitle: { fontSize: 14, color: '#666', marginBottom: 20 },
-  widgetPreviewContainer: { marginBottom: 24 },
-  widgetSize: { fontSize: 12, fontWeight: '600', color: '#888', marginBottom: 8, textTransform: 'uppercase' },
-  
-  // Small Widget
-  smallWidget: {
-    width: 150,
-    height: 150,
-    borderRadius: 24,
-    padding: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    alignSelf: 'center',
-  },
-  smallWidgetEmoji: { fontSize: 48, marginBottom: 8 },
-  smallWidgetTitle: { fontSize: 14, fontWeight: '600', color: '#333' },
-  smallWidgetStatus: { fontSize: 12, fontWeight: '500', marginTop: 4 },
-  
-  // Medium Widget
-  mediumWidget: {
-    width: width - 32,
-    borderRadius: 24,
-    backgroundColor: 'white',
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  mediumWidgetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  mediumWidgetTitle: { fontSize: 16, fontWeight: '600', color: '#333' },
-  mediumWidgetTime: { fontSize: 12, color: '#888' },
-  emotionBarContainer: { marginBottom: 12 },
-  emotionBar: { flexDirection: 'row', height: 32, borderRadius: 16, overflow: 'hidden' },
-  emotionSegment: { height: '100%' },
-  emotionLegend: { flexDirection: 'row', justifyContent: 'space-around' },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  legendDot: { width: 12, height: 12, borderRadius: 6 },
-  legendCount: { fontSize: 14, fontWeight: '600', color: '#333' },
-  
-  // Large Widget
-  largeWidget: {
-    width: width - 32,
-    borderRadius: 24,
-    backgroundColor: 'white',
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  largeWidgetHeader: { marginBottom: 16 },
-  largeWidgetTitle: { fontSize: 16, fontWeight: '600', color: '#333' },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  statCard: { width: '48%', padding: 12, borderRadius: 12, alignItems: 'center' },
-  statEmoji: { fontSize: 28 },
-  statCount: { fontSize: 24, fontWeight: '700', color: '#333', marginTop: 4 },
-  statLabel: { fontSize: 11, color: '#666', marginTop: 2 },
-  largeWidgetFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 16, gap: 6 },
-  largeWidgetFooterText: { fontSize: 13, color: '#888' },
-  
-  // Instructions
-  instructionsCard: {
-    backgroundColor: '#FFF8E1',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  instructionsTitle: { fontSize: 16, fontWeight: '600', color: '#333', marginTop: 12, marginBottom: 8 },
-  instructionsText: { fontSize: 13, color: '#666', textAlign: 'center', lineHeight: 20 },
-  instructionsButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFC107', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, marginTop: 16, gap: 6 },
-  instructionsButtonText: { color: '#333', fontWeight: '600', fontSize: 14 },
-  
-  // Quick Actions
-  quickActions: { marginTop: 20 },
-  quickAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: 'white', padding: 16, borderRadius: 12, gap: 8 },
-  quickActionText: { fontSize: 15, fontWeight: '600', color: '#FFC107' },
+const CARD_SIZE = (width - 48) / 4;
+
+const st = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#F8F9FA' },
+  header: { flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0', gap: 8 },
+  headerTitle: { fontSize: 15, fontWeight: '800', color: '#333' },
+  headerSub: { fontSize: 11, color: '#888', marginTop: 1 },
+  alertBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F44336', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 },
+  alertBadgeText: { color: 'white', fontSize: 12, fontWeight: '700' },
+  classChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: '#F0F0F0' },
+  classChipActive: { backgroundColor: INDIGO },
+  classChipText: { fontSize: 12, color: '#666', fontWeight: '600' },
+  classChipTextActive: { color: 'white' },
+  distCard: { margin: 16, backgroundColor: 'white', borderRadius: 14, padding: 14, elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 3 },
+  distTitle: { fontSize: 13, fontWeight: '700', color: '#333', marginBottom: 8 },
+  distBar: { height: 12, borderRadius: 6, overflow: 'hidden', backgroundColor: '#F0F0F0', flexDirection: 'row' },
+  studentGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
+  studentCard: { width: CARD_SIZE, backgroundColor: 'white', borderRadius: 12, padding: 8, alignItems: 'center', gap: 4, borderWidth: 2, elevation: 1 },
+  alertDot: { position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, backgroundColor: '#F44336', alignItems: 'center', justifyContent: 'center' },
+  studentName: { fontSize: 11, fontWeight: '700', color: '#333', textAlign: 'center' },
+  studentTime: { fontSize: 9, fontWeight: '600' },
+  studentNotIn: { fontSize: 11, color: '#CCC' },
+  kioskCard: { margin: 16, flexDirection: 'row', alignItems: 'center', backgroundColor: INDIGO + '12', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: INDIGO + '30', gap: 12 },
+  kioskTitle: { fontSize: 14, fontWeight: '700', color: INDIGO },
+  kioskHint: { fontSize: 11, color: '#888', marginTop: 2 },
+  kioskBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: INDIGO, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  kioskBtnText: { color: 'white', fontWeight: '700', fontSize: 13 },
+  myWellbeing: { flexDirection: 'row', alignItems: 'center', margin: 16, backgroundColor: 'white', borderRadius: 14, padding: 14, gap: 10, elevation: 1 },
+  myWellbeingText: { flex: 1, fontSize: 13, fontWeight: '600', color: INDIGO },
+  copyright: { textAlign: 'center', fontSize: 10, color: '#CCC', marginTop: 8, marginBottom: 20 },
 });
