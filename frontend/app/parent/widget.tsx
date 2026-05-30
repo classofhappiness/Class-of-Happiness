@@ -47,7 +47,7 @@ export default function ParentWidgetScreen() {
 
       // Alerts
       try {
-        const alertRes = await fetch(`${BACKEND_URL}/api/parent/alerts`, {
+        const alertRes = await fetch(`${BACKEND_URL}/api/notifications/alerts`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (alertRes.ok) {

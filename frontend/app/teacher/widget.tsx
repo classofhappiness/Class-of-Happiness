@@ -29,7 +29,7 @@ export default function TeacherWidgetScreen() {
       const token = await AsyncStorage.getItem('session_token');
       const [logsRes, alertsRes] = await Promise.all([
         fetch(`${BACKEND_URL}/api/zone-logs?days=1`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${BACKEND_URL}/api/alerts`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${BACKEND_URL}/api/notifications/alerts`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       if (logsRes.ok) {
         const data = await logsRes.json();
