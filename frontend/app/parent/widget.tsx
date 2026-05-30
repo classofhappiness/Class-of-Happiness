@@ -98,8 +98,8 @@ export default function ParentWidgetScreen() {
       <TouchableOpacity
         style={[st.memberCard, zone && { borderColor: color, backgroundColor: color + '08' }]}
         onPress={() => router.push({
-          pathname: '/student/zone',
-          params: { fromFamily: 'true', location: 'home', memberName: member.name, memberId: member.id, returnTo: 'family' }
+          pathname: '/parent/checkin',
+          params: { memberId: member.id, memberName: member.name, memberRelationship: member.relationship }
         })}
         activeOpacity={0.75}>
         {hasAlert && (
