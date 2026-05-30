@@ -105,7 +105,7 @@ export default function FamilyCheckInScreen() {
       // Find the student and set them as current, then go to student select
       router.replace({
         pathname: '/student/select',
-        params: { fromHome: 'true', linkedStudentId: studentId, memberName }
+        params: { fromHome: 'true', linkedStudentId: studentId, memberName, returnTo: 'family' }
       });
     }
   }, [memberRelationship, studentId]);

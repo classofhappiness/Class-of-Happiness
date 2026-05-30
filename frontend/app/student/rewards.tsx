@@ -29,6 +29,7 @@ export default function RewardsScreen() {
     hasComment?: string;
     zone?: string;
     fromFamily?: string;
+    returnTo?: string;
   }>();
 
   const [rewardsData, setRewardsData] = useState<AddPointsResponse | null>(null);

@@ -25,7 +25,7 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://class-of-hap
 export default function StrategiesScreen() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { zone, location, fromFamily } = useLocalSearchParams<{ zone: string; location?: string; fromFamily?: string }>();
+  const { zone, location, fromFamily, returnTo } = useLocalSearchParams<{ zone: string; location?: string; fromFamily?: string; returnTo?: string }>();
   const checkInLocation = (location as string) || 'school';
   const { currentStudent, t, language, translations } = useApp();
   const [strategies, setStrategies] = useState<Strategy[]>([]);
@@ -257,11 +257,11 @@ export default function StrategiesScreen() {
       setShowCelebration(true);
       setTimeout(() => {
         setShowCelebration(false);
-        router.replace({ pathname: '/student/rewards', params: { strategiesUsed: selectedStrategies.length.toString(), hasComment: comment.trim() ? 'true' : 'false', zone, fromFamily: fromFamily || '', location: location || '' } });
+        router.replace({ pathname: '/student/rewards', params: { strategiesUsed: selectedStrategies.length.toString(), hasComment: comment.trim() ? 'true' : 'false', zone, fromFamily: fromFamily || '', location: location || '', returnTo: returnTo || '' } });
       }, 1800);
     } catch (error) {
       console.error('Error saving:', error);
-      router.replace({ pathname: '/student/rewards', params: { strategiesUsed: '0', hasComment: 'false', zone, fromFamily: fromFamily || '', location: location || '' } });
+      router.replace({ pathname: '/student/rewards', params: { strategiesUsed: '0', hasComment: 'false', zone, fromFamily: fromFamily || '', location: location || '', returnTo: returnTo || '' } });
     } finally {
       setSaving(false);
     }

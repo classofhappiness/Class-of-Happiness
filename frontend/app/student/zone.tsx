@@ -66,7 +66,7 @@ const getColourInfo = (t: (key: string) => string) => ({
 export default function ColourSelectionScreen() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { fromFamily, location: locationParam } = useLocalSearchParams<{ fromFamily?: string; location?: string }>();
+  const { fromFamily, location: locationParam, returnTo } = useLocalSearchParams<{ fromFamily?: string; location?: string; returnTo?: string }>();
   const { currentStudent, presetAvatars, t, language, translations } = useApp();
   const [showHelp, setShowHelp] = useState(false);
 
@@ -80,7 +80,7 @@ export default function ColourSelectionScreen() {
 
   const handleZoneSelect = (zone: 'blue' | 'green' | 'yellow' | 'red') => {
     playSelectFeedback();
-    router.push({ pathname: '/student/strategies', params: { zone, location: locationParam || '', fromFamily: fromFamily || '' } });
+    router.push({ pathname: '/student/strategies', params: { zone, location: locationParam || '', fromFamily: fromFamily || '', returnTo: returnTo || '' } });
   };
 
   if (!currentStudent) {
