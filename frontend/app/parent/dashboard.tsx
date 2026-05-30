@@ -1183,7 +1183,12 @@ export default function ParentDashboard() {
                 const counts: Record<string,number> = { blue:0, green:0, yellow:0, red:0 };
                 filtered.forEach((l:any) => { const z = (l as any).zone || (l as any).feeling_colour; if (z in counts) counts[z]++; });
                 const total = Object.values(counts).reduce((a,b)=>a+b,0);
-                const ZONE_LABELS: Record<string,string> = { green:'Positive 😊', blue:'Calm 😢', yellow:'Anxious 😰', red:'Upset 😠' };
+                const ZONE_LABELS: Record<string,string> = {
+                  green: (t('steady') || 'Positive') + ' 😊',
+                  blue: (t('zone_blue') || 'Calm') + ' 😢',
+                  yellow: (t('yellow_short') || 'Anxious') + ' 😰',
+                  red: (t('zone_red') || 'Upset') + ' 😠'
+                };
                 if (total === 0) return <Text style={{ color:'#999', fontSize:13, textAlign:'center', paddingVertical:16 }}>No check-ins for this period</Text>;
                 return (
                   <View style={{ gap:10, marginTop:12 }}>

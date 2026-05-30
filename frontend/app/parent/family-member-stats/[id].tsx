@@ -105,7 +105,7 @@ export default function FamilyMemberStatsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={{padding:8}}>
           <MaterialIcons name="arrow-back" size={22} color="#333" />
         </TouchableOpacity>
-        <Text style={s.headerName}>{decodeURIComponent(name||'')}</Text>
+        <Text style={s.headerName}>{decodeURIComponent(name||'')} — {t('stats')||'Stats'}</Text>
       </View>
       <ActivityIndicator size="large" color="#4CAF50" style={{marginTop:60}} />
     </SafeAreaView>
@@ -118,8 +118,8 @@ export default function FamilyMemberStatsScreen() {
           <MaterialIcons name="arrow-back" size={22} color="#333" />
         </TouchableOpacity>
         <View style={{flex:1}}>
-          <Text style={s.headerName}>{decodeURIComponent(name||'')}</Text>
-          <Text style={s.headerSub}>🏠 {t('home_checkins')||'Home Check-ins'} · {total} {t('wellbeing_total')||'total'}</Text>
+          <Text style={s.headerName}>{decodeURIComponent(name||'')} — {t('stats')||'Stats'}</Text>
+          <Text style={s.headerSub}>🏠 {total} {t('wellbeing_total')||'total check-ins'}</Text>
         </View>
       </View>
 

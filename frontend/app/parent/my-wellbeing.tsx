@@ -32,7 +32,20 @@ const STRATEGY_NAMES: Record<string, string> = {
   p_y1:'Box Breathing Together', p_y2:'Validate Feelings First', p_y3:'Body Check-In', p_y4:'Feelings Journal', p_y5:'Give Space with Love',
   p_r1:'Stay Calm Yourself', p_r2:'Safe Space Together', p_r3:'Cold Water Reset', p_r4:'No Teaching Now', p_r5:'Reconnect with Warmth',
 };
-const resolveName = (id: string) => STRATEGY_NAMES[id] || id.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+const resolveName = (id: string) => {
+  if (!id) return '';
+  // Direct name lookup
+  if (STRATEGY_NAMES[id]) return STRATEGY_NAMES[id];
+  // Strip zone prefix codes like R6, G5, Y5, B3 etc
+  const clean = id
+    .replace(/^[rgybRGYB]\d+$/, '') // pure codes like R6
+    .replace(/^[pbs]_[rgby]\d+_?/, '') // prefix like p_y2_ 
+    .replace(/^[pbs]_[rgby]\d+$/, '') // prefix like p_y2
+    .replace(/_/g, ' ')
+    .trim();
+  if (!clean) return id; // fallback to raw id
+  return clean.replace(/\b\w/g, (c: string) => c.toUpperCase());
+};
 
 type Entry = {
   id: string;

@@ -583,7 +583,7 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function AdminDashboard() {
-  const { user, logout } = useApp();
+  const { user, logout, t } = useApp();
   const router = useRouter();
   const [authToken, setAuthToken] = useState<string|null>(null);
   const [adminCode, setAdminCode] = useState('');
@@ -655,7 +655,7 @@ export default function AdminDashboard() {
           <View style={s.logoBox}>
             <Text style={s.logoEmoji}>😊</Text>
             <Text style={s.logoTitle}>Class of Happiness</Text>
-            <Text style={s.logoSub}>{isSuperAdmin ? 'Super Admin' : 'Admin'} Dashboard</Text>
+            <Text style={s.logoSub}>{isSuperAdmin ? 'Super Admin' : 'School Admin'}</Text>
           </View>
           <Text style={s.lockHint}>{t("unlock_admin") || "Enter your admin code to unlock"}</Text>
           <TextInput

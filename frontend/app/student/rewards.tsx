@@ -48,8 +48,8 @@ export default function RewardsScreen() {
     preloadSounds();
     if (currentStudent) {
       addPointsAndFetchRewards();
-    } else if (params.fromFamily === 'true') {
-      // Family member via student flow — still show rewards, return to student select
+    } else {
+      // No student found - just show celebration
       setLoading(false);
     }
   }, [currentStudent]);
