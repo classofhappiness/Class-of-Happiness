@@ -1423,7 +1423,6 @@ export default function ParentDashboard() {
                 <Text style={{fontSize:12,color:'#888',marginBottom:4}}>{t('add_new_student') || 'Or create new'}</Text>
               </View>
             )}
-              )}
               <TouchableOpacity onPress={() => setShowAddFamilyModal(false)}>
                 <MaterialIcons name="close" size={24} color="#666" />
               </TouchableOpacity>
