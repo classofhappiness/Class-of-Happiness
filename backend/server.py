@@ -3554,12 +3554,28 @@ async def generate_family_pdf_report(family_member_id: str, year: int, month: in
     _, last_day = calendar.monthrange(year, month)
     end = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc).isoformat()
 
+    home_logs = []
+
+    # Check family_zone_logs first
     logs_r = supabase.table("family_zone_logs").select("*").eq("family_member_id", family_member_id).gte("timestamp", start).lte("timestamp", end).order("timestamp", desc=False).execute()
-    home_logs = logs_r.data or []
-    for l in home_logs:
+    for l in (logs_r.data or []):
         l["_source"] = "home"
         l["zone"] = l.get("zone", l.get("feeling_colour", ""))
         l["strategies_selected"] = l.get("strategies_selected", l.get("helpers_selected", []))
+        home_logs.append(l)
+
+    # Also check feeling_logs if member has a student_id
+    student_id = fm.get("student_id")
+    if student_id:
+        fl_r = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start).lte("timestamp", end).order("timestamp", desc=False).execute()
+        for l in (fl_r.data or []):
+            l["_source"] = "home"
+            l["zone"] = l.get("feeling_colour", l.get("zone", ""))
+            l["strategies_selected"] = l.get("helpers_selected", l.get("strategies_selected", []))
+            home_logs.append(l)
+
+    # Sort combined logs by timestamp
+    home_logs.sort(key=lambda x: x.get("timestamp", ""))
 
     if not home_logs:
         raise HTTPException(status_code=404, detail=f"No check-ins found for {fm.get('name')} in {year}/{month:02d}")
