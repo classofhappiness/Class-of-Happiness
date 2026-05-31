@@ -68,10 +68,16 @@ export default function FamilyMemberStatsScreen() {
       const token = await AsyncStorage.getItem('session_token');
       const lang = await AsyncStorage.getItem('app_language') || language || 'en';
       const [year, month] = monthStr.split('-');
-      const url = `${BACKEND_URL}/api/reports/pdf/family/${id}/month/${year}/${parseInt(month)}?token=${token}&lang=${lang}`;
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) await Linking.openURL(url);
-      else Alert.alert('Error', t('no_checkin_yet') || 'No check-ins found for this month');
+      // Fetch PDF with auth header and open as blob
+      const res = await fetch(`${BACKEND_URL}/api/reports/pdf/family/${id}/month/${year}/${parseInt(month)}?lang=${lang}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const url = `${BACKEND_URL}/api/reports/pdf/family/${id}/month/${year}/${parseInt(month)}?token=${token}&lang=${lang}`;
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Error', t('no_checkin_yet') || 'No check-ins found for this month');
+      }
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not download PDF');
     }
@@ -133,10 +139,7 @@ export default function FamilyMemberStatsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={{padding:8}}>
           <MaterialIcons name="arrow-back" size={22} color="#333" />
         </TouchableOpacity>
-        <View style={{flex:1, justifyContent:'center'}}>
-          <Text style={s.headerName}>{decodeURIComponent(name||'')} — {t('stats')||'Stats'}</Text>
-
-        </View>
+        <Text style={s.headerName}>{decodeURIComponent(name||'')} — {t('stats')||'Stats'}</Text>
       </View>
 
       <ScrollView
@@ -175,7 +178,7 @@ export default function FamilyMemberStatsScreen() {
                   : topStrategies.map(([strat, count]) => (
                     <View key={strat} style={{flexDirection:'row', alignItems:'center', gap:10, paddingVertical:4, borderBottomWidth:1, borderBottomColor:'#F5F5F5'}}>
                       <MaterialIcons name="lightbulb" size={16} color="#FF9800" />
-                      <Text style={{flex:1, fontSize:13, color:'#333'}}>{strat.replace(/_/g,' ').replace(/\b\w/g, (c:string)=>c.toUpperCase())}</Text>
+                      <Text style={{flex:1, fontSize:13, color:'#333'}}>{(t(strat) || t('strat_'+strat.replace('strat_','')) || strat.replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase()))}</Text>
                       <View style={{backgroundColor:'#FFF8E1', borderRadius:8, paddingHorizontal:8, paddingVertical:3}}>
                         <Text style={{fontSize:12, color:'#FF9800', fontWeight:'600'}}>{count}×</Text>
                       </View>
@@ -206,7 +209,7 @@ export default function FamilyMemberStatsScreen() {
                         </Text>
                         {strats.length > 0 && (
                           <Text style={{fontSize:11, color:'#5C6BC0', marginTop:2}}>
-                            💡 {strats.slice(0,3).map((s:string)=>s.replace(/_/g,' ')).join(', ')}
+                            💡 {strats.slice(0,3).map((s:string)=>t(s)||t('strat_'+s.replace('strat_',''))||s.replace(/_/g,' ')).join(', ')}
                           </Text>
                         )}
                         {log.comment && <Text style={{fontSize:11, color:'#888', marginTop:2, fontStyle:'italic'}}>"{log.comment}"</Text>}

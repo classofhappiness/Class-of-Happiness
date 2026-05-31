@@ -715,6 +715,7 @@ export default function ParentDashboard() {
       setShowAddFamilyModal(false);
       setNewMember({ name: '', relationship: 'child', avatar_type: 'preset', avatar_preset: 'star', avatar_custom: '' });
       fetchData();
+      refreshStudents();
     } catch (error: any) {
       console.error('Error adding family member:', error);
       Alert.alert('Error', error.message || 'Failed to add family member. Please make sure you are logged in as a parent.');
