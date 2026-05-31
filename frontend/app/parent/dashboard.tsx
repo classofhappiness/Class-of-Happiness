@@ -1392,6 +1392,9 @@ export default function ParentDashboard() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('add_family_member')}</Text>
+              <TouchableOpacity onPress={() => setShowAddFamilyModal(false)}>
+                <MaterialIcons name="close" size={24} color="#666" />
+              </TouchableOpacity>
             </View>
 
             {/* Link existing student from student flow */}
@@ -1423,10 +1426,6 @@ export default function ParentDashboard() {
                 <Text style={{fontSize:12,color:'#888',marginBottom:4}}>{t('add_new_student') || 'Or create new'}</Text>
               </View>
             )}
-              <TouchableOpacity onPress={() => setShowAddFamilyModal(false)}>
-                <MaterialIcons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
             
             {/* Avatar Selection */}
             <Text style={styles.inputLabel}>{t('photo') || 'Photo'}</Text>
