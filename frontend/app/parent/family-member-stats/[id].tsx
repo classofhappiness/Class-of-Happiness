@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
+import { View, Image, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -124,10 +124,14 @@ export default function FamilyMemberStatsScreen() {
   if (loading) return (
     <SafeAreaView style={s.container}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={{padding:8}}>
-          <MaterialIcons name="arrow-back" size={22} color="#333" />
+        <TouchableOpacity onPress={() => router.back()} style={s.headerBtn}>
+          <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={s.headerName}>{decodeURIComponent(name||'')} — {t('stats')||'Stats'}</Text>
+        <View style={s.headerCenter}>
+          <Image source={require('../../../assets/images/logo_coh.png')} style={s.headerLogo} resizeMode="contain" />
+          <Text style={s.headerTitle}>{decodeURIComponent(name||'')} — {t('stats')||'Statistics'}</Text>
+        </View>
+        <View style={{width:40}} />
       </View>
       <ActivityIndicator size="large" color="#4CAF50" style={{marginTop:60}} />
     </SafeAreaView>
@@ -136,10 +140,14 @@ export default function FamilyMemberStatsScreen() {
   return (
     <SafeAreaView style={s.container}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={{padding:8}}>
-          <MaterialIcons name="arrow-back" size={22} color="#333" />
+        <TouchableOpacity onPress={() => router.back()} style={s.headerBtn}>
+          <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={s.headerName}>{decodeURIComponent(name||'')} — {t('stats')||'Stats'}</Text>
+        <View style={s.headerCenter}>
+          <Image source={require('../../../assets/images/logo_coh.png')} style={s.headerLogo} resizeMode="contain" />
+          <Text style={s.headerTitle}>{decodeURIComponent(name||'')} — {t('stats')||'Statistics'}</Text>
+        </View>
+        <View style={{width:40}} />
       </View>
 
       <ScrollView
@@ -309,6 +317,10 @@ const s = StyleSheet.create({
   header: { flexDirection:'row', alignItems:'center', padding:16, backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0', gap:8 },
   headerName: { fontSize:18, fontWeight:'700', color:'#333' },
   headerSub: { fontSize:12, color:'#888', marginTop:2 },
+  headerBtn: { padding:8, width:40 },
+  headerCenter: { flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8 },
+  headerLogo: { width:28, height:28 },
+  headerTitle: { fontSize:16, fontWeight:'700', color:'#333' },
   card: { backgroundColor:'white', borderRadius:14, padding:14, marginBottom:12, elevation:1, shadowColor:'#000', shadowOpacity:0.04, shadowRadius:3, shadowOffset:{width:0,height:1} },
   secHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center' },
   secTitle: { fontSize:14, fontWeight:'700', color:'#333' },

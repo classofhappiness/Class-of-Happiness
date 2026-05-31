@@ -6694,6 +6694,7 @@ async def get_family_member_checkins(member_id: str, request: Request, days: int
             # Normalize field names
             for log in logs:
                 log["zone"] = log.get("feeling_colour", log.get("zone", ""))
+                log["strategies_selected"] = log.get("helpers_selected", log.get("strategies_selected", []))
                 log["member_id"] = member_id
         else:
             # Get from family_zone_logs

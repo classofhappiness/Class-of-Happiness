@@ -362,10 +362,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch { /* silent — family fetch is optional */ }
       } // end isParentUser if block
 
-      // Merge: avoid duplicates (student already in data list)
-      const existingIds = new Set(data.map((s: any) => s.id));
+      // Merge: avoid duplicates, but tag existing students that are family members
+      const familyStudentIds = new Set(familyStudents.map((fs: any) => fs.id));
+      const familyById = Object.fromEntries(familyStudents.map((fs: any) => [fs.id, fs]));
+      const taggedData = data.map((s: any) => {
+        if (familyStudentIds.has(s.id)) {
+          const fm = familyById[s.id];
+          return { ...s, is_family_member: true, family_member_id: fm.family_member_id };
+        }
+        return s;
+      });
+      const existingIds = new Set(taggedData.map((s: any) => s.id));
       const merged = [
-        ...data,
+        ...taggedData,
         ...familyStudents.filter((fs: any) => !existingIds.has(fs.id))
       ];
 
