@@ -275,6 +275,10 @@ function AppContent() {
           }}
         />
         <Stack.Screen
+          name="parent/family-member-stats/[id]"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="parent/linked-child/[id]"
           options={{
             headerShown: false,
