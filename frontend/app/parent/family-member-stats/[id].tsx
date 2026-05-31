@@ -20,6 +20,7 @@ export default function FamilyMemberStatsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [logs, setLogs] = useState<any[]>([]);
   const [downloadingMonth, setDownloadingMonth] = useState<string|null>(null);
+  const [strategyNames, setStrategyNames] = useState<Record<string,string>>({});
 
   const [secEmoDistrib,     setSecEmoDistrib]     = useState(false);
   const [secMostUsed,       setSecMostUsed]       = useState(false);
@@ -53,6 +54,19 @@ export default function FamilyMemberStatsScreen() {
       const seen = new Set();
       const deduped = combined.filter(l => { if (seen.has(l.id)) return false; seen.add(l.id); return true; });
       setLogs(deduped);
+    } catch {}
+    // Fetch strategy names for ID lookup
+    try {
+      const token2 = await AsyncStorage.getItem('session_token');
+      const sRes = await fetch(`${BACKEND_URL}/api/strategies`, {
+        headers: { Authorization: `Bearer ${token2}` }
+      });
+      if (sRes.ok) {
+        const strats = await sRes.json();
+        const nameMap: Record<string,string> = {};
+        strats.forEach((s: any) => { if (s.id && s.name) nameMap[s.id] = s.name; });
+        setStrategyNames(nameMap);
+      }
     } catch {}
     setLoading(false);
     setRefreshing(false);
@@ -186,7 +200,7 @@ export default function FamilyMemberStatsScreen() {
                   : topStrategies.map(([strat, count]) => (
                     <View key={strat} style={{flexDirection:'row', alignItems:'center', gap:10, paddingVertical:4, borderBottomWidth:1, borderBottomColor:'#F5F5F5'}}>
                       <MaterialIcons name="lightbulb" size={16} color="#FF9800" />
-                      <Text style={{flex:1, fontSize:13, color:'#333'}}>{(t(strat) || t('strat_'+strat.replace('strat_','')) || strat.replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase()))}</Text>
+                      <Text style={{flex:1, fontSize:13, color:'#333'}}>{(strategyNames[strat] || t(strat) || strat.replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase()))}</Text>
                       <View style={{backgroundColor:'#FFF8E1', borderRadius:8, paddingHorizontal:8, paddingVertical:3}}>
                         <Text style={{fontSize:12, color:'#FF9800', fontWeight:'600'}}>{count}×</Text>
                       </View>
@@ -217,7 +231,7 @@ export default function FamilyMemberStatsScreen() {
                         </Text>
                         {strats.length > 0 && (
                           <Text style={{fontSize:11, color:'#5C6BC0', marginTop:2}}>
-                            💡 {strats.slice(0,3).map((s:string)=>t(s)||t('strat_'+s.replace('strat_',''))||s.replace(/_/g,' ')).join(', ')}
+                            💡 {strats.slice(0,3).map((s:string)=>strategyNames[s]||t(s)||s.replace(/_/g,' ')).join(', ')}
                           </Text>
                         )}
                         {log.comment && <Text style={{fontSize:11, color:'#888', marginTop:2, fontStyle:'italic'}}>"{log.comment}"</Text>}
