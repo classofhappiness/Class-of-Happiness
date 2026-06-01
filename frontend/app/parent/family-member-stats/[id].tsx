@@ -55,18 +55,29 @@ export default function FamilyMemberStatsScreen() {
       const deduped = combined.filter(l => { if (seen.has(l.id)) return false; seen.add(l.id); return true; });
       setLogs(deduped);
     } catch {}
-    // Fetch strategy names for ID lookup
+    // Fetch strategy names for ID lookup - check all zones
     try {
       const token2 = await AsyncStorage.getItem('session_token');
-      const sRes = await fetch(`${BACKEND_URL}/api/strategies`, {
+      const nameMap: Record<string,string> = {};
+      // Fetch helpers for all zones
+      await Promise.all(['blue','green','yellow','red'].map(async (zone) => {
+        const sRes = await fetch(`${BACKEND_URL}/api/strategies?zone=${zone}`, {
+          headers: { Authorization: `Bearer ${token2}` }
+        });
+        if (sRes.ok) {
+          const strats = await sRes.json();
+          strats.forEach((s: any) => { if (s.id && s.name) nameMap[s.id] = s.name; });
+        }
+      }));
+      // Also fetch without zone filter
+      const sRes2 = await fetch(`${BACKEND_URL}/api/strategies`, {
         headers: { Authorization: `Bearer ${token2}` }
       });
-      if (sRes.ok) {
-        const strats = await sRes.json();
-        const nameMap: Record<string,string> = {};
-        strats.forEach((s: any) => { if (s.id && s.name) nameMap[s.id] = s.name; });
-        setStrategyNames(nameMap);
+      if (sRes2.ok) {
+        const strats2 = await sRes2.json();
+        strats2.forEach((s: any) => { if (s.id && s.name) nameMap[s.id] = s.name; });
       }
+      setStrategyNames(nameMap);
     } catch {}
     setLoading(false);
     setRefreshing(false);

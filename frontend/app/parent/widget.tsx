@@ -17,7 +17,7 @@ const ZONE_EMOJI: Record<string,string> = { blue:'😢', green:'😊', yellow:'�
 
 export default function ParentWidgetScreen() {
   const router = useRouter();
-  const { t, language } = useApp();
+  const { t, language, presetAvatars } = useApp();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [members, setMembers] = useState<any[]>([]);
@@ -118,7 +118,7 @@ export default function ParentWidgetScreen() {
         )}
         <View style={[st.avatarCircle, { backgroundColor: isChild ? '#F4433620' : '#5C6BC020', borderColor: isChild ? '#F44336' : INDIGO }]}>
           <Text style={{ fontSize: 24 }}>
-            {member.avatar_preset === 'bear' ? '🐻' : member.avatar_preset === 'cat' ? '🐱' : member.avatar_preset === 'dog' ? '🐶' : isChild ? '👧' : '😊'}
+            {presetAvatars?.find((a: any) => a.id === member.avatar_preset)?.emoji || (isChild ? '👧' : '😊')}
           </Text>
         </View>
         <Text style={st.memberName} numberOfLines={1}>{member.name}</Text>

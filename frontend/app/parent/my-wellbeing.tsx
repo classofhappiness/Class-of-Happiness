@@ -299,9 +299,9 @@ export default function MyWellbeingScreen() {
         if (fm?.student_id) studentId = fm.student_id;
       }
       const lang = await AsyncStorage.getItem('app_language') || 'en';
-      const familyMemberId = (currentStudent as any)?.family_member_id;
-      const fullUrl = familyMemberId
-        ? `${BACKEND_URL}/api/reports/pdf/family/${familyMemberId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}&lang=${lang}`
+      // Use family member PDF endpoint if memberId is a family member, else student endpoint
+      const fullUrl = memberId
+        ? `${BACKEND_URL}/api/reports/pdf/family/${memberId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}&lang=${lang}`
         : `${BACKEND_URL}/api/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}&lang=${lang}`;
       const canOpen = await Linking.canOpenURL(fullUrl);
       if (canOpen) { await Linking.openURL(fullUrl); }

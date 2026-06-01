@@ -4802,6 +4802,14 @@ async def send_parent_message(request: Request):
 
     # Store message
     try:
+        # Find the parent user_id via family_members
+        parent_user_id = None
+        try:
+            fm_r = supabase.table("family_members").select("user_id").eq("student_id", student_id).execute()
+            if fm_r.data:
+                parent_user_id = fm_r.data[0].get("user_id")
+        except: pass
+        
         supabase.table("student_alerts").insert({
             "id": str(uuid.uuid4()),
             "student_id": student_id,
@@ -4810,6 +4818,7 @@ async def send_parent_message(request: Request):
             "zone": zone,
             "message": message,
             "context": "home",
+            "user_id": parent_user_id,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "resolved": False,
         }).execute()
@@ -4970,6 +4979,13 @@ async def get_alerts(request: Request, limit: int = 20):
                 logger.warning(f"[get_alerts] No student_ids for teacher, returning all recent alerts")
                 fallback = supabase.table("student_alerts").select("*").order("created_at", desc=True).limit(limit).execute()
                 return fallback.data or []
+            # For parents with no linked students, try fetching alerts by user_id directly
+            try:
+                user_alerts = supabase.table("student_alerts").select("*").eq("user_id", user["user_id"]).order("created_at", desc=True).limit(limit).execute()
+                if user_alerts.data:
+                    return user_alerts.data
+            except:
+                pass
             return []
         
         # For teachers: return all alerts, frontend filters by classroom

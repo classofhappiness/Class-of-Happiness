@@ -68,6 +68,26 @@ export default function TeacherDashboardScreen() {
   const navigation = useNavigation() as any;
   const { user, students, classrooms, presetAvatars, refreshStudents, refreshClassrooms, t } = useApp();
   const [period, setPeriod] = useState<Period>(7);
+  const [strategyNames, setStrategyNames] = useState<Record<string,string>>({});
+
+  useEffect(() => {
+    const fetchStrategyNames = async () => {
+      try {
+        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const token = await AsyncStorage.getItem('session_token');
+        const nameMap: Record<string,string> = {};
+        await Promise.all(['blue','green','yellow','red'].map(async (zone) => {
+          const res = await fetch(`${BACKEND_URL}/api/strategies?zone=${zone}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) { const d = await res.json(); d.forEach((s:any) => { if(s.id&&s.name) nameMap[s.id]=s.name; }); }
+        }));
+        setStrategyNames(nameMap);
+      } catch {}
+    };
+    fetchStrategyNames();
+  }, []);
   const [recentLogs, setRecentLogs] = useState<ZoneLog[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -184,7 +204,7 @@ export default function TeacherDashboardScreen() {
     { label: t('students')||'Students', icon: 'people', color: '#4CAF50', route: '/teacher/students', count: students.length },
     { label: t('classrooms')||'Classrooms', icon: 'school', color: '#5C6BC0', route: '/teacher/classrooms', count: classrooms.length },
     { label: 'My\nCheck-In', icon: 'self-improvement', color: '#26A69A', route: '/teacher/checkin', count: null },
-    { label: 'Class\nCheck-In', icon: 'fact-check', color: '#FF7043', route: '/teacher/bulk-checkin', count: null },
+
     { label: t('resources')||'Resources', icon: 'library-books', color: '#5C6BC0', route: '/teacher/resources', count: null },
     { label: t('alerts')||'Alerts', icon: 'notifications', color: '#F44336', route: '/teacher/alerts', count: alertCount > 0 ? alertCount : null },
   ];
@@ -296,7 +316,7 @@ export default function TeacherDashboardScreen() {
                   {(() => { const s = getStudent(log.student_id); const cl = s?.classroom_id ? classrooms.find(c=>c.id===s.classroom_id) : null; return cl ? <Text style={{fontSize:9,color:'#AAA'}}>{cl.name}</Text> : null; })()}
                   {(log as any).strategies_selected?.length > 0 && (
                     <Text style={st.logStrats} numberOfLines={1}>
-                      {(log as any).strategies_selected.slice(0,2).map(resolveStrategy).join(', ')}
+                      {(log as any).strategies_selected.slice(0,2).map((s:string)=>strategyNames[s]||resolveStrategy(s)).join(', ')}
                       {(log as any).strategies_selected.length>2?` +${(log as any).strategies_selected.length-2}`:''}
                     </Text>
                   )}

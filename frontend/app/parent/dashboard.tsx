@@ -1404,16 +1404,25 @@ export default function ParentDashboard() {
                   {students.filter((s:any) => !s.is_family_member && !familyMembers.some((fm:any) => fm.student_id === s.id || fm.name === s.name)).map((s:any) => (
                     <TouchableOpacity key={s.id}
                       style={{flexDirection:'row',alignItems:'center',gap:8,paddingVertical:8,paddingHorizontal:10,backgroundColor:'#F0F4FF',borderRadius:8,marginBottom:4,borderWidth:1,borderColor:'#C5CAE9'}}
-                      onPress={async () => {
-                        try {
-                          const token = await AsyncStorage.getItem('session_token');
-                          const res = await fetch(`${BACKEND_URL}/api/family/members`, {
-                            method:'POST',
-                            headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
-                            body: JSON.stringify({name:s.name,relationship:'child',student_id:s.id,avatar_preset:s.avatar_preset||'bear',avatar_type:'preset'})
-                          });
-                          if (res.ok) { setShowAddFamilyModal(false); loadFamilyData(); refreshStudents(); }
-                        } catch {}
+                      onPress={() => {
+                        Alert.alert(
+                          `Add ${s.name} to family?`,
+                          `${s.name} will appear on your family dashboard and you can track their home wellbeing.`,
+                          [
+                            { text: t('cancel')||'Cancel', style: 'cancel' },
+                            { text: t('add_member')||'Add', onPress: async () => {
+                              try {
+                                const token = await AsyncStorage.getItem('session_token');
+                                const res = await fetch(`${BACKEND_URL}/api/family/members`, {
+                                  method:'POST',
+                                  headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+                                  body: JSON.stringify({name:s.name,relationship:'child',student_id:s.id,avatar_preset:s.avatar_preset||'bear',avatar_type:'preset'})
+                                });
+                                if (res.ok) { setShowAddFamilyModal(false); loadFamilyData(); refreshStudents(); }
+                              } catch {}
+                            }}
+                          ]
+                        );
                       }}>
                       <MaterialIcons name="person-add" size={16} color="#5C6BC0"/>
                       <Text style={{fontSize:13,fontWeight:'600',color:'#333',flex:1}}>{s.name}</Text>
