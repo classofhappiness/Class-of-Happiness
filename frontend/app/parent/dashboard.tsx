@@ -1118,8 +1118,8 @@ export default function ParentDashboard() {
 
         {/* Children Analytics */}
         <>
-          {/* Child + period filters — always visible */}
-          <View style={{ paddingHorizontal:16, paddingBottom:8, gap:8 }}>
+          {/* Child + period filters — only show when section is expanded */}
+          {weekExpanded && <View style={{ paddingHorizontal:16, paddingBottom:8, gap:8 }}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ flexDirection:'row', gap:6 }}>
               <TouchableOpacity onPress={() => setSelectedWeekChild(null)}
@@ -1157,7 +1157,7 @@ export default function ParentDashboard() {
                 </TouchableOpacity>
               ))}
             </View>
-          </View>
+          </View>}
           <View style={styles.section}>
             <TouchableOpacity style={styles.collapsibleHeader} onPress={()=>setWeekExpanded(e=>!e)} activeOpacity={0.7}>
               <Text style={styles.sectionTitle}>{t('week_overview')||'Week Overview'}</Text>
