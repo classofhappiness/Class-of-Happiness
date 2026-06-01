@@ -421,11 +421,7 @@ export default function ParentDashboard() {
       });
       if (res.ok) {
         const data = await res.json();
-        const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-        const count = Array.isArray(data) ? data.filter((a:any) => {
-          if (a.resolved) return false;
-          return new Date(a.created_at || a.timestamp || 0) >= todayStart;
-        }).length : 0;
+        const count = Array.isArray(data) ? data.filter((a:any) => !a.resolved).length : 0;
         setParentAlertCount(count);
       }
     } catch {}
