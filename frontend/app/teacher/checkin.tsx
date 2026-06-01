@@ -59,13 +59,12 @@ const BACKEND_URL_CONST = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 export default function TeacherCheckInScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { user , t} = useApp();
   const [zoneExpanded, setZoneExpanded] = useState(true);
   const [strategiesExpanded, setStrategiesExpanded] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
-
-  const navigation = useNavigation();
   const [selectedZone, setSelectedZone] = useState<FeelingZone | null>(null);
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
