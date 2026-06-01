@@ -96,8 +96,14 @@ const STRATEGY_NAMES: Record<string, string> = {
 };
 const resolveStrategy = (id: string): string => {
   if (!id) return '';
+  // Skip bare zone colour strings
+  if (['blue','green','yellow','red','Blue','Green','Yellow','Red'].includes(id.trim())) return '';
+  if (STRATEGY_NAMES[id]) return STRATEGY_NAMES[id];
   const clean = id.trim().toLowerCase().replace(/^(helper_|strategy_)/, '');
-  return STRATEGY_NAMES[clean] || STRATEGY_NAMES[id] || id.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+  if (STRATEGY_NAMES[clean]) return STRATEGY_NAMES[clean];
+  const stripped = id.replace(/^[rgybRGYB]\d+$/, '').replace(/^[pbs]_[rgby]\d+_?/, '').replace(/_/g, ' ').trim();
+  if (!stripped || ['blue','green','yellow','red'].includes(stripped.toLowerCase())) return '';
+  return stripped.replace(/\b\w/g, (c:string) => c.toUpperCase());
 };
 
 const ZONE_COLORS: Record<string, string> = {
@@ -131,6 +137,7 @@ const getRelationshipColor = (relationship: string) => {
 export default function ParentDashboard() {
   const router = useRouter();
   const { user, presetAvatars, t, language, setCurrentStudent, hasActiveSubscription, students, refreshStudents } = useApp();
+  const [strategyNames, setStrategyNames] = useState<Record<string,string>>({});
   
   // Linked children from school
   const [linkedChildren, setLinkedChildren] = useState<Student[]>([]);
@@ -428,6 +435,17 @@ export default function ParentDashboard() {
   };
 
   const fetchData = async () => {
+    // Fetch strategy names
+    try {
+      const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const tok = await AsyncStorage.getItem('session_token');
+      const nameMap: Record<string,string> = {};
+      await Promise.all(['blue','green','yellow','red'].map(async (zone) => {
+        const r = await fetch(`${BURL}/api/strategies?zone=${zone}`, { headers: { Authorization: `Bearer ${tok}` } });
+        if (r.ok) { const d = await r.json(); d.forEach((s:any) => { if(s.id&&s.name) nameMap[s.id]=s.name; }); }
+      }));
+      setStrategyNames(nameMap);
+    } catch {}
     try {
       // First, ensure user role is set to parent
       try {
@@ -1305,7 +1323,7 @@ export default function ParentDashboard() {
                       </View>
                       {(log as any).strategies_selected?.length > 0 && (
                         <Text style={[styles.logTime, { color: '#AAA', fontSize: 10 }]} numberOfLines={1}>
-                          {(log as any).strategies_selected.slice(0,2).map(resolveStrategy).join(', ')}
+                          {(log as any).strategies_selected.slice(0,2).map((s:string)=>strategyNames[s]||resolveStrategy(s)).join(', ')}
                           {(log as any).strategies_selected.length > 2 ? ` +${(log as any).strategies_selected.length-2}` : ''}
                         </Text>
                       )}

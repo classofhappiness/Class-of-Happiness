@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
-  ScrollView, KeyboardAvoidingView, Platform, Alert, TextInput, Modal,
+  ScrollView, KeyboardAvoidingView, Platform, Alert, TextInput, Modal, Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useNavigation } from 'expo-router';
@@ -65,16 +65,6 @@ export default function TeacherCheckInScreen() {
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
 
-  const downloadTeacherPDF = async (monthStr: string) => {
-    try {
-      const token = await AsyncStorage.getItem('session_token');
-      const lang = await AsyncStorage.getItem('app_language') || 'en';
-      const [yr, mo] = monthStr.split('-');
-      const url = `${BACKEND_URL_CONST}/api/reports/pdf/teacher-wellbeing/${user?.user_id}/month/${yr}/${parseInt(mo)}?token=${token}&lang=${lang}`;
-      const { Linking } = require('react-native');
-      await Linking.openURL(url);
-    } catch { Alert.alert('Error', 'No data for this month yet'); }
-  };
   const navigation = useNavigation();
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const [selectedZone, setSelectedZone] = useState<FeelingZone | null>(null);
@@ -297,6 +287,16 @@ export default function TeacherCheckInScreen() {
   };
 
   const zoneConfig = selectedZone ? ZONES.find(z => z.id === selectedZone) : null;
+
+  const downloadTeacherPDF = async (monthStr: string) => {
+    try {
+      const token = await AsyncStorage.getItem('session_token');
+      const lang = await AsyncStorage.getItem('app_language') || 'en';
+      const [yr, mo] = monthStr.split('-');
+      const url = `${BACKEND_URL_CONST}/api/reports/pdf/teacher-wellbeing/${user?.user_id}/month/${yr}/${parseInt(mo)}?token=${token}&lang=${lang}`;
+      await Linking.openURL(url);
+    } catch { Alert.alert('Error', 'No data for this month yet'); }
+  };
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>

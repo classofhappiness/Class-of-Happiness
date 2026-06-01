@@ -46,17 +46,12 @@ const STRATEGY_NAMES: Record<string, string> = {
 };
 const resolveStrategy = (id: string): string => {
   if (!id) return '';
+  if (['blue','green','yellow','red','Blue','Green','Yellow','Red'].includes(id.trim())) return '';
   if (STRATEGY_NAMES[id]) return STRATEGY_NAMES[id];
   const clean = id.trim().toLowerCase().replace(/^(helper_|strategy_)/, '');
   if (STRATEGY_NAMES[clean]) return STRATEGY_NAMES[clean];
-  // Strip internal codes like R6, G5, Y5, p_y2, b_3 etc
-  const stripped = id
-    .replace(/^[rgybRGYB]\d+$/, '')
-    .replace(/^[pbs]_[rgby]\d+_?/, '')
-    .replace(/^[pbs]_[rgby]\d+$/, '')
-    .replace(/_/g, ' ')
-    .trim();
-  if (!stripped) return id;
+  const stripped = id.replace(/^[rgybRGYB]\d+$/, '').replace(/^[pbs]_[rgby]\d+_?/, '').replace(/_/g, ' ').trim();
+  if (!stripped || ['blue','green','yellow','red'].includes(stripped.toLowerCase())) return '';
   return stripped.replace(/\b\w/g, (c:string) => c.toUpperCase());
 };
 
