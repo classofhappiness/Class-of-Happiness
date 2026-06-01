@@ -66,7 +66,6 @@ export default function TeacherCheckInScreen() {
   const [historyExpanded, setHistoryExpanded] = useState(false);
 
   const navigation = useNavigation();
-  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const [selectedZone, setSelectedZone] = useState<FeelingZone | null>(null);
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
@@ -285,6 +284,8 @@ export default function TeacherCheckInScreen() {
     const d = new Date(iso);
     return `${DAYS[d.getDay()]} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
   };
+
+  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
 
   const zoneConfig = selectedZone ? ZONES.find(z => z.id === selectedZone) : null;
 
