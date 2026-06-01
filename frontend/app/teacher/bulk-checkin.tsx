@@ -30,7 +30,10 @@ export default function BulkCheckinScreen() {
   const { classroomId, classroomName } = useLocalSearchParams<{ classroomId: string; classroomName: string }>();
   const { students, presetAvatars, t, language } = useApp();
 
-  const classroomStudents = students.filter(s => s.classroom_id === classroomId);
+  const { classrooms } = useApp();
+  const [selectedClassroomId, setSelectedClassroomId] = useState<string>(classroomId || '');
+  const [selectedClassroomName, setSelectedClassroomName] = useState<string>(classroomName || '');
+  const classroomStudents = students.filter(s => s.classroom_id === (selectedClassroomId || classroomId));
 
   // Map studentId -> selected zone key (or null)
   const [selections, setSelections] = useState<Record<string, ZoneKey | null>>({});
@@ -162,6 +165,42 @@ export default function BulkCheckinScreen() {
     );
   }
 
+  // Show classroom picker if no classroom selected
+  if (!selectedClassroomId) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <MaterialIcons name="arrow-back" size={24} color="#333" />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Class Check-In</Text>
+            <Text style={styles.headerSub}>Select a classroom</Text>
+          </View>
+        </View>
+        <ScrollView contentContainerStyle={{padding:16, gap:12}}>
+          {(classrooms||[]).length === 0 ? (
+            <View style={{alignItems:'center', padding:40}}>
+              <MaterialIcons name="school" size={48} color="#CCC" />
+              <Text style={{color:'#999', marginTop:12, fontSize:14}}>No classrooms yet — create one first</Text>
+            </View>
+          ) : (classrooms||[]).map((c:any) => (
+            <TouchableOpacity key={c.id}
+              style={{flexDirection:'row', alignItems:'center', gap:12, backgroundColor:'white', borderRadius:12, padding:16, borderWidth:1, borderColor:'#E0E0E0'}}
+              onPress={() => { setSelectedClassroomId(c.id); setSelectedClassroomName(c.name); }}>
+              <MaterialIcons name="school" size={24} color="#FF7043" />
+              <View style={{flex:1}}>
+                <Text style={{fontSize:15, fontWeight:'700', color:'#333'}}>{c.name}</Text>
+                <Text style={{fontSize:12, color:'#888'}}>{students.filter((s:any)=>s.classroom_id===c.id).length} students</Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color="#999" />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -174,7 +213,7 @@ export default function BulkCheckinScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle} numberOfLines={1}>
-            {classroomName || t('classrooms') || 'Classroom'}
+            {selectedClassroomName || classroomName || t('classrooms') || 'Classroom'}
           </Text>
           <Text style={styles.headerSub}>{getDayLabel()} · {classroomStudents.length} students</Text>
         </View>

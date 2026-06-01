@@ -170,6 +170,16 @@ export default function FamilyMemberStatsScreen() {
         contentContainerStyle={{padding:16, paddingBottom:40}}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4CAF50" />}>
 
+        {/* Summary line */}
+        <View style={{flexDirection:'row', alignItems:'center', justifyContent:'center', gap:12, marginBottom:12}}>
+          <Text style={{fontSize:13, color:'#888', textAlign:'center'}}>
+            {total > 0
+              ? `${total} ${t('wellbeing_total')||'total check-ins'} · ${t('last_checkin')||'Last'}: ${(() => { const last = logs.sort((a:any,b:any)=>new Date(b.timestamp).getTime()-new Date(a.timestamp).getTime())[0]; if(!last) return '—'; const d = new Date(last.timestamp); const diff = Math.floor((Date.now()-d.getTime())/(1000*60*60*24)); return diff === 0 ? (t('just_now')||'Today') : diff === 1 ? (t('yesterday')||'Yesterday') : `${diff} ${t('days_ago')||'days ago'}`; })()}`
+              : t('no_checkin_yet')||'No check-ins yet — tap the card to start!'
+            }
+          </Text>
+        </View>
+
         {/* Emotion Distribution */}
           <View style={s.card}>
             <SectionHeader label={t('emotion_distribution')||'Emotion Distribution'} open={secEmoDistrib} onPress={()=>setSecEmoDistrib(v=>!v)} icon="donut-large" />
