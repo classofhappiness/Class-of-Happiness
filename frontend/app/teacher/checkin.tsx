@@ -361,7 +361,6 @@ export default function TeacherCheckInScreen() {
               <MaterialIcons name={strategiesExpanded?'expand-less':'expand-more'} size={20} color="#999" />
             </TouchableOpacity>
             {strategiesExpanded && <>
-            <Text style={[styles.sectionLabel,{fontSize:11,color:'#AAA',marginTop:0}]}>Tap to select</Text>
             {strategiesForZone.map(s => (
               <TouchableOpacity
                 key={s.id}
