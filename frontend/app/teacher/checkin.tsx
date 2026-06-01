@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
-  ScrollView, KeyboardAvoidingView, Platform, Alert, TextInput, Modal, Linking,
+  ScrollView, KeyboardAvoidingView, Platform, Alert, TextInput, Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useNavigation } from 'expo-router';
@@ -55,16 +55,11 @@ const TEACHER_STRATEGIES: Record<FeelingZone, Array<{ id: string; name: string; 
 // All strategies flat for lookup
 const ALL_STRATEGIES = Object.values(TEACHER_STRATEGIES).flat();
 
-const BACKEND_URL_CONST = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-
 export default function TeacherCheckInScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const { user , t} = useApp();
-  const [zoneExpanded, setZoneExpanded] = useState(true);
-  const [strategiesExpanded, setStrategiesExpanded] = useState(false);
-  const [notesExpanded, setNotesExpanded] = useState(false);
-  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const navigation = useNavigation();
+  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const [selectedZone, setSelectedZone] = useState<FeelingZone | null>(null);
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
@@ -284,19 +279,7 @@ export default function TeacherCheckInScreen() {
     return `${DAYS[d.getDay()]} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
   };
 
-  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
-
   const zoneConfig = selectedZone ? ZONES.find(z => z.id === selectedZone) : null;
-
-  const downloadTeacherPDF = async (monthStr: string) => {
-    try {
-      const token = await AsyncStorage.getItem('session_token');
-      const lang = await AsyncStorage.getItem('app_language') || 'en';
-      const [yr, mo] = monthStr.split('-');
-      const url = `${BACKEND_URL_CONST}/api/reports/pdf/teacher-wellbeing/${user?.user_id}/month/${yr}/${parseInt(mo)}?token=${token}&lang=${lang}`;
-      await Linking.openURL(url);
-    } catch { Alert.alert('Error', 'No data for this month yet'); }
-  };
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -319,61 +302,27 @@ export default function TeacherCheckInScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* Summary bar - shows current state */}
-        {selectedZone && (
-          <View style={{flexDirection:'row', alignItems:'center', gap:8, backgroundColor: ZONE_COLORS[selectedZone]+'18',
-            borderRadius:12, padding:12, marginBottom:12, borderWidth:1, borderColor: ZONE_COLORS[selectedZone]+'40'}}>
-            <Text style={{fontSize:22}}>{ZONES.find(z=>z.id===selectedZone)?.emoji}</Text>
-            <View style={{flex:1}}>
-              <Text style={{fontSize:13, fontWeight:'700', color: ZONE_COLORS[selectedZone]}}>
-                {selectedZone.charAt(0).toUpperCase()+selectedZone.slice(1)} — {ZONES.find(z=>z.id===selectedZone)?.label}
-              </Text>
-              {selectedStrategies.length > 0 && (
-                <Text style={{fontSize:11, color:'#888'}}>{selectedStrategies.length} {selectedStrategies.length===1?'strategy':'strategies'} selected</Text>
-              )}
-            </View>
-            <TouchableOpacity onPress={()=>{setSelectedZone(null);setSelectedStrategies([]);}} style={{padding:4}}>
-              <MaterialIcons name="close" size={16} color="#999" />
+        {/* STEP 1: Colour Selection */}
+        <Text style={styles.sectionLabel}>{t('select_emotion') || 'Select your emotion'}</Text>
+        <View style={styles.zonesStack}>
+          {ZONES.map(zone => (
+            <TouchableOpacity
+              key={zone.id}
+              style={[styles.zoneBtn, { backgroundColor: zone.color }, selectedZone === zone.id && styles.zoneBtnSelected]}
+              onPress={() => { setSelectedZone(zone.id); setSelectedStrategies([]); }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.zoneEmoji}>{zone.emoji}</Text>
+              <Text style={styles.zoneBtnLabel}>{zone.id === 'blue' ? (t('blue_label') || zone.label) : zone.id === 'green' ? (t('steady') || zone.label) : zone.id === 'yellow' ? (t('stressed') || zone.label) : (t('red_label') || zone.label)}</Text>
+              {selectedZone === zone.id && <MaterialIcons name="check-circle" size={22} color="white" />}
             </TouchableOpacity>
-          </View>
-        )}
-
-        {/* STEP 1: Colour Selection - collapsible */}
-        <TouchableOpacity style={styles.sectionHeader} onPress={()=>setZoneExpanded(v=>!v)} activeOpacity={0.7}>
-          <View style={{flexDirection:'row', alignItems:'center', gap:8}}>
-            <MaterialIcons name="emoji-emotions" size={18} color="#5C6BC0" />
-            <Text style={styles.sectionHeaderText}>{t('how_feeling')||'How are you feeling?'}</Text>
-          </View>
-          <MaterialIcons name={zoneExpanded?'expand-less':'expand-more'} size={20} color="#999" />
-        </TouchableOpacity>
-        {zoneExpanded && (
-          <View style={styles.zonesStack}>
-            {ZONES.map(zone => (
-              <TouchableOpacity
-                key={zone.id}
-                style={[styles.zoneBtn, { backgroundColor: zone.color }, selectedZone === zone.id && styles.zoneBtnSelected]}
-                onPress={() => { setSelectedZone(zone.id); setSelectedStrategies([]); setZoneExpanded(false); setStrategiesExpanded(true); }}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.zoneEmoji}>{zone.emoji}</Text>
-                <Text style={styles.zoneBtnLabel}>{zone.id === 'blue' ? (t('blue_label') || zone.label) : zone.id === 'green' ? (t('steady') || zone.label) : zone.id === 'yellow' ? (t('stressed') || zone.label) : (t('red_label') || zone.label)}</Text>
-                {selectedZone === zone.id && <MaterialIcons name="check-circle" size={22} color="white" />}
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+          ))}
+        </View>
 
         {/* STEP 2: Strategies (only after colour selected) */}
         {selectedZone && (
           <>
-            <TouchableOpacity style={styles.sectionHeader} onPress={()=>setStrategiesExpanded(v=>!v)} activeOpacity={0.7}>
-              <View style={{flexDirection:'row', alignItems:'center', gap:8}}>
-                <MaterialIcons name="lightbulb" size={18} color="#5C6BC0" />
-                <Text style={styles.sectionHeaderText}>{t('helpful_strategies')||'Helpful strategies'}</Text>
-              </View>
-              <MaterialIcons name={strategiesExpanded?'expand-less':'expand-more'} size={20} color="#999" />
-            </TouchableOpacity>
-            {strategiesExpanded && <>
+            <Text style={styles.sectionLabel}>Helpful strategies — tap to select</Text>
             {strategiesForZone.map(s => (
               <TouchableOpacity
                 key={s.id}
@@ -427,17 +376,8 @@ export default function TeacherCheckInScreen() {
               </View>
             )}
 
-            </>}
             {/* Notes */}
-            <TouchableOpacity style={styles.sectionHeader} onPress={()=>setNotesExpanded(v=>!v)} activeOpacity={0.7}>
-              <View style={{flexDirection:'row', alignItems:'center', gap:8}}>
-                <MaterialIcons name="edit-note" size={18} color="#5C6BC0" />
-                <Text style={styles.sectionHeaderText}>{t('add_note_optional')||'Add a note (optional)'}</Text>
-              </View>
-              <MaterialIcons name={notesExpanded?'expand-less':'expand-more'} size={20} color="#999" />
-            </TouchableOpacity>
-            {notesExpanded && <>
-            <Text style={[styles.sectionLabel,{fontSize:11,marginTop:0}]}> </Text>
+            <Text style={styles.sectionLabel}>Add a note (optional)</Text>
             <TextInput
               style={styles.notesInput}
               placeholder="e.g. Difficult parent meeting today..."
@@ -482,45 +422,11 @@ export default function TeacherCheckInScreen() {
               <MaterialIcons name="check" size={22} color="white" />
               <Text style={styles.saveText}>{saving ? (t('saving') || 'Saving...') : (t('save_checkin') || 'Save Check-in')}</Text>
             </TouchableOpacity>
-          </>}
           </>
         )}
 
-        {/* STEP 3: History & PDF - collapsible */}
-        <TouchableOpacity style={styles.sectionHeader} onPress={()=>setHistoryExpanded(v=>!v)} activeOpacity={0.7}>
-          <View style={{flexDirection:'row', alignItems:'center', gap:8}}>
-            <MaterialIcons name="history" size={18} color="#5C6BC0" />
-            <Text style={styles.sectionHeaderText}>{t('this_week')||'This Week & Reports'}</Text>
-          </View>
-          <MaterialIcons name={historyExpanded?'expand-less':'expand-more'} size={20} color="#999" />
-        </TouchableOpacity>
-        {historyExpanded ? <View style={{gap:8}}>
-          {/* PDF Download */}
-          <View style={[styles.weekCard, {marginBottom:0}]}>
-            <Text style={styles.weekTitle}>📄 {t('download_monthly_reports')||'Download Monthly Reports'}</Text>
-            <Text style={{fontSize:11, color:'#888', marginBottom:8}}>{t('select_month_pdf')||'Select a month to download your wellbeing report'}</Text>
-            {(() => {
-              const months: string[] = [];
-              const now = new Date();
-              for (let i = 0; i < 6; i++) {
-                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
-              }
-              return months.map(m => {
-                const label = new Date(m+'-15').toLocaleDateString(undefined, {month:'long', year:'numeric'});
-                return (
-                  <TouchableOpacity key={m}
-                    style={{flexDirection:'row', alignItems:'center', backgroundColor:'#FFF3F3', borderRadius:10, padding:10, gap:8, marginBottom:6, borderWidth:1, borderColor:'#FFCDD2'}}
-                    onPress={() => downloadTeacherPDF(m)}>
-                    <MaterialIcons name="picture-as-pdf" size={18} color="#E53935" />
-                    <Text style={{flex:1, fontSize:12, fontWeight:'600', color:'#333'}}>{label}</Text>
-                    <MaterialIcons name="download" size={16} color="#E53935" />
-                  </TouchableOpacity>
-                );
-              });
-            })()}
-          </View>
-          <View style={styles.weekCard}>
+        {/* STEP 3: Weekly Calendar — always visible at bottom */}
+        <View style={styles.weekCard}>
           <Text style={styles.weekTitle}>{t('this_week') || '📅 This week'}</Text>
           <View style={styles.weekRow}>
             {DAYS.map(day => {
@@ -570,8 +476,7 @@ export default function TeacherCheckInScreen() {
               </View>
             ))}
           </View>
-          )}
-        </View> : null}
+        )}
       </ScrollView>
 
       {/* Wellbeing Alert Modal */}
@@ -628,26 +533,6 @@ const styles = StyleSheet.create({
   scroll: { padding: 16, paddingBottom: 40 },
   sectionLabel: { fontSize: 15, fontWeight: '600', color: '#444', marginBottom: 10, marginTop: 8 },
   zonesStack: { gap: 8, marginBottom: 20 },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  sectionHeaderText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#333',
-  },
   zoneBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 18, borderRadius: 14, gap: 12 },
   zoneBtnSelected: { borderWidth: 3, borderColor: 'white' },
   zoneEmoji: { fontSize: 26 },
