@@ -482,7 +482,42 @@ export default function TeacherCheckInScreen() {
           </View>
           <MaterialIcons name={historyExpanded?'expand-less':'expand-more'} size={20} color="#999" />
         </TouchableOpacity>
-        {historyExpanded && <View style={styles.weekCard}>
+        {historyExpanded && <View style={{gap:8}}>
+          {/* PDF Download */}
+          <View style={[styles.weekCard, {marginBottom:0}]}>
+            <Text style={styles.weekTitle}>📄 {t('download_monthly_reports')||'Download Monthly Reports'}</Text>
+            <Text style={{fontSize:11, color:'#888', marginBottom:8}}>{t('select_month_pdf')||'Select a month to download your wellbeing report'}</Text>
+            {(() => {
+              const months: string[] = [];
+              const now = new Date();
+              for (let i = 0; i < 6; i++) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+              }
+              return months.map(m => {
+                const label = new Date(m+'-15').toLocaleDateString(undefined, {month:'long', year:'numeric'});
+                return (
+                  <TouchableOpacity key={m}
+                    style={{flexDirection:'row', alignItems:'center', backgroundColor:'#FFF3F3', borderRadius:10, padding:10, gap:8, marginBottom:6, borderWidth:1, borderColor:'#FFCDD2'}}
+                    onPress={async () => {
+                      const AsyncStorage2 = (await import('@react-native-async-storage/async-storage')).default;
+                      const token = await AsyncStorage2.getItem('session_token');
+                      const lang = await AsyncStorage2.getItem('app_language') || 'en';
+                      const [yr, mo] = m.split('-');
+                      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+                      const url = `${BACKEND_URL}/api/reports/pdf/teacher-wellbeing/${user?.user_id}/month/${yr}/${parseInt(mo)}?token=${token}&lang=${lang}`;
+                      const { Linking } = await import('react-native');
+                      await Linking.openURL(url).catch(()=>Alert.alert('Error', 'No data for this month yet'));
+                    }}>
+                    <MaterialIcons name="picture-as-pdf" size={18} color="#E53935" />
+                    <Text style={{flex:1, fontSize:12, fontWeight:'600', color:'#333'}}>{label}</Text>
+                    <MaterialIcons name="download" size={16} color="#E53935" />
+                  </TouchableOpacity>
+                );
+              });
+            })()}
+          </View>
+          <View style={styles.weekCard}>
           <Text style={styles.weekTitle}>{t('this_week') || '📅 This week'}</Text>
           <View style={styles.weekRow}>
             {DAYS.map(day => {
@@ -532,7 +567,7 @@ export default function TeacherCheckInScreen() {
               </View>
             ))}
           </View>
-        )}
+        </View>}
       </ScrollView>
 
       {/* Wellbeing Alert Modal */}
