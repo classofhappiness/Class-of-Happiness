@@ -4809,6 +4809,7 @@ async def send_parent_message(request: Request):
             "alert_type": "parent_message",
             "zone": zone,
             "message": message,
+            "context": "home",
             "created_at": datetime.now(timezone.utc).isoformat(),
             "resolved": False,
         }).execute()
@@ -4950,8 +4951,13 @@ async def get_alerts(request: Request, limit: int = 20):
             # Parents only see their directly linked children
             parent_links_r = supabase.table("parent_links").select("student_id").eq("parent_user_id", user["user_id"]).execute()
             student_ids += [l["student_id"] for l in (parent_links_r.data or [])]
-            family_links_r = supabase.table("family_members").select("student_id").eq("user_id", user["user_id"]).execute()
-            student_ids += [l["student_id"] for l in (family_links_r.data or []) if l.get("student_id")]
+            family_links_r = supabase.table("family_members").select("student_id,id").eq("user_id", user["user_id"]).execute()
+            for l in (family_links_r.data or []):
+                if l.get("student_id"):
+                    student_ids.append(l["student_id"])
+                # Also add family_member id itself in case alerts stored with that id
+                if l.get("id"):
+                    student_ids.append(l["id"])
             student_ids = list(set(student_ids))
         logger.info(f"[get_alerts] parent links student_ids: {student_ids}")
 
