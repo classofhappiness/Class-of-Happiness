@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
-  ScrollView, KeyboardAvoidingView, Platform, Alert, TextInput, Modal,
+  ScrollView, KeyboardAvoidingView, Platform, Alert, TextInput, Modal, Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useNavigation } from 'expo-router';
@@ -54,6 +54,8 @@ const TEACHER_STRATEGIES: Record<FeelingZone, Array<{ id: string; name: string; 
 
 // All strategies flat for lookup
 const ALL_STRATEGIES = Object.values(TEACHER_STRATEGIES).flat();
+
+const BACKEND_URL_CONST = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 export default function TeacherCheckInScreen() {
   const router = useRouter();
@@ -279,6 +281,16 @@ export default function TeacherCheckInScreen() {
     return `${DAYS[d.getDay()]} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
   };
 
+  const downloadTeacherPDF = async (monthStr: string) => {
+    try {
+      const token = await AsyncStorage.getItem('session_token');
+      const lang = await AsyncStorage.getItem('app_language') || 'en';
+      const [yr, mo] = monthStr.split('-');
+      const url = `${BACKEND_URL_CONST}/api/reports/pdf/teacher-wellbeing/${user?.user_id}/month/${yr}/${parseInt(mo)}?token=${token}&lang=${lang}`;
+      await Linking.openURL(url);
+    } catch { Alert.alert('Error', 'No data for this month yet'); }
+  };
+
   const zoneConfig = selectedZone ? ZONES.find(z => z.id === selectedZone) : null;
 
   return (
@@ -477,6 +489,32 @@ export default function TeacherCheckInScreen() {
             ))}
           </View>
         )}
+        {/* PDF Download Section */}
+        <View style={[styles.weekCard, {marginTop:8}]}>
+          <Text style={styles.weekTitle}>📄 Monthly Wellbeing Reports</Text>
+          <Text style={{fontSize:11,color:'#888',marginBottom:8}}>Download your check-in history as a PDF</Text>
+          {(() => {
+            const months: string[] = [];
+            const now = new Date();
+            for (let i = 0; i < 6; i++) {
+              const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+              months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+            }
+            return months.map(m => {
+              const label = new Date(m+'-15').toLocaleDateString(undefined, {month:'long', year:'numeric'});
+              return (
+                <TouchableOpacity key={m}
+                  style={{flexDirection:'row',alignItems:'center',backgroundColor:'#FFF3F3',borderRadius:10,padding:10,gap:8,marginBottom:6,borderWidth:1,borderColor:'#FFCDD2'}}
+                  onPress={() => downloadTeacherPDF(m)}>
+                  <MaterialIcons name="picture-as-pdf" size={18} color="#E53935" />
+                  <Text style={{flex:1,fontSize:12,fontWeight:'600',color:'#333'}}>{label}</Text>
+                  <MaterialIcons name="download" size={16} color="#E53935" />
+                </TouchableOpacity>
+              );
+            });
+          })()}
+        </View>
+
       </ScrollView>
 
       {/* Wellbeing Alert Modal */}
