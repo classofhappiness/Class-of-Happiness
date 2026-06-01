@@ -5066,13 +5066,20 @@ async def get_alerts(request: Request, limit: int = 20):
         logger.info(f"[get_alerts] Found {len(all_alerts)} total alerts for {len(student_ids)} students")
         
         # Filter by context
-        # Teachers see school alerts only
-        # Parents see ALL alerts for their children (both home and school)
         if role in ("teacher", "school_admin"):
             filtered = [a for a in all_alerts if a.get("context") in ("school", None, "")]
         else:
-            # Parents and others see all alerts for their linked children
-            filtered = all_alerts
+            filtered = list(all_alerts)
+            # Also fetch alerts saved directly with this parent's user_id (parent_message type)
+            try:
+                direct_r = supabase.table("student_alerts").select("*").eq("user_id", user["user_id"]).order("created_at", desc=True).limit(20).execute()
+                existing_ids = {a["id"] for a in filtered}
+                for a in (direct_r.data or []):
+                    if a["id"] not in existing_ids:
+                        filtered.append(a)
+                        existing_ids.add(a["id"])
+            except Exception as e:
+                logger.warning(f"[get_alerts] direct user_id fetch error: {e}")
         logger.info(f"[get_alerts] Filtered={len(filtered)} for role={role}")
         return filtered[:limit]
     except Exception as e:

@@ -5,6 +5,35 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Linking } from 'react-native';
+
+// Fallback for old-format strategy codes
+const STRATEGY_NAMES_LOCAL: Record<string,string> = {
+  p_b1:'Slow Breathing',p_b2:'Quiet Time',p_b3:'Gentle Walk',p_b4:'Rest Together',p_b5:'Safe Space',
+  p_g1:'Celebrate Together',p_g2:'Keep Going',p_g3:'Set a Goal',p_g4:'Gratitude',p_g5:'Help a Friend',
+  p_y1:'Box Breathing',p_y2:'Validate First',p_y3:'Body Check-In',p_y4:'Feelings Journal',p_y5:'Give Space',
+  p_r1:'Stay Calm',p_r2:'Safe Space Together',p_r3:'Cold Water Reset',p_r4:'Talk It Through',p_r5:'Take a Break',
+  s_b1:'Slow Breathing',s_b2:'Safe Space',s_b3:'Gentle Stretch',s_b4:'Favourite Song',s_b5:'Talk About It',
+  s_g1:'Keep Going',s_g2:'Set a Goal',s_g3:'Help a Friend',s_g4:'Gratitude',s_g5:'5 Senses',
+  s_y1:'Bubble Breathing',s_y2:'Count to 10',s_y3:'Walk Away',s_y4:'Squeeze & Release',s_y5:'Tell Someone',
+  s_r1:'Walk Away',s_r2:'Cold Water',s_r3:'Safe Space',s_r4:'Tell Someone',s_r5:'Slow Breathing',
+  bubble_breathing:'Bubble Breathing',slow_breathing:'Slow Breathing',count_to_10:'Count to 10',
+  walk_away:'Walk Away',safe_space:'Safe Space',talk_about_it:'Talk About It',
+  tell_someone:'Tell Someone',gentle_stretch:'Gentle Stretch',gratitude:'Gratitude',
+  help_friend:'Help a Friend',keep_going:'Keep Going',set_goal:'Set a Goal',
+};
+const ZONE_KEYS_SET = new Set(['blue','green','yellow','red','Blue','Green','Yellow','Red']);
+const resolveStratName = (id: string, nameMap: Record<string,string>): string => {
+  if (!id || ZONE_KEYS_SET.has(id)) return '';
+  if (nameMap[id]) return nameMap[id];
+  if (STRATEGY_NAMES_LOCAL[id]) return STRATEGY_NAMES_LOCAL[id];
+  // Try stripping prefix
+  const clean = id.replace(/^(helper_|strategy_|strat_)/,'');
+  if (STRATEGY_NAMES_LOCAL[clean]) return STRATEGY_NAMES_LOCAL[clean];
+  if (nameMap[clean]) return nameMap[clean];
+  // Format raw codes like R6, G5 etc
+  if (/^[rgybRGYB]\d+$/.test(id)) return '';
+  return id.replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase());
+};
 import { useApp } from '../../../src/context/AppContext';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -101,7 +130,8 @@ export default function FamilyMemberStatsScreen() {
         const url = `${BACKEND_URL}/api/reports/pdf/family/${id}/month/${year}/${parseInt(month)}?token=${token}&lang=${lang}`;
         await Linking.openURL(url);
       } else {
-        Alert.alert('Error', t('no_checkin_yet') || 'No check-ins found for this month');
+        const errText = await res.text().catch(()=>'');
+        Alert.alert('No Data', `No check-ins found for this month (${res.status})`);
       }
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not download PDF');
@@ -135,7 +165,9 @@ export default function FamilyMemberStatsScreen() {
   });
 
   const total = logs.length;
-  const topStrategies = Object.entries(strategyCounts).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const topStrategies = Object.entries(strategyCounts)
+    .filter(([s]) => !ZONE_KEYS_SET.has(s) && s.length > 2)
+    .sort((a,b)=>b[1]-a[1]).slice(0,6);
   const months = Array.from(monthsSet).sort().reverse();
 
   const SectionHeader = ({ label, open, onPress, icon }: any) => (
@@ -223,7 +255,7 @@ export default function FamilyMemberStatsScreen() {
                   : topStrategies.map(([strat, count]) => (
                     <View key={strat} style={{flexDirection:'row', alignItems:'center', gap:10, paddingVertical:4, borderBottomWidth:1, borderBottomColor:'#F5F5F5'}}>
                       <MaterialIcons name="lightbulb" size={16} color="#FF9800" />
-                      <Text style={{flex:1, fontSize:13, color:'#333'}}>{(strategyNames[strat] || t(strat) || strat.replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase()))}</Text>
+                      <Text style={{flex:1, fontSize:13, color:'#333'}}>{(resolveStratName(strat, strategyNames))}</Text>
                       <View style={{backgroundColor:'#FFF8E1', borderRadius:8, paddingHorizontal:8, paddingVertical:3}}>
                         <Text style={{fontSize:12, color:'#FF9800', fontWeight:'600'}}>{count}×</Text>
                       </View>
@@ -254,7 +286,7 @@ export default function FamilyMemberStatsScreen() {
                         </Text>
                         {strats.length > 0 && (
                           <Text style={{fontSize:11, color:'#5C6BC0', marginTop:2}}>
-                            💡 {strats.slice(0,3).map((s:string)=>strategyNames[s]||t(s)||s.replace(/_/g,' ')).join(', ')}
+                            💡 {strats.slice(0,3).map((s:string)=>resolveStratName(s,strategyNames)).filter(Boolean).join(', ')}
                           </Text>
                         )}
                         {log.comment && <Text style={{fontSize:11, color:'#888', marginTop:2, fontStyle:'italic'}}>"{log.comment}"</Text>}
