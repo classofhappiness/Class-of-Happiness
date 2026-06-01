@@ -2294,6 +2294,9 @@ async def get_current_user(request: Request) -> Optional[dict]:
         if auth_header and auth_header.startswith("Bearer "):
             session_token = auth_header[7:]
     if not session_token:
+        # Also accept token as query param (for PDF downloads via Linking.openURL)
+        session_token = request.query_params.get("token")
+    if not session_token:
         return None
     try:
         result = supabase.table("user_sessions").select("*").eq("session_token", session_token).execute()

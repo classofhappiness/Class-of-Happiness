@@ -107,8 +107,10 @@ export default function FamilyMemberStatsScreen() {
   logs.forEach(log => {
     const z = log.zone || log.feeling_colour || '';
     if (z in zoneCounts) zoneCounts[z]++;
+    const ZONE_KEYS = new Set(['green','yellow','blue','red']);
     (log.helpers_selected || log.strategies_selected || []).forEach((s: string) => {
-      if (s) strategyCounts[s] = (strategyCounts[s]||0)+1;
+      // Skip zone colour strings - only count real strategy IDs/names
+      if (s && !ZONE_KEYS.has(s.toLowerCase())) strategyCounts[s] = (strategyCounts[s]||0)+1;
     });
     try {
       const d = new Date(log.timestamp);
