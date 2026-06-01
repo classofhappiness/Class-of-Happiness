@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Linking, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -108,7 +108,7 @@ export default function SubscriptionScreen() {
 
       {/* Hero */}
       <View style={st.hero}>
-        <Text style={st.heroEmoji}>🌈</Text>
+        <Image source={require('../../assets/images/logo_coh.png')} style={{width:80, height:80, alignSelf:'center', marginBottom:8}} resizeMode="contain" />
         <Text style={st.heroTitle}>Emotional Wellbeing{'\n'}for Every Child</Text>
         <Text style={st.heroSub}>Evidence-based check-ins that connect{'\n'}home and school</Text>
       </View>
@@ -126,7 +126,11 @@ export default function SubscriptionScreen() {
         <View style={[st.statusCard, { backgroundColor: '#E8F5E9' }]}>
           <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
           <Text style={[st.statusText, { color: '#2E7D32' }]}>
-            {user?.subscription_status === 'trial' ? `✨ Free trial active` : `✅ ${user?.subscription_plan} plan active`}
+            {user?.subscription_status === 'trial' 
+              ? `✨ ${t('trial_active')||'Free trial active'}` 
+              : user?.subscription_plan 
+                ? `✅ ${user.subscription_plan} ${t('trial_active_desc')||'plan active'}` 
+                : `✅ ${t('trial_active')||'Access active'}`}
           </Text>
         </View>
       )}

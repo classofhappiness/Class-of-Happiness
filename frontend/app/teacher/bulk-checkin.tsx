@@ -215,7 +215,7 @@ export default function BulkCheckinScreen() {
           <Text style={styles.headerTitle} numberOfLines={1}>
             {selectedClassroomName || classroomName || t('classrooms') || 'Classroom'}
           </Text>
-          <Text style={styles.headerSub}>{getDayLabel()} · {classroomStudents.length} students</Text>
+          <Text style={styles.headerSub}>{getDayLabel()} · {classroomStudents.length} students · tap colour to select, tap again to clear</Text>
         </View>
         <TouchableOpacity
           style={[styles.submitBtn, selectedCount === 0 && styles.submitBtnDisabled]}
