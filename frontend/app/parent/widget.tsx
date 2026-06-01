@@ -122,7 +122,12 @@ export default function ParentWidgetScreen() {
         )}
         <View style={[st.avatarCircle, { backgroundColor: isChild ? '#F4433620' : '#5C6BC020', borderColor: isChild ? '#F44336' : INDIGO }]}>
           <Text style={{ fontSize: 24 }}>
-            {presetAvatars?.find((a: any) => a.id === member.avatar_preset)?.emoji || PRESET_EMOJI[member.avatar_preset] || (isChild ? '👧' : '😊')}
+            {member.avatar_type === 'custom' && member.avatar_custom 
+              ? '📷'
+              : presetAvatars?.find((a: any) => a.id === member.avatar_preset)?.emoji 
+                || PRESET_EMOJI[member.avatar_preset] 
+                || PRESET_EMOJI[member.avatar_preset?.toLowerCase()]
+                || (isChild ? '👧' : '😊')}
           </Text>
         </View>
         <Text style={st.memberName} numberOfLines={1}>{member.name}</Text>

@@ -4617,6 +4617,13 @@ async def send_help_request(request: Request):
 
     # Store alert in student_alerts table
     alert_id = str(uuid.uuid4())
+    # Find parent user_id via family_members for home context alerts
+    parent_user_id = None
+    try:
+        fm_r = supabase.table("family_members").select("user_id").eq("student_id", student_id).execute()
+        if fm_r.data:
+            parent_user_id = fm_r.data[0].get("user_id")
+    except: pass
     try:
         supabase.table("student_alerts").insert({
             "id": alert_id,
@@ -4629,6 +4636,7 @@ async def send_help_request(request: Request):
             "strategy_id": strategy_id,
             "strategy_name": strategy_name,
             "message": message,
+            "user_id": parent_user_id,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "resolved": False,
         }).execute()
