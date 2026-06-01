@@ -14,6 +14,10 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const INDIGO = '#5C6BC0';
 const ZONE_COLORS: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
 const ZONE_EMOJI: Record<string,string> = { blue:'😢', green:'😊', yellow:'😰', red:'😠' };
+const PRESET_EMOJI: Record<string,string> = {
+  cat:'🐱', dog:'🐶', bear:'🐻', bunny:'🐰', lion:'🦁',
+  panda:'🐼', monkey:'🐵', unicorn:'🦄', star:'⭐', rainbow:'🌈',
+};
 
 export default function ParentWidgetScreen() {
   const router = useRouter();
@@ -118,7 +122,7 @@ export default function ParentWidgetScreen() {
         )}
         <View style={[st.avatarCircle, { backgroundColor: isChild ? '#F4433620' : '#5C6BC020', borderColor: isChild ? '#F44336' : INDIGO }]}>
           <Text style={{ fontSize: 24 }}>
-            {presetAvatars?.find((a: any) => a.id === member.avatar_preset)?.emoji || (isChild ? '👧' : '😊')}
+            {presetAvatars?.find((a: any) => a.id === member.avatar_preset)?.emoji || PRESET_EMOJI[member.avatar_preset] || (isChild ? '👧' : '😊')}
           </Text>
         </View>
         <Text style={st.memberName} numberOfLines={1}>{member.name}</Text>

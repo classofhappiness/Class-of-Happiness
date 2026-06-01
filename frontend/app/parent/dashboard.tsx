@@ -1406,7 +1406,7 @@ export default function ParentDashboard() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('add_family_member')}</Text>
+              <Text style={styles.modalTitle}>{t('add_family_member') || 'Add Family Member'}</Text>
               <TouchableOpacity onPress={() => setShowAddFamilyModal(false)}>
                 <MaterialIcons name="close" size={24} color="#666" />
               </TouchableOpacity>
