@@ -566,6 +566,7 @@ export default function TeacherCheckInScreen() {
               </View>
             ))}
           </View>
+          </View>
         </View>}
       </ScrollView>
 
