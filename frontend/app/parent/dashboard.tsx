@@ -1780,14 +1780,6 @@ const styles = StyleSheet.create({
   wellnessIcon: { fontSize: 28 },
   wellnessTitle: { fontSize: 16, fontWeight: '700', color: '#5C6BC0' },
   wellnessSub: { fontSize: 12, color: '#999', marginTop: 2 },
-  addButton: {
-    backgroundColor: '#4A90D9',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   linkButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1801,24 +1793,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
     fontWeight: '600',
-  },
-  membersScroll: {
-    marginHorizontal: -8,
-  },
-  memberCard: {
-    alignItems: 'center',
-    padding: 12,
-    paddingTop: 24,
-    marginHorizontal: 6,
-    borderRadius: 16,
-    backgroundColor: '#F5F5F5',
-    minWidth: 100,
-    position: 'relative',
-  },
-  memberCardSelected: {
-    backgroundColor: '#E3F2FD',
-    borderWidth: 2,
-    borderColor: '#4A90D9',
   },
   cardActionButtons: {
     position: 'absolute',
@@ -1853,12 +1827,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  memberName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginTop: 8,
-  },
   memberCreatureRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1883,18 +1851,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#5C6BC0',
     fontWeight: '500',
-  },
-  unlinkButton: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#FFEBEE',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
   },
   shareToTeacherButton: {
     position: 'absolute',
