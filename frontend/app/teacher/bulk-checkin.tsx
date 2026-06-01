@@ -174,8 +174,8 @@ export default function BulkCheckinScreen() {
             <MaterialIcons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Class Check-In</Text>
-            <Text style={styles.headerSub}>Select a classroom</Text>
+            <Text style={styles.headerTitle}>{t('classroom_widget')||'Class Check-In'}</Text>
+            <Text style={styles.headerSub}>{t('assign_classroom')||'Select a classroom'}</Text>
           </View>
         </View>
         <ScrollView contentContainerStyle={{padding:16, gap:12}}>
