@@ -55,6 +55,8 @@ const TEACHER_STRATEGIES: Record<FeelingZone, Array<{ id: string; name: string; 
 // All strategies flat for lookup
 const ALL_STRATEGIES = Object.values(TEACHER_STRATEGIES).flat();
 
+const BACKEND_URL_CONST = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+
 export default function TeacherCheckInScreen() {
   const router = useRouter();
   const { user , t} = useApp();
@@ -62,6 +64,17 @@ export default function TeacherCheckInScreen() {
   const [strategiesExpanded, setStrategiesExpanded] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
+
+  const downloadTeacherPDF = async (monthStr: string) => {
+    try {
+      const token = await AsyncStorage.getItem('session_token');
+      const lang = await AsyncStorage.getItem('app_language') || 'en';
+      const [yr, mo] = monthStr.split('-');
+      const url = `${BACKEND_URL_CONST}/api/reports/pdf/teacher-wellbeing/${user?.user_id}/month/${yr}/${parseInt(mo)}?token=${token}&lang=${lang}`;
+      const { Linking } = require('react-native');
+      await Linking.openURL(url);
+    } catch { Alert.alert('Error', 'No data for this month yet'); }
+  };
   const navigation = useNavigation();
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const [selectedZone, setSelectedZone] = useState<FeelingZone | null>(null);
@@ -481,7 +494,7 @@ export default function TeacherCheckInScreen() {
           </View>
           <MaterialIcons name={historyExpanded?'expand-less':'expand-more'} size={20} color="#999" />
         </TouchableOpacity>
-        {historyExpanded && <View style={{gap:8}}>
+        {historyExpanded ? <View style={{gap:8}}>
           {/* PDF Download */}
           <View style={[styles.weekCard, {marginBottom:0}]}>
             <Text style={styles.weekTitle}>📄 {t('download_monthly_reports')||'Download Monthly Reports'}</Text>
@@ -498,16 +511,7 @@ export default function TeacherCheckInScreen() {
                 return (
                   <TouchableOpacity key={m}
                     style={{flexDirection:'row', alignItems:'center', backgroundColor:'#FFF3F3', borderRadius:10, padding:10, gap:8, marginBottom:6, borderWidth:1, borderColor:'#FFCDD2'}}
-                    onPress={async () => {
-                      const AsyncStorage2 = (await import('@react-native-async-storage/async-storage')).default;
-                      const token = await AsyncStorage2.getItem('session_token');
-                      const lang = await AsyncStorage2.getItem('app_language') || 'en';
-                      const [yr, mo] = m.split('-');
-                      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-                      const url = `${BACKEND_URL}/api/reports/pdf/teacher-wellbeing/${user?.user_id}/month/${yr}/${parseInt(mo)}?token=${token}&lang=${lang}`;
-                      const { Linking } = await import('react-native');
-                      await Linking.openURL(url).catch(()=>Alert.alert('Error', 'No data for this month yet'));
-                    }}>
+                    onPress={() => downloadTeacherPDF(m)}>
                     <MaterialIcons name="picture-as-pdf" size={18} color="#E53935" />
                     <Text style={{flex:1, fontSize:12, fontWeight:'600', color:'#333'}}>{label}</Text>
                     <MaterialIcons name="download" size={16} color="#E53935" />
@@ -566,8 +570,8 @@ export default function TeacherCheckInScreen() {
               </View>
             ))}
           </View>
-          </View>
-        </View>}
+          )}
+        </View> : null}
       </ScrollView>
 
       {/* Wellbeing Alert Modal */}
