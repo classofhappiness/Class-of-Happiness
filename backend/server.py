@@ -4444,25 +4444,25 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
 @api_router.get("/reports/pdf/teacher-wellbeing/{user_id}/month/{year}/{month}")
 async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, request: Request, lang: str = "en"):
     """Generate a monthly wellbeing PDF report for a teacher."""
-    # Auth — accept token as query param for Linking.openURL
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    import io, calendar as cal_mod
+    import io, calendar as cal_mod, os
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-    from reportlab.platypus import HRFlowable
-    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    from reportlab.platypus import Image as RLImage
 
     # Fetch teacher info
     teacher_r = supabase.table("users").select("*").eq("user_id", user_id).execute()
     if not teacher_r.data:
         raise HTTPException(status_code=404, detail="Teacher not found")
     teacher = teacher_r.data[0]
-    teacher_name = teacher.get("name") or teacher.get("email", "Teacher")
+    teacher_name = teacher.get("name") or ""
+    teacher_email = teacher.get("email", "")
+    display_name = teacher_name or teacher_email.split("@")[0].replace(".", " ").title()
 
     # Date range
     start = datetime(year, month, 1, tzinfo=timezone.utc).isoformat()
@@ -4474,25 +4474,56 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     logs_r = supabase.table("teacher_checkins").select("*").eq("user_id", user_id).gte("timestamp", start).lte("timestamp", end).order("timestamp", desc=False).execute()
     logs = logs_r.data or []
 
+    # Fetch wellbeing support requests for this period
+    support_requests = []
+    try:
+        alerts_r = supabase.table("student_alerts").select("*").eq("user_id", user_id).eq("alert_type", "wellbeing_alert").gte("created_at", start).lte("created_at", end).order("created_at", desc=False).execute()
+        support_requests = alerts_r.data or []
+    except: pass
+
+    # Fetch real strategy names from DB
+    strategy_name_map = {}
+    try:
+        for zone in ["blue", "green", "yellow", "red"]:
+            sr = supabase.table("strategies").select("id,name").eq("zone", zone).execute()
+            for s in (sr.data or []):
+                if s.get("id") and s.get("name"):
+                    strategy_name_map[s["id"]] = s["name"]
+    except: pass
+
+    STRATEGY_NAMES_LOCAL = {
+        "blue_1": "Gentle Stretch", "blue_2": "Warm Drink", "blue_3": "Favourite Song",
+        "blue_4": "Cosy Spot", "blue_5": "Tell Someone", "blue_6": "Slow Breathing",
+        "green_1": "Gratitude", "green_2": "Help a Friend", "green_3": "Set a Goal",
+        "green_4": "Keep Going", "green_5": "Celebrate", "green_6": "Share Joy",
+        "yellow_1": "Bubble Breathing", "yellow_2": "Safe Space", "yellow_3": "Count to 10",
+        "yellow_4": "5 Senses", "yellow_5": "Squeeze & Release", "yellow_6": "Talk About It",
+        "red_1": "Big Breaths", "red_2": "Walk Away", "red_3": "Count Backwards",
+        "red_4": "Safe Space", "red_5": "Ask for Help", "red_6": "Self Hug",
+    }
+
+    def resolve_strategy_name(sid):
+        if not sid or sid.lower() in ("blue","green","yellow","red"): return None
+        return strategy_name_map.get(sid) or STRATEGY_NAMES_LOCAL.get(sid) or sid.replace("_"," ").title()
+
     # Aggregate
     zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
     strategy_counts = {}
-    daily_counts = {}
+    daily_zones = {}
 
     for log in logs:
         zone = log.get("zone", "")
         if zone in zone_counts:
             zone_counts[zone] += 1
         for s in log.get("strategies_selected", []):
-            if s:
-                strategy_counts[s] = strategy_counts.get(s, 0) + 1
+            name = resolve_strategy_name(s)
+            if name:
+                strategy_counts[name] = strategy_counts.get(name, 0) + 1
         try:
             ts = datetime.fromisoformat(log["timestamp"].replace("Z", "+00:00"))
             dk = ts.strftime("%Y-%m-%d")
-            if dk not in daily_counts:
-                daily_counts[dk] = {"blue":0,"green":0,"yellow":0,"red":0}
-            if zone in daily_counts[dk]:
-                daily_counts[dk][zone] += 1
+            if dk not in daily_zones:
+                daily_zones[dk] = zone
         except: pass
 
     total = sum(zone_counts.values())
@@ -4505,77 +4536,131 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     YELLOW_C    = colors.HexColor("#FFC107")
     RED_C       = colors.HexColor("#F44336")
     LIGHT       = colors.HexColor("#F8F9FA")
+    MID         = colors.HexColor("#E8EAF6")
     GREY        = colors.HexColor("#666666")
     WHITE       = colors.white
-
     ZONE_COLORS_PDF = {"blue": BLUE_C, "green": GREEN_C, "yellow": YELLOW_C, "red": RED_C}
     ZONE_LABELS = {"blue": "Blue Emotions", "green": "Green Emotions", "yellow": "Yellow Emotions", "red": "Red Emotions"}
+    ZONE_HEX    = {"blue": "4A90D9", "green": "4CAF50", "yellow": "FFC107", "red": "F44336"}
 
     def s(name, **kw):
         return ParagraphStyle(name, **kw)
 
-    ST_LOGO   = s("Logo",  fontSize=20, textColor=WHITE, fontName="Helvetica-Bold", leading=24)
-    ST_LOGSUB = s("LogoS", fontSize=10, textColor=colors.HexColor("#C5CAE9"), leading=13)
-    ST_H2     = s("H2",    fontSize=13, textColor=INDIGO, fontName="Helvetica-Bold", spaceBefore=10, spaceAfter=4)
+    ST_LOGO   = s("Logo",  fontSize=18, textColor=WHITE, fontName="Helvetica-Bold", leading=22)
+    ST_LOGSUB = s("LogoS", fontSize=9,  textColor=colors.HexColor("#C5CAE9"), leading=12)
+    ST_H2     = s("H2",    fontSize=12, textColor=INDIGO, fontName="Helvetica-Bold", spaceBefore=8, spaceAfter=4)
     ST_BODY   = s("Body",  fontSize=9,  textColor=colors.HexColor("#333333"), spaceAfter=3, leading=13)
     ST_SMALL  = s("Small", fontSize=7.5,textColor=GREY, leading=10)
     ST_DISC   = s("Disc",  fontSize=7,  textColor=colors.HexColor("#999999"), fontName="Helvetica-Oblique", leading=9)
     ST_LABEL  = s("Label", fontSize=8,  textColor=GREY, fontName="Helvetica-Bold")
     ST_VALUE  = s("Val",   fontSize=9,  textColor=colors.HexColor("#222222"), fontName="Helvetica-Bold")
+    ST_ALERT  = s("Alert", fontSize=8,  textColor=colors.HexColor("#B71C1C"), fontName="Helvetica-Bold")
 
     buffer = io.BytesIO()
     PAGE_W, PAGE_H = A4
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36)
     elements = []
 
-    # ── HEADER ──
-    header_data = [[
-        Paragraph("Class of Happiness", ST_LOGO),
-        Paragraph(f"Teacher Wellbeing Report<br/>{month_name}", ST_LOGSUB),
-    ]]
-    header_table = Table(header_data, colWidths=[PAGE_W*0.5, PAGE_W*0.4])
+    # ── HEADER with COH Logo ──
+    logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_coh.png")
+    try:
+        if not os.path.exists(logo_path):
+            raise FileNotFoundError()
+        coh_logo = RLImage(logo_path, width=40, height=40)
+        logo_cell = Table([[coh_logo, Paragraph("Class of Happiness", ST_LOGO)]], colWidths=[48, 200],
+            style=[("VALIGN",(0,0),(-1,-1),"MIDDLE"),("PADDING",(0,0),(-1,-1),0),("LEFTPADDING",(1,0),(1,0),6)])
+    except:
+        logo_cell = Paragraph("🎓 Class of Happiness", ST_LOGO)
+
+    header_data = [[logo_cell, Paragraph(f"Teacher Wellbeing Report<br/>{month_name}", ST_LOGSUB)]]
+    header_table = Table(header_data, colWidths=[PAGE_W*0.55, PAGE_W*0.35])
     header_table.setStyle(TableStyle([
         ("BACKGROUND", (0,0), (-1,-1), INDIGO_DARK),
-        ("TEXTCOLOR",  (0,0), (-1,-1), WHITE),
         ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
         ("PADDING",    (0,0), (-1,-1), 14),
-        ("ROUNDEDCORNERS", [8]),
     ]))
     elements.append(header_table)
-    elements.append(Spacer(1, 12))
+    elements.append(Spacer(1, 10))
 
-    # ── SUMMARY ──
-    elements.append(Paragraph("Monthly Summary", ST_H2))
-    summary_data = [
-        [Paragraph("Teacher", ST_LABEL), Paragraph(teacher_name, ST_VALUE)],
-        [Paragraph("Period", ST_LABEL),  Paragraph(month_name, ST_VALUE)],
+    # ── PERSONAL SUMMARY ──
+    elements.append(Paragraph("Personal Summary", ST_H2))
+    summary_rows = [
+        [Paragraph("Name", ST_LABEL),         Paragraph(display_name, ST_VALUE)],
+        [Paragraph("Email", ST_LABEL),         Paragraph(teacher_email, ST_VALUE)],
+        [Paragraph("Report Period", ST_LABEL), Paragraph(month_name, ST_VALUE)],
         [Paragraph("Total Check-ins", ST_LABEL), Paragraph(str(total), ST_VALUE)],
     ]
-    summary_table = Table(summary_data, colWidths=[120, PAGE_W - 120 - 72])
+    if support_requests:
+        summary_rows.append([Paragraph("Support Requests", ST_LABEL), Paragraph(str(len(support_requests)), ST_ALERT)])
+    summary_table = Table(summary_rows, colWidths=[130, PAGE_W - 130 - 72])
     summary_table.setStyle(TableStyle([
-        ("BACKGROUND", (0,0), (-1,-1), LIGHT),
         ("ROWBACKGROUNDS", (0,0), (-1,-1), [WHITE, LIGHT]),
         ("PADDING", (0,0), (-1,-1), 8),
-        ("GRID", (0,0), (-1,-1), 0.5, colors.HexColor("#E0E0E0")),
-        ("ROUNDEDCORNERS", [6]),
+        ("GRID", (0,0), (-1,-1), 0.4, colors.HexColor("#E0E0E0")),
     ]))
     elements.append(summary_table)
-    elements.append(Spacer(1, 12))
+    elements.append(Spacer(1, 10))
+
+    # ── CALENDAR HEATMAP ──
+    if daily_zones:
+        elements.append(Paragraph("Check-in Calendar", ST_H2))
+        cal_rows = []
+        week_days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+        header_row = [Paragraph(d, ST_LABEL) for d in [""] + week_days]
+        cal_rows.append(header_row)
+        first_day = datetime(year, month, 1)
+        first_weekday = first_day.weekday()
+        week_row = [Paragraph("W1", ST_SMALL)] + [Paragraph("", ST_SMALL)] * first_weekday
+        week_num = 1
+        for day in range(1, last_day + 1):
+            date_str = f"{year}-{month:02d}-{day:02d}"
+            zone = daily_zones.get(date_str, "")
+            hex_color = ZONE_HEX.get(zone, "EEEEEE")
+            cell = Paragraph(f'<font color="#{hex_color}">{"●" if zone else str(day)}</font>', ST_SMALL)
+            week_row.append(cell)
+            weekday = (first_weekday + day - 1) % 7
+            if weekday == 6 or day == last_day:
+                while len(week_row) < 8:
+                    week_row.append(Paragraph("", ST_SMALL))
+                cal_rows.append(week_row)
+                week_num += 1
+                week_row = [Paragraph(f"W{week_num}", ST_SMALL)]
+        col_w = (PAGE_W - 72) / 8
+        cal_table = Table(cal_rows, colWidths=[col_w]*8)
+        cal_table.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), MID),
+            ("ROWBACKGROUNDS", (0,1), (-1,-1), [WHITE, LIGHT]),
+            ("PADDING", (0,0), (-1,-1), 5),
+            ("GRID", (0,0), (-1,-1), 0.3, colors.HexColor("#E0E0E0")),
+            ("ALIGN", (0,0), (-1,-1), "CENTER"),
+        ]))
+        elements.append(cal_table)
+        elements.append(Spacer(1, 6))
+        legend_data = [[
+            Paragraph('<font color="#4A90D9">●</font> Blue  ', ST_SMALL),
+            Paragraph('<font color="#4CAF50">●</font> Green  ', ST_SMALL),
+            Paragraph('<font color="#FFC107">●</font> Yellow  ', ST_SMALL),
+            Paragraph('<font color="#F44336">●</font> Red', ST_SMALL),
+        ]]
+        legend_table = Table(legend_data, colWidths=[(PAGE_W-72)/4]*4)
+        legend_table.setStyle(TableStyle([("ALIGN",(0,0),(-1,-1),"CENTER"),("PADDING",(0,0),(-1,-1),2)]))
+        elements.append(legend_table)
+        elements.append(Spacer(1, 10))
 
     # ── EMOTION DISTRIBUTION ──
     if total > 0:
         elements.append(Paragraph("Emotion Distribution", ST_H2))
-        zone_data = [["Emotion", "Count", "Percentage", "Bar"]]
+        zone_data = [["Emotion", "Count", "%", "Visual"]]
         for zone, count in zone_counts.items():
             pct = round(count / total * 100) if total else 0
-            bar = "█" * int(pct / 5)
+            bar = "█" * max(1, int(pct / 4)) if count > 0 else ""
             zone_data.append([
                 Paragraph(ZONE_LABELS[zone], ST_BODY),
                 Paragraph(str(count), ST_VALUE),
                 Paragraph(f"{pct}%", ST_BODY),
-                Paragraph(f'<font color="#{ZONE_COLORS_PDF[zone].hexval()[2:]}">{bar}</font>', ST_BODY),
+                Paragraph(f'<font color="#{ZONE_HEX[zone]}">{bar}</font>', ST_BODY),
             ])
-        zone_table = Table(zone_data, colWidths=[140, 50, 60, PAGE_W - 286])
+        zone_table = Table(zone_data, colWidths=[140, 45, 45, PAGE_W - 266])
         zone_table.setStyle(TableStyle([
             ("BACKGROUND", (0,0), (-1,0), INDIGO),
             ("TEXTCOLOR",  (0,0), (-1,0), WHITE),
@@ -4586,15 +4671,15 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
             ("GRID", (0,0), (-1,-1), 0.3, colors.HexColor("#E0E0E0")),
         ]))
         elements.append(zone_table)
-        elements.append(Spacer(1, 12))
+        elements.append(Spacer(1, 10))
 
     # ── TOP STRATEGIES ──
     if strategy_counts:
         elements.append(Paragraph("Most Used Strategies", ST_H2))
         top_strats = sorted(strategy_counts.items(), key=lambda x: x[1], reverse=True)[:8]
         strat_data = [["Strategy", "Times Used"]]
-        for strat_id, count in top_strats:
-            strat_data.append([Paragraph(strat_id.replace("_", " ").title(), ST_BODY), Paragraph(str(count), ST_VALUE)])
+        for name, count in top_strats:
+            strat_data.append([Paragraph(name, ST_BODY), Paragraph(str(count), ST_VALUE)])
         strat_table = Table(strat_data, colWidths=[PAGE_W - 130, 80])
         strat_table.setStyle(TableStyle([
             ("BACKGROUND", (0,0), (-1,0), INDIGO),
@@ -4606,20 +4691,46 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
             ("GRID", (0,0), (-1,-1), 0.3, colors.HexColor("#E0E0E0")),
         ]))
         elements.append(strat_table)
-        elements.append(Spacer(1, 12))
+        elements.append(Spacer(1, 10))
+
+    # ── WELLBEING SUPPORT REQUESTS ──
+    if support_requests:
+        elements.append(Paragraph("Wellbeing Support Requests", ST_H2))
+        req_data = [["Date & Time", "Message"]]
+        for req in support_requests:
+            try:
+                ts = datetime.fromisoformat(req["created_at"].replace("Z", "+00:00"))
+                dt_str = ts.strftime("%d %b %Y %H:%M")
+            except:
+                dt_str = req.get("created_at", "")[:16]
+            msg = (req.get("message") or "Support requested")[:80]
+            req_data.append([Paragraph(dt_str, ST_SMALL), Paragraph(msg, ST_SMALL)])
+        req_table = Table(req_data, colWidths=[110, PAGE_W - 150])
+        req_table.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#F44336")),
+            ("TEXTCOLOR",  (0,0), (-1,0), WHITE),
+            ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
+            ("FONTSIZE",   (0,0), (-1,0), 8),
+            ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.HexColor("#FFF3F3"), colors.HexColor("#FFEBEE")]),
+            ("PADDING", (0,0), (-1,-1), 7),
+            ("GRID", (0,0), (-1,-1), 0.3, colors.HexColor("#FFCDD2")),
+        ]))
+        elements.append(req_table)
+        elements.append(Spacer(1, 10))
 
     # ── CHECK-IN LOG ──
     if logs:
         elements.append(Paragraph("Check-in History", ST_H2))
         log_data = [["Date", "Emotion", "Strategies", "Note"]]
-        for log in logs[-20:]:
+        for log in logs[-25:]:
             try:
                 ts = datetime.fromisoformat(log["timestamp"].replace("Z", "+00:00"))
                 date_str = ts.strftime("%d %b %H:%M")
             except:
                 date_str = log.get("timestamp", "")[:10]
             zone = log.get("zone", "")
-            strats = ", ".join(log.get("strategies_selected", []))[:40] or "—"
+            strat_names = [resolve_strategy_name(s) for s in log.get("strategies_selected", []) if resolve_strategy_name(s)]
+            strats = ", ".join(strat_names)[:50] or "—"
             note = (log.get("notes") or "—")[:40]
             log_data.append([
                 Paragraph(date_str, ST_SMALL),
@@ -4627,7 +4738,7 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
                 Paragraph(strats, ST_SMALL),
                 Paragraph(note, ST_SMALL),
             ])
-        log_table = Table(log_data, colWidths=[70, 65, 160, PAGE_W - 331])
+        log_table = Table(log_data, colWidths=[70, 60, 170, PAGE_W - 336])
         log_table.setStyle(TableStyle([
             ("BACKGROUND", (0,0), (-1,0), INDIGO),
             ("TEXTCOLOR",  (0,0), (-1,0), WHITE),
@@ -4638,20 +4749,22 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
             ("GRID", (0,0), (-1,-1), 0.3, colors.HexColor("#E0E0E0")),
         ]))
         elements.append(log_table)
-        elements.append(Spacer(1, 12))
+        elements.append(Spacer(1, 10))
 
     # ── DISCLAIMER ──
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#E0E0E0")))
     elements.append(Spacer(1, 6))
     elements.append(Paragraph(
         "Generated by Class of Happiness (classofhappiness.app). "
-        "This is an educational tool and does not constitute a clinical assessment or diagnosis.",
+        "This is an educational tool and does not constitute a clinical assessment or diagnosis. "
+        "Data is private and confidential.",
         ST_DISC
     ))
 
     doc.build(elements)
     buffer.seek(0)
-    filename = f"CoH_Teacher_Wellbeing_{year}_{month:02d}.pdf"
+    safe = display_name.replace(" ", "_")
+    filename = f"CoH_Teacher_{safe}_{year}_{month:02d}.pdf"
     return StreamingResponse(buffer, media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"})
 
