@@ -4471,7 +4471,7 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     month_name = datetime(year, month, 1).strftime("%B %Y")
 
     # Fetch teacher check-ins
-    logs_r = supabase.table("teacher_logs").select("*").eq("user_id", user_id).gte("timestamp", start).lte("timestamp", end).order("timestamp", desc=False).execute()
+    logs_r = supabase.table("teacher_checkins").select("*").eq("user_id", user_id).gte("timestamp", start).lte("timestamp", end).order("timestamp", desc=False).execute()
     logs = logs_r.data or []
 
     # Aggregate
