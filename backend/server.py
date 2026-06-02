@@ -5074,7 +5074,7 @@ async def get_alerts(request: Request, limit: int = 20):
         logger.info(f"[get_alerts] Found {len(all_alerts)} total alerts for {len(student_ids)} students")
         
         # Filter by context
-        if role in ("teacher", "school_admin"):
+        if role in ("teacher", "school_admin") or role3 in ("teacher", "school_admin"):
             filtered = [a for a in all_alerts if a.get("context") in ("school", None, "")]
         else:
             # Parents only see home context alerts
