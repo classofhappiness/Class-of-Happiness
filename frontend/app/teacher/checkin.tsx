@@ -291,6 +291,10 @@ export default function TeacherCheckInScreen() {
     } catch { Alert.alert('Error', 'No data for this month yet'); }
   };
 
+  const [weekExpanded, setWeekExpanded] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [pdfExpanded, setPdfExpanded] = useState(false);
+
   const zoneConfig = selectedZone ? ZONES.find(z => z.id === selectedZone) : null;
 
   return (
@@ -316,7 +320,7 @@ export default function TeacherCheckInScreen() {
 
         {/* STEP 1: Colour Selection */}
         <Text style={styles.sectionLabel}>{t('select_emotion') || 'Select your emotion'}</Text>
-        <View style={styles.zonesStack}>
+        <View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginBottom:8}}>
           {ZONES.map(zone => (
             <TouchableOpacity
               key={zone.id}
@@ -437,10 +441,13 @@ export default function TeacherCheckInScreen() {
           </>
         )}
 
-        {/* STEP 3: Weekly Calendar — always visible at bottom */}
+        {/* STEP 3: Weekly Calendar — collapsible */}
         <View style={styles.weekCard}>
-          <Text style={styles.weekTitle}>{t('this_week') || '📅 This week'}</Text>
-          <View style={styles.weekRow}>
+          <TouchableOpacity onPress={() => setWeekExpanded(e => !e)} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
+            <Text style={styles.weekTitle}>{t('this_week') || '📅 This week'}</Text>
+            <MaterialIcons name={weekExpanded ? 'expand-less' : 'expand-more'} size={22} color="#999" />
+          </TouchableOpacity>
+          {weekExpanded && <View style={styles.weekRow}>
             {DAYS.map(day => {
               const entries = weekData[day] || [];
               return (
@@ -455,14 +462,17 @@ export default function TeacherCheckInScreen() {
                 </View>
               );
             })}
-          </View>
+          </View>}
         </View>
 
         {/* STEP 4: Check-in History */}
         {history.length > 0 && (
           <View style={styles.historySection}>
-            <Text style={styles.sectionLabel}>{t('your_recent_checkins') || 'Your recent check-ins'}</Text>
-            {history.map((entry, i) => (
+            <TouchableOpacity onPress={() => setHistoryExpanded(e => !e)} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+              <Text style={styles.sectionLabel}>{t('your_recent_checkins') || 'Your recent check-ins'}</Text>
+              <MaterialIcons name={historyExpanded ? 'expand-less' : 'expand-more'} size={22} color="#999" />
+            </TouchableOpacity>
+            {historyExpanded && history.map((entry, i) => (
               <View key={entry.id || i} style={styles.historyCard}>
                 <View style={[styles.historyDot, { backgroundColor: ZONE_COLORS[entry.zone as FeelingZone] || '#CCC' }]}>
                   <Text style={styles.historyEmoji}>
@@ -491,9 +501,12 @@ export default function TeacherCheckInScreen() {
         )}
         {/* PDF Download Section */}
         <View style={[styles.weekCard, {marginTop:8}]}>
-          <Text style={styles.weekTitle}>📄 Monthly Wellbeing Reports</Text>
-          <Text style={{fontSize:11,color:'#888',marginBottom:8}}>Download your check-in history as a PDF</Text>
-          {(() => {
+          <TouchableOpacity onPress={() => setPdfExpanded(e => !e)} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
+            <Text style={styles.weekTitle}>📄 Monthly Wellbeing Reports</Text>
+            <MaterialIcons name={pdfExpanded ? 'expand-less' : 'expand-more'} size={22} color="#999" />
+          </TouchableOpacity>
+          {pdfExpanded && <Text style={{fontSize:11,color:'#888',marginBottom:8,marginTop:4}}>Download your check-in history as a PDF</Text>}
+          {pdfExpanded && (() => {
             const months: string[] = [];
             const now = new Date();
             for (let i = 0; i < 6; i++) {
@@ -571,7 +584,7 @@ const styles = StyleSheet.create({
   scroll: { padding: 16, paddingBottom: 40 },
   sectionLabel: { fontSize: 15, fontWeight: '600', color: '#444', marginBottom: 10, marginTop: 8 },
   zonesStack: { gap: 8, marginBottom: 20 },
-  zoneBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 18, borderRadius: 14, gap: 12 },
+  zoneBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 12, borderRadius: 14, gap: 8, width: '48%' },
   zoneBtnSelected: { borderWidth: 3, borderColor: 'white' },
   zoneEmoji: { fontSize: 26 },
   zoneBtnLabel: { fontSize: 18, fontWeight: 'bold', color: 'white', flex: 1 },

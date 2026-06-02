@@ -71,7 +71,8 @@ export async function sendHelpRequest(params: {
       body: JSON.stringify(params),
     });
     return await res.json();
-  } catch {
+  } catch (e) {
+    console.error('[sendHelpRequest] error:', e);
     return { ok: false, shield_awarded: false };
   }
 }

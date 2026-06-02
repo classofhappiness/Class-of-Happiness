@@ -170,11 +170,21 @@ export default function TeacherDashboardScreen() {
     } catch(e) { console.error('loadData error:', e); }
   }, [period, selectedClassroom]);
 
+  const refreshAlertCount = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('session_token');
+      const h = { Authorization: `Bearer ${token}` };
+      const alertsRes = await fetch(`${BACKEND_URL}/api/notifications/alerts`, { headers: h }).catch(() => null);
+      const alertsData = alertsRes?.ok ? await alertsRes.json() : [];
+      setAlertCount(Array.isArray(alertsData) ? alertsData.filter((a:any) => !a.resolved).length : 0);
+    } catch {}
+  }, []);
+
   useFocusEffect(useCallback(() => {
     loadData(); refreshStudents(); refreshClassrooms();
-    const interval = setInterval(() => { loadData(); }, 30000);
+    const interval = setInterval(() => { refreshAlertCount(); }, 30000);
     return () => clearInterval(interval);
-  }, [loadData]));
+  }, [loadData, refreshAlertCount]));
 
   const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
 
