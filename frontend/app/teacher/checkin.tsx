@@ -496,9 +496,12 @@ export default function TeacherCheckInScreen() {
 
         {/* STEP 4: Check-in History */}
         {history.length > 0 && (
-          <View style={styles.historySection}>
-            <TouchableOpacity onPress={() => setHistoryExpanded(e => !e)} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
-              <Text style={styles.sectionLabel}>{t('your_recent_checkins') || 'Your recent check-ins'}</Text>
+          <View style={styles.weekCard}>
+            <TouchableOpacity onPress={() => setHistoryExpanded(e => !e)} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
+              <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
+                <MaterialIcons name="history" size={17} color="#5C6BC0" />
+                <Text style={styles.weekTitle}>{t('your_recent_checkins') || 'Your recent check-ins'}</Text>
+              </View>
               <MaterialIcons name={historyExpanded ? 'expand-less' : 'expand-more'} size={22} color="#999" />
             </TouchableOpacity>
             {historyExpanded && history.map((entry, i) => (
