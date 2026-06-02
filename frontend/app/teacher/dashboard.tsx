@@ -133,7 +133,9 @@ export default function TeacherDashboardScreen() {
       setAnalytics(analyticsData);
 
       // Alert count
-      const alertsData = await fetch(`${BACKEND_URL}/api/notifications/alerts`, { headers: h }).then(r => r.ok ? r.json() : []).catch(() => []);
+      const alertsRes = await fetch(`${BACKEND_URL}/api/notifications/alerts`, { headers: h }).catch(() => null);
+      const alertsData = alertsRes?.ok ? await alertsRes.json() : [];
+      console.log('[Alerts] status:', alertsRes?.status, 'count:', Array.isArray(alertsData) ? alertsData.length : 'not array');
       setAlertCount(Array.isArray(alertsData) ? alertsData.filter((a:any) => !a.resolved).length : 0);
 
       // Period snapshot — use analytics zone_counts if available, else count from logs
