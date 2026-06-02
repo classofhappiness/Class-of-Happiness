@@ -212,8 +212,15 @@ export default function ParentAlertsScreen() {
                 </Text>
                 <Text style={st.type}>{TYPE_LABELS[alert.alert_type] || alert.alert_type}</Text>
               </View>
-              {alert.strategy_name && <Text style={st.strategy}>Strategy: {alert.strategy_name}</Text>}
-              {alert.message && <Text style={st.message}>"{alert.message}"</Text>}
+              {alert.strategy_name && alert.alert_type !== 'parent_message' && (
+                <Text style={st.strategy}>Strategy: {alert.strategy_name}</Text>
+              )}
+              {alert.message && (
+                <View style={{backgroundColor:'#EEF2FF', borderRadius:8, padding:10, marginVertical:4, borderLeftWidth:3, borderLeftColor:'#5C6BC0'}}>
+                  <Text style={{fontSize:11, color:'#5C6BC0', fontWeight:'700', marginBottom:2}}>💬 Message</Text>
+                  <Text style={{fontSize:14, color:'#333', fontWeight:'500'}}>{alert.message}</Text>
+                </View>
+              )}
               <View style={st.cardBottom}>
                 <Text style={st.time}>{new Date(alert.created_at).toLocaleString()}</Text>
                 {!selectMode && (

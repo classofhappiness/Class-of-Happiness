@@ -61,7 +61,6 @@ export default function TeacherCheckInScreen() {
   const router = useRouter();
   const { user , t} = useApp();
   const navigation = useNavigation();
-  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const [selectedZone, setSelectedZone] = useState<FeelingZone | null>(null);
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
@@ -78,6 +77,7 @@ export default function TeacherCheckInScreen() {
   const [newStrategyName, setNewStrategyName] = useState('');
   const [newStrategyDesc, setNewStrategyDesc] = useState('');
 
+  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   useEffect(() => { loadData(); loadAdminStrategies(); }, []);
 
   const loadAdminStrategies = async () => {
