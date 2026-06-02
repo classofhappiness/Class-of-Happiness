@@ -4441,6 +4441,222 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
 
 
 
+@api_router.get("/reports/pdf/teacher-wellbeing/{user_id}/month/{year}/{month}")
+async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, request: Request, lang: str = "en"):
+    """Generate a monthly wellbeing PDF report for a teacher."""
+    # Auth — accept token as query param for Linking.openURL
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    import io, calendar as cal_mod
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import HRFlowable
+    from reportlab.lib.units import mm
+
+    # Fetch teacher info
+    teacher_r = supabase.table("users").select("*").eq("user_id", user_id).execute()
+    if not teacher_r.data:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+    teacher = teacher_r.data[0]
+    teacher_name = teacher.get("name") or teacher.get("email", "Teacher")
+
+    # Date range
+    start = datetime(year, month, 1, tzinfo=timezone.utc).isoformat()
+    _, last_day = cal_mod.monthrange(year, month)
+    end = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc).isoformat()
+    month_name = datetime(year, month, 1).strftime("%B %Y")
+
+    # Fetch teacher check-ins
+    logs_r = supabase.table("teacher_logs").select("*").eq("user_id", user_id).gte("timestamp", start).lte("timestamp", end).order("timestamp", desc=False).execute()
+    logs = logs_r.data or []
+
+    # Aggregate
+    zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+    strategy_counts = {}
+    daily_counts = {}
+
+    for log in logs:
+        zone = log.get("zone", "")
+        if zone in zone_counts:
+            zone_counts[zone] += 1
+        for s in log.get("strategies_selected", []):
+            if s:
+                strategy_counts[s] = strategy_counts.get(s, 0) + 1
+        try:
+            ts = datetime.fromisoformat(log["timestamp"].replace("Z", "+00:00"))
+            dk = ts.strftime("%Y-%m-%d")
+            if dk not in daily_counts:
+                daily_counts[dk] = {"blue":0,"green":0,"yellow":0,"red":0}
+            if zone in daily_counts[dk]:
+                daily_counts[dk][zone] += 1
+        except: pass
+
+    total = sum(zone_counts.values())
+
+    # ── Palette ──
+    INDIGO      = colors.HexColor("#5C6BC0")
+    INDIGO_DARK = colors.HexColor("#3949AB")
+    BLUE_C      = colors.HexColor("#4A90D9")
+    GREEN_C     = colors.HexColor("#4CAF50")
+    YELLOW_C    = colors.HexColor("#FFC107")
+    RED_C       = colors.HexColor("#F44336")
+    LIGHT       = colors.HexColor("#F8F9FA")
+    GREY        = colors.HexColor("#666666")
+    WHITE       = colors.white
+
+    ZONE_COLORS_PDF = {"blue": BLUE_C, "green": GREEN_C, "yellow": YELLOW_C, "red": RED_C}
+    ZONE_LABELS = {"blue": "Blue Emotions", "green": "Green Emotions", "yellow": "Yellow Emotions", "red": "Red Emotions"}
+
+    def s(name, **kw):
+        return ParagraphStyle(name, **kw)
+
+    ST_LOGO   = s("Logo",  fontSize=20, textColor=WHITE, fontName="Helvetica-Bold", leading=24)
+    ST_LOGSUB = s("LogoS", fontSize=10, textColor=colors.HexColor("#C5CAE9"), leading=13)
+    ST_H2     = s("H2",    fontSize=13, textColor=INDIGO, fontName="Helvetica-Bold", spaceBefore=10, spaceAfter=4)
+    ST_BODY   = s("Body",  fontSize=9,  textColor=colors.HexColor("#333333"), spaceAfter=3, leading=13)
+    ST_SMALL  = s("Small", fontSize=7.5,textColor=GREY, leading=10)
+    ST_DISC   = s("Disc",  fontSize=7,  textColor=colors.HexColor("#999999"), fontName="Helvetica-Oblique", leading=9)
+    ST_LABEL  = s("Label", fontSize=8,  textColor=GREY, fontName="Helvetica-Bold")
+    ST_VALUE  = s("Val",   fontSize=9,  textColor=colors.HexColor("#222222"), fontName="Helvetica-Bold")
+
+    buffer = io.BytesIO()
+    PAGE_W, PAGE_H = A4
+    doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36)
+    elements = []
+
+    # ── HEADER ──
+    header_data = [[
+        Paragraph("Class of Happiness", ST_LOGO),
+        Paragraph(f"Teacher Wellbeing Report<br/>{month_name}", ST_LOGSUB),
+    ]]
+    header_table = Table(header_data, colWidths=[PAGE_W*0.5, PAGE_W*0.4])
+    header_table.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,-1), INDIGO_DARK),
+        ("TEXTCOLOR",  (0,0), (-1,-1), WHITE),
+        ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
+        ("PADDING",    (0,0), (-1,-1), 14),
+        ("ROUNDEDCORNERS", [8]),
+    ]))
+    elements.append(header_table)
+    elements.append(Spacer(1, 12))
+
+    # ── SUMMARY ──
+    elements.append(Paragraph("Monthly Summary", ST_H2))
+    summary_data = [
+        [Paragraph("Teacher", ST_LABEL), Paragraph(teacher_name, ST_VALUE)],
+        [Paragraph("Period", ST_LABEL),  Paragraph(month_name, ST_VALUE)],
+        [Paragraph("Total Check-ins", ST_LABEL), Paragraph(str(total), ST_VALUE)],
+    ]
+    summary_table = Table(summary_data, colWidths=[120, PAGE_W - 120 - 72])
+    summary_table.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,-1), LIGHT),
+        ("ROWBACKGROUNDS", (0,0), (-1,-1), [WHITE, LIGHT]),
+        ("PADDING", (0,0), (-1,-1), 8),
+        ("GRID", (0,0), (-1,-1), 0.5, colors.HexColor("#E0E0E0")),
+        ("ROUNDEDCORNERS", [6]),
+    ]))
+    elements.append(summary_table)
+    elements.append(Spacer(1, 12))
+
+    # ── EMOTION DISTRIBUTION ──
+    if total > 0:
+        elements.append(Paragraph("Emotion Distribution", ST_H2))
+        zone_data = [["Emotion", "Count", "Percentage", "Bar"]]
+        for zone, count in zone_counts.items():
+            pct = round(count / total * 100) if total else 0
+            bar = "█" * int(pct / 5)
+            zone_data.append([
+                Paragraph(ZONE_LABELS[zone], ST_BODY),
+                Paragraph(str(count), ST_VALUE),
+                Paragraph(f"{pct}%", ST_BODY),
+                Paragraph(f'<font color="#{ZONE_COLORS_PDF[zone].hexval()[2:]}">{bar}</font>', ST_BODY),
+            ])
+        zone_table = Table(zone_data, colWidths=[140, 50, 60, PAGE_W - 286])
+        zone_table.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), INDIGO),
+            ("TEXTCOLOR",  (0,0), (-1,0), WHITE),
+            ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
+            ("FONTSIZE",   (0,0), (-1,0), 8),
+            ("ROWBACKGROUNDS", (0,1), (-1,-1), [WHITE, LIGHT]),
+            ("PADDING", (0,0), (-1,-1), 7),
+            ("GRID", (0,0), (-1,-1), 0.3, colors.HexColor("#E0E0E0")),
+        ]))
+        elements.append(zone_table)
+        elements.append(Spacer(1, 12))
+
+    # ── TOP STRATEGIES ──
+    if strategy_counts:
+        elements.append(Paragraph("Most Used Strategies", ST_H2))
+        top_strats = sorted(strategy_counts.items(), key=lambda x: x[1], reverse=True)[:8]
+        strat_data = [["Strategy", "Times Used"]]
+        for strat_id, count in top_strats:
+            strat_data.append([Paragraph(strat_id.replace("_", " ").title(), ST_BODY), Paragraph(str(count), ST_VALUE)])
+        strat_table = Table(strat_data, colWidths=[PAGE_W - 130, 80])
+        strat_table.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), INDIGO),
+            ("TEXTCOLOR",  (0,0), (-1,0), WHITE),
+            ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
+            ("FONTSIZE",   (0,0), (-1,0), 8),
+            ("ROWBACKGROUNDS", (0,1), (-1,-1), [WHITE, LIGHT]),
+            ("PADDING", (0,0), (-1,-1), 7),
+            ("GRID", (0,0), (-1,-1), 0.3, colors.HexColor("#E0E0E0")),
+        ]))
+        elements.append(strat_table)
+        elements.append(Spacer(1, 12))
+
+    # ── CHECK-IN LOG ──
+    if logs:
+        elements.append(Paragraph("Check-in History", ST_H2))
+        log_data = [["Date", "Emotion", "Strategies", "Note"]]
+        for log in logs[-20:]:
+            try:
+                ts = datetime.fromisoformat(log["timestamp"].replace("Z", "+00:00"))
+                date_str = ts.strftime("%d %b %H:%M")
+            except:
+                date_str = log.get("timestamp", "")[:10]
+            zone = log.get("zone", "")
+            strats = ", ".join(log.get("strategies_selected", []))[:40] or "—"
+            note = (log.get("notes") or "—")[:40]
+            log_data.append([
+                Paragraph(date_str, ST_SMALL),
+                Paragraph(ZONE_LABELS.get(zone, zone).replace(" Emotions", ""), ST_SMALL),
+                Paragraph(strats, ST_SMALL),
+                Paragraph(note, ST_SMALL),
+            ])
+        log_table = Table(log_data, colWidths=[70, 65, 160, PAGE_W - 331])
+        log_table.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), INDIGO),
+            ("TEXTCOLOR",  (0,0), (-1,0), WHITE),
+            ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
+            ("FONTSIZE",   (0,0), (-1,0), 8),
+            ("ROWBACKGROUNDS", (0,1), (-1,-1), [WHITE, LIGHT]),
+            ("PADDING", (0,0), (-1,-1), 6),
+            ("GRID", (0,0), (-1,-1), 0.3, colors.HexColor("#E0E0E0")),
+        ]))
+        elements.append(log_table)
+        elements.append(Spacer(1, 12))
+
+    # ── DISCLAIMER ──
+    elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#E0E0E0")))
+    elements.append(Spacer(1, 6))
+    elements.append(Paragraph(
+        "Generated by Class of Happiness (classofhappiness.app). "
+        "This is an educational tool and does not constitute a clinical assessment or diagnosis.",
+        ST_DISC
+    ))
+
+    doc.build(elements)
+    buffer.seek(0)
+    filename = f"CoH_Teacher_Wellbeing_{year}_{month:02d}.pdf"
+    return StreamingResponse(buffer, media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"})
+
+
+
 # ================== NOTIFICATION SYSTEM ==================
 
 # ── Push token registration ──────────────────────────────
