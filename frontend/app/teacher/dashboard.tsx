@@ -172,6 +172,8 @@ export default function TeacherDashboardScreen() {
 
   useFocusEffect(useCallback(() => {
     loadData(); refreshStudents(); refreshClassrooms();
+    const interval = setInterval(() => { loadData(); }, 30000);
+    return () => clearInterval(interval);
   }, [loadData]));
 
   const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };

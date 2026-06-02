@@ -632,6 +632,8 @@ export default function ParentDashboard() {
   useFocusEffect(
     React.useCallback(() => {
       loadParentAlerts();
+      const interval = setInterval(() => { loadParentAlerts(); }, 30000);
+      return () => clearInterval(interval);
     }, [])
   );
 

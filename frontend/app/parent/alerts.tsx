@@ -38,7 +38,7 @@ export default function ParentAlertsScreen() {
   const [selectMode,    setSelectMode]    = useState(false);
   const [selectedIds,   setSelectedIds]   = useState<Set<string>>(new Set());
   const [showResolved,  setShowResolved]  = useState(false);
-  const [period, setPeriod] = useState<'today'|'7'|'14'|'30'>('7');
+  const [period, setPeriod] = useState<'today'|'7'|'14'|'30'>('30');
 
   const load = useCallback(async () => {
     const tok = await AsyncStorage.getItem('session_token') || '';
