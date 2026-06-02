@@ -5077,7 +5077,8 @@ async def get_alerts(request: Request, limit: int = 20):
         if role in ("teacher", "school_admin"):
             filtered = [a for a in all_alerts if a.get("context") in ("school", None, "")]
         else:
-            filtered = list(all_alerts)
+            # Parents only see home context alerts
+            filtered = [a for a in all_alerts if a.get("context") in ("home", "parent_message", None, "")]
             # Also fetch alerts saved directly with this parent's user_id (parent_message type)
             try:
                 direct_r = supabase.table("student_alerts").select("*").eq("user_id", user["user_id"]).order("created_at", desc=True).limit(20).execute()
