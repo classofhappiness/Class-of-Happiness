@@ -25,7 +25,7 @@ export default function AlertsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showResolved, setShowResolved] = useState(false);
   const [token, setToken] = useState('');
-  const [period, setPeriod] = useState<Period>('today');
+  const [period, setPeriod] = useState<Period>('30');
   const [selectedClassroom, setSelectedClassroom] = useState<string>('all');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
