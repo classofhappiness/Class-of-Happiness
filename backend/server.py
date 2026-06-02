@@ -5052,7 +5052,9 @@ async def get_alerts(request: Request, limit: int = 20):
         if not student_ids:
             if role2 in ("teacher", "school_admin"):
                 logger.warning(f"[get_alerts] No student_ids for teacher, returning all recent alerts")
-                fallback = supabase.table("student_alerts").select("*").order("created_at", desc=True).limit(limit).execute()
+                fallback = supabase.table("student_alerts").select("*").eq("resolved", False).eq("context", "school").order("created_at", desc=True).limit(50).execute()
+                if not fallback.data:
+                    fallback = supabase.table("student_alerts").select("*").order("created_at", desc=True).limit(100).execute()
                 return fallback.data or []
             # For parents with no linked students, try fetching alerts by user_id directly
             try:
