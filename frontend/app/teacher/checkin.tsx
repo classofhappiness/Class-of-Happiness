@@ -529,13 +529,13 @@ export default function TeacherCheckInScreen() {
           </View>
         )}
         {/* EMOTION DISTRIBUTION */}
-        <View style={{backgroundColor:'white',borderRadius:12,marginBottom:8,padding:12,borderWidth:1,borderColor:'#F0F0F0'}}>
+        <View style={styles.weekCard}>
           <TouchableOpacity onPress={() => setSecDistrib(e => !e)} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
             <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
               <MaterialIcons name="donut-large" size={17} color="#5C6BC0" />
-              <Text style={{fontSize:14,fontWeight:'600',color:'#333'}}>Emotion Distribution</Text>
+              <Text style={styles.weekTitle}>Emotion Distribution</Text>
             </View>
-            <MaterialIcons name={secDistrib ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+            <MaterialIcons name={secDistrib ? 'expand-less' : 'expand-more'} size={22} color="#999" />
           </TouchableOpacity>
           {secDistrib && (
             <View style={{gap:10,marginTop:12}}>
@@ -559,13 +559,13 @@ export default function TeacherCheckInScreen() {
         </View>
 
         {/* MOST USED STRATEGIES */}
-        <View style={{backgroundColor:'white',borderRadius:12,marginBottom:8,padding:12,borderWidth:1,borderColor:'#F0F0F0'}}>
+        <View style={styles.weekCard}>
           <TouchableOpacity onPress={() => setSecStrategies(e => !e)} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
             <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
               <MaterialIcons name="star" size={17} color="#FFC107" />
-              <Text style={{fontSize:14,fontWeight:'600',color:'#333'}}>Most Used Strategies</Text>
+              <Text style={styles.weekTitle}>Most Used Strategies</Text>
             </View>
-            <MaterialIcons name={secStrategies ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+            <MaterialIcons name={secStrategies ? 'expand-less' : 'expand-more'} size={22} color="#999" />
           </TouchableOpacity>
           {secStrategies && (() => {
             const sorted = Object.entries(stratCounts).sort(([,a],[,b])=>(b as number)-(a as number)).slice(0,8);
@@ -681,7 +681,7 @@ const styles = StyleSheet.create({
   saveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 14, padding: 16, gap: 8, marginBottom: 24 },
   saveText: { color: 'white', fontWeight: '700', fontSize: 17 },
   weekCard: { backgroundColor: 'white', borderRadius: 14, padding: 14, marginTop: 8, marginBottom: 20, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
-  weekTitle: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 12 },
+  weekTitle: { fontSize: 14, fontWeight: '600', color: '#333' },
   weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
   dayCol: { alignItems: 'center', flex: 1, gap: 4 },
   dayLabel: { fontSize: 10, fontWeight: '600', color: '#888' },
