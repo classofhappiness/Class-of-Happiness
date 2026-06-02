@@ -122,9 +122,7 @@ export default function ParentWidgetScreen() {
         )}
         <View style={[st.avatarCircle, { backgroundColor: isChild ? '#F4433620' : '#5C6BC020', borderColor: isChild ? '#F44336' : INDIGO }]}>
           <Text style={{ fontSize: 24 }}>
-            {member.avatar_type === 'custom' && member.avatar_custom && member.avatar_custom.startsWith('http')
-              ? '📷'
-              : presetAvatars?.find((a: any) => a.id === member.avatar_preset)?.emoji 
+            {presetAvatars?.find((a: any) => a.id === member.avatar_preset)?.emoji 
                 || PRESET_EMOJI[member.avatar_preset] 
                 || PRESET_EMOJI[(member.avatar_preset||'').toLowerCase()]
                 || (isChild ? '👧' : '😊')}
