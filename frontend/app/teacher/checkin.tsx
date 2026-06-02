@@ -97,6 +97,17 @@ export default function TeacherCheckInScreen() {
     } catch (e) { console.log("[silent]", e); }
   };
 
+  const STRATEGY_NAMES_LOCAL: Record<string,string> = {
+    blue_1:'Gentle Stretch', blue_2:'Warm Drink', blue_3:'Favourite Song', blue_4:'Cosy Spot', blue_5:'Tell Someone', blue_6:'Slow Breathing',
+    green_1:'Keep Going!', green_2:'Help a Friend', green_3:'Try Something New', green_4:'Share Your Smile', green_5:'Set a Goal', green_6:'Gratitude',
+    yellow_1:'Bubble Breathing', yellow_2:'Body Shake', yellow_3:'Count to 10', yellow_4:'5 Senses', yellow_5:'Squeeze & Release', yellow_6:'Talk About It',
+    red_1:'Freeze', red_2:'Big Breaths', red_3:'Count Backwards', red_4:'Safe Space', red_5:'Ask for Help', red_6:'Self Hug',
+  };
+  const resolveStratName = (id: string) => {
+    if (!id || ['blue','green','yellow','red'].includes(id.toLowerCase())) return null;
+    return STRATEGY_NAMES_LOCAL[id] || id.replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase());
+  };
+
   const loadData = async () => {
     if (!user?.user_id) return;
     try {
@@ -123,6 +134,19 @@ export default function TeacherCheckInScreen() {
       }
 
       setHistory(checkins.slice(0, 10));
+      // Compute analytics from all checkins
+      const zc: Record<string,number> = {blue:0,green:0,yellow:0,red:0};
+      const sc: Record<string,number> = {};
+      checkins.forEach((l:any) => {
+        const z = l.zone || '';
+        if (z in zc) zc[z]++;
+        (l.strategies_selected||[]).forEach((s:string) => {
+          const name = resolveStratName(s);
+          if (name) sc[name] = (sc[name]||0)+1;
+        });
+      });
+      setZoneCounts(zc as any);
+      setStratCounts(sc);
 
       // Build this week's data
       const grouped: Record<string, { zone: FeelingZone; time: string }[]> = {};
@@ -294,6 +318,11 @@ export default function TeacherCheckInScreen() {
   const [weekExpanded, setWeekExpanded] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [pdfExpanded, setPdfExpanded] = useState(false);
+  const [secDistrib, setSecDistrib] = useState(false);
+  const [secCompare, setSecCompare] = useState(false);
+  const [secStrategies, setSecStrategies] = useState(false);
+  const [zoneCounts, setZoneCounts] = useState({blue:0,green:0,yellow:0,red:0});
+  const [stratCounts, setStratCounts] = useState<Record<string,number>>({});
 
   const zoneConfig = selectedZone ? ZONES.find(z => z.id === selectedZone) : null;
 
@@ -499,6 +528,61 @@ export default function TeacherCheckInScreen() {
             ))}
           </View>
         )}
+        {/* EMOTION DISTRIBUTION */}
+        <View style={{backgroundColor:'white',borderRadius:12,marginBottom:8,padding:12,borderWidth:1,borderColor:'#F0F0F0'}}>
+          <TouchableOpacity onPress={() => setSecDistrib(e => !e)} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
+            <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
+              <MaterialIcons name="donut-large" size={17} color="#5C6BC0" />
+              <Text style={{fontSize:14,fontWeight:'600',color:'#333'}}>Emotion Distribution</Text>
+            </View>
+            <MaterialIcons name={secDistrib ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+          </TouchableOpacity>
+          {secDistrib && (
+            <View style={{gap:10,marginTop:12}}>
+              {(['blue','green','yellow','red'] as const).map(zone => {
+                const count = (zoneCounts as any)[zone] || 0;
+                const total = Object.values(zoneCounts).reduce((a:any,b:any)=>a+b,0) as number;
+                const pct = total > 0 ? Math.round(count/total*100) : 0;
+                const colors: Record<string,string> = {blue:'#4A90D9',green:'#4CAF50',yellow:'#FFC107',red:'#F44336'};
+                return (
+                  <View key={zone} style={{flexDirection:'row',alignItems:'center',gap:8}}>
+                    <Text style={{fontSize:16}}>{zone==='blue'?'😔':zone==='green'?'😊':zone==='yellow'?'😟':'😣'}</Text>
+                    <View style={{flex:1,height:8,backgroundColor:'#F0F0F0',borderRadius:4}}>
+                      <View style={{width:`${pct}%`,height:8,backgroundColor:colors[zone],borderRadius:4}} />
+                    </View>
+                    <Text style={{fontSize:12,color:'#666',width:28,textAlign:'right'}}>{count}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
+        {/* MOST USED STRATEGIES */}
+        <View style={{backgroundColor:'white',borderRadius:12,marginBottom:8,padding:12,borderWidth:1,borderColor:'#F0F0F0'}}>
+          <TouchableOpacity onPress={() => setSecStrategies(e => !e)} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
+            <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
+              <MaterialIcons name="star" size={17} color="#FFC107" />
+              <Text style={{fontSize:14,fontWeight:'600',color:'#333'}}>Most Used Strategies</Text>
+            </View>
+            <MaterialIcons name={secStrategies ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+          </TouchableOpacity>
+          {secStrategies && (() => {
+            const sorted = Object.entries(stratCounts).sort(([,a],[,b])=>(b as number)-(a as number)).slice(0,8);
+            return sorted.length === 0
+              ? <Text style={{color:'#999',fontSize:13,marginTop:8}}>No strategies yet</Text>
+              : sorted.map(([name,count]) => (
+                <View key={name} style={{flexDirection:'row',alignItems:'center',paddingVertical:8,borderBottomWidth:1,borderBottomColor:'#F0F0F0'}}>
+                  <View style={{width:8,height:8,borderRadius:4,backgroundColor:'#5C6BC0',marginRight:8}} />
+                  <Text style={{flex:1,fontSize:13,color:'#333'}}>{name}</Text>
+                  <View style={{backgroundColor:'#FFF8E1',paddingHorizontal:8,paddingVertical:3,borderRadius:10}}>
+                    <Text style={{fontSize:12,fontWeight:'600',color:'#F9A825'}}>{count as number}x</Text>
+                  </View>
+                </View>
+              ));
+          })()}
+        </View>
+
         {/* PDF Download Section */}
         <View style={[styles.weekCard, {marginTop:8}]}>
           <TouchableOpacity onPress={() => setPdfExpanded(e => !e)} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
