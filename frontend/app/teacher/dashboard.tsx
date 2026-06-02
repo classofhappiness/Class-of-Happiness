@@ -65,6 +65,16 @@ export default function TeacherDashboardScreen() {
   const [period, setPeriod] = useState<Period>(7);
   const [strategyNames, setStrategyNames] = useState<Record<string,string>>({});
 
+  const [recentLogs, setRecentLogs] = useState<ZoneLog[]>([]);
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [todaySnap, setTodaySnap] = useState({ blue:0, green:0, yellow:0, red:0, total:0 });
+  const [barData, setBarData] = useState<{value:number,label:string,frontColor:string}[]>([]);
+  const [selectedClassroom, setSelectedClassroom] = useState<string|null>(null);
+  const [alertCount, setAlertCount] = useState(0);
+  const [checkinsExpanded, setCheckinsExpanded] = useState(false);
+  const [graphExpanded, setGraphExpanded] = useState(false);
+
   useEffect(() => {
     const fetchStrategyNames = async () => {
       try {
@@ -83,15 +93,6 @@ export default function TeacherDashboardScreen() {
     };
     fetchStrategyNames();
   }, []);
-  const [recentLogs, setRecentLogs] = useState<ZoneLog[]>([]);
-  const [analytics, setAnalytics] = useState<any>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [todaySnap, setTodaySnap] = useState({ blue:0, green:0, yellow:0, red:0, total:0 });
-  const [barData, setBarData] = useState<{value:number,label:string,frontColor:string}[]>([]);
-  const [selectedClassroom, setSelectedClassroom] = useState<string|null>(null);
-  const [alertCount, setAlertCount] = useState(0);
-  const [checkinsExpanded, setCheckinsExpanded] = useState(false);
-  const [graphExpanded, setGraphExpanded] = useState(false);
 
   useLayoutEffect(() => {
     navigation.setOptions({ headerShown: false });
