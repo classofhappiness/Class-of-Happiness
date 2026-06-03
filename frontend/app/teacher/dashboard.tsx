@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useRouter, useNavigation, useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { BarChart } from 'react-native-gifted-charts';
+import { BarChart, PieChart } from 'react-native-gifted-charts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { zoneLogsApi, ZoneLog } from '../../src/utils/api';
@@ -218,6 +218,23 @@ export default function TeacherDashboardScreen() {
     <SafeAreaView style={st.container}>
       <TranslatedHeader title={t('teacher_dashboard')||'Teacher Dashboard'} backTo="/" />
 
+      {/* Nav buttons — top, large icons */}
+      <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:16, paddingVertical:10, width:'100%'}}>
+        {NAV_BUTTONS.map((btn) => (
+          <TouchableOpacity key={btn.route} style={{alignItems:'center', gap:4, flex:1}} onPress={() => router.push(btn.route as any)}>
+            <View style={{width:52, height:52, borderRadius:16, backgroundColor: btn.color + '15', alignItems:'center', justifyContent:'center', position:'relative'}}>
+              <MaterialIcons name={btn.icon as any} size={28} color={btn.color}/>
+              {btn.count != null && btn.count > 0 && (
+                <View style={[st.badge, {backgroundColor: btn.icon === 'notifications' ? '#F44336' : btn.color}]}>
+                  <Text style={st.badgeTxt}>{btn.count}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={{fontSize:9, fontWeight:'600', color:'#555', textAlign:'center'}}>{btn.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       {/* Emotion pills */}
       <View style={st.snapRow}>
         {(['blue','green','yellow','red'] as const).map(z => (
@@ -230,23 +247,6 @@ export default function TeacherDashboardScreen() {
           <MaterialIcons name="today" size={11} color="#5C6BC0"/>
           <Text style={[st.snapCount,{color:'#5C6BC0'}]}>{todaySnap.total}</Text>
         </View>
-      </View>
-
-      {/* Nav buttons */}
-      <View style={st.iconNav}>
-        {NAV_BUTTONS.map((btn) => (
-          <TouchableOpacity key={btn.route} style={st.iconBtn} onPress={() => router.push(btn.route as any)}>
-            <View style={[st.iconCircle, {backgroundColor: btn.color + '15'}]}>
-              <MaterialIcons name={btn.icon as any} size={20} color={btn.color}/>
-              {btn.count != null && btn.count > 0 && (
-                <View style={[st.badge, {backgroundColor: btn.icon === 'notifications' ? '#F44336' : btn.color}]}>
-                  <Text style={st.badgeTxt}>{btn.count}</Text>
-                </View>
-              )}
-            </View>
-            <Text style={st.iconLbl}>{btn.label}</Text>
-          </TouchableOpacity>
-        ))}
       </View>
 
       {/* Alert banner — shows when there are unresolved alerts today */}
@@ -349,9 +349,30 @@ export default function TeacherDashboardScreen() {
           </View>
         )}
         {graphExpanded && (
-          <View style={st.card}>
+          <View style={[st.card, {alignItems:'center', paddingVertical:16}]}>
             {hasChartData ? (
               <>
+                <PieChart
+                  data={[
+                    {value: Number(zc.blue||0), color: ZONE_COLORS.blue, text: zc.blue>0?String(zc.blue):''},
+                    {value: Number(zc.green||0), color: ZONE_COLORS.green, text: zc.green>0?String(zc.green):''},
+                    {value: Number(zc.yellow||0), color: ZONE_COLORS.yellow, text: zc.yellow>0?String(zc.yellow):''},
+                    {value: Number(zc.red||0), color: ZONE_COLORS.red, text: zc.red>0?String(zc.red):''},
+                  ].filter(d=>d.value>0)}
+                  radius={80}
+                  textSize={14}
+                  textColor="white"
+                  fontWeight="bold"
+                />
+                <View style={{flexDirection:'row', gap:12, marginTop:16, flexWrap:'wrap', justifyContent:'center'}}>
+                  {(['blue','green','yellow','red'] as const).filter(z=>zc[z]>0).map(z=>(
+                    <View key={z} style={{flexDirection:'row', alignItems:'center', gap:4}}>
+                      <View style={{width:10,height:10,borderRadius:5,backgroundColor:ZONE_COLORS[z]}}/>
+                      <Text style={{fontSize:11,color:'#555'}}>{ZONE_EMOJI[z]} {zc[z]}</Text>
+                    </View>
+                  ))}
+                </View>
+                <View style={{display:'none'}}>
                 <BarChart
                   data={barData}
                   barWidth={50}
@@ -383,6 +404,7 @@ export default function TeacherDashboardScreen() {
                 <Text style={{fontSize:11,color:'#999',textAlign:'center',marginTop:6}}>
                   {t('check_ins')||'Check-ins'}: {todaySnap.total} · {periodLabel(period)}
                 </Text>
+                </View>
               </>
             ) : (
               <View style={{alignItems:'center',paddingVertical:32,gap:8}}>
