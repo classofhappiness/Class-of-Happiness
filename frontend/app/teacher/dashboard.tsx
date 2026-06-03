@@ -74,6 +74,7 @@ export default function TeacherDashboardScreen() {
   const [alertCount, setAlertCount] = useState(0);
   const [checkinsExpanded, setCheckinsExpanded] = useState(false);
   const [graphExpanded, setGraphExpanded] = useState(false);
+  const [localClassrooms, setLocalClassrooms] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchStrategyNames = async () => {
@@ -132,6 +133,12 @@ export default function TeacherDashboardScreen() {
       console.log('[Teacher] analyticsData zone_counts:', JSON.stringify(analyticsData.zone_counts));
       setAnalytics(analyticsData);
 
+      // Fetch classrooms directly as fallback
+      try {
+        const crRes = await fetch(`${BACKEND_URL}/api/classrooms`, { headers: h });
+        if (crRes.ok) { const crData = await crRes.json(); if (Array.isArray(crData) && crData.length > 0) setLocalClassrooms(crData); }
+      } catch {}
+
       // Alert count
       const alertsRes = await fetch(`${BACKEND_URL}/api/notifications/alerts`, { headers: h }).catch(() => null);
       const alertsData = alertsRes?.ok ? await alertsRes.json() : [];
@@ -186,8 +193,11 @@ export default function TeacherDashboardScreen() {
     return () => clearInterval(interval);
   }, [loadData, refreshAlertCount]));
 
-  // Reload when period or classroom filter changes
-  useEffect(() => { loadData(); }, [period, selectedClassroom]);
+  // Reload when period or classroom filter changes (debounced)
+  useEffect(() => {
+    const timer = setTimeout(() => { loadData(); }, 300);
+    return () => clearTimeout(timer);
+  }, [period, selectedClassroom]);
 
   const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
 
@@ -284,7 +294,7 @@ export default function TeacherDashboardScreen() {
             <TouchableOpacity style={[st.chip,!selectedClassroom&&st.chipActive]} onPress={() => setSelectedClassroom(null)}>
               <Text style={[st.chipTxt,!selectedClassroom&&st.chipTxtActive]}>{t('all')||t('zone_all') || 'All'}</Text>
             </TouchableOpacity>
-            {classrooms.map(c => (
+            {(localClassrooms.length > 0 ? localClassrooms : classrooms).map((c:any) => (
               <TouchableOpacity key={c.id} style={[st.chip,selectedClassroom===c.id&&st.chipActive]}
                 onPress={() => setSelectedClassroom(c.id)}>
                 <Text style={[st.chipTxt,selectedClassroom===c.id&&st.chipTxtActive]}>{c.name}</Text>
@@ -321,7 +331,7 @@ export default function TeacherDashboardScreen() {
                     <Text style={st.logName}>{getStudentName(log.student_id)}</Text>
                     {(log as any).logged_by==='parent' && <View style={st.homeBadge}><Text style={st.homeBadgeTxt}>HOME</Text></View>}
                   </View>
-                  {(() => { const s = getStudent(log.student_id); const cl = s?.classroom_id ? classrooms.find(c=>c.id===s.classroom_id) : null; return cl ? <Text style={{fontSize:9,color:'#AAA'}}>{cl.name}</Text> : null; })()}
+                  {(() => { const s = getStudent(log.student_id); const allCl = localClassrooms.length > 0 ? localClassrooms : classrooms; const cl = s?.classroom_id ? allCl.find((c:any)=>c.id===s.classroom_id) : null; return cl ? <Text style={{fontSize:9,color:'#AAA'}}>{cl.name}</Text> : null; })()}
                   {(log as any).strategies_selected?.length > 0 && (
                     <Text style={st.logStrats} numberOfLines={1}>
                       {(log as any).strategies_selected.slice(0,2).map((s:string)=>strategyNames[s]||resolveStrategy(s)).join(', ')}
@@ -348,7 +358,7 @@ export default function TeacherDashboardScreen() {
         {graphExpanded && (
           <View style={{paddingHorizontal:16,paddingTop:4,paddingBottom:2}}>
             <Text style={{fontSize:12,color:'#5C6BC0',fontWeight:'600',textAlign:'center'}}>
-              {selectedClassroom ? `📍 ${classrooms.find(c=>c.id===selectedClassroom)?.name||'Classroom'}` : `🏫 ${t('all')||'All Classrooms'}`}
+              {selectedClassroom ? `📍 ${(localClassrooms.length > 0 ? localClassrooms : classrooms).find((c:any)=>c.id===selectedClassroom)?.name||'Classroom'}` : `🏫 ${t('all')||'All Classrooms'}`}
             </Text>
           </View>
         )}
