@@ -329,6 +329,7 @@ export default function TeacherDashboardScreen() {
                 <View style={{alignItems:'flex-end',gap:3}}>
                   <View style={[st.zonePill,{backgroundColor:ZONE_COLORS[zone]||'#999'}]} />
                   <Text style={st.logTime}>{formatTime((log as any).timestamp)}</Text>
+                  <Text style={{fontSize:9,color:'#BBB'}}>{new Date((log as any).timestamp).toLocaleDateString([],{day:'numeric',month:'short'})}</Text>
                 </View>
               </TouchableOpacity>
             );
@@ -344,7 +345,7 @@ export default function TeacherDashboardScreen() {
         {graphExpanded && (
           <View style={{paddingHorizontal:16,paddingTop:4,paddingBottom:2}}>
             <Text style={{fontSize:12,color:'#5C6BC0',fontWeight:'600',textAlign:'center'}}>
-              {selectedClassroom ? (classrooms.find(c=>c.id===selectedClassroom)?.name||'Classroom') : (t('all')||'All Classrooms')}
+              {selectedClassroom ? `📍 ${classrooms.find(c=>c.id===selectedClassroom)?.name||'Classroom'}` : `🏫 ${t('all')||'All Classrooms'}`}
             </Text>
           </View>
         )}
@@ -445,7 +446,7 @@ const st = StyleSheet.create({
   periodBtnActive: { backgroundColor:'white', shadowColor:'#000', shadowOpacity:0.06, shadowRadius:3, elevation:2 },
   periodTxt: { fontSize:12, color:'#999', fontWeight:'600' },
   periodTxtActive: { color:'#5C6BC0', fontWeight:'700' },
-  chipScroll: { maxHeight:40, marginBottom:2 },
+  chipScroll: { marginBottom:4 },
   chipRow: { flexDirection:'row', paddingHorizontal:16, gap:8, alignItems:'center' },
   chip: { paddingHorizontal:12, paddingVertical:5, borderRadius:16, backgroundColor:'white', borderWidth:1, borderColor:'#E0E0E0' },
   chipActive: { backgroundColor:'#5C6BC0', borderColor:'#5C6BC0' },
