@@ -4615,8 +4615,11 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
         for day in range(1, last_day + 1):
             date_str = f"{year}-{month:02d}-{day:02d}"
             zone = daily_zones.get(date_str, "")
-            hex_color = ZONE_HEX.get(zone, "EEEEEE")
-            cell = Paragraph(f'<font color="#{hex_color}">{"●" if zone else str(day)}</font>', ST_SMALL)
+            hex_color = ZONE_HEX.get(zone, "333333")
+            if zone:
+                cell = Paragraph(f'<font color="#{hex_color}">●</font> <font color="#333">{day}</font>', ST_SMALL)
+            else:
+                cell = Paragraph(f'<font color="#CCCCCC">{day}</font>', ST_SMALL)
             week_row.append(cell)
             weekday = (first_weekday + day - 1) % 7
             if weekday == 6 or day == last_day:
