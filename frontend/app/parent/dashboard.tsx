@@ -805,9 +805,7 @@ export default function ParentDashboard() {
         </View>
         {/* Family Members — Whole card taps to check in */}
         <View style={styles.familySection}>
-          <View style={styles.familySectionHeader}>
-            <Text style={styles.familySectionTitle}>{t('my_family') || t('my_family') || 'My Family'}</Text>
-            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+          <View style={{flexDirection:'row',justifyContent:'flex-end',paddingHorizontal:4,paddingBottom:4,gap:6}}>
               {orderedMembers.length > 1 && (
                 <TouchableOpacity
                   style={[styles.addButton, { backgroundColor: reorderMode ? '#F44336' : '#9E9E9E' }]}
@@ -821,7 +819,6 @@ export default function ParentDashboard() {
                   <MaterialIcons name="add" size={18} color="white" />
                 </TouchableOpacity>
               )}
-            </View>
           </View>
 
           {familyMembers.length === 0 ? (
@@ -831,8 +828,11 @@ export default function ParentDashboard() {
             </TouchableOpacity>
           ) : (
             <>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={styles.familyGrid}>
-              {orderedMembers.map((member) => {
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{flexDirection:'column', gap:8, paddingHorizontal:16, paddingBottom:8}}>
+              {Array.from({length: Math.ceil(orderedMembers.length/2)}, (_,rowIdx) => (
+                <View key={rowIdx} style={{flexDirection:'row', gap:10}}>
+                {orderedMembers.slice(rowIdx*2, rowIdx*2+2).map((member) => {
                 const creature = memberCreatures[member.id];
                 const creatureEmoji = childCreatures[member.id]?.emoji || creature?.emoji || '🥚';
                 const isChild = member.relationship === 'child';
@@ -945,7 +945,10 @@ export default function ParentDashboard() {
                   </TouchableOpacity>
                 );
               })}
-            </View></ScrollView>
+                </View>
+              ))}
+              </View>
+            </ScrollView>
             {/* Locked upgrade slot — shows when free user has 2+ members */}
             {!hasActiveSubscription && familyMembers.length >= 2 && (
               <TouchableOpacity
@@ -961,7 +964,8 @@ export default function ParentDashboard() {
               </TouchableOpacity>
             )}
             {/* Linked children in same row */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={styles.familyGrid}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={{flexDirection:'column'}}>
+              <View style={{flexDirection:'row'}}>
               {linkedChildren.filter(lc => !familyMembers.some(fm => fm.name === lc.name || (fm as any).student_id === lc.id)).map((child: any) => (
                 <TouchableOpacity
                   key={`linked-${child.id}`}
@@ -1781,7 +1785,7 @@ const styles = StyleSheet.create({
   familySection: { paddingHorizontal: 16, marginBottom: 8 },
   familySectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   familySectionTitle: { fontSize: 13, fontWeight: '700', color: '#333' },
-  familyGrid: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingBottom: 8 },
+  familyGrid: { flexDirection: 'column', gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
   gridCard: { width: 108, backgroundColor: 'white', borderRadius: 14, padding: 10, alignItems: 'center', borderWidth: 1.5, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   gridCardActions: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 4 },
   gridActionBtn: { padding: 2 },

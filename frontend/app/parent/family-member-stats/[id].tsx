@@ -8,18 +8,28 @@ import { Linking } from 'react-native';
 
 // Fallback for old-format strategy codes
 const STRATEGY_NAMES_LOCAL: Record<string,string> = {
-  p_b1:'Slow Breathing',p_b2:'Quiet Time',p_b3:'Gentle Walk',p_b4:'Rest Together',p_b5:'Safe Space',
-  p_g1:'Celebrate Together',p_g2:'Keep Going',p_g3:'Set a Goal',p_g4:'Gratitude',p_g5:'Help a Friend',
-  p_y1:'Box Breathing',p_y2:'Validate First',p_y3:'Body Check-In',p_y4:'Feelings Journal',p_y5:'Give Space',
-  p_r1:'Stay Calm',p_r2:'Safe Space Together',p_r3:'Cold Water Reset',p_r4:'Talk It Through',p_r5:'Take a Break',
-  s_b1:'Slow Breathing',s_b2:'Safe Space',s_b3:'Gentle Stretch',s_b4:'Favourite Song',s_b5:'Talk About It',
-  s_g1:'Keep Going',s_g2:'Set a Goal',s_g3:'Help a Friend',s_g4:'Gratitude',s_g5:'5 Senses',
-  s_y1:'Bubble Breathing',s_y2:'Count to 10',s_y3:'Walk Away',s_y4:'Squeeze & Release',s_y5:'Tell Someone',
-  s_r1:'Walk Away',s_r2:'Cold Water',s_r3:'Safe Space',s_r4:'Tell Someone',s_r5:'Slow Breathing',
+  // Student strategies blue_N format
+  blue_1:'Gentle Stretch',blue_2:'Warm Drink',blue_3:'Favourite Song',blue_4:'Cosy Spot',blue_5:'Tell Someone',blue_6:'Slow Breathing',
+  green_1:'Keep Going!',green_2:'Help a Friend',green_3:'Try Something New',green_4:'Share Your Smile',green_5:'Set a Goal',green_6:'Gratitude',
+  yellow_1:'Bubble Breathing',yellow_2:'Body Shake',yellow_3:'Count to 10',yellow_4:'5 Senses',yellow_5:'Squeeze & Release',yellow_6:'Talk About It',
+  red_1:'Freeze',red_2:'Big Breaths',red_3:'Count Backwards',red_4:'Safe Space',red_5:'Ask for Help',red_6:'Self Hug',
+  // Short codes b1-b6 etc
+  b1:'Gentle Stretch',b2:'Warm Drink',b3:'Favourite Song',b4:'Cosy Spot',b5:'Tell Someone',b6:'Slow Breathing',
+  g1:'Keep Going!',g2:'Help a Friend',g3:'Try Something New',g4:'Share Your Smile',g5:'Set a Goal',g6:'Gratitude',
+  y1:'Bubble Breathing',y2:'Body Shake',y3:'Count to 10',y4:'5 Senses',y5:'Squeeze & Release',y6:'Talk About It',
+  r1:'Freeze',r2:'Big Breaths',r3:'Count Backwards',r4:'Safe Space',r5:'Ask for Help',r6:'Self Hug',
+  // Parent strategies p_b/g/y/r format
+  p_b1:'Side-by-Side Presence',p_b2:'Warm Drink Ritual',p_b3:'Name It to Tame It',p_b4:'Movement Invitation',p_b5:'Comfort & Closeness',
+  p_g1:'Gratitude Round',p_g2:'Strength Spotting',p_g3:'Creative Together',p_g4:'Family Dance',p_g5:'Calm Problem Solving',
+  p_y1:'Box Breathing Together',p_y2:'Validate Feelings First',p_y3:'Body Check-In',p_y4:'Feelings Journal',p_y5:'Give Space with Love',
+  p_r1:'Stay Calm Yourself',p_r2:'Safe Space Together',p_r3:'Cold Water Reset',p_r4:'No Teaching Now',p_r5:'Reconnect with Warmth',
+  // Named strategies
   bubble_breathing:'Bubble Breathing',slow_breathing:'Slow Breathing',count_to_10:'Count to 10',
   walk_away:'Walk Away',safe_space:'Safe Space',talk_about_it:'Talk About It',
   tell_someone:'Tell Someone',gentle_stretch:'Gentle Stretch',gratitude:'Gratitude',
   help_friend:'Help a Friend',keep_going:'Keep Going',set_goal:'Set a Goal',
+  ask_for_help:'Ask for Help',self_hug:'Self Hug',big_breaths:'Big Breaths',
+  cosy_spot:'Cosy Spot',warm_drink:'Warm Drink',favourite_song:'Favourite Song',
 };
 const ZONE_KEYS_SET = new Set(['blue','green','yellow','red','Blue','Green','Yellow','Red']);
 const resolveStratName = (id: string, nameMap: Record<string,string>): string => {

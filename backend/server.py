@@ -3436,21 +3436,29 @@ async def toggle_strategy_sync(strategy_id: str, request: Request):
 
 # Full strategy name map (mirrors frontend STRATEGY_NAME_MAP)
 STRATEGY_NAME_MAP = {
-    # Short IDs
-    "b1": "Gentle Stretch", "b2": "Favourite Song", "b3": "Tell Someone", "b4": "Slow Breathing",
-    "g1": "Keep Going!", "g2": "Help a Friend", "g3": "Set a Goal", "g4": "Gratitude",
-    "y1": "Bubble Breathing", "y2": "Count to 10", "y3": "5 Senses", "y4": "Talk About It",
-    "r1": "Freeze", "r2": "Big Breaths", "r3": "Safe Space", "r4": "Ask for Help",
-    # Underscore variants (blue_1 format stored in DB)
-    "blue_1": "Gentle Stretch", "blue_2": "Favourite Song", "blue_3": "Tell Someone", "blue_4": "Slow Breathing",
-    "green_1": "Keep Going!", "green_2": "Help a Friend", "green_3": "Set a Goal", "green_4": "Gratitude",
-    "yellow_1": "Bubble Breathing", "yellow_2": "Count to 10", "yellow_3": "5 Senses", "yellow_4": "Talk About It",
-    "red_1": "Freeze", "red_2": "Big Breaths", "red_3": "Safe Space", "red_4": "Ask for Help",
-    # Parent strategies
-    "p_b1": "Side-by-Side Presence", "p_b2": "Warm Drink Ritual", "p_b3": "Name It to Tame It",
-    "p_g1": "Gratitude Round", "p_g2": "Strength Spotting", "p_g3": "Creative Together",
-    "p_y1": "Box Breathing Together", "p_y2": "Validate First", "p_y3": "Body Check-In",
-    "p_r1": "Stay Calm Yourself", "p_r2": "Safe Space Together", "p_r3": "Cold Water Reset",
+    # Short IDs b/g/y/r + number
+    "b1": "Gentle Stretch", "b2": "Warm Drink", "b3": "Favourite Song", "b4": "Cosy Spot", "b5": "Tell Someone", "b6": "Slow Breathing",
+    "g1": "Keep Going!", "g2": "Help a Friend", "g3": "Try Something New", "g4": "Share Your Smile", "g5": "Set a Goal", "g6": "Gratitude",
+    "y1": "Bubble Breathing", "y2": "Body Shake", "y3": "Count to 10", "y4": "5 Senses", "y5": "Squeeze & Release", "y6": "Talk About It",
+    "r1": "Freeze", "r2": "Big Breaths", "r3": "Count Backwards", "r4": "Safe Space", "r5": "Ask for Help", "r6": "Self Hug",
+    # Underscore variants (blue_N format)
+    "blue_1": "Gentle Stretch", "blue_2": "Warm Drink", "blue_3": "Favourite Song", "blue_4": "Cosy Spot", "blue_5": "Tell Someone", "blue_6": "Slow Breathing",
+    "green_1": "Keep Going!", "green_2": "Help a Friend", "green_3": "Try Something New", "green_4": "Share Your Smile", "green_5": "Set a Goal", "green_6": "Gratitude",
+    "yellow_1": "Bubble Breathing", "yellow_2": "Body Shake", "yellow_3": "Count to 10", "yellow_4": "5 Senses", "yellow_5": "Squeeze & Release", "yellow_6": "Talk About It",
+    "red_1": "Freeze", "red_2": "Big Breaths", "red_3": "Count Backwards", "red_4": "Safe Space", "red_5": "Ask for Help", "red_6": "Self Hug",
+    # Parent strategies p_b/g/y/r format
+    "p_b1": "Side-by-Side Presence", "p_b2": "Warm Drink Ritual", "p_b3": "Name It to Tame It", "p_b4": "Movement Invitation", "p_b5": "Comfort & Closeness",
+    "p_g1": "Gratitude Round", "p_g2": "Strength Spotting", "p_g3": "Creative Together", "p_g4": "Family Dance", "p_g5": "Calm Problem Solving",
+    "p_y1": "Box Breathing Together", "p_y2": "Validate Feelings First", "p_y3": "Body Check-In", "p_y4": "Feelings Journal", "p_y5": "Give Space with Love",
+    "p_r1": "Stay Calm Yourself", "p_r2": "Safe Space Together", "p_r3": "Cold Water Reset", "p_r4": "No Teaching Now", "p_r5": "Reconnect with Warmth",
+    # Named strategies
+    "bubble_breathing": "Bubble Breathing", "slow_breathing": "Slow Breathing", "count_to_10": "Count to 10",
+    "walk_away": "Walk Away", "safe_space": "Safe Space", "talk_about_it": "Talk About It",
+    "tell_someone": "Tell Someone", "gentle_stretch": "Gentle Stretch", "gratitude": "Gratitude",
+    "help_friend": "Help a Friend", "keep_going": "Keep Going", "set_goal": "Set a Goal",
+    "ask_for_help": "Ask for Help", "self_hug": "Self Hug", "big_breaths": "Big Breaths",
+    "cosy_spot": "Cosy Spot", "warm_drink": "Warm Drink", "favourite_song": "Favourite Song",
+    "squeeze_release": "Squeeze & Release", "5_senses": "5 Senses", "count_backwards": "Count Backwards",
 }
 
 STRATEGY_NAME_MAP_PT = {
