@@ -4770,6 +4770,24 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
 
 
 
+@api_router.post("/user/update-name")
+async def update_user_name(request: Request):
+    """Update the display name for the current user."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        body = await request.json()
+        name = (body.get("name") or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Name required")
+        supabase.table("users").update({"name": name}).eq("user_id", user["user_id"]).execute()
+        return {"ok": True, "name": name}
+    except Exception as e:
+        logger.error(f"update_user_name error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ================== NOTIFICATION SYSTEM ==================
 
 # ── Push token registration ──────────────────────────────

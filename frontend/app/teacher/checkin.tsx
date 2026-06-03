@@ -78,7 +78,12 @@ export default function TeacherCheckInScreen() {
   const [newStrategyDesc, setNewStrategyDesc] = useState('');
 
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
-  useEffect(() => { loadData(); loadAdminStrategies(); }, []);
+  useEffect(() => {
+    loadData();
+    loadAdminStrategies();
+    if (user?.name) { setDisplayName(user.name); setNameInput(user.name); }
+    else if (user?.email) { const n = user.email.split('@')[0].replace(/\./g,' ').replace(/\w/g,(c:string)=>c.toUpperCase()); setDisplayName(n); setNameInput(n); }
+  }, []);
 
   const loadAdminStrategies = async () => {
     try {
@@ -315,6 +320,9 @@ export default function TeacherCheckInScreen() {
     } catch { Alert.alert('Error', 'No data for this month yet'); }
   };
 
+  const [displayName, setDisplayName] = useState('');
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
   const [weekExpanded, setWeekExpanded] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [pdfExpanded, setPdfExpanded] = useState(false);
@@ -323,6 +331,20 @@ export default function TeacherCheckInScreen() {
   const [secStrategies, setSecStrategies] = useState(false);
   const [zoneCounts, setZoneCounts] = useState({blue:0,green:0,yellow:0,red:0});
   const [stratCounts, setStratCounts] = useState<Record<string,number>>({});
+
+  const saveName = async () => {
+    if (!nameInput.trim()) return;
+    try {
+      const token = await AsyncStorage.getItem('session_token');
+      await fetch(`${BACKEND_URL_CONST}/api/user/update-name`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: nameInput.trim() }),
+      });
+      setDisplayName(nameInput.trim());
+      setEditingName(false);
+    } catch {}
+  };
 
   const zoneConfig = selectedZone ? ZONES.find(z => z.id === selectedZone) : null;
 
@@ -343,6 +365,36 @@ export default function TeacherCheckInScreen() {
           <MaterialIcons name="support-agent" size={18} color="white" />
           <Text style={styles.alertBtnText}>{t('support') || 'Support'}</Text>
         </TouchableOpacity>
+      </View>
+
+      {/* Name row */}
+      <View style={{backgroundColor:'#F8F9FA',paddingHorizontal:16,paddingVertical:8,flexDirection:'row',alignItems:'center',borderBottomWidth:1,borderBottomColor:'#EEEEEE'}}>
+        <MaterialIcons name="person" size={16} color="#5C6BC0" style={{marginRight:6}} />
+        {editingName ? (
+          <>
+            <TextInput
+              value={nameInput}
+              onChangeText={setNameInput}
+              style={{flex:1,fontSize:13,color:'#333',borderBottomWidth:1,borderBottomColor:'#5C6BC0',paddingVertical:2}}
+              autoFocus
+              placeholder="Your display name..."
+              placeholderTextColor="#AAA"
+            />
+            <TouchableOpacity onPress={saveName} style={{marginLeft:8,backgroundColor:'#5C6BC0',borderRadius:6,paddingHorizontal:10,paddingVertical:4}}>
+              <Text style={{color:'white',fontSize:12,fontWeight:'600'}}>Save</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setEditingName(false)} style={{marginLeft:6}}>
+              <MaterialIcons name="close" size={18} color="#999" />
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <Text style={{flex:1,fontSize:13,color:'#555'}}>{displayName || 'Tap to add your name'}</Text>
+            <TouchableOpacity onPress={() => setEditingName(true)}>
+              <MaterialIcons name="edit" size={16} color="#5C6BC0" />
+            </TouchableOpacity>
+          </>
+        )}
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
