@@ -186,6 +186,9 @@ export default function TeacherDashboardScreen() {
     return () => clearInterval(interval);
   }, [loadData, refreshAlertCount]));
 
+  // Reload when period or classroom filter changes
+  useEffect(() => { loadData(); }, [period, selectedClassroom]);
+
   const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
 
   const getStudentName = (id:string) => students.find(s=>s.id===id)?.name || t('student') || 'Student';
@@ -275,7 +278,7 @@ export default function TeacherDashboardScreen() {
       </View>
 
       {/* Classroom filter chips */}
-      {classrooms.length > 0 && (
+      {(classrooms && classrooms.length > 0) && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.chipScroll}>
           <View style={st.chipRow}>
             <TouchableOpacity style={[st.chip,!selectedClassroom&&st.chipActive]} onPress={() => setSelectedClassroom(null)}>
