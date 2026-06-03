@@ -79,11 +79,17 @@ export default function TeacherCheckInScreen() {
 
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   useEffect(() => {
-    loadData();
-    loadAdminStrategies();
     if (user?.name) { setDisplayName(user.name); setNameInput(user.name); }
     else if (user?.email) { const n = user.email.split('@')[0].replace(/\./g,' ').replace(/\w/g,(c:string)=>c.toUpperCase()); setDisplayName(n); setNameInput(n); }
+    AsyncStorage.getItem(PIN_KEY).then(pin => {
+      if (pin) { setPinStep('enter'); }
+      else { setPinStep('setup'); }
+    });
   }, []);
+
+  useEffect(() => {
+    if (pinUnlocked) { loadData(); loadAdminStrategies(); }
+  }, [pinUnlocked]);
 
   const loadAdminStrategies = async () => {
     try {
@@ -323,6 +329,11 @@ export default function TeacherCheckInScreen() {
   const [displayName, setDisplayName] = useState('');
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
+  const [pinUnlocked, setPinUnlocked] = useState(false);
+  const [pinStep, setPinStep] = useState<'enter'|'setup'|'confirm'>('enter');
+  const [pinInput, setPinInput] = useState('');
+  const [pinConfirm, setPinConfirm] = useState('');
+  const PIN_KEY = 'teacher_checkin_pin';
   const [weekExpanded, setWeekExpanded] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [pdfExpanded, setPdfExpanded] = useState(false);
@@ -331,6 +342,56 @@ export default function TeacherCheckInScreen() {
   const [secStrategies, setSecStrategies] = useState(false);
   const [zoneCounts, setZoneCounts] = useState({blue:0,green:0,yellow:0,red:0});
   const [stratCounts, setStratCounts] = useState<Record<string,number>>({});
+
+  const handlePinDigit = (d: string) => {
+    if (pinStep === 'setup') {
+      const next = pinInput + d;
+      if (next.length <= 4) {
+        setPinInput(next);
+        if (next.length === 4) setPinStep('confirm');
+      }
+    } else if (pinStep === 'confirm') {
+      const next = pinConfirm + d;
+      if (next.length <= 4) {
+        setPinConfirm(next);
+        if (next.length === 4) {
+          if (next === pinInput) {
+            AsyncStorage.setItem(PIN_KEY, pinInput);
+            setPinUnlocked(true);
+          } else {
+            Alert.alert('PINs do not match');
+            setPinInput(''); setPinConfirm(''); setPinStep('setup');
+          }
+        }
+      }
+    } else {
+      const next = pinInput + d;
+      if (next.length <= 4) {
+        setPinInput(next);
+        if (next.length === 4) {
+          AsyncStorage.getItem(PIN_KEY).then(stored => {
+            if (next === stored) { setPinUnlocked(true); }
+            else { Alert.alert('Incorrect PIN'); setPinInput(''); }
+          });
+        }
+      }
+    }
+  };
+
+  const handlePinDelete = () => {
+    if (pinStep === 'confirm') setPinConfirm(c => c.slice(0,-1));
+    else setPinInput(p => p.slice(0,-1));
+  };
+
+  const handleResetPin = () => {
+    Alert.alert('Reset PIN', 'Are you sure? You will need to create a new PIN.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Reset', style: 'destructive', onPress: async () => {
+        await AsyncStorage.removeItem(PIN_KEY);
+        setPinInput(''); setPinConfirm(''); setPinStep('setup');
+      }},
+    ]);
+  };
 
   const saveName = async () => {
     if (!nameInput.trim()) return;
@@ -347,6 +408,46 @@ export default function TeacherCheckInScreen() {
   };
 
   const zoneConfig = selectedZone ? ZONES.find(z => z.id === selectedZone) : null;
+
+  if (!pinUnlocked) {
+    const current = pinStep === 'confirm' ? pinConfirm : pinInput;
+    return (
+      <SafeAreaView style={{flex:1,backgroundColor:'white'}}>
+        <TouchableOpacity style={{padding:16}} onPress={() => router.back()}>
+          <MaterialIcons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <View style={{flex:1,alignItems:'center',justifyContent:'center',paddingHorizontal:32}}>
+          <Text style={{fontSize:40,marginBottom:8}}>🔒</Text>
+          <Text style={{fontSize:20,fontWeight:'700',color:'#333',marginBottom:4}}>Teacher Check-in</Text>
+          <Text style={{fontSize:14,color:'#666',marginBottom:24,textAlign:'center'}}>
+            {pinStep === 'setup' ? 'Create a private PIN to protect your wellbeing data'
+            : pinStep === 'confirm' ? 'Confirm your PIN'
+            : 'Enter your PIN'}
+          </Text>
+          <View style={{flexDirection:'row',gap:12,marginBottom:32}}>
+            {[0,1,2,3].map(i => (
+              <View key={i} style={{width:14,height:14,borderRadius:7,borderWidth:2,borderColor:'#5C6BC0',backgroundColor:current.length>i?'#5C6BC0':'transparent'}} />
+            ))}
+          </View>
+          <View style={{flexDirection:'row',flexWrap:'wrap',width:240,gap:8,justifyContent:'center'}}>
+            {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((d,i) => (
+              <TouchableOpacity key={i}
+                style={{width:72,height:56,borderRadius:12,backgroundColor:d?'#F5F5F5':'transparent',alignItems:'center',justifyContent:'center',opacity:d?1:0}}
+                onPress={() => d==='⌫' ? handlePinDelete() : d && handlePinDigit(d)}
+                disabled={!d}>
+                <Text style={{fontSize:22,fontWeight:'600',color:'#333'}}>{d}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {pinStep === 'enter' && (
+            <TouchableOpacity onPress={handleResetPin} style={{marginTop:24}}>
+              <Text style={{color:'#5C6BC0',fontSize:14}}>Forgot PIN?</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
