@@ -798,7 +798,7 @@ export default function ParentDashboard() {
         )}
 
         {/* Subtitle only — title shown in TranslatedHeader */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10, alignItems: 'center' }}>
+        <View style={{ paddingHorizontal: 16, paddingTop: 2, paddingBottom: 4, alignItems: 'center' }}>
           <Text style={{ fontSize: 13, color: '#666', textAlign: 'center', fontWeight: '400', letterSpacing: 0.2 }}>
             {t('family_wellbeing_desc') || "My Family's Emotional Wellbeing"}
           </Text>
@@ -830,7 +830,7 @@ export default function ParentDashboard() {
             <>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={{flexDirection:'column', gap:8, paddingHorizontal:16, paddingBottom:8}}>
-              {orderedMembers.reduce((rows: any[][], member, i) => {
+              {orderedMembers.slice(0, 4).reduce((rows: any[][], member, i) => {
                 if (i % 2 === 0) rows.push([]);
                 rows[rows.length-1].push(member);
                 return rows;
@@ -953,6 +953,37 @@ export default function ParentDashboard() {
               ))}
               </View>
             </ScrollView>
+            {/* Extra members 5+ — horizontal scroll row */}
+            {orderedMembers.length > 4 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginTop:8}}>
+                <View style={{flexDirection:'row', gap:10, paddingHorizontal:16, paddingBottom:8}}>
+                  {orderedMembers.slice(4).map((member) => {
+                    const creature = memberCreatures[member.id];
+                    const isChild = member.relationship === 'child';
+                    const cardColor = getRelationshipColor(member.relationship);
+                    return (
+                      <TouchableOpacity
+                        key={member.id}
+                        style={[styles.gridCard, { borderColor: cardColor + '30' }]}
+                        onPress={() => { if (!reorderMode) handleMemberCheckin(member); }}
+                        activeOpacity={0.85}
+                      >
+                        <View style={[styles.gridAvatar, { backgroundColor: cardColor + '15' }]}>
+                          {member.avatar_type === 'custom' && member.avatar_custom ? (
+                            <Image source={{ uri: member.avatar_custom }} style={styles.gridAvatarImg} />
+                          ) : (
+                            <Text style={{ fontSize: 26 }}>
+                              {presetAvatars?.find((a: any) => a.id === member.avatar_preset)?.emoji || (isChild ? '👧' : '⭐')}
+                            </Text>
+                          )}
+                        </View>
+                        <Text style={styles.gridName} numberOfLines={1}>{member.name}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            )}
             {/* Locked upgrade slot — shows when free user has 2+ members */}
             {!hasActiveSubscription && familyMembers.length >= 2 && (
               <TouchableOpacity
@@ -1785,7 +1816,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
   },
-  familySection: { paddingHorizontal: 16, marginBottom: 8 },
+  familySection: { paddingHorizontal: 0, marginBottom: 4 },
   familySectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   familySectionTitle: { fontSize: 13, fontWeight: '700', color: '#333' },
   familyGrid: { flexDirection: 'column', gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
