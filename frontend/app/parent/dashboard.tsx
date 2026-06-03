@@ -968,8 +968,7 @@ export default function ParentDashboard() {
               </TouchableOpacity>
             )}
             {/* Linked children in same row */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={{flexDirection:'column'}}>
-              <View style={{flexDirection:'row'}}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={{flexDirection:'row', gap:10, paddingHorizontal:16, paddingBottom:8}}>
               {linkedChildren.filter(lc => !familyMembers.some(fm => fm.name === lc.name || (fm as any).student_id === lc.id)).map((child: any) => (
                 <TouchableOpacity
                   key={`linked-${child.id}`}
