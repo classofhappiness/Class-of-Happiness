@@ -798,14 +798,14 @@ export default function ParentDashboard() {
         )}
 
         {/* Subtitle only — title shown in TranslatedHeader */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 2, paddingBottom: 4, alignItems: 'center' }}>
+        <View style={{ paddingHorizontal: 16, paddingTop: 0, paddingBottom: 2, alignItems: 'center' }}>
           <Text style={{ fontSize: 13, color: '#666', textAlign: 'center', fontWeight: '400', letterSpacing: 0.2 }}>
             {t('family_wellbeing_desc') || "My Family's Emotional Wellbeing"}
           </Text>
         </View>
         {/* Family Members — Whole card taps to check in */}
         <View style={styles.familySection}>
-          <View style={{flexDirection:'row',justifyContent:'flex-end',paddingHorizontal:4,paddingBottom:4,gap:6}}>
+          <View style={{flexDirection:'row',justifyContent:'flex-end',paddingHorizontal:12,paddingBottom:2,gap:6}}>
               {orderedMembers.length > 1 && (
                 <TouchableOpacity
                   style={[styles.addButton, { backgroundColor: reorderMode ? '#F44336' : '#9E9E9E' }]}
@@ -829,7 +829,7 @@ export default function ParentDashboard() {
           ) : (
             <>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{flexDirection:'column', gap:8, paddingHorizontal:16, paddingBottom:8}}>
+              <View style={{flexDirection:'column', gap:6, paddingHorizontal:12, paddingBottom:6}}>
               {[orderedMembers.filter((_:any,i:number)=>i%2===0), orderedMembers.filter((_:any,i:number)=>i%2!==0)].map((row: any[], rowIdx: number) => (
                 <View key={rowIdx} style={{flexDirection:'row', gap:10}}>
                 {row.map((member) => {
@@ -1786,10 +1786,10 @@ const styles = StyleSheet.create({
   familySectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   familySectionTitle: { fontSize: 13, fontWeight: '700', color: '#333' },
   familyGrid: { flexDirection: 'column', gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
-  gridCard: { width: 108, backgroundColor: 'white', borderRadius: 14, padding: 10, alignItems: 'center', borderWidth: 1.5, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  gridCard: { width: 96, backgroundColor: 'white', borderRadius: 12, padding: 7, alignItems: 'center', borderWidth: 1.5, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   gridCardActions: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 4 },
   gridActionBtn: { padding: 2 },
-  gridAvatar: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
+  gridAvatar: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
   gridAvatarImg: { width: 56, height: 56, borderRadius: 28 },
   gridName: { fontSize: 12, fontWeight: '700', color: '#333', marginBottom: 4, textAlign: 'center' },
   linkedLabel: { fontSize: 9, color: '#4CAF50', fontWeight: '600', marginBottom: 4 },
