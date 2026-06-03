@@ -830,9 +830,13 @@ export default function ParentDashboard() {
             <>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={{flexDirection:'column', gap:8, paddingHorizontal:16, paddingBottom:8}}>
-              {Array.from({length: Math.ceil(orderedMembers.length/2)}, (_,rowIdx) => (
+              {orderedMembers.reduce((rows: any[][], member, i) => {
+                if (i % 2 === 0) rows.push([]);
+                rows[rows.length-1].push(member);
+                return rows;
+              }, []).map((row: any[], rowIdx: number) => (
                 <View key={rowIdx} style={{flexDirection:'row', gap:10}}>
-                {orderedMembers.slice(rowIdx*2, rowIdx*2+2).map((member) => {
+                {row.map((member) => {
                 const creature = memberCreatures[member.id];
                 const creatureEmoji = childCreatures[member.id]?.emoji || creature?.emoji || '🥚';
                 const isChild = member.relationship === 'child';
