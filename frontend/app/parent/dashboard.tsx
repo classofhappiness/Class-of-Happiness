@@ -952,7 +952,6 @@ export default function ParentDashboard() {
                 </View>
               ))}
               </View>
-              </View>
             </ScrollView>
             {/* Locked upgrade slot — shows when free user has 2+ members */}
             {!hasActiveSubscription && familyMembers.length >= 2 && (
