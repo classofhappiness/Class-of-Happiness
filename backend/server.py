@@ -3284,14 +3284,8 @@ async def delete_family_member(member_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    # Also clean up the linked student record and rewards to avoid orphaned data
-    member_result = supabase.table("family_members").select("*").eq("id", member_id).execute()
-    if member_result.data:
-        student_id = member_result.data[0].get("student_id")
-        if student_id:
-            supabase.table("student_rewards").delete().eq("student_id", student_id).execute()
-            supabase.table("feeling_logs").delete().eq("student_id", student_id).execute()
-            supabase.table("students").delete().eq("id", student_id).execute()
+    # Only delete the family_member record — preserve student profile and rewards
+    # Student records/rewards should persist even if removed from family dashboard
     supabase.table("family_members").delete().eq("id", member_id).execute()
     return {"message": "Member deleted"}
 
