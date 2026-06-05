@@ -452,7 +452,7 @@ export default function ParentDashboard() {
       try {
         await authApiExtended.updateRole('parent');
       } catch (roleError) {
-        console.log('Role update skipped or failed:', roleError);
+        // role update skipped
       }
       
       // Fetch linked children from school
@@ -1547,7 +1547,7 @@ export default function ParentDashboard() {
                   <MaterialIcons name="check-circle" size={48} color="#4CAF50" />
                   <Text style={styles.codeLabel}>{t('teacher_link_code')}</Text>
                   <Text style={styles.codeValue}>{generatedCode}</Text>
-                  <Text style={styles.codeExpiry}>{t('access_expires_30_days')}</Text>
+                  <Text style={styles.codeExpiry}>{t('trial_active') || 'Trial Active'} · {t('trial_active_desc') || 'Your free trial is active'}</Text>
                 </View>
                 <TouchableOpacity
                   style={[styles.submitButton, { backgroundColor: '#4CAF50' }]}

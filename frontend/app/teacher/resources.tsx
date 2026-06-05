@@ -81,7 +81,7 @@ export default function TeacherResourcesScreen() {
       try {
         await authApiExtended.updateRole('teacher');
       } catch (error) {
-        console.log('Could not update role:', error);
+        // role update skipped
       }
     };
     setTeacherRole();

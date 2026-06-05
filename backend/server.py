@@ -3685,6 +3685,16 @@ async def generate_family_pdf_report(family_member_id: str, year: int, month: in
         "it":{"blue":"Emozioni Blu","green":"Emozioni Verdi","yellow":"Emozioni Gialle","red":"Emozioni Rosse"},
     }
     ZL = ZONE_LABELS_BY_LANG.get(report_lang, ZONE_LABELS_BY_LANG["en"])
+    HOME_REPORT_LABELS = {'en': 'Home Wellbeing Report', 'pt': 'Relatório de Bem-Estar em Casa', 'es': 'Informe de Bienestar en Casa', 'fr': 'Rapport de Bien-être à la Maison', 'de': 'Wohlbefindensbericht Zuhause', 'it': 'Rapporto sul Benessere a Casa'}
+    STRATEGIES_LABELS  = {'en': 'Strategies Used', 'pt': 'Estratégias Utilizadas', 'es': 'Estrategias Utilizadas', 'fr': 'Stratégies Utilisées', 'de': 'Verwendete Strategien', 'it': 'Strategie Utilizzate'}
+    CALENDAR_LABELS    = {'en': 'Monthly Calendar', 'pt': 'Calendário Mensal', 'es': 'Calendario Mensual', 'fr': 'Calendrier Mensuel', 'de': 'Monatskalender', 'it': 'Calendario Mensile'}
+    CHECKIN_LOG_LABELS = {'en': 'Check-in Log', 'pt': 'Registo de Check-ins', 'es': 'Registro de Check-ins', 'fr': 'Journal des Enregistrements', 'de': 'Check-in-Protokoll', 'it': 'Registro dei Check-in'}
+    EMOTION_DIST_LABELS= {'en': 'Emotion Distribution', 'pt': 'Distribuição de Emoções', 'es': 'Distribución de Emociones', 'fr': 'Distribution des Émotions', 'de': 'Emotionsverteilung', 'it': 'Distribuzione delle Emozioni'}
+    lbl_report   = HOME_REPORT_LABELS.get(report_lang, HOME_REPORT_LABELS["en"])
+    lbl_strats   = STRATEGIES_LABELS.get(report_lang, STRATEGIES_LABELS["en"])
+    lbl_calendar = CALENDAR_LABELS.get(report_lang, CALENDAR_LABELS["en"])
+    lbl_log      = CHECKIN_LOG_LABELS.get(report_lang, CHECKIN_LOG_LABELS["en"])
+    lbl_emotions = EMOTION_DIST_LABELS.get(report_lang, EMOTION_DIST_LABELS["en"])
     ZONE_DESCS = {"blue":"Sad / Tired","green":"Happy / Ready","yellow":"Worried / Anxious","red":"Upset / Angry"}
     MONTH_NAMES = {
         "en":["January","February","March","April","May","June","July","August","September","October","November","December"],

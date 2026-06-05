@@ -130,7 +130,7 @@ export default function TeacherDashboardScreen() {
           analyticsRaw = await aRes.json();
           console.log('[Teacher] analytics raw:', JSON.stringify(analyticsRaw));
         } else {
-          console.warn('[Teacher] analytics fetch failed:', aRes.status, await aRes.text());
+          // analytics fetch failed silently
         }
       } catch(e) {
         console.error('[Teacher] analytics fetch error:', e);
