@@ -100,7 +100,17 @@ export default function TeacherDashboardScreen() {
     registerForPushNotifications().catch(() => {});
   }, [navigation]);
 
-  const loadData = useCallback(async () => {
+  const STRATEGY_NAMES_LOCAL: Record<string,string> = {
+    blue_1:'Gentle Stretch', blue_2:'Warm Drink', blue_3:'Favourite Song', blue_4:'Cosy Spot', blue_5:'Tell Someone', blue_6:'Slow Breathing',
+    green_1:'Keep Going!', green_2:'Help a Friend', green_3:'Try Something New', green_4:'Share Your Smile', green_5:'Set a Goal', green_6:'Gratitude',
+    yellow_1:'Bubble Breathing', yellow_2:'Body Shake', yellow_3:'Count to 10', yellow_4:'5 Senses', yellow_5:'Squeeze & Release', yellow_6:'Talk About It',
+    red_1:'Freeze', red_2:'Big Breaths', red_3:'Count Backwards', red_4:'Safe Space', red_5:'Ask for Help', red_6:'Self Hug',
+    b1:'Gentle Stretch', b2:'Warm Drink', b3:'Favourite Song', b4:'Cosy Spot', b5:'Tell Someone', b6:'Slow Breathing',
+    g1:'Keep Going!', g2:'Help a Friend', g3:'Try Something New', g4:'Share Your Smile', g5:'Set a Goal', g6:'Gratitude',
+    y1:'Bubble Breathing', y2:'Body Shake', y3:'Count to 10', y4:'5 Senses', y5:'Squeeze & Release', y6:'Talk About It',
+    r1:'Freeze', r2:'Big Breaths', r3:'Count Backwards', r4:'Safe Space', r5:'Ask for Help', r6:'Self Hug',
+  };
+    const loadData = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('session_token');
       const h = { Authorization: `Bearer ${token}` };
@@ -195,12 +205,18 @@ export default function TeacherDashboardScreen() {
 
   // Reload when period or classroom filter changes (debounced)
   useEffect(() => {
-    const timer = setTimeout(() => { loadData(); }, 300);
+    const timer = setTimeout(() => { loadData(); }, 150);
     return () => clearTimeout(timer);
   }, [period, selectedClassroom]);
 
   const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
 
+  const resolveStrategyLocal = (id: string): string => {
+    if (!id || ['blue','green','yellow','red'].includes(id.toLowerCase())) return '';
+    if (STRATEGY_NAMES_LOCAL[id]) return STRATEGY_NAMES_LOCAL[id];
+    if (strategyNames[id]) return strategyNames[id];
+    return id.replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase());
+  };
   const getStudentName = (id:string) => students.find(s=>s.id===id)?.name || t('student') || 'Student';
   const getStudent = (id:string) => students.find(s=>s.id===id);
   const formatTime = (ts:string) => { try { return new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); } catch { return ''; } };
@@ -334,7 +350,7 @@ export default function TeacherDashboardScreen() {
                   {(() => { const s = getStudent(log.student_id); const allCl = localClassrooms.length > 0 ? localClassrooms : classrooms; const cl = s?.classroom_id ? allCl.find((c:any)=>c.id===s.classroom_id) : null; return cl ? <Text style={{fontSize:9,color:'#AAA'}}>{cl.name}</Text> : null; })()}
                   {(log as any).strategies_selected?.length > 0 && (
                     <Text style={st.logStrats} numberOfLines={1}>
-                      {(log as any).strategies_selected.slice(0,2).map((s:string)=>strategyNames[s]||resolveStrategy(s)).join(', ')}
+                      {(log as any).strategies_selected.slice(0,2).map((s:string)=>strategyNames[s]||STRATEGY_NAMES_LOCAL[s]||resolveStrategy(s)).join(', ')}
                       {(log as any).strategies_selected.length>2?` +${(log as any).strategies_selected.length-2}`:''}
                     </Text>
                   )}
@@ -454,13 +470,13 @@ const st = StyleSheet.create({
   iconLbl: { fontSize:9, color:'#555', textAlign:'center', fontWeight:'600', lineHeight:11 },
   badge: { position:'absolute', top:-2, right:-2, width:14, height:14, borderRadius:7, alignItems:'center', justifyContent:'center' },
   badgeTxt: { fontSize:8, color:'white', fontWeight:'700' },
-  periodRow: { flexDirection:'row', marginHorizontal:16, marginTop:8, marginBottom:4, backgroundColor:'#EDEDF5', borderRadius:10, padding:3 },
+  periodRow: { flexDirection:'row', marginHorizontal:16, marginTop:4, marginBottom:2, backgroundColor:'#EDEDF5', borderRadius:10, padding:3 },
   periodBtn: { flex:1, paddingVertical:7, alignItems:'center', borderRadius:8 },
   periodBtnActive: { backgroundColor:'white', shadowColor:'#000', shadowOpacity:0.06, shadowRadius:3, elevation:2 },
   periodTxt: { fontSize:12, color:'#999', fontWeight:'600' },
   periodTxtActive: { color:'#5C6BC0', fontWeight:'700' },
-  chipScroll: { marginBottom:4 },
-  chipRow: { flexDirection:'row', paddingHorizontal:16, gap:8, alignItems:'center' },
+  chipScroll: { marginBottom:2, marginTop:2 },
+  chipRow: { flexDirection:'row', paddingHorizontal:12, gap:6, alignItems:'center', paddingVertical:4 },
   chip: { paddingHorizontal:12, paddingVertical:5, borderRadius:16, backgroundColor:'white', borderWidth:1, borderColor:'#E0E0E0' },
   chipActive: { backgroundColor:'#5C6BC0', borderColor:'#5C6BC0' },
   chipTxt: { fontSize:12, color:'#666' },
