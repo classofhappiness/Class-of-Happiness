@@ -1358,7 +1358,7 @@ export default function ParentDashboard() {
                 return availableToAdd.length > 0 ? (
               <View style={{marginBottom:12, paddingHorizontal:4}}>
                 <Text style={{fontSize:12,fontWeight:'700',color:'#5C6BC0',marginBottom:6}}>
-                  🔗 {t('link_children_school') || 'Link school child to family'}
+                  👧 Add your child to your family dashboard
                 </Text>
                 <ScrollView style={{maxHeight:140}} nestedScrollEnabled showsVerticalScrollIndicator={true}>
                   {availableToAdd.map((s:any) => (
@@ -1373,22 +1373,25 @@ export default function ParentDashboard() {
                             { text: t('add_member')||'Add', onPress: async () => {
                               try {
                                 const token = await AsyncStorage.getItem('session_token');
-                                const res = await fetch(`${BACKEND_URL}/api/family/members`, {
+                                const burl2 = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+                                const res = await fetch(`${burl2}/api/family/members`, {
                                   method:'POST',
                                   headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
                                   body: JSON.stringify({name:s.name,relationship:'child',student_id:s.id,avatar_preset:s.avatar_preset||'bear',avatar_type:'preset'})
                                 });
+                                const resText = await res.text();
+                                console.log('[AddChild] status:', res.status, 'body:', resText);
                                 if (res.ok) {
                                   setShowAddFamilyModal(false);
                                   fetchData();
                                   refreshStudents();
                                   Alert.alert('✅ Added!', `${s.name} has been added to your family dashboard.`);
                                 } else {
-                                  const err = await res.json().catch(()=>({}));
-                                  Alert.alert('Error', err.detail || 'Could not add member. Please try again.');
+                                  Alert.alert('Error', resText || 'Could not add. Please try again.');
                                 }
-                              } catch(e) {
-                                Alert.alert('Error', 'Something went wrong. Please try again.');
+                              } catch(e: any) {
+                                console.log('[AddChild] error:', e);
+                                Alert.alert('Error', e?.message || 'Something went wrong.');
                               }
                             }}
                           ]
