@@ -1419,13 +1419,13 @@ export default function ParentDashboard() {
             </View>
 
             {/* Link existing student from student flow */}
-            {students.filter((s:any) => !s.is_family_member && !familyMembers.some((fm:any) => fm.student_id === s.id || fm.name === s.name)).length > 0 && (
+            {linkedChildren.filter((lc:any) => !familyMembers.some((fm:any) => fm.student_id === lc.id || fm.name === lc.name)).length > 0 && (
               <View style={{marginBottom:12, paddingHorizontal:4}}>
                 <Text style={{fontSize:12,fontWeight:'700',color:'#5C6BC0',marginBottom:6}}>
-                  🔗 {t('link_children_school') || 'Link existing student'}
+                  🔗 {t('link_children_school') || 'Link school child to family'}
                 </Text>
                 <ScrollView style={{maxHeight:140}} nestedScrollEnabled showsVerticalScrollIndicator={true}>
-                  {students.filter((s:any) => !s.is_family_member && !familyMembers.some((fm:any) => fm.student_id === s.id || fm.name === s.name)).map((s:any) => (
+                  {linkedChildren.filter((lc:any) => !familyMembers.some((fm:any) => fm.student_id === lc.id || fm.name === lc.name)).map((s:any) => (
                     <TouchableOpacity key={s.id}
                       style={{flexDirection:'row',alignItems:'center',gap:8,paddingVertical:8,paddingHorizontal:10,backgroundColor:'#F0F4FF',borderRadius:8,marginBottom:4,borderWidth:1,borderColor:'#C5CAE9'}}
                       onPress={() => {
@@ -1796,7 +1796,7 @@ const styles = StyleSheet.create({
   familySectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   familySectionTitle: { fontSize: 13, fontWeight: '700', color: '#333' },
   familyGrid: { flexDirection: 'column', gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
-  gridCard: { width: 90, backgroundColor: 'white', borderRadius: 12, padding: 6, alignItems: 'center', borderWidth: 1.5, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  gridCard: { width: 100, backgroundColor: 'white', borderRadius: 12, padding: 6, alignItems: 'center', borderWidth: 1.5, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   gridCardActions: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 4 },
   gridActionBtn: { padding: 2 },
   gridAvatar: { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center', marginBottom: 3 },
@@ -1804,8 +1804,8 @@ const styles = StyleSheet.create({
   gridName: { fontSize: 12, fontWeight: '700', color: '#333', marginBottom: 4, textAlign: 'center' },
   linkedLabel: { fontSize: 9, color: '#4CAF50', fontWeight: '600', marginBottom: 4 },
   linkedBadge: { width: 18, height: 18, borderRadius: 9, backgroundColor: '#E8F5E9', justifyContent: 'center', alignItems: 'center' },
-  wellbeingBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#F3F4FF', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3, marginTop: 4, borderWidth: 1, borderColor: '#E8EAF6' },
-  wellbeingBtnTxt: { fontSize: 9, fontWeight: '600', color: '#5C6BC0' },
+  wellbeingBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: '#F3F4FF', borderRadius: 6, paddingHorizontal: 4, paddingVertical: 2, marginTop: 3, borderWidth: 1, borderColor: '#E8EAF6', width: '100%', justifyContent: 'center' },
+  wellbeingBtnTxt: { fontSize: 8, fontWeight: '600', color: '#5C6BC0' },
   compactActions: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: 'white', borderRadius: 16, padding: 8, marginHorizontal: 16, marginBottom: 6, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
   compactAction: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
   compactActionTxt: { fontSize: 10, fontWeight: '600', color: '#555', textAlign: 'center' },
