@@ -5569,8 +5569,20 @@ async def get_alerts(request: Request, limit: int = 20):
                 all_alerts_r2 = supabase.table("student_alerts").select("*").order("created_at", desc=True).limit(200).execute()
                 all_alerts = all_alerts_r2.data or []
         else:
-            all_alerts_r = supabase.table("student_alerts").select("*").in_("student_id", student_ids[:50]).order("created_at", desc=True).limit(50).execute()
-            all_alerts = all_alerts_r.data or []
+            # Query 1: by student_id chain
+            all_alerts = []
+            if student_ids:
+                all_alerts_r = supabase.table("student_alerts").select("*").in_("student_id", student_ids[:50]).order("created_at", desc=True).limit(100).execute()
+                all_alerts = all_alerts_r.data or []
+            # Query 2: by user_id directly (home alerts saved with parent user_id)
+            try:
+                user_alerts_r = supabase.table("student_alerts").select("*").eq("user_id", user["user_id"]).order("created_at", desc=True).limit(100).execute()
+                existing_ids = {a["id"] for a in all_alerts}
+                for a in (user_alerts_r.data or []):
+                    if a["id"] not in existing_ids:
+                        all_alerts.append(a)
+                        existing_ids.add(a["id"])
+            except: pass
         logger.info(f"[get_alerts] Found {len(all_alerts)} total alerts for {len(student_ids)} students")
         
         # Filter by context
@@ -5579,14 +5591,9 @@ async def get_alerts(request: Request, limit: int = 20):
         else:
             # Parents only see home context alerts
             filtered = [a for a in all_alerts if a.get("context") in ("home", "parent_message", None, "")]
-            # Also fetch alerts saved directly with this parent's user_id (parent_message type)
+            # user_id lookup already done above in all_alerts union
             try:
-                direct_r = supabase.table("student_alerts").select("*").eq("user_id", user["user_id"]).order("created_at", desc=True).limit(20).execute()
-                existing_ids = {a["id"] for a in filtered}
-                for a in (direct_r.data or []):
-                    if a["id"] not in existing_ids:
-                        filtered.append(a)
-                        existing_ids.add(a["id"])
+                pass
             except Exception as e:
                 logger.warning(f"[get_alerts] direct user_id fetch error: {e}")
         logger.info(f"[get_alerts] Filtered={len(filtered)} for role={role}")
