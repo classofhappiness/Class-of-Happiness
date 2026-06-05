@@ -264,20 +264,6 @@ export default function TeacherDashboardScreen() {
         ))}
       </View>
 
-      {/* Emotion pills */}
-      <View style={st.snapRow}>
-        {(['blue','green','yellow','red'] as const).map(z => (
-          <View key={z} style={[st.snapPill,{borderColor:ZONE_COLORS[z]+'50',backgroundColor:ZONE_COLORS[z]+'12'}]}>
-            <Text style={st.snapEmoji}>{ZONE_EMOJI[z]}</Text>
-            <Text style={[st.snapCount,{color:ZONE_COLORS[z]}]}>{todaySnap[z]}</Text>
-          </View>
-        ))}
-        <View style={[st.snapPill,{borderColor:'#5C6BC020',backgroundColor:'#F3F4FF'}]}>
-          <MaterialIcons name="today" size={11} color="#5C6BC0"/>
-          <Text style={[st.snapCount,{color:'#5C6BC0'}]}>{todaySnap.total}</Text>
-        </View>
-      </View>
-
       {/* Alert banner — shows when there are unresolved alerts today */}
       {alertCount > 0 && (
         <TouchableOpacity
@@ -302,7 +288,6 @@ export default function TeacherDashboardScreen() {
           </TouchableOpacity>
         ))}
       </View>
-
       {/* Classroom filter chips */}
       {(classrooms && classrooms.length > 0) && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.chipScroll}>
@@ -319,11 +304,24 @@ export default function TeacherDashboardScreen() {
           </View>
         </ScrollView>
       )}
-
       {/* Main scroll */}
       <ScrollView style={{flex:1}} contentContainerStyle={st.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh}/>}
         showsVerticalScrollIndicator={false}>
+
+        {/* Emotion summary pills */}
+        <View style={{flexDirection:'row', gap:6, marginBottom:8}}>
+          {(['blue','green','yellow','red'] as const).map(z => (
+            <View key={z} style={[st.snapPill,{borderColor:ZONE_COLORS[z]+'50',backgroundColor:ZONE_COLORS[z]+'12',flex:1}]}>
+              <Text style={st.snapEmoji}>{ZONE_EMOJI[z]}</Text>
+              <Text style={[st.snapCount,{color:ZONE_COLORS[z]}]}>{todaySnap[z]}</Text>
+            </View>
+          ))}
+          <View style={[st.snapPill,{borderColor:'#5C6BC020',backgroundColor:'#F3F4FF',flex:1}]}>
+            <MaterialIcons name="today" size={11} color="#5C6BC0"/>
+            <Text style={[st.snapCount,{color:'#5C6BC0'}]}>{todaySnap.total}</Text>
+          </View>
+        </View>
 
         {/* Collapsible check-ins */}
         <TouchableOpacity style={st.sectionHeader} onPress={() => setCheckinsExpanded(e=>!e)}>
