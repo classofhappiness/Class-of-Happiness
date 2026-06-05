@@ -2658,7 +2658,38 @@ async def create_feeling_log(log: FeelingLogCreate, request: Request):
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
     result = supabase.table("feeling_logs").insert(new_log).execute()
-    return result.data[0] if result.data else new_log
+    saved = result.data[0] if result.data else new_log
+
+    # Auto-create alert if comment present or non-green zone (school context)
+    try:
+        comment_text = (log.comment or "").strip()
+        zone_val = log.feeling_colour or log.zone or ""
+        should_alert = bool(comment_text) or zone_val in ("yellow", "red", "blue")
+        if should_alert and log.student_id:
+            student_r = supabase.table("students").select("name,classroom_id").eq("id", log.student_id).execute()
+            student_name = student_r.data[0].get("name", "Student") if student_r.data else "Student"
+            classroom_name = ""
+            if student_r.data and student_r.data[0].get("classroom_id"):
+                cr = supabase.table("classrooms").select("name").eq("id", student_r.data[0]["classroom_id"]).execute()
+                classroom_name = cr.data[0]["name"] if cr.data else ""
+            alert_type = "parent_message" if comment_text else "zone_alert"
+            supabase.table("student_alerts").insert({
+                "id": str(uuid.uuid4()),
+                "student_id": log.student_id,
+                "student_name": student_name,
+                "alert_type": alert_type,
+                "context": "school",
+                "zone": zone_val,
+                "message": comment_text or None,
+                "classroom_name": classroom_name,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "resolved": False,
+            }).execute()
+            logger.info(f"[feeling_log] Created {alert_type} alert for {student_name} zone={zone_val}")
+    except Exception as ae:
+        logger.warning(f"[feeling_log] Could not create alert: {ae}")
+
+    return saved
 
 # Keep old endpoint name for frontend compatibility
 @api_router.post("/zone-logs")
@@ -5502,7 +5533,9 @@ async def get_alerts(request: Request, limit: int = 20):
                 # Also add family_member id itself in case alerts stored with that id
                 if l.get("id"):
                     student_ids.append(l["id"])
-            student_ids = list(set(student_ids))
+            # Also add the family_member IDs themselves as student_id aliases
+            family_member_ids = [l.get("id") for l in (family_links_r.data or []) if l.get("id")]
+            student_ids = list(set(student_ids + family_member_ids))
         logger.info(f"[get_alerts] parent links student_ids: {student_ids}")
 
         logger.info(f"[get_alerts] user={user['user_id']} role={user.get('role')} student_ids={student_ids[:5]}")
@@ -7418,6 +7451,29 @@ async def family_member_checkin(member_id: str, request: Request):
                     logger.info(f"[family_checkin] Awarded {points_to_add} points to {final_student_id}, stage now {stage}")
             except Exception as pe:
                 logger.warning(f"[family_checkin] Could not award points: {pe}")
+
+        # Create alert for parent if comment or non-green zone
+        try:
+            member_name = member.get("name", "Family Member")
+            comment_text = (comment or "").strip()
+            should_alert = bool(comment_text) or zone in ("yellow", "red", "blue")
+            if should_alert:
+                alert_type = "parent_message" if comment_text else "zone_alert"
+                supabase.table("student_alerts").insert({
+                    "id": str(uuid.uuid4()),
+                    "student_id": final_student_id or member_id,
+                    "student_name": member_name,
+                    "alert_type": alert_type,
+                    "context": "home",
+                    "zone": zone,
+                    "message": comment_text or None,
+                    "user_id": user["user_id"],
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "resolved": False,
+                }).execute()
+                logger.info(f"[family_checkin] Created {alert_type} alert for {member_name} zone={zone}")
+        except Exception as ae:
+            logger.warning(f"[family_checkin] Could not create alert: {ae}")
 
         return {"status": "saved", "log": result.data[0] if result.data else log, "student_id": final_student_id}
     except HTTPException:
