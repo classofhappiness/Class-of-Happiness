@@ -3649,14 +3649,33 @@ async def generate_family_pdf_report(family_member_id: str, year: int, month: in
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import cm
 
+    import io, calendar as cal_mod, os
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    from reportlab.platypus import Image as RLImage
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.graphics.shapes import Drawing, Rect, String
+    from reportlab.graphics import renderPDF
+
     buffer = io.BytesIO()
     PAGE_W, PAGE_H = A4
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36)
 
-    INDIGO = colors.HexColor("#5C6BC0")
-    GREEN_C = colors.HexColor("#4CAF50")
-    ZONE_COLORS_PDF = {"blue":colors.HexColor("#4A90D9"),"green":GREEN_C,"yellow":colors.HexColor("#FFC107"),"red":colors.HexColor("#F44336")}
+    INDIGO      = colors.HexColor('#5C6BC0')
+    INDIGO_DARK = colors.HexColor('#3949AB')
+    BLUE_C      = colors.HexColor('#4A90D9')
+    GREEN_C     = colors.HexColor('#4CAF50')
+    YELLOW_C    = colors.HexColor('#FFC107')
+    RED_C       = colors.HexColor('#F44336')
+    LIGHT       = colors.HexColor('#F8F9FA')
+    MID         = colors.HexColor('#E8EAF6')
+    GREY        = colors.HexColor('#666666')
+    LIGHT_GREY  = colors.HexColor('#E0E0E0')
+    WHITE       = colors.white
 
+    ZONE_COLORS_PDF = {"blue": BLUE_C, "green": GREEN_C, "yellow": YELLOW_C, "red": RED_C}
     ZONE_LABELS_BY_LANG = {
         "en":{"blue":"Blue Emotions","green":"Green Emotions","yellow":"Yellow Emotions","red":"Red Emotions"},
         "pt":{"blue":"Emoções Azuis","green":"Emoções Verdes","yellow":"Emoções Amarelas","red":"Emoções Vermelhas"},
@@ -3666,7 +3685,7 @@ async def generate_family_pdf_report(family_member_id: str, year: int, month: in
         "it":{"blue":"Emozioni Blu","green":"Emozioni Verdi","yellow":"Emozioni Gialle","red":"Emozioni Rosse"},
     }
     ZL = ZONE_LABELS_BY_LANG.get(report_lang, ZONE_LABELS_BY_LANG["en"])
-
+    ZONE_DESCS = {"blue":"Sad / Tired","green":"Happy / Ready","yellow":"Worried / Anxious","red":"Upset / Angry"}
     MONTH_NAMES = {
         "en":["January","February","March","April","May","June","July","August","September","October","November","December"],
         "pt":["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"],
@@ -3677,91 +3696,101 @@ async def generate_family_pdf_report(family_member_id: str, year: int, month: in
     }
     month_name = MONTH_NAMES.get(report_lang, MONTH_NAMES["en"])[month-1]
 
-    styles = getSampleStyleSheet()
-    ST_H1 = ParagraphStyle("H1", fontSize=22, textColor=colors.white, fontName="Helvetica-Bold", leading=28)
-    ST_H2 = ParagraphStyle("H2", fontSize=13, textColor=INDIGO, fontName="Helvetica-Bold", spaceBefore=10, spaceAfter=4)
-    ST_BODY = ParagraphStyle("Body", fontSize=10, textColor=colors.HexColor("#444444"), leading=14)
-    ST_SMALL = ParagraphStyle("Small", fontSize=8, textColor=colors.HexColor("#888888"), leading=11)
+    def s(name, **kw): return ParagraphStyle(name, **kw)
+    ST_H2    = s('FH2',  fontSize=12, textColor=INDIGO, fontName='Helvetica-Bold', spaceBefore=10, spaceAfter=4)
+    ST_BODY  = s('FBody',fontSize=9,  textColor=colors.HexColor('#444444'), leading=13)
+    ST_SMALL = s('FSml', fontSize=8,  textColor=colors.HexColor('#888888'), leading=11)
+    ST_VALUE = s('FVal', fontSize=9,  textColor=INDIGO, fontName='Helvetica-Bold', leading=13)
+    ST_LABEL = s('FLbl', fontSize=8,  textColor=WHITE,  fontName='Helvetica-Bold', leading=12)
+    ST_LOGO  = s('FLogo',fontSize=13, textColor=WHITE,  fontName='Helvetica-Bold', leading=17)
 
     story = []
     total = sum(feeling_counts.values())
+    _, last_day_cal = cal_mod.monthrange(year, month)
 
-    # ── HEADER with COH branding ──
-    header_data = [[
-        Paragraph(f"<b>{fm.get('name','Family Member')}</b>", ST_H1),
-        Paragraph(f"{month_name} {year}<br/><font size=9>Home Wellbeing Report</font>",
-                  ParagraphStyle("HR", fontSize=11, textColor=colors.HexColor("#C5CAE9"), leading=16, alignment=2)),
-    ]]
-    header_table = Table(header_data, colWidths=[PAGE_W*0.55, PAGE_W*0.35])
-    header_table.setStyle(TableStyle([
-        ("BACKGROUND",(0,0),(-1,-1),INDIGO),
-        ("PADDING",(0,0),(-1,-1),16),
-        ("VALIGN",(0,0),(-1,-1),"MIDDLE"),
-    ]))
+    # ── HEADER with COH logo ──
+    logo_path = os.path.join(os.path.dirname(__file__), 'assets', 'logo_coh.png')
+    try:
+        if not os.path.exists(logo_path): raise FileNotFoundError()
+        coh_logo = RLImage(logo_path, width=44, height=44)
+        logo_cell = Table([[coh_logo, Paragraph("Class of Happiness", ST_LOGO)]],
+            colWidths=[52, 180],
+            style=[('VALIGN',(0,0),(-1,-1),'MIDDLE'),('PADDING',(0,0),(-1,-1),0),('LEFTPADDING',(1,0),(1,0),6)])
+    except Exception:
+        logo_cell = Paragraph("<font color='#FFC107'>●</font><font color='#4CAF50'>●</font><font color='#4A90D9'>●</font> Class of Happiness", ST_LOGO)
+
+    header_data = [[logo_cell,
+        Paragraph(f"<b>{fm.get('name','Family Member')}</b><br/><font size='9'>{month_name} {year} · Home Wellbeing Report</font>",
+                  s('FHR', fontSize=14, textColor=WHITE, leading=20, alignment=2))]]
+    header_table = Table(header_data, colWidths=[PAGE_W*0.45, PAGE_W*0.45])
+    header_table.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),INDIGO),("PADDING",(0,0),(-1,-1),14),("VALIGN",(0,0),(-1,-1),"MIDDLE")]))
     story.append(header_table)
     story.append(Spacer(1,4))
-
-    # COH sub-header
     story.append(Paragraph("Class of Happiness · Home Wellbeing Report · classofhappiness.com",
-                            ParagraphStyle("Sub", fontSize=8, textColor=colors.HexColor("#888888"), alignment=1)))
-    story.append(Spacer(1,14))
+                            s('FSub',fontSize=8,textColor=colors.HexColor('#888888'),alignment=1)))
+    story.append(Spacer(1,12))
 
     # ── SUMMARY STATS ROW ──
     dominant = max(feeling_counts, key=lambda z: feeling_counts[z]) if total > 0 else "green"
+    col_w3 = (PAGE_W - 72) / 3
     summary_items = [
-        [Paragraph(f"<b>{total}</b>", ParagraphStyle("Num", fontSize=22, textColor=INDIGO, alignment=1, fontName="Helvetica-Bold")),
-         Paragraph(f"<b>{feeling_counts.get('green',0)}</b>", ParagraphStyle("Num", fontSize=22, textColor=GREEN_C, alignment=1, fontName="Helvetica-Bold")),
-         Paragraph(f"<b>{ZL.get(dominant,'').split()[0]}</b>", ParagraphStyle("Num", fontSize=18, textColor=ZONE_COLORS_PDF.get(dominant,INDIGO), alignment=1, fontName="Helvetica-Bold")),
-        ],
-        [Paragraph("Total Check-ins", ParagraphStyle("Lbl", fontSize=8, textColor=colors.HexColor("#888"), alignment=1)),
-         Paragraph("Green Days", ParagraphStyle("Lbl", fontSize=8, textColor=colors.HexColor("#888"), alignment=1)),
-         Paragraph("Most Common", ParagraphStyle("Lbl", fontSize=8, textColor=colors.HexColor("#888"), alignment=1)),
-        ],
+        [Paragraph(f"<b>{total}</b>", s('FN1',fontSize=22,textColor=INDIGO,alignment=1,fontName='Helvetica-Bold')),
+         Paragraph(f"<b>{feeling_counts.get('green',0)}</b>", s('FN2',fontSize=22,textColor=GREEN_C,alignment=1,fontName='Helvetica-Bold')),
+         Paragraph(f"<b>{ZL.get(dominant,'').split()[0]}</b>", s('FN3',fontSize=18,textColor=ZONE_COLORS_PDF.get(dominant,INDIGO),alignment=1,fontName='Helvetica-Bold'))],
+        [Paragraph("Total Check-ins", s('FL1',fontSize=8,textColor=colors.HexColor('#888'),alignment=1)),
+         Paragraph("Green Days",      s('FL2',fontSize=8,textColor=colors.HexColor('#888'),alignment=1)),
+         Paragraph("Most Common",     s('FL3',fontSize=8,textColor=colors.HexColor('#888'),alignment=1))],
     ]
-    summary_table = Table(summary_items, colWidths=[PAGE_W*0.27]*3)
-    summary_table.setStyle(TableStyle([
-        ("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#F8F9FA")),
-        ("BOX",(0,0),(-1,-1),1,colors.HexColor("#E0E0E0")),
-        ("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#E0E0E0")),
-        ("PADDING",(0,0),(-1,-1),10),
-        ("VALIGN",(0,0),(-1,-1),"MIDDLE"),
-    ]))
+    summary_table = Table(summary_items, colWidths=[col_w3]*3)
+    summary_table.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),LIGHT),("BOX",(0,0),(-1,-1),1,LIGHT_GREY),
+        ("INNERGRID",(0,0),(-1,-1),0.5,LIGHT_GREY),("PADDING",(0,0),(-1,-1),10),("VALIGN",(0,0),(-1,-1),"MIDDLE")]))
     story.append(summary_table)
     story.append(Spacer(1,14))
 
-    # ── EMOTION DISTRIBUTION ──
+    # ── EMOTION DISTRIBUTION — bar chart + zone table ──
     story.append(Paragraph("Emotion Distribution", ST_H2))
-    dist_data = [["Emotion","Count","%","Bar"]]
-    for z in ["green","yellow","blue","red"]:
-        cnt = feeling_counts[z]
-        pct = round((cnt/total*100)) if total>0 else 0
-        bar = "█" * min(int(pct/5),20)
-        dist_data.append([ZL.get(z,z), str(cnt), f"{pct}%", Paragraph(f'<font color="#{ZONE_COLORS_PDF[z].hexval()[2:]}">{bar}</font>', ParagraphStyle("Bar",fontSize=9,leading=12))])
-    dist_table = Table(dist_data, colWidths=[160,60,50,200])
-    dist_table.setStyle(TableStyle([
-        ("BACKGROUND",(0,0),(-1,0),INDIGO),
-        ("TEXTCOLOR",(0,0),(-1,0),colors.white),
-        ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),
-        ("FONTSIZE",(0,0),(-1,-1),9),
-        ("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.HexColor("#F8F9FA"),colors.white]),
-        ("GRID",(0,0),(-1,-1),0.5,colors.HexColor("#E0E0E0")),
-        ("PADDING",(0,0),(-1,-1),6),
-    ]))
-    story.append(dist_table)
+    BAR_W, BAR_H = 240, 90
+    bar_drawing = Drawing(BAR_W, BAR_H)
+    zones_order = ["blue","green","yellow","red"]
+    max_count = max(feeling_counts.values()) if total > 0 else 1
+    bar_slot_w = BAR_W / 4
+    bar_margin = 8
+    for idx, zone in enumerate(zones_order):
+        count = feeling_counts[zone]
+        bar_h = max(int((count/max_count)*65) if max_count > 0 else 0, 2)
+        x = idx*bar_slot_w + bar_margin
+        bw = bar_slot_w - bar_margin*2
+        r = Rect(x, 20, bw, bar_h); r.fillColor = ZONE_COLORS_PDF[zone]; r.strokeColor = None
+        bar_drawing.add(r)
+        bar_drawing.add(String(x+bw/2, 22+bar_h, str(count), textAnchor='middle', fontSize=9, fontName='Helvetica-Bold', fillColor=colors.HexColor('#333333')))
+        bar_drawing.add(String(x+bw/2, 6, ZL[zone].split()[0], textAnchor='middle', fontSize=7, fontName='Helvetica', fillColor=colors.HexColor('#666666')))
+
+    zone_rows = [[Paragraph('<b>Zone</b>',ST_LABEL),Paragraph('<b>Count</b>',ST_LABEL),Paragraph('<b>%</b>',ST_LABEL),Paragraph('<b>State</b>',ST_LABEL)]]
+    for zone in zones_order:
+        count = feeling_counts[zone]
+        pct = f"{(count/total*100):.0f}%" if total > 0 else "—"
+        zone_rows.append([Paragraph(ZL[zone],ST_BODY),Paragraph(str(count),ST_VALUE),Paragraph(pct,ST_BODY),Paragraph(ZONE_DESCS[zone],ST_SMALL)])
+    zone_tbl = Table(zone_rows, colWidths=[72,36,30,110])
+    zts = [('BACKGROUND',(0,0),(-1,0),INDIGO),('TEXTCOLOR',(0,0),(-1,0),WHITE),('GRID',(0,0),(-1,-1),0.4,LIGHT_GREY),
+           ('PADDING',(0,0),(-1,-1),5),('ROWBACKGROUNDS',(0,1),(-1,-1),[WHITE,LIGHT]),('VALIGN',(0,0),(-1,-1),'MIDDLE')]
+    for i, zone in enumerate(zones_order, 1):
+        zts += [('TEXTCOLOR',(0,i),(0,i),ZONE_COLORS_PDF[zone]),('FONTNAME',(0,i),(0,i),'Helvetica-Bold')]
+    zone_tbl.setStyle(TableStyle(zts))
+    dist_row = Table([[bar_drawing, zone_tbl]], colWidths=[250,255])
+    dist_row.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(1,0),(1,0),10),('RIGHTPADDING',(0,0),(0,0),10)]))
+    story.append(dist_row)
     story.append(Spacer(1,14))
 
     # ── TOP STRATEGIES ──
+    strat_name_map = {}
+    try:
+        all_helpers = supabase.table("helpers").select("id,name").execute()
+        for h in (all_helpers.data or []):
+            if h.get("id") and h.get("name"): strat_name_map[h["id"]] = h["name"]
+    except: pass
     if helper_counts:
         story.append(Paragraph("Strategies Used", ST_H2))
         sorted_helpers = sorted(helper_counts.items(), key=lambda x: x[1], reverse=True)[:8]
-        # Fetch strategy names from DB
-        strat_name_map = {}
-        try:
-            all_helpers = supabase.table("helpers").select("id,name").execute()
-            for h in (all_helpers.data or []):
-                if h.get("id") and h.get("name"):
-                    strat_name_map[h["id"]] = h["name"]
-        except: pass
         strat_data = [["Strategy","Times Used"]]
         for hid, cnt in sorted_helpers:
             name = strat_name_map.get(hid) or resolve_strategy_name(hid, report_lang)
@@ -3769,17 +3798,56 @@ async def generate_family_pdf_report(family_member_id: str, year: int, month: in
             strat_data.append([name, str(cnt)])
         if len(strat_data) > 1:
             strat_table = Table(strat_data, colWidths=[360,80])
-            strat_table.setStyle(TableStyle([
-                ("BACKGROUND",(0,0),(-1,0),INDIGO),
-                ("TEXTCOLOR",(0,0),(-1,0),colors.white),
-                ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),
-                ("FONTSIZE",(0,0),(-1,-1),9),
-                ("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.HexColor("#F8F9FA"),colors.white]),
-                ("GRID",(0,0),(-1,-1),0.5,colors.HexColor("#E0E0E0")),
-                ("PADDING",(0,0),(-1,-1),6),
-            ]))
+            strat_table.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),INDIGO),("TEXTCOLOR",(0,0),(-1,0),WHITE),
+                ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),("FONTSIZE",(0,0),(-1,-1),9),
+                ("ROWBACKGROUNDS",(0,1),(-1,-1),[LIGHT,WHITE]),("GRID",(0,0),(-1,-1),0.5,LIGHT_GREY),("PADDING",(0,0),(-1,-1),6)]))
             story.append(strat_table)
             story.append(Spacer(1,14))
+
+    # ── MONTHLY CALENDAR ──
+    story.append(Paragraph("Monthly Calendar", ST_H2))
+    first_weekday, _ = cal_mod.monthrange(year, month)
+    cal_cells = ['']*first_weekday
+    for day in range(1, last_day_cal+1):
+        date_key = f"{year}-{month:02d}-{day:02d}"
+        day_logs = daily_counts.get(date_key, {})
+        day_total = sum(day_logs.values())
+        dominant_day = max(day_logs, key=day_logs.get) if day_logs else None
+        cal_cells.append((day, dominant_day, day_total))
+    while len(cal_cells) % 7 != 0: cal_cells.append('')
+
+    cal_rows = [['Mon','Tue','Wed','Thu','Fri','Sat','Sun']]
+    for i in range(0, len(cal_cells), 7):
+        row = []
+        for cell in cal_cells[i:i+7]:
+            if cell == '': row.append('')
+            else:
+                day_num, dominant_day, day_total = cell
+                if dominant_day:
+                    row.append(Paragraph(f'<b>{day_num}</b><br/><font size="6">{day_total}✓</font>',
+                        s('FC1',fontSize=8,textColor=WHITE,fontName='Helvetica-Bold',alignment=1,leading=10)))
+                else:
+                    row.append(Paragraph(f'<font color="#999">{day_num}</font>',
+                        s('FC2',fontSize=8,alignment=1,leading=10,textColor=colors.HexColor('#AAAAAA'))))
+        cal_rows.append(row)
+
+    col_w = (PAGE_W-72)/7
+    cal_tbl = Table(cal_rows, colWidths=[col_w]*7, rowHeights=[18]+[28]*(len(cal_rows)-1))
+    cal_style = [('BACKGROUND',(0,0),(-1,0),INDIGO),('TEXTCOLOR',(0,0),(-1,0),WHITE),
+        ('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),('FONTSIZE',(0,0),(-1,0),8),
+        ('ALIGN',(0,0),(-1,-1),'CENTER'),('VALIGN',(0,0),(-1,-1),'MIDDLE'),
+        ('GRID',(0,0),(-1,-1),0.3,LIGHT_GREY),('PADDING',(0,0),(-1,-1),3)]
+    row_idx = 1
+    for i in range(0, len(cal_cells), 7):
+        for col_idx, cell in enumerate(cal_cells[i:i+7]):
+            if cell and cell != '':
+                _, dominant_day, _ = cell
+                bg = ZONE_COLORS_PDF.get(dominant_day, LIGHT) if dominant_day else LIGHT
+                cal_style.append(('BACKGROUND',(col_idx,row_idx),(col_idx,row_idx),bg))
+        row_idx += 1
+    cal_tbl.setStyle(TableStyle(cal_style))
+    story.append(cal_tbl)
+    story.append(Spacer(1,14))
 
     # ── CHECK-IN LOG ──
     story.append(Paragraph("Check-in Log", ST_H2))
@@ -3787,34 +3855,28 @@ async def generate_family_pdf_report(family_member_id: str, year: int, month: in
     for log in logs_data[-40:]:
         try:
             ts = datetime.fromisoformat(log["timestamp"].replace("Z","+00:00"))
-            date_str = ts.strftime("%d %b")
-            time_str = ts.strftime("%H:%M")
-        except:
-            date_str = time_str = "—"
+            date_str = ts.strftime("%d %b"); time_str = ts.strftime("%H:%M")
+        except: date_str = time_str = "—"
         zone = log.get("feeling_colour", log.get("zone",""))
         strats = log.get("helpers_selected", log.get("strategies_selected",[]))
         strat_names = []
-        for s in (strats or [])[:3]:
-            if s and s.lower() not in ["blue","green","yellow","red"]:
-                strat_names.append(strat_name_map.get(s) or resolve_strategy_name(s, report_lang))
+        for sv in (strats or [])[:3]:
+            if sv and sv.lower() not in ["blue","green","yellow","red"]:
+                strat_names.append(strat_name_map.get(sv) or resolve_strategy_name(sv, report_lang))
         log_data.append([date_str, time_str, ZL.get(zone,zone), ", ".join(strat_names) or "—"])
-
-    log_table = Table(log_data, colWidths=[60,50,120,240])
-    log_table.setStyle(TableStyle([
-        ("BACKGROUND",(0,0),(-1,0),INDIGO),
-        ("TEXTCOLOR",(0,0),(-1,0),colors.white),
-        ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),
-        ("FONTSIZE",(0,0),(-1,-1),8),
-        ("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.HexColor("#F8F9FA"),colors.white]),
-        ("GRID",(0,0),(-1,-1),0.5,colors.HexColor("#E0E0E0")),
-        ("PADDING",(0,0),(-1,-1),5),
-    ]))
+    log_table = Table(log_data, colWidths=[50,40,100,255])
+    log_table.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),INDIGO),("TEXTCOLOR",(0,0),(-1,0),WHITE),
+        ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),("FONTSIZE",(0,0),(-1,-1),8),
+        ("ROWBACKGROUNDS",(0,1),(-1,-1),[LIGHT,WHITE]),("GRID",(0,0),(-1,-1),0.4,LIGHT_GREY),
+        ("PADDING",(0,0),(-1,-1),5),("VALIGN",(0,0),(-1,-1),"MIDDLE")]))
     story.append(log_table)
-    story.append(Spacer(1,16))
-    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#E0E0E0")))
-    story.append(Spacer(1,6))
-    story.append(Paragraph("This report is generated by Class of Happiness · classofhappiness.com · For educational purposes only",
-                            ParagraphStyle("Footer", fontSize=7, textColor=colors.HexColor("#AAAAAA"), alignment=1)))
+    story.append(Spacer(1,14))
+
+    # ── FOOTER ──
+    story.append(HRFlowable(width="100%", thickness=0.5, color=LIGHT_GREY))
+    story.append(Spacer(1,4))
+    story.append(Paragraph("This report is generated by Class of Happiness · classofhappiness.com · For educational and wellbeing support purposes only.",
+        s('FFtr',fontSize=7,textColor=GREY,alignment=1)))
 
     doc.build(story)
     buffer.seek(0)
