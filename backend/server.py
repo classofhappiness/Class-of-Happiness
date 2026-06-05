@@ -5108,16 +5108,17 @@ async def send_help_request(request: Request):
     # Teacher tokens — only for school context
     if context != 'home':
         try:
-            # Find teacher via classroom
+            # Find teacher via classroom_id → classrooms.user_id
             classroom_id = student.get("classroom_id", "")
-            if classroom_id:
+            teacher_user_id = student.get("teacher_id")
+            if not teacher_user_id and classroom_id:
                 classroom_r = supabase.table("classrooms").select("user_id").eq("id", classroom_id).execute()
                 if classroom_r.data:
                     teacher_user_id = classroom_r.data[0]["user_id"]
-                    teacher_r = supabase.table("users").select("push_token").eq("user_id", teacher_user_id).execute()
-                    if teacher_r.data and teacher_r.data[0].get("push_token"):
-                        tokens_to_notify.append(("teacher", teacher_r.data[0]["push_token"]))
-            # Also store alert with correct teacher reference
+            if teacher_user_id:
+                teacher_r = supabase.table("users").select("push_token").eq("user_id", teacher_user_id).execute()
+                if teacher_r.data and teacher_r.data[0].get("push_token"):
+                    tokens_to_notify.append(("teacher", teacher_r.data[0]["push_token"]))
         except: pass
 
     # Parent/family tokens — only for home context
@@ -5244,7 +5245,13 @@ async def send_zone_alert(request: Request):
     # Teacher — school context only
     if context != 'home':
         try:
+            # Resolve teacher via classroom_id -> classrooms.user_id (correct lookup)
             teacher_id = student.get("teacher_id")
+            classroom_id = student.get("classroom_id")
+            if not teacher_id and classroom_id:
+                cr = supabase.table("classrooms").select("user_id").eq("id", classroom_id).execute()
+                if cr.data:
+                    teacher_id = cr.data[0].get("user_id")
             if teacher_id:
                 setting_r = supabase.table("admin_settings").select("setting_value").eq("school_admin_id", teacher_id).eq("setting_key", f"notif_student_{student_id}").execute()
                 if setting_r.data:
@@ -5521,8 +5528,13 @@ async def get_alerts(request: Request, limit: int = 20):
         # For teachers: return all alerts, frontend filters by classroom
         role3 = user.get("role", "")
         if role3 in ("teacher", "school_admin"):
-            all_alerts_r = supabase.table("student_alerts").select("*").order("created_at", desc=True).limit(100).execute()
+            # Fetch all unresolved school alerts — teacher sees all their students
+            all_alerts_r = supabase.table("student_alerts").select("*").eq("resolved", False).order("created_at", desc=True).limit(200).execute()
             all_alerts = all_alerts_r.data or []
+            # Also include recently resolved for context (last 24h)
+            if len(all_alerts) < 10:
+                all_alerts_r2 = supabase.table("student_alerts").select("*").order("created_at", desc=True).limit(200).execute()
+                all_alerts = all_alerts_r2.data or []
         else:
             all_alerts_r = supabase.table("student_alerts").select("*").in_("student_id", student_ids[:50]).order("created_at", desc=True).limit(50).execute()
             all_alerts = all_alerts_r.data or []
@@ -6472,7 +6484,30 @@ async def create_family_zone_log(request: Request):
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
     result = supabase.table("family_zone_logs").insert(new_log).execute()
-    return result.data[0] if result.data else new_log
+    saved_log = result.data[0] if result.data else new_log
+
+    # Auto-create an alert for the parent if a comment was left
+    comment_text = (data.get("comment") or "").strip()
+    if comment_text:
+        try:
+            member_name = member.data[0].get("name", "Family Member")
+            supabase.table("student_alerts").insert({
+                "id": str(uuid.uuid4()),
+                "student_id": member_id,
+                "student_name": member_name,
+                "alert_type": "parent_message",
+                "context": "home",
+                "zone": data.get("zone", ""),
+                "message": comment_text,
+                "user_id": user["user_id"],
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "resolved": False,
+            }).execute()
+            logger.info(f"[family_zone_log] Created home alert for member {member_id} with comment")
+        except Exception as ae:
+            logger.error(f"[family_zone_log] Could not create alert: {ae}")
+
+    return saved_log
 
 @api_router.get("/family/zone-logs/{member_id}")
 async def get_family_zone_logs(member_id: str, request: Request, days: int = 7):
