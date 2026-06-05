@@ -268,10 +268,7 @@ export default function StudentSelectScreen() {
             ))}
           </ScrollView>
         )}
-        <View style={{flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8, marginBottom:8}}>
-          <Text style={{fontSize:14, fontWeight:'600', color:'#333'}}>Select below to begin</Text>
-          <Text style={{fontSize:18}}>↓</Text>
-        </View>
+
 
         <View style={styles.studentsGrid}>
           {(selectedClassroom ? students.filter(s => s.classroom_id === selectedClassroom) : students)

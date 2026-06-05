@@ -60,7 +60,10 @@ export default function HomeScreen() {
             </View>
           ))}
         </View>
-        <Text style={styles.zoneTip}>Tap your colour to check in</Text>
+        <View style={{flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8, marginBottom:4}}>
+          <Text style={{fontSize:15, fontWeight:'700', color:'#333'}}>Select below to begin</Text>
+          <Text style={{fontSize:20}}>↓</Text>
+        </View>
 
         {/* STUDENT — hero button, much bigger */}
         <TouchableOpacity

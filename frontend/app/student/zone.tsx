@@ -73,7 +73,7 @@ export default function ColourSelectionScreen() {
   useEffect(() => { preloadSounds(); }, []);
 
   useLayoutEffect(() => {
-    navigation.setOptions({ headerShown: false });
+    navigation.setOptions({ title: '' });
   }, [navigation, language, translations]);
 
   const colourInfo = getColourInfo(t);
