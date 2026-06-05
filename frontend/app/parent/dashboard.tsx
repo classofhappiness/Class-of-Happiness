@@ -141,6 +141,7 @@ export default function ParentDashboard() {
   
   // Linked children from school
   const [linkedChildren, setLinkedChildren] = useState<Student[]>([]);
+  const [availableStudents, setAvailableStudents] = useState<any[]>([]);
   const [childCreatures, setChildCreatures] = useState<Record<string, any>>({});
   // Family members (self, partner, kids at home)
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
@@ -815,7 +816,16 @@ export default function ParentDashboard() {
                 </TouchableOpacity>
               )}
               {!reorderMode && familyMembers.length < 20 && (
-                <TouchableOpacity style={styles.addButton} onPress={() => setShowAddFamilyModal(true)}>
+                <TouchableOpacity style={styles.addButton} onPress={async () => {
+                  setShowAddFamilyModal(true);
+                  try {
+                    const token = await AsyncStorage.getItem('session_token');
+                    const res = await fetch(`${BACKEND_URL}/api/parent/available-students`, {
+                      headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (res.ok) { const data = await res.json(); setAvailableStudents(Array.isArray(data) ? data : []); }
+                  } catch {}
+                }}>
                   <MaterialIcons name="add" size={18} color="white" />
                 </TouchableOpacity>
               )}
@@ -1420,10 +1430,8 @@ export default function ParentDashboard() {
 
             {/* Link existing student from student flow */}
             {(() => {
-                const availableToAdd = [
-                  ...linkedChildren,
-                  ...students.filter((s:any) => !linkedChildren.some((lc:any)=>lc.id===s.id))
-                ].filter((s:any) => !familyMembers.some((fm:any) => fm.student_id === s.id || fm.name === s.name));
+                const availableToAdd = availableStudents.filter((s:any) => 
+                  !familyMembers.some((fm:any) => fm.student_id === s.id || fm.name === s.name));
                 return availableToAdd.length > 0 ? (
               <View style={{marginBottom:12, paddingHorizontal:4}}>
                 <Text style={{fontSize:12,fontWeight:'700',color:'#5C6BC0',marginBottom:6}}>
