@@ -1424,7 +1424,6 @@ export default function ParentDashboard() {
                   ...linkedChildren,
                   ...students.filter((s:any) => !linkedChildren.some((lc:any)=>lc.id===s.id))
                 ].filter((s:any) => !familyMembers.some((fm:any) => fm.student_id === s.id || fm.name === s.name));
-                console.log('[AddModal] linkedChildren:', linkedChildren.length, 'students:', students.length, 'available:', availableToAdd.length);
                 return availableToAdd.length > 0 ? (
               <View style={{marginBottom:12, paddingHorizontal:4}}>
                 <Text style={{fontSize:12,fontWeight:'700',color:'#5C6BC0',marginBottom:6}}>
