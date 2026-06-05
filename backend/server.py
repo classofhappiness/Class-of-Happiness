@@ -5367,7 +5367,6 @@ async def get_alerts(request: Request, limit: int = 20):
         role = user.get("role", "")
         classroom_ids = []
         student_ids = []
-        logger.info(f"[get_alerts] AUTH user_id={user.get('user_id')} role='{role}' email={user.get('email','?')}")
 
         if role in ("teacher", "school_admin", "superadmin", "admin"):
             # Teachers see students via their classrooms

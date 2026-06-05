@@ -1424,7 +1424,9 @@ export default function ParentDashboard() {
                 <Text style={{fontSize:12,fontWeight:'700',color:'#5C6BC0',marginBottom:6}}>
                   🔗 {t('link_children_school') || 'Link existing student'}
                 </Text>
-                <ScrollView style={{maxHeight:120}} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+                <View style={{position:'relative'}}>
+                <Text style={{fontSize:10,color:'#AAA',textAlign:'center',marginBottom:4}}>↕ scroll to see all</Text>
+                <ScrollView style={{maxHeight:140}} nestedScrollEnabled showsVerticalScrollIndicator={true} indicatorStyle="black">
                   {students.filter((s:any) => !s.is_family_member && !familyMembers.some((fm:any) => fm.student_id === s.id || fm.name === s.name)).map((s:any) => (
                     <TouchableOpacity key={s.id}
                       style={{flexDirection:'row',alignItems:'center',gap:8,paddingVertical:8,paddingHorizontal:10,backgroundColor:'#F0F4FF',borderRadius:8,marginBottom:4,borderWidth:1,borderColor:'#C5CAE9'}}
@@ -1442,8 +1444,18 @@ export default function ParentDashboard() {
                                   headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
                                   body: JSON.stringify({name:s.name,relationship:'child',student_id:s.id,avatar_preset:s.avatar_preset||'bear',avatar_type:'preset'})
                                 });
-                                if (res.ok) { setShowAddFamilyModal(false); loadFamilyData(); refreshStudents(); }
-                              } catch {}
+                                if (res.ok) {
+                                  setShowAddFamilyModal(false);
+                                  fetchData();
+                                  refreshStudents();
+                                  Alert.alert('✅ Added!', `${s.name} has been added to your family dashboard.`);
+                                } else {
+                                  const err = await res.json().catch(()=>({}));
+                                  Alert.alert('Error', err.detail || 'Could not add member. Please try again.');
+                                }
+                              } catch(e) {
+                                Alert.alert('Error', 'Something went wrong. Please try again.');
+                              }
                             }}
                           ]
                         );
@@ -1454,6 +1466,7 @@ export default function ParentDashboard() {
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
+                </View>
                 <View style={{height:1,backgroundColor:'#EEE',marginVertical:8}}/>
                 <Text style={{fontSize:11,color:'#888',marginBottom:4}}>{t('add_new_student') || 'Or create new'}</Text>
               </View>
