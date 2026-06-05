@@ -1419,13 +1419,18 @@ export default function ParentDashboard() {
             </View>
 
             {/* Link existing student from student flow */}
-            {linkedChildren.filter((lc:any) => !familyMembers.some((fm:any) => fm.student_id === lc.id || fm.name === lc.name)).length > 0 && (
+            {(() => {
+                const availableToAdd = [
+                  ...linkedChildren,
+                  ...students.filter((s:any) => !linkedChildren.some((lc:any)=>lc.id===s.id))
+                ].filter((s:any) => !familyMembers.some((fm:any) => fm.student_id === s.id || fm.name === s.name));
+                return availableToAdd.length > 0 ? (
               <View style={{marginBottom:12, paddingHorizontal:4}}>
                 <Text style={{fontSize:12,fontWeight:'700',color:'#5C6BC0',marginBottom:6}}>
                   🔗 {t('link_children_school') || 'Link school child to family'}
                 </Text>
                 <ScrollView style={{maxHeight:140}} nestedScrollEnabled showsVerticalScrollIndicator={true}>
-                  {linkedChildren.filter((lc:any) => !familyMembers.some((fm:any) => fm.student_id === lc.id || fm.name === lc.name)).map((s:any) => (
+                  {availableToAdd.map((s:any) => (
                     <TouchableOpacity key={s.id}
                       style={{flexDirection:'row',alignItems:'center',gap:8,paddingVertical:8,paddingHorizontal:10,backgroundColor:'#F0F4FF',borderRadius:8,marginBottom:4,borderWidth:1,borderColor:'#C5CAE9'}}
                       onPress={() => {
@@ -1467,7 +1472,8 @@ export default function ParentDashboard() {
                 <View style={{height:1,backgroundColor:'#EEE',marginVertical:8}}/>
                 <Text style={{fontSize:11,color:'#888',marginBottom:4}}>{t('add_new_student') || 'Or create new'}</Text>
               </View>
-            )}
+                ) : null;
+            })()}
             
             {/* Avatar Selection */}
             <Text style={styles.inputLabel}>{t('photo') || 'Photo'}</Text>
