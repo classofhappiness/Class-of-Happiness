@@ -820,11 +820,12 @@ export default function ParentDashboard() {
                   setShowAddFamilyModal(true);
                   try {
                     const token = await AsyncStorage.getItem('session_token');
-                    const res = await fetch(`${BACKEND_URL}/api/parent/available-students`, {
+                    const burl = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+                    const res = await fetch(`${burl}/api/parent/available-students`, {
                       headers: { Authorization: `Bearer ${token}` }
                     });
                     if (res.ok) { const data = await res.json(); setAvailableStudents(Array.isArray(data) ? data : []); }
-                  } catch {}
+                  } catch(e) { console.log('[AddModal] fetch error:', e); }
                 }}>
                   <MaterialIcons name="add" size={18} color="white" />
                 </TouchableOpacity>
