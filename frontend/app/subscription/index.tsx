@@ -125,13 +125,26 @@ export default function SubscriptionScreen() {
       {isActive && (
         <View style={[st.statusCard, { backgroundColor: '#E8F5E9' }]}>
           <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
-          <Text style={[st.statusText, { color: '#2E7D32' }]}>
-            {user?.subscription_status === 'trial' 
-              ? `✨ ${t('trial_active')||'Free trial active'}` 
-              : user?.subscription_plan 
-                ? `✅ ${user.subscription_plan} ${t('trial_active_desc')||'plan active'}` 
-                : `✅ ${t('trial_active')||'Access active'}`}
-          </Text>
+          <View>
+            <Text style={[st.statusText, { color: '#2E7D32' }]}>
+              {user?.subscription_status === 'trial' 
+                ? `✨ ${t('trial_active')||'Free trial active'}` 
+                : user?.subscription_plan 
+                  ? `✅ ${user.subscription_plan} ${t('trial_active_desc')||'plan active'}` 
+                  : `✅ ${t('trial_active')||'Access active'}`}
+            </Text>
+            {user?.subscription_status === 'trial' && user?.trial_started_at && (() => {
+              const start = new Date(user.trial_started_at);
+              const daysUsed = Math.floor((Date.now() - start.getTime()) / (1000*60*60*24));
+              const daysLeft = Math.max(0, trialDays - daysUsed);
+              return <Text style={{fontSize:12, color:'#388E3C', marginTop:2}}>{daysLeft} days remaining</Text>;
+            })()}
+            {user?.subscription_expires_at && user?.subscription_status !== 'trial' && (() => {
+              const exp = new Date(user.subscription_expires_at);
+              const daysLeft = Math.max(0, Math.floor((exp.getTime() - Date.now()) / (1000*60*60*24)));
+              return <Text style={{fontSize:12, color:'#388E3C', marginTop:2}}>Expires in {daysLeft} days</Text>;
+            })()}
+          </View>
         </View>
       )}
 
