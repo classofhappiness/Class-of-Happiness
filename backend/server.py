@@ -3764,7 +3764,7 @@ async def generate_family_pdf_report(family_member_id: str, year: int, month: in
         except: pass
         strat_data = [["Strategy","Times Used"]]
         for hid, cnt in sorted_helpers:
-            name = strat_name_map.get(hid, hid.replace("_"," ").title() if not any(c in hid for c in ["-"]) else hid)
+            name = strat_name_map.get(hid) or resolve_strategy_name(hid, report_lang)
             if name.lower() in ["blue","green","yellow","red"]: continue
             strat_data.append([name, str(cnt)])
         if len(strat_data) > 1:
@@ -3796,7 +3796,7 @@ async def generate_family_pdf_report(family_member_id: str, year: int, month: in
         strat_names = []
         for s in (strats or [])[:3]:
             if s and s.lower() not in ["blue","green","yellow","red"]:
-                strat_names.append(strat_name_map.get(s, s.replace("_"," ").title()))
+                strat_names.append(strat_name_map.get(s) or resolve_strategy_name(s, report_lang))
         log_data.append([date_str, time_str, ZL.get(zone,zone), ", ".join(strat_names) or "—"])
 
     log_table = Table(log_data, colWidths=[60,50,120,240])

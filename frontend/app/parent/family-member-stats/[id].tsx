@@ -176,7 +176,7 @@ export default function FamilyMemberStatsScreen() {
 
   const total = logs.length;
   const topStrategies = Object.entries(strategyCounts)
-    .filter(([s]) => !ZONE_KEYS_SET.has(s) && s.length > 2)
+    .filter(([s]) => !ZONE_KEYS_SET.has(s) && s.length > 1)
     .sort((a,b)=>b[1]-a[1]).slice(0,6);
   const months = Array.from(monthsSet).sort().reverse();
 
