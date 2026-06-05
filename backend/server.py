@@ -3328,12 +3328,30 @@ async def get_linked_children(request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    links = supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).execute()
     children = []
+    seen_ids = set()
+    # 1. School-linked children via parent_links
+    links = supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).execute()
     for link in (links.data or []):
         student = supabase.table("students").select("*").eq("id", link["student_id"]).execute()
-        if student.data:
+        if student.data and student.data[0]["id"] not in seen_ids:
             children.append(student.data[0])
+            seen_ids.add(student.data[0]["id"])
+    # 2. Students created directly by this parent in student flow
+    own_students = supabase.table("students").select("*").eq("user_id", user["user_id"]).execute()
+    for s in (own_students.data or []):
+        if s["id"] not in seen_ids:
+            children.append(s)
+            seen_ids.add(s["id"])
+    # 3. Students linked via family_members
+    fm_links = supabase.table("family_members").select("student_id").eq("user_id", user["user_id"]).execute()
+    for fm in (fm_links.data or []):
+        sid = fm.get("student_id")
+        if sid and sid not in seen_ids:
+            student = supabase.table("students").select("*").eq("id", sid).execute()
+            if student.data:
+                children.append(student.data[0])
+                seen_ids.add(sid)
     return children
 
 # ================== STRATEGY SHARING ==================
