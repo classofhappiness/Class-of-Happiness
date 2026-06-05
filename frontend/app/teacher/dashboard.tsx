@@ -265,30 +265,31 @@ export default function TeacherDashboardScreen() {
       </View>
 
       {/* Period tabs */}
-      <View style={st.periodRow}>
-        {([1,7,14,30] as Period[]).map(p => (
-          <TouchableOpacity key={p} style={[st.periodBtn, period===p && st.periodBtnActive]}
-            onPress={() => setPeriod(p)}>
-            <Text style={[st.periodTxt, period===p && st.periodTxtActive]}>{periodLabel(p)}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      {/* Classroom filter chips */}
-      {(classrooms && classrooms.length > 0) && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.chipScroll}>
-          <View style={st.chipRow}>
-            <TouchableOpacity style={[st.chip,!selectedClassroom&&st.chipActive]} onPress={() => setSelectedClassroom(null)}>
-              <Text style={[st.chipTxt,!selectedClassroom&&st.chipTxtActive]}>{t('all')||t('zone_all') || 'All'}</Text>
+      <View style={{backgroundColor:'#F5F5F8', marginHorizontal:0, paddingTop:4, paddingBottom:4}}>
+        <View style={st.periodRow}>
+          {([1,7,14,30] as Period[]).map(p => (
+            <TouchableOpacity key={p} style={[st.periodBtn, period===p && st.periodBtnActive]}
+              onPress={() => setPeriod(p)}>
+              <Text style={[st.periodTxt, period===p && st.periodTxtActive]}>{periodLabel(p)}</Text>
             </TouchableOpacity>
-            {(localClassrooms.length > 0 ? localClassrooms : classrooms).map((c:any) => (
-              <TouchableOpacity key={c.id} style={[st.chip,selectedClassroom===c.id&&st.chipActive]}
-                onPress={() => setSelectedClassroom(c.id)}>
-                <Text style={[st.chipTxt,selectedClassroom===c.id&&st.chipTxtActive]}>{c.name}</Text>
+          ))}
+        </View>
+        {(classrooms && classrooms.length > 0) && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={{flexDirection:'row', paddingHorizontal:12, gap:6, alignItems:'center', paddingTop:4, paddingBottom:2}}>
+              <TouchableOpacity style={[st.chip,!selectedClassroom&&st.chipActive]} onPress={() => setSelectedClassroom(null)}>
+                <Text style={[st.chipTxt,!selectedClassroom&&st.chipTxtActive]}>{t('all')||'All'}</Text>
               </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-      )}
+              {(localClassrooms.length > 0 ? localClassrooms : classrooms).map((c:any) => (
+                <TouchableOpacity key={c.id} style={[st.chip,selectedClassroom===c.id&&st.chipActive]}
+                  onPress={() => setSelectedClassroom(c.id)}>
+                  <Text style={[st.chipTxt,selectedClassroom===c.id&&st.chipTxtActive]}>{c.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        )}
+      </View>
       {/* Main scroll */}
       <ScrollView style={{flex:1}} contentContainerStyle={st.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh}/>}
