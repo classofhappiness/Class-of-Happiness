@@ -268,10 +268,23 @@ export default function StudentSelectScreen() {
             ))}
           </ScrollView>
         )}
-        <Text style={styles.instruction}>{t('tap_to_check_in')}</Text>
+        <View style={{flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8, marginBottom:8}}>
+          <Text style={{fontSize:14, fontWeight:'600', color:'#333'}}>Select below to begin</Text>
+          <Text style={{fontSize:18}}>↓</Text>
+        </View>
 
         <View style={styles.studentsGrid}>
-          {(selectedClassroom ? students.filter(s => s.classroom_id === selectedClassroom) : students).map((student) => (
+          {(selectedClassroom ? students.filter(s => s.classroom_id === selectedClassroom) : students)
+            .slice()
+            .sort((a: any, b: any) => {
+              const aDate = a.last_checkin_date || a.updated_at || '';
+              const bDate = b.last_checkin_date || b.updated_at || '';
+              if (aDate && bDate) return bDate.localeCompare(aDate);
+              if (aDate) return -1;
+              if (bDate) return 1;
+              return (a.name || '').localeCompare(b.name || '');
+            })
+            .map((student: any) => (
             <Pressable
               key={student.id}
               style={({ pressed }) => [

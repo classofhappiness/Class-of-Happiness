@@ -73,7 +73,7 @@ export default function ColourSelectionScreen() {
   useEffect(() => { preloadSounds(); }, []);
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title: t('how_are_you_feeling') || 'How are you feeling?' });
+    navigation.setOptions({ headerShown: false });
   }, [navigation, language, translations]);
 
   const colourInfo = getColourInfo(t);
