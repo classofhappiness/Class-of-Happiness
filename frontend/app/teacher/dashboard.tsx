@@ -264,21 +264,6 @@ export default function TeacherDashboardScreen() {
         ))}
       </View>
 
-      {/* Alert banner — shows when there are unresolved alerts today */}
-      {alertCount > 0 && (
-        <TouchableOpacity
-          onPress={() => router.push('/teacher/alerts')}
-          style={{ flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#FFF3F3',
-            borderLeftWidth:4, borderLeftColor:'#F44336', marginHorizontal:12, marginBottom:8,
-            borderRadius:8, padding:10 }}>
-          <MaterialIcons name="notifications-active" size={18} color="#F44336" />
-          <Text style={{ flex:1, fontSize:13, fontWeight:'600', color:'#C62828' }}>
-            {alertCount} {alertCount === 1 ? 'student needs' : 'students need'} support today
-          </Text>
-          <MaterialIcons name="chevron-right" size={18} color="#F44336" />
-        </TouchableOpacity>
-      )}
-
       {/* Period tabs */}
       <View style={st.periodRow}>
         {([1,7,14,30] as Period[]).map(p => (
@@ -308,6 +293,21 @@ export default function TeacherDashboardScreen() {
       <ScrollView style={{flex:1}} contentContainerStyle={st.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh}/>}
         showsVerticalScrollIndicator={false}>
+
+        {/* Alert banner */}
+        {alertCount > 0 && (
+          <TouchableOpacity
+            onPress={() => router.push('/teacher/alerts')}
+            style={{ flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#FFF3F3',
+              borderLeftWidth:4, borderLeftColor:'#F44336', marginBottom:8,
+              borderRadius:8, padding:10 }}>
+            <MaterialIcons name="notifications-active" size={18} color="#F44336" />
+            <Text style={{ flex:1, fontSize:13, fontWeight:'600', color:'#C62828' }}>
+              {alertCount} {alertCount === 1 ? 'student needs' : 'students need'} support today
+            </Text>
+            <MaterialIcons name="chevron-right" size={18} color="#F44336" />
+          </TouchableOpacity>
+        )}
 
         {/* Emotion summary pills */}
         <View style={{flexDirection:'row', gap:6, marginBottom:8}}>
