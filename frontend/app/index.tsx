@@ -60,9 +60,9 @@ export default function HomeScreen() {
             </View>
           ))}
         </View>
-        <View style={{flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8, marginBottom:4}}>
-          <Text style={{fontSize:15, fontWeight:'700', color:'#333'}}>Select below to begin</Text>
-          <Text style={{fontSize:20}}>↓</Text>
+        <View style={{flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, marginBottom:4}}>
+          <Text style={{fontSize:12, fontStyle:'italic', color:'#111', fontWeight:'400'}}>Select below to begin</Text>
+          <Text style={{fontSize:13, color:'#111'}}>↓</Text>
         </View>
 
         {/* STUDENT — hero button, much bigger */}
