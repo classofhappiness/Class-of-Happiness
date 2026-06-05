@@ -1380,7 +1380,6 @@ export default function ParentDashboard() {
                                   body: JSON.stringify({name:s.name,relationship:'child',student_id:s.id,avatar_preset:s.avatar_preset||'bear',avatar_type:'preset'})
                                 });
                                 const resText = await res.text();
-                                console.log('[AddChild] status:', res.status, 'body:', resText);
                                 if (res.ok) {
                                   setShowAddFamilyModal(false);
                                   fetchData();
@@ -1390,7 +1389,6 @@ export default function ParentDashboard() {
                                   Alert.alert('Error', resText || 'Could not add. Please try again.');
                                 }
                               } catch(e: any) {
-                                console.log('[AddChild] error:', e);
                                 Alert.alert('Error', e?.message || 'Something went wrong.');
                               }
                             }}

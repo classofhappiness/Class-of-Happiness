@@ -2278,6 +2278,7 @@ class FamilyMemberCreate(BaseModel):
     avatar_type: str = "preset"
     avatar_preset: Optional[str] = "cat"
     avatar_custom: Optional[str] = None
+    student_id: Optional[str] = None
 
 class LinkChildRequest(BaseModel):
     link_code: str
@@ -3214,6 +3215,8 @@ async def add_family_member(member: FamilyMemberCreate, request: Request):
         "avatar_custom": member.avatar_custom,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
+    if member.student_id:
+        new_member["student_id"] = member.student_id
     result = supabase.table("family_members").insert(new_member).execute()
     
     # Auto-create student record for family children (gives full creature/points experience)
