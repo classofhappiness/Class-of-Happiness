@@ -1738,7 +1738,7 @@ const styles = StyleSheet.create({
   gridCardActions: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 4 },
   gridActionBtn: { padding: 2 },
   gridAvatar: { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center', marginBottom: 3 },
-  gridAvatarImg: { width: 56, height: 56, borderRadius: 28 },
+  gridAvatarImg: { width: 38, height: 38, borderRadius: 19 },
   gridName: { fontSize: 12, fontWeight: '700', color: '#333', marginBottom: 4, textAlign: 'center' },
   linkedLabel: { fontSize: 9, color: '#4CAF50', fontWeight: '600', marginBottom: 4 },
   linkedBadge: { width: 18, height: 18, borderRadius: 9, backgroundColor: '#E8F5E9', justifyContent: 'center', alignItems: 'center' },
