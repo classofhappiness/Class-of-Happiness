@@ -8,12 +8,14 @@ interface TranslatedHeaderProps {
   title: string;
   showBack?: boolean;
   backTo?: string;
+  showHome?: boolean;
 }
 
 export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({ 
   title, 
   showBack = true,
-  backTo 
+  backTo,
+  showHome = false,
 }) => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -36,15 +38,19 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
             </TouchableOpacity>
           )}
         </View>
-        <View style={styles.centerGroup}>
+        <Text style={styles.title} numberOfLines={1}>{title}</Text>
+        <View style={styles.rightSlot}>
           <Image
             source={require('../../assets/images/logo_coh.png')}
             style={styles.logo}
             resizeMode="contain"
           />
-          <Text style={styles.title} numberOfLines={1}>{title}</Text>
+          {showHome && (
+            <TouchableOpacity onPress={() => router.replace('/')} style={styles.homeButton}>
+              <MaterialIcons name="home" size={24} color="#333" />
+            </TouchableOpacity>
+          )}
         </View>
-        <View style={styles.backSlot} />
       </View>
     </View>
   );
@@ -68,24 +74,29 @@ const styles = StyleSheet.create({
     width: 40,
     alignItems: 'flex-start',
   },
+  rightSlot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 40,
+    justifyContent: 'flex-end',
+  },
   backButton: {
     padding: 4,
   },
-  centerGroup: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+  homeButton: {
+    padding: 4,
   },
   logo: {
-    width: 26,
-    height: 26,
+    width: 24,
+    height: 24,
   },
   title: {
     fontSize: 17,
     fontWeight: 'bold',
     color: '#333',
     flexShrink: 1,
+    flex: 1,
+    textAlign: 'center',
   },
 });

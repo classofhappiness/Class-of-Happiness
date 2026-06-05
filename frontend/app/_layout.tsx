@@ -28,11 +28,7 @@ const HeaderWithBackAndLogo = ({ canGoBack }: { canGoBack?: boolean }) => {
           <MaterialIcons name="arrow-back-ios" size={22} color="#333" />
         </TouchableOpacity>
       )}
-      <Image
-        source={require('../assets/images/logo_coh.png')}
-        style={styles.headerLogo}
-        resizeMode="contain"
-      />
+
     </View>
   );
 };
@@ -326,18 +322,24 @@ const styles = StyleSheet.create({
 function HomeToStudents() {
   const r = useRouter();
   return (
-    <TouchableOpacity onPress={() => r.replace('/')} style={{ marginRight: 12 }}>
-      <MaterialIcons name="home" size={22} color="#000" />
-    </TouchableOpacity>
+    <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginRight:12 }}>
+      <Image source={require('../assets/images/logo_coh.png')} style={{ width:22, height:22 }} resizeMode="contain" />
+      <TouchableOpacity onPress={() => r.replace('/')}>
+        <MaterialIcons name="home" size={22} color="#000" />
+      </TouchableOpacity>
+    </View>
   );
 }
 
 function HomeToDashboard() {
   const r = useRouter();
   return (
-    <TouchableOpacity onPress={() => r.replace('/')} style={{ marginRight: 12 }}>
-      <MaterialIcons name="home" size={22} color="#000" />
-    </TouchableOpacity>
+    <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginRight:12 }}>
+      <Image source={require('../assets/images/logo_coh.png')} style={{ width:22, height:22 }} resizeMode="contain" />
+      <TouchableOpacity onPress={() => r.replace('/')}>
+        <MaterialIcons name="home" size={22} color="#000" />
+      </TouchableOpacity>
+    </View>
   );
 }
 
