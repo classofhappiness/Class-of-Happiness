@@ -3741,9 +3741,10 @@ async def generate_family_pdf_report(family_member_id: str, year: int, month: in
          Paragraph("Green Days",      s('FL2',fontSize=8,textColor=colors.HexColor('#888'),alignment=1)),
          Paragraph("Most Common",     s('FL3',fontSize=8,textColor=colors.HexColor('#888'),alignment=1))],
     ]
-    summary_table = Table(summary_items, colWidths=[col_w3]*3)
+    summary_table = Table(summary_items, colWidths=[col_w3]*3, rowHeights=[36, 18])
     summary_table.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),LIGHT),("BOX",(0,0),(-1,-1),1,LIGHT_GREY),
-        ("INNERGRID",(0,0),(-1,-1),0.5,LIGHT_GREY),("PADDING",(0,0),(-1,-1),10),("VALIGN",(0,0),(-1,-1),"MIDDLE")]))
+        ("INNERGRID",(0,0),(-1,-1),0.5,LIGHT_GREY),("TOPPADDING",(0,0),(-1,0),8),("BOTTOMPADDING",(0,0),(-1,0),4),
+        ("TOPPADDING",(0,1),(-1,1),4),("BOTTOMPADDING",(0,1),(-1,1),6),("LEFTPADDING",(0,0),(-1,-1),6),("RIGHTPADDING",(0,0),(-1,-1),6),("VALIGN",(0,0),(-1,-1),"MIDDLE")]))
     story.append(summary_table)
     story.append(Spacer(1,14))
 
