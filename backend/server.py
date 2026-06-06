@@ -5383,7 +5383,6 @@ async def send_parent_message(request: Request):
             "zone": zone,
             "message": message,
             "context": "home",
-            "user_id": parent_user_id,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "resolved": False,
         }).execute()
