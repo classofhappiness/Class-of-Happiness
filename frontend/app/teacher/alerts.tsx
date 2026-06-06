@@ -156,7 +156,7 @@ export default function AlertsScreen() {
 
       {/* Classroom filter */}
       {alertClassrooms.length > 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.classroomRow}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{minHeight:44}} style={st.classroomRow}>
           {alertClassrooms.map(cl => (
             <TouchableOpacity key={cl} onPress={() => setSelectedClassroom(cl)}
               style={[st.classroomBtn, selectedClassroom===cl && st.classroomBtnActive]}>
@@ -248,7 +248,7 @@ export default function AlertsScreen() {
                   <View style={[st.zoneDot, { backgroundColor: ZONE_COLORS[alert.zone] || '#CCC' }]} />
                   <View style={{ flex:1 }}>
                     {alert.strategy_name && <Text style={st.strategyTxt}>🎯 {resolveStratName(alert.strategy_name)}</Text>}
-                    {alert.message && <Text style={st.messageTxt}>💬 {alert.message}</Text>}
+                    {alert.message && <Text style={[st.messageTxt, {color:'#1a1a1a', fontWeight:'600'}]}>💬 {alert.message}</Text>}
                     <Text style={st.timeTxt}>
                       {new Date(alert.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
                       {' · '}{new Date(alert.created_at).toLocaleDateString()}

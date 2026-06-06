@@ -151,9 +151,9 @@ export default function ParentAlertsScreen() {
         ))}
       </View>
 
-      <View style={st.filterBar}>
+      <View style={[st.filterBar, {minHeight: 52}]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 6, paddingHorizontal: 16, paddingVertical: 8 }}>
+          contentContainerStyle={{ gap: 6, paddingHorizontal: 16, paddingVertical: 8, alignItems: 'center' }}>
           <TouchableOpacity
             style={[st.pill, !selectedChild && !selectedType && st.pillActive]}
             onPress={() => { setSelectedChild(null); setSelectedType(null); }}>
@@ -239,7 +239,7 @@ export default function ParentAlertsScreen() {
               {alert.message && (
                 <View style={{backgroundColor:'#EEF2FF', borderRadius:8, padding:10, marginVertical:4, borderLeftWidth:3, borderLeftColor:'#5C6BC0'}}>
                   <Text style={{fontSize:11, color:'#5C6BC0', fontWeight:'700', marginBottom:2}}>💬 Message</Text>
-                  <Text style={{fontSize:14, color:'#333', fontWeight:'500'}}>{alert.message}</Text>
+                  <Text style={{fontSize:14, color:'#1a1a1a', fontWeight:'600', lineHeight:20}}>{alert.message}</Text>
                 </View>
               )}
               <View style={st.cardBottom}>
