@@ -128,19 +128,16 @@ export default function TeacherDashboardScreen() {
         const aRes = await fetch(analyticsUrl, { headers: h });
         if (aRes.ok) {
           analyticsRaw = await aRes.json();
-          console.log('[Teacher] analytics raw:', JSON.stringify(analyticsRaw));
         } else {
           // analytics fetch failed silently
         }
       } catch(e) {
-        console.error('[Teacher] analytics fetch error:', e);
       }
       // Normalise field names — backend returns feeling_counts or zone_counts
       const analyticsData = analyticsRaw ? {
         ...analyticsRaw,
         zone_counts: analyticsRaw.zone_counts || analyticsRaw.feeling_counts || { blue:0, green:0, yellow:0, red:0 }
       } : { zone_counts: { blue:0, green:0, yellow:0, red:0 } };
-      console.log('[Teacher] analyticsData zone_counts:', JSON.stringify(analyticsData.zone_counts));
       setAnalytics(analyticsData);
 
       // Fetch classrooms directly as fallback
