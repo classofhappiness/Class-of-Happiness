@@ -406,7 +406,7 @@ export default function StrategiesScreen() {
             <TouchableOpacity style={[styles.commentToggle, { justifyContent:'space-between' }]} onPress={() => { playButtonFeedback(); setShowCommentInput(!showCommentInput); }}>
               <MaterialIcons name="chat-bubble-outline" size={20} color={showCommentInput || comment ? zoneColor : '#999'} />
               <Text style={[styles.commentToggleText, (showCommentInput || comment) && { color: zoneColor }]}>
-                {comment ? t('edit') || 'Edit' : t('want_to_say') || 'Want to say something?'}
+                {comment ? `💬 ${comment.slice(0,30)}${comment.length>30?'...':''}` : t('want_to_say') || 'Want to say something?'}
               </Text>
               <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
                 <TouchableOpacity

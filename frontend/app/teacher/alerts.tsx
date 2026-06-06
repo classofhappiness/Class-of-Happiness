@@ -156,7 +156,7 @@ export default function AlertsScreen() {
 
       {/* Classroom filter */}
       {alertClassrooms.length > 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{minHeight:44}} style={st.classroomRow}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[{minHeight:44}, st.classroomRow]}>
           {alertClassrooms.map(cl => (
             <TouchableOpacity key={cl} onPress={() => setSelectedClassroom(cl)}
               style={[st.classroomBtn, selectedClassroom===cl && st.classroomBtnActive]}>
@@ -170,8 +170,8 @@ export default function AlertsScreen() {
 
       {/* Type filter pills */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false}
-        style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0', maxHeight:38 }}
-        contentContainerStyle={{ flexDirection:'row', gap:6, paddingHorizontal:12, paddingVertical:6 }}>
+        style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0', minHeight:46 }}
+        contentContainerStyle={{ flexDirection:'row', gap:6, paddingHorizontal:12, paddingVertical:8, alignItems:'center' }}>
         {[{id:null,label:'All'},{id:'help_request',label:'Help Request'},{id:'zone_alert',label:'Check-in Alert'},{id:'parent_message',label:'Message'}].map(typ=>(
           <TouchableOpacity key={typ.id||'all'}
             style={{ paddingHorizontal:10, paddingVertical:3, borderRadius:12,
