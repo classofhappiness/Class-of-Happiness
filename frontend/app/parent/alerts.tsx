@@ -8,7 +8,7 @@ import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { useApp } from '../../src/context/AppContext';
 
 const ZONE_COLOR: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
-const ZONE_LABEL: Record<string,string> = { blue:'Blue', green:'Green', yellow:'Yellow', red:'Red' };
+const ZONE_LABEL: Record<string,string> = { blue:'Blue Emotions', green:'Green Emotions', yellow:'Yellow Emotions', red:'Red Emotions' };
 const STRAT: Record<string,string> = {
   b1:'Gentle Stretch',b2:'Warm Drink',b3:'Favourite Song',b4:'Cosy Spot',b5:'Tell Someone',b6:'Slow Breathing',
   g1:'Keep Going!',g2:'Help a Friend',g3:'Try Something New',g4:'Share Your Smile',g5:'Set a Goal',g6:'Gratitude',
@@ -63,7 +63,7 @@ const AlertCard = ({ alert, onResolve, selected, selectMode, onLongPress, onPres
               </View>
             </View>
             <Text style={{ fontSize:12, color:'#999', marginBottom:6 }}>
-              {ZONE_LABEL[alert.zone] || alert.zone} zone · {new Date(alert.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} {new Date(alert.created_at).toLocaleDateString()}
+              {ZONE_LABEL[alert.zone] || alert.zone} · {new Date(alert.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} {new Date(alert.created_at).toLocaleDateString()}
             </Text>
             {alert.strategy_name ? (
               <Text style={{ fontSize:13, color:'#555', marginBottom:6 }}>
