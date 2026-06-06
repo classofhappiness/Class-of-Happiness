@@ -47,6 +47,8 @@ export default function AlertsScreen() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
   const [selectedType, setSelectedType] = useState<string|null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string,boolean>>({});
+  const toggleGroup = (name: string) => setExpandedGroups(prev => ({...prev, [name]: !prev[name]}));
 
   const load = useCallback(async () => {
     const tok = await AsyncStorage.getItem('session_token') || '';
@@ -219,10 +221,10 @@ export default function AlertsScreen() {
 
         {/* Grouped by student — collapsed by default */}
         {Object.entries(grouped).map(([studentName, studentAlerts]) => {
-          const [expanded, setExpanded] = React.useState(false);
+          const expanded = !!expandedGroups[studentName];
           return (
           <View key={studentName} style={st.studentGroup}>
-            <TouchableOpacity style={st.studentHeader} onPress={() => setExpanded(e => !e)} activeOpacity={0.7}>
+            <TouchableOpacity style={st.studentHeader} onPress={() => toggleGroup(studentName)} activeOpacity={0.7}>
               <Text style={st.studentName}>
                 {ZONE_EMOJI[studentAlerts[0]?.zone] || '💙'} {studentName}
               </Text>
