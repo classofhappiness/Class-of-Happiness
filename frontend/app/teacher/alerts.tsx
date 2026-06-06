@@ -170,7 +170,7 @@ export default function TeacherAlertsScreen() {
                 borderBottomColor:'#F0F0F0' }}>
               <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
                 <Text style={{ fontSize:14, fontWeight:'700', color:'#333' }}>
-                  {ZONE_EMOJI[items[0]?.zone] || '💙'} {name}
+                  {name}
                 </Text>
                 {items[0]?.classroom_name && (
                   <Text style={{ fontSize:11, color:'#888' }}>📍 {items[0].classroom_name}</Text>
