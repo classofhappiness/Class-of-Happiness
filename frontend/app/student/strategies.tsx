@@ -36,6 +36,7 @@ export default function StrategiesScreen() {
   const [shieldJustAwarded, setShieldJustAwarded] = useState(false);
   const [parentMessageVisible, setParentMessageVisible] = useState(false);
   const [parentMessage, setParentMessage] = useState('');
+  const parentMessageRef = React.useRef('');
   const [customSupportMessage, setCustomSupportMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -209,10 +210,11 @@ export default function StrategiesScreen() {
   };
 
   const handleParentMessage = async () => {
-    if (!currentStudent || !parentMessage.trim()) return;
+    const msg = parentMessage.trim() || parentMessageRef.current.trim();
+    if (!currentStudent || !msg) return;
     await sendParentMessage({
       student_id: currentStudent.id,
-      message: parentMessage.trim(),
+      message: msg,
       zone: zone || '',
     });
     setParentMessageVisible(false);
@@ -383,7 +385,7 @@ export default function StrategiesScreen() {
                 placeholder={t('message_parent_placeholder') || 'Tell your parent how you feel...'}
                 placeholderTextColor="#BBB"
                 value={parentMessage}
-                onChangeText={setParentMessage}
+                onChangeText={(t) => { setParentMessage(t); parentMessageRef.current = t; }}
                 multiline
                 maxLength={200}
               />
