@@ -5574,24 +5574,15 @@ async def get_alerts(request: Request, limit: int = 20):
             if student_ids:
                 all_alerts_r = supabase.table("student_alerts").select("*").in_("student_id", student_ids[:50]).order("created_at", desc=True).limit(100).execute()
                 all_alerts = all_alerts_r.data or []
-            # Query 2: by user_id directly (home alerts saved with parent user_id)
-            try:
-                user_alerts_r = supabase.table("student_alerts").select("*").eq("user_id", user["user_id"]).order("created_at", desc=True).limit(100).execute()
-                existing_ids = {a["id"] for a in all_alerts}
-                for a in (user_alerts_r.data or []):
-                    if a["id"] not in existing_ids:
-                        all_alerts.append(a)
-                        existing_ids.add(a["id"])
-            except: pass
+            # Note: user_id column doesn't exist in student_alerts — skip that query
         logger.info(f"[get_alerts] Found {len(all_alerts)} total alerts for {len(student_ids)} students")
         
         # Filter by context
         if role in ("teacher", "school_admin") or role3 in ("teacher", "school_admin"):
             filtered = [a for a in all_alerts if a.get("context") in ("school", None, "")]
         else:
-            # Parents only see home context alerts
-            filtered = [a for a in all_alerts if a.get("context") in ("home", "parent_message", None, "")]
-            # user_id lookup already done above in all_alerts union
+            # Parents see home alerts AND school alerts for their linked children
+            filtered = [a for a in all_alerts if a.get("context") in ("home", "school", "parent_message", None, "")]
             try:
                 pass
             except Exception as e:
@@ -6539,7 +6530,6 @@ async def create_family_zone_log(request: Request):
                 "context": "home",
                 "zone": data.get("zone", ""),
                 "message": comment_text,
-                "user_id": user["user_id"],
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "resolved": False,
             }).execute()
@@ -7474,7 +7464,6 @@ async def family_member_checkin(member_id: str, request: Request):
                     "context": "home",
                     "zone": zone,
                     "message": comment_text or None,
-                    "user_id": user["user_id"],
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "resolved": False,
                 }).execute()
