@@ -180,7 +180,7 @@ export default function TeacherAlertsScreen() {
                 )}
               </View>
               <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
-                <View style={{ backgroundColor:'#5C6BC0', borderRadius:10, paddingHorizontal:6, paddingVertical:2 }}>
+                <View style={{ backgroundColor:'#888', borderRadius:10, paddingHorizontal:6, paddingVertical:2 }}>
                   <Text style={{ fontSize:11, color:'white', fontWeight:'700' }}>{items.length}</Text>
                 </View>
                 <MaterialIcons name={expanded[name] ? 'expand-less' : 'expand-more'} size={20} color="#999" />
