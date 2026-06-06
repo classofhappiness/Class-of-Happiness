@@ -8,7 +8,6 @@ import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { useApp } from '../../src/context/AppContext';
 
 const ZONE_COLOR: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
-const ZONE_EMOJI: Record<string,string> = { blue:'\U0001F535', green:'\U0001F7E2', yellow:'\U0001F7E1', red:'\U0001F534' };
 const STRAT: Record<string,string> = {
   b1:'Gentle Stretch',b2:'Warm Drink',b3:'Favourite Song',b4:'Cosy Spot',b5:'Tell Someone',b6:'Slow Breathing',
   g1:'Keep Going!',g2:'Help a Friend',g3:'Try Something New',g4:'Share Your Smile',g5:'Set a Goal',g6:'Gratitude',
@@ -25,13 +24,22 @@ const resolveName = (id: string) => {
   const c = id.replace(/^(helper_|strategy_)/,'');
   return STRAT[c] || id.replace(/_/g,' ').replace(/\b\w/g,(x:string)=>x.toUpperCase());
 };
+const zoneEmoji = (z: string) => z==='blue'?'\U0001F535':z==='green'?'\U0001F7E2':z==='yellow'?'\U0001F7E1':z==='red'?'\U0001F534':'\U0001F4D9';
 
 const Pill = ({ label, active, onPress }: { label:string, active:boolean, onPress:()=>void }) => (
   <TouchableOpacity onPress={onPress} style={{
-    paddingHorizontal:12, paddingVertical:6, borderRadius:16, marginRight:6,
-    backgroundColor: active ? '#4CAF50' : '#F0F0F0'
+    paddingHorizontal:14, paddingVertical:7, borderRadius:20, marginRight:8,
+    backgroundColor: active ? '#4CAF50' : '#E8E8E8',
+    borderWidth:1, borderColor: active ? '#4CAF50' : '#DDD'
   }}>
-    <Text style={{ fontSize:12, fontWeight:'600', color: active ? 'white' : '#666' }}>{label}</Text>
+    <Text style={{ fontSize:13, fontWeight:'600', color: active ? 'white' : '#555' }}>{label}</Text>
+  </TouchableOpacity>
+);
+
+const Tab = ({ label, active, onPress }: { label:string, active:boolean, onPress:()=>void }) => (
+  <TouchableOpacity onPress={onPress} style={{ flex:1, paddingVertical:8,
+    borderRadius:8, alignItems:'center', backgroundColor: active ? '#4CAF50' : '#F5F5F5' }}>
+    <Text style={{ fontSize:12, fontWeight:'700', color: active ? 'white' : '#888' }}>{label}</Text>
   </TouchableOpacity>
 );
 
@@ -79,7 +87,6 @@ export default function ParentAlertsScreen() {
   };
 
   const childNames = Array.from(new Set(alerts.map((a:any) => a.student_name).filter(Boolean))) as string[];
-
   const filtered = alerts.filter((a:any) => {
     if (a.resolved) return false;
     if (!inPeriod(a)) return false;
@@ -87,42 +94,39 @@ export default function ParentAlertsScreen() {
     if (childFilter && a.student_name !== childFilter) return false;
     return true;
   });
-
   const resolvedAlerts = alerts.filter((a:any) => a.resolved && inPeriod(a));
 
   return (
     <SafeAreaView style={{ flex:1, backgroundColor:'#F8F9FA' }}>
       <TranslatedHeader title={t('alerts') || 'Family Alerts'} />
 
-      <View style={{ flexDirection:'row', backgroundColor:'white', paddingHorizontal:12,
-        paddingVertical:6, gap:6, borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}>
-        {(['today','7','14','30'] as const).map(p => (
-          <TouchableOpacity key={p} onPress={() => setPeriod(p)} style={{ flex:1, paddingVertical:7,
-            borderRadius:8, alignItems:'center', backgroundColor: period===p ? '#4CAF50' : '#F5F5F5' }}>
-            <Text style={{ fontSize:12, fontWeight:'600', color: period===p ? 'white' : '#888' }}>
-              {p==='today'?'Today':p==='7'?'Week':p==='14'?'Fortnight':'Month'}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      <View style={{ flexDirection:'row', backgroundColor:'white', padding:10, gap:8,
+        borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}>
+        <Tab label="Today" active={period==='today'} onPress={() => setPeriod('today')} />
+        <Tab label="Week" active={period==='7'} onPress={() => setPeriod('7')} />
+        <Tab label="Fortnight" active={period==='14'} onPress={() => setPeriod('14')} />
+        <Tab label="Month" active={period==='30'} onPress={() => setPeriod('30')} />
       </View>
 
       {childNames.length > 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}
-          style={{ flexGrow:0, backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}
-          contentContainerStyle={{ paddingHorizontal:12, paddingVertical:8, flexDirection:'row', alignItems:'center' }}>
-          <Pill label="All" active={childFilter===null} onPress={() => setChildFilter(null)} />
-          {childNames.map(n => <Pill key={n} label={n} active={childFilter===n} onPress={() => setChildFilter(childFilter===n?null:n)} />)}
-        </ScrollView>
+        <View style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal:12, paddingVertical:10, flexDirection:'row' }}>
+            <Pill label="All" active={childFilter===null} onPress={() => setChildFilter(null)} />
+            {childNames.map(n => <Pill key={n} label={n} active={childFilter===n} onPress={() => setChildFilter(childFilter===n?null:n)} />)}
+          </ScrollView>
+        </View>
       )}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
-        style={{ flexGrow:0, backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}
-        contentContainerStyle={{ paddingHorizontal:12, paddingVertical:8, flexDirection:'row', alignItems:'center' }}>
-        <Pill label="All" active={alertType===null} onPress={() => setAlertType(null)} />
-        <Pill label="Help Request" active={alertType==='help_request'} onPress={() => setAlertType('help_request')} />
-        <Pill label="Check-in" active={alertType==='zone_alert'} onPress={() => setAlertType('zone_alert')} />
-        <Pill label="Message" active={alertType==='parent_message'} onPress={() => setAlertType('parent_message')} />
-      </ScrollView>
+      <View style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal:12, paddingVertical:10, flexDirection:'row' }}>
+          <Pill label="All" active={alertType===null} onPress={() => setAlertType(null)} />
+          <Pill label="Help Request" active={alertType==='help_request'} onPress={() => setAlertType('help_request')} />
+          <Pill label="Check-in" active={alertType==='zone_alert'} onPress={() => setAlertType('zone_alert')} />
+          <Pill label="Message" active={alertType==='parent_message'} onPress={() => setAlertType('parent_message')} />
+        </ScrollView>
+      </View>
 
       <View style={{ paddingHorizontal:16, paddingVertical:8, backgroundColor:'white',
         borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}>
@@ -133,57 +137,60 @@ export default function ParentAlertsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
 
         {loading && <Text style={{ textAlign:'center', color:'#999', marginTop:30 }}>Loading...</Text>}
-
         {!loading && filtered.length === 0 && (
           <View style={{ alignItems:'center', marginTop:50 }}>
-            <Text style={{ fontSize:40 }}>{"\u2705"}</Text>
+            <Text style={{ fontSize:40 }}>{'\u2705'}</Text>
             <Text style={{ color:'#999', fontSize:14, marginTop:8 }}>{t('no_alerts') || 'No pending alerts'}</Text>
           </View>
         )}
 
         {filtered.map((alert:any) => (
-          <View key={alert.id} style={{ backgroundColor:'white', borderRadius:12, marginBottom:10,
-            shadowColor:'#000', shadowOpacity:0.06, shadowRadius:4, elevation:2,
-            borderLeftWidth:4, borderLeftColor: ZONE_COLOR[alert.zone] || '#5C6BC0' }}>
+          <View key={alert.id} style={{ backgroundColor:'white', borderRadius:14, marginBottom:12,
+            shadowColor:'#000', shadowOpacity:0.07, shadowRadius:6, elevation:3,
+            borderLeftWidth:5, borderLeftColor: ZONE_COLOR[alert.zone] || '#5C6BC0' }}>
             <View style={{ padding:14 }}>
-              <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-                <View style={{ flexDirection:'row', alignItems:'center', gap:6, flexWrap:'wrap', flex:1 }}>
-                  <Text style={{ fontSize:15, fontWeight:'700', color:'#333' }}>
-                    {ZONE_EMOJI[alert.zone] || '{"\u{1F4D9}"}'} {alert.student_name || 'Child'}
+              <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                <View style={{ flex:1 }}>
+                  <Text style={{ fontSize:16, fontWeight:'700', color:'#222', marginBottom:4 }}>
+                    {zoneEmoji(alert.zone)} {alert.student_name || 'Child'}
                   </Text>
-                  <View style={{ backgroundColor: alert.alert_type==='help_request'?'#FFF3E0':
+                  <View style={{ alignSelf:'flex-start', backgroundColor:
+                    alert.alert_type==='help_request'?'#FFF3E0':
                     alert.alert_type==='parent_message'?'#EEF2FF':'#E8F5E9',
-                    borderRadius:8, paddingHorizontal:8, paddingVertical:3 }}>
-                    <Text style={{ fontSize:11, fontWeight:'600',
+                    borderRadius:10, paddingHorizontal:10, paddingVertical:4 }}>
+                    <Text style={{ fontSize:12, fontWeight:'700',
                       color: alert.alert_type==='help_request'?'#E65100':
                       alert.alert_type==='parent_message'?'#5C6BC0':'#2E7D32' }}>
                       {alert.alert_type === 'help_request' ? 'Help Request' :
-                       alert.alert_type === 'zone_alert' ? 'Check-in Alert' : 'Message'}
+                       alert.alert_type === 'zone_alert' ? 'Check-in Alert' : 'Message from Child'}
                     </Text>
                   </View>
                 </View>
-                <TouchableOpacity onPress={() => handleResolve(alert.id)} style={{ padding:4 }}>
-                  <MaterialIcons name="check-circle-outline" size={24} color="#4CAF50" />
+                <TouchableOpacity onPress={() => handleResolve(alert.id)}
+                  style={{ padding:8, marginLeft:8 }}>
+                  <MaterialIcons name="check-circle-outline" size={28} color="#4CAF50" />
                 </TouchableOpacity>
               </View>
 
               {alert.strategy_name ? (
-                <Text style={{ fontSize:13, color:'#555', marginBottom:6 }}>
-                  {"\u{1F3AF}"} {resolveName(alert.strategy_name)}
+                <Text style={{ fontSize:14, color:'#555', marginBottom:8 }}>
+                  {'\U0001F3AF'} {resolveName(alert.strategy_name)}
                 </Text>
               ) : null}
 
               {alert.message ? (
-                <View style={{ backgroundColor:'#EEF2FF', borderRadius:8, padding:10, marginBottom:6,
-                  borderLeftWidth:3, borderLeftColor:'#5C6BC0' }}>
-                  <Text style={{ fontSize:11, color:'#5C6BC0', fontWeight:'700', marginBottom:2 }}>Message</Text>
-                  <Text style={{ fontSize:14, color:'#1a1a1a', fontWeight:'600', lineHeight:20 }}>
+                <View style={{ backgroundColor:'#EEF2FF', borderRadius:10, padding:12, marginBottom:8,
+                  borderLeftWidth:4, borderLeftColor:'#5C6BC0' }}>
+                  <Text style={{ fontSize:12, color:'#5C6BC0', fontWeight:'700', marginBottom:4 }}>
+                    {'\U0001F4AC'} Message
+                  </Text>
+                  <Text style={{ fontSize:15, color:'#111', fontWeight:'600', lineHeight:22 }}>
                     {alert.message}
                   </Text>
                 </View>
               ) : null}
 
-              <Text style={{ fontSize:11, color:'#AAA' }}>
+              <Text style={{ fontSize:12, color:'#BBB' }}>
                 {new Date(alert.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
                 {' · '}{new Date(alert.created_at).toLocaleDateString()}
               </Text>
@@ -195,20 +202,20 @@ export default function ParentAlertsScreen() {
           <View style={{ marginTop:8 }}>
             <TouchableOpacity onPress={() => setShowResolved(v => !v)}
               style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center',
-                paddingVertical:10, paddingHorizontal:4 }}>
-              <Text style={{ fontSize:13, color:'#999', fontWeight:'600' }}>Resolved ({resolvedAlerts.length})</Text>
-              <MaterialIcons name={showResolved ? 'expand-less' : 'expand-more'} size={20} color="#CCC" />
+                paddingVertical:12, paddingHorizontal:4 }}>
+              <Text style={{ fontSize:14, color:'#999', fontWeight:'600' }}>Resolved ({resolvedAlerts.length})</Text>
+              <MaterialIcons name={showResolved ? 'expand-less' : 'expand-more'} size={22} color="#CCC" />
             </TouchableOpacity>
             {showResolved && resolvedAlerts.slice(0,10).map((a:any) => (
-              <View key={a.id} style={{ flexDirection:'row', alignItems:'center', padding:10,
-                backgroundColor:'white', borderRadius:8, marginBottom:6, opacity:0.6 }}>
-                <View style={{ width:8, height:8, borderRadius:4, marginRight:10,
+              <View key={a.id} style={{ flexDirection:'row', alignItems:'center', padding:12,
+                backgroundColor:'white', borderRadius:10, marginBottom:8, opacity:0.6 }}>
+                <View style={{ width:10, height:10, borderRadius:5, marginRight:12,
                   backgroundColor: ZONE_COLOR[a.zone] || '#CCC' }} />
-                <Text style={{ flex:1, fontSize:13, color:'#666' }}>
-                  {a.student_name} {'·'} {a.alert_type === 'help_request' ? 'Help Request' :
+                <Text style={{ flex:1, fontSize:14, color:'#666' }}>
+                  {a.student_name} · {a.alert_type === 'help_request' ? 'Help Request' :
                   a.alert_type === 'zone_alert' ? 'Check-in' : 'Message'}
                 </Text>
-                <MaterialIcons name="check-circle" size={16} color="#4CAF50" />
+                <MaterialIcons name="check-circle" size={18} color="#4CAF50" />
               </View>
             ))}
           </View>
