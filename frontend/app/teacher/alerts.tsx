@@ -157,7 +157,7 @@ export default function AlertsScreen() {
       </View>
 
       {/* Classroom filter */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[{minHeight:44}, st.classroomRow]}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.classroomRow}>
           {alertClassrooms.map(cl => (
             <TouchableOpacity key={cl} onPress={() => setSelectedClassroom(cl)}
               style={[st.classroomBtn, selectedClassroom===cl && st.classroomBtnActive]}>
@@ -170,7 +170,7 @@ export default function AlertsScreen() {
 
       {/* Type filter pills */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false}
-        style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0', minHeight:46 }}
+        style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}
         contentContainerStyle={{ flexDirection:'row', gap:6, paddingHorizontal:12, paddingVertical:8, alignItems:'center' }}>
         {[{id:null,label:'All'},{id:'help_request',label:'Help Request'},{id:'zone_alert',label:'Check-in Alert'},{id:'parent_message',label:'Message'}].map(typ=>(
           <TouchableOpacity key={typ.id||'all'}
@@ -302,8 +302,8 @@ const st = StyleSheet.create({
   tabActive: { backgroundColor:'#5C6BC0' },
   tabTxt: { fontSize:11, fontWeight:'600', color:'#888' },
   tabTxtActive: { color:'white' },
-  classroomRow: { backgroundColor:'white', paddingHorizontal:12, paddingVertical:4, borderBottomWidth:1, borderBottomColor:'#F0F0F0', minHeight:46 },
-  classroomBtn: { paddingHorizontal:8, paddingVertical:3, borderRadius:8, marginRight:5, backgroundColor:'#F5F5F5', height:26, justifyContent:'center' },
+  classroomRow: { backgroundColor:'white', paddingHorizontal:12, paddingVertical:6, borderBottomWidth:1, borderBottomColor:'#F0F0F0' },
+  classroomBtn: { paddingHorizontal:10, paddingVertical:5, borderRadius:8, marginRight:5, backgroundColor:'#F5F5F5', justifyContent:'center' },
   classroomBtnActive: { backgroundColor:'#E8EAF6' },
   classroomTxt: { fontSize:11, color:'#888' },
   classroomTxtActive: { color:'#5C6BC0', fontWeight:'600' },
