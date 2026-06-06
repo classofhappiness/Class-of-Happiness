@@ -100,37 +100,31 @@ export default function ParentAlertsScreen() {
     <SafeAreaView style={{ flex:1, backgroundColor:'#F8F9FA' }}>
       <TranslatedHeader title={t('alerts') || 'Family Alerts'} />
 
-      <View style={{ flexDirection:'row', backgroundColor:'white', padding:10, gap:8,
-        borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}>
-        <Tab label="Today" active={period==='today'} onPress={() => setPeriod('today')} />
-        <Tab label="Week" active={period==='7'} onPress={() => setPeriod('7')} />
-        <Tab label="Fortnight" active={period==='14'} onPress={() => setPeriod('14')} />
-        <Tab label="Month" active={period==='30'} onPress={() => setPeriod('30')} />
-      </View>
-
-      {childNames.length > 1 && (
-        <View style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}>
+      {/* FIXED HEADER — all filters stay on screen */}
+      <View style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#E0E0E0' }}>
+        <View style={{ flexDirection:'row', padding:10, gap:8 }}>
+          <Tab label="Today" active={period==='today'} onPress={() => setPeriod('today')} />
+          <Tab label="Week" active={period==='7'} onPress={() => setPeriod('7')} />
+          <Tab label="Fortnight" active={period==='14'} onPress={() => setPeriod('14')} />
+          <Tab label="Month" active={period==='30'} onPress={() => setPeriod('30')} />
+        </View>
+        {childNames.length > 1 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal:12, paddingVertical:10, flexDirection:'row' }}>
+            contentContainerStyle={{ paddingHorizontal:12, paddingBottom:8, flexDirection:'row', alignItems:'center' }}>
             <Pill label="All" active={childFilter===null} onPress={() => setChildFilter(null)} />
             {childNames.map(n => <Pill key={n} label={n} active={childFilter===n} onPress={() => setChildFilter(childFilter===n?null:n)} />)}
           </ScrollView>
-        </View>
-      )}
-
-      <View style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}>
+        )}
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal:12, paddingVertical:10, flexDirection:'row' }}>
+          contentContainerStyle={{ paddingHorizontal:12, paddingBottom:8, flexDirection:'row', alignItems:'center' }}>
           <Pill label="All" active={alertType===null} onPress={() => setAlertType(null)} />
           <Pill label="Help Request" active={alertType==='help_request'} onPress={() => setAlertType('help_request')} />
           <Pill label="Check-in" active={alertType==='zone_alert'} onPress={() => setAlertType('zone_alert')} />
           <Pill label="Message" active={alertType==='parent_message'} onPress={() => setAlertType('parent_message')} />
         </ScrollView>
-      </View>
-
-      <View style={{ paddingHorizontal:16, paddingVertical:8, backgroundColor:'white',
-        borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}>
-        <Text style={{ fontSize:13, color:'#666', fontWeight:'600' }}>{filtered.length} pending</Text>
+        <View style={{ paddingHorizontal:14, paddingBottom:8 }}>
+          <Text style={{ fontSize:12, color:'#999', fontWeight:'600' }}>{filtered.length} pending</Text>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={{ padding:14 }}
