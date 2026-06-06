@@ -145,9 +145,12 @@ export default function ParentAlertsScreen() {
             <View style={{ padding:14 }}>
               <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
                 <View style={{ flex:1 }}>
-                  <Text style={{ fontSize:16, fontWeight:'700', color:'#222', marginBottom:4 }}>
-                    {zoneEmoji(alert.zone)} {alert.student_name || 'Child'}
-                  </Text>
+                  <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:4 }}>
+                    <View style={{ width:12, height:12, borderRadius:6, backgroundColor: ZONE_COLOR[alert.zone]||'#CCC' }} />
+                    <Text style={{ fontSize:16, fontWeight:'700', color:'#222' }}>
+                      {alert.student_name || 'Child'}
+                    </Text>
+                  </View>
                   <View style={{ alignSelf:'flex-start', backgroundColor:
                     alert.alert_type==='help_request'?'#FFF3E0':
                     alert.alert_type==='parent_message'?'#EEF2FF':'#E8F5E9',
