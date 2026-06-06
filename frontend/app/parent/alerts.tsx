@@ -11,6 +11,27 @@ import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { getAlerts, resolveAlert } from '../../src/utils/notifications';
 import { useApp } from '../../src/context/AppContext';
 
+const STRATEGY_NAMES: Record<string,string> = {
+  b1:'Gentle Stretch',b2:'Warm Drink',b3:'Favourite Song',b4:'Cosy Spot',b5:'Tell Someone',b6:'Slow Breathing',
+  g1:'Keep Going!',g2:'Help a Friend',g3:'Try Something New',g4:'Share Your Smile',g5:'Set a Goal',g6:'Gratitude',
+  y1:'Bubble Breathing',y2:'Body Shake',y3:'Count to 10',y4:'5 Senses',y5:'Squeeze & Release',y6:'Talk About It',
+  r1:'Freeze',r2:'Big Breaths',r3:'Count Backwards',r4:'Safe Space',r5:'Ask for Help',r6:'Self Hug',
+  blue_1:'Gentle Stretch',blue_2:'Warm Drink',blue_3:'Favourite Song',blue_4:'Cosy Spot',blue_5:'Tell Someone',blue_6:'Slow Breathing',
+  green_1:'Keep Going!',green_2:'Help a Friend',green_3:'Try Something New',green_4:'Share Your Smile',green_5:'Set a Goal',green_6:'Gratitude',
+  yellow_1:'Bubble Breathing',yellow_2:'Body Shake',yellow_3:'Count to 10',yellow_4:'5 Senses',yellow_5:'Squeeze & Release',yellow_6:'Talk About It',
+  red_1:'Freeze',red_2:'Big Breaths',red_3:'Count Backwards',red_4:'Safe Space',red_5:'Ask for Help',red_6:'Self Hug',
+  p_b1:'Side-by-Side Presence',p_b2:'Warm Drink Ritual',p_b3:'Name It to Tame It',p_b4:'Movement Invitation',p_b5:'Comfort & Closeness',
+  p_g1:'Gratitude Round',p_g2:'Strength Spotting',p_g3:'Creative Together',p_g4:'Family Dance',p_g5:'Calm Problem Solving',
+  p_y1:'Box Breathing Together',p_y2:'Validate Feelings First',p_y3:'Body Check-In',p_y4:'Feelings Journal',p_y5:'Give Space with Love',
+  p_r1:'Stay Calm Yourself',p_r2:'Safe Space Together',p_r3:'Cold Water Reset',p_r4:'No Teaching Now',p_r5:'Reconnect with Warmth',
+};
+const resolveStratName = (id: string) => {
+  if (!id) return id;
+  if (STRATEGY_NAMES[id]) return STRATEGY_NAMES[id];
+  const clean = id.replace(/^(helper_|strategy_)/,'');
+  if (STRATEGY_NAMES[clean]) return STRATEGY_NAMES[clean];
+  return id.replace(/_/g,' ').replace(/\w/g,(c:string)=>c.toUpperCase());
+};
 const ZONE_COLORS: Record<string, string> = {
   blue: '#4A90D9', green: '#4CAF50', yellow: '#FFC107', red: '#F44336',
 };
@@ -212,8 +233,8 @@ export default function ParentAlertsScreen() {
                 </Text>
                 <Text style={st.type}>{TYPE_LABELS[alert.alert_type] || alert.alert_type}</Text>
               </View>
-              {alert.strategy_name && alert.alert_type !== 'parent_message' && (
-                <Text style={st.strategy}>Strategy: {alert.strategy_name}</Text>
+              {alert.strategy_name && (
+                <Text style={st.strategy}>🎯 {resolveStratName(alert.strategy_name)}</Text>
               )}
               {alert.message && (
                 <View style={{backgroundColor:'#EEF2FF', borderRadius:8, padding:10, marginVertical:4, borderLeftWidth:3, borderLeftColor:'#5C6BC0'}}>
