@@ -7449,13 +7449,15 @@ async def family_member_checkin(member_id: str, request: Request):
             except Exception as pe:
                 logger.warning(f"[family_checkin] Could not award points: {pe}")
 
-        # Create alert for parent if comment or non-green zone
+        # Create alert for parent — always for non-green or comment
         try:
             member_name = member.get("name", "Family Member")
             comment_text = (comment or "").strip()
             should_alert = bool(comment_text) or zone in ("yellow", "red", "blue")
             if should_alert:
                 alert_type = "parent_message" if comment_text else "zone_alert"
+                strategies_used = body.get("helpers_selected", body.get("strategies_selected", []))
+                strategy_label = ", ".join(strategies_used[:2]) if strategies_used else ""
                 supabase.table("student_alerts").insert({
                     "id": str(uuid.uuid4()),
                     "student_id": final_student_id or member_id,
@@ -7464,10 +7466,11 @@ async def family_member_checkin(member_id: str, request: Request):
                     "context": "home",
                     "zone": zone,
                     "message": comment_text or None,
+                    "strategy_name": strategy_label or None,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "resolved": False,
                 }).execute()
-                logger.info(f"[family_checkin] Created {alert_type} alert for {member_name} zone={zone}")
+                logger.info(f"[family_checkin] Created {alert_type} alert for {member_name} zone={zone} comment={bool(comment_text)}")
         except Exception as ae:
             logger.warning(f"[family_checkin] Could not create alert: {ae}")
 
