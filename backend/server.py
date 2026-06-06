@@ -5547,6 +5547,12 @@ async def get_alerts(request: Request, limit: int = 20):
             for l in (family_links_r.data or []):
                 if l.get("student_id"):
                     student_ids.append(l["student_id"])
+                    # Also find the school student record linked to this family member
+                    try:
+                        school_r = supabase.table("students").select("id").eq("family_member_id", l["id"]).execute()
+                        for sr in (school_r.data or []):
+                            if sr.get("id"): student_ids.append(sr["id"])
+                    except: pass
                 # Also add family_member id itself in case alerts stored with that id
                 if l.get("id"):
                     student_ids.append(l["id"])
