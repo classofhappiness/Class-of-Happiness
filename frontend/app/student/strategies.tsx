@@ -211,7 +211,11 @@ export default function StrategiesScreen() {
 
   const handleParentMessage = async () => {
     const msg = parentMessage.trim() || parentMessageRef.current.trim();
-    if (!currentStudent || !msg) return;
+    console.log('[MSG] called msg=', JSON.stringify(msg), 'student=', currentStudent?.id);
+    if (!currentStudent || !msg) {
+      console.log('[MSG] guard hit — student:', !!currentStudent, 'msg:', JSON.stringify(msg));
+      return;
+    }
     await sendParentMessage({
       student_id: currentStudent.id,
       message: msg,
