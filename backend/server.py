@@ -5120,7 +5120,6 @@ async def send_help_request(request: Request):
             "strategy_id": strategy_id,
             "strategy_name": strategy_name,
             "message": message,
-            "user_id": parent_user_id,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "resolved": False,
         }).execute()

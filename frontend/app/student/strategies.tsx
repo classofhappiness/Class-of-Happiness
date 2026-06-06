@@ -396,7 +396,7 @@ export default function StrategiesScreen() {
             </View>
           )}
 
-          {true && <View style={styles.commentSection}>
+          {checkInLocation !== 'home' && <View style={styles.commentSection}>
             <TouchableOpacity style={[styles.commentToggle, { justifyContent:'space-between' }]} onPress={() => { playButtonFeedback(); setShowCommentInput(!showCommentInput); }}>
               <MaterialIcons name="chat-bubble-outline" size={20} color={showCommentInput || comment ? zoneColor : '#999'} />
               <Text style={[styles.commentToggleText, (showCommentInput || comment) && { color: zoneColor }]}>
