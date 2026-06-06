@@ -103,6 +103,7 @@ export default function ParentAlertsScreen() {
   const [showResolved, setShowResolved] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Record<string,boolean>>({});
 
   const load = useCallback(async () => {
     const tok = await AsyncStorage.getItem('session_token') || '';
@@ -215,14 +216,32 @@ export default function ParentAlertsScreen() {
             <Text style={{ color:'#999', fontSize:14, marginTop:8 }}>{t('no_alerts') || 'No pending alerts'}</Text>
           </View>
         )}
-        {filtered.map((alert:any) => (
-          <AlertCard key={alert.id} alert={alert}
-            onResolve={() => handleResolve(alert.id)}
-            selected={selected.has(alert.id)}
-            selectMode={selectMode}
-            onLongPress={() => { setSelectMode(true); toggleSelect(alert.id); }}
-            onPress={() => selectMode && toggleSelect(alert.id)}
-          />
+        {Object.entries(
+          filtered.reduce((g:any, a:any) => { const k=a.student_name||'Child'; if(!g[k])g[k]=[]; g[k].push(a); return g; }, {})
+        ).map(([name, items]:any) => (
+          <View key={name} style={{ backgroundColor:'white', borderRadius:14, marginBottom:10,
+            shadowColor:'#000', shadowOpacity:0.07, shadowRadius:6, elevation:3, overflow:'hidden' }}>
+            <TouchableOpacity onPress={() => setExpanded((p:any) => ({...p, [name]: !p[name]}))}
+              style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center',
+                paddingHorizontal:14, paddingVertical:12, backgroundColor:'#F8F9FA' }}>
+              <Text style={{ fontSize:15, fontWeight:'700', color:'#333' }}>{name}</Text>
+              <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+                <View style={{ backgroundColor:'#888', borderRadius:10, paddingHorizontal:7, paddingVertical:2 }}>
+                  <Text style={{ fontSize:11, color:'white', fontWeight:'700' }}>{items.length}</Text>
+                </View>
+                <MaterialIcons name={expanded[name] ? 'expand-less' : 'expand-more'} size={20} color="#999" />
+              </View>
+            </TouchableOpacity>
+            {expanded[name] && items.map((alert:any) => (
+              <AlertCard key={alert.id} alert={alert}
+                onResolve={() => handleResolve(alert.id)}
+                selected={selected.has(alert.id)}
+                selectMode={selectMode}
+                onLongPress={() => { setSelectMode(true); toggleSelect(alert.id); }}
+                onPress={() => selectMode && toggleSelect(alert.id)}
+              />
+            ))}
+          </View>
         ))}
 
         {resolvedAlerts.length > 0 && (
