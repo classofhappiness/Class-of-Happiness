@@ -155,8 +155,7 @@ export default function AlertsScreen() {
       </View>
 
       {/* Classroom filter */}
-      {alertClassrooms.length > 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[{minHeight:44}, st.classroomRow]}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[{minHeight:44}, st.classroomRow]}>
           {alertClassrooms.map(cl => (
             <TouchableOpacity key={cl} onPress={() => setSelectedClassroom(cl)}
               style={[st.classroomBtn, selectedClassroom===cl && st.classroomBtnActive]}>
@@ -166,7 +165,6 @@ export default function AlertsScreen() {
             </TouchableOpacity>
           ))}
         </ScrollView>
-      )}
 
       {/* Type filter pills */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false}
@@ -219,10 +217,12 @@ export default function AlertsScreen() {
           </View>
         ) : null}
 
-        {/* Grouped by student */}
-        {Object.entries(grouped).map(([studentName, studentAlerts]) => (
+        {/* Grouped by student — collapsed by default */}
+        {Object.entries(grouped).map(([studentName, studentAlerts]) => {
+          const [expanded, setExpanded] = React.useState(false);
+          return (
           <View key={studentName} style={st.studentGroup}>
-            <View style={st.studentHeader}>
+            <TouchableOpacity style={st.studentHeader} onPress={() => setExpanded(e => !e)} activeOpacity={0.7}>
               <Text style={st.studentName}>
                 {ZONE_EMOJI[studentAlerts[0]?.zone] || '💙'} {studentName}
               </Text>
@@ -232,8 +232,9 @@ export default function AlertsScreen() {
                 )}
                 <Text style={st.countBadge}>{studentAlerts.length}</Text>
               </View>
-            </View>
-            {studentAlerts.map(alert => (
+              <MaterialIcons name={expanded ? 'expand-less' : 'expand-more'} size={20} color="#999" />
+            </TouchableOpacity>
+            {expanded && studentAlerts.map(alert => (
               <TouchableOpacity key={alert.id}
                 style={[st.alertRow, selectMode && selected.has(alert.id) && st.alertRowSelected]}
                 onPress={() => selectMode ? toggleSelect(alert.id) : null}
@@ -263,7 +264,8 @@ export default function AlertsScreen() {
               </TouchableOpacity>
             ))}
           </View>
-        ))}
+          );
+        })}
 
         {/* Resolved section */}
         {resolvedFiltered.length > 0 && (
@@ -316,7 +318,7 @@ const st = StyleSheet.create({
   alertRowSelected: { backgroundColor:'#E8F5E9' },
   zoneDot: { width:10, height:10, borderRadius:5, flexShrink:0 },
   strategyTxt: { fontSize:13, color:'#333', fontWeight:'500' },
-  messageTxt: { fontSize:13, color:'#333', fontWeight:'500', backgroundColor:'#F0F4FF', padding:6, borderRadius:6, marginVertical:2 },
+  messageTxt: { fontSize:13, color:'#1a1a1a', fontWeight:'600', backgroundColor:'#EEF2FF', padding:8, borderRadius:8, marginVertical:3, borderLeftWidth:3, borderLeftColor:'#5C6BC0' },
   timeTxt: { fontSize:11, color:'#999', marginTop:2 },
   resolveBtn: { padding:4 },
   resolvedHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:10, paddingHorizontal:4, marginTop:8 },
