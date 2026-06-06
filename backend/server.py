@@ -2462,6 +2462,20 @@ async def promote_admin(request: Request):
     supabase.table("users").update({"role": "admin"}).eq("user_id", user["user_id"]).execute()
     return {"message": "Promoted to admin", "role": "admin"}
 
+@api_router.post("/auth/fix-role")
+async def fix_user_role(request: Request):
+    """Superadmin: fix a specific user role by user_id"""
+    body = await request.json()
+    secret = body.get("secret", "")
+    if secret != "FIXROLE2026CLASS":
+        raise HTTPException(status_code=403, detail="Invalid secret")
+    user_id = body.get("user_id")
+    role = body.get("role")
+    if not user_id or role not in ["teacher", "parent", "admin", "school_admin"]:
+        raise HTTPException(status_code=400, detail="Invalid params")
+    supabase.table("users").update({"role": role}).eq("user_id", user_id).execute()
+    return {"ok": True, "user_id": user_id, "role": role}
+
 @api_router.post("/auth/promo-code")
 async def apply_promo_code(request: Request, body: PromoCodeRequest):
     user = await get_current_user(request)
