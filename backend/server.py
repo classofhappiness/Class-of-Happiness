@@ -5504,6 +5504,11 @@ async def test_alerts_endpoint():
 
 @api_router.get("/notifications/alerts")
 async def get_alerts(request: Request, limit: int = 20):
+    try:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        supabase.table("student_alerts").delete().lt("created_at", cutoff).execute()
+    except Exception as ce:
+        logger.warning(f"Alert cleanup: {ce}")
     """Get recent alerts for the current user's students."""
     user = await get_current_user(request)
     if not user:
