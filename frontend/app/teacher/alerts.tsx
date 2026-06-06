@@ -192,10 +192,14 @@ export default function TeacherAlertsScreen() {
                 borderLeftWidth:3, borderLeftColor: ZONE_COLOR[alert.zone] || '#CCC' }}>
                 <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
                   <View style={{ flex:1 }}>
-                    <Text style={{ fontSize:12, color:'#888', marginBottom:4 }}>
-                      {alert.alert_type === 'help_request' ? '🖐 Help Request' :
-                       alert.alert_type === 'zone_alert' ? '📍 Check-in Alert' : '💬 Message'}
-                    </Text>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6 }}>
+                      <View style={{ width:10, height:10, borderRadius:5, backgroundColor: ZONE_COLOR[alert.zone]||'#CCC' }} />
+                      <Text style={{ fontSize:11, color:'#555', fontWeight:'700' }}>
+                        {alert.alert_type === 'help_request' ? 'Help Request' :
+                         alert.alert_type === 'zone_alert' ? 'Check-in' : 'Message'}
+                        {' · '}{(alert.zone||'').charAt(0).toUpperCase()+(alert.zone||'').slice(1)}
+                      </Text>
+                    </View>
                     {alert.strategy_name && (
                       <Text style={{ fontSize:13, color:'#333', fontWeight:'500', marginBottom:4 }}>
                         🎯 {resolveName(alert.strategy_name)}
