@@ -224,7 +224,7 @@ export default function TeacherAlertsScreen() {
               style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center',
                 paddingVertical:10, paddingHorizontal:4 }}>
               <Text style={{ fontSize:13, color:'#999', fontWeight:'600' }}>Resolved ({resolved.length})</Text>
-              <MaterialIcons name={showResolved ? 'expand-less' : 'expand-more'} size:20 color="#CCC" />
+              <MaterialIcons name={showResolved ? 'expand-less' : 'expand-more'} size={20} color="#CCC" />
             </TouchableOpacity>
             {showResolved && resolved.slice(0,10).map((a:any) => (
               <View key={a.id} style={{ flexDirection:'row', alignItems:'center', padding:10,
