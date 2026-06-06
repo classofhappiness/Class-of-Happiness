@@ -110,38 +110,41 @@ export default function TeacherAlertsScreen() {
     <SafeAreaView style={{ flex:1, backgroundColor:'#F8F9FA' }}>
       <TranslatedHeader title={t('alerts') || 'Student Alerts'} />
 
-      {/* Period tabs */}
-      <View style={{ flexDirection:'row', backgroundColor:'white', paddingHorizontal:12, paddingVertical:6,
-        gap:6, borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}>
-        {(['today','7','14','30'] as const).map(p => (
-          <TouchableOpacity key={p} onPress={() => setPeriod(p)} style={{ flex:1, paddingVertical:6,
-            borderRadius:8, alignItems:'center', backgroundColor: period===p ? '#5C6BC0' : '#F5F5F5' }}>
-            <Text style={{ fontSize:12, fontWeight:'600', color: period===p ? 'white' : '#888' }}>
-              {p==='today'?'Today':p==='7'?'Week':p==='14'?'Fortnight':'Month'}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      {/* FIXED HEADER — never scrolls */}
+      <View style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#E0E0E0' }}>
+        {/* Period tabs */}
+        <View style={{ flexDirection:'row', paddingHorizontal:12, paddingTop:8, paddingBottom:6, gap:6 }}>
+          {(['today','7','14','30'] as const).map(p => (
+            <TouchableOpacity key={p} onPress={() => setPeriod(p)} style={{ flex:1, paddingVertical:7,
+              borderRadius:8, alignItems:'center', backgroundColor: period===p ? '#5C6BC0' : '#F0F0F0' }}>
+              <Text style={{ fontSize:12, fontWeight:'700', color: period===p ? 'white' : '#888' }}>
+                {p==='today'?'Today':p==='7'?'Week':p==='14'?'Fortnight':'Month'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Classroom filter */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal:12, paddingVertical:6, flexDirection:'row', alignItems:'center' }}>
+          <Pill label="All Classes" active={classroom==='all'} onPress={() => setClassroom('all')} />
+          {classroomNames.map(n => <Pill key={n} label={n} active={classroom===n} onPress={() => setClassroom(n)} />)}
+        </ScrollView>
+
+        {/* Type filter */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal:12, paddingVertical:6, flexDirection:'row', alignItems:'center' }}>
+          <Pill label="All" active={type===null} onPress={() => setType(null)} />
+          <Pill label="Help Request" active={type==='help_request'} onPress={() => setType('help_request')} />
+          <Pill label="Check-in" active={type==='zone_alert'} onPress={() => setType('zone_alert')} />
+          <Pill label="Message" active={type==='parent_message'} onPress={() => setType('parent_message')} />
+        </ScrollView>
+
+        {/* Count */}
+        <View style={{ paddingHorizontal:14, paddingVertical:6 }}>
+          <Text style={{ fontSize:12, color:'#999', fontWeight:'600' }}>{filtered.length} pending</Text>
+        </View>
       </View>
-
-      {/* Classroom filter */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
-        style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0', flexGrow:0 }}
-        contentContainerStyle={{ paddingHorizontal:12, paddingVertical:8, flexDirection:'row', alignItems:'center' }}>
-        <Pill label="🏫 All" active={classroom==='all'} onPress={() => setClassroom('all')} />
-        {classroomNames.map(n => (
-          <Pill key={n} label={`📍 ${n}`} active={classroom===n} onPress={() => setClassroom(n)} />
-        ))}
-      </ScrollView>
-
-      {/* Type filter */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
-        style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0', flexGrow:0 }}
-        contentContainerStyle={{ paddingHorizontal:12, paddingVertical:8, flexDirection:'row', alignItems:'center' }}>
-        <Pill label="All" active={type===null} onPress={() => setType(null)} />
-        <Pill label="🖐 Help Request" active={type==='help_request'} onPress={() => setType('help_request')} />
-        <Pill label="📍 Check-in" active={type==='zone_alert'} onPress={() => setType('zone_alert')} />
-        <Pill label="💬 Message" active={type==='parent_message'} onPress={() => setType('parent_message')} />
-      </ScrollView>
 
       {/* Count bar */}
       <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center',
