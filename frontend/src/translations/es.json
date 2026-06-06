@@ -621,5 +621,15 @@
   "skip": "Saltar",
   "fortnight": "Quincena",
   "month": "Mes",
-  "wellbeing_private": "Privado · solo para ti"
+  "wellbeing_private": "Privado · solo para ti",
+  "alerts": "Alertas",
+  "no_alerts": "Sin alertas pendientes",
+  "help_request": "Solicitud de Ayuda",
+  "check_in_alert": "Alerta de Check-in",
+  "message_from_child": "Mensaje del Niño",
+  "week": "Semana",
+  "all_classes": "Todas las Clases",
+  "message_parent": "Enviar mensaje al padre/madre",
+  "message_parent_placeholder": "Dile a tu padre/madre cómo te sientes...",
+  "send": "Enviar"
 }

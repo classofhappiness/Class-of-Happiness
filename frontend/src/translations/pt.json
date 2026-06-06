@@ -640,5 +640,11 @@
   "exit": "Sair",
   "skip": "Saltar",
   "family_wellbeing_desc": "O Bem-Estar Emocional da Minha Família",
-  "week": "Semana"
+  "week": "Semana",
+  "check_in_alert": "Alerta de Check-in",
+  "message_from_child": "Mensagem do Filho",
+  "all_classes": "Todas as Turmas",
+  "message_parent": "Enviar mensagem ao pai/mãe",
+  "message_parent_placeholder": "Diz ao teu pai/mãe como te sentes...",
+  "send": "Enviar"
 }

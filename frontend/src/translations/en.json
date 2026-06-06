@@ -126,5 +126,21 @@
   "wellbeing_journal_ph": "Add a note to this check-in...",
   "wellbeing_total": "total check-ins",
   "per_week_avg": "per week avg",
-  "daily_view": "Daily View"
+  "daily_view": "Daily View",
+  "alerts": "Alerts",
+  "no_alerts": "No pending alerts",
+  "help_request": "Help Request",
+  "check_in_alert": "Check-in Alert",
+  "message_from_child": "Message from Child",
+  "resolved": "Resolved",
+  "pending": "Pending",
+  "today": "Today",
+  "week": "Week",
+  "fortnight": "Fortnight",
+  "month": "Month",
+  "all_classes": "All Classes",
+  "message_parent": "Send message to parent",
+  "message_parent_placeholder": "Tell your parent how you feel...",
+  "send": "Send",
+  "want_to_say": "Want to say something?"
 }
