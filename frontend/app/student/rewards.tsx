@@ -19,6 +19,38 @@ import { EvolutionAnimation } from '../../src/components/EvolutionAnimation';
 import { CreatureCollection } from '../../src/components/CreatureCollection';
 import { playButtonFeedback, playRewardFeedback, playEvolutionSound, preloadSounds } from '../../src/utils/sounds';
 
+
+// Zone-specific tips — research-backed, age appropriate (6-12), 3-4 words max
+const ZONE_TIPS: Record<string, string[]> = {
+  blue: [
+    'Rest helps you grow',
+    'Still waters run deep',
+    'Rest is productive',
+  ],
+  green: [
+    'You are doing great',
+    'Share your good energy',
+    'Help someone today',
+  ],
+  yellow: [
+    'Breathe, then decide',
+    'Slow down, you're safe',
+    'Wiggle it all out',
+  ],
+  red: [
+    'Breathe deep, you're safe',
+    'This feeling will pass',
+    'Ask for help now',
+  ],
+};
+
+const STUDENT_ZONE_MESSAGE: Record<string, string> = {
+  blue: 'It's okay to feel quiet. Rest and be kind to yourself. 💙',
+  green: 'You're in a great space! Keep spreading that energy. 💚',
+  yellow: 'Feeling wobbly is normal. Use your helpers to find calm. 💛',
+  red: 'Big feelings are okay. You are safe and supported. ❤️',
+};
+
 export default function RewardsScreen() {
   const router = useRouter();
   const navigation = useNavigation() as any;
@@ -272,6 +304,22 @@ export default function RewardsScreen() {
           </Text>
         </View>
       )}
+
+      {/* Zone-specific tip */}
+      {(() => {
+        const colour = (params as any)?.zone || '';
+        const tips = ZONE_TIPS[colour] || ZONE_TIPS.green;
+        const tip = tips[Math.floor(Date.now() / 1000) % tips.length];
+        const msg = STUDENT_COLOUR_MESSAGE[colour] || '';
+        return colour ? (
+          <View style={{ marginHorizontal:20, marginBottom:10, padding:14, borderRadius:14,
+            backgroundColor: colour==='blue'?'#EBF5FB': colour==='green'?'#EAFAF1': colour==='yellow'?'#FEFDE7':'#FDEDEC',
+            borderLeftWidth:4, borderLeftColor: colour==='blue'?'#4A90D9': colour==='green'?'#4CAF50': colour==='yellow'?'#FFC107':'#F44336' }}>
+            <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:4 }}>{tip}</Text>
+            <Text style={{ fontSize:12, color:'#555', lineHeight:18 }}>{msg}</Text>
+          </View>
+        ) : null;
+      })()}
 
       {/* Brave Shield Badge */}
       {shield?.has_shield && (
