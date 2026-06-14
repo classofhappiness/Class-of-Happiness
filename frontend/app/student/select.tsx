@@ -242,28 +242,34 @@ export default function StudentSelectScreen() {
   return (
     <View style={styles.container}>
       <TranslatedHeader title={t('select_profile')} backTo="/" />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Classroom filter tabs */}
-        {classrooms && classrooms.length > 1 && (
+      {/* Classroom filter — fixed, never scrolls away, matches teacher flow */}
+      {classrooms && classrooms.length > 1 && (
+        <View style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}
-            style={{marginBottom:8}} contentContainerStyle={{paddingHorizontal:4, gap:8, flexDirection:'row'}}>
+            contentContainerStyle={{ paddingHorizontal:12, paddingVertical:8, flexDirection:'row', gap:8, alignItems:'center' }}>
             <TouchableOpacity
-              style={{paddingHorizontal:14,paddingVertical:7,borderRadius:16,
-                backgroundColor: !selectedClassroom ? '#5C6BC0' : '#F0F0F0'}}
+              style={{ paddingHorizontal:14, paddingVertical:7, borderRadius:16,
+                backgroundColor: !selectedClassroom ? '#5C6BC0' : '#EEEEEE',
+                borderWidth:1, borderColor: !selectedClassroom ? '#5C6BC0' : '#DDD' }}
               onPress={() => setSelectedClassroom(null)}>
-              <Text style={{fontSize:13,fontWeight:'600',color: !selectedClassroom ? 'white' : '#666'}}>All</Text>
+              <Text style={{ fontSize:13, fontWeight:'600', color: !selectedClassroom ? 'white' : '#555' }}>
+                {t('all') || 'All'}
+              </Text>
             </TouchableOpacity>
-            {classrooms.map((c: any) => (
-              <TouchableOpacity key={c.id}
-                style={{paddingHorizontal:14,paddingVertical:7,borderRadius:16,
-                  backgroundColor: selectedClassroom === c.id ? '#5C6BC0' : '#F0F0F0'}}
-                onPress={() => setSelectedClassroom(c.id)}>
-                <Text style={{fontSize:13,fontWeight:'600',
-                  color: selectedClassroom === c.id ? 'white' : '#666'}}>{c.name}</Text>
+            {classrooms.map((cl: any) => (
+              <TouchableOpacity key={cl.id}
+                style={{ paddingHorizontal:14, paddingVertical:7, borderRadius:16,
+                  backgroundColor: selectedClassroom === cl.id ? '#5C6BC0' : '#EEEEEE',
+                  borderWidth:1, borderColor: selectedClassroom === cl.id ? '#5C6BC0' : '#DDD' }}
+                onPress={() => setSelectedClassroom(cl.id)}>
+                <Text style={{ fontSize:13, fontWeight:'600',
+                  color: selectedClassroom === cl.id ? 'white' : '#555' }}>{cl.name}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
-        )}
+        </View>
+      )}
+      <ScrollView contentContainerStyle={styles.scrollContent}>
 
 
         <View style={styles.studentsGrid}>
