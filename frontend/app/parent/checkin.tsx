@@ -227,7 +227,7 @@ export default function FamilyCheckInScreen() {
 
   const handleSubmit = async () => {
     if (!selectedZone) {
-      Alert.alert('Oops', 'Please select a zone first');
+      Alert.alert('Oops', 'Please select a colour first');
       return;
     }
     if (!memberId) {
