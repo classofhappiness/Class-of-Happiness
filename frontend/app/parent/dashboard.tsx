@@ -201,6 +201,7 @@ export default function ParentDashboard() {
   };
   const [analyticsPeriod, setAnalyticsPeriod] = useState<1|7|14|30>(7);
   const [checkInsExpanded, setCheckInsExpanded] = useState(false);
+  const [tipDismissed, setTipDismissed] = useState(false);
   const [showCollection, setShowCollection] = useState(false);
   const [collectionMember, setCollectionMember] = useState<any>(null);
   // removed duplicate checkInsExpanded state — using checkInsExpanded
@@ -837,8 +838,8 @@ export default function ParentDashboard() {
             {t('family_wellbeing_desc') || "My Family's Emotional Wellbeing"}
           </Text>
         </View>
-        {/* Daily Colour Tip for Parents */}
-        {familyMembers.length > 0 && (() => {
+        {/* Daily Colour Tip for Parents — tap X to dismiss */}
+        {familyMembers.length > 0 && !tipDismissed && (() => {
           const logs = (recentLogs as any[]) || [];
           const colour = logs[0]?.feeling_colour || logs[0]?.zone || 'green';
           const tips = (COLOUR_TIPS_PARENT as any)[colour] || COLOUR_TIPS_PARENT.green;
@@ -847,9 +848,15 @@ export default function ParentDashboard() {
           const bgs: Record<string,string> = { blue:'#EBF5FB', green:'#EAFAF1', yellow:'#FEFDE7', red:'#FDEDEC' };
           return (
             <View style={{ marginHorizontal:16, marginBottom:10, padding:12, borderRadius:12,
-              backgroundColor: bgs[colour] || '#EAFAF1', borderLeftWidth:4, borderLeftColor: clrs[colour] || '#4CAF50' }}>
-              <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:3 }}>{tip.tip}</Text>
-              <Text style={{ fontSize:12, color:'#555', lineHeight:17 }}>{tip.action}</Text>
+              backgroundColor: bgs[colour] || '#EAFAF1', borderLeftWidth:4, borderLeftColor: clrs[colour] || '#4CAF50',
+              flexDirection:'row', alignItems:'flex-start' }}>
+              <View style={{ flex:1 }}>
+                <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:3 }}>{tip.tip}</Text>
+                <Text style={{ fontSize:12, color:'#555', lineHeight:17 }}>{tip.action}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setTipDismissed(true)} style={{ padding:4, marginLeft:8 }}>
+                <MaterialIcons name="close" size={16} color="#AAA" />
+              </TouchableOpacity>
             </View>
           );
         })()}
