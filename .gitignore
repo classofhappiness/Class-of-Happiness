@@ -16,3 +16,4 @@ frontend/.metro-cache/
 # Allow app assets
 !frontend/assets/**/*.png
 !frontend/assets/**/*.jpg
+*.swp
