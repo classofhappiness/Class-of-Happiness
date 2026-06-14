@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -281,7 +282,7 @@ export default function StrategiesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <style={styles.container}>
       <TranslatedHeader title={t('choose_helpers') || 'Choose Helpers'} />
       <CelebrationOverlay
         visible={showCelebration}

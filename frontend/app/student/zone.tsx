@@ -1,5 +1,6 @@
 import React, { useLayoutEffect, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, Dimensions, TouchableOpacity, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity, Modal, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useNavigation, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
@@ -85,7 +86,7 @@ export default function ColourSelectionScreen() {
 
   if (!currentStudent) {
     return (
-      <SafeAreaView style={styles.container}>
+      <style={styles.container}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{t('select_profile') || 'Select Your Profile'}</Text>
         </View>

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -162,7 +163,7 @@ export default function ParentAlertsScreen() {
   const resolvedAlerts = alerts.filter((a:any) => a.resolved && inPeriod(a));
 
   return (
-    <SafeAreaView style={{ flex:1, backgroundColor:'#F8F9FA' }}>
+    <style={{ flex:1, backgroundColor:'#F8F9FA' }}>
       <TranslatedHeader title={t('alerts') || 'Family Alerts'} />
 
       <View style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#E0E0E0' }}>

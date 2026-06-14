@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -179,7 +180,7 @@ export default function TeacherAlertsScreen() {
   const toggleExpand = (name: string) => setExpanded(p => ({...p, [name]: !p[name]}));
 
   return (
-    <SafeAreaView style={{ flex:1, backgroundColor:'#F8F9FA' }}>
+    <style={{ flex:1, backgroundColor:'#F8F9FA' }}>
       <TranslatedHeader title={t('alerts') || 'Student Alerts'} />
 
       <View style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#E0E0E0' }}>
