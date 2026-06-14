@@ -34,11 +34,11 @@ const ZONE_TIPS: Record<string, string[]> = {
   ],
   yellow: [
     'Breathe, then decide',
-    'Slow down, you're safe',
+    "Slow down, you're safe",
     'Wiggle it all out',
   ],
   red: [
-    'Breathe deep, you're safe',
+    "Breathe deep, you're safe",
     'This feeling will pass',
     'Ask for help now',
   ],
