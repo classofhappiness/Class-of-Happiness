@@ -837,6 +837,23 @@ export default function ParentDashboard() {
             {t('family_wellbeing_desc') || "My Family's Emotional Wellbeing"}
           </Text>
         </View>
+        {/* Daily Colour Tip for Parents */}
+        {familyMembers.length > 0 && (() => {
+          const logs = (familyCheckIns as any[]) || [];
+          const colour = logs[0]?.feeling_colour || logs[0]?.zone || 'green';
+          const tips = (COLOUR_TIPS_PARENT as any)[colour] || COLOUR_TIPS_PARENT.green;
+          const tip = tips[new Date().getDate() % tips.length];
+          const clrs: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
+          const bgs: Record<string,string> = { blue:'#EBF5FB', green:'#EAFAF1', yellow:'#FEFDE7', red:'#FDEDEC' };
+          return (
+            <View style={{ marginHorizontal:16, marginBottom:10, padding:12, borderRadius:12,
+              backgroundColor: bgs[colour] || '#EAFAF1', borderLeftWidth:4, borderLeftColor: clrs[colour] || '#4CAF50' }}>
+              <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:3 }}>{tip.tip}</Text>
+              <Text style={{ fontSize:12, color:'#555', lineHeight:17 }}>{tip.action}</Text>
+            </View>
+          );
+        })()}
+
         {/* Family Members — Whole card taps to check in */}
         <View style={styles.familySection}>
           <View style={{flexDirection:'row',justifyContent:'flex-end',paddingHorizontal:12,paddingBottom:2,gap:6}}>

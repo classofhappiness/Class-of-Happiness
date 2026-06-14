@@ -330,6 +330,23 @@ export default function TeacherDashboardScreen() {
           </TouchableOpacity>
         )}
 
+        {/* Daily Colour Tip */}
+        {analyticsData?.zone_counts && (() => {
+          const zc = analyticsData.zone_counts as any;
+          const dominant = ['red','yellow','blue','green'].find(col => zc[col] > 0) || 'green';
+          const tips = (COLOUR_TIPS_TEACHER as any)[dominant] || COLOUR_TIPS_TEACHER.green;
+          const tip = tips[new Date().getDate() % tips.length];
+          const clrs: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
+          const bgs: Record<string,string> = { blue:'#EBF5FB', green:'#EAFAF1', yellow:'#FEFDE7', red:'#FDEDEC' };
+          return (
+            <View style={{ marginHorizontal:16, marginBottom:10, padding:12, borderRadius:12,
+              backgroundColor: bgs[dominant], borderLeftWidth:4, borderLeftColor: clrs[dominant] }}>
+              <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:3 }}>{tip.tip}</Text>
+              <Text style={{ fontSize:12, color:'#555', lineHeight:17 }}>{tip.action}</Text>
+            </View>
+          );
+        })()}
+
         {/* Emotion summary pills */}
         <View style={{flexDirection:'row', gap:6, marginBottom:8}}>
           {(['blue','green','yellow','red'] as const).map(z => (
