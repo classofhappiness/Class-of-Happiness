@@ -4715,8 +4715,8 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     def s(name, **kw):
         return ParagraphStyle(name, **kw)
 
-    ST_LOGO   = s("Logo",  fontSize=18, textColor=WHITE, fontName="Helvetica-Bold", leading=22)
-    ST_LOGSUB = s("LogoS", fontSize=9,  textColor=colors.HexColor("#C5CAE9"), leading=12)
+    ST_LOGO   = s("Logo",  fontSize=18, textColor=colors.HexColor("#5C6BC0"), fontName="Helvetica-Bold", leading=22)
+    ST_LOGSUB = s("LogoS", fontSize=9,  textColor=colors.HexColor("#5C6BC0"), leading=12)
     ST_H2     = s("H2",    fontSize=12, textColor=INDIGO, fontName="Helvetica-Bold", spaceBefore=8, spaceAfter=4)
     ST_BODY   = s("Body",  fontSize=9,  textColor=colors.HexColor("#333333"), spaceAfter=3, leading=13)
     ST_SMALL  = s("Small", fontSize=7.5,textColor=GREY, leading=10)
@@ -4741,10 +4741,11 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     except:
         logo_cell = Paragraph("🎓 Class of Happiness", ST_LOGO)
 
-    header_data = [[logo_cell, Paragraph(f"Teacher Wellbeing Report<br/>{month_name}", ST_LOGSUB)]]
+    header_data = [[logo_cell, Paragraph(f"<b>Teacher Wellbeing Report</b><br/>{month_name}", s("HR", fontSize=11, textColor=colors.HexColor("#5C6BC0"), fontName="Helvetica-Bold", alignment=2, leading=15))]]
     header_table = Table(header_data, colWidths=[PAGE_W*0.55, PAGE_W*0.35])
     header_table.setStyle(TableStyle([
-        ("BACKGROUND", (0,0), (-1,-1), INDIGO_DARK),
+        ("BACKGROUND", (0,0), (-1,-1), colors.white),
+        ("BOX",        (0,0), (-1,-1), 1, colors.HexColor("#E0E0E0")),
         ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
         ("PADDING",    (0,0), (-1,-1), 14),
     ]))
