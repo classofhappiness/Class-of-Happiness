@@ -44,11 +44,11 @@ const ZONE_TIPS: Record<string, string[]> = {
   ],
 };
 
-const STUDENT_ZONE_MESSAGE: Record<string, string> = {
-  blue: 'It's okay to feel quiet. Rest and be kind to yourself. 💙',
-  green: 'You're in a great space! Keep spreading that energy. 💚',
-  yellow: 'Feeling wobbly is normal. Use your helpers to find calm. 💛',
-  red: 'Big feelings are okay. You are safe and supported. ❤️',
+const STUDENT_COLOUR_MESSAGE: Record<string, string> = {
+  blue: "It's okay to feel quiet. Rest and be kind to yourself.",
+  green: "You're in a great space! Keep sharing that energy.",
+  yellow: "Feeling wobbly is normal. Use your helpers to find calm.",
+  red: "Big feelings are okay. You are safe and supported.",
 };
 
 export default function RewardsScreen() {
