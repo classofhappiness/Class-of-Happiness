@@ -3796,9 +3796,9 @@ async def generate_family_pdf_report(family_member_id: str, year: int, month: in
 
     header_data = [[logo_cell,
         Paragraph(f"<b>{fm.get('name','Family Member')}</b><br/><font size='9'>{month_name} {year} · Home Wellbeing Report</font>",
-                  s('FHR', fontSize=14, textColor=WHITE, leading=20, alignment=2))]]
+                  s('FHR', fontSize=14, textColor=colors.HexColor('#5C6BC0'), leading=20, alignment=2))]]
     header_table = Table(header_data, colWidths=[PAGE_W*0.45, PAGE_W*0.45])
-    header_table.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),INDIGO),("PADDING",(0,0),(-1,-1),14),("VALIGN",(0,0),(-1,-1),"MIDDLE")]))
+    header_table.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),colors.white),("BOX",(0,0),(-1,-1),1,colors.HexColor("#E0E0E0")),("PADDING",(0,0),(-1,-1),14),("VALIGN",(0,0),(-1,-1),"MIDDLE")]))
     story.append(header_table)
     story.append(Spacer(1,4))
     story.append(Paragraph("Class of Happiness · Home Wellbeing Report · classofhappiness.com",
@@ -4180,13 +4180,14 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         logo_cell,
         Paragraph(
             f"<b>" + PDF_HEADINGS.get(lang, PDF_HEADINGS["en"])["report"] + "</b><br/>" + month_name,
-            s('HRight', fontSize=11, textColor=WHITE, fontName='Helvetica-Bold',
+            s('HRight', fontSize=11, textColor=colors.HexColor('#5C6BC0'), fontName='Helvetica-Bold',
               alignment=2, leading=15)
         ),
     ]]
     header_table = Table(header_data, colWidths=[285, 220])
     header_table.setStyle(TableStyle([
-        ('BACKGROUND',  (0,0), (-1,-1), INDIGO),
+        ('BACKGROUND',  (0,0), (-1,-1), colors.white),
+        ('BOX',         (0,0), (-1,-1), 1, colors.HexColor('#E0E0E0')),
         ('PADDING',     (0,0), (-1,-1), 14),
         ('VALIGN',      (0,0), (-1,-1), 'MIDDLE'),
         ('ROUNDEDCORNERS', [8]),
