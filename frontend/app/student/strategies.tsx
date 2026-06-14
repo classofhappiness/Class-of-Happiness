@@ -282,7 +282,7 @@ export default function StrategiesScreen() {
   };
 
   return (
-    <style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <TranslatedHeader title={t('choose_helpers') || 'Choose Helpers'} />
       <CelebrationOverlay
         visible={showCelebration}
