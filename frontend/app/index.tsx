@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
   parentButton: { backgroundColor: '#4A90D9', elevation: 0 },
   roleButtonTitle: { fontSize: 17, fontWeight: 'bold', color: 'white' },
 
-  trialButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#E8F5E9', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, gap: 8, borderWidth: 1, borderColor: '#4CAF50', marginBottom: 12 },
+  trialButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#E8F5E9', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, gap: 8, borderWidth: 1, borderColor: '#4CAF50', marginTop: 12, marginBottom: 0 },
   trialButtonText: { fontSize: 13, fontWeight: '600', color: '#4CAF50' },
 
   footerSection: { alignItems: 'center', paddingTop: 24, marginTop: 'auto' },

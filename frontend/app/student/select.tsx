@@ -24,6 +24,21 @@ export default function StudentSelectScreen() {
   const { students, classrooms, presetAvatars, setCurrentStudent, currentStudent, refreshStudents, t, language, translations } = useApp();
   const [showCollection, setShowCollection] = useState(false);
   const [selectedClassroom, setSelectedClassroom] = useState<string | null>(null);
+  const [localClassrooms, setLocalClassrooms] = useState<any[]>([]);
+
+  // Fetch classrooms independently so teacher login shows filter
+  useEffect(() => {
+    const fetchClassrooms = async () => {
+      try {
+        const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        const tok = await AsyncStorage.getItem('session_token');
+        if (!tok) return;
+        const res = await fetch(`${BURL}/api/classrooms`, { headers: { Authorization: `Bearer ${tok}` } });
+        if (res.ok) { const data = await res.json(); setLocalClassrooms(Array.isArray(data) ? data : []); }
+      } catch {}
+    };
+    fetchClassrooms();
+  }, []);
   const [collectionData, setCollectionData] = useState<StudentCollection | null>(null);
   const [selectedStudentForCollection, setSelectedStudentForCollection] = useState<string | null>(null);
   const [studentCreatures, setStudentCreatures] = useState<Record<string, StudentCreatureData>>({});
@@ -243,7 +258,7 @@ export default function StudentSelectScreen() {
     <View style={styles.container}>
       <TranslatedHeader title={t('select_profile')} backTo="/" />
       {/* Classroom filter — fixed, never scrolls away, matches teacher flow */}
-      {classrooms && classrooms.length > 1 && (
+      {(localClassrooms.length > 0 || (classrooms && classrooms.length > 1)) && (
         <View style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal:12, paddingVertical:8, flexDirection:'row', gap:8, alignItems:'center' }}>
@@ -256,7 +271,7 @@ export default function StudentSelectScreen() {
                 {t('all') || 'All'}
               </Text>
             </TouchableOpacity>
-            {classrooms.map((cl: any) => (
+            {(localClassrooms.length > 0 ? localClassrooms : classrooms).map((cl: any) => (
               <TouchableOpacity key={cl.id}
                 style={{ paddingHorizontal:14, paddingVertical:7, borderRadius:16,
                   backgroundColor: selectedClassroom === cl.id ? '#5C6BC0' : '#EEEEEE',
