@@ -51,7 +51,7 @@ const CHILD_STRATEGIES: Record<string, Array<{id:string; name:string; descriptio
     {id:'y4', name:'Talk About It', description:'Find a safe person to share your feelings', icon:'chat'},
   ],
   red: [
-    {id:'r1', name:'Freeze', description:'Stop and hold very still for 10 seconds', icon:'pan-tool'},
+    {id:'r1', name:'Freeze', description:'Stop and hold very still for 10 seconds', icon:'front-hand'},
     {id:'r2', name:'Big Breaths', description:'Take 3 big deep breaths right now', icon:'air'},
     {id:'r3', name:'Safe Space', description:'Move to a quiet safe place to calm down', icon:'home'},
     {id:'r4', name:'Ask for Help', description:'Tell an adult you need support right now', icon:'support-agent'},

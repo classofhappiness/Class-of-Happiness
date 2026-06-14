@@ -342,7 +342,7 @@ export default function StrategiesScreen() {
                   onPress={() => handleHelpRequest(strategy.id, strategy.name)}
                 >
                   <MaterialIcons
-                    name="pan-tool"
+                    name="front-hand"
                     size={20}
                     color={helpRequested.has(strategy.id) ? '#333' : '#BBB'}
                     style={{ opacity: helpRequested.has(strategy.id) ? 1 : 0.4 }}
@@ -353,7 +353,7 @@ export default function StrategiesScreen() {
           )}
           {/* Help request explanation */}
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 8, gap: 8 }}>
-            <MaterialIcons name="pan-tool" size={16} color="#333" />
+            <MaterialIcons name="front-hand" size={16} color="#333" />
             <Text style={{ fontSize: 12, color: '#333', flex: 1, fontStyle: 'italic', fontWeight: '400' }}>
               {t('help_request_hint') || 'Tap the hand icon on any helper to ask your teacher or parent for support.'}
             </Text>
@@ -371,7 +371,7 @@ export default function StrategiesScreen() {
               style={[styles.helpBtn, parentMessageVisible && styles.helpBtnDone]}
               onPress={() => setParentMessageVisible(true)}
             >
-              <MaterialIcons name="pan-tool" size={18}
+              <MaterialIcons name="front-hand" size={18}
                 color={parentMessageVisible ? '#333' : '#BBB'}
                 style={{ opacity: parentMessageVisible ? 1 : 0.4 }} />
             </TouchableOpacity>
@@ -416,7 +416,7 @@ export default function StrategiesScreen() {
                     handleHelpRequest('comment_support', 'Personal Support Request');
                   }}
                 >
-                  <MaterialIcons name="pan-tool" size={18}
+                  <MaterialIcons name="front-hand" size={18}
                     color={helpRequested.has('comment_support') ? '#333' : '#BBB'}
                     style={{ opacity: helpRequested.has('comment_support') ? 1 : 0.4 }} />
                 </TouchableOpacity>

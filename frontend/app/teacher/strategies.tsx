@@ -16,7 +16,7 @@ const ZONES = ['blue', 'green', 'yellow', 'red'] as const;
 
 const AVAILABLE_ICONS = [
   'fitness-center', 'chat', 'local-drink', 'weekend', 'music-note', 
-  'wb-sunny', 'thumb-up', 'air', 'visibility', 'pan-tool', 'favorite',
+  'wb-sunny', 'thumb-up', 'air', 'visibility', 'front-hand', 'favorite',
   'sentiment-very-satisfied', 'filter-9-plus', 'sports-baseball', 
   'directions-walk', 'exposure-neg-1', 'home', 'support-agent',
   'self-improvement', 'spa', 'psychology', 'volunteer-activism',
@@ -107,7 +107,7 @@ export default function ManageStrategiesScreen() {
       {id:'y4', name:'Talk About It', description:'Find a safe person to share your feelings', icon:'chat', zone:'yellow'},
     ],
     red: [
-      {id:'r1', name:'Freeze', description:'Stop and hold very still for 10 seconds', icon:'pan-tool', zone:'red'},
+      {id:'r1', name:'Freeze', description:'Stop and hold very still for 10 seconds', icon:'front-hand', zone:'red'},
       {id:'r2', name:'Big Breaths', description:'Take 3 big deep breaths right now', icon:'air', zone:'red'},
       {id:'r3', name:'Safe Space', description:'Move to a quiet safe place to calm down', icon:'home', zone:'red'},
       {id:'r4', name:'Ask for Help', description:'Tell an adult you need support right now', icon:'support-agent', zone:'red'},
