@@ -2578,7 +2578,27 @@ async def create_student(student: StudentCreate, request: Request):
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     result = supabase.table("students").insert(new_student).execute()
-    return result.data[0] if result.data else new_student
+    saved = result.data[0] if result.data else new_student
+
+    # Auto-create creature record so student doesn't show egg on first login
+    try:
+        creatures_r = supabase.table("creatures").select("id").order("created_at").limit(1).execute()
+        if creatures_r.data:
+            first_creature_id = creatures_r.data[0]["id"]
+            supabase.table("student_rewards").insert({
+                "id": str(uuid.uuid4()),
+                "student_id": saved["id"],
+                "current_creature_id": first_creature_id,
+                "current_stage": 0,
+                "total_points": 0,
+                "current_points": 0,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }).execute()
+            logger.info(f"[create_student] Auto-created creature for {saved['name']}")
+    except Exception as ce:
+        logger.warning(f"[create_student] Could not auto-create creature: {ce}")
+
+    return saved
 
 @api_router.get("/students/{student_id}")
 async def get_student(student_id: str, request: Request):
