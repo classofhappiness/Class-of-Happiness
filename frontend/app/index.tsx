@@ -126,7 +126,7 @@ export default function HomeScreen() {
 
         {/* Footer */}
         <View style={styles.footerSection}>
-          <Text style={styles.copyrightText}>© 2025 Class of Happiness</Text>
+          <Text style={styles.copyrightText}>© 2026 Class of Happiness</Text>
           <TouchableOpacity style={styles.aboutButton} onPress={() => router.push('/about' as any)}>
             <MaterialIcons name="info-outline" size={14} color="#CCC" />
             <Text style={styles.aboutButtonText}>About & Privacy</Text>
