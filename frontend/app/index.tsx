@@ -155,12 +155,12 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 16, color: '#333', textAlign: 'center', marginBottom: 14, fontWeight: '500' },
 
   zonePreviewRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 14 },
-  zoneFaceContainer: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 3 },
+  zoneFaceContainer: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
   zoneFace: { fontSize: 22 },
   zoneTip: { fontSize: 12, color: '#555', textAlign: 'center', marginBottom: 28 },
 
   // Student — hero button
-  studentButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#4CAF50', borderRadius: 22, paddingVertical: 20, paddingHorizontal: 20, marginBottom: 10, elevation: 5, shadowColor: '#4CAF50', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
+  studentButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#4CAF50', borderRadius: 22, paddingVertical: 20, paddingHorizontal: 20, marginBottom: 10 },
   studentButtonText: { flex: 1, marginLeft: 14 },
   studentButtonTitle: { fontSize: 26, fontWeight: 'bold', color: 'white' },
   studentButtonSub: { fontSize: 13, color: '#000', marginTop: 2, fontStyle: 'italic', fontWeight: '400' },
@@ -168,8 +168,8 @@ const styles = StyleSheet.create({
   // Teacher + Parent — side by side smaller
   roleRow: { flexDirection: 'row', gap: 10, marginBottom: 0, marginTop: 0 },
   roleButton: { flex: 1, borderRadius: 18, paddingVertical: 16, alignItems: 'center', gap: 4 },
-  teacherButton: { backgroundColor: '#FFC107' },
-  parentButton: { backgroundColor: '#4A90D9' },
+  teacherButton: { backgroundColor: '#FFC107', elevation: 0 },
+  parentButton: { backgroundColor: '#4A90D9', elevation: 0 },
   roleButtonTitle: { fontSize: 17, fontWeight: 'bold', color: 'white' },
 
   trialButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#E8F5E9', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, gap: 8, borderWidth: 1, borderColor: '#4CAF50', marginBottom: 12 },
