@@ -332,8 +332,8 @@ export default function TeacherDashboardScreen() {
         )}
 
         {/* Daily Colour Tip */}
-        {analyticsData?.zone_counts && !tipDismissed && (() => {
-          const zc = analyticsData.zone_counts as any;
+        {analytics?.zone_counts && !tipDismissed && (() => {
+          const zc = (analytics as any).zone_counts as any;
           const dominant = ['red','yellow','blue','green'].find(col => zc[col] > 0) || 'green';
           const tips = (COLOUR_TIPS_TEACHER as any)[dominant] || COLOUR_TIPS_TEACHER.green;
           const tip = tips[new Date().getDate() % tips.length];
