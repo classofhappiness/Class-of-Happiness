@@ -163,7 +163,7 @@ export default function ParentAlertsScreen() {
   const resolvedAlerts = alerts.filter((a:any) => a.resolved && inPeriod(a));
 
   return (
-    <style={{ flex:1, backgroundColor:'#F8F9FA' }}>
+    <SafeAreaView style={{ flex:1, backgroundColor:'#F8F9FA' }}>
       <TranslatedHeader title={t('alerts') || 'Family Alerts'} />
 
       <View style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#E0E0E0' }}>

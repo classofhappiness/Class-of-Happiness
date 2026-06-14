@@ -180,7 +180,7 @@ export default function TeacherAlertsScreen() {
   const toggleExpand = (name: string) => setExpanded(p => ({...p, [name]: !p[name]}));
 
   return (
-    <style={{ flex:1, backgroundColor:'#F8F9FA' }}>
+    <SafeAreaView style={{ flex:1, backgroundColor:'#F8F9FA' }}>
       <TranslatedHeader title={t('alerts') || 'Student Alerts'} />
 
       <View style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#E0E0E0' }}>
