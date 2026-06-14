@@ -151,7 +151,7 @@ const COLOUR_TIPS_PARENT: Record<string, {tip: string, action: string}[]> = {
     { tip: 'Sadness or tiredness showing', action: 'Listen without trying to fix — presence helps' },
   ],
   green: [
-    { tip: 'Your child is thriving', action: 'Celebrate with them — name what's going well' },
+    { tip: 'Your child is thriving', action: "Celebrate with them — name what's going well" },
     { tip: 'Great emotional balance', action: 'Build connection through play or shared activity' },
     { tip: 'Strong and settled today', action: 'Perfect time for family conversations' },
   ],
