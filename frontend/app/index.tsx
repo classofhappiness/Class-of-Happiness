@@ -60,7 +60,7 @@ export default function HomeScreen() {
             </View>
           ))}
         </View>
-        <View style={{flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6}}>
+        <View style={{flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, marginBottom:16}}>
           <Text style={{fontSize:12, fontStyle:'italic', color:'#000', fontWeight:'400'}}>Select below to begin</Text>
           <Text style={{fontSize:13, color:'#000'}}>↓</Text>
         </View>
@@ -93,7 +93,7 @@ export default function HomeScreen() {
             <MaterialIcons name="school" size={26} color="white" />
             <View style={{alignItems:'center'}}>
               <Text style={styles.roleButtonTitle}>{t('teacher') || 'Teacher'}</Text>
-              <Text style={{fontSize:10, color:'#000', fontStyle:'italic', fontWeight:'400', textAlign:'center', marginTop:1, lineHeight:14, textShadowColor:'transparent', textShadowRadius:0}}>{'Teachers Dashboard — support your students here'}</Text>
+              <Text style={{fontSize:10, color:'#000', fontStyle:'italic', fontWeight:'400', textAlign:'center', marginTop:1, lineHeight:14, }}>{'Teachers Dashboard — support your students here'}</Text>
             </View>
             {!isAuthenticated && <MaterialIcons name="lock" size={14} color="rgba(255,255,255,0.7)" />}
           </TouchableOpacity>
@@ -110,7 +110,7 @@ export default function HomeScreen() {
             <MaterialIcons name="family-restroom" size={26} color="white" />
             <View style={{alignItems:'center'}}>
               <Text style={styles.roleButtonTitle}>{t('parent') || 'Parent'}</Text>
-              <Text style={{fontSize:10, color:'#000', fontStyle:'italic', fontWeight:'400', textAlign:'center', marginTop:1, lineHeight:14, textShadowColor:'transparent', textShadowRadius:0}}>{'Family Dashboard — support your family here'}</Text>
+              <Text style={{fontSize:10, color:'#000', fontStyle:'italic', fontWeight:'400', textAlign:'center', marginTop:1, lineHeight:14, }}>{'Family Dashboard — support your family here'}</Text>
             </View>
             {!isAuthenticated && <MaterialIcons name="lock" size={14} color="rgba(255,255,255,0.7)" />}
           </TouchableOpacity>
@@ -139,7 +139,7 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 24, flexGrow: 1 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 24, flexGrow: 1, justifyContent: 'center' },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   appTitle: { fontSize: 28, fontWeight: 'bold', color: '#5C6BC0' },
   loadingText: { fontSize: 18, color: '#666', marginTop: 20 },
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   studentButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#4CAF50', borderRadius: 22, paddingVertical: 20, paddingHorizontal: 20, marginBottom: 10, elevation: 5, shadowColor: '#4CAF50', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
   studentButtonText: { flex: 1, marginLeft: 14 },
   studentButtonTitle: { fontSize: 26, fontWeight: 'bold', color: 'white' },
-  studentButtonSub: { fontSize: 13, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
+  studentButtonSub: { fontSize: 13, color: '#000', marginTop: 2, fontStyle: 'italic', fontWeight: '400' },
 
   // Teacher + Parent — side by side smaller
   roleRow: { flexDirection: 'row', gap: 10, marginBottom: 0, marginTop: 0 },
