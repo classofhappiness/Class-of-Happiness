@@ -143,6 +143,30 @@ const getRelationshipColor = (relationship: string) => {
   return RELATIONSHIP_COLORS[relationship] || '#5C6BC0';
 };
 
+
+const COLOUR_TIPS_PARENT: Record<string, {tip: string, action: string}[]> = {
+  blue: [
+    { tip: 'Your child needs warmth', action: 'A hug and quiet time together goes a long way' },
+    { tip: 'Low energy at home', action: 'Let them rest — avoid pressure or demands' },
+    { tip: 'Sadness or tiredness showing', action: 'Listen without trying to fix — presence helps' },
+  ],
+  green: [
+    { tip: 'Your child is thriving', action: 'Celebrate with them — name what's going well' },
+    { tip: 'Great emotional balance', action: 'Build connection through play or shared activity' },
+    { tip: 'Strong and settled today', action: 'Perfect time for family conversations' },
+  ],
+  yellow: [
+    { tip: 'Feeling a little wobbly', action: 'Slow down routines and avoid overstimulation' },
+    { tip: 'Some anxiety present', action: 'Validate feelings before offering solutions' },
+    { tip: 'Energy feels scattered', action: 'Outdoor movement or creative play can help' },
+  ],
+  red: [
+    { tip: 'Big feelings at home', action: 'Stay regulated yourself — your calm is contagious' },
+    { tip: 'Your child needs safety', action: 'Reconnect with warmth before setting limits' },
+    { tip: 'High emotion showing', action: 'Give space, then gently check in with them' },
+  ],
+};
+
 export default function ParentDashboard() {
   const router = useRouter();
   const { user, presetAvatars, t, language, setCurrentStudent, hasActiveSubscription, students, refreshStudents } = useApp();

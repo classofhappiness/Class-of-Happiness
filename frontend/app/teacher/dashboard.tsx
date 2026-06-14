@@ -14,6 +14,30 @@ import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { registerForPushNotifications } from '../../src/utils/notifications';
 
 const { width } = Dimensions.get('window');
+
+const COLOUR_TIPS_TEACHER: Record<string, {tip: string, action: string}[]> = {
+  blue: [
+    { tip: 'Quiet energy in the room', action: 'Try a gentle stretch or warm-up activity' },
+    { tip: 'Some students need warmth', action: 'Check in one-to-one with quiet students' },
+    { tip: 'Low energy is okay', action: 'Offer calm, creative or independent tasks' },
+  ],
+  green: [
+    { tip: 'Class is ready to learn', action: 'Great day to introduce something new' },
+    { tip: 'Positive energy today', action: 'Celebrate effort and celebrate readiness' },
+    { tip: 'Strong focus available', action: 'Harness this energy for challenge tasks' },
+  ],
+  yellow: [
+    { tip: 'Some students feel wobbly', action: 'Predictable routines help settle the class' },
+    { tip: 'Fizzing energy present', action: 'Movement break before focused work' },
+    { tip: 'Anxiety may be present', action: 'Lower stimulation, offer quiet corners' },
+  ],
+  red: [
+    { tip: 'Big feelings in the room', action: 'Stay calm — your calm regulates theirs' },
+    { tip: 'Students need safety first', action: 'Reconnect before you redirect behaviour' },
+    { tip: 'High emotion detected', action: 'Give space, stay close, avoid confrontation' },
+  ],
+};
+
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const ZONE_COLORS: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
 
