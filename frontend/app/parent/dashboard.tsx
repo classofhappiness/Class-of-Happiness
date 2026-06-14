@@ -839,7 +839,7 @@ export default function ParentDashboard() {
         </View>
         {/* Daily Colour Tip for Parents */}
         {familyMembers.length > 0 && (() => {
-          const logs = (familyCheckIns as any[]) || [];
+          const logs = (recentLogs as any[]) || [];
           const colour = logs[0]?.feeling_colour || logs[0]?.zone || 'green';
           const tips = (COLOUR_TIPS_PARENT as any)[colour] || COLOUR_TIPS_PARENT.green;
           const tip = tips[new Date().getDate() % tips.length];
