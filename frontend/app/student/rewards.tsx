@@ -35,6 +35,7 @@ export default function RewardsScreen() {
   const [rewardsData, setRewardsData] = useState<AddPointsResponse | null>(null);
   const [shield, setShield] = useState<{ has_shield: boolean; level: string | null; count: number; label?: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showContinue, setShowContinue] = useState(false);
   const [showEvolution, setShowEvolution] = useState(false);
   const [showCollection, setShowCollection] = useState(false);
   const [previousStage, setPreviousStage] = useState(0);
@@ -102,6 +103,7 @@ export default function RewardsScreen() {
 
       // Start animations
       startAnimations(response);
+    setTimeout(() => setShowContinue(true), 3500);
       
       // Play reward sound
       playRewardFeedback();
@@ -319,13 +321,20 @@ export default function RewardsScreen() {
         </TouchableOpacity>
 
         {/* Continue Button */}
-        <TouchableOpacity 
-          style={[styles.continueButton, { backgroundColor: rewardsData?.current_creature.color }]}
-          onPress={handleContinue}
-        >
-          <Text style={styles.continueText}>{t('continue')}</Text>
-          <MaterialIcons name="arrow-forward" size={24} color="white" />
-        </TouchableOpacity>
+        {showContinue && (
+          <TouchableOpacity 
+            style={[styles.continueButton, { backgroundColor: rewardsData?.current_creature.color }]}
+            onPress={handleContinue}
+          >
+            <Text style={styles.continueText}>{t('continue')}</Text>
+            <MaterialIcons name="arrow-forward" size={24} color="white" />
+          </TouchableOpacity>
+        )}
+        {!showContinue && (
+          <View style={[styles.continueButton, { backgroundColor: '#DDD', alignItems:'center', justifyContent:'center' }]}>
+            <Text style={{ color:'#AAA', fontSize:14, fontWeight:'600' }}>{'...'}</Text>
+          </View>
+        )}
       </View>
 
       {/* Evolution Animation Modal */}

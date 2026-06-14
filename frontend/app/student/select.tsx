@@ -328,24 +328,20 @@ export default function StudentSelectScreen() {
             </Pressable>
           ))}
 
-          {/* Add New Profile Button */}
-          <TouchableOpacity
-            style={[styles.studentCard, styles.addCard]}
-            onPress={handleCreateProfile}
-            activeOpacity={0.7}
-          >
-            <View style={styles.addIconContainer}>
-              <MaterialIcons name="add" size={40} color="#4CAF50" />
-            </View>
-            <Text style={styles.addText}>{t('add_profile')}</Text>
-          </TouchableOpacity>
+          {/* Ask adult to add — students cannot add profiles */}
+          <View style={[styles.studentCard, { borderStyle:'dashed', borderColor:'#CCC', backgroundColor:'#FAFAFA', justifyContent:'center', alignItems:'center', gap:8, opacity:0.8 }]}>
+            <MaterialIcons name="supervisor-account" size={32} color="#BDBDBD" />
+            <Text style={{ fontSize:11, color:'#999', textAlign:'center', fontWeight:'600', lineHeight:16 }}>
+              {t('ask_adult_to_add') || 'Ask your teacher\nor parent to add\na profile for you'}
+            </Text>
+          </View>
         </View>
 
         {students.length === 0 && (
           <View style={styles.emptyState}>
-            <MaterialIcons name="person-add" size={64} color="#CCC" />
-            <Text style={styles.emptyText}>{t('no_profiles_yet')}</Text>
-            <Text style={styles.emptySubtext}>{t('create_first_profile')}</Text>
+            <MaterialIcons name="supervisor-account" size={64} color="#CCC" />
+            <Text style={styles.emptyText}>{t('no_profiles_yet') || 'No profiles yet'}</Text>
+            <Text style={styles.emptySubtext}>{t('ask_teacher_parent_add') || 'Ask your teacher or parent\nto add a profile for you'}</Text>
           </View>
         )}
       </ScrollView>

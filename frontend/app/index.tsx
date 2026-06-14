@@ -60,7 +60,7 @@ export default function HomeScreen() {
             </View>
           ))}
         </View>
-        <View style={{flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, marginBottom:4}}>
+        <View style={{flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, marginTop:16, marginBottom:12}}>
           <Text style={{fontSize:12, fontStyle:'italic', color:'#111', fontWeight:'400'}}>Select below to begin</Text>
           <Text style={{fontSize:13, color:'#111'}}>↓</Text>
         </View>
@@ -90,8 +90,11 @@ export default function HomeScreen() {
             }}
             activeOpacity={0.85}
           >
-            <MaterialIcons name="school" size={30} color="white" />
-            <Text style={styles.roleButtonTitle}>{t('teacher') || 'Teacher'}</Text>
+            <MaterialIcons name="school" size={26} color="white" />
+            <View style={{alignItems:'center'}}>
+              <Text style={styles.roleButtonTitle}>{t('teacher') || 'Teacher'}</Text>
+              <Text style={{fontSize:10, color:'rgba(255,255,255,0.85)', textAlign:'center', marginTop:2, fontWeight:'500', lineHeight:13}}>{'Teachers Dashboard —\nsupport your students here'}</Text>
+            </View>
             {!isAuthenticated && <MaterialIcons name="lock" size={14} color="rgba(255,255,255,0.7)" />}
           </TouchableOpacity>
 
@@ -104,8 +107,11 @@ export default function HomeScreen() {
             }}
             activeOpacity={0.85}
           >
-            <MaterialIcons name="family-restroom" size={30} color="white" />
-            <Text style={styles.roleButtonTitle}>{t('parent') || 'Parent'}</Text>
+            <MaterialIcons name="family-restroom" size={26} color="white" />
+            <View style={{alignItems:'center'}}>
+              <Text style={styles.roleButtonTitle}>{t('parent') || 'Parent'}</Text>
+              <Text style={{fontSize:10, color:'rgba(255,255,255,0.85)', textAlign:'center', marginTop:2, fontWeight:'500', lineHeight:13}}>{'Family Dashboard —\nsupport your family here'}</Text>
+            </View>
             {!isAuthenticated && <MaterialIcons name="lock" size={14} color="rgba(255,255,255,0.7)" />}
           </TouchableOpacity>
         </View>
@@ -143,10 +149,10 @@ const styles = StyleSheet.create({
   loginButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, gap: 6, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
   loginButtonText: { fontSize: 14, fontWeight: '600', color: '#5C6BC0' },
 
-  logoContainer: { alignItems: 'center', marginBottom: 4, marginTop: -10 },
+  logoContainer: { alignItems: 'center', marginBottom: 16, marginTop: 8 },
   mainLogo: { width: 140, height: 150 },
 
-  subtitle: { fontSize: 16, color: '#333', textAlign: 'center', marginBottom: 12, fontWeight: '500' },
+  subtitle: { fontSize: 16, color: '#333', textAlign: 'center', marginBottom: 20, fontWeight: '500' },
 
   zonePreviewRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 6 },
   zoneFaceContainer: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 3 },
