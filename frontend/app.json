@@ -18,7 +18,7 @@
                 "ITSAppUsesNonExemptEncryption": false,
                 "NSPhotoLibraryAddUsageDescription": "Save photos from Class of Happiness"
             },
-            "buildNumber": "13",
+            "buildNumber": "14",
             "entitlements": {
                 "aps-environment": "production"
             }
