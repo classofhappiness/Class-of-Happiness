@@ -96,6 +96,7 @@ export default function TeacherDashboardScreen() {
   const [barData, setBarData] = useState<{value:number,label:string,frontColor:string}[]>([]);
   const [selectedClassroom, setSelectedClassroom] = useState<string|null>(null);
   const [alertCount, setAlertCount] = useState(0);
+  const [tipDismissed, setTipDismissed] = useState(false);
   const [checkinsExpanded, setCheckinsExpanded] = useState(false);
   const [graphExpanded, setGraphExpanded] = useState(false);
   const [localClassrooms, setLocalClassrooms] = useState<any[]>([]);
@@ -331,7 +332,7 @@ export default function TeacherDashboardScreen() {
         )}
 
         {/* Daily Colour Tip */}
-        {analyticsData?.zone_counts && (() => {
+        {analyticsData?.zone_counts && !tipDismissed && (() => {
           const zc = analyticsData.zone_counts as any;
           const dominant = ['red','yellow','blue','green'].find(col => zc[col] > 0) || 'green';
           const tips = (COLOUR_TIPS_TEACHER as any)[dominant] || COLOUR_TIPS_TEACHER.green;
@@ -340,9 +341,15 @@ export default function TeacherDashboardScreen() {
           const bgs: Record<string,string> = { blue:'#EBF5FB', green:'#EAFAF1', yellow:'#FEFDE7', red:'#FDEDEC' };
           return (
             <View style={{ marginHorizontal:16, marginBottom:10, padding:12, borderRadius:12,
-              backgroundColor: bgs[dominant], borderLeftWidth:4, borderLeftColor: clrs[dominant] }}>
-              <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:3 }}>{tip.tip}</Text>
-              <Text style={{ fontSize:12, color:'#555', lineHeight:17 }}>{tip.action}</Text>
+              backgroundColor: bgs[dominant], borderLeftWidth:4, borderLeftColor: clrs[dominant],
+              flexDirection:'row', alignItems:'flex-start' }}>
+              <View style={{ flex:1 }}>
+                <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:3 }}>{tip.tip}</Text>
+                <Text style={{ fontSize:12, color:'#555', lineHeight:17 }}>{tip.action}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setTipDismissed(true)} style={{ padding:4, marginLeft:8 }}>
+                <MaterialIcons name="close" size={16} color="#AAA" />
+              </TouchableOpacity>
             </View>
           );
         })()}
