@@ -86,7 +86,7 @@ export default function ColourSelectionScreen() {
 
   if (!currentStudent) {
     return (
-      <style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{t('select_profile') || 'Select Your Profile'}</Text>
         </View>
