@@ -93,7 +93,7 @@ export default function HomeScreen() {
             <MaterialIcons name="school" size={26} color="white" />
             <View style={{alignItems:'center'}}>
               <Text style={styles.roleButtonTitle}>{t('teacher') || 'Teacher'}</Text>
-              <Text style={{fontSize:10, color:'black', textAlign:'center', marginTop:2, fontWeight:'400', fontStyle:'italic', lineHeight:13}}>{'Teachers Dashboard —\nsupport your students here'}</Text>
+              <Text style={{fontSize:10, color:'#000', fontStyle:'italic', fontWeight:'400', textAlign:'center', marginTop:1, lineHeight:14, textShadowColor:'transparent', textShadowRadius:0}}>{'Teachers Dashboard — support your students here'}</Text>
             </View>
             {!isAuthenticated && <MaterialIcons name="lock" size={14} color="rgba(255,255,255,0.7)" />}
           </TouchableOpacity>
@@ -110,7 +110,7 @@ export default function HomeScreen() {
             <MaterialIcons name="family-restroom" size={26} color="white" />
             <View style={{alignItems:'center'}}>
               <Text style={styles.roleButtonTitle}>{t('parent') || 'Parent'}</Text>
-              <Text style={{fontSize:10, color:'black', textAlign:'center', marginTop:2, fontWeight:'400', fontStyle:'italic', lineHeight:13}}>{'Family Dashboard —\nsupport your family here'}</Text>
+              <Text style={{fontSize:10, color:'#000', fontStyle:'italic', fontWeight:'400', textAlign:'center', marginTop:1, lineHeight:14, textShadowColor:'transparent', textShadowRadius:0}}>{'Family Dashboard — support your family here'}</Text>
             </View>
             {!isAuthenticated && <MaterialIcons name="lock" size={14} color="rgba(255,255,255,0.7)" />}
           </TouchableOpacity>
@@ -139,7 +139,7 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 0, paddingBottom: 20, flexGrow: 1, justifyContent: 'space-between' },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 24, flexGrow: 1 },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   appTitle: { fontSize: 28, fontWeight: 'bold', color: '#5C6BC0' },
   loadingText: { fontSize: 18, color: '#666', marginTop: 20 },
@@ -149,25 +149,25 @@ const styles = StyleSheet.create({
   loginButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, gap: 6, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
   loginButtonText: { fontSize: 14, fontWeight: '600', color: '#5C6BC0' },
 
-  logoContainer: { alignItems: 'center', marginBottom: 0, marginTop: 0 },
+  logoContainer: { alignItems: 'center', marginBottom: 12, marginTop: 0 },
   mainLogo: { width: 140, height: 150 },
 
-  subtitle: { fontSize: 16, color: '#333', textAlign: 'center', marginBottom: 0, fontWeight: '500' },
+  subtitle: { fontSize: 16, color: '#333', textAlign: 'center', marginBottom: 14, fontWeight: '500' },
 
-  zonePreviewRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 0 },
+  zonePreviewRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 14 },
   zoneFaceContainer: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 3 },
   zoneFace: { fontSize: 22 },
   zoneTip: { fontSize: 12, color: '#555', textAlign: 'center', marginBottom: 28 },
 
   // Student — hero button
-  studentButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#4CAF50', borderRadius: 22, paddingVertical: 20, paddingHorizontal: 20, marginBottom: 0, elevation: 5, shadowColor: '#4CAF50', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
+  studentButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#4CAF50', borderRadius: 22, paddingVertical: 20, paddingHorizontal: 20, marginBottom: 10, elevation: 5, shadowColor: '#4CAF50', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
   studentButtonText: { flex: 1, marginLeft: 14 },
   studentButtonTitle: { fontSize: 26, fontWeight: 'bold', color: 'white' },
   studentButtonSub: { fontSize: 13, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
 
   // Teacher + Parent — side by side smaller
-  roleRow: { flexDirection: 'row', gap: 10, marginBottom: 0 },
-  roleButton: { flex: 1, borderRadius: 18, paddingVertical: 16, alignItems: 'center', gap: 6 },
+  roleRow: { flexDirection: 'row', gap: 10, marginBottom: 0, marginTop: 0 },
+  roleButton: { flex: 1, borderRadius: 18, paddingVertical: 16, alignItems: 'center', gap: 4 },
   teacherButton: { backgroundColor: '#FFC107' },
   parentButton: { backgroundColor: '#4A90D9' },
   roleButtonTitle: { fontSize: 17, fontWeight: 'bold', color: 'white' },
