@@ -193,7 +193,7 @@ export default function CreateProfileScreen() {
           {/* Classroom Selection */}
           {classrooms.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Classroom (Optional)</Text>
+              <Text style={styles.sectionTitle}>📚 Assign to Classroom</Text>
               <View style={styles.classroomList}>
                 <TouchableOpacity
                   style={[
