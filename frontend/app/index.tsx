@@ -85,7 +85,6 @@ export default function HomeScreen() {
             style={[styles.roleButton, styles.teacherButton]}
             onPress={() => {
               if (!isAuthenticated) { login(); return; }
-              if (!hasActiveSubscription) { router.push('/subscription'); return; }
               router.push('/teacher/dashboard');
             }}
             activeOpacity={0.85}
@@ -102,7 +101,6 @@ export default function HomeScreen() {
             style={[styles.roleButton, styles.parentButton]}
             onPress={() => {
               if (!isAuthenticated) { login(); return; }
-              if (!hasActiveSubscription) { router.push('/subscription'); return; }
               router.push('/parent/dashboard');
             }}
             activeOpacity={0.85}
