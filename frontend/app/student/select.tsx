@@ -22,7 +22,8 @@ export default function StudentSelectScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
-  const { students, classrooms, presetAvatars, setCurrentStudent, currentStudent, refreshStudents, t, language, translations } = useApp();
+  const { students, classrooms, presetAvatars, setCurrentStudent, currentStudent, refreshStudents, t, language, translations, user } = useApp();
+  const isAdult = user && (user.role === 'teacher' || user.role === 'parent' || user.role === 'admin' || user.role === 'school_admin');
   const [showCollection, setShowCollection] = useState(false);
   const [selectedClassroom, setSelectedClassroom] = useState<string | null>(null);
   const [localClassrooms, setLocalClassrooms] = useState<any[]>([]);
@@ -350,20 +351,38 @@ export default function StudentSelectScreen() {
             </Pressable>
           ))}
 
-          {/* Ask adult to add — students cannot add profiles */}
-          <View style={[styles.studentCard, { borderStyle:'dashed', borderColor:'#CCC', backgroundColor:'#FAFAFA', justifyContent:'center', alignItems:'center', gap:8, opacity:0.8 }]}>
-            <MaterialIcons name="supervisor-account" size={32} color="#BDBDBD" />
-            <Text style={{ fontSize:11, color:'#999', textAlign:'center', fontWeight:'600', lineHeight:16 }}>
-              {t('ask_adult_to_add') || 'Ask your teacher\nor parent to add\na profile for you'}
-            </Text>
-          </View>
+          {/* Add profile — adults can create, students see ask adult message */}
+          {isAdult ? (
+            <TouchableOpacity
+              style={[styles.studentCard, { borderStyle:'dashed', borderColor:'#4CAF50', backgroundColor:'#F1F8F1', justifyContent:'center', alignItems:'center', gap:8 }]}
+              onPress={handleCreateProfile} activeOpacity={0.7}>
+              <MaterialIcons name="add-circle-outline" size={36} color="#4CAF50" />
+              <Text style={{ fontSize:11, color:'#4CAF50', textAlign:'center', fontWeight:'700', lineHeight:16 }}>
+                {'Add Profile'}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={[styles.studentCard, { borderStyle:'dashed', borderColor:'#CCC', backgroundColor:'#FAFAFA', justifyContent:'center', alignItems:'center', gap:8, opacity:0.8 }]}>
+              <MaterialIcons name="supervisor-account" size={32} color="#BDBDBD" />
+              <Text style={{ fontSize:11, color:'#999', textAlign:'center', fontWeight:'600', lineHeight:16 }}>
+                {'Ask your teacher\nor parent to\nadd a profile'}
+              </Text>
+            </View>
+          )}
         </View>
 
         {students.length === 0 && (
           <View style={styles.emptyState}>
-            <MaterialIcons name="supervisor-account" size={64} color="#CCC" />
+            <MaterialIcons name={isAdult ? 'person-add' : 'supervisor-account'} size={64} color="#CCC" />
             <Text style={styles.emptyText}>{t('no_profiles_yet') || 'No profiles yet'}</Text>
-            <Text style={styles.emptySubtext}>{t('ask_teacher_parent_add') || 'Ask your teacher or parent\nto add a profile for you'}</Text>
+            {isAdult ? (
+              <TouchableOpacity onPress={handleCreateProfile}
+                style={{ marginTop:16, backgroundColor:'#4CAF50', paddingHorizontal:24, paddingVertical:12, borderRadius:12 }}>
+                <Text style={{ color:'white', fontWeight:'700', fontSize:15 }}>Create First Profile</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.emptySubtext}>{'Ask your teacher or parent\nto add a profile for you'}</Text>
+            )}
           </View>
         )}
       </ScrollView>
