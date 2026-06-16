@@ -83,8 +83,8 @@ TRIAL_DURATION_DAYS = 14
 
 # Promo codes
 PROMO_CODES = {
-    "HAPPYCLASS2026": {"type": "trial", "days": 14},
-    "CLASSOFHAPPINESS2026": {"type": "trial", "days": 14},
+    "HAPPYCLASS2026": {"type": "trial", "days": 30},
+    "CLASSOFHAPPINESS2026": {"type": "trial", "days": 30},
     "ADMINCLASS2026": {"type": "admin"},
     "HAPPYADMIN2026": {"type": "admin"},
 }
