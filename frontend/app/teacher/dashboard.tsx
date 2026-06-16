@@ -85,7 +85,7 @@ type Period = 1|7|14|30;
 export default function TeacherDashboardScreen() {
   const router = useRouter();
   const navigation = useNavigation() as any;
-  const { user, students, classrooms, presetAvatars, refreshStudents, refreshClassrooms, t } = useApp();
+  const { user, students, classrooms, presetAvatars, refreshStudents, refreshClassrooms, t, hasActiveSubscription } = useApp();
   const [period, setPeriod] = useState<Period>(7);
   const [strategyNames, setStrategyNames] = useState<Record<string,string>>({});
 
@@ -354,6 +354,22 @@ export default function TeacherDashboardScreen() {
           );
         })()}
 
+
+      {/* Trial code banner — shows when no active subscription */}
+      {!hasActiveSubscription && (
+        <TouchableOpacity
+          onPress={() => router.push('/settings')}
+          style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#FFF8E1',
+            marginHorizontal:16, marginBottom:10, padding:12, borderRadius:12, gap:10,
+            borderWidth:1, borderColor:'#FFE082' }}>
+          <Text style={{ fontSize:20 }}>🎁</Text>
+          <View style={{ flex:1 }}>
+            <Text style={{ fontSize:13, fontWeight:'700', color:'#333' }}>Start your free trial</Text>
+            <Text style={{ fontSize:11, color:'#666' }}>Go to Settings → enter code HAPPYCLASS2026 for 30 days free</Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={20} color="#FFC107" />
+        </TouchableOpacity>
+      )}
         {/* Emotion summary pills */}
         <View style={{flexDirection:'row', gap:6, marginBottom:8}}>
           {(['blue','green','yellow','red'] as const).map(z => (

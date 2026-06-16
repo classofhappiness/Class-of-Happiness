@@ -861,6 +861,22 @@ export default function ParentDashboard() {
           );
         })()}
 
+
+      {/* Trial code banner — shows when no active subscription */}
+      {!hasActiveSubscription && (
+        <TouchableOpacity
+          onPress={() => router.push('/settings')}
+          style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#FFF8E1',
+            marginHorizontal:16, marginBottom:10, padding:12, borderRadius:12, gap:10,
+            borderWidth:1, borderColor:'#FFE082' }}>
+          <Text style={{ fontSize:20 }}>🎁</Text>
+          <View style={{ flex:1 }}>
+            <Text style={{ fontSize:13, fontWeight:'700', color:'#333' }}>Start your free trial</Text>
+            <Text style={{ fontSize:11, color:'#666' }}>Go to Settings → enter code HAPPYCLASS2026 for 30 days free</Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={20} color="#FFC107" />
+        </TouchableOpacity>
+      )}
         {/* Family Members — Whole card taps to check in */}
         <View style={styles.familySection}>
           <View style={{flexDirection:'row',justifyContent:'flex-end',paddingHorizontal:12,paddingBottom:2,gap:6}}>
