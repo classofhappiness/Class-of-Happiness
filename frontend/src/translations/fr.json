@@ -269,5 +269,9 @@
   "message_parent": "Envoyer un message au parent",
   "message_parent_placeholder": "Dis à ton parent comment tu te sens...",
   "send": "Envoyer",
-  "want_to_say": "Tu veux dire quelque chose?"
+  "want_to_say": "Tu veux dire quelque chose?",
+  "ask_adult_to_add": "Demande à ton professeur ou parent d'ajouter un profil",
+  "ask_teacher_parent_add": "Demande à ton professeur ou parent\nd'ajouter un profil",
+  "no_profiles_yet": "Pas encore de profils",
+  "create_first_profile": "Créer ton premier profil"
 }

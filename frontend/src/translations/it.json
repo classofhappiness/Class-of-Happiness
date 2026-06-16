@@ -269,5 +269,9 @@
   "message_parent": "Invia messaggio al genitore",
   "message_parent_placeholder": "Di' al tuo genitore come ti senti...",
   "send": "Invia",
-  "want_to_say": "Vuoi dire qualcosa?"
+  "want_to_say": "Vuoi dire qualcosa?",
+  "ask_adult_to_add": "Chiedi al tuo insegnante o genitore di aggiungere un profilo",
+  "ask_teacher_parent_add": "Chiedi al tuo insegnante o genitore\ndi aggiungere un profilo",
+  "no_profiles_yet": "Ancora nessun profilo",
+  "create_first_profile": "Crea il tuo primo profilo"
 }

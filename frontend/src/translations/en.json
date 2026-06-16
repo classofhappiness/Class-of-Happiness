@@ -142,5 +142,9 @@
   "message_parent": "Send message to parent",
   "message_parent_placeholder": "Tell your parent how you feel...",
   "send": "Send",
-  "want_to_say": "Want to say something?"
+  "want_to_say": "Want to say something?",
+  "ask_adult_to_add": "Ask your teacher or parent to add a profile",
+  "ask_teacher_parent_add": "Ask your teacher or parent\nto add a profile for you",
+  "no_profiles_yet": "No profiles yet",
+  "create_first_profile": "Create your first profile"
 }

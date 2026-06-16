@@ -269,5 +269,9 @@
   "message_parent": "Nachricht an Elternteil senden",
   "message_parent_placeholder": "Sag deinem Elternteil wie du dich fühlst...",
   "send": "Senden",
-  "want_to_say": "Möchtest du etwas sagen?"
+  "want_to_say": "Möchtest du etwas sagen?",
+  "ask_adult_to_add": "Bitte deinen Lehrer oder Elternteil ein Profil hinzuzufügen",
+  "ask_teacher_parent_add": "Bitte deinen Lehrer oder Elternteil\nein Profil hinzuzufügen",
+  "no_profiles_yet": "Noch keine Profile",
+  "create_first_profile": "Erstelle dein erstes Profil"
 }

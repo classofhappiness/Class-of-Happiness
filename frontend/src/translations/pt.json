@@ -646,5 +646,7 @@
   "all_classes": "Todas as Turmas",
   "message_parent": "Enviar mensagem ao pai/mãe",
   "message_parent_placeholder": "Diz ao teu pai/mãe como te sentes...",
-  "send": "Enviar"
+  "send": "Enviar",
+  "ask_adult_to_add": "Pede ao teu professor ou pai para adicionar um perfil",
+  "ask_teacher_parent_add": "Pede ao teu professor ou pai\npara adicionar um perfil"
 }
