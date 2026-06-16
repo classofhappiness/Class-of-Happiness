@@ -596,10 +596,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (error) {
       console.error('Error logging out:', error);
     } finally {
-      // Clear session token on mobile
+      // Clear session token and ALL cached data on logout
       await clearSessionToken();
       setUser(null);
       setIsAuthenticated(false);
+      setStudents([]);
+      setClassrooms([]);
+      setCurrentStudent(null);
     }
   };
 
