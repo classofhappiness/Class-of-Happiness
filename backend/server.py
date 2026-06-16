@@ -5588,31 +5588,18 @@ async def get_alerts(request: Request, limit: int = 20):
         logger.info(f"[get_alerts] user_id={user['user_id']} role={role2} classroom_ids={classroom_ids} student_ids_count={len(student_ids)}")
         
         if not student_ids:
-            if role2 in ("teacher", "school_admin"):
-                logger.warning(f"[get_alerts] No student_ids for teacher, returning all recent alerts")
-                fallback = supabase.table("student_alerts").select("*").eq("resolved", False).eq("context", "school").order("created_at", desc=True).limit(50).execute()
-                if not fallback.data:
-                    fallback = supabase.table("student_alerts").select("*").order("created_at", desc=True).limit(100).execute()
-                return fallback.data or []
-            # For parents with no linked students, try fetching alerts by user_id directly
-            try:
-                user_alerts = supabase.table("student_alerts").select("*").eq("user_id", user["user_id"]).order("created_at", desc=True).limit(limit).execute()
-                if user_alerts.data:
-                    return user_alerts.data
-            except:
-                pass
+            # No linked students — return empty, never leak other users' data
+            logger.info(f"[get_alerts] No student_ids for user {user['user_id']} — returning empty")
             return []
         
-        # For teachers: return all alerts, frontend filters by classroom
+        # For teachers: return only alerts for their own students
         role3 = user.get("role", "")
         if role3 in ("teacher", "school_admin"):
-            # Fetch all unresolved school alerts — teacher sees all their students
-            all_alerts_r = supabase.table("student_alerts").select("*").eq("resolved", False).order("created_at", desc=True).limit(200).execute()
-            all_alerts = all_alerts_r.data or []
-            # Also include recently resolved for context (last 24h)
-            if len(all_alerts) < 10:
-                all_alerts_r2 = supabase.table("student_alerts").select("*").order("created_at", desc=True).limit(200).execute()
-                all_alerts = all_alerts_r2.data or []
+            if student_ids:
+                all_alerts_r = supabase.table("student_alerts").select("*").in_("student_id", student_ids[:50]).order("created_at", desc=True).limit(200).execute()
+                all_alerts = all_alerts_r.data or []
+            else:
+                all_alerts = []
         else:
             # Query 1: by student_id chain
             all_alerts = []
