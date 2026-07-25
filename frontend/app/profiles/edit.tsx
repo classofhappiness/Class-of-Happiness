@@ -34,7 +34,7 @@ const PRESET_AVATARS = [
 export default function EditProfileScreen() {
   const router = useRouter();
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
-  const { refreshStudents, classrooms, students } = useApp();
+  const { refreshStudents, classrooms, students, t } = useApp();
   
   const student = students.find(s => s.id === studentId);
   

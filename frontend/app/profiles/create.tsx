@@ -40,6 +40,9 @@ export default function CreateProfileScreen() {
   const params = useLocalSearchParams<{ classroomId?: string }>();
   const [selectedClassroom, setSelectedClassroom] = useState<string | null>(params.classroomId || null);
   const [saving, setSaving] = useState(false);
+  const [classJoinCode, setClassJoinCode] = useState('');
+  const [joinCodeStatus, setJoinCodeStatus] = useState<'idle'|'checking'|'found'|'invalid'>('idle');
+  const [joinedClassName, setJoinedClassName] = useState('');
 
   const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -84,6 +87,29 @@ export default function CreateProfileScreen() {
     }
   };
 
+  const handleJoinCodeChange = async (code: string) => {
+    const upper = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    setClassJoinCode(upper);
+    setJoinCodeStatus('idle');
+    setJoinedClassName('');
+    if (upper.length === 6) {
+      setJoinCodeStatus('checking');
+      try {
+        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        const res = await fetch(`${BACKEND_URL}/api/classrooms/join/${upper}`);
+        if (res.ok) {
+          const data = await res.json();
+          setJoinCodeStatus('found');
+          setJoinedClassName(data.name);
+        } else {
+          setJoinCodeStatus('invalid');
+        }
+      } catch {
+        setJoinCodeStatus('invalid');
+      }
+    }
+  };
+
   const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert('Name Required', 'Please enter a name for this profile.');
@@ -92,6 +118,7 @@ export default function CreateProfileScreen() {
 
     setSaving(true);
     try {
+      // Try server-side creation first (works when logged in as teacher/parent)
       await studentsApi.create({
         name: name.trim(),
         avatar_type: avatarType,
@@ -99,14 +126,53 @@ export default function CreateProfileScreen() {
         avatar_custom: avatarType === 'custom' ? customImage || undefined : undefined,
         classroom_id: selectedClassroom || undefined,
       });
-      
       await refreshStudents();
-      Alert.alert('Profile Created!', `${name}'s profile has been created.`, [
+      // Join classroom if code provided
+      if (classJoinCode.length === 6 && joinCodeStatus === 'found') {
+        try {
+          const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+          const newStudents = await (await import('../../src/utils/api')).studentsApi.getAll();
+          const newStudent = newStudents.find((s: any) => s.name === name.trim());
+          if (newStudent) {
+            await fetch(`${BACKEND_URL}/api/classrooms/join/${classJoinCode}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ student_id: newStudent.id }),
+            });
+          }
+        } catch (e) { console.log('Class join error:', e); }
+      }
+      Alert.alert('Profile Created!', `${name}'s profile has been created.${joinedClassName ? ` Added to ${joinedClassName}!` : ''}`, [
         { text: 'OK', onPress: () => router.back() }
       ]);
     } catch (error) {
-      console.error('Error creating profile:', error);
-      Alert.alert('Error', 'Failed to create profile. Please try again.');
+      // Fallback: save locally so student flow works without a teacher account
+      // This covers children using the app directly (guest/home use)
+      console.log('[CreateProfile] API failed, saving locally:', error);
+      try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const existing = await AsyncStorage.getItem('local_students');
+        const students = existing ? JSON.parse(existing) : [];
+        const newStudent = {
+          id: `local_${Date.now()}`,
+          name: name.trim(),
+          avatar_type: avatarType,
+          avatar_preset: avatarType === 'preset' ? selectedPreset : 'cat',
+          avatar_custom: avatarType === 'custom' ? customImage : null,
+          classroom_id: selectedClassroom || null,
+          created_at: new Date().toISOString(),
+          is_local: true,
+        };
+        students.push(newStudent);
+        await AsyncStorage.setItem('local_students', JSON.stringify(students));
+        await refreshStudents();
+        Alert.alert('Profile Created!', `${name}'s profile has been created.`, [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
+      } catch (localError) {
+        console.error('Error saving profile locally:', localError);
+        Alert.alert('Error', 'Failed to create profile. Please try again.');
+      }
     } finally {
       setSaving(false);
     }
@@ -219,6 +285,38 @@ export default function CreateProfileScreen() {
               </View>
             </View>
           )}
+
+          {/* Class Join Code */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🏫 {t('class_code_label') || 'Class Code'}</Text>
+            <Text style={{ fontSize: 13, color: '#888', marginBottom: 10 }}>
+              {t('class_code_optional') || 'Ask your teacher for your class code (optional)'}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+              <TextInput
+                style={[styles.nameInput, { flex: 1, fontSize: 22, letterSpacing: 6, textAlign: 'center', fontWeight: '700' }]}
+                placeholder="ABC123"
+                placeholderTextColor="#CCC"
+                value={classJoinCode}
+                onChangeText={handleJoinCodeChange}
+                maxLength={6}
+                autoCapitalize="characters"
+              />
+            </View>
+            {joinCodeStatus === 'checking' && (
+              <Text style={{ color: '#888', fontSize: 13, marginTop: 6 }}>🔍 Checking...</Text>
+            )}
+            {joinCodeStatus === 'found' && (
+              <Text style={{ color: '#4CAF50', fontSize: 13, fontWeight: '700', marginTop: 6 }}>
+                ✅ {joinedClassName}
+              </Text>
+            )}
+            {joinCodeStatus === 'invalid' && (
+              <Text style={{ color: '#F44336', fontSize: 13, marginTop: 6 }}>
+                ❌ {t('invalid_class_code') || 'Code not found — check with your teacher'}
+              </Text>
+            )}
+          </View>
 
           {/* Save Button */}
           <TouchableOpacity

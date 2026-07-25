@@ -45,17 +45,24 @@ export default function AboutScreen() {
       {expandedSection === 'disclaimer' && (
         <View style={styles.sectionContent}>
           <Text style={styles.legalText}>
-            This application, Class of Happiness, is an independent creation and is not affiliated with, 
-            associated, authorized, endorsed by, or in any way officially connected with Leah Kuypers 
-            or The Zones of Regulation®.
+            Class of Happiness is an independent application and is not affiliated with, associated, 
+            authorized, endorsed by, or in any way officially connected with Leah Kuypers, 
+            Think Social Publishing, Inc., or The Zones of Regulation®. The colour-based emotional 
+            awareness system used in this app was developed independently.
           </Text>
           <Text style={styles.legalText}>
             All product and company names are trademarks™ or registered® trademarks of their respective 
             holders. Use of them does not imply any affiliation with or endorsement by them.
           </Text>
           <Text style={styles.legalText}>
-            This app is intended for general informational and educational purposes only and does not 
-            constitute professional or medical advice.
+            This app is designed for educational and emotional awareness purposes only. It is not a 
+            medical device, clinical tool, or substitute for professional mental health diagnosis, 
+            therapy, or intervention. Always consult a qualified professional for clinical concerns.
+          </Text>
+          <Text style={styles.legalText}>
+            Schools and teachers remain responsible for their own safeguarding, pastoral care, and 
+            data governance obligations. Class of Happiness is a support tool and does not replace 
+            any statutory duty of care.
           </Text>
         </View>
       )}
@@ -80,52 +87,60 @@ export default function AboutScreen() {
         <View style={styles.sectionContent}>
           <Text style={styles.privacyHeading}>Our Commitment to Privacy</Text>
           <Text style={styles.legalText}>
-            Class of Happiness is committed to protecting the privacy of all users, especially children. 
-            We comply with COPPA (Children's Online Privacy Protection Act) in the US and GDPR 
-            (General Data Protection Regulation) in the EU/UK.
+            Class of Happiness is committed to protecting the privacy of all users, especially 
+            children. We comply with GDPR (EU/UK) and follow COPPA principles for child safety. 
+            We never sell, rent, or share personal data with advertisers or third parties.
+          </Text>
+
+          <Text style={styles.privacyHeading}>Student Safety</Text>
+          <Text style={styles.legalText}>
+            • We never advertise to students{'\n'}
+            • Students do not create independent accounts{'\n'}
+            • Student data is identified by first name and avatar only{'\n'}
+            • Student check-in data is visible only to their teacher and linked parent{'\n'}
+            • No location data, contacts, or device identifiers are collected from students
           </Text>
 
           <Text style={styles.privacyHeading}>Data We Collect</Text>
           <Text style={styles.legalText}>
-            • Account Information: Email address (for login only){'\n'}
-            • Profile Data: Name, avatar choice, classroom assignment{'\n'}
-            • Usage Data: Emotion check-ins, selected strategies, and optional notes{'\n'}
-            • We do NOT collect location data, contacts, or device identifiers
+            • Teachers and Parents: Email address, name, app usage data{'\n'}
+            • Students: First name, avatar, emotion check-ins, strategy choices{'\n'}
+            • Technical: Session tokens, language preference, anonymised error logs{'\n'}
+            • We do NOT collect location data, contacts, or payment card details
           </Text>
 
           <Text style={styles.privacyHeading}>How We Use Your Data</Text>
           <Text style={styles.legalText}>
-            All data is used solely for the app's core functionality:{'\n'}
-            • To track daily mood history{'\n'}
-            • To support students, teachers, and families with tools of emotional awareness{'\n'}
-            • To provide personalized strategy suggestions{'\n'}
-            • To enable teachers and parents to monitor emotional wellness
+            Data is used only to operate the app, supporting emotional awareness for students, 
+            teachers, and families. We use anonymised data to fix bugs and improve features. 
+            We never use data for advertising or sell it to any third party.
           </Text>
 
-          <Text style={styles.privacyHeading}>Third-Party Sharing</Text>
+          <Text style={styles.privacyHeading}>Third-Party Services</Text>
           <Text style={styles.legalText}>
-            We do NOT sell, rent, or share your personal data with advertisers or third-party 
-            marketing companies. Your data stays within the app ecosystem and is only shared 
-            between linked accounts (e.g., teacher-student or parent-child connections) that 
-            you explicitly authorize.
+            We use Supabase (database), Railway (hosting), Stripe (payments), and Expo 
+            (push notifications). All providers are contractually required to process data 
+            only as instructed and in compliance with data protection law.
           </Text>
 
-          <Text style={styles.privacyHeading}>Parental Rights</Text>
+          <Text style={styles.privacyHeading}>Your Rights (GDPR)</Text>
           <Text style={styles.legalText}>
-            Parents and guardians have the right to:{'\n'}
-            • Review their child's personal information{'\n'}
-            • Request deletion of any stored data at any time{'\n'}
-            • Refuse further collection of their child's data{'\n'}
-            • Contact us at any time regarding their child's privacy
+            You have the right to access, correct, delete, or export your data at any time. 
+            Parents may request review or deletion of their child's data. Contact us at 
+            jono@classofhappiness.com. We respond within 30 days.
           </Text>
 
-          <Text style={styles.privacyHeading}>Data Deletion</Text>
+          <Text style={styles.privacyHeading}>Data Retention and Security</Text>
           <Text style={styles.legalText}>
-            To request deletion of your data or your child's data, please contact us through 
-            the app settings or email. We will process deletion requests within 30 days.
+            Student check-in data is retained for up to 12 months. Account data is deleted 
+            within 30 days of account closure. All data is transmitted over encrypted HTTPS 
+            connections. Passwords are never stored in plain text.
           </Text>
 
-          <Text style={styles.privacyHeading}>Data Security</Text>
+          <Text style={styles.privacyHeading}>Full Privacy Policy</Text>
+          <Text style={styles.legalText}>
+            Our full privacy policy is available at classofhappiness.com/privacy-policy
+          </Text>
           <Text style={styles.legalText}>
             We use industry-standard encryption and security measures to protect your data. 
             All data is transmitted securely and stored on protected servers.
@@ -165,7 +180,7 @@ export default function AboutScreen() {
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>Version 1.0.6</Text>
-        <Text style={styles.footerText}>© 2025 Class of Happiness</Text>
+        <Text style={styles.footerText}>© 2026 Class of Happiness</Text>
       </View>
     </ScrollView>
   );

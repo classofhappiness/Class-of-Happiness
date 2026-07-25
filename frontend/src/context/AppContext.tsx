@@ -640,7 +640,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.log('[AppContext] Loading saved language...');
         try {
           const savedLang = await getStorageWithTimeout('app_language', 2000);
-          if (savedLang) {
+          if (savedLang && savedLang !== 'en') {
+            setLanguageState(savedLang);
+            // FIX: fetch translations immediately on startup so UI renders
+            // in correct language — previously only state was set, leaving
+            // the app in English until checkAuth completed
+            await fetchTranslations(savedLang).catch(() => {});
+          } else if (savedLang) {
             setLanguageState(savedLang);
           }
           console.log('[AppContext] Language loaded:', savedLang || 'default');
@@ -648,8 +654,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           console.log('[AppContext] Language load skipped:', e);
         }
         
-        // Step 2: Set translations loaded immediately (use defaults)
-        // This ensures the app can render even without network
+        // Step 2: Set translations loaded immediately (use defaults or fetched)
         setTranslationsLoaded(true);
         
         // Step 3: Check auth - but don't block on it

@@ -92,6 +92,7 @@ export default function TeacherDashboardScreen() {
   const [recentLogs, setRecentLogs] = useState<ZoneLog[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [classCodeLoading, setClassCodeLoading] = useState<string|null>(null);
   const [todaySnap, setTodaySnap] = useState({ blue:0, green:0, yellow:0, red:0, total:0 });
   const [barData, setBarData] = useState<{value:number,label:string,frontColor:string}[]>([]);
   const [selectedClassroom, setSelectedClassroom] = useState<string|null>(null);
@@ -221,13 +222,73 @@ export default function TeacherDashboardScreen() {
   useFocusEffect(useCallback(() => {
     loadData(); refreshStudents(); refreshClassrooms();
     const interval = setInterval(() => { refreshAlertCount(); }, 30000);
-    return () => clearInterval(interval);
+    const handleShowClassCode = async (classroomId: string, classroomName: string) => {
+    setClassCodeLoading(classroomId);
+    try {
+      const AsyncStorage2 = (await import('@react-native-async-storage/async-storage')).default;
+      const token = await AsyncStorage2.getItem('session_token');
+      const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const res = await fetch(`${BURL}/api/classrooms/${classroomId}/join-code`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        Alert.alert(
+          `${classroomName}`,
+          `Share this code with your students:
+
+${data.join_code}
+
+Students enter this when creating their profile to join your class automatically.`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', 'Could not get class code. Please try again.');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Could not get class code.');
+    } finally {
+      setClassCodeLoading(null);
+    }
+  };
+
+  return () => clearInterval(interval);
   }, [loadData, refreshAlertCount]));
 
   // Reload when period or classroom filter changes (debounced)
   useEffect(() => {
     const timer = setTimeout(() => { loadData(); }, 150);
-    return () => clearTimeout(timer);
+    const handleShowClassCode = async (classroomId: string, classroomName: string) => {
+    setClassCodeLoading(classroomId);
+    try {
+      const AsyncStorage2 = (await import('@react-native-async-storage/async-storage')).default;
+      const token = await AsyncStorage2.getItem('session_token');
+      const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const res = await fetch(`${BURL}/api/classrooms/${classroomId}/join-code`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        Alert.alert(
+          `${classroomName}`,
+          `Share this code with your students:
+
+${data.join_code}
+
+Students enter this when creating their profile to join your class automatically.`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', 'Could not get class code. Please try again.');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Could not get class code.');
+    } finally {
+      setClassCodeLoading(null);
+    }
+  };
+
+  return () => clearTimeout(timer);
   }, [period, selectedClassroom]);
 
   const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
@@ -263,6 +324,36 @@ export default function TeacherDashboardScreen() {
     { label: t('resources')||'Resources', icon: 'library-books', color: '#5C6BC0', route: '/teacher/resources', count: null },
     { label: t('alerts')||'Alerts', icon: 'notifications', color: '#F44336', route: '/teacher/alerts', count: alertCount > 0 ? alertCount : null },
   ];
+
+  const handleShowClassCode = async (classroomId: string, classroomName: string) => {
+    setClassCodeLoading(classroomId);
+    try {
+      const AsyncStorage2 = (await import('@react-native-async-storage/async-storage')).default;
+      const token = await AsyncStorage2.getItem('session_token');
+      const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const res = await fetch(`${BURL}/api/classrooms/${classroomId}/join-code`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        Alert.alert(
+          `${classroomName}`,
+          `Share this code with your students:
+
+${data.join_code}
+
+Students enter this when creating their profile to join your class automatically.`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', 'Could not get class code. Please try again.');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Could not get class code.');
+    } finally {
+      setClassCodeLoading(null);
+    }
+  };
 
   return (
     <SafeAreaView style={st.container}>
@@ -302,10 +393,21 @@ export default function TeacherDashboardScreen() {
                 <Text style={[st.chipTxt,!selectedClassroom&&st.chipTxtActive]}>{t('all')||'All'}</Text>
               </TouchableOpacity>
               {(localClassrooms.length > 0 ? localClassrooms : classrooms).map((c:any) => (
-                <TouchableOpacity key={c.id} style={[st.chip,selectedClassroom===c.id&&st.chipActive]}
-                  onPress={() => setSelectedClassroom(c.id)}>
-                  <Text style={[st.chipTxt,selectedClassroom===c.id&&st.chipTxtActive]}>{c.name}</Text>
-                </TouchableOpacity>
+                <View key={c.id} style={{flexDirection:'row', alignItems:'center', gap:2}}>
+                  <TouchableOpacity style={[st.chip, selectedClassroom===c.id&&st.chipActive]}
+                    onPress={() => setSelectedClassroom(c.id)}>
+                    <Text style={[st.chipTxt, selectedClassroom===c.id&&st.chipTxtActive]}>{c.name}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleShowClassCode(c.id, c.name)}
+                    disabled={classCodeLoading === c.id}
+                    style={{width:26, height:26, borderRadius:13, backgroundColor:'#F0F4FF',
+                      justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#C5CAE9'}}>
+                    <MaterialIcons
+                      name={classCodeLoading===c.id ? 'hourglass-empty' : 'vpn-key'}
+                      size={13} color="#5C6BC0" />
+                  </TouchableOpacity>
+                </View>
               ))}
             </View>
           </ScrollView>
@@ -339,7 +441,37 @@ export default function TeacherDashboardScreen() {
           const tip = tips[new Date().getDate() % tips.length];
           const clrs: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
           const bgs: Record<string,string> = { blue:'#EBF5FB', green:'#EAFAF1', yellow:'#FEFDE7', red:'#FDEDEC' };
-          return (
+          const handleShowClassCode = async (classroomId: string, classroomName: string) => {
+    setClassCodeLoading(classroomId);
+    try {
+      const AsyncStorage2 = (await import('@react-native-async-storage/async-storage')).default;
+      const token = await AsyncStorage2.getItem('session_token');
+      const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const res = await fetch(`${BURL}/api/classrooms/${classroomId}/join-code`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        Alert.alert(
+          `${classroomName}`,
+          `Share this code with your students:
+
+${data.join_code}
+
+Students enter this when creating their profile to join your class automatically.`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', 'Could not get class code. Please try again.');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Could not get class code.');
+    } finally {
+      setClassCodeLoading(null);
+    }
+  };
+
+  return (
             <View style={{ marginHorizontal:16, marginBottom:10, padding:12, borderRadius:12,
               backgroundColor: bgs[dominant], borderLeftWidth:4, borderLeftColor: clrs[dominant],
               flexDirection:'row', alignItems:'flex-start' }}>
@@ -371,6 +503,9 @@ export default function TeacherDashboardScreen() {
         </TouchableOpacity>
       )}
         {/* Emotion summary pills */}
+        <Text style={{fontSize:13, fontWeight:'700', color:'#333', marginBottom:6, marginTop:4}}>
+          {t('class_mood_snapshot') || "Today's Class Mood"}
+        </Text>
         <View style={{flexDirection:'row', gap:6, marginBottom:8}}>
           {(['blue','green','yellow','red'] as const).map(z => (
             <View key={z} style={[st.snapPill,{borderColor:ZONE_COLORS[z]+'50',backgroundColor:ZONE_COLORS[z]+'12',flex:1}]}>
@@ -396,7 +531,37 @@ export default function TeacherDashboardScreen() {
           recentLogs.slice(0,12).map(log => {
             const student = getStudent(log.student_id);
             const zone = (log as any).zone||(log as any).feeling_colour||'';
-            return (
+            const handleShowClassCode = async (classroomId: string, classroomName: string) => {
+    setClassCodeLoading(classroomId);
+    try {
+      const AsyncStorage2 = (await import('@react-native-async-storage/async-storage')).default;
+      const token = await AsyncStorage2.getItem('session_token');
+      const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const res = await fetch(`${BURL}/api/classrooms/${classroomId}/join-code`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        Alert.alert(
+          `${classroomName}`,
+          `Share this code with your students:
+
+${data.join_code}
+
+Students enter this when creating their profile to join your class automatically.`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', 'Could not get class code. Please try again.');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Could not get class code.');
+    } finally {
+      setClassCodeLoading(null);
+    }
+  };
+
+  return (
               <TouchableOpacity key={log.id} style={st.logCard}
                 onPress={() => router.push({pathname:'/teacher/student-detail',params:{studentId:log.student_id}})}>
                 <Avatar type={student?.avatar_type||'preset'} preset={student?.avatar_preset}

@@ -726,6 +726,9 @@ export const teacherResourcesApi = {
   create: (data: Partial<TeacherResource>): Promise<TeacherResource> =>
     apiRequest('/teacher-resources', { method: 'POST', body: JSON.stringify(data) }),
   
+  update: (id: string, data: { title?: string; description?: string; order_index?: number; target_audience?: string }): Promise<TeacherResource> =>
+    apiRequest(`/teacher-resources/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
   delete: (id: string): Promise<void> =>
     apiRequest(`/teacher-resources/${id}`, { method: 'DELETE' }),
   

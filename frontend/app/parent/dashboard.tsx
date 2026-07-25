@@ -201,6 +201,7 @@ export default function ParentDashboard() {
   };
   const [analyticsPeriod, setAnalyticsPeriod] = useState<1|7|14|30>(7);
   const [checkInsExpanded, setCheckInsExpanded] = useState(false);
+
   const [tipDismissed, setTipDismissed] = useState(false);
   const [showCollection, setShowCollection] = useState(false);
   const [collectionMember, setCollectionMember] = useState<any>(null);
@@ -890,6 +891,9 @@ export default function ParentDashboard() {
               )}
               {!reorderMode && familyMembers.length < 20 && (
                 <TouchableOpacity style={styles.addButton} onPress={async () => {
+                  if (!hasActiveSubscription && familyMembers.length >= 2) {
+                    router.push('/subscription'); return;
+                  }
                   setShowAddFamilyModal(true);
                   try {
                     const token = await AsyncStorage.getItem('session_token');
@@ -1028,26 +1032,24 @@ export default function ParentDashboard() {
                     )}
                   </TouchableOpacity>
                 );
+                  {rowIdx === 0 && !hasActiveSubscription && familyMembers.length >= 2 && (
+                    <TouchableOpacity onPress={() => router.push('/subscription')}
+                      style={[styles.gridCard, { borderColor:'#5C6BC0', borderStyle:'dashed', opacity:0.85, justifyContent:'center', alignItems:'center', gap:6 }]}>
+                      <View style={{ width:40, height:40, borderRadius:20, backgroundColor:'#EDE7F6', justifyContent:'center', alignItems:'center' }}>
+                        <MaterialIcons name="lock" size={20} color="#5C6BC0" />
+                      </View>
+                      <Text style={{ fontSize:10, fontWeight:'700', color:'#5C6BC0', textAlign:'center' }}>{t('add_member')||'Add more'}</Text>
+                      <View style={{ backgroundColor:'#5C6BC0', borderRadius:8, paddingHorizontal:8, paddingVertical:3 }}>
+                        <Text style={{ fontSize:9, color:'white', fontWeight:'700' }}>UPGRADE</Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
               })}
                 </View>
               ))}
               </View>
             </ScrollView>
 
-            {/* Locked upgrade slot — shows when free user has 2+ members */}
-            {!hasActiveSubscription && familyMembers.length >= 2 && (
-              <TouchableOpacity
-                onPress={() => router.push('/subscription')}
-                style={[styles.gridCard, { borderColor: '#5C6BC0', borderStyle: 'dashed', opacity: 0.85, justifyContent: 'center', alignItems: 'center', gap: 6 }]}>
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#EDE7F6', justifyContent: 'center', alignItems: 'center' }}>
-                  <MaterialIcons name="lock" size={20} color="#5C6BC0" />
-                </View>
-                <Text style={{ fontSize: 10, fontWeight: '700', color: '#5C6BC0', textAlign: 'center' }}>{t('add_member') || t('add_member') || 'Add more'}</Text>
-                <View style={{ backgroundColor: '#5C6BC0', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                  <Text style={{ fontSize: 9, color: 'white', fontWeight: '700' }}>{t('trial') || t('trial') || 'UPGRADE'}</Text>
-                </View>
-              </TouchableOpacity>
-            )}
             </>
           )}
         </View>

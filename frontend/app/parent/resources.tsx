@@ -16,13 +16,14 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { File, Directory, Paths } from 'expo-file-system';
+import { File, Directory, Paths } from 'expo-file-system/next';
 import * as Sharing from 'expo-sharing';
 import { resourcesApi, teacherResourcesApi, Resource, TeacherResource, TeacherResourceRating } from '../../src/utils/api';
 import { useApp } from '../../src/context/AppContext';
 
 const TOPICS = [
   { id: 'all', name: 'All', icon: 'apps' as const },
+  { id: 'emotions_program', name: 'Emotions Program', icon: 'auto-stories' as const },
   { id: 'emotions', name: 'Emotions', icon: 'mood' as const },
   { id: 'healthy_relationships', name: 'Healthy Relationships', icon: 'people' as const },
   { id: 'leader_online', name: 'Leader Online', icon: 'computer' as const },
@@ -194,9 +195,16 @@ export default function ResourcesScreen() {
   };
 
   const filteredResources = resources;
-  const filteredTeacherResources = selectedTopic === 'all'
-    ? parentTeacherResources
-    : parentTeacherResources.filter(r => r.topic === selectedTopic);
+  const filteredTeacherResources = (() => {
+    const base = selectedTopic === 'all'
+      ? parentTeacherResources
+      : parentTeacherResources.filter(r => r.topic === selectedTopic);
+    // Emotions Program always sorted by order_index (week 1 → 6)
+    if (selectedTopic === 'emotions_program') {
+      return [...base].sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0));
+    }
+    return base;
+  })();
 
   const isTeacherResource = (resource: Resource | TeacherResource | null): resource is TeacherResource => {
     return resource !== null && 'topic' in resource;
@@ -309,7 +317,9 @@ export default function ResourcesScreen() {
               <MaterialIcons name="school" size={64} color="#CCC" />
               <Text style={styles.emptyStateText}>{t('no_resources_yet') || 'No resources yet'}</Text>
               <Text style={styles.emptyStateSubtext}>
-                Your child's teacher will share resources here. Teachers upload and set audience to "Parents" or "Both".
+                {selectedTopic === 'emotions_program'
+                  ? 'Emotions Program resources will appear here once your teacher uploads them.'
+                  : "Your child's teacher will share resources here once they set audience to Parents or Both."}
               </Text>
             </View>
           ) : (
