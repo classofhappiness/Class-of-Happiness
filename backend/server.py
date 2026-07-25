@@ -7206,8 +7206,7 @@ async def bulk_invite_teachers(request: Request):
         raise HTTPException(status_code=403, detail="School admin access required")
     body = await request.json()
     raw_emails = body.get("emails", "")
-    emails = [e.strip().lower() for e in raw_emails.replace(",", "
-").splitlines() if "@" in e.strip()]
+    emails = [e.strip().lower() for e in raw_emails.replace(",", " ").split() if "@" in e.strip()]
     if not emails:
         raise HTTPException(status_code=400, detail="No valid email addresses found")
     results = {"linked": [], "not_found": [], "already_linked": []}
@@ -7341,6 +7340,127 @@ async def get_school_subscription(request: Request):
         "seats_used": len(teacher_list),
         "teachers": [{"name": t.get("name",""), "email": t.get("email",""), "status": t.get("subscription_status","active")} for t in teacher_list],
         "stripe_customer_id": user.get("stripe_customer_id"),
+    }
+
+
+@api_router.get("/admin/users")
+async def get_all_users(request: Request, limit: int = 100, offset: int = 0, role: str = ""):
+    """Returns all users for superadmin. Paginated."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    query = supabase.table("users").select(
+        "user_id,email,name,role,subscription_status,subscription_expires_at,"
+        "school_name,school_admin_id,school_country,created_at,language,promo_trial_ends_at,trial_started_at"
+    )
+    if role:
+        query = query.eq("role", role)
+    result = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+    return {"users": result.data or [], "total": len(result.data or [])}
+
+@api_router.get("/admin/dashboard-summary")
+async def get_dashboard_summary(request: Request):
+    """Rich summary for superadmin dashboard — schools comparison, country breakdown, daily trends."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+
+    users = supabase.table("users").select("*").execute().data or []
+    students = supabase.table("students").select("id,classroom_id,user_id").execute().data or []
+    classrooms = supabase.table("classrooms").select("*").execute().data or []
+
+    from datetime import datetime, timezone, timedelta
+    week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    month_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    today = datetime.now(timezone.utc).date().isoformat()
+
+    logs_month = supabase.table("feeling_logs").select("*").gte("timestamp", month_ago).execute().data or []
+    logs_week = [l for l in logs_month if (l.get("timestamp") or "") >= week_ago]
+
+    # Strategy names lookup
+    try:
+        strategies_db = supabase.table("admin_teacher_strategies").select("id,name,zone").execute().data or []
+        strat_map = {s["id"]: s["name"] for s in strategies_db}
+    except:
+        strat_map = {}
+
+    # Strategy counts with real names
+    strategy_counts = {}
+    for log in logs_month:
+        for s in (log.get("strategies_selected") or []):
+            name = strat_map.get(s) or s  # fallback to ID if no name found
+            if name and len(name) > 2:  # skip empty/short IDs
+                strategy_counts[name] = strategy_counts.get(name, 0) + 1
+
+    # Zone distribution
+    zone_dist = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+    daily_counts = {}
+    for log in logs_month:
+        z = log.get("feeling_colour") or log.get("zone", "blue")
+        if z in zone_dist:
+            zone_dist[z] += 1
+        day = (log.get("timestamp") or "")[:10]
+        if day:
+            daily_counts[day] = daily_counts.get(day, 0) + 1
+
+    # Country breakdown
+    country_counts = {}
+    for u in users:
+        c = u.get("school_country") or u.get("language", "en")
+        country_counts[c] = country_counts.get(c, 0) + 1
+
+    # School comparison (school admins only)
+    school_admins = [u for u in users if u.get("role") == "school_admin"]
+    school_comparison = []
+    for sa in school_admins:
+        sa_id = sa["user_id"]
+        sa_teachers = [u for u in users if u.get("school_admin_id") == sa_id]
+        sa_teacher_ids = [t["user_id"] for t in sa_teachers]
+        sa_students = [s for s in students if s.get("user_id") in sa_teacher_ids]
+        sa_student_ids = {s["id"] for s in sa_students}
+        sa_logs = [l for l in logs_month if l.get("student_id") in sa_student_ids]
+        sa_zones = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+        for l in sa_logs:
+            z = l.get("feeling_colour") or "blue"
+            if z in sa_zones:
+                sa_zones[z] += 1
+        school_comparison.append({
+            "school_name": sa.get("school_name") or "Unknown School",
+            "country": sa.get("school_country") or "—",
+            "teacher_count": len(sa_teachers),
+            "student_count": len(sa_students),
+            "checkin_count": len(sa_logs),
+            "zone_distribution": sa_zones,
+            "subscription_status": sa.get("subscription_status", "none"),
+        })
+
+    # Role breakdown
+    role_counts = {}
+    for u in users:
+        r = u.get("role", "unknown")
+        role_counts[r] = role_counts.get(r, 0) + 1
+
+    # Subscription breakdown
+    sub_counts = {"active": 0, "trial": 0, "free": 0}
+    for u in users:
+        s = u.get("subscription_status", "none")
+        if s == "active": sub_counts["active"] += 1
+        elif s == "trial": sub_counts["trial"] += 1
+        else: sub_counts["free"] += 1
+
+    return {
+        "total_users": len(users),
+        "total_students": len(students),
+        "total_classrooms": len(classrooms),
+        "total_checkins_month": len(logs_month),
+        "total_checkins_week": len(logs_week),
+        "zone_distribution": zone_dist,
+        "daily_counts": daily_counts,
+        "strategy_counts": dict(sorted(strategy_counts.items(), key=lambda x: -x[1])[:10]),
+        "country_breakdown": country_counts,
+        "school_comparison": school_comparison,
+        "role_counts": role_counts,
+        "subscription_counts": sub_counts,
     }
 
 # ================== TRIAL SYSTEM ==================
