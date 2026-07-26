@@ -2697,7 +2697,7 @@ async def create_feeling_log(log: FeelingLogCreate, request: Request):
     result = supabase.table("feeling_logs").insert(new_log).execute()
     saved = result.data[0] if result.data else new_log
 
-    # Auto-create alert if comment present or non-green zone (school context)
+    # Auto-create alert if comment present or non-Green Emotions (school context)
     try:
         comment_text = (log.comment or "").strip()
         zone_val = log.feeling_colour or log.zone or ""
@@ -6253,18 +6253,24 @@ async def promote_admin(request: Request):
 
 @api_router.post("/auth/email-login")
 async def email_login(request: Request):
-    """Simple email-based login"""
+    """Email-based login. Admin/superadmin accounts require an admin PIN."""
     try:
         body = await request.json()
         email = body.get("email", "").strip().lower()
         if not email or "@" not in email:
             raise HTTPException(status_code=400, detail="Valid email required")
+        admin_pin = body.get("admin_pin", "").strip()
         
         # Find or create user
         try:
             existing = supabase.table("users").select("*").eq("email", email).execute()
             if existing.data:
                 user = existing.data[0]
+            # PIN check for admin/superadmin accounts
+            if user.get("role") in ("admin", "superadmin", "school_admin"):
+                required_pin = os.environ.get("ADMIN_PIN", "")
+                if required_pin and admin_pin != required_pin:
+                    raise HTTPException(status_code=403, detail="Admin PIN required. Contact Jono.")
             else:
                 name = email.split("@")[0].replace(".", " ").title()
                 user_id = f"user_{uuid.uuid4().hex[:12]}"
@@ -6976,6 +6982,15 @@ async def get_admin_teacher_strategies(request: Request):
         {"id": "admin_5", "zone": "red", "name": "Ask for immediate cover", "description": "Request support from nearby staff.", "icon": "support-agent"},
     ]
 
+
+@api_router.delete("/admin/teacher-strategies/{strategy_id}")
+async def delete_teacher_strategy(strategy_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    supabase.table("admin_teacher_strategies").delete().eq("id", strategy_id).execute()
+    return {"message": "Strategy deleted"}
+
 @api_router.post("/admin/teacher-strategies")
 async def create_admin_teacher_strategy(request: Request):
     """Admin adds a new strategy for teachers"""
@@ -7462,6 +7477,134 @@ async def get_dashboard_summary(request: Request):
         "role_counts": role_counts,
         "subscription_counts": sub_counts,
     }
+
+
+@api_router.get("/admin/growth-stats")
+async def get_growth_stats(request: Request):
+    """Monthly user growth for last 6 months, broken down by role."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    users = supabase.table("users").select("role,created_at,subscription_status").execute().data or []
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
+    months = []
+    for i in range(5, -1, -1):
+        month_start = (now.replace(day=1) - timedelta(days=i*30)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        month_end = (month_start + timedelta(days=32)).replace(day=1)
+        label = month_start.strftime("%b %Y")
+        month_users = [u for u in users if u.get("created_at") and month_start.isoformat() <= u["created_at"] < month_end.isoformat()]
+        cumulative = [u for u in users if u.get("created_at") and u["created_at"] < month_end.isoformat()]
+        role_counts = {}
+        cumulative_counts = {}
+        for role in ["teacher","parent","student","school_admin","superadmin"]:
+            role_counts[role] = len([u for u in month_users if u.get("role") == role])
+            cumulative_counts[role] = len([u for u in cumulative if u.get("role") == role])
+        months.append({
+            "label": label,
+            "new_users": len(month_users),
+            "total_users": len(cumulative),
+            "role_breakdown": role_counts,
+            "cumulative_roles": cumulative_counts,
+            "active_subs": len([u for u in cumulative if u.get("subscription_status") == "active"]),
+        })
+    return {"months": months}
+
+@api_router.get("/admin/help-stats")
+async def get_help_stats(request: Request):
+    """Stats on which strategies students requested help with via the need-help button."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    try:
+        alerts = supabase.table("student_alerts").select("*").eq("type", "need_help").execute().data or []
+    except:
+        alerts = []
+    strategy_tallies = {}
+    emotion_tallies = {"green": 0, "blue": 0, "yellow": 0, "red": 0}
+    for a in alerts:
+        emotion = a.get("feeling_colour", "yellow")
+        if emotion in emotion_tallies:
+            emotion_tallies[emotion] += 1
+        msg = a.get("message", "")
+        for strat in (a.get("strategies_used") or a.get("strategies_selected") or []):
+            strategy_tallies[strat] = strategy_tallies.get(strat, 0) + 1
+    return {
+        "total_help_requests": len(alerts),
+        "emotion_breakdown": emotion_tallies,
+        "strategy_tallies": dict(sorted(strategy_tallies.items(), key=lambda x: -x[1])),
+        "recent_alerts": alerts[-20:][::-1],
+    }
+
+@api_router.get("/admin/school-profiles")
+async def get_school_profiles(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    try:
+        profiles = supabase.table("school_profiles").select("*").execute().data or []
+    except:
+        profiles = []
+    return profiles
+
+@api_router.post("/admin/school-profiles")
+async def create_school_profile(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    body = await request.json()
+    profile = {
+        "id": str(uuid.uuid4()),
+        "school_name": body.get("school_name", "New School"),
+        "school_admin_user_id": body.get("school_admin_user_id"),
+        "address": body.get("address"),
+        "city": body.get("city"),
+        "country": body.get("country"),
+        "country_code": body.get("country_code", "").lower(),
+        "lat": body.get("lat"),
+        "lng": body.get("lng"),
+        "principal_name": body.get("principal_name"),
+        "principal_email": body.get("principal_email"),
+        "wellbeing_lead_name": body.get("wellbeing_lead_name"),
+        "wellbeing_lead_email": body.get("wellbeing_lead_email"),
+        "phone": body.get("phone"),
+        "website": body.get("website"),
+        "subscription_package": body.get("subscription_package", "starter"),
+        "subscription_renewal_date": body.get("subscription_renewal_date"),
+        "subscription_seats": body.get("subscription_seats", 5),
+        "student_count_official": body.get("student_count_official"),
+        "school_type": body.get("school_type"),
+        "notes": body.get("notes"),
+        "tasks": body.get("tasks", []),
+        "contact_history": body.get("contact_history", []),
+        "feedback_score": body.get("feedback_score"),
+        "status": body.get("status", "active"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    result = supabase.table("school_profiles").insert(profile).execute()
+    return result.data[0] if result.data else profile
+
+@api_router.put("/admin/school-profiles/{profile_id}")
+async def update_school_profile(profile_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    body = await request.json()
+    body["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = supabase.table("school_profiles").update(body).eq("id", profile_id).execute()
+    return result.data[0] if result.data else body
+
+@api_router.put("/admin/teacher-strategies/{strategy_id}")
+async def update_teacher_strategy(strategy_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    body = await request.json()
+    allowed = ["name","description","icon","is_active","zone","strategy_type","target_countries","target_schools"]
+    updates = {k:v for k,v in body.items() if k in allowed}
+    result = supabase.table("admin_teacher_strategies").update(updates).eq("id", strategy_id).execute()
+    return result.data[0] if result.data else updates
 
 # ================== TRIAL SYSTEM ==================
 
