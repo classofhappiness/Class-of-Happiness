@@ -59,8 +59,8 @@ SUBSCRIPTION_PLANS = {
     },
     "parent_monthly": {
         "id": "parent_monthly", "name": "Parent", "type": "parent",
-        "price_eur": 3.99, "price_aud": 6.99,
-        "label_eur": "€3.99/month", "label_aud": "A$6.99/month",
+        "price_eur": 2.99, "price_aud": 6.99,
+        "label_eur": "€2.99/month", "label_aud": "A$6.99/month",
         "trial_days": 7, "duration_days": 30,
         "features": ["Unlimited family members","Home check-ins","Family strategies","School linking"],
     },
@@ -2660,6 +2660,21 @@ async def get_classrooms(request: Request):
 @api_router.post("/classrooms")
 async def create_classroom(classroom: ClassroomCreate, request: Request):
     user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    # Free tier: limit to 1 classroom
+    sub_status = user.get("subscription_status", "none")
+    school_admin_id = user.get("school_admin_id")
+    is_school_covered = bool(school_admin_id)
+    if sub_status in ("none", "free", None) and not is_school_covered:
+        existing = supabase.table("classrooms").select("id", count="exact").eq("user_id", user["user_id"]).execute()
+        classroom_count = existing.count or len(existing.data or [])
+        if classroom_count >= 1:
+            raise HTTPException(
+                status_code=403,
+                detail="free_tier_limit|Free plan is limited to 1 classroom. Upgrade to Teacher Pro for unlimited classrooms, or ask your school to add you to their school plan."
+            )
+    # ── original function continues below ──    user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     new_classroom = {

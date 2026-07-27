@@ -8,12 +8,12 @@ import { useApp } from '../../src/context/AppContext';
 import { subscriptionApi } from '../../src/utils/api';
 
 const PARENT_PLANS = [
-  { id: 'parent_monthly', name: 'Monthly', price: '$4.99', period: '/month', savings: '', popular: false },
+  { id: 'parent_monthly', name: 'Monthly', price: '€2.99', period: '/month', savings: '', popular: false },
   { id: 'parent_annual', name: 'Annual', price: '$39.99', period: '/year', savings: 'Save 33%', popular: true },
 ];
 
 const TEACHER_PLANS = [
-  { id: 'teacher_monthly', name: 'Monthly', price: '$7.99', period: '/month', savings: '', popular: false },
+  { id: 'teacher_monthly', name: 'Monthly', price: '€7.99', period: '/month', savings: '', popular: false },
   { id: 'teacher_annual', name: 'Annual', price: '$59.99', period: '/year', savings: 'Save 37%', popular: true },
 ];
 
@@ -171,14 +171,14 @@ export default function SubscriptionScreen() {
           onPress={() => setSelectedRole('parent')}>
           <MaterialIcons name="family-restroom" size={22} color={selectedRole === 'parent' ? 'white' : '#5C6BC0'} />
           <Text style={[st.roleBtnText, selectedRole === 'parent' && st.roleBtnTextActive]}>Parent / Family</Text>
-          <Text style={[st.rolePrice, selectedRole === 'parent' && { color: 'rgba(255,255,255,0.8)' }]}>from $4.99/mo</Text>
+          <Text style={[st.rolePrice, selectedRole === 'parent' && { color: 'rgba(255,255,255,0.8)' }]}>from €2.99/mo</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[st.roleBtn, selectedRole === 'teacher' && st.roleBtnActive]}
           onPress={() => setSelectedRole('teacher')}>
           <MaterialIcons name="school" size={22} color={selectedRole === 'teacher' ? 'white' : '#5C6BC0'} />
           <Text style={[st.roleBtnText, selectedRole === 'teacher' && st.roleBtnTextActive]}>Teacher / Educator</Text>
-          <Text style={[st.rolePrice, selectedRole === 'teacher' && { color: 'rgba(255,255,255,0.8)' }]}>from $7.99/mo</Text>
+          <Text style={[st.rolePrice, selectedRole === 'teacher' && { color: 'rgba(255,255,255,0.8)' }]}>from €7.99/mo</Text>
         </TouchableOpacity>
       </View>
 
