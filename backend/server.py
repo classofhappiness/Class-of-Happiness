@@ -42,7 +42,7 @@ api_router = APIRouter(prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
+    allow_credentials=False,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
@@ -6280,13 +6280,15 @@ async def email_login(request: Request):
         try:
             existing = supabase.table("users").select("*").eq("email", email).execute()
             if existing.data:
+                # User exists — use them
                 user = existing.data[0]
-            # PIN check for admin/superadmin accounts
-            if user.get("role") in ("admin", "superadmin", "school_admin"):
-                required_pin = os.environ.get("ADMIN_PIN", "")
-                if required_pin and admin_pin != required_pin:
-                    raise HTTPException(status_code=403, detail="Admin PIN required. Contact Jono.")
+                # PIN check only for superadmin/admin roles
+                if user.get("role") in ("admin", "superadmin"):
+                    required_pin = os.environ.get("ADMIN_PIN", "")
+                    if required_pin and admin_pin != required_pin:
+                        raise HTTPException(status_code=403, detail="Admin PIN required. Contact Jono.")
             else:
+                # New user — create as teacher
                 name = email.split("@")[0].replace(".", " ").title()
                 user_id = f"user_{uuid.uuid4().hex[:12]}"
                 new_user = {
