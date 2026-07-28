@@ -7621,6 +7621,252 @@ async def update_teacher_strategy(strategy_id: str, request: Request):
     result = supabase.table("admin_teacher_strategies").update(updates).eq("id", strategy_id).execute()
     return result.data[0] if result.data else updates
 
+
+@api_router.post("/admin/create-school-admin")
+async def create_school_admin(request: Request):
+    """Create a school admin account. Superadmin only."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    body = await request.json()
+    email = body.get("email", "").strip().lower()
+    school_name = body.get("school_name", "")
+    name = body.get("name", school_name + " Admin")
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Valid email required")
+    # Check if user already exists
+    existing = supabase.table("users").select("*").eq("email", email).execute()
+    if existing.data:
+        # Update existing user to school_admin
+        supabase.table("users").update({
+            "role": "school_admin",
+            "school_name": school_name,
+            "subscription_status": "trial",
+        }).eq("email", email).execute()
+        return {"status": "updated", "email": email, "role": "school_admin", "school_name": school_name}
+    # Create new user
+    new_user = {
+        "user_id": str(uuid.uuid4()),
+        "email": email,
+        "name": name,
+        "role": "school_admin",
+        "school_name": school_name,
+        "subscription_status": "trial",
+        "language": "en",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    supabase.table("users").insert(new_user).execute()
+    # Create session
+    session_token = str(uuid.uuid4())
+    expires_at = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+    supabase.table("user_sessions").insert({
+        "session_token": session_token,
+        "user_id": new_user["user_id"],
+        "expires_at": expires_at,
+    }).execute()
+    return {
+        "status": "created",
+        "email": email,
+        "role": "school_admin",
+        "school_name": school_name,
+        "login_url": "https://www.classofhappiness.com/portal.html",
+        "note": "User can log in with their email — no password needed"
+    }
+
+
+# ── SCHOOL ADMIN CONFIDENTIAL ENDPOINTS ─────────────────────────────────
+# These are NOT accessible to superadmin — school data stays private to each school
+
+@api_router.get("/school-admin/wellbeing-tracker")
+async def get_wellbeing_tracker(request: Request):
+    """Confidential student wellbeing tracker. School admin only. Not visible to superadmin."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    try:
+        records = supabase.table("school_wellbeing_tracker").select("*").eq("school_admin_id", user["user_id"]).order("updated_at", desc=True).execute().data or []
+        return records
+    except Exception as e:
+        return []
+
+@api_router.post("/school-admin/wellbeing-tracker")
+async def create_wellbeing_record(request: Request):
+    """Add a student to the confidential wellbeing tracker."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    body = await request.json()
+    record = {
+        "id": str(uuid.uuid4()),
+        "school_admin_id": user["user_id"],
+        "student_ref": body.get("student_ref", ""),
+        "year_group": body.get("year_group", ""),
+        "tier": body.get("tier", 1),
+        "areas": body.get("areas", []),
+        "concern_summary": body.get("concern_summary", ""),
+        "action": body.get("action", ""),
+        "delegate": body.get("delegate", ""),
+        "review_date": body.get("review_date"),
+        "status": body.get("status", "active"),
+        "notes": body.get("notes", ""),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    supabase.table("school_wellbeing_tracker").insert(record).execute()
+    return record
+
+@api_router.put("/school-admin/wellbeing-tracker/{record_id}")
+async def update_wellbeing_record(record_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    body = await request.json()
+    body["updated_at"] = datetime.now(timezone.utc).isoformat()
+    # Only update own records
+    supabase.table("school_wellbeing_tracker").update(body).eq("id", record_id).eq("school_admin_id", user["user_id"]).execute()
+    return body
+
+@api_router.delete("/school-admin/wellbeing-tracker/{record_id}")
+async def delete_wellbeing_record(record_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    supabase.table("school_wellbeing_tracker").delete().eq("id", record_id).eq("school_admin_id", user["user_id"]).execute()
+    return {"status": "deleted"}
+
+@api_router.get("/school-admin/team-roles")
+async def get_team_roles(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    try:
+        roles = supabase.table("school_team_roles").select("*").eq("school_admin_id", user["user_id"]).execute().data or []
+        return roles
+    except:
+        return []
+
+@api_router.post("/school-admin/team-roles")
+async def save_team_role(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    body = await request.json()
+    role = {
+        "id": str(uuid.uuid4()),
+        "school_admin_id": user["user_id"],
+        "role_title": body.get("role_title", ""),
+        "person_name": body.get("person_name", ""),
+        "email": body.get("email", ""),
+        "phone": body.get("phone", ""),
+        "responsibilities": body.get("responsibilities", ""),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    supabase.table("school_team_roles").insert(role).execute()
+    return role
+
+@api_router.delete("/school-admin/team-roles/{role_id}")
+async def delete_team_role(role_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    supabase.table("school_team_roles").delete().eq("id", role_id).eq("school_admin_id", user["user_id"]).execute()
+    return {"status": "deleted"}
+
+@api_router.get("/school-admin/services-directory")
+async def get_services_directory(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    try:
+        services = supabase.table("school_services_directory").select("*").eq("school_admin_id", user["user_id"]).order("category").execute().data or []
+        return services
+    except:
+        return []
+
+@api_router.post("/school-admin/services-directory")
+async def save_service(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    body = await request.json()
+    service = {
+        "id": str(uuid.uuid4()),
+        "school_admin_id": user["user_id"],
+        "category": body.get("category", "General"),
+        "service_name": body.get("service_name", ""),
+        "contact_name": body.get("contact_name", ""),
+        "phone": body.get("phone", ""),
+        "email": body.get("email", ""),
+        "address": body.get("address", ""),
+        "notes": body.get("notes", ""),
+        "is_emergency": body.get("is_emergency", False),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    supabase.table("school_services_directory").insert(service).execute()
+    return service
+
+@api_router.delete("/school-admin/services-directory/{service_id}")
+async def delete_service(service_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    supabase.table("school_services_directory").delete().eq("id", service_id).eq("school_admin_id", user["user_id"]).execute()
+    return {"status": "deleted"}
+
+@api_router.get("/school-admin/school-strategies")
+async def get_school_strategies(request: Request):
+    """School-specific strategies. School admin can add/edit/remove these for their community."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    try:
+        # Global strategies (read-only for school admin)
+        global_strats = supabase.table("admin_teacher_strategies").select("*").filter("target_schools", "eq", "[]").execute().data or []
+        # School-specific strategies
+        school_strats = supabase.table("school_strategies").select("*").eq("school_admin_id", user["user_id"]).execute().data or []
+        return {"global": global_strats, "school_specific": school_strats}
+    except Exception as e:
+        return {"global": [], "school_specific": []}
+
+@api_router.post("/school-admin/school-strategies")
+async def create_school_strategy(request: Request):
+    """Create a school-specific strategy."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    body = await request.json()
+    strategy = {
+        "id": str(uuid.uuid4()),
+        "school_admin_id": user["user_id"],
+        "school_name": user.get("school_name", ""),
+        "name": body.get("name", ""),
+        "description": body.get("description", ""),
+        "icon": body.get("icon", "⭐"),
+        "zone": body.get("zone", "green"),
+        "strategy_type": body.get("strategy_type", "student"),
+        "is_active": True,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    supabase.table("school_strategies").insert(strategy).execute()
+    return strategy
+
+@api_router.put("/school-admin/school-strategies/{strategy_id}")
+async def update_school_strategy(strategy_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    body = await request.json()
+    supabase.table("school_strategies").update(body).eq("id", strategy_id).eq("school_admin_id", user["user_id"]).execute()
+    return body
+
+@api_router.delete("/school-admin/school-strategies/{strategy_id}")
+async def delete_school_strategy(strategy_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    supabase.table("school_strategies").delete().eq("id", strategy_id).eq("school_admin_id", user["user_id"]).execute()
+    return {"status": "deleted"}
+
 # ================== TRIAL SYSTEM ==================
 
 @api_router.post("/trial/start")
