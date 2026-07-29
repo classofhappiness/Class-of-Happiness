@@ -7869,6 +7869,93 @@ async def delete_school_strategy(strategy_id: str, request: Request):
     supabase.table("school_strategies").delete().eq("id", strategy_id).eq("school_admin_id", user["user_id"]).execute()
     return {"status": "deleted"}
 
+
+@api_router.get("/parent/family-members")
+async def get_family_members(request: Request):
+    """Get children/family members linked to this parent."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        # Find students linked to this parent
+        links = supabase.table("parent_student_links").select("*").eq("parent_id", user["user_id"]).execute()
+        if not links.data:
+            return []
+        children = []
+        for link in links.data:
+            student = supabase.table("users").select("*").eq("user_id", link["student_id"]).execute()
+            if student.data:
+                s = student.data[0]
+                # Get recent checkins for this child
+                checkins = supabase.table("emotion_checkins").select("*").eq("user_id", s["user_id"]).order("created_at", desc=True).limit(7).execute()
+                s["recent_checkins"] = checkins.data or []
+                children.append(s)
+        return children
+    except Exception as e:
+        logger.error(f"Family members error: {e}")
+        return []
+
+@api_router.get("/parent/child/{child_id}/recent-checkins")
+async def get_child_checkins(child_id: str, request: Request):
+    """Get recent checkins for a linked child."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        # Verify parent is linked to this child
+        link = supabase.table("parent_student_links").select("*").eq("parent_id", user["user_id"]).eq("student_id", child_id).execute()
+        if not link.data:
+            raise HTTPException(status_code=403, detail="Not linked to this child")
+        checkins = supabase.table("emotion_checkins").select("*").eq("user_id", child_id).order("created_at", desc=True).limit(14).execute()
+        return checkins.data or []
+    except HTTPException:
+        raise
+    except Exception as e:
+        return []
+
+@api_router.post("/parent/home-checkin")
+async def parent_home_checkin(request: Request):
+    """Parent home wellbeing check-in."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    record = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["user_id"],
+        "feeling_colour": body.get("feeling_colour", "green"),
+        "is_home_checkin": True,
+        "is_private": True,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        supabase.table("emotion_checkins").insert(record).execute()
+    except Exception as e:
+        pass
+    return {"status": "saved", "feeling_colour": record["feeling_colour"]}
+
+@api_router.get("/parent/dashboard-stats")
+async def parent_dashboard_stats(request: Request):
+    """Parent dashboard statistics."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        links = supabase.table("parent_student_links").select("*").eq("parent_id", user["user_id"]).execute()
+        child_ids = [l["student_id"] for l in (links.data or [])]
+        school_checkins = 0
+        for cid in child_ids:
+            c = supabase.table("emotion_checkins").select("id", count="exact").eq("user_id", cid).execute()
+            school_checkins += c.count or 0
+        home = supabase.table("emotion_checkins").select("id", count="exact").eq("user_id", user["user_id"]).eq("is_home_checkin", True).execute()
+        return {
+            "total_children": len(child_ids),
+            "school_checkins": school_checkins,
+            "home_checkins": home.count or 0,
+        }
+    except Exception as e:
+        return {"total_children": 0, "school_checkins": 0, "home_checkins": 0}
+
 # ================== TRIAL SYSTEM ==================
 
 @api_router.post("/trial/start")
