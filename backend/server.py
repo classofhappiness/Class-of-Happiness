@@ -7274,15 +7274,19 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
     days = max(1, min(period, 90))
     start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
-    # Get all teachers in this school
-    teachers = supabase.table("users").select("user_id,name,email").eq("school_admin_id", user_id).execute()
-    teacher_list = teachers.data or []
+    # Get all teachers in this school — by school_admin_id OR school_name
+    school_name = user.get("school_name", "")
+    teachers_by_id = supabase.table("users").select("user_id,name,email").eq("school_admin_id", user_id).execute()
+    teachers_by_name = supabase.table("users").select("user_id,name,email").eq("school_name", school_name).eq("role", "teacher").execute() if school_name else type('obj', (object,), {'data': []})()
+    # Merge and deduplicate
+    all_teachers = {t["user_id"]: t for t in (teachers_by_id.data or []) + (teachers_by_name.data or [])}
+    teacher_list = list(all_teachers.values())
     teacher_ids = [t["user_id"] for t in teacher_list]
 
     if not teacher_ids:
         return {"total_teachers": 0, "total_students": 0, "total_checkins": 0,
                 "zone_distribution": {}, "daily_counts": {}, "classroom_breakdown": [],
-                "school_name": user.get("school_name", "My School")}
+                "school_name": school_name or "My School"}
 
     # Get classrooms
     classrooms_res = supabase.table("classrooms").select("*").in_("user_id", teacher_ids).execute()
