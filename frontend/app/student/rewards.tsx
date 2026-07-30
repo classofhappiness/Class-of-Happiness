@@ -360,13 +360,29 @@ export default function RewardsScreen() {
         <TouchableOpacity 
           style={styles.collectionButton}
           onPress={() => {
-            playButtonFeedback(); // Sound effect
+            playButtonFeedback();
             setShowCollection(true);
           }}
         >
           <MaterialIcons name="pets" size={24} color="#FFD700" />
           <Text style={styles.collectionButtonText}>{t('my_creatures')}</Text>
         </TouchableOpacity>
+
+        {/* New creature actions */}
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: '#1A1A2E', borderRadius: 50, paddingVertical: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+            onPress={() => router.push('/student/submit-creature')}>
+            <Text style={{ fontSize: 14 }}>🎨</Text>
+            <Text style={{ color: '#FFD93D', fontWeight: '900', fontSize: 12 }}>Submit a Creature</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: '#4CAF73', borderRadius: 50, paddingVertical: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+            onPress={() => router.push('/student/world-creatures')}>
+            <Text style={{ fontSize: 14 }}>🌍</Text>
+            <Text style={{ color: 'white', fontWeight: '900', fontSize: 12 }}>World Creatures</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Continue Button */}
         {showContinue && (
