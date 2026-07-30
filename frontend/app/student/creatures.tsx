@@ -26,20 +26,15 @@ interface Creature {
   unlock_condition?: string;
 }
 
-interface Props {
-  studentId: string;
-  authToken: string;
-  onBack: () => void;
-}
-
-export default function CreatureCollectionScreen({ studentId, authToken, onBack }: Props) {
+export default function CreatureCollectionScreen() {
   const [creatures, setCreatures] = useState<Creature[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const navigation = useNavigation() as any;
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
-  const { t } = useApp();
+  const { t, user, authToken } = useApp();
+  const studentId = user?.user_id || user?.student_id || '';
 
   useEffect(() => {
     fetchCreatures();
