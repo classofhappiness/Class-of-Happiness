@@ -15,6 +15,7 @@ import {
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 interface Creature {
@@ -33,7 +34,7 @@ export default function CreatureCollectionScreen() {
   const router = useRouter();
   const navigation = useNavigation() as any;
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
-  const { t, user, authToken } = useApp();
+  const { t, user } = useApp();
   const studentId = user?.user_id || user?.student_id || '';
 
   useEffect(() => {
@@ -44,10 +45,11 @@ export default function CreatureCollectionScreen() {
     try {
       setLoading(true);
       setError(null);
+      const token = await AsyncStorage.getItem('authToken') || '';
 
       // Fetch all creatures
       const allRes = await fetch(`${API_URL}/api/creatures`, {
-        headers: { Authorization: `Bearer ${authToken}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const allData = await allRes.json();
 
