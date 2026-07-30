@@ -5724,6 +5724,247 @@ async def get_subscription_status(request: Request):
         "trial_started_at": user.get("trial_started_at")
     }
 
+
+
+# ═══════════════════════════════════════════════════
+# CREATURES — STUDENT SUBMISSIONS & GLOBAL SHARING
+# ═══════════════════════════════════════════════════
+
+import random, string, calendar
+from datetime import datetime, timezone, timedelta
+
+def gen_code(length=8):
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
+
+@api_router.post("/creatures/generate-code")
+async def generate_submission_code(request: Request):
+    """Teacher or parent generates a code to give a student."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["teacher","parent","school_admin","admin","superadmin"]:
+        raise HTTPException(status_code=403, detail="Teachers and parents only")
+    code = gen_code()
+    # ensure unique
+    while supabase.table("submission_codes").select("id").eq("code", code).execute().data:
+        code = gen_code()
+    supabase.table("submission_codes").insert({
+        "code": code,
+        "created_by": user["user_id"],
+        "school_id": user.get("school_id") or user.get("school_name"),
+        "expires_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
+        "max_uses": 10,
+        "used_count": 0,
+    }).execute()
+    return {"code": code, "expires_in_days": 30, "max_uses": 10}
+
+@api_router.post("/creatures/submit")
+async def submit_creature(request: Request):
+    """Student submits a creature using 4 Supabase Storage URLs + a code."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    code = body.get("code", "").upper().strip()
+    emotion = body.get("emotion_colour", "").lower()
+    if emotion not in ["green","blue","yellow","red"]:
+        raise HTTPException(status_code=400, detail="Invalid emotion colour")
+    # Validate code
+    code_row = supabase.table("submission_codes").select("*").eq("code", code).execute()
+    if not code_row.data:
+        raise HTTPException(status_code=400, detail="Invalid code")
+    c = code_row.data[0]
+    if c["used_count"] >= c["max_uses"]:
+        raise HTTPException(status_code=400, detail="Code has been used too many times")
+    if datetime.fromisoformat(c["expires_at"].replace("Z","+00:00")) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Code has expired")
+    # Check student hasn't already submitted this colour
+    existing = supabase.table("creature_submissions").select("id")        .eq("student_id", user["user_id"])        .eq("emotion_colour", emotion)        .in_("status", ["pending","approved"])        .execute()
+    if existing.data:
+        raise HTTPException(status_code=400, detail=f"You already have a {emotion} creature submitted or approved")
+    # Create submission
+    submission = {
+        "student_id": user["user_id"],
+        "student_name": user.get("name", "Student"),
+        "year_group": body.get("year_group", user.get("year_group", "")),
+        "school_name": user.get("school_name", body.get("school_name", "")),
+        "country": body.get("country", user.get("country", "PT")),
+        "emotion_colour": emotion,
+        "creature_name": body.get("name", "My Creature")[:50],
+        "description": body.get("description", "")[:200],
+        "stage1_url": body["stage1_url"],
+        "stage2_url": body["stage2_url"],
+        "stage3_url": body["stage3_url"],
+        "stage4_url": body["stage4_url"],
+        "submission_code": code,
+        "status": "pending",
+    }
+    result = supabase.table("creature_submissions").insert(submission).execute()
+    # Increment code usage
+    supabase.table("submission_codes").update({"used_count": c["used_count"]+1}).eq("code", code).execute()
+    return {"status": "submitted", "id": result.data[0]["id"], "message": "Your creature is under review!"}
+
+@api_router.get("/creatures/pending")
+async def get_pending_creatures(request: Request):
+    """Teachers, parents, school admin see pending submissions."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["teacher","parent","school_admin","admin","superadmin"]:
+        raise HTTPException(status_code=403, detail="Not authorised")
+    if user.get("role") == "superadmin":
+        rows = supabase.table("creature_submissions").select("*").eq("status","pending").order("created_at").execute()
+    else:
+        school = user.get("school_name", user.get("school_id", ""))
+        rows = supabase.table("creature_submissions").select("*")            .eq("status","pending").eq("school_name", school).order("created_at").execute()
+    return rows.data or []
+
+@api_router.post("/creatures/approve/{submission_id}")
+async def approve_creature(submission_id: str, request: Request):
+    """Teacher, parent or school admin approves a creature submission."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["teacher","parent","school_admin","admin","superadmin"]:
+        raise HTTPException(status_code=403, detail="Not authorised")
+    supabase.table("creature_submissions").update({
+        "status": "approved",
+        "is_globally_available": True,
+        "approved_by": user["user_id"],
+        "approved_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", submission_id).execute()
+    return {"status": "approved"}
+
+@api_router.post("/creatures/reject/{submission_id}")
+async def reject_creature(submission_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["teacher","parent","school_admin","admin","superadmin"]:
+        raise HTTPException(status_code=403, detail="Not authorised")
+    body = await request.json()
+    supabase.table("creature_submissions").update({
+        "status": "rejected",
+        "rejection_reason": body.get("reason", "Does not meet the Class of Happiness standards"),
+        "approved_by": user["user_id"],
+    }).eq("id", submission_id).execute()
+    return {"status": "rejected"}
+
+@api_router.delete("/creatures/cancel/{submission_id}")
+async def cancel_creature(submission_id: str, request: Request):
+    """Superadmin can cancel any creature globally."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin","superadmin"]:
+        raise HTTPException(status_code=403, detail="Superadmin only")
+    supabase.table("creature_submissions").update({
+        "status": "cancelled",
+        "is_globally_available": False,
+    }).eq("id", submission_id).execute()
+    return {"status": "cancelled"}
+
+@api_router.get("/creatures/global")
+async def get_global_creatures(request: Request):
+    """Global feed of approved creatures — visible to all authenticated users."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    rows = supabase.table("creature_submissions").select(
+        "id,creature_name,emotion_colour,student_name,school_name,country,year_group,stage1_url,global_uses,approved_at"
+    ).eq("status","approved").eq("is_globally_available",True)        .order("global_uses", desc=True).limit(50).execute()
+    return rows.data or []
+
+@api_router.get("/creatures/featured")
+async def get_featured_creatures(request: Request):
+    """Get this month's featured creature per emotion colour."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    now = datetime.now(timezone.utc).isoformat()
+    rows = supabase.table("featured_creatures").select(
+        "*, creature_submissions(*)"
+    ).lte("active_from", now).gte("active_until", now).execute()
+    return rows.data or []
+
+@api_router.post("/creatures/feature/{submission_id}")
+async def feature_creature(submission_id: str, request: Request):
+    """Teacher or school admin features a creature for their school this month."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["teacher","school_admin","admin","superadmin"]:
+        raise HTTPException(status_code=403, detail="Not authorised")
+    # Get creature info
+    creature = supabase.table("creature_submissions").select("*").eq("id", submission_id).execute()
+    if not creature.data or creature.data[0]["status"] != "approved":
+        raise HTTPException(status_code=400, detail="Creature not found or not approved")
+    c = creature.data[0]
+    # Deactivate existing featured for same school + colour
+    supabase.table("featured_creatures").update({
+        "active_until": datetime.now(timezone.utc).isoformat()
+    }).eq("featured_by", user["user_id"]).eq("emotion_colour", c["emotion_colour"])        .gte("active_until", datetime.now(timezone.utc).isoformat()).execute()
+    # Feature this one
+    now = datetime.now(timezone.utc)
+    _, last_day = calendar.monthrange(now.year, now.month)
+    month_end = now.replace(day=last_day, hour=23, minute=59, second=59)
+    result = supabase.table("featured_creatures").insert({
+        "creature_id": submission_id,
+        "emotion_colour": c["emotion_colour"],
+        "featured_by": user["user_id"],
+        "school_id": user.get("school_name",""),
+        "active_from": now.isoformat(),
+        "active_until": month_end.isoformat(),
+    }).execute()
+    return {"status": "featured", "expires": month_end.isoformat()}
+
+@api_router.post("/creatures/unlock/{submission_id}")
+async def unlock_creature_stage(submission_id: str, request: Request):
+    """Student unlocks next stage of a featured creature."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    # Count recent check-ins to validate unlock
+    checkins = supabase.table("feeling_logs").select("id")        .eq("student_id", user["user_id"])        .gte("timestamp", (datetime.now(timezone.utc) - timedelta(days=30)).isoformat())        .execute()
+    total_checkins = len(checkins.data) if checkins.data else 0
+    existing = supabase.table("creature_unlocks").select("*")        .eq("student_id", user["user_id"]).eq("creature_id", submission_id).execute()
+    current_stages = existing.data[0]["stages_unlocked"] if existing.data else 0
+    # Stage thresholds: 5, 10, 15, 20 check-ins
+    required = [5, 10, 15, 20]
+    next_stage = current_stages + 1
+    if next_stage > 4:
+        return {"stages_unlocked": 4, "message": "Already fully unlocked!"}
+    if total_checkins < required[current_stages]:
+        return {"stages_unlocked": current_stages, "needed": required[current_stages] - total_checkins,
+                "message": f"Do {required[current_stages]-total_checkins} more check-ins to unlock stage {next_stage}!"}
+    if existing.data:
+        completed = datetime.now(timezone.utc).isoformat() if next_stage == 4 else None
+        supabase.table("creature_unlocks").update({
+            "stages_unlocked": next_stage,
+            "completed_at": completed,
+        }).eq("id", existing.data[0]["id"]).execute()
+    else:
+        supabase.table("creature_unlocks").insert({
+            "student_id": user["user_id"],
+            "creature_id": submission_id,
+            "stages_unlocked": 1,
+        }).execute()
+    # Increment global uses if newly completed
+    if next_stage == 4:
+        supabase.table("creature_submissions").update({
+            "global_uses": supabase.table("creature_submissions").select("global_uses")                .eq("id", submission_id).execute().data[0]["global_uses"] + 1
+        }).eq("id", submission_id).execute()
+    return {"stages_unlocked": next_stage, "message": f"Stage {next_stage} unlocked!" }
+
+@api_router.get("/creatures/my-unlocks")
+async def get_my_unlocks(request: Request):
+    """Student sees all creatures they've started unlocking."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    rows = supabase.table("creature_unlocks").select(
+        "*, creature_submissions(id,creature_name,emotion_colour,student_name,school_name,country,stage1_url,stage2_url,stage3_url,stage4_url)"
+    ).eq("student_id", user["user_id"]).execute()
+    return rows.data or []
+
+@api_router.get("/creatures/my-submissions")
+async def get_my_submissions(request: Request):
+    """Student sees status of their own submissions."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    rows = supabase.table("creature_submissions").select("*")        .eq("student_id", user["user_id"]).order("created_at", desc=True).execute()
+    return rows.data or []
+
+
 # ================== ADMIN ==================
 @api_router.get("/admin/stats")
 async def get_admin_stats(request: Request, days: int = 7):
