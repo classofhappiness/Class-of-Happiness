@@ -86,6 +86,14 @@ export default function TeacherDashboardScreen() {
   const router = useRouter();
   const navigation = useNavigation() as any;
   const { user, students, classrooms, presetAvatars, refreshStudents, refreshClassrooms, t, hasActiveSubscription } = useApp();
+
+  const [pendingCreatures, setPendingCreatures] = useState<any[]>([]);
+  useEffect(() => {
+    if (!authToken) return;
+    fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL || ''}/api/creatures/pending`, {
+      headers: { Authorization: `Bearer ${authToken}` }
+    }).then(r => r.json()).then(d => setPendingCreatures(Array.isArray(d) ? d : [])).catch(() => {});
+  }, [authToken]);
   const [period, setPeriod] = useState<Period>(7);
   const [strategyNames, setStrategyNames] = useState<Record<string,string>>({});
 
