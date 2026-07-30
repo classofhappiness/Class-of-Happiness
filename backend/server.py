@@ -3241,8 +3241,11 @@ async def get_resources(request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    result = supabase.table("resources").select("*").eq("is_active", True).execute()
-    return result.data or []
+    try:
+        result = supabase.table("teacher_resources").select("*").eq("is_active", True).execute()
+        return result.data or []
+    except Exception:
+        return []
 
 @api_router.post("/resources")
 async def create_resource(resource: ResourceCreate, request: Request):
