@@ -89,11 +89,12 @@ export default function TeacherDashboardScreen() {
 
   const [pendingCreatures, setPendingCreatures] = useState<any[]>([]);
   useEffect(() => {
-    if (!authToken) return;
+    const token = user?.session_token || user?.authToken || '';
+    if (!token) return;
     fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL || ''}/api/creatures/pending`, {
-      headers: { Authorization: `Bearer ${authToken}` }
+      headers: { Authorization: `Bearer ${token}` }
     }).then(r => r.json()).then(d => setPendingCreatures(Array.isArray(d) ? d : [])).catch(() => {});
-  }, [authToken]);
+  }, [user]);
   const [period, setPeriod] = useState<Period>(7);
   const [strategyNames, setStrategyNames] = useState<Record<string,string>>({});
 
