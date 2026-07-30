@@ -126,10 +126,7 @@ export default function SubmitCreatureScreen() {
       ))}
       <View style={s.exampleBox}>
         <Text style={s.exampleTitle}>📸 The 4 stages</Text>
-        <Text style={s.exampleText}>Stage 1: Just an egg or blob shape{"
-"}Stage 2: Starting to hatch or sprout{"
-"}Stage 3: Half grown — details appearing{"
-"}Stage 4: The full creature in all its glory!</Text>
+        <Text style={s.exampleText}>{"Stage 1: Just an egg or blob shape\nStage 2: Starting to hatch or sprout\nStage 3: Half grown — details appearing\nStage 4: The full creature in all its glory!"}</Text>
       </View>
       <TouchableOpacity style={s.btn} onPress={() => setStep('code')}>
         <Text style={s.btnTxt}>I'm ready — let's go! →</Text>
