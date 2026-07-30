@@ -7881,13 +7881,13 @@ async def get_family_members(request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        # Find students linked to this parent
-        links = supabase.table("parent_student_links").select("*").eq("parent_id", user["user_id"]).execute()
+        # Find students linked to this parent using correct table
+        links = supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).execute()
         if not links.data:
             return []
         children = []
         for link in links.data:
-            student = supabase.table("users").select("*").eq("user_id", link["student_id"]).execute()
+            student = supabase.table("students").select("*").eq("id", link["student_id"]).execute()
             if student.data:
                 s = student.data[0]
                 # Get recent checkins for this child
@@ -7906,12 +7906,19 @@ async def get_child_checkins(child_id: str, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        # Verify parent is linked to this child
-        link = supabase.table("parent_student_links").select("*").eq("parent_id", user["user_id"]).eq("student_id", child_id).execute()
+        # Verify parent is linked to this child using correct table
+        link = supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).eq("student_id", child_id).execute()
         if not link.data:
             raise HTTPException(status_code=403, detail="Not linked to this child")
-        checkins = supabase.table("emotion_checkins").select("*").eq("user_id", child_id).order("created_at", desc=True).limit(14).execute()
-        return checkins.data or []
+        # Get check-ins from feeling_logs (the real table)
+        checkins = supabase.table("feeling_logs").select("*").eq("student_id", child_id).order("timestamp", desc=True).limit(14).execute()
+        # Add source field for home/school distinction
+        result = []
+        for c in (checkins.data or []):
+            c["zone"] = c.get("feeling_colour", "blue")
+            c["source"] = "home" if c.get("logged_by") == "parent" else "school"
+            result.append(c)
+        return result
     except HTTPException:
         raise
     except Exception as e:
