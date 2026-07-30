@@ -103,6 +103,18 @@ export default function CreatureCollectionScreen({ studentId, authToken, onBack 
   const goToWorld = () => router.push('/student/world-creatures');
   return (
     <SafeAreaView style={styles.container}>
+      <View style={{ flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 0 }}>
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: '#1A1A2E', borderRadius: 50, padding: 12, alignItems: 'center' }}
+          onPress={goToSubmit}>
+          <Text style={{ color: '#FFD93D', fontWeight: '900', fontSize: 13 }}>🎨 Submit a Creature</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: '#4CAF73', borderRadius: 50, padding: 12, alignItems: 'center' }}
+          onPress={goToWorld}>
+          <Text style={{ color: 'white', fontWeight: '900', fontSize: 13 }}>🌍 World Creatures</Text>
+        </TouchableOpacity>
+      </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
         <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
@@ -140,20 +152,6 @@ export default function CreatureCollectionScreen({ studentId, authToken, onBack 
         </View>
       ) : (
   
-      {/* New creature actions */}
-      <View style={{ flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 0 }}>
-        <TouchableOpacity
-          style={{ flex: 1, backgroundColor: '#1A1A2E', borderRadius: 50, padding: 12, alignItems: 'center' }}
-          onPress={goToSubmit}>
-          <Text style={{ color: '#FFD93D', fontWeight: '900', fontSize: 13 }}>🎨 Submit a Creature</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={{ flex: 1, backgroundColor: '#4CAF73', borderRadius: 50, padding: 12, alignItems: 'center' }}
-          onPress={goToWorld}>
-          <Text style={{ color: 'white', fontWeight: '900', fontSize: 13 }}>🌍 World Creatures</Text>
-        </TouchableOpacity>
-      </View>
-
       <FlatList
           data={creatures}
           keyExtractor={item => item.id}

@@ -1,47 +1,56 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Image,
-  TextInput, ScrollView, Alert, ActivityIndicator, Modal
+  TextInput, ScrollView, Alert, ActivityIndicator
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { supabase } from '../../src/utils/supabaseClient';
-import { api } from '../../src/utils/api';
-import { useAppContext } from '../../src/context/AppContext';
+import { useApp } from '../../src/context/AppContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 const EMOTIONS = [
-  { key: 'green', label: '😊 Green', color: '#4CAF73', bg: '#E8F5E9' },
-  { key: 'blue',  label: '😔 Blue',  color: '#4A90D9', bg: '#E3F2FD' },
-  { key: 'yellow',label: '😬 Yellow',color: '#FFC107', bg: '#FFF8E1' },
-  { key: 'red',   label: '😤 Red',   color: '#E05252', bg: '#FFEBEE' },
+  { key: 'green',  label: '😊 Green',  color: '#4CAF73', bg: '#E8F5E9' },
+  { key: 'blue',   label: '😔 Blue',   color: '#4A90D9', bg: '#E3F2FD' },
+  { key: 'yellow', label: '😬 Yellow', color: '#FFC107', bg: '#FFF8E1' },
+  { key: 'red',    label: '😤 Red',    color: '#E05252', bg: '#FFEBEE' },
 ];
 
-const STAGES = ['Stage 1 — Egg', 'Stage 2 — Hatching', 'Stage 3 — Growing', 'Stage 4 — Full Creature'];
+const STAGES = [
+  'Stage 1 — Egg or seed',
+  'Stage 2 — Hatching or sprouting',
+  'Stage 3 — Growing',
+  'Stage 4 — Full creature',
+];
+
+const TIPS = [
+  '✅ Use white paper or card as your background',
+  '✅ Draw or craft with clear colours',
+  '✅ Good lighting — near a window works great',
+  '✅ Show the creature growing across all 4 stages',
+  '❌ No rude, violent or unkind content',
+];
 
 export default function SubmitCreatureScreen() {
   const router = useRouter();
-  const { t, user } = useAppContext();
+  const { t } = useApp();
+  const [step, setStep] = useState<'tutorial'|'code'|'details'|'photos'|'review'>('tutorial');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [emotion, setEmotion] = useState('');
-  const [photos, setPhotos] = useState<(string|null)[]>([null, null, null, null]);
+  const [photos, setPhotos] = useState<(string|null)[]>([null,null,null,null]);
   const [uploading, setUploading] = useState(false);
-  const [codeValid, setCodeValid] = useState<boolean|null>(null);
-  const [step, setStep] = useState<'code'|'details'|'photos'|'review'>('code');
 
-  const pickPhoto = async (index: number) => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow access to your photos.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
+  const pickOrCamera = async (index: number, source: 'camera'|'library') => {
+    const perm = source === 'camera'
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== 'granted') { Alert.alert('Permission needed'); return; }
+    const result = source === 'camera'
+      ? await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [1,1], quality: 0.7 })
+      : await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, aspect: [1,1], quality: 0.7 });
     if (!result.canceled && result.assets[0]) {
       const updated = [...photos];
       updated[index] = result.assets[0].uri;
@@ -49,229 +58,222 @@ export default function SubmitCreatureScreen() {
     }
   };
 
-  const takePhoto = async (index: number) => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') return;
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets[0]) {
-      const updated = [...photos];
-      updated[index] = result.assets[0].uri;
-      setPhotos(updated);
-    }
-  };
-
-  const uploadPhoto = async (uri: string, index: number): Promise<string> => {
-    const filename = `creatures/${user?.user_id}_${emotion}_stage${index+1}_${Date.now()}.jpg`;
+  const uploadImage = async (uri: string, stage: number): Promise<string> => {
+    const token = await AsyncStorage.getItem('authToken') || '';
+    // Convert URI to base64
     const response = await fetch(uri);
     const blob = await response.blob();
-    const { data, error } = await supabase.storage
-      .from('creature-images')
-      .upload(filename, blob, { contentType: 'image/jpeg', upsert: true });
-    if (error) throw error;
-    const { data: urlData } = supabase.storage.from('creature-images').getPublicUrl(filename);
-    return urlData.publicUrl;
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const b64 = reader.result as string;
+        try {
+          const res = await fetch(`${API_URL}/api/creatures/upload-image`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ image_base64: b64, stage, ext: 'jpg' }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || 'Upload failed');
+          resolve(data.url);
+        } catch (e) { reject(e); }
+      };
+      reader.onerror = () => reject(new Error('Could not read image'));
+      reader.readAsDataURL(blob);
+    });
   };
 
   const handleSubmit = async () => {
-    if (photos.some(p => !p)) {
-      Alert.alert('Missing photos', 'Please take or upload all 4 stage photos.');
-      return;
-    }
-    if (!name.trim()) {
-      Alert.alert('Name required', 'Give your creature a name!');
-      return;
-    }
+    if (photos.some(p => !p)) { Alert.alert('Missing photos', 'Please add all 4 stage photos.'); return; }
+    if (!name.trim()) { Alert.alert('Name required', 'Give your creature a name!'); return; }
     setUploading(true);
     try {
-      const urls = await Promise.all(photos.map((p, i) => uploadPhoto(p!, i)));
-      await api.post('/creatures/submit', {
-        code: code.toUpperCase(),
-        emotion_colour: emotion,
-        name: name.trim(),
-        description: description.trim(),
-        stage1_url: urls[0],
-        stage2_url: urls[1],
-        stage3_url: urls[2],
-        stage4_url: urls[3],
-        year_group: user?.year_group || '',
-        school_name: user?.school_name || '',
+      const token = await AsyncStorage.getItem('authToken') || '';
+      const urls = await Promise.all(photos.map((p, i) => uploadImage(p!, i + 1)));
+      const res = await fetch(`${API_URL}/api/creatures/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          code: code.toUpperCase(),
+          emotion_colour: emotion,
+          name: name.trim(),
+          description: description.trim(),
+          stage1_url: urls[0], stage2_url: urls[1],
+          stage3_url: urls[2], stage4_url: urls[3],
+        }),
       });
-      Alert.alert(
-        '🎉 Submitted!',
-        'Your creature is waiting for approval from your teacher or parent. Check back soon!',
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Submission failed');
+      Alert.alert('🎉 Submitted!', 'Your creature is waiting for approval from your teacher or parent!',
+        [{ text: 'OK', onPress: () => router.back() }]);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Could not submit. Please try again.');
-    } finally {
-      setUploading(false);
-    }
+      Alert.alert('Error', err.message || 'Please try again.');
+    } finally { setUploading(false); }
   };
 
-  if (step === 'code') return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>🎨 Submit Your Creature</Text>
-      <Text style={styles.subtitle}>Get a code from your teacher or parent to continue.</Text>
-      <View style={styles.card}>
-        <Text style={styles.label}>Enter your code</Text>
-        <TextInput
-          style={styles.codeInput}
-          value={code}
-          onChangeText={v => setCode(v.toUpperCase())}
-          placeholder="e.g. ABC12345"
-          autoCapitalize="characters"
-          maxLength={8}
-        />
-        <TouchableOpacity
-          style={[styles.btn, code.length < 6 && styles.btnDisabled]}
-          disabled={code.length < 6}
-          onPress={() => setStep('details')}
-        >
-          <Text style={styles.btnText}>Continue →</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.rulesCard}>
-        <Text style={styles.rulesTitle}>📋 Creature Rules</Text>
-        <Text style={styles.rule}>✅ White background, good lighting</Text>
-        <Text style={styles.rule}>✅ Clearly outlined with colour or black</Text>
-        <Text style={styles.rule}>✅ 4 stages of growth (egg → full creature)</Text>
-        <Text style={styles.rule}>❌ No violence, rude or hurtful content</Text>
-        <Text style={styles.rule}>❌ No offensive messages or images</Text>
-        <Text style={styles.rule}>❌ One creature per emotion colour only</Text>
-      </View>
-    </ScrollView>
-  );
-
-  if (step === 'details') return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Your Creature Details</Text>
-      <View style={styles.card}>
-        <Text style={styles.label}>Creature name</Text>
-        <TextInput style={styles.input} value={name} onChangeText={setName}
-          placeholder="Give it a name!" maxLength={50} />
-        <Text style={styles.label}>Which emotion does it represent?</Text>
-        <View style={styles.emotionRow}>
-          {EMOTIONS.map(e => (
-            <TouchableOpacity key={e.key}
-              style={[styles.emotionBtn, { backgroundColor: emotion===e.key ? e.color : e.bg }]}
-              onPress={() => setEmotion(e.key)}>
-              <Text style={[styles.emotionLabel, { color: emotion===e.key ? 'white' : e.color }]}>
-                {e.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <Text style={styles.label}>Description (optional)</Text>
-        <TextInput style={[styles.input, { height: 80 }]}
-          value={description} onChangeText={setDescription}
-          placeholder="Tell us about your creature..." maxLength={200} multiline />
-        <TouchableOpacity
-          style={[styles.btn, (!emotion || !name) && styles.btnDisabled]}
-          disabled={!emotion || !name}
-          onPress={() => setStep('photos')}>
-          <Text style={styles.btnText}>Next: Upload Photos →</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
-  );
-
-  if (step === 'photos') return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>📸 4 Stage Photos</Text>
-      <Text style={styles.subtitle}>White background · good lighting · clear outline</Text>
-      {STAGES.map((label, i) => (
-        <View key={i} style={styles.photoCard}>
-          <Text style={styles.stageLabel}>{label}</Text>
-          {photos[i] ? (
-            <Image source={{ uri: photos[i]! }} style={styles.photoPreview} />
-          ) : (
-            <View style={styles.photoPlaceholder}>
-              <Text style={styles.photoPlaceholderText}>No photo yet</Text>
-            </View>
-          )}
-          <View style={styles.photoButtons}>
-            <TouchableOpacity style={styles.photoBtn} onPress={() => takePhoto(i)}>
-              <Text style={styles.photoBtnText}>📷 Camera</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.photoBtn} onPress={() => pickPhoto(i)}>
-              <Text style={styles.photoBtnText}>🖼️ Gallery</Text>
-            </TouchableOpacity>
-          </View>
+  // TUTORIAL SCREEN
+  if (step === 'tutorial') return (
+    <ScrollView style={s.container} contentContainerStyle={s.content}>
+      <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+        <Text style={s.backTxt}>← Back</Text>
+      </TouchableOpacity>
+      <Text style={s.title}>🎨 How to make your creature</Text>
+      <Text style={s.subtitle}>Read these tips before you start!</Text>
+      {TIPS.map((tip, i) => (
+        <View key={i} style={s.tipRow}>
+          <Text style={s.tipText}>{tip}</Text>
         </View>
       ))}
-      <TouchableOpacity
-        style={[styles.btn, photos.some(p=>!p) && styles.btnDisabled]}
-        disabled={photos.some(p=>!p)}
-        onPress={() => setStep('review')}>
-        <Text style={styles.btnText}>Review & Submit →</Text>
+      <View style={s.exampleBox}>
+        <Text style={s.exampleTitle}>📸 The 4 stages</Text>
+        <Text style={s.exampleText}>Stage 1: Just an egg or blob shape{"
+"}Stage 2: Starting to hatch or sprout{"
+"}Stage 3: Half grown — details appearing{"
+"}Stage 4: The full creature in all its glory!</Text>
+      </View>
+      <TouchableOpacity style={s.btn} onPress={() => setStep('code')}>
+        <Text style={s.btnTxt}>I'm ready — let's go! →</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>✅ Review Your Submission</Text>
-      <View style={styles.card}>
-        <Text style={styles.label}>Name: <Text style={styles.value}>{name}</Text></Text>
-        <Text style={styles.label}>Emotion: <Text style={styles.value}>{emotion}</Text></Text>
-        <View style={styles.stageGrid}>
-          {photos.map((p, i) => p && (
-            <Image key={i} source={{ uri: p }} style={styles.reviewPhoto} />
-          ))}
-        </View>
-        {uploading ? (
-          <View style={styles.uploadingRow}>
-            <ActivityIndicator color="#4CAF73" />
-            <Text style={styles.uploadingText}>Uploading your creature...</Text>
-          </View>
-        ) : (
-          <TouchableOpacity style={styles.btn} onPress={handleSubmit}>
-            <Text style={styles.btnText}>🚀 Submit for Approval!</Text>
+  // CODE SCREEN
+  if (step === 'code') return (
+    <ScrollView style={s.container} contentContainerStyle={s.content}>
+      <TouchableOpacity style={s.backBtn} onPress={() => setStep('tutorial')}>
+        <Text style={s.backTxt}>← Back</Text>
+      </TouchableOpacity>
+      <Text style={s.title}>🔑 Enter your code</Text>
+      <Text style={s.subtitle}>Get a code from your teacher or parent first.</Text>
+      <TextInput style={s.codeInput} value={code} onChangeText={v => setCode(v.toUpperCase())}
+        placeholder="e.g. ABC12345" autoCapitalize="characters" maxLength={8} />
+      <TouchableOpacity style={[s.btn, code.length < 6 && s.btnOff]}
+        disabled={code.length < 6} onPress={() => setStep('details')}>
+        <Text style={s.btnTxt}>Continue →</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
+  // DETAILS SCREEN
+  if (step === 'details') return (
+    <ScrollView style={s.container} contentContainerStyle={s.content}>
+      <TouchableOpacity style={s.backBtn} onPress={() => setStep('code')}>
+        <Text style={s.backTxt}>← Back</Text>
+      </TouchableOpacity>
+      <Text style={s.title}>Your creature details</Text>
+      <Text style={s.label}>Creature name</Text>
+      <TextInput style={s.input} value={name} onChangeText={setName}
+        placeholder="Give it a name!" maxLength={50} />
+      <Text style={s.label}>Which emotion does it represent?</Text>
+      <View style={s.emotionRow}>
+        {EMOTIONS.map(e => (
+          <TouchableOpacity key={e.key}
+            style={[s.emotionBtn, { backgroundColor: emotion === e.key ? e.color : e.bg }]}
+            onPress={() => setEmotion(e.key)}>
+            <Text style={[s.emotionLabel, { color: emotion === e.key ? 'white' : e.color }]}>{e.label}</Text>
           </TouchableOpacity>
-        )}
-        <TouchableOpacity style={styles.backBtn} onPress={() => setStep('photos')}>
-          <Text style={styles.backBtnText}>← Back to edit</Text>
-        </TouchableOpacity>
+        ))}
+      </View>
+      <Text style={s.label}>Description (optional)</Text>
+      <TextInput style={[s.input, { height: 80 }]} value={description}
+        onChangeText={setDescription} placeholder="Tell us about your creature..." maxLength={200} multiline />
+      <TouchableOpacity style={[s.btn, (!emotion || !name) && s.btnOff]}
+        disabled={!emotion || !name} onPress={() => setStep('photos')}>
+        <Text style={s.btnTxt}>Next: Add photos →</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
+  // PHOTOS SCREEN
+  if (step === 'photos') return (
+    <ScrollView style={s.container} contentContainerStyle={s.content}>
+      <TouchableOpacity style={s.backBtn} onPress={() => setStep('details')}>
+        <Text style={s.backTxt}>← Back</Text>
+      </TouchableOpacity>
+      <Text style={s.title}>📸 4 stage photos</Text>
+      <Text style={s.subtitle}>White background · good lighting · clear outline</Text>
+      {STAGES.map((label, i) => (
+        <View key={i} style={s.photoCard}>
+          <Text style={s.stageLabel}>{label}</Text>
+          {photos[i]
+            ? <Image source={{ uri: photos[i]! }} style={s.photoPreview} />
+            : <View style={s.photoEmpty}><Text style={s.photoEmptyTxt}>No photo yet</Text></View>}
+          <View style={s.photoRow}>
+            <TouchableOpacity style={s.photoBtn} onPress={() => pickOrCamera(i,'camera')}>
+              <Text style={s.photoBtnTxt}>📷 Camera</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.photoBtn} onPress={() => pickOrCamera(i,'library')}>
+              <Text style={s.photoBtnTxt}>🖼 Gallery</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ))}
+      <TouchableOpacity style={[s.btn, photos.some(p=>!p) && s.btnOff]}
+        disabled={photos.some(p=>!p)} onPress={() => setStep('review')}>
+        <Text style={s.btnTxt}>Review & Submit →</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
+  // REVIEW SCREEN
+  return (
+    <ScrollView style={s.container} contentContainerStyle={s.content}>
+      <TouchableOpacity style={s.backBtn} onPress={() => setStep('photos')}>
+        <Text style={s.backTxt}>← Back</Text>
+      </TouchableOpacity>
+      <Text style={s.title}>✅ Review your submission</Text>
+      <View style={s.card}>
+        <Text style={s.label}>Name: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{name}</Text></Text>
+        <Text style={s.label}>Emotion: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{emotion}</Text></Text>
+        <Text style={s.label}>Code: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{code}</Text></Text>
+        <View style={s.stageGrid}>
+          {photos.map((p,i) => p && <Image key={i} source={{ uri:p }} style={s.reviewPhoto} />)}
+        </View>
+        {uploading
+          ? <View style={s.uploadRow}>
+              <ActivityIndicator color="#4CAF73" />
+              <Text style={s.uploadTxt}>Uploading your creature... please wait</Text>
+            </View>
+          : <TouchableOpacity style={s.btn} onPress={handleSubmit}>
+              <Text style={s.btnTxt}>🚀 Submit for approval!</Text>
+            </TouchableOpacity>}
       </View>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F7F8FA' },
-  content: { padding: 20, paddingBottom: 40 },
-  title: { fontSize: 22, fontWeight: '900', color: '#1A1A2E', marginBottom: 8, textAlign: 'center' },
-  subtitle: { fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 20 },
-  card: { backgroundColor: 'white', borderRadius: 16, padding: 20, marginBottom: 16, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 10, elevation: 3 },
-  label: { fontSize: 13, fontWeight: '700', color: '#1A1A2E', marginBottom: 6, marginTop: 12 },
-  value: { fontWeight: '800', color: '#4CAF73' },
-  input: { borderWidth: 1.5, borderColor: 'rgba(0,0,0,.1)', borderRadius: 10, padding: 12, fontSize: 15, backgroundColor: '#F7F8FA', color: '#1A1A2E' },
-  codeInput: { borderWidth: 2, borderColor: '#1A1A2E', borderRadius: 12, padding: 14, fontSize: 24, fontWeight: '900', color: '#1A1A2E', textAlign: 'center', letterSpacing: 8 },
-  emotionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  emotionBtn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 50, marginBottom: 4 },
-  emotionLabel: { fontSize: 13, fontWeight: '800' },
-  btn: { backgroundColor: '#1A1A2E', borderRadius: 50, padding: 16, alignItems: 'center', marginTop: 20 },
-  btnDisabled: { opacity: 0.4 },
-  btnText: { color: '#FFD93D', fontWeight: '900', fontSize: 16 },
-  backBtn: { padding: 12, alignItems: 'center', marginTop: 8 },
-  backBtnText: { color: '#6B7280', fontWeight: '700', fontSize: 14 },
-  rulesCard: { backgroundColor: '#E8F5E9', borderRadius: 14, padding: 16 },
-  rulesTitle: { fontSize: 14, fontWeight: '900', color: '#2E7D32', marginBottom: 10 },
-  rule: { fontSize: 13, color: '#1A1A2E', marginBottom: 6, lineHeight: 20 },
-  photoCard: { backgroundColor: 'white', borderRadius: 14, padding: 14, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  stageLabel: { fontSize: 13, fontWeight: '800', color: '#1A1A2E', marginBottom: 10 },
-  photoPreview: { width: '100%', aspectRatio: 1, borderRadius: 10, backgroundColor: '#F0F0F0' },
-  photoPlaceholder: { width: '100%', aspectRatio: 1, borderRadius: 10, backgroundColor: '#F0F0F0', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderStyle: 'dashed', borderColor: '#D0D0D0' },
-  photoPlaceholderText: { color: '#9CA3AF', fontSize: 14, fontWeight: '600' },
-  photoButtons: { flexDirection: 'row', gap: 10, marginTop: 10 },
-  photoBtn: { flex: 1, backgroundColor: '#F7F8FA', borderRadius: 8, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(0,0,0,.1)' },
-  photoBtnText: { fontSize: 13, fontWeight: '700', color: '#1A1A2E' },
-  stageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12, marginBottom: 4 },
-  reviewPhoto: { width: '47%', aspectRatio: 1, borderRadius: 8 },
-  uploadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16 },
-  uploadingText: { fontSize: 14, color: '#4CAF73', fontWeight: '700' },
+const s = StyleSheet.create({
+  container: { flex:1, backgroundColor:'#F7F8FA' },
+  content: { padding:20, paddingBottom:50 },
+  title: { fontSize:22, fontWeight:'900', color:'#1A1A2E', marginBottom:8, textAlign:'center' },
+  subtitle: { fontSize:14, color:'#6B7280', textAlign:'center', marginBottom:20 },
+  backBtn: { marginBottom:16 },
+  backTxt: { fontSize:14, fontWeight:'700', color:'#6B7280' },
+  card: { backgroundColor:'white', borderRadius:16, padding:20, shadowColor:'#000', shadowOpacity:0.07, shadowRadius:10, elevation:3 },
+  label: { fontSize:13, fontWeight:'700', color:'#1A1A2E', marginBottom:6, marginTop:12 },
+  input: { borderWidth:1.5, borderColor:'rgba(0,0,0,.1)', borderRadius:10, padding:12, fontSize:15, backgroundColor:'#F7F8FA', color:'#1A1A2E' },
+  codeInput: { borderWidth:2, borderColor:'#1A1A2E', borderRadius:12, padding:14, fontSize:28, fontWeight:'900', color:'#1A1A2E', textAlign:'center', letterSpacing:8, marginBottom:20 },
+  emotionRow: { flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:8, marginBottom:4 },
+  emotionBtn: { paddingVertical:10, paddingHorizontal:14, borderRadius:50 },
+  emotionLabel: { fontSize:13, fontWeight:'800' },
+  btn: { backgroundColor:'#1A1A2E', borderRadius:50, padding:16, alignItems:'center', marginTop:20 },
+  btnOff: { opacity:0.4 },
+  btnTxt: { color:'#FFD93D', fontWeight:'900', fontSize:16 },
+  tipRow: { backgroundColor:'white', borderRadius:10, padding:14, marginBottom:8, shadowColor:'#000', shadowOpacity:0.04, shadowRadius:4, elevation:1 },
+  tipText: { fontSize:14, color:'#1A1A2E', fontWeight:'600' },
+  exampleBox: { backgroundColor:'#E8F5E9', borderRadius:12, padding:16, marginTop:8, marginBottom:4 },
+  exampleTitle: { fontSize:14, fontWeight:'900', color:'#2E7D32', marginBottom:8 },
+  exampleText: { fontSize:13, color:'#1A1A2E', lineHeight:22 },
+  photoCard: { backgroundColor:'white', borderRadius:14, padding:14, marginBottom:12, shadowColor:'#000', shadowOpacity:0.05, shadowRadius:6, elevation:2 },
+  stageLabel: { fontSize:13, fontWeight:'800', color:'#1A1A2E', marginBottom:10 },
+  photoPreview: { width:'100%', aspectRatio:1, borderRadius:10, backgroundColor:'#F0F0F0' },
+  photoEmpty: { width:'100%', aspectRatio:1, borderRadius:10, backgroundColor:'#F0F0F0', alignItems:'center', justifyContent:'center', borderWidth:2, borderStyle:'dashed', borderColor:'#D0D0D0' },
+  photoEmptyTxt: { color:'#9CA3AF', fontSize:14, fontWeight:'600' },
+  photoRow: { flexDirection:'row', gap:10, marginTop:10 },
+  photoBtn: { flex:1, backgroundColor:'#F7F8FA', borderRadius:8, padding:10, alignItems:'center', borderWidth:1, borderColor:'rgba(0,0,0,.1)' },
+  photoBtnTxt: { fontSize:13, fontWeight:'700', color:'#1A1A2E' },
+  stageGrid: { flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:12, marginBottom:8 },
+  reviewPhoto: { width:'47%', aspectRatio:1, borderRadius:8 },
+  uploadRow: { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:12, padding:16 },
+  uploadTxt: { fontSize:14, color:'#4CAF73', fontWeight:'700' },
 });

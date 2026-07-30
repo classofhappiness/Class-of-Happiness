@@ -9623,3 +9623,25 @@ async def notify_creature_expiry(request: Request):
     # In future: send push via Expo push notification API
     # For now, return what would be notified
     return {"expiring_soon": len(expiring.data or []), "features": expiring.data or []}
+
+@api_router.post("/creatures/upload-image")
+async def upload_creature_image(request: Request):
+    """Receives a base64 image, uploads to Supabase Storage, returns public URL."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    import base64, uuid
+    body = await request.json()
+    b64 = body.get("image_base64", "")
+    stage = body.get("stage", 1)
+    ext = body.get("ext", "jpg")
+    if not b64:
+        raise HTTPException(status_code=400, detail="No image data")
+    img_bytes = base64.b64decode(b64.split(",")[-1])
+    filename = f"creatures/{user['user_id']}_stage{stage}_{uuid.uuid4().hex[:8]}.{ext}"
+    supabase.storage.from_("creature-images").upload(
+        filename, img_bytes,
+        {"content-type": f"image/{ext}", "upsert": "true"}
+    )
+    url = supabase.storage.from_("creature-images").get_public_url(filename)
+    return {"url": url, "filename": filename}
