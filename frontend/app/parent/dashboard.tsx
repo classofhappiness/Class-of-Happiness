@@ -174,6 +174,19 @@ export default function ParentDashboard() {
   
   // Linked children from school
   const [linkedChildren, setLinkedChildren] = useState<Student[]>([]);
+
+  // ── Creature section ──────────────────────────────
+  const [featuredCreatures, setFeaturedCreatures] = React.useState<any[]>([]);
+  const [studentCreatures, setStudentCreatures] = React.useState<any[]>([]);
+  
+  React.useEffect(() => {
+    // Load featured creatures for parent view
+    api.get('/creatures/featured').then(d => setFeaturedCreatures(d || [])).catch(() => {});
+    // Load child's unlocked creatures
+    if (linkedChildren?.length) {
+      api.get('/creatures/my-unlocks').then(d => setStudentCreatures(d || [])).catch(() => {});
+    }
+  }, [linkedChildren]);
   const [availableStudents, setAvailableStudents] = useState<any[]>([]);
   const [childCreatures, setChildCreatures] = useState<Record<string, any>>({});
   // Family members (self, partner, kids at home)
