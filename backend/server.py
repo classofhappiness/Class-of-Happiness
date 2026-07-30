@@ -9610,3 +9610,16 @@ app.include_router(api_router)
 # force redeploy Sun May 10 19:38:17 WEST 2026
 # force 1778444180
 # redeploy 1778610453
+
+@api_router.post("/creatures/notify-expiry")
+async def notify_creature_expiry(request: Request):
+    """Call this via a scheduled job — notifies students when featured creatures expire in 7 days."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin","superadmin"]:
+        raise HTTPException(status_code=403)
+    now = datetime.now(timezone.utc)
+    week_away = now + timedelta(days=7)
+    expiring = supabase.table("featured_creatures").select("*, creature_submissions(*)")        .lte("active_until", week_away.isoformat())        .gte("active_until", now.isoformat()).execute()
+    # In future: send push via Expo push notification API
+    # For now, return what would be notified
+    return {"expiring_soon": len(expiring.data or []), "features": expiring.data or []}
