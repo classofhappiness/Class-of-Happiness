@@ -9648,3 +9648,47 @@ async def upload_creature_image(request: Request):
     )
     url = supabase.storage.from_("creature-images").get_public_url(filename)
     return {"url": url, "filename": filename}
+
+import hashlib, secrets
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    hashed = hashlib.sha256((password + salt).encode()).hexdigest()
+    return f"{salt}:{hashed}"
+
+def verify_password(password: str, stored: str) -> bool:
+    try:
+        salt, hashed = stored.split(":")
+        return hashlib.sha256((password + salt).encode()).hexdigest() == hashed
+    except:
+        return False
+
+@api_router.post("/auth/set-password")
+async def set_password(request: Request):
+    """Allow a logged-in user to set their portal password."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    password = body.get("password", "").strip()
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    hashed = hash_password(password)
+    supabase.table("users").update({"portal_password": hashed}).eq("user_id", user["user_id"]).execute()
+    return {"status": "password set successfully"}
+
+@api_router.post("/auth/reset-password-request") 
+async def reset_password_request(request: Request):
+    """Send a password reset code — for now returns a token directly (email integration later)."""
+    body = await request.json()
+    email = body.get("email", "").strip()
+    existing = supabase.table("users").select("user_id,email").eq("email", email).execute()
+    if not existing.data:
+        return {"status": "if this email exists, a reset link will be sent"}
+    # Generate a reset token
+    reset_token = secrets.token_urlsafe(32)
+    supabase.table("users").update({
+        "reset_token": reset_token,
+        "reset_token_expires": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    }).eq("email", email).execute()
+    return {"status": "reset token generated", "token": reset_token, "note": "In production this would email the user"}
