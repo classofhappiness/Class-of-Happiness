@@ -6664,7 +6664,7 @@ async def get_teacher_resources(request: Request, topic: Optional[str] = None, a
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    resources_result = supabase.table("resources").select("id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,created_by_name").eq("is_active", True).execute()
+    resources_result = supabase.table("resources").select("id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by").eq("is_active", True).execute()
     all_resources = resources_result.data or []
 
     # Determine which audiences to show
