@@ -6769,7 +6769,7 @@ async def create_teacher_resource(request: Request):
         "category": topic,
         "topic": topic,
         "target_audience": audience,
-        "is_global": False,
+        "is_global": bool(body.get("is_global", False)),
         "is_active": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }

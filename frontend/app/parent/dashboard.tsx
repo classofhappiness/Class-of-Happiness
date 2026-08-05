@@ -180,11 +180,24 @@ export default function ParentDashboard() {
   const [studentCreatures, setStudentCreatures] = React.useState<any[]>([]);
   
   React.useEffect(() => {
-    // Load featured creatures for parent view
-    api.get('/creatures/featured').then(d => setFeaturedCreatures(d || [])).catch(() => {});
-    // Load child's unlocked creatures
+    // Real fix: use rewardsApi.getCollection, the same proven call used in rewards.tsx and student/select.tsx —
+    // the old /creatures/featured + /creatures/my-unlocks calls were never real and crashed the screen.
     if (linkedChildren?.length) {
-      api.get('/creatures/my-unlocks').then(d => setStudentCreatures(d || [])).catch(() => {});
+      Promise.allSettled(
+        linkedChildren.map((c: any) => rewardsApi.getCollection(c.id).then(col => ({ id: c.id, name: c.name, col })))
+      ).then(results => {
+        const collected: any[] = [];
+        const perChild: Record<string, any> = {};
+        results.forEach(r => {
+          if (r.status === 'fulfilled' && r.value.col?.current_creature) {
+            const { id, name, col } = r.value;
+            perChild[id] = col;
+            collected.push({ childId: id, childName: name, ...col.current_creature, stage: col.current_stage, points: col.current_points });
+          }
+        });
+        setFeaturedCreatures(collected);
+        setStudentCreatures(perChild);
+      });
     }
   }, [linkedChildren]);
   const [availableStudents, setAvailableStudents] = useState<any[]>([]);

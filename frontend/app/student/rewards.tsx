@@ -498,7 +498,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   buttonContainer: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     paddingHorizontal: 20,
     paddingBottom: 40,
     paddingTop: 16,
@@ -513,6 +513,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: '#1a1a2e',
     gap: 8,
+    width: '100%',
   },
   shieldContainer: { paddingHorizontal: 20, marginBottom: 12 },
   shieldCard: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#FFF8E1', borderRadius: 14, padding: 14, gap: 12, borderWidth: 1.5, borderColor: '#FFD54F' },
@@ -529,7 +530,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   continueButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -537,6 +537,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 16,
     gap: 8,
+    width: '100%',
   },
   headerSpacer: { height: 20 },
   continueText: {

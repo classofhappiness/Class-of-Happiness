@@ -237,6 +237,17 @@ export default function ManageStudentsScreen() {
               </Text>
             </TouchableOpacity>
           ))}
+          <TouchableOpacity
+            style={[styles.filterChip, showLinkedOnly && styles.filterChipActive]}
+            onPress={() => { setShowLinkedOnly(!showLinkedOnly); setFilterClassroom(null); }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
+              <MaterialIcons name="link" size={14} color={showLinkedOnly ? 'white' : '#5C6BC0'} />
+              <Text style={[styles.filterChipText, showLinkedOnly && styles.filterChipTextActive]}>
+                {t('linked_students_filter') || 'Linked'} ({students.filter((s: any) => s.is_linked).length})
+              </Text>
+            </View>
+          </TouchableOpacity>
         </ScrollView>
       )}
 
@@ -253,23 +264,6 @@ export default function ManageStudentsScreen() {
         )}
 
         {/* Students List */}
-        {/* Linked Students quick tab */}
-        <TouchableOpacity
-          style={[
-            styles.filterChip,
-            showLinkedOnly && styles.filterChipActive,
-            { margin: 8, marginTop: 0, alignSelf: 'flex-start' }
-          ]}
-          onPress={() => { setShowLinkedOnly(!showLinkedOnly); setFilterClassroom(null); }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <MaterialIcons name="link" size={14} color={showLinkedOnly ? 'white' : '#5C6BC0'} />
-            <Text style={[styles.filterChipText, showLinkedOnly && styles.filterChipTextActive]}>
-              {t('linked_students_filter') || 'Linked Students'} ({students.filter((s: any) => s.is_linked).length})
-            </Text>
-          </View>
-        </TouchableOpacity>
-
         {filteredStudents.length > 0 ? (
           filteredStudents.map((student) => (
             <Pressable 
