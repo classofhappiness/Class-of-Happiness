@@ -9629,6 +9629,55 @@ async def get_classroom_join_code(classroom_id: str, request: Request):
 
 
 
+
+
+@api_router.post("/creatures/global-approve/{submission_id}")
+async def global_approve_creature(submission_id: str, request: Request):
+    """Superadmin's second-stage review — only for submissions teacher/parent already approved.
+    Flips is_globally_available so it appears in the World Gallery. Can also reject at this stage
+    with a reason, even after teacher/parent approval, as a final safety net."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+
+    existing = supabase.table("creature_submissions").select("status").eq("id", submission_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    if existing.data[0].get("status") != "approved":
+        raise HTTPException(status_code=400, detail="Only submissions already approved by a teacher or parent can be globally approved")
+
+    body = await request.json()
+    action = body.get("action")  # "approve" or "reject"
+    from datetime import datetime, timezone
+
+    if action == "approve":
+        supabase.table("creature_submissions").update({
+            "is_globally_available": True,
+            "global_uses": 0,
+        }).eq("id", submission_id).execute()
+        return {"success": True, "is_globally_available": True}
+    elif action == "reject":
+        supabase.table("creature_submissions").update({
+            "status": "rejected",
+            "rejection_reason": body.get("reason", "Did not meet global gallery standards"),
+            "approved_by": user.get("user_id"),
+            "approved_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("id", submission_id).execute()
+        return {"success": True, "status": "rejected"}
+    else:
+        raise HTTPException(status_code=400, detail="action must be approve or reject")
+
+
+@api_router.get("/creatures/awaiting-global-approval")
+async def get_awaiting_global_approval(request: Request):
+    """Superadmin's queue — creatures already approved by teacher/parent, waiting for the final global check."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    result = supabase.table("creature_submissions").select("*").eq("status", "approved").eq("is_globally_available", False).execute()
+    return result.data or []
+
+
 app.include_router(api_router)
 
 # Translation cache buster - v2
