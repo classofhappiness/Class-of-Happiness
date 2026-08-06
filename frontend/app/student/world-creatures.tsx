@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { api } from '../../src/utils/api';
-import { useAppContext } from '../../src/context/AppContext';
+import { useApp } from '../../src/context/AppContext';
 
 const EMOTION_COLORS: Record<string, string> = {
   green: '#4CAF73', blue: '#4A90D9', yellow: '#FFC107', red: '#E05252'
@@ -11,7 +11,7 @@ const EMOTION_EMOJI: Record<string, string> = {
 };
 
 export default function GlobalCreaturesScreen() {
-  const { t } = useAppContext();
+  const { t } = useApp();
   const [creatures, setCreatures] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

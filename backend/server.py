@@ -5980,18 +5980,29 @@ async def get_admin_stats(request: Request, days: int = 7):
         from datetime import datetime, timezone, timedelta
 
         now = datetime.now(timezone.utc)
-        days = max(1, min(days, 90))  # clamp 1-90
+        days = max(1, min(days, 1100))  # clamp 1-1100 (covers up to ~3 years)
         week_ago = (now - timedelta(days=days)).isoformat()
         month_ago = (now - timedelta(days=30)).isoformat()
 
-        # Basic counts
-        students_result = supabase.table("students").select("id", count="exact").execute()
-        total_students = students_result.count or 0
+        # Basic counts — scoped to the caller's own school if they're a school_admin, global for superadmin
+        if user.get("role") == "school_admin":
+            admin_id = user.get("user_id")
+            school_teachers_r = supabase.table("users").select("user_id", count="exact").eq("school_admin_id", admin_id).execute()
+            total_teachers = school_teachers_r.count or 0
+            school_teacher_ids = [t["user_id"] for t in (supabase.table("users").select("user_id").eq("school_admin_id", admin_id).execute().data or [])]
+            if school_teacher_ids:
+                students_result = supabase.table("students").select("id", count="exact").in_("teacher_id", school_teacher_ids).execute()
+                total_students = students_result.count or 0
+            else:
+                total_students = 0
+        else:
+            students_result = supabase.table("students").select("id", count="exact").execute()
+            total_students = students_result.count or 0
 
-        # Teachers are stored as role='admin' (set on school creation)
-        # Count all non-superadmin, non-parent users as teachers
-        teachers_result = supabase.table("users").select("user_id", count="exact").in_("role", ["admin", "teacher", "school_admin"]).execute()
-        total_teachers = teachers_result.count or 0
+            # Teachers are stored as role='admin' (set on school creation)
+            # Count all non-superadmin, non-parent users as teachers
+            teachers_result = supabase.table("users").select("user_id", count="exact").in_("role", ["admin", "teacher", "school_admin"]).execute()
+            total_teachers = teachers_result.count or 0
 
         users_result = supabase.table("users").select("user_id", count="exact").execute()
         total_users = users_result.count or 0

@@ -13,6 +13,7 @@ import {
   Image
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
@@ -32,6 +33,8 @@ const PRESET_AVATARS = [
 
 export default function CreateProfileScreen() {
   const router = useRouter();
+  const navigation = useNavigation() as any;
+  React.useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { refreshStudents, classrooms, t } = useApp();
   const [name, setName] = useState('');
   const [avatarType, setAvatarType] = useState<'preset' | 'custom'>('preset');
@@ -180,6 +183,13 @@ export default function CreateProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
+        <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
+          <MaterialIcons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Text style={{ flex: 1, textAlign: 'center', fontSize: 17, fontWeight: 'bold', color: '#333' }}>Add Profile</Text>
+        <View style={{ width: 36 }} />
+      </View>
       <KeyboardAvoidingView 
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

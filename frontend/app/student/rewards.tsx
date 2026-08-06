@@ -135,7 +135,7 @@ export default function RewardsScreen() {
 
       // Start animations
       startAnimations(response);
-    setTimeout(() => setShowContinue(true), 3500);
+    setTimeout(() => setShowContinue(true), 5500);
       
       // Play reward sound
       playRewardFeedback();
