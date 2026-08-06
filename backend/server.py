@@ -5824,9 +5824,10 @@ async def approve_creature(submission_id: str, request: Request):
     user = await get_current_user(request)
     if not user or user.get("role") not in ["teacher","parent","school_admin","admin","superadmin"]:
         raise HTTPException(status_code=403, detail="Not authorised")
+    # Teacher/parent approval no longer auto-publishes globally — superadmin's
+    # global-approve endpoint is the real second gate before anything is public.
     supabase.table("creature_submissions").update({
         "status": "approved",
-        "is_globally_available": True,
         "approved_by": user["user_id"],
         "approved_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", submission_id).execute()
