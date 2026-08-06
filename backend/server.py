@@ -6108,16 +6108,25 @@ async def get_admin_stats(request: Request, days: int = 7):
                 strategy_counts[s] = strategy_counts.get(s, 0) + 1
         top_strategy = max(strategy_counts, key=strategy_counts.get) if strategy_counts else "—"
 
-        # Schools breakdown — one entry per school_admin
+        # Schools breakdown — one entry per unique school, students via teachers linked to this school_admin
         try:
             school_admins = supabase.table("users").select("*").eq("role", "school_admin").execute()
             schools_breakdown = []
+            seen_school_names = set()
             for admin in (school_admins.data or []):
                 admin_id = admin.get("user_id", "")
-                # Get students belonging to this admin's school
+                school_name_key = admin.get("school_name") or admin_id
+                if school_name_key in seen_school_names:
+                    continue
+                seen_school_names.add(school_name_key)
+                # Get students belonging to this admin's school (via teachers linked through school_admin_id)
                 try:
-                    school_students = supabase.table("students").select("id,classroom_id").eq("teacher_id", admin_id).execute()
-                    student_ids = [s["id"] for s in (school_students.data or [])]
+                    school_teachers = supabase.table("users").select("user_id").eq("school_admin_id", admin_id).execute()
+                    teacher_ids_for_school = [t["user_id"] for t in (school_teachers.data or [])]
+                    student_ids = []
+                    if teacher_ids_for_school:
+                        school_students = supabase.table("students").select("id,classroom_id").in_("teacher_id", teacher_ids_for_school).execute()
+                        student_ids = [s["id"] for s in (school_students.data or [])]
                 except:
                     student_ids = []
 
