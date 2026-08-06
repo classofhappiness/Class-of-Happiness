@@ -5813,6 +5813,16 @@ async def get_pending_creatures(request: Request):
         raise HTTPException(status_code=403, detail="Not authorised")
     if user.get("role") == "superadmin":
         rows = supabase.table("creature_submissions").select("*").eq("status","pending").order("created_at").execute()
+    elif user.get("role") == "teacher":
+        # Resolve the teacher's real school via school_admin_id (school_name is unreliable/unset)
+        admin_r = supabase.table("users").select("school_admin_id").eq("user_id", user["user_id"]).execute()
+        school_admin_id = (admin_r.data or [{}])[0].get("school_admin_id")
+        school = ""
+        if school_admin_id:
+            profile_r = supabase.table("school_profiles").select("school_name").eq("user_id", school_admin_id).execute()
+            if profile_r.data:
+                school = profile_r.data[0].get("school_name", "")
+        rows = supabase.table("creature_submissions").select("*").eq("status","pending").eq("school_name", school).order("created_at").execute() if school else type("R",(),{"data":[]})()
     else:
         school = user.get("school_name", user.get("school_id", ""))
         rows = supabase.table("creature_submissions").select("*")            .eq("status","pending").eq("school_name", school).order("created_at").execute()
