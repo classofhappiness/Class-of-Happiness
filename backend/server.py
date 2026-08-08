@@ -2789,17 +2789,24 @@ async def get_zone_logs_all(
         result = query.execute()
         return result.data or []
 
-    # Resolve visible students for the teacher context
-    teacher_id = user.get("id") or user.get("user_id")
-    students_query = supabase.table("students").select("id").eq("teacher_id", teacher_id)
+    # Resolve visible students for the teacher context via classrooms.user_id -> students.classroom_id
+    # (real relationship used elsewhere in this file — students has no teacher_id column)
+    owner_id = user.get("id") or user.get("user_id")
+    classrooms_q = supabase.table("classrooms").select("id,name").eq("user_id", owner_id)
     if classroom_id:
-        students_query = students_query.eq("classroom_id", classroom_id)
-    students_result = students_query.execute()
-    visible_student_ids = [s["id"] for s in (students_result.data or [])]
+        classrooms_q = classrooms_q.eq("id", classroom_id)
+    classrooms_result = classrooms_q.execute()
+    owned_classroom_ids = [c["id"] for c in (classrooms_result.data or [])]
+    classroom_names = {c["id"]: c.get("name", "") for c in (classrooms_result.data or [])}
+    if not owned_classroom_ids:
+        return []
+
+    students_result = supabase.table("students").select("id,name,classroom_id").in_("classroom_id", owned_classroom_ids).execute()
+    students_by_id = {s["id"]: s for s in (students_result.data or [])}
+    visible_student_ids = list(students_by_id.keys())
     if not visible_student_ids:
         return []
 
-    # Supabase python client doesn't always support .in_ on all setups; aggregate safely.
     logs: List[dict] = []
     for sid in visible_student_ids:
         sid_result = supabase.table("feeling_logs").select("*").eq("student_id", sid).gte("timestamp", start_date).order("timestamp", desc=True).execute()
@@ -2809,6 +2816,8 @@ async def get_zone_logs_all(
         **log,
         "zone": log.get("feeling_colour", log.get("zone")),
         "strategies_selected": log.get("helpers_selected", log.get("strategies_selected", [])),
+        "student_name": students_by_id.get(log.get("student_id"), {}).get("name", "Student"),
+        "classroom_name": classroom_names.get(students_by_id.get(log.get("student_id"), {}).get("classroom_id"), ""),
     } for log in logs]
 
 # ================== HELPERS / STRATEGIES ==================
@@ -5654,10 +5663,16 @@ async def resolve_alert(alert_id: str, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        supabase.table("student_alerts").update({"resolved": True, "resolved_by": user["user_id"], "resolved_at": datetime.now(timezone.utc).isoformat()}).eq("id", alert_id).execute()
+        result = supabase.table("student_alerts").update({"resolved": True, "resolved_by": user["user_id"], "resolved_at": datetime.now(timezone.utc).isoformat()}).eq("id", alert_id).execute()
+        if not result.data:
+            logger.error(f"Resolve alert: no row matched id={alert_id}")
+            raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Resolve alert error: {e}")
-    return {"ok": True}
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"ok": True, "resolved_id": alert_id}
 
 # ── Notification stats for admin ─────────────────────────
 @api_router.get("/notifications/stats")
@@ -7287,7 +7302,7 @@ async def delete_teacher_strategy(strategy_id: str, request: Request):
 async def create_admin_teacher_strategy(request: Request):
     """Admin adds a new strategy for teachers"""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin", "teacher"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     body = await request.json()
     new_strat = {
