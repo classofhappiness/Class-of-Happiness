@@ -3294,7 +3294,18 @@ async def get_family_members(request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     result = supabase.table("family_members").select("*").eq("user_id", user["user_id"]).execute()
-    return result.data or []
+    members = result.data or []
+    # Real school link = the linked student has a classroom_id (set only via real teacher/school
+    # enrollment), NOT just student_id existing (that gets auto-created for every "child" family
+    # member regardless of any real school connection — see add_family_member below)
+    student_ids = [m["student_id"] for m in members if m.get("student_id")]
+    classroom_map = {}
+    if student_ids:
+        students_r = supabase.table("students").select("id,classroom_id").in_("id", student_ids).execute()
+        classroom_map = {s["id"]: s.get("classroom_id") for s in (students_r.data or [])}
+    for m in members:
+        m["school_linked"] = bool(m.get("student_id") and classroom_map.get(m["student_id"]))
+    return members
 
 @api_router.post("/family/members")
 async def add_family_member(member: FamilyMemberCreate, request: Request):
