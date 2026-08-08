@@ -5281,7 +5281,7 @@ async def send_help_request(request: Request):
     # Award brave shield badge
     shield_awarded = False
     try:
-        existing_reward = supabase.table("student_rewards").select("*").eq("student_id", student_id).eq("reward_type", "brave_shield").execute()
+        existing_reward = supabase.table("student_rewards").select("*").eq("student_id", student_id).execute()
         if existing_reward.data:
             current = existing_reward.data[0]
             new_count = (current.get("count") or 0) + 1
@@ -5521,7 +5521,7 @@ def _shield_level(count: int) -> str:
 async def get_student_shield(student_id: str):
     """Get brave shield badge for a student."""
     try:
-        result = supabase.table("student_rewards").select("*").eq("student_id", student_id).eq("reward_type", "brave_shield").execute()
+        result = supabase.table("student_rewards").select("*").eq("student_id", student_id).execute()
         if result.data:
             r = result.data[0]
             return {
@@ -5834,7 +5834,7 @@ async def get_pending_creatures(request: Request):
         school_admin_id = (admin_r.data or [{}])[0].get("school_admin_id")
         school = ""
         if school_admin_id:
-            profile_r = supabase.table("school_profiles").select("school_name").eq("user_id", school_admin_id).execute()
+            profile_r = supabase.table("school_profiles").select("school_name").eq("school_admin_user_id", school_admin_id).execute()
             if profile_r.data:
                 school = profile_r.data[0].get("school_name", "")
         rows = supabase.table("creature_submissions").select("*").eq("status","pending").eq("school_name", school).order("created_at").execute() if school else type("R",(),{"data":[]})()
@@ -8111,9 +8111,9 @@ async def delete_service(service_id: str, request: Request):
 
 @api_router.get("/school-admin/school-strategies")
 async def get_school_strategies(request: Request):
-    """School-specific strategies. School admin can add/edit/remove these for their community."""
+    """School-specific strategies. School admin can add/edit/remove these for their community. Teachers can view (read-only)."""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["school_admin"]:
+    if not user or user.get("role") not in ["school_admin", "teacher"]:
         raise HTTPException(status_code=403, detail="School admin access required")
     try:
         # Global strategies (read-only for school admin)
