@@ -5768,11 +5768,25 @@ async def start_trial(request: Request):
     }).eq("user_id", user["user_id"]).execute()
     return {"message": "Trial started", "trial_ends": (now + timedelta(days=TRIAL_DURATION_DAYS)).isoformat()}
 
+def _month_buckets(end_year, end_month, n_months):
+    """Return n_months of (year, month, label) working backwards from end_year/end_month, oldest first."""
+    buckets = []
+    y, m = end_year, end_month
+    for _ in range(n_months):
+        buckets.append((y, m, datetime(y, m, 1).strftime("%b %Y")))
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+    return list(reversed(buckets))
+
 @api_router.get("/reports/pdf/classroom-overview/{user_id}/month/{year}/{month}")
-async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, request: Request, lang: str = "en"):
-    """Generate a monthly overview PDF across all of a teacher's classrooms — comprehensive,
-    matches the same visual design as the teacher wellbeing / student PDFs (real ReportLab
-    style constants, same header/logo pattern, same colours)."""
+async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, request: Request,
+                                            period: str = "1", classroom_id: str = "all", lang: str = "en"):
+    """Generate an overview PDF across a teacher's classrooms. period = '1'|'3'|'6'|'12' months
+    ending at year/month. classroom_id = 'all' or a specific classroom id. Matches the same
+    visual design as the teacher wellbeing / student PDFs (real ReportLab style constants,
+    same header/logo pattern, same colours), plus a real trend line chart when period > 1."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -5783,6 +5797,8 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
     from reportlab.platypus import Image as RLImage
+    from reportlab.graphics.shapes import Drawing, String
+    from reportlab.graphics.charts.lineplots import LinePlot
 
     teacher_r = supabase.table("users").select("*").eq("user_id", user_id).execute()
     if not teacher_r.data:
@@ -5790,16 +5806,23 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
     teacher = teacher_r.data[0]
     display_name = teacher.get("name") or teacher.get("email", "").split("@")[0].replace(".", " ").title()
 
-    start = datetime(year, month, 1, tzinfo=timezone.utc).isoformat()
-    _, last_day = cal_mod.monthrange(year, month)
-    end = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc).isoformat()
-    month_name = datetime(year, month, 1).strftime("%B %Y")
+    n_months = {"1":1, "3":3, "6":6, "12":12}.get(str(period), 1)
+    buckets = _month_buckets(year, month, n_months)
+    range_start = datetime(buckets[0][0], buckets[0][1], 1, tzinfo=timezone.utc).isoformat()
+    _, last_day_end = cal_mod.monthrange(buckets[-1][0], buckets[-1][1])
+    range_end = datetime(buckets[-1][0], buckets[-1][1], last_day_end, 23, 59, 59, tzinfo=timezone.utc).isoformat()
+    period_label = buckets[0][2] if n_months == 1 else (buckets[0][2] + " – " + buckets[-1][2])
 
     owner_id = user_id
     classrooms_result = supabase.table("classrooms").select("id,name").eq("user_id", owner_id).execute()
     classrooms = classrooms_result.data or []
     classroom_names = {c["id"]: c.get("name", "Class") for c in classrooms}
-    owned_classroom_ids = list(classroom_names.keys())
+    if classroom_id and classroom_id != "all":
+        owned_classroom_ids = [classroom_id] if classroom_id in classroom_names else []
+        classroom_scope_label = classroom_names.get(classroom_id, "Selected Classroom")
+    else:
+        owned_classroom_ids = list(classroom_names.keys())
+        classroom_scope_label = "All Classrooms"
 
     students_result = supabase.table("students").select("id,name,classroom_id").in_("classroom_id", owned_classroom_ids).execute() if owned_classroom_ids else type("R", (), {"data": []})()
     students_by_id = {s["id"]: s for s in (students_result.data or [])}
@@ -5821,9 +5844,10 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
     by_classroom = {}
     latest_per_student = {}
     strategy_counts = {}
+    bucket_zone_counts = {b[2]: {"green":0,"blue":0,"yellow":0,"red":0} for b in buckets}
 
     for sid, s in students_by_id.items():
-        logs_r = supabase.table("feeling_logs").select("*").eq("student_id", sid).gte("timestamp", start).lte("timestamp", end).order("timestamp", desc=True).execute()
+        logs_r = supabase.table("feeling_logs").select("*").eq("student_id", sid).gte("timestamp", range_start).lte("timestamp", range_end).order("timestamp", desc=True).execute()
         student_logs = logs_r.data or []
         cls_name = classroom_names.get(s.get("classroom_id"), "Unassigned")
         if cls_name not in by_classroom:
@@ -5836,6 +5860,13 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
             if zone in zone_counts:
                 zone_counts[zone] += 1
                 by_classroom[cls_name][zone] += 1
+                try:
+                    ts = datetime.fromisoformat(log["timestamp"].replace("Z","+00:00"))
+                    bkey = ts.strftime("%b %Y")
+                    if bkey in bucket_zone_counts:
+                        bucket_zone_counts[bkey][zone] += 1
+                except Exception:
+                    pass
             for strat in (log.get("helpers_selected") or log.get("strategies_selected") or []):
                 name = resolve_strat(strat)
                 if name:
@@ -5878,8 +5909,8 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
     except Exception:
         logo_cell = Paragraph("Class of Happiness", ST_LOGO)
 
-    header_data = [[logo_cell, Paragraph(f"<b>Classroom Overview Report</b><br/>{month_name}", s("HR", fontSize=11, textColor=INDIGO, fontName="Helvetica-Bold", alignment=2, leading=15))]]
-    header_table = Table(header_data, colWidths=[PAGE_W*0.55, PAGE_W*0.35])
+    header_data = [[logo_cell, Paragraph(f"<b>Classroom Overview Report</b><br/>{classroom_scope_label} &middot; {period_label}", s("HR", fontSize=10, textColor=INDIGO, fontName="Helvetica-Bold", alignment=2, leading=14))]]
+    header_table = Table(header_data, colWidths=[PAGE_W*0.5, PAGE_W*0.4])
     header_table.setStyle(TableStyle([
         ("BACKGROUND", (0,0), (-1,-1), colors.white),
         ("BOX", (0,0), (-1,-1), 1, colors.HexColor("#E0E0E0")),
@@ -5892,8 +5923,8 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
     elements.append(Paragraph("Summary", ST_H2))
     summary_rows = [
         [Paragraph("Teacher", ST_LABEL), Paragraph(display_name, ST_VALUE)],
-        [Paragraph("Report Period", ST_LABEL), Paragraph(month_name, ST_VALUE)],
-        [Paragraph("Classrooms", ST_LABEL), Paragraph(str(len(classrooms)), ST_VALUE)],
+        [Paragraph("Scope", ST_LABEL), Paragraph(classroom_scope_label, ST_VALUE)],
+        [Paragraph("Period", ST_LABEL), Paragraph(period_label, ST_VALUE)],
         [Paragraph("Students", ST_LABEL), Paragraph(str(len(students_by_id)), ST_VALUE)],
         [Paragraph("Total Check-ins", ST_LABEL), Paragraph(str(total), ST_VALUE)],
     ]
@@ -5908,7 +5939,41 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
     elements.append(summary_table)
     elements.append(Spacer(1, 10))
 
-    if by_classroom:
+    if n_months > 1:
+        elements.append(Paragraph("Emotion Trend Over Time", ST_H2))
+        bucket_labels = [b[2] for b in buckets]
+        g = [bucket_zone_counts[l]["green"] for l in bucket_labels]
+        b_ = [bucket_zone_counts[l]["blue"] for l in bucket_labels]
+        y_ = [bucket_zone_counts[l]["yellow"] for l in bucket_labels]
+        r = [bucket_zone_counts[l]["red"] for l in bucket_labels]
+        max_val = max([1] + g + b_ + y_ + r)
+        drawing = Drawing(PAGE_W - 72, 190)
+        lp = LinePlot()
+        lp.x = 35; lp.y = 25
+        lp.width = PAGE_W - 130
+        lp.height = 140
+        lp.data = [list(zip(range(len(bucket_labels)), g)), list(zip(range(len(bucket_labels)), b_)),
+                   list(zip(range(len(bucket_labels)), y_)), list(zip(range(len(bucket_labels)), r))]
+        lp.lines[0].strokeColor = GREEN_C; lp.lines[0].strokeWidth = 2
+        lp.lines[1].strokeColor = BLUE_C; lp.lines[1].strokeWidth = 2
+        lp.lines[2].strokeColor = YELLOW_C; lp.lines[2].strokeWidth = 2
+        lp.lines[3].strokeColor = RED_C; lp.lines[3].strokeWidth = 2
+        lp.xValueAxis.valueMin = 0
+        lp.xValueAxis.valueMax = max(1, len(bucket_labels)-1)
+        lp.xValueAxis.valueSteps = list(range(len(bucket_labels)))
+        lp.xValueAxis.labelTextFormat = lambda x, _labels=bucket_labels: _labels[int(x)] if 0<=int(x)<len(_labels) else ''
+        lp.yValueAxis.valueMin = 0
+        lp.yValueAxis.valueMax = max_val + 2
+        drawing.add(lp)
+        legend_y = 175
+        for i, (lbl, col) in enumerate([("Green",GREEN_C),("Blue",BLUE_C),("Yellow",YELLOW_C),("Red",RED_C)]):
+            lx = 35 + i * 110
+            drawing.add(String(lx, legend_y, "—", fontSize=11, fillColor=col, fontName="Helvetica-Bold"))
+            drawing.add(String(lx+12, legend_y, lbl, fontSize=8, fillColor=GREY))
+        elements.append(drawing)
+        elements.append(Spacer(1, 6))
+
+    if by_classroom and (classroom_id == "all" or len(by_classroom) > 1):
         elements.append(Paragraph("By Classroom", ST_H2))
         rows = [[Paragraph(h, ST_LABEL) for h in ["Classroom","Students","Green","Blue","Yellow","Red"]]]
         for cls, d in by_classroom.items():
@@ -5968,7 +6033,7 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
     doc.build(elements)
     buffer.seek(0)
     return StreamingResponse(buffer, media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="classroom-overview-{month_name.replace(" ","-")}.pdf"'})
+        headers={"Content-Disposition": f'attachment; filename="classroom-overview-{period_label.replace(" ","-").replace(chr(8211),"to")}.pdf"'})
 
 @api_router.get("/subscription/status")
 async def get_subscription_status(request: Request):
