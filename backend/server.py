@@ -82,6 +82,13 @@ SUBSCRIPTION_PLANS = {
 TRIAL_DURATION_DAYS = 14
 
 # Promo codes
+ALWAYS_OPEN_PINS = {
+    "jono@classofhappiness.com": "COH2026JONO",
+    "schooladmindemo@classofhappiness.com": "COH2026DEMO",
+    "jono@gmail.com": "COH2026PARENT",
+    "jono+teacher@gmail.com": "COH2026TEACHER",
+}
+
 PROMO_CODES = {
     "HAPPYCLASS2026": {"type": "trial", "days": 30},
     "CLASSOFHAPPINESS2026": {"type": "trial", "days": 30},
@@ -2319,11 +2326,16 @@ async def get_current_user(request: Request) -> Optional[dict]:
         return None
 
 def check_subscription_active(user: dict) -> bool:
-    # All admin/staff roles bypass subscription
-    if user.get("role") in ("admin", "superadmin", "school_admin", "teacher"):
+    if not user:
+        return False
+    # Internal staff roles always have full access
+    if user.get("role") in ("admin", "superadmin"):
         return True
-    # Also bypass if user has a school invite code (linked to a school)
-    if user.get("school_id") or user.get("invite_code"):
+    # The 4 permanent always-open accounts (PIN-protected at login, see ALWAYS_OPEN_PINS)
+    if (user.get("email") or "").strip().lower() in ALWAYS_OPEN_PINS:
+        return True
+    # Covered by their school's paid plan (real column is school_admin_id — school_id doesn't exist)
+    if user.get("school_admin_id") or user.get("invite_code"):
         return True
     sub_status = user.get("subscription_status", "none")
     if sub_status == "active":
@@ -2331,6 +2343,7 @@ def check_subscription_active(user: dict) -> bool:
         if exp:
             exp_dt = datetime.fromisoformat(exp.replace("Z", "+00:00"))
             return exp_dt > datetime.now(timezone.utc)
+        return True
     if sub_status == "trial":
         trial_start = user.get("trial_started_at")
         if trial_start:
@@ -6583,11 +6596,15 @@ async def email_login(request: Request):
             if existing.data:
                 # User exists — use them
                 user = existing.data[0]
-                # PIN check only for superadmin/admin roles
+                # PIN check for superadmin/admin roles (existing)
                 if user.get("role") in ("admin", "superadmin"):
                     required_pin = os.environ.get("ADMIN_PIN", "")
                     if required_pin and admin_pin != required_pin:
                         raise HTTPException(status_code=403, detail="Admin PIN required. Contact Jono.")
+                # PIN check for the 4 permanent always-open accounts
+                elif email in ALWAYS_OPEN_PINS:
+                    if admin_pin != ALWAYS_OPEN_PINS[email]:
+                        raise HTTPException(status_code=403, detail="PIN required for this account. Contact Jono.")
             else:
                 # New user — create as teacher
                 name = email.split("@")[0].replace(".", " ").title()
