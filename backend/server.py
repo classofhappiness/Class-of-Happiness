@@ -5768,6 +5768,208 @@ async def start_trial(request: Request):
     }).eq("user_id", user["user_id"]).execute()
     return {"message": "Trial started", "trial_ends": (now + timedelta(days=TRIAL_DURATION_DAYS)).isoformat()}
 
+@api_router.get("/reports/pdf/classroom-overview/{user_id}/month/{year}/{month}")
+async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, request: Request, lang: str = "en"):
+    """Generate a monthly overview PDF across all of a teacher's classrooms — comprehensive,
+    matches the same visual design as the teacher wellbeing / student PDFs (real ReportLab
+    style constants, same header/logo pattern, same colours)."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    import io, calendar as cal_mod, os
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import Image as RLImage
+
+    teacher_r = supabase.table("users").select("*").eq("user_id", user_id).execute()
+    if not teacher_r.data:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+    teacher = teacher_r.data[0]
+    display_name = teacher.get("name") or teacher.get("email", "").split("@")[0].replace(".", " ").title()
+
+    start = datetime(year, month, 1, tzinfo=timezone.utc).isoformat()
+    _, last_day = cal_mod.monthrange(year, month)
+    end = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc).isoformat()
+    month_name = datetime(year, month, 1).strftime("%B %Y")
+
+    owner_id = user_id
+    classrooms_result = supabase.table("classrooms").select("id,name").eq("user_id", owner_id).execute()
+    classrooms = classrooms_result.data or []
+    classroom_names = {c["id"]: c.get("name", "Class") for c in classrooms}
+    owned_classroom_ids = list(classroom_names.keys())
+
+    students_result = supabase.table("students").select("id,name,classroom_id").in_("classroom_id", owned_classroom_ids).execute() if owned_classroom_ids else type("R", (), {"data": []})()
+    students_by_id = {s["id"]: s for s in (students_result.data or [])}
+
+    STRAT_NAMES_LOCAL = {
+        "blue_1":"Gentle Stretch","blue_2":"Warm Drink","blue_3":"Favourite Song","blue_4":"Cosy Spot","blue_5":"Tell Someone","blue_6":"Slow Breathing",
+        "green_1":"Keep Going!","green_2":"Help a Friend","green_3":"Try Something New","green_4":"Share Your Smile","green_5":"Set a Goal","green_6":"Gratitude",
+        "yellow_1":"Bubble Breathing","yellow_2":"Body Shake","yellow_3":"Count to 10","yellow_4":"5 Senses","yellow_5":"Squeeze & Release","yellow_6":"Talk About It",
+        "red_1":"Freeze","red_2":"Big Breaths","red_3":"Count Backwards","red_4":"Safe Space","red_5":"Ask for Help","red_6":"Self Hug",
+        "b1":"Gentle Stretch","b2":"Warm Drink","b3":"Favourite Song","b4":"Cosy Spot","b5":"Tell Someone","b6":"Slow Breathing",
+        "g1":"Keep Going!","g2":"Help a Friend","g3":"Try Something New","g4":"Share Your Smile","g5":"Set a Goal","g6":"Gratitude",
+        "y1":"Bubble Breathing","y2":"Body Shake","y3":"Count to 10","y4":"5 Senses","y5":"Squeeze & Release","y6":"Talk About It",
+        "r1":"Freeze","r2":"Big Breaths","r3":"Count Backwards","r4":"Safe Space","r5":"Ask for Help","r6":"Self Hug",
+    }
+    def resolve_strat(sid):
+        return STRAT_NAMES_LOCAL.get(sid, sid.replace("_"," ").title() if sid else "")
+
+    zone_counts = {"green":0,"blue":0,"yellow":0,"red":0}
+    by_classroom = {}
+    latest_per_student = {}
+    strategy_counts = {}
+
+    for sid, s in students_by_id.items():
+        logs_r = supabase.table("feeling_logs").select("*").eq("student_id", sid).gte("timestamp", start).lte("timestamp", end).order("timestamp", desc=True).execute()
+        student_logs = logs_r.data or []
+        cls_name = classroom_names.get(s.get("classroom_id"), "Unassigned")
+        if cls_name not in by_classroom:
+            by_classroom[cls_name] = {"green":0,"blue":0,"yellow":0,"red":0,"students":0}
+        by_classroom[cls_name]["students"] += 1
+        if student_logs:
+            latest_per_student[sid] = {**student_logs[0], "student_name": s.get("name","Student"), "classroom_name": cls_name}
+        for log in student_logs:
+            zone = log.get("feeling_colour") or log.get("zone") or ""
+            if zone in zone_counts:
+                zone_counts[zone] += 1
+                by_classroom[cls_name][zone] += 1
+            for strat in (log.get("helpers_selected") or log.get("strategies_selected") or []):
+                name = resolve_strat(strat)
+                if name:
+                    strategy_counts[name] = strategy_counts.get(name, 0) + 1
+
+    total = sum(zone_counts.values())
+    needs_attention = [v for v in latest_per_student.values() if (v.get("feeling_colour") or v.get("zone")) == "red"]
+    top_strategies = sorted(strategy_counts.items(), key=lambda x: -x[1])[:8]
+
+    INDIGO      = colors.HexColor("#5C6BC0")
+    BLUE_C      = colors.HexColor("#4A90D9")
+    GREEN_C     = colors.HexColor("#4CAF50")
+    YELLOW_C    = colors.HexColor("#FFC107")
+    RED_C       = colors.HexColor("#F44336")
+    LIGHT       = colors.HexColor("#F8F9FA")
+    GREY        = colors.HexColor("#666666")
+    WHITE       = colors.white
+
+    def s(name, **kw):
+        return ParagraphStyle(name, **kw)
+    ST_LOGO   = s("Logo",  fontSize=18, textColor=colors.HexColor("#5C6BC0"), fontName="Helvetica-Bold", leading=22)
+    ST_H2     = s("H2",    fontSize=12, textColor=INDIGO, fontName="Helvetica-Bold", spaceBefore=8, spaceAfter=4)
+    ST_SMALL  = s("Small", fontSize=7.5,textColor=GREY, leading=10)
+    ST_LABEL  = s("Label", fontSize=8,  textColor=GREY, fontName="Helvetica-Bold")
+    ST_VALUE  = s("Val",   fontSize=9,  textColor=colors.HexColor("#222222"), fontName="Helvetica-Bold")
+    ST_ALERT  = s("Alert", fontSize=8,  textColor=colors.HexColor("#B71C1C"), fontName="Helvetica-Bold")
+
+    buffer = io.BytesIO()
+    PAGE_W, PAGE_H = A4
+    doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36)
+    elements = []
+
+    logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_coh.png")
+    try:
+        if not os.path.exists(logo_path):
+            raise FileNotFoundError()
+        coh_logo = RLImage(logo_path, width=40, height=40)
+        logo_cell = Table([[coh_logo, Paragraph("Class of Happiness", ST_LOGO)]], colWidths=[48, 200],
+            style=[("VALIGN",(0,0),(-1,-1),"MIDDLE"),("PADDING",(0,0),(-1,-1),0),("LEFTPADDING",(1,0),(1,0),6)])
+    except Exception:
+        logo_cell = Paragraph("Class of Happiness", ST_LOGO)
+
+    header_data = [[logo_cell, Paragraph(f"<b>Classroom Overview Report</b><br/>{month_name}", s("HR", fontSize=11, textColor=INDIGO, fontName="Helvetica-Bold", alignment=2, leading=15))]]
+    header_table = Table(header_data, colWidths=[PAGE_W*0.55, PAGE_W*0.35])
+    header_table.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,-1), colors.white),
+        ("BOX", (0,0), (-1,-1), 1, colors.HexColor("#E0E0E0")),
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("PADDING", (0,0), (-1,-1), 14),
+    ]))
+    elements.append(header_table)
+    elements.append(Spacer(1, 10))
+
+    elements.append(Paragraph("Summary", ST_H2))
+    summary_rows = [
+        [Paragraph("Teacher", ST_LABEL), Paragraph(display_name, ST_VALUE)],
+        [Paragraph("Report Period", ST_LABEL), Paragraph(month_name, ST_VALUE)],
+        [Paragraph("Classrooms", ST_LABEL), Paragraph(str(len(classrooms)), ST_VALUE)],
+        [Paragraph("Students", ST_LABEL), Paragraph(str(len(students_by_id)), ST_VALUE)],
+        [Paragraph("Total Check-ins", ST_LABEL), Paragraph(str(total), ST_VALUE)],
+    ]
+    if needs_attention:
+        summary_rows.append([Paragraph("Currently Need Support", ST_LABEL), Paragraph(str(len(needs_attention)), ST_ALERT)])
+    summary_table = Table(summary_rows, colWidths=[150, PAGE_W - 150 - 72])
+    summary_table.setStyle(TableStyle([
+        ("ROWBACKGROUNDS", (0,0), (-1,-1), [WHITE, LIGHT]),
+        ("PADDING", (0,0), (-1,-1), 8),
+        ("GRID", (0,0), (-1,-1), 0.4, colors.HexColor("#E0E0E0")),
+    ]))
+    elements.append(summary_table)
+    elements.append(Spacer(1, 10))
+
+    if by_classroom:
+        elements.append(Paragraph("By Classroom", ST_H2))
+        rows = [[Paragraph(h, ST_LABEL) for h in ["Classroom","Students","Green","Blue","Yellow","Red"]]]
+        for cls, d in by_classroom.items():
+            rows.append([
+                Paragraph(cls, ST_VALUE), Paragraph(str(d["students"]), ST_VALUE),
+                Paragraph(str(d["green"]), s("G",fontSize=9,textColor=GREEN_C,fontName="Helvetica-Bold")),
+                Paragraph(str(d["blue"]), s("B",fontSize=9,textColor=BLUE_C,fontName="Helvetica-Bold")),
+                Paragraph(str(d["yellow"]), s("Y",fontSize=9,textColor=colors.HexColor("#F57F17"),fontName="Helvetica-Bold")),
+                Paragraph(str(d["red"]), s("R",fontSize=9,textColor=RED_C,fontName="Helvetica-Bold")),
+            ])
+        cls_table = Table(rows, colWidths=[(PAGE_W-72)*0.34]+[(PAGE_W-72)*0.132]*5)
+        cls_table.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#E8EAF6")),
+            ("ROWBACKGROUNDS", (0,1), (-1,-1), [WHITE, LIGHT]),
+            ("PADDING", (0,0), (-1,-1), 6),
+            ("GRID", (0,0), (-1,-1), 0.3, colors.HexColor("#E0E0E0")),
+        ]))
+        elements.append(cls_table)
+        elements.append(Spacer(1, 10))
+
+    if needs_attention:
+        elements.append(Paragraph("Needs Attention", ST_H2))
+        na_rows = [[Paragraph(h, ST_LABEL) for h in ["Student","Classroom","Last Check-in"]]]
+        for v in needs_attention[:20]:
+            when = ""
+            if v.get("timestamp"):
+                try: when = datetime.fromisoformat(v["timestamp"].replace("Z","+00:00")).strftime("%d %b, %H:%M")
+                except Exception: pass
+            na_rows.append([Paragraph(v.get("student_name","Student"), ST_VALUE), Paragraph(v.get("classroom_name",""), ST_VALUE), Paragraph(when, ST_SMALL)])
+        na_table = Table(na_rows, colWidths=[(PAGE_W-72)*0.4,(PAGE_W-72)*0.35,(PAGE_W-72)*0.25])
+        na_table.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#FFEBEE")),
+            ("ROWBACKGROUNDS", (0,1), (-1,-1), [WHITE, colors.HexColor("#FFF5F5")]),
+            ("PADDING", (0,0), (-1,-1), 6),
+            ("GRID", (0,0), (-1,-1), 0.3, colors.HexColor("#E0E0E0")),
+        ]))
+        elements.append(na_table)
+        elements.append(Spacer(1, 10))
+
+    if top_strategies:
+        elements.append(Paragraph("Most Used Strategies", ST_H2))
+        strat_rows = [[Paragraph(h, ST_LABEL) for h in ["Strategy","Times Used"]]]
+        for name, count in top_strategies:
+            strat_rows.append([Paragraph(name, ST_VALUE), Paragraph(str(count), ST_VALUE)])
+        strat_table = Table(strat_rows, colWidths=[(PAGE_W-72)*0.7,(PAGE_W-72)*0.3])
+        strat_table.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), LIGHT),
+            ("ROWBACKGROUNDS", (0,1), (-1,-1), [WHITE, LIGHT]),
+            ("PADDING", (0,0), (-1,-1), 6),
+            ("GRID", (0,0), (-1,-1), 0.3, colors.HexColor("#E0E0E0")),
+        ]))
+        elements.append(strat_table)
+
+    elements.append(Spacer(1, 16))
+    elements.append(Paragraph("Class of Happiness — Emotional wellbeing, made simple.", ST_SMALL))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return StreamingResponse(buffer, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="classroom-overview-{month_name.replace(" ","-")}.pdf"'})
+
 @api_router.get("/subscription/status")
 async def get_subscription_status(request: Request):
     user = await get_current_user(request)
