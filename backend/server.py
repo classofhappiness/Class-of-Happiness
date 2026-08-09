@@ -6698,6 +6698,10 @@ async def download_resource_pdf(resource_id: str, request: Request):
         raise HTTPException(status_code=400, detail="Resource is not a PDF")
 
     raw_content = resource.get("content") or ""
+    # Stored content may include a data URI prefix (data:application/pdf;base64,...) — strip it
+    # before decoding, since ':' and ';' aren't valid base64 characters and break the decode
+    if "," in raw_content and raw_content.strip().lower().startswith("data:"):
+        raw_content = raw_content.split(",", 1)[1]
     try:
         pdf_bytes = base64.b64decode(raw_content)
     except Exception:
