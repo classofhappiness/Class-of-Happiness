@@ -3308,16 +3308,31 @@ async def get_family_members(request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
     result = supabase.table("family_members").select("*").eq("user_id", user["user_id"]).execute()
     members = result.data or []
-    # Real school link = the linked student has a classroom_id (set only via real teacher/school
-    # enrollment), NOT just student_id existing (that gets auto-created for every "child" family
-    # member regardless of any real school connection — see add_family_member below)
+    # Real school link, path 1: the family_members.student_id row has a classroom_id
     student_ids = [m["student_id"] for m in members if m.get("student_id")]
     classroom_map = {}
     if student_ids:
         students_r = supabase.table("students").select("id,classroom_id").in_("id", student_ids).execute()
         classroom_map = {s["id"]: s.get("classroom_id") for s in (students_r.data or [])}
+    # Real school link, path 2: a genuine parent_links row exists for this parent, matched by
+    # child name — this is the older/legacy linking system the app itself actually uses, and
+    # can be true even when family_members.student_id is null (confirmed real case: Matilda)
+    linked_names_via_parent_links = set()
+    try:
+        pl = supabase.table("parent_links").select("student_id,expires_at").eq("parent_user_id", user["user_id"]).execute()
+        active_student_ids = [
+            l["student_id"] for l in (pl.data or [])
+            if l.get("student_id") and (not l.get("expires_at") or datetime.fromisoformat(l["expires_at"].replace("Z","+00:00")) > datetime.now(timezone.utc))
+        ]
+        if active_student_ids:
+            linked_students_r = supabase.table("students").select("name").in_("id", active_student_ids).execute()
+            linked_names_via_parent_links = {s["name"].strip().lower() for s in (linked_students_r.data or []) if s.get("name")}
+    except Exception as e:
+        logger.warning(f"[get_family_members] parent_links fallback check failed: {e}")
     for m in members:
-        m["school_linked"] = bool(m.get("student_id") and classroom_map.get(m["student_id"]))
+        via_classroom = bool(m.get("student_id") and classroom_map.get(m["student_id"]))
+        via_parent_links = (m.get("name") or "").strip().lower() in linked_names_via_parent_links
+        m["school_linked"] = via_classroom or via_parent_links
     return members
 
 @api_router.post("/family/members")
