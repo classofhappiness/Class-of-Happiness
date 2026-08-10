@@ -3692,14 +3692,19 @@ def resolve_strategy_name(sid: str, lang: str = "en") -> str:
         return known
     # Not a built-in short code — this is a real custom/family strategy UUID, look it up for real
     # before falling back to garbled title-cased text (was the root cause of raw UUIDs in PDFs)
+    bare_id = sid_clean
+    for suffix in ("_family", "_school", "_home"):
+        if bare_id.endswith(suffix):
+            bare_id = bare_id[:-len(suffix)]
+            break
     try:
-        ch = supabase.table("custom_helpers").select("name").eq("id", sid_clean).execute()
+        ch = supabase.table("custom_helpers").select("name").eq("id", bare_id).execute()
         if ch.data and ch.data[0].get("name"):
             return ch.data[0]["name"]
     except Exception:
         pass
     try:
-        fa = supabase.table("family_assigned_strategies").select("strategy_name").eq("id", sid_clean).execute()
+        fa = supabase.table("family_assigned_strategies").select("strategy_name").eq("id", bare_id).execute()
         if fa.data and fa.data[0].get("strategy_name"):
             return fa.data[0]["strategy_name"]
     except Exception:
@@ -4765,14 +4770,19 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
             return known
         # Not a built-in short code — check real custom/family strategy tables before falling
         # back to garbled title-cased UUID text (same fix applied to the student PDF's version)
+        bare_sid = sid
+        for suffix in ("_family", "_school", "_home"):
+            if bare_sid.endswith(suffix):
+                bare_sid = bare_sid[:-len(suffix)]
+                break
         try:
-            ch = supabase.table("custom_helpers").select("name").eq("id", sid).execute()
+            ch = supabase.table("custom_helpers").select("name").eq("id", bare_sid).execute()
             if ch.data and ch.data[0].get("name"):
                 return ch.data[0]["name"]
         except Exception:
             pass
         try:
-            fa = supabase.table("family_assigned_strategies").select("strategy_name").eq("id", sid).execute()
+            fa = supabase.table("family_assigned_strategies").select("strategy_name").eq("id", bare_sid).execute()
             if fa.data and fa.data[0].get("strategy_name"):
                 return fa.data[0]["strategy_name"]
         except Exception:
