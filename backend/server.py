@@ -3150,7 +3150,7 @@ async def add_points(student_id: str, req: AddPointsRequest):
 
 # ================== ANALYTICS ==================
 @api_router.get("/analytics/student/{student_id}")
-async def get_student_analytics(student_id: str, days: int = 7):
+async def get_student_analytics(student_id: str, days: int = 30):
     start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     logs = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).execute()
     logs_data = logs.data or []
