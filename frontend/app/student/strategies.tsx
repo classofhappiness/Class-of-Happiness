@@ -247,6 +247,7 @@ export default function StrategiesScreen() {
           strategies_selected: selectedStrategies,
           comment: comment.trim() || undefined,
           logged_by: checkInLocation === 'home' ? 'parent' : 'student',
+          location: checkInLocation,
         });
       }
       // Fire zone alert silently (teacher/parent notified if they enabled it)
@@ -275,7 +276,7 @@ export default function StrategiesScreen() {
     playButtonFeedback();
     try {
       if (!(currentStudent as any).is_family_member) {
-        await zoneLogsApi.create({ student_id: currentStudent.id, zone, strategies_selected: [] });
+        await zoneLogsApi.create({ student_id: currentStudent.id, zone, strategies_selected: [], location: checkInLocation });
       }
     } catch (e) {}
     router.replace({ pathname: '/student/rewards', params: { strategiesUsed: '0', hasComment: 'false', zone, fromFamily: fromFamily || '' } });
