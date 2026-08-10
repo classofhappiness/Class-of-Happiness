@@ -5639,7 +5639,7 @@ async def test_alerts_endpoint():
         return {"error": str(e)}
 
 @api_router.get("/notifications/alerts")
-async def get_alerts(request: Request, limit: int = 20):
+async def get_alerts(request: Request, limit: int = 100):
     try:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
         supabase.table("student_alerts").delete().lt("created_at", cutoff).execute()
