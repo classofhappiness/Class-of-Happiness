@@ -8012,6 +8012,11 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
     alert_volume = 0
     alert_zone_dist = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
     alert_context_dist = {"home": 0, "school": 0}
+    # Real distinct-student count (not raw check-in count) currently in red — same miscounting
+    # bug pattern already fixed for the teacher dashboard earlier this session, applying the
+    # same fix here. Aggregate-only: no names, just a number, matching this endpoint's own
+    # "no individual student data" rule.
+    students_needing_support = len(set(l["student_id"] for l in logs if (l.get("feeling_colour") or l.get("zone")) == "red" and l.get("student_id")))
     resolved_count = 0
     resolution_seconds_total = 0
     resolution_count = 0
@@ -8069,6 +8074,7 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
         "avg_resolution_hours": avg_resolution_hours,
         "teacher_checkin_rate": teacher_checkin_rate,
         "teachers_checked_in": teachers_checked_in,
+        "students_needing_support": students_needing_support,
     }
 
 @api_router.get("/school-admin/subscription")
