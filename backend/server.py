@@ -3318,6 +3318,7 @@ async def get_family_members(request: Request):
     # child name — this is the older/legacy linking system the app itself actually uses, and
     # can be true even when family_members.student_id is null (confirmed real case: Matilda)
     linked_names_via_parent_links = set()
+    name_to_real_student_id = {}
     try:
         pl = supabase.table("parent_links").select("student_id,expires_at").eq("parent_user_id", user["user_id"]).execute()
         active_student_ids = [
@@ -3325,14 +3326,26 @@ async def get_family_members(request: Request):
             if l.get("student_id") and (not l.get("expires_at") or datetime.fromisoformat(l["expires_at"].replace("Z","+00:00")) > datetime.now(timezone.utc))
         ]
         if active_student_ids:
-            linked_students_r = supabase.table("students").select("name").in_("id", active_student_ids).execute()
-            linked_names_via_parent_links = {s["name"].strip().lower() for s in (linked_students_r.data or []) if s.get("name")}
+            linked_students_r = supabase.table("students").select("id,name").in_("id", active_student_ids).execute()
+            for s in (linked_students_r.data or []):
+                if s.get("name"):
+                    nm = s["name"].strip().lower()
+                    linked_names_via_parent_links.add(nm)
+                    name_to_real_student_id[nm] = s["id"]
     except Exception as e:
         logger.warning(f"[get_family_members] parent_links fallback check failed: {e}")
     for m in members:
         via_classroom = bool(m.get("student_id") and classroom_map.get(m["student_id"]))
         via_parent_links = (m.get("name") or "").strip().lower() in linked_names_via_parent_links
         m["school_linked"] = via_classroom or via_parent_links
+        # Real fix: resolve the actual linked student_id via parent_links when the raw column is
+        # null — this is what the app's own student-select screen uses to dedupe against real
+        # school records; leaving it null causes a visible duplicate entry (confirmed real case:
+        # Matilda showing twice, only one genuinely linked)
+        if not m.get("student_id") and via_parent_links:
+            resolved = name_to_real_student_id.get((m.get("name") or "").strip().lower())
+            if resolved:
+                m["student_id"] = resolved
     return members
 
 @api_router.post("/family/members")
