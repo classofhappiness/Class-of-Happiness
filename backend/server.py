@@ -3687,7 +3687,24 @@ def resolve_strategy_name(sid: str, lang: str = "en") -> str:
     """Return human-readable strategy name from ID or raw string."""
     lang_map = STRATEGY_MAPS_BY_LANG.get(lang, STRATEGY_NAME_MAP)
     sid_clean = str(sid).strip()
-    return lang_map.get(sid_clean) or STRATEGY_NAME_MAP.get(sid_clean) or sid_clean.replace("_", " ").title()
+    known = lang_map.get(sid_clean) or STRATEGY_NAME_MAP.get(sid_clean)
+    if known:
+        return known
+    # Not a built-in short code — this is a real custom/family strategy UUID, look it up for real
+    # before falling back to garbled title-cased text (was the root cause of raw UUIDs in PDFs)
+    try:
+        ch = supabase.table("custom_helpers").select("name").eq("id", sid_clean).execute()
+        if ch.data and ch.data[0].get("name"):
+            return ch.data[0]["name"]
+    except Exception:
+        pass
+    try:
+        fa = supabase.table("family_assigned_strategies").select("strategy_name").eq("id", sid_clean).execute()
+        if fa.data and fa.data[0].get("strategy_name"):
+            return fa.data[0]["strategy_name"]
+    except Exception:
+        pass
+    return sid_clean.replace("_", " ").title()
 
 @api_router.get("/reports/available-months/{student_id}")
 async def get_available_months(student_id: str):
