@@ -4760,7 +4760,24 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
 
     def resolve_strategy_name(sid):
         if not sid or sid.lower() in ("blue","green","yellow","red"): return None
-        return strategy_name_map.get(sid) or STRATEGY_NAMES_LOCAL.get(sid) or sid.replace("_"," ").title()
+        known = strategy_name_map.get(sid) or STRATEGY_NAMES_LOCAL.get(sid)
+        if known:
+            return known
+        # Not a built-in short code — check real custom/family strategy tables before falling
+        # back to garbled title-cased UUID text (same fix applied to the student PDF's version)
+        try:
+            ch = supabase.table("custom_helpers").select("name").eq("id", sid).execute()
+            if ch.data and ch.data[0].get("name"):
+                return ch.data[0]["name"]
+        except Exception:
+            pass
+        try:
+            fa = supabase.table("family_assigned_strategies").select("strategy_name").eq("id", sid).execute()
+            if fa.data and fa.data[0].get("strategy_name"):
+                return fa.data[0]["strategy_name"]
+        except Exception:
+            pass
+        return sid.replace("_"," ").title()
 
     # Aggregate
     zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
