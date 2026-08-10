@@ -8006,6 +8006,49 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
             "zone_distribution": c_zones,
         })
 
+    # Real alert stats + resolution speed — uses the SAME student_ids already resolved above,
+    # aggregate-only (no student names/identifiers returned), matches the school's real
+    # student_alerts data instead of the unrelated teacher-only wellbeing_alerts table
+    alert_volume = 0
+    alert_zone_dist = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+    alert_context_dist = {"home": 0, "school": 0}
+    resolved_count = 0
+    resolution_seconds_total = 0
+    resolution_count = 0
+    if student_ids:
+        alerts_res = supabase.table("student_alerts").select("*").in_("student_id", student_ids).gte("created_at", start_date).execute()
+        school_alerts = alerts_res.data or []
+        alert_volume = len(school_alerts)
+        for a in school_alerts:
+            z = a.get("zone") or "yellow"
+            if z in alert_zone_dist:
+                alert_zone_dist[z] += 1
+            ctx = a.get("context") or "school"
+            if ctx in alert_context_dist:
+                alert_context_dist[ctx] += 1
+            if a.get("resolved"):
+                resolved_count += 1
+                if a.get("resolved_at") and a.get("created_at"):
+                    try:
+                        created = datetime.fromisoformat(a["created_at"].replace("Z", "+00:00"))
+                        resolved = datetime.fromisoformat(a["resolved_at"].replace("Z", "+00:00"))
+                        resolution_seconds_total += (resolved - created).total_seconds()
+                        resolution_count += 1
+                    except Exception:
+                        pass
+    avg_resolution_hours = round((resolution_seconds_total / resolution_count) / 3600, 1) if resolution_count else None
+
+    # Real teacher adoption — % of this school's teachers who have logged their own wellbeing
+    # check-in within the period (teacher_checkins table, same one the teacher-wellbeing PDF uses)
+    teachers_checked_in = 0
+    if teacher_ids:
+        try:
+            tc_res = supabase.table("teacher_checkins").select("user_id").in_("user_id", teacher_ids).gte("timestamp", start_date).execute()
+            teachers_checked_in = len(set(r["user_id"] for r in (tc_res.data or []) if r.get("user_id")))
+        except Exception as e:
+            logger.warning(f"[school-admin/analytics] teacher_checkins query failed: {e}")
+    teacher_checkin_rate = round((teachers_checked_in / len(teacher_ids)) * 100) if teacher_ids else 0
+
     return {
         "school_name": user.get("school_name", "My School"),
         "total_teachers": len(teacher_ids),
@@ -8018,6 +8061,14 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
         "strategy_counts": strategy_counts,
         "classroom_breakdown": classroom_breakdown,
         "teachers": [{"name": t.get("name",""), "email": t.get("email","")} for t in teacher_list],
+        "alert_volume": alert_volume,
+        "alert_zone_distribution": alert_zone_dist,
+        "alert_context_distribution": alert_context_dist,
+        "alerts_resolved": resolved_count,
+        "alerts_unresolved": alert_volume - resolved_count,
+        "avg_resolution_hours": avg_resolution_hours,
+        "teacher_checkin_rate": teacher_checkin_rate,
+        "teachers_checked_in": teachers_checked_in,
     }
 
 @api_router.get("/school-admin/subscription")
