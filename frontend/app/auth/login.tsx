@@ -11,8 +11,12 @@ export default function LoginScreen() {
   const router = useRouter();
   const { loginWithEmail, t } = useApp();
   const [email, setEmail] = useState('');
+  const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const PIN_REQUIRED_EMAILS = ['jono@classofhappiness.com','schooladmindemo@classofhappiness.com','jono@gmail.com','jono+teacher@gmail.com'];
+  const needsPin = PIN_REQUIRED_EMAILS.includes(email.trim().toLowerCase());
 
   const handleLogin = async () => {
     const trimmed = email.trim().toLowerCase();
@@ -23,7 +27,7 @@ export default function LoginScreen() {
     setError('');
     setLoading(true);
     try {
-      await loginWithEmail(trimmed);
+      await loginWithEmail(trimmed, pin);
       router.replace('/');
     } catch (e) {
       setError('Sign in failed. Please try again.');
@@ -71,6 +75,24 @@ export default function LoginScreen() {
               // ✅ Ensures input stays visible above keyboard
               returnKeyType="go"
             />
+
+            {needsPin && (
+              <>
+                <Text style={styles.label}>{t('pin') || 'PIN'}</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder={t('enter_pin') || 'Enter PIN'}
+                  placeholderTextColor="#BBB"
+                  value={pin}
+                  onChangeText={setPin}
+                  secureTextEntry
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  onSubmitEditing={handleLogin}
+                  returnKeyType="go"
+                />
+              </>
+            )}
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
