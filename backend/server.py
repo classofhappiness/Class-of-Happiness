@@ -4099,10 +4099,50 @@ async def generate_family_pdf_report(family_member_id: str, year: int, month: in
 
 @api_router.get("/reports/pdf/student/{student_id}/month/{year}/{month}")
 async def generate_pdf_report(student_id: str, year: int, month: int, request: Request, lang: str = ""):
+    # Real authentication + authorization — this endpoint previously had NONE at all, meaning
+    # anyone with a valid student_id/year/month could generate any student's PDF. Fixed to
+    # require login AND a real relationship to this specific student (owns them directly, owns
+    # their classroom, or is a genuinely linked parent) — mirrors the same verified patterns
+    # already used for /students and /family/members elsewhere in this file.
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
     student = supabase.table("students").select("*").eq("id", student_id).execute()
     if not student.data:
         raise HTTPException(status_code=404, detail="Student not found")
     student_data = student.data[0]
+
+    is_authorized = False
+    if user.get("role") in ("admin", "superadmin"):
+        is_authorized = True
+    elif student_data.get("user_id") == user["user_id"]:
+        is_authorized = True
+    elif student_data.get("classroom_id"):
+        try:
+            cls = supabase.table("classrooms").select("user_id").eq("id", student_data["classroom_id"]).execute()
+            if cls.data and cls.data[0].get("user_id") == user["user_id"]:
+                is_authorized = True
+        except Exception:
+            pass
+    if not is_authorized:
+        try:
+            pl = supabase.table("parent_links").select("id,expires_at").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
+            for l in (pl.data or []):
+                if not l.get("expires_at") or datetime.fromisoformat(l["expires_at"].replace("Z", "+00:00")) > datetime.now(timezone.utc):
+                    is_authorized = True
+                    break
+        except Exception:
+            pass
+    if not is_authorized:
+        try:
+            fm = supabase.table("family_members").select("id").eq("user_id", user["user_id"]).eq("student_id", student_id).execute()
+            if fm.data:
+                is_authorized = True
+        except Exception:
+            pass
+    if not is_authorized:
+        raise HTTPException(status_code=403, detail="Not authorized to view this student's report")
 
     start = datetime(year, month, 1, tzinfo=timezone.utc).isoformat()
     _, last_day = calendar.monthrange(year, month)
