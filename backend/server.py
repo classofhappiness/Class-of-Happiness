@@ -2583,6 +2583,18 @@ async def create_student(student: StudentCreate, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Free tier: limit to 10 students (mirrors the same real pattern already used for classrooms)
+    sub_status = user.get("subscription_status", "none")
+    school_admin_id = user.get("school_admin_id")
+    is_school_covered = bool(school_admin_id)
+    if sub_status in ("none", "free", None) and not is_school_covered:
+        existing = supabase.table("students").select("id", count="exact").eq("user_id", user["user_id"]).execute()
+        student_count = existing.count or len(existing.data or [])
+        if student_count >= 10:
+            raise HTTPException(
+                status_code=403,
+                detail="free_tier_limit|Free plan is limited to 10 students. Upgrade to Teacher Pro for unlimited students, or ask your school to add you to their school plan."
+            )
     new_student = {
         "id": str(uuid.uuid4()),
         "user_id": user["user_id"],
