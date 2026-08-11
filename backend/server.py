@@ -8075,6 +8075,7 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
         "teacher_checkin_rate": teacher_checkin_rate,
         "teachers_checked_in": teachers_checked_in,
         "students_needing_support": students_needing_support,
+        "students_needing_support": students_needing_support,
     }
 
 @api_router.get("/school-admin/subscription")
