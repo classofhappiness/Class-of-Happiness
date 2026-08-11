@@ -1239,10 +1239,10 @@ export default function ParentDashboard() {
                 filtered.forEach((l:any) => { const z = (l as any).zone || (l as any).feeling_colour; if (z in counts) counts[z]++; });
                 const total = Object.values(counts).reduce((a,b)=>a+b,0);
                 const ZONE_LABELS: Record<string,string> = {
-                  green: (t('steady') || 'Positive') + ' 😊',
-                  blue: (t('zone_blue') || 'Calm') + ' 😢',
-                  yellow: (t('yellow_short') || 'Anxious') + ' 😰',
-                  red: (t('zone_red') || 'Upset') + ' 😠'
+                  green: (t('steady') || 'Green Emotions') + ' 😊',
+                  blue: (t('zone_blue') || 'Blue Emotions') + ' 😢',
+                  yellow: (t('yellow_short') || 'Yellow Emotions') + ' 😰',
+                  red: (t('zone_red') || 'Red Emotions') + ' 😠'
                 };
                 if (total === 0) return <Text style={{ color:'#999', fontSize:13, textAlign:'center', paddingVertical:16 }}>No check-ins for this period</Text>;
                 return (
@@ -1487,7 +1487,16 @@ export default function ParentDashboard() {
                                   refreshStudents();
                                   Alert.alert('✅ Added!', `${s.name} has been added to your family dashboard.`);
                                 } else {
-                                  Alert.alert('Error', resText || 'Could not add. Please try again.');
+                                  let detail = resText;
+                                  try { detail = JSON.parse(resText)?.detail || resText; } catch {}
+                                  if (typeof detail === 'string' && detail.startsWith('free_tier_limit|')) {
+                                    Alert.alert('Free Plan Limit Reached', detail.split('|')[1] || 'Upgrade to add more children.', [
+                                      { text: 'Not Now', style: 'cancel' },
+                                      { text: 'See Plans', onPress: () => router.push('/subscription') },
+                                    ]);
+                                  } else {
+                                    Alert.alert('Error', detail || 'Could not add. Please try again.');
+                                  }
                                 }
                               } catch(e: any) {
                                 Alert.alert('Error', e?.message || 'Something went wrong.');
