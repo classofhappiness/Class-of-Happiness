@@ -4821,6 +4821,36 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     if user_id != user["user_id"] and user.get("role") not in ("admin", "superadmin"):
         raise HTTPException(status_code=403, detail="Not authorized to view this report")
 
+    # Free tier: 1 teacher-wellbeing PDF per month (separate counter from the student PDF one,
+    # per Jono's explicit design decision)
+    sub_status = user.get("subscription_status", "none")
+    if sub_status in ("none", "free", None):
+        reset_at = user.get("pdf_downloads_month_reset_at")
+        current_count = user.get("pdf_downloads_teacher_this_month", 0) or 0
+        now = datetime.now(timezone.utc)
+        needs_reset = True
+        if reset_at:
+            try:
+                reset_dt = datetime.fromisoformat(reset_at.replace("Z", "+00:00"))
+                needs_reset = (now.year, now.month) != (reset_dt.year, reset_dt.month)
+            except Exception:
+                needs_reset = True
+        if needs_reset:
+            current_count = 0
+            supabase.table("users").update({
+                "pdf_downloads_student_this_month": 0,
+                "pdf_downloads_teacher_this_month": 0,
+                "pdf_downloads_month_reset_at": now.isoformat(),
+            }).eq("user_id", user["user_id"]).execute()
+        if current_count >= 1:
+            raise HTTPException(
+                status_code=403,
+                detail="free_tier_limit|You've used your free wellbeing report for this month. Upgrade to Teacher Pro for unlimited reports."
+            )
+        supabase.table("users").update({
+            "pdf_downloads_teacher_this_month": current_count + 1
+        }).eq("user_id", user["user_id"]).execute()
+
     import io, calendar as cal_mod, os
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
