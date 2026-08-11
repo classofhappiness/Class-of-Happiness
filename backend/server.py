@@ -4785,6 +4785,11 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real authorization gap fixed: this only checked that SOMEONE was logged in, never that the
+    # logged-in user actually owns the user_id in the URL — meaning any authenticated account
+    # could view any other teacher's wellbeing PDF just by changing the URL parameter.
+    if user_id != user["user_id"] and user.get("role") not in ("admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Not authorized to view this report")
 
     import io, calendar as cal_mod, os
     from reportlab.lib.pagesizes import A4
