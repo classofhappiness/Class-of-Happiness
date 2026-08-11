@@ -3365,6 +3365,18 @@ async def add_family_member(member: FamilyMemberCreate, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Free tier: limit to 2 children (mirrors the same real pattern used for classrooms/students —
+    # only counts relationship=="child", adult family members like partners aren't capped)
+    if member.relationship == "child":
+        sub_status = user.get("subscription_status", "none")
+        if sub_status in ("none", "free", None):
+            existing = supabase.table("family_members").select("id", count="exact").eq("user_id", user["user_id"]).eq("relationship", "child").execute()
+            child_count = existing.count or len(existing.data or [])
+            if child_count >= 2:
+                raise HTTPException(
+                    status_code=403,
+                    detail="free_tier_limit|Free plan is limited to 2 children. Upgrade to Family Pro for unlimited children."
+                )
     new_member = {
         "id": str(uuid.uuid4()),
         "user_id": user["user_id"],
