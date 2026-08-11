@@ -148,7 +148,19 @@ export default function CreateProfileScreen() {
       Alert.alert('Profile Created!', `${name}'s profile has been created.${joinedClassName ? ` Added to ${joinedClassName}!` : ''}`, [
         { text: 'OK', onPress: () => router.back() }
       ]);
-    } catch (error) {
+    } catch (error: any) {
+      // Free-tier limit hit — show the real upgrade prompt instead of silently falling back
+      // to local-only storage (that fallback exists for a different purpose: letting kids use
+      // the app without any teacher account at all, e.g. guest/home use — it should never mask
+      // a real, intentional limit with a fake "success" message)
+      const msg = error?.message || '';
+      if (msg.startsWith('free_tier_limit|')) {
+        Alert.alert('Free Plan Limit Reached', msg.split('|')[1] || 'Upgrade to add more students.', [
+          { text: 'Not Now', style: 'cancel' },
+          { text: 'See Plans', onPress: () => router.push('/subscription') },
+        ]);
+        return;
+      }
       // Fallback: save locally so student flow works without a teacher account
       // This covers children using the app directly (guest/home use)
       console.log('[CreateProfile] API failed, saving locally:', error);

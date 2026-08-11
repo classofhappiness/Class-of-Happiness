@@ -101,8 +101,16 @@ export default function ManageClassroomsScreen() {
       setCreateModalVisible(false);
       setNewClassName('');
       setNewTeacherName('');
-    } catch {
-      Alert.alert('Error', 'Failed to create classroom.');
+    } catch (e: any) {
+      const msg = e?.message || '';
+      if (msg.startsWith('free_tier_limit|')) {
+        Alert.alert('Free Plan Limit Reached', msg.split('|')[1] || 'Upgrade to add more classrooms.', [
+          { text: 'Not Now', style: 'cancel' },
+          { text: 'See Plans', onPress: () => router.push('/subscription') },
+        ]);
+      } else {
+        Alert.alert('Error', 'Failed to create classroom.');
+      }
     } finally {
       setCreating(false);
     }
