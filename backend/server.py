@@ -4144,6 +4144,36 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     if not is_authorized:
         raise HTTPException(status_code=403, detail="Not authorized to view this student's report")
 
+    # Free tier: 1 student PDF per month (separate from the teacher-wellbeing PDF counter,
+    # per Jono's explicit design decision — checking own usage, own month/reset)
+    sub_status = user.get("subscription_status", "none")
+    if sub_status in ("none", "free", None):
+        reset_at = user.get("pdf_downloads_month_reset_at")
+        current_count = user.get("pdf_downloads_student_this_month", 0) or 0
+        now = datetime.now(timezone.utc)
+        needs_reset = True
+        if reset_at:
+            try:
+                reset_dt = datetime.fromisoformat(reset_at.replace("Z", "+00:00"))
+                needs_reset = (now.year, now.month) != (reset_dt.year, reset_dt.month)
+            except Exception:
+                needs_reset = True
+        if needs_reset:
+            current_count = 0
+            supabase.table("users").update({
+                "pdf_downloads_student_this_month": 0,
+                "pdf_downloads_teacher_this_month": 0,
+                "pdf_downloads_month_reset_at": now.isoformat(),
+            }).eq("user_id", user["user_id"]).execute()
+        if current_count >= 1:
+            raise HTTPException(
+                status_code=403,
+                detail="free_tier_limit|You've used your free student report for this month. Upgrade to Teacher Pro for unlimited reports."
+            )
+        supabase.table("users").update({
+            "pdf_downloads_student_this_month": current_count + 1
+        }).eq("user_id", user["user_id"]).execute()
+
     start = datetime(year, month, 1, tzinfo=timezone.utc).isoformat()
     _, last_day = calendar.monthrange(year, month)
     end = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc).isoformat()
