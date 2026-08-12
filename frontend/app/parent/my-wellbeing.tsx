@@ -303,9 +303,21 @@ export default function MyWellbeingScreen() {
       const fullUrl = memberId
         ? `${BACKEND_URL}/api/reports/pdf/family/${memberId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}&lang=${lang}`
         : `${BACKEND_URL}/api/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}&lang=${lang}`;
-      const canOpen = await Linking.canOpenURL(fullUrl);
-      if (canOpen) { await Linking.openURL(fullUrl); }
-      else { Alert.alert('Error', 'No check-ins found for this month yet'); }
+      const checkRes = await fetch(fullUrl);
+      if (!checkRes.ok) {
+        let detail = '';
+        try { detail = (await checkRes.json())?.detail || ''; } catch {}
+        if (detail.startsWith('free_tier_limit|')) {
+          Alert.alert('Free Plan Limit Reached', detail.split('|')[1] || 'Upgrade for unlimited reports.', [
+            { text: 'Not Now', style: 'cancel' },
+            { text: 'See Plans', onPress: () => router.push('/subscription') },
+          ]);
+        } else {
+          Alert.alert('Error', 'No check-ins found for this month yet');
+        }
+        return;
+      }
+      await Linking.openURL(fullUrl);
     } catch (error: any) {
       Alert.alert('Download Error', error.message || 'Could not download report');
     } finally { setDownloading(false); }

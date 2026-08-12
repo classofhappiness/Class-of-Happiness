@@ -302,12 +302,21 @@ export default function StudentDetailScreen() {
       // Pass language preference in URL
       const lang = await AsyncStorage.getItem('app_language') || 'en';
       const fullUrl = `${BACKEND_URL}/api/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}&lang=${lang}`;
-      const canOpen = await Linking.canOpenURL(fullUrl);
-      if (canOpen) {
-        await Linking.openURL(fullUrl);
-      } else {
-        Alert.alert('Error', 'Cannot open PDF — no data may exist for this month yet');
+      const checkRes = await fetch(fullUrl);
+      if (!checkRes.ok) {
+        let detail = '';
+        try { detail = (await checkRes.json())?.detail || ''; } catch {}
+        if (detail.startsWith('free_tier_limit|')) {
+          Alert.alert('Free Plan Limit Reached', detail.split('|')[1] || 'Upgrade for unlimited reports.', [
+            { text: 'Not Now', style: 'cancel' },
+            { text: 'See Plans', onPress: () => router.push('/subscription') },
+          ]);
+        } else {
+          Alert.alert('Error', 'Cannot generate PDF — no data may exist for this month yet');
+        }
+        return;
       }
+      await Linking.openURL(fullUrl);
     } catch (error: any) {
       Alert.alert(t('download_error') || 'Download Error', error.message || t('please_try_again') || 'Could not download report');
     } finally {

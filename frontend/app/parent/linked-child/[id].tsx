@@ -125,12 +125,21 @@ export default function LinkedChildDetailScreen() {
       const studentId = child?.student_id || id;
       const lang = await AsyncStorage.getItem('app_language') || 'en';
       const fullUrl = `${BACKEND_URL}/api/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}&lang=${lang}`;
-      const canOpen = await Linking.canOpenURL(fullUrl);
-      if (canOpen) {
-        await Linking.openURL(fullUrl);
-      } else {
-        Alert.alert('Error', 'Cannot open PDF');
+      const checkRes = await fetch(fullUrl);
+      if (!checkRes.ok) {
+        let detail = '';
+        try { detail = (await checkRes.json())?.detail || ''; } catch {}
+        if (detail.startsWith('free_tier_limit|')) {
+          Alert.alert('Free Plan Limit Reached', detail.split('|')[1] || 'Upgrade for unlimited reports.', [
+            { text: 'Not Now', style: 'cancel' },
+            { text: 'See Plans', onPress: () => router.push('/subscription') },
+          ]);
+        } else {
+          Alert.alert('Error', 'Cannot generate PDF');
+        }
+        return;
       }
+      await Linking.openURL(fullUrl);
     } catch (error: any) {
       Alert.alert('Download Error', error.message || 'Could not download report');
     } finally {

@@ -40,7 +40,8 @@ interface AppContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: () => void;
-  loginWithEmail: (email: string) => Promise<void>;
+  loginWithEmail: (email: string, adminPin?: string) => Promise<void>;
+  loginWithGoogle: (googleAccessToken: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   
@@ -526,7 +527,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // ✅ FIXED: Now surfaces the real error message from the server
-  const loginWithEmail = async (email: string, attempt = 1) => {
+  const loginWithEmail = async (email: string, adminPin?: string, attempt = 1) => {
     try {
       setIsLoading(true);
 
@@ -536,7 +537,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         response = await fetch('https://class-of-happiness-production.up.railway.app/api/auth/email-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, admin_pin: adminPin || '' }),
           // No signal/timeout — let Railway wake up naturally
         });
       } catch (fetchErr: any) {
@@ -549,7 +550,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             'The server is starting. Trying again in 5 seconds...',
             [{ text: 'OK' }]
           );
-          setTimeout(() => loginWithEmail(email, 2), 5000);
+          setTimeout(() => loginWithEmail(email, adminPin, 2), 5000);
           return;
         }
         throw new Error('Could not reach server. Please check your connection and try again.');
@@ -580,6 +581,36 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setIsAuthenticated(true);
       
       console.log('[Login] Success:', user.email);
+    } catch (error) {
+      console.error('[Login] Email login error:', error);
+      const { Alert } = require('react-native');
+      const message = error instanceof Error ? error.message : 'Could not sign in. Please try again.';
+      Alert.alert('Sign In Failed', message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loginWithGoogle = async (googleAccessToken: string) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('https://class-of-happiness-production.up.railway.app/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: googleAccessToken }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = data?.detail || data?.message || `Server error (${response.status})`;
+        throw new Error(message);
+      }
+      const { user, session_token } = data;
+      await AsyncStorage.setItem('session_token', session_token);
+      await AsyncStorage.setItem('user_data', JSON.stringify(user));
+      await setSessionToken(session_token);
+      setUser(user);
+      setIsAuthenticated(true);
+      console.log('[Login] Google success:', user.email);
     } catch (error) {
       console.error('[Login] Email login error:', error);
       const { Alert } = require('react-native');
@@ -723,6 +754,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         isLoading: isAppLoading,
         login,
         loginWithEmail,
+        loginWithGoogle,
         logout,
         checkAuth,
         

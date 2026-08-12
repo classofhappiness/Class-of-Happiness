@@ -322,6 +322,20 @@ export default function TeacherCheckInScreen() {
       const lang = await AsyncStorage.getItem('app_language') || 'en';
       const [yr, mo] = monthStr.split('-');
       const url = `${BACKEND_URL_CONST}/api/reports/pdf/teacher-wellbeing/${user?.user_id}/month/${yr}/${parseInt(mo)}?token=${token}&lang=${lang}`;
+      const checkRes = await fetch(url);
+      if (!checkRes.ok) {
+        let detail = '';
+        try { detail = (await checkRes.json())?.detail || ''; } catch {}
+        if (detail.startsWith('free_tier_limit|')) {
+          Alert.alert('Free Plan Limit Reached', detail.split('|')[1] || 'Upgrade for unlimited reports.', [
+            { text: 'Not Now', style: 'cancel' },
+            { text: 'See Plans', onPress: () => router.push('/subscription') },
+          ]);
+        } else {
+          Alert.alert('Error', 'No data for this month yet');
+        }
+        return;
+      }
       await Linking.openURL(url);
     } catch { Alert.alert('Error', 'No data for this month yet'); }
   };

@@ -6,10 +6,25 @@ import {
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
+
+WebBrowser.maybeCompleteAuthSession();
+
+const GOOGLE_CLIENT_IDS = {
+  ios: '691097467706-b7qooo5be0iu5nlk8krb546ji98ik1k0.apps.googleusercontent.com',
+  android: '691097467706-k1s2g9p0ektmpmkj0t3j6l9bl22sg69c.apps.googleusercontent.com',
+  default: '691097467706-n2r5n885bqh8qtqrdgnlbvgfd4i2ti5k.apps.googleusercontent.com',
+};
+
+const GOOGLE_DISCOVERY = {
+  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+  tokenEndpoint: 'https://oauth2.googleapis.com/token',
+};
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { loginWithEmail, t } = useApp();
+  const { loginWithEmail, loginWithGoogle, t } = useApp();
   const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,6 +32,33 @@ export default function LoginScreen() {
 
   const PIN_REQUIRED_EMAILS = ['jono@classofhappiness.com','schooladmindemo@classofhappiness.com','jono@gmail.com','jono+teacher@gmail.com'];
   const needsPin = PIN_REQUIRED_EMAILS.includes(email.trim().toLowerCase());
+
+  const [googleRequest, googleResponse, promptGoogleAsync] = AuthSession.useAuthRequest(
+    {
+      clientId: Platform.select({ ios: GOOGLE_CLIENT_IDS.ios, android: GOOGLE_CLIENT_IDS.android, default: GOOGLE_CLIENT_IDS.default }),
+      scopes: ['openid', 'profile', 'email'],
+      redirectUri: (() => {
+        const uri = AuthSession.makeRedirectUri();
+        console.log('[GoogleAuth] Redirect URI:', uri);
+        return uri;
+      })(),
+      responseType: AuthSession.ResponseType.Token,
+    },
+    GOOGLE_DISCOVERY
+  );
+
+  React.useEffect(() => {
+    if (googleResponse?.type === 'success' && googleResponse.authentication?.accessToken) {
+      (async () => {
+        try {
+          await loginWithGoogle(googleResponse.authentication!.accessToken);
+          router.replace('/');
+        } catch (e) {
+          setError('Google sign-in failed. Please try again.');
+        }
+      })();
+    }
+  }, [googleResponse]);
 
   const handleLogin = async () => {
     const trimmed = email.trim().toLowerCase();
@@ -111,6 +153,15 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
 
+            <TouchableOpacity
+              style={styles.googleButton}
+              onPress={() => promptGoogleAsync()}
+              disabled={!googleRequest}
+            >
+              <MaterialIcons name="g-translate" size={18} color="#4285F4" />
+              <Text style={styles.googleButtonText}>Sign in with Google</Text>
+            </TouchableOpacity>
+
             <Text style={styles.hint}>
               New users are created automatically.{'\n'}No password needed!
             </Text>
@@ -152,6 +203,12 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: 'white', fontSize: 17, fontWeight: 'bold' },
+  googleButton: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: 'white', borderWidth: 1.5, borderColor: '#E0E0E0',
+    borderRadius: 14, padding: 14, marginTop: 12,
+  },
+  googleButtonText: { color: '#333', fontSize: 15, fontWeight: '600' },
   hint: { fontSize: 12, color: '#AAA', textAlign: 'center', marginTop: 16, lineHeight: 18 },
   trialBox: { backgroundColor: '#EEF2FF', borderRadius: 14, padding: 16, alignItems: 'center' },
   trialTitle: { fontSize: 15, fontWeight: '600', color: '#5C6BC0', marginBottom: 4 },

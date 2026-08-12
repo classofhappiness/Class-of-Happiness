@@ -599,7 +599,7 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 60,,
+    paddingVertical: 60,
     minHeight: 320,
   },
   emptyText: {
