@@ -7073,6 +7073,14 @@ async def email_login(request: Request):
                 elif email in ALWAYS_OPEN_PINS:
                     if admin_pin != ALWAYS_OPEN_PINS[email]:
                         raise HTTPException(status_code=403, detail="PIN required for this account. Contact Jono.")
+                # Real password check — if this user has ever set a password via /auth/set-password,
+                # it must now actually be required and verified. Previously portal_password was
+                # stored but never checked anywhere, meaning setting a password had zero real
+                # security effect — anyone could still log in with just the email.
+                if user.get("portal_password"):
+                    password = body.get("password", "")
+                    if not password or not verify_password(password, user["portal_password"]):
+                        raise HTTPException(status_code=401, detail="Incorrect password")
             else:
                 # New user — create as teacher
                 name = email.split("@")[0].replace(".", " ").title()
