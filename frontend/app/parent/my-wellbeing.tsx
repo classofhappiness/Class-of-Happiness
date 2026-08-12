@@ -32,9 +32,12 @@ const STRATEGY_NAMES: Record<string, string> = {
   p_y1:'Box Breathing Together', p_y2:'Validate Feelings First', p_y3:'Body Check-In', p_y4:'Feelings Journal', p_y5:'Give Space with Love',
   p_r1:'Stay Calm Yourself', p_r2:'Safe Space Together', p_r3:'Cold Water Reset', p_r4:'No Teaching Now', p_r5:'Reconnect with Warmth',
 };
-const resolveName = (id: string, customNames?: Record<string,string>) => {
+const resolveName = (id: string, customNames?: Record<string,string>, t?: (key: string) => string) => {
   if (!id) return '';
-  // Real custom strategies checked first — these get real database UUIDs as their identifier
+  // Real translation checked first — matches the strat_blue_1..strat_red_6 keys added to all 6
+  // language files and the backend /strategies endpoint.
+  if (t) { const translated = t('strat_' + id); if (translated) return translated; }
+  // Real custom strategies checked next — these get real database UUIDs as their identifier
   // (not short codes like p_y1), which is exactly what the old code below could never resolve,
   // causing raw UUIDs to show up in "Most Used Strategies" instead of real names.
   if (customNames && customNames[id]) return customNames[id];
@@ -564,7 +567,7 @@ export default function MyWellbeingScreen() {
               ? <Text style={[st.noData,{marginTop:8}]}>{t('no_data_period') || t('no_data_period') || 'No strategies yet'}</Text>
               : sorted.map(([id,count]) => {
                   const zc = id.startsWith('blue')?'#4A90D9':id.startsWith('green')?'#4CAF50':id.startsWith('yellow')?'#FFC107':id.startsWith('red')?'#F44336':'#999';
-                  const name = resolveName(id, strategyNames);
+                  const name = resolveName(id, strategyNames, t);
                   return (
                     <View key={id} style={{flexDirection:'row',alignItems:'center',paddingVertical:8,borderBottomWidth:1,borderBottomColor:'#F0F0F0'}}>
                       <View style={{width:10,height:10,borderRadius:5,backgroundColor:zc,marginRight:8}} />

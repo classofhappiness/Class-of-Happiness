@@ -76,9 +76,12 @@ const STRATEGY_NAMES: Record<string, string> = {
   gratitude:'Gratitude', help_friend:'Help a Friend', keep_going:'Keep Going',
   set_goal:'Set a Goal', five_senses:'5 Senses', squeeze_release:'Squeeze & Release',
 };
-const resolveStrategy = (id: string): string => {
+const resolveStrategy = (id: string, t?: (key: string) => string): string => {
   if (!id) return '';
   if (['blue','green','yellow','red','Blue','Green','Yellow','Red'].includes(id.trim())) return '';
+  // Real translation checked first - matches the same strat_blue_1..strat_red_6 keys added to
+  // all 6 language files, and to the backend /strategies endpoint for the live check-in screen.
+  if (t) { const translated = t('strat_' + id); if (translated) return translated; }
   if (STRATEGY_NAMES[id]) return STRATEGY_NAMES[id];
   const clean = id.trim().toLowerCase().replace(/^(helper_|strategy_)/, '');
   if (STRATEGY_NAMES[clean]) return STRATEGY_NAMES[clean];
@@ -577,7 +580,7 @@ Students enter this when creating their profile to join your class automatically
                   {(() => { const s = getStudent(log.student_id); const allCl = localClassrooms.length > 0 ? localClassrooms : classrooms; const cl = s?.classroom_id ? allCl.find((c:any)=>c.id===s.classroom_id) : null; return cl ? <Text style={{fontSize:9,color:'#AAA'}}>{cl.name}</Text> : null; })()}
                   {(log as any).strategies_selected?.length > 0 && (
                     <Text style={st.logStrats} numberOfLines={1}>
-                      {(log as any).strategies_selected.slice(0,2).map((s:string)=>strategyNames[s]||resolveStrategy(s)).join(', ')}
+                      {(log as any).strategies_selected.slice(0,2).map((s:string)=>strategyNames[s]||resolveStrategy(s, t)).join(', ')}
                       {(log as any).strategies_selected.length>2?` +${(log as any).strategies_selected.length-2}`:''}
                     </Text>
                   )}
