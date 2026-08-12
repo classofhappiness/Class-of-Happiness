@@ -564,7 +564,7 @@ Students enter this when creating their profile to join your class automatically
                 <View style={{flex:1,marginLeft:10}}>
                   <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
                     <Text style={st.logName}>{getStudentName(log.student_id)}</Text>
-                    {(log as any).logged_by==='parent' && <View style={st.homeBadge}><Text style={st.homeBadgeTxt}>HOME</Text></View>}
+                    {(log as any).location==='home' && <View style={st.homeBadge}><Text style={st.homeBadgeTxt}>🏠 HOME</Text></View>}
                   </View>
                   {(() => { const s = getStudent(log.student_id); const allCl = localClassrooms.length > 0 ? localClassrooms : classrooms; const cl = s?.classroom_id ? allCl.find((c:any)=>c.id===s.classroom_id) : null; return cl ? <Text style={{fontSize:9,color:'#AAA'}}>{cl.name}</Text> : null; })()}
                   {(log as any).strategies_selected?.length > 0 && (
