@@ -114,9 +114,18 @@ export default function TeacherCheckInScreen() {
     yellow_1:'Bubble Breathing', yellow_2:'Body Shake', yellow_3:'Count to 10', yellow_4:'5 Senses', yellow_5:'Squeeze & Release', yellow_6:'Talk About It',
     red_1:'Freeze', red_2:'Big Breaths', red_3:'Count Backwards', red_4:'Safe Space', red_5:'Ask for Help', red_6:'Self Hug',
   };
+  // Flatten TEACHER_STRATEGIES (the real, correct list for this screen) into an id->name lookup.
+  // These check-ins come from /teacher-checkins — the teacher's OWN wellbeing history — so the
+  // strategy IDs here are teacher strategy IDs, NOT student ones. STRATEGY_NAMES_LOCAL uses the
+  // exact same id scheme (blue_1, blue_2...) for a completely different, student-facing list,
+  // which was the real bug: teacher strategies were being resolved against student names.
+  const TEACHER_STRATEGY_LOOKUP: Record<string,string> = {};
+  (Object.keys(TEACHER_STRATEGIES) as FeelingZone[]).forEach((zone) => {
+    TEACHER_STRATEGIES[zone].forEach((s) => { TEACHER_STRATEGY_LOOKUP[s.id] = s.name; });
+  });
   const resolveStratName = (id: string) => {
     if (!id || ['blue','green','yellow','red'].includes(id.toLowerCase())) return null;
-    return STRATEGY_NAMES_LOCAL[id] || id.replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase());
+    return TEACHER_STRATEGY_LOOKUP[id] || STRATEGY_NAMES_LOCAL[id] || id.replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase());
   };
 
   const loadData = async () => {
