@@ -1314,6 +1314,7 @@ export default function ParentDashboard() {
                                 <View style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
                                   <View style={[styles.weeklyZoneDot, { backgroundColor: dotColor }]} />
                                   {initial ? <Text style={{ fontSize:7, color:'#888', fontWeight:'700' }}>{initial}</Text> : null}
+                                  {(log as any).location==='home' ? <Text style={{ fontSize:7 }}>🏠</Text> : null}
                                 </View>
                                 <Text style={{ fontSize:7, color:'#AAA' }}>{ampm}</Text>
                               </View>
