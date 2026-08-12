@@ -135,16 +135,7 @@ export default function TeacherDashboardScreen() {
     registerForPushNotifications().catch(() => {});
   }, [navigation]);
 
-  const STRATEGY_NAMES_LOCAL: Record<string,string> = {
-    blue_1:'Gentle Stretch', blue_2:'Warm Drink', blue_3:'Favourite Song', blue_4:'Cosy Spot', blue_5:'Tell Someone', blue_6:'Slow Breathing',
-    green_1:'Keep Going!', green_2:'Help a Friend', green_3:'Try Something New', green_4:'Share Your Smile', green_5:'Set a Goal', green_6:'Gratitude',
-    yellow_1:'Bubble Breathing', yellow_2:'Body Shake', yellow_3:'Count to 10', yellow_4:'5 Senses', yellow_5:'Squeeze & Release', yellow_6:'Talk About It',
-    red_1:'Freeze', red_2:'Big Breaths', red_3:'Count Backwards', red_4:'Safe Space', red_5:'Ask for Help', red_6:'Self Hug',
-    b1:'Gentle Stretch', b2:'Warm Drink', b3:'Favourite Song', b4:'Cosy Spot', b5:'Tell Someone', b6:'Slow Breathing',
-    g1:'Keep Going!', g2:'Help a Friend', g3:'Try Something New', g4:'Share Your Smile', g5:'Set a Goal', g6:'Gratitude',
-    y1:'Bubble Breathing', y2:'Body Shake', y3:'Count to 10', y4:'5 Senses', y5:'Squeeze & Release', y6:'Talk About It',
-    r1:'Freeze', r2:'Big Breaths', r3:'Count Backwards', r4:'Safe Space', r5:'Ask for Help', r6:'Self Hug',
-  };
+  // STRATEGY_NAMES_LOCAL removed — was redundant with and conflicted with the comprehensive STRATEGY_NAMES above (e.g. B1='Slow Breathing' vs local b1='Gentle Stretch', same conceptual code, different wrong-in-context values). resolveStrategy() + strategyNames (custom, fetched) now cover everything.
     const loadData = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('session_token');
@@ -302,12 +293,7 @@ Students enter this when creating their profile to join your class automatically
 
   const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
 
-  const resolveStrategyLocal = (id: string): string => {
-    if (!id || ['blue','green','yellow','red'].includes(id.toLowerCase())) return '';
-    if (STRATEGY_NAMES_LOCAL[id]) return STRATEGY_NAMES_LOCAL[id];
-    if (strategyNames[id]) return strategyNames[id];
-    return id.replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase());
-  };
+  // resolveStrategyLocal removed — was defined but never actually called anywhere, dead code that also used the now-removed STRATEGY_NAMES_LOCAL.
   const getStudentName = (id:string) => students.find(s=>s.id===id)?.name || t('student') || 'Student';
   const getStudent = (id:string) => students.find(s=>s.id===id);
   const formatTime = (ts:string) => { try { return new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); } catch { return ''; } };
@@ -583,7 +569,7 @@ Students enter this when creating their profile to join your class automatically
                   {(() => { const s = getStudent(log.student_id); const allCl = localClassrooms.length > 0 ? localClassrooms : classrooms; const cl = s?.classroom_id ? allCl.find((c:any)=>c.id===s.classroom_id) : null; return cl ? <Text style={{fontSize:9,color:'#AAA'}}>{cl.name}</Text> : null; })()}
                   {(log as any).strategies_selected?.length > 0 && (
                     <Text style={st.logStrats} numberOfLines={1}>
-                      {(log as any).strategies_selected.slice(0,2).map((s:string)=>strategyNames[s]||STRATEGY_NAMES_LOCAL[s]||resolveStrategy(s)).join(', ')}
+                      {(log as any).strategies_selected.slice(0,2).map((s:string)=>strategyNames[s]||resolveStrategy(s)).join(', ')}
                       {(log as any).strategies_selected.length>2?` +${(log as any).strategies_selected.length-2}`:''}
                     </Text>
                   )}
