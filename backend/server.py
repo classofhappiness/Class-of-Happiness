@@ -3307,10 +3307,15 @@ async def get_resources(request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real, major bug fixed: this queried "teacher_resources", a table that doesn't exist at
+    # all (confirmed via direct error — PostgREST couldn't find it, suggested "resources"
+    # instead) — meaning this endpoint has been silently returning an empty list to EVERY
+    # user, every time, with the real error swallowed by the except clause below.
     try:
-        result = supabase.table("teacher_resources").select("*").eq("is_active", True).execute()
+        result = supabase.table("resources").select("*").eq("is_active", True).execute()
         return result.data or []
-    except Exception:
+    except Exception as e:
+        logger.error(f"get_resources error: {e}")
         return []
 
 @api_router.post("/resources")
