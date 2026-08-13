@@ -3313,10 +3313,31 @@ async def get_resources(request: Request):
     # user, every time, with the real error swallowed by the except clause below.
     try:
         result = supabase.table("resources").select("*").eq("is_active", True).execute()
-        return result.data or []
+        items = result.data or []
     except Exception as e:
         logger.error(f"get_resources error: {e}")
         return []
+
+    # Real freemium gating, per Jono's explicit rule: the Emotion Program is entirely free for
+    # everyone; every other program only has its first 2 weeks free. Resources are NOT hidden
+    # for free-tier users — they're returned with an is_locked flag so the app can show what
+    # exists with a real "Subscribe to unlock" prompt, matching Jono's own notification idea,
+    # rather than making paid content invisible.
+    sub_status = user.get("subscription_status", "none")
+    is_free_tier = sub_status in ("none", "free", None)
+    for r in items:
+        if not is_free_tier:
+            r["is_locked"] = False
+            continue
+        category = r.get("category")
+        week = r.get("week_number")
+        if category == "emotions_program":
+            r["is_locked"] = False
+        elif week is None or week <= 2:
+            r["is_locked"] = False
+        else:
+            r["is_locked"] = True
+    return items
 
 @api_router.post("/resources")
 async def create_resource(resource: ResourceCreate, request: Request):
