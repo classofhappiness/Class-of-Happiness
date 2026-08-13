@@ -2875,7 +2875,7 @@ async def get_helpers(feeling_colour: Optional[str] = None, student_id: Optional
 
 # Keep old endpoint name for frontend compatibility
 @api_router.get("/strategies")
-async def get_strategies(zone: Optional[str] = None, feeling_colour: Optional[str] = None, 
+async def get_strategies(request: Request, zone: Optional[str] = None, feeling_colour: Optional[str] = None, 
                           student_id: Optional[str] = None, lang: str = "en"):
     """Returns strategies - delegates to helpers endpoint for consistency."""
     effective_zone = zone or feeling_colour
@@ -2903,6 +2903,24 @@ async def get_strategies(zone: Optional[str] = None, feeling_colour: Optional[st
                         "is_custom": True,
                     })
         except Exception: pass
+    else:
+        # Real gap fixed: custom strategies with student_id=None (not tied to any specific
+        # child — e.g. a parent's own adult wellbeing strategy) were completely invisible,
+        # since .eq("student_id", student_id) can never match a NULL value. These belong to
+        # the requesting user directly via user_id instead.
+        try:
+            user = await get_current_user(request)
+            if user:
+                custom_result = supabase.table("custom_helpers").select("*").eq("user_id", user["user_id"]).is_("student_id", "null").execute()
+                for h in (custom_result.data or []):
+                    if not effective_zone or h.get("feeling_colour") == effective_zone:
+                        custom.append({
+                            **h,
+                            "zone": h.get("feeling_colour", h.get("zone", effective_zone)),
+                            "is_custom": True,
+                        })
+        except Exception as e:
+            logger.warning(f"custom_helpers (no student_id) query failed: {e}")
     
     # Real server-side translation for the built-in strategy set - the lang parameter was
     # accepted but never actually used before, meaning every student saw English names
