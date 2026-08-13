@@ -9575,6 +9575,82 @@ async def get_family_custom_strategies(request: Request, zone: Optional[str] = N
         logger.error(f"get_family_custom_strategies error: {e}")
         return []
 
+@api_router.post("/family/custom-strategies")
+async def create_family_custom_strategy(request: Request):
+    """Create a family-level custom strategy. This endpoint was completely missing before -
+    every parent screen that tries to add a family strategy calls this exact path, meaning
+    the feature has been silently 404ing this whole time, not just ungated."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name required")
+
+    sub_status = user.get("subscription_status", "none")
+    if sub_status in ("none", "free", None):
+        existing = supabase.table("custom_helpers").select("id", count="exact").eq("user_id", user["user_id"]).execute()
+        existing_count = existing.count or len(existing.data or [])
+        if existing_count >= 6:
+            raise HTTPException(
+                status_code=403,
+                detail="free_tier_limit|Free plan is limited to 6 family strategies. Upgrade to Family Pro for unlimited strategies."
+            )
+
+    new_strategy = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["user_id"],
+        "student_id": body.get("student_id"),
+        "name": name,
+        "description": body.get("description", ""),
+        "feeling_colour": body.get("feeling_colour", body.get("zone", "green")),
+        "icon": body.get("icon", "star"),
+        "assigned_to": body.get("assigned_to", "all"),
+        "is_shared": body.get("is_shared", True),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        result = supabase.table("custom_helpers").insert(new_strategy).execute()
+        return result.data[0] if result.data else new_strategy
+    except Exception as e:
+        logger.error(f"create_family_custom_strategy error: {e}")
+        raise HTTPException(status_code=500, detail="Could not save strategy")
+
+@api_router.put("/family/custom-strategies/{strategy_id}")
+async def update_family_custom_strategy(strategy_id: str, request: Request):
+    """Update a family-level custom strategy."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    update_data = {k: v for k, v in {
+        "name": body.get("name"),
+        "description": body.get("description"),
+        "feeling_colour": body.get("feeling_colour", body.get("zone")),
+        "icon": body.get("icon"),
+        "assigned_to": body.get("assigned_to"),
+    }.items() if v is not None}
+    try:
+        result = supabase.table("custom_helpers").update(update_data).eq("id", strategy_id).eq("user_id", user["user_id"]).execute()
+        return result.data[0] if result.data else {"id": strategy_id, **update_data}
+    except Exception as e:
+        logger.error(f"update_family_custom_strategy error: {e}")
+        raise HTTPException(status_code=500, detail="Could not update strategy")
+
+@api_router.delete("/family/custom-strategies/{strategy_id}")
+async def delete_family_custom_strategy(strategy_id: str, request: Request):
+    """Delete a family-level custom strategy."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        supabase.table("custom_helpers").delete().eq("id", strategy_id).eq("user_id", user["user_id"]).execute()
+        return {"status": "deleted"}
+    except Exception as e:
+        logger.error(f"delete_family_custom_strategy error: {e}")
+        raise HTTPException(status_code=500, detail="Could not delete strategy")
+
 @api_router.get("/parent/resources")
 async def get_parent_resources(request: Request, topic: Optional[str] = None):
     """Resources visible to parents — those uploaded with audience=parents or both."""
