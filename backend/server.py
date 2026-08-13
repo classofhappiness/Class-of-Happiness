@@ -9914,6 +9914,12 @@ async def get_teacher_checkins(request: Request, days: int = 7):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real freemium gate: free tier capped at 30 days of their own wellbeing check-in history
+    # (the days parameter was previously fully caller-controlled with zero server-side limit —
+    # anyone could bypass an intended UI-level restriction just by requesting a larger range).
+    sub_status = user.get("subscription_status", "none")
+    if sub_status in ("none", "free", None) and days > 30:
+        days = 30
     try:
         start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         result = supabase.table("teacher_checkins").select("*").eq("user_id", user["user_id"]).gte("timestamp", start_date).order("timestamp", desc=True).execute()
