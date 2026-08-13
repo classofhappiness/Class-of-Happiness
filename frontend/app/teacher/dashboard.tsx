@@ -676,12 +676,11 @@ Students enter this when creating their profile to join your class automatically
           </View>
         )}
 
-        {/* Widget button at bottom */}
-        <TouchableOpacity style={st.widgetBtn} onPress={() => router.push('/teacher/widget')}>
-          <MaterialIcons name="widgets" size={16} color="#9C27B0"/>
-          <Text style={st.widgetTxt}>{t('classroom_widget') || 'Classroom Widget'}</Text>
-          <MaterialIcons name="chevron-right" size={16} color="#9C27B0"/>
-        </TouchableOpacity>
+        {/* Widget button removed for now — no real native OS widget exists yet, only an
+            in-app preview screen (app/teacher/widget.tsx, kept intact for a future real
+            implementation). Showing "Widget" implied a real home-screen widget, which was
+            misleading. Jono's explicit decision: remove the entry point, revisit when a real
+            native widget is actually built. */}
 
       </ScrollView>
     </SafeAreaView>
