@@ -282,14 +282,27 @@ export default function ResourcesScreen() {
             filteredResources.map((resource) => (
               <TouchableOpacity
                 key={resource.id}
-                style={styles.resourceCard}
-                onPress={() => handleViewResource(resource)}
+                style={[styles.resourceCard, (resource as any).is_locked && { opacity: 0.65 }]}
+                onPress={() => {
+                  if ((resource as any).is_locked) {
+                    Alert.alert(
+                      '🔒 Subscribe to Unlock',
+                      'The Emotion Program is completely free! Every other program has its first 2 weeks free — subscribe to unlock everything.',
+                      [
+                        { text: 'Not Now', style: 'cancel' },
+                        { text: 'See Plans', onPress: () => router.push('/subscription') },
+                      ]
+                    );
+                    return;
+                  }
+                  handleViewResource(resource);
+                }}
               >
                 <View style={styles.resourceIcon}>
                   <MaterialIcons
-                    name={resource.content_type === 'pdf' ? 'picture-as-pdf' : 'article'}
+                    name={(resource as any).is_locked ? 'lock' : (resource.content_type === 'pdf' ? 'picture-as-pdf' : 'article')}
                     size={32}
-                    color={resource.content_type === 'pdf' ? '#F44336' : '#5C6BC0'}
+                    color={(resource as any).is_locked ? '#AAA' : (resource.content_type === 'pdf' ? '#F44336' : '#5C6BC0')}
                   />
                 </View>
                 <View style={styles.resourceContent}>
@@ -299,7 +312,12 @@ export default function ResourcesScreen() {
                     <Text style={styles.resourceType}>
                       {resource.content_type === 'pdf' ? 'PDF Document' : 'Article'}
                     </Text>
-                    {resource.content_type === 'pdf' && (
+                    {(resource as any).is_locked ? (
+                      <View style={[styles.downloadBadge, { backgroundColor: '#F5F5F5' }]}>
+                        <MaterialIcons name="lock" size={12} color="#999" />
+                        <Text style={[styles.downloadBadgeText, { color: '#999' }]}>Subscribe to unlock</Text>
+                      </View>
+                    ) : resource.content_type === 'pdf' && (
                       <View style={styles.downloadBadge}>
                         <MaterialIcons name="download" size={12} color="#4CAF50" />
                         <Text style={styles.downloadBadgeText}>{t('download_report') || t('download_report') || 'Download'}</Text>

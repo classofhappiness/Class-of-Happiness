@@ -446,23 +446,40 @@ export default function TeacherResourcesScreen() {
           resources.map((resource) => (
             <TouchableOpacity
               key={resource.id}
-              style={styles.resourceCard}
-              onPress={() => handleViewResource(resource)}
+              style={[styles.resourceCard, (resource as any).is_locked && { opacity: 0.65 }]}
+              onPress={() => {
+                if ((resource as any).is_locked) {
+                  Alert.alert(
+                    '🔒 Subscribe to Unlock',
+                    'The Emotion Program is completely free! Every other program has its first 2 weeks free — subscribe to unlock everything.',
+                    [
+                      { text: 'Not Now', style: 'cancel' },
+                      { text: 'See Plans', onPress: () => router.push('/subscription') },
+                    ]
+                  );
+                  return;
+                }
+                handleViewResource(resource);
+              }}
             >
               <View style={styles.resourceIcon}>
-                <MaterialIcons name="picture-as-pdf" size={32} color="#F44336" />
+                <MaterialIcons name={(resource as any).is_locked ? 'lock' : 'picture-as-pdf'} size={32} color={(resource as any).is_locked ? '#AAA' : '#F44336'} />
               </View>
               <View style={styles.resourceContent}>
                 <Text style={styles.resourceTitle}>{resource.title}</Text>
                 <Text style={styles.resourceDescription} numberOfLines={2}>
                   {resource.description}
                 </Text>
+                {(resource as any).is_locked ? (
+                  <Text style={{ fontSize: 12, color: '#999', fontWeight: '600', marginTop: 2 }}>🔒 Subscribe to unlock</Text>
+                ) : (
                 <View style={styles.resourceMeta}>
                   {renderStars(resource.average_rating)}
                   <Text style={styles.ratingText}>
                     {resource.average_rating.toFixed(1)} ({resource.total_ratings})
                   </Text>
                 </View>
+                )}
                 <Text style={styles.uploadedBy}>
                   {t('by') || 'By'} {resource.created_by_name || (t('teacher') || 'Teacher')}
                   {resource.uploaded_by_me && (
