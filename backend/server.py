@@ -8166,6 +8166,52 @@ async def bulk_invite_teachers(request: Request):
             results["not_found"].append(email)
     return results
 
+@api_router.post("/teacher/student/{student_id}/flag-to-admin")
+async def flag_student_to_admin(student_id: str, request: Request):
+    """Teacher flags a wellbeing concern for a student to their school admin. Creates a real
+    student_alerts row (same table/schema as help_request alerts) with a distinct alert_type,
+    so it automatically flows into the already-built school-admin analytics dashboard without
+    needing any new school-admin-side infrastructure."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    message = (body.get("message") or "").strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="A message is required to flag a student")
+
+    student_result = supabase.table("students").select("*").eq("id", student_id).execute()
+    if not student_result.data:
+        raise HTTPException(status_code=404, detail="Student not found")
+    student = student_result.data[0]
+
+    classroom_name = ""
+    if student.get("classroom_id"):
+        classroom_result = supabase.table("classrooms").select("name").eq("id", student["classroom_id"]).execute()
+        if classroom_result.data:
+            classroom_name = classroom_result.data[0].get("name", "")
+
+    alert_id = str(uuid.uuid4())
+    try:
+        supabase.table("student_alerts").insert({
+            "id": alert_id,
+            "student_id": student_id,
+            "student_name": student.get("name", ""),
+            "alert_type": "school_admin_flag",
+            "context": "school",
+            "classroom_name": classroom_name,
+            "zone": body.get("zone", "yellow"),
+            "strategy_id": None,
+            "strategy_name": None,
+            "message": message,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "resolved": False,
+        }).execute()
+        return {"status": "flagged", "alert_id": alert_id}
+    except Exception as e:
+        logger.error(f"flag_student_to_admin error: {e}")
+        raise HTTPException(status_code=500, detail="Could not flag student to admin")
+
 @api_router.get("/school-admin/analytics")
 async def get_school_admin_analytics(request: Request, period: int = 30):
     """Rich emotional wellbeing analytics for school admin — no individual student data."""
