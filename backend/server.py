@@ -6596,9 +6596,17 @@ async def get_admin_stats(request: Request, days: int = 7):
             school_teachers_r = supabase.table("users").select("user_id", count="exact").eq("school_admin_id", admin_id).execute()
             total_teachers = school_teachers_r.count or 0
             school_teacher_ids = [t["user_id"] for t in (supabase.table("users").select("user_id").eq("school_admin_id", admin_id).execute().data or [])]
+            # Real fix Aug 14: students link via classroom_id, NOT teacher_id (that column
+            # doesn't exist on the students table — same architectural fact already
+            # documented earlier this session). Resolve real classrooms first.
             if school_teacher_ids:
-                students_result = supabase.table("students").select("id", count="exact").in_("teacher_id", school_teacher_ids).execute()
-                total_students = students_result.count or 0
+                school_classrooms_r = supabase.table("classrooms").select("id").in_("user_id", school_teacher_ids).execute()
+                school_classroom_ids = [c["id"] for c in (school_classrooms_r.data or [])]
+                if school_classroom_ids:
+                    students_result = supabase.table("students").select("id", count="exact").in_("classroom_id", school_classroom_ids).execute()
+                    total_students = students_result.count or 0
+                else:
+                    total_students = 0
             else:
                 total_students = 0
         else:
@@ -6741,9 +6749,14 @@ async def get_admin_stats(request: Request, days: int = 7):
                     school_teachers = supabase.table("users").select("user_id").eq("school_admin_id", admin_id).execute()
                     teacher_ids_for_school = [t["user_id"] for t in (school_teachers.data or [])]
                     student_ids = []
+                    # Real fix Aug 14: same architectural fact as above — students link via
+                    # classroom_id, not a direct teacher_id column (which doesn't exist).
                     if teacher_ids_for_school:
-                        school_students = supabase.table("students").select("id,classroom_id").in_("teacher_id", teacher_ids_for_school).execute()
-                        student_ids = [s["id"] for s in (school_students.data or [])]
+                        school_classrooms_r2 = supabase.table("classrooms").select("id").in_("user_id", teacher_ids_for_school).execute()
+                        school_classroom_ids2 = [c["id"] for c in (school_classrooms_r2.data or [])]
+                        if school_classroom_ids2:
+                            school_students = supabase.table("students").select("id,classroom_id").in_("classroom_id", school_classroom_ids2).execute()
+                            student_ids = [s["id"] for s in (school_students.data or [])]
                 except:
                     student_ids = []
 
