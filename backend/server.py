@@ -6888,6 +6888,25 @@ async def get_admin_resources(request: Request):
     return result.data or []
 
 
+@api_router.post("/admin/verify")
+async def verify_admin_access(request: Request):
+    """Real fix Aug 14: this endpoint was called by the COH app's in-app admin panel
+    (app/admin/dashboard.tsx) but never existed on the backend at all — every call 404'd,
+    silently falling into a broken hardcoded-PIN fallback that never correctly recognized
+    real superadmin logins. Fixed properly: since the caller already has a real session
+    token, verify against their ACTUAL account role — no separate PIN needed, and no risk
+    of a hardcoded string ever drifting out of sync with real accounts again."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    role = user.get("role")
+    if role == "superadmin":
+        return {"valid": True, "is_super_admin": True}
+    if role in ("school_admin", "admin"):
+        return {"valid": True, "is_super_admin": False}
+    return {"valid": False, "is_super_admin": False}
+
+
 @api_router.post("/admin/resources")
 async def create_admin_resource(request: Request):
     user = await get_current_user(request)
