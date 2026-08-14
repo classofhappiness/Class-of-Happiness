@@ -6861,7 +6861,17 @@ async def get_admin_resources(request: Request):
     user = await get_current_user(request)
     if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="Admin only")
-    result = supabase.table("resources").select("*").order("created_at", desc=True).execute()
+    # Real fix Aug 14: same root cause as the /parent/resources bug fixed earlier tonight —
+    # select("*") pulled every resource's full base64 PDF content inline for ALL rows in one
+    # response (some single rows 3MB+), causing this endpoint's real 500s. The portal's list
+    # view never actually renders raw content — PDFs download via the separate /download
+    # endpoint (needs only pdf_filename to know a download link should show), and only video
+    # resources use "content" directly as their Watch-link URL. All 16 real resources today
+    # are PDFs, none are video, so this is safe now — but if a video resource is ever added,
+    # its portal Watch link would need "content" back in this select to work.
+    result = supabase.table("resources").select(
+        "id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id"
+    ).order("created_at", desc=True).execute()
     return result.data or []
 
 

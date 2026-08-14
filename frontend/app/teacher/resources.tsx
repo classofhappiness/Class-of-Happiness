@@ -50,6 +50,7 @@ export default function TeacherResourcesScreen() {
   ];
   
   const [selectedTopic, setSelectedTopic] = useState(TOPICS[0].id);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [resources, setResources] = useState<TeacherResource[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -440,13 +441,18 @@ export default function TeacherResourcesScreen() {
           </View>
         </View>
 
-        {/* Freemium notice banner */}
-        <View style={{ backgroundColor: '#FFF8E1', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#FFE082', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <MaterialIcons name="info" size={20} color="#F9A825" />
-          <Text style={{ flex: 1, fontSize: 12, color: '#5D4037', lineHeight: 17 }}>
-            The Emotion Program is completely free! Every other program's first 2 weeks are free too — subscribe to unlock everything.
-          </Text>
-        </View>
+        {/* Freemium notice banner — dismissible, reappears each visit unless subscribed */}
+        {!bannerDismissed && !(user?.subscription_status === 'active' || user?.subscription_status === 'trial') && (
+          <View style={{ backgroundColor: '#FFF8E1', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#FFE082', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <MaterialIcons name="info" size={20} color="#F9A825" />
+            <Text style={{ flex: 1, fontSize: 12, color: '#5D4037', lineHeight: 17 }}>
+              The Emotion Program is completely free! Every other program's first 2 weeks are free too — subscribe to unlock everything.
+            </Text>
+            <TouchableOpacity onPress={() => setBannerDismissed(true)} style={{ padding: 4 }}>
+              <MaterialIcons name="close" size={18} color="#8D6E63" />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Resources List */}
         {loading ? (

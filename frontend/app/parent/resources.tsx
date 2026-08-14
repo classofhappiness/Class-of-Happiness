@@ -39,7 +39,8 @@ export default function ResourcesScreen() {
   const router = useRouter();
   const navigation = useNavigation() as any;
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
-  const { t, isAuthenticated } = useApp();
+  const { t, isAuthenticated, user } = useApp();
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [resources, setResources] = useState<Resource[]>([]);
   // Parent-targeted teacher resources (audience=parents or both)
   const [parentTeacherResources, setParentTeacherResources] = useState<TeacherResource[]>([]);
@@ -58,7 +59,6 @@ export default function ResourcesScreen() {
   const [loadingRatings, setLoadingRatings] = useState(false);
 
   const fetchResources = async () => {
-    console.log('🔵🔵🔵 fetchResources CALLED — diagnostic marker Aug 14 🔵🔵🔵');
     try {
       const [generalData, parentResourcesData] = await Promise.all([
         resourcesApi.getAll(),
@@ -67,7 +67,6 @@ export default function ResourcesScreen() {
           try {
             const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
             const token = await AsyncStorage.getItem('session_token');
-            console.log('🟡 About to fetch URL:', `${BACKEND_URL}/api/parent/resources`);
             const r = await fetch(`${BACKEND_URL}/api/parent/resources`, {
               headers: {
                 'Content-Type': 'application/json',
@@ -75,14 +74,10 @@ export default function ResourcesScreen() {
               }
             });
             if (!r.ok) {
-              // Temporary diagnostic, Aug 14: this was silently swallowing real errors.
-              const errText = await r.text().catch(() => '(no body)');
-              console.error(`/api/parent/resources failed: HTTP ${r.status} — ${errText}`);
+              console.error(`/api/parent/resources failed: HTTP ${r.status}`);
               return [];
             }
-            const jsonData = await r.json();
-            console.log(`🟢 /api/parent/resources SUCCEEDED — ${Array.isArray(jsonData) ? jsonData.length : 'not-array'} items:`, JSON.stringify(jsonData).slice(0, 500));
-            return jsonData;
+            return await r.json();
           } catch (err) {
             console.error('/api/parent/resources threw:', err);
             return [];
@@ -268,13 +263,18 @@ export default function ResourcesScreen() {
           ))}
         </ScrollView>
 
-        {/* Freemium notice banner */}
-        <View style={{ backgroundColor: '#FFF8E1', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#FFE082', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <MaterialIcons name="info" size={20} color="#F9A825" />
-          <Text style={{ flex: 1, fontSize: 12, color: '#5D4037', lineHeight: 17 }}>
-            The Emotion Program is completely free! Every other program's first 2 weeks are free too — subscribe to unlock everything.
-          </Text>
-        </View>
+        {/* Freemium notice banner — dismissible, reappears each visit unless subscribed */}
+        {!bannerDismissed && !(user?.subscription_status === 'active' || user?.subscription_status === 'trial') && (
+          <View style={{ backgroundColor: '#FFF8E1', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#FFE082', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <MaterialIcons name="info" size={20} color="#F9A825" />
+            <Text style={{ flex: 1, fontSize: 12, color: '#5D4037', lineHeight: 17 }}>
+              The Emotion Program is completely free! Every other program's first 2 weeks are free too — subscribe to unlock everything.
+            </Text>
+            <TouchableOpacity onPress={() => setBannerDismissed(true)} style={{ padding: 4 }}>
+              <MaterialIcons name="close" size={18} color="#8D6E63" />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Resources List — unified single list, real fix Aug 14 (see above) */}
         {loading ? (
