@@ -92,7 +92,7 @@ export default function HomeScreen() {
             <MaterialIcons name="school" size={26} color="white" />
             <View style={{alignItems:'center'}}>
               <Text style={styles.roleButtonTitle}>{t('teacher') || 'Teacher'}</Text>
-              <Text style={{fontSize:10, color:'white', fontStyle:'italic', fontWeight:'500', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}>{'Teachers Dashboard — support your students here'}</Text>
+              <Text style={{fontSize:10, color:'#1A1A2E', fontStyle:'italic', fontWeight:'600', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}>{'Teachers Dashboard — support your students here'}</Text>
             </View>
             {!isAuthenticated && <MaterialIcons name="lock" size={14} color="rgba(255,255,255,0.7)" />}
           </TouchableOpacity>
@@ -108,7 +108,7 @@ export default function HomeScreen() {
             <MaterialIcons name="family-restroom" size={26} color="white" />
             <View style={{alignItems:'center'}}>
               <Text style={styles.roleButtonTitle}>{t('parent') || 'Parent'}</Text>
-              <Text style={{fontSize:10, color:'white', fontStyle:'italic', fontWeight:'500', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}>{'Family Dashboard — support your family here'}</Text>
+              <Text style={{fontSize:10, color:'#1A1A2E', fontStyle:'italic', fontWeight:'600', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}>{'Family Dashboard — support your family here'}</Text>
             </View>
             {!isAuthenticated && <MaterialIcons name="lock" size={14} color="rgba(255,255,255,0.7)" />}
           </TouchableOpacity>
@@ -160,15 +160,15 @@ const styles = StyleSheet.create({
   // Student — hero button
   studentButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#4CAF50', borderRadius: 22, paddingVertical: 20, paddingHorizontal: 20, marginBottom: 10 },
   studentButtonText: { flex: 1, marginLeft: 14 },
-  studentButtonTitle: { fontSize: 26, fontWeight: 'bold', color: 'white' },
-  studentButtonSub: { fontSize: 13, color: 'white', marginTop: 2, fontStyle: 'italic', fontWeight: '400', opacity: 0.95 },
+  studentButtonTitle: { fontSize: 26, fontWeight: '900', color: '#1A1A2E' },
+  studentButtonSub: { fontSize: 13, color: '#1A1A2E', marginTop: 2, fontStyle: 'italic', fontWeight: '600', opacity: 0.95 },
 
   // Teacher + Parent — side by side smaller
   roleRow: { flexDirection: 'row', gap: 10, marginBottom: 0, marginTop: 0 },
   roleButton: { flex: 1, borderRadius: 18, paddingVertical: 16, alignItems: 'center', gap: 4 },
   teacherButton: { backgroundColor: '#FFC107', elevation: 0 },
   parentButton: { backgroundColor: '#4A90D9', elevation: 0 },
-  roleButtonTitle: { fontSize: 17, fontWeight: 'bold', color: 'white' },
+  roleButtonTitle: { fontSize: 17, fontWeight: '900', color: '#1A1A2E' },
 
   trialButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#E8F5E9', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, gap: 8, borderWidth: 1, borderColor: '#4CAF50', marginTop: 12, marginBottom: 0 },
   trialButtonText: { fontSize: 13, fontWeight: '600', color: '#4CAF50' },

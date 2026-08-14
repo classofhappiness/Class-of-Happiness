@@ -32,6 +32,11 @@ export default function SettingsScreen() {
   const [adminCode, setAdminCode] = useState('');
   const [promotingAdmin, setPromotingAdmin] = useState(false);
   const [showAdminCodeText, setShowAdminCodeText] = useState(false);
+  const [showSetPassword, setShowSetPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPasswordText, setShowNewPasswordText] = useState(false);
+  const [settingPassword, setSettingPassword] = useState(false);
 
   // Set translated header title - depend on language/translations to trigger updates
   useLayoutEffect(() => {
@@ -257,6 +262,40 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleSetPassword = async () => {
+    if (newPassword.length < 8) {
+      Alert.alert(t('error') || 'Error', 'Password must be at least 8 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert(t('error') || 'Error', 'Passwords do not match');
+      return;
+    }
+    setSettingPassword(true);
+    try {
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const token = await AsyncStorage.getItem('session_token');
+      const res = await fetch(`${BACKEND_URL}/api/auth/set-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ password: newPassword }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        Alert.alert('✅ ' + (t('success') || 'Success'), 'Your password has been set. You can now sign in with your email and password.');
+        setNewPassword('');
+        setConfirmPassword('');
+        setShowSetPassword(false);
+      } else {
+        Alert.alert(t('error') || 'Error', data.detail || 'Could not set password.');
+      }
+    } catch {
+      Alert.alert(t('error') || 'Error', 'Could not set password. Please try again.');
+    } finally {
+      setSettingPassword(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
     <ScrollView 
@@ -346,6 +385,76 @@ export default function SettingsScreen() {
             >
               <Text style={styles.redeemButtonText}>
                 {redeemingCode ? t('redeeming') : t('redeem_code')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      {/* Set Password */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('security') || 'Security'}</Text>
+        <TouchableOpacity
+          style={styles.settingItem}
+          onPress={() => setShowSetPassword(!showSetPassword)}
+        >
+          <View style={styles.settingLeft}>
+            <MaterialIcons name="lock-outline" size={24} color="#5C6BC0" />
+            <View style={styles.settingText}>
+              <Text style={styles.settingLabel}>{t('set_password') || 'Set Password'}</Text>
+              <Text style={styles.settingValue}>{t('set_password_desc') || 'Add a password to sign in without email-only access'}</Text>
+            </View>
+          </View>
+          <MaterialIcons
+            name={showSetPassword ? "expand-less" : "expand-more"}
+            size={24}
+            color="#CCC"
+          />
+        </TouchableOpacity>
+
+        {showSetPassword && (
+          <View style={styles.trialCodeContainer}>
+            <View style={styles.codeInputWrapper}>
+              <TextInput
+                style={styles.trialCodeInputWithIcon}
+                placeholder="New password (min 8 characters)"
+                placeholderTextColor="#999"
+                value={newPassword}
+                onChangeText={setNewPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry={!showNewPasswordText}
+              />
+              <TouchableOpacity
+                style={styles.eyeIconButton}
+                onPress={() => setShowNewPasswordText(!showNewPasswordText)}
+              >
+                <MaterialIcons
+                  name={showNewPasswordText ? "visibility" : "visibility-off"}
+                  size={22}
+                  color="#888"
+                />
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.codeInputWrapper, { marginTop: 8 }]}>
+              <TextInput
+                style={styles.trialCodeInputWithIcon}
+                placeholder="Confirm password"
+                placeholderTextColor="#999"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry={!showNewPasswordText}
+              />
+            </View>
+            <TouchableOpacity
+              style={[styles.redeemButton, settingPassword && styles.redeemButtonDisabled]}
+              onPress={handleSetPassword}
+              disabled={settingPassword}
+            >
+              <Text style={styles.redeemButtonText}>
+                {settingPassword ? (t('loading') || 'Setting...') : (t('set_password_btn') || 'Set Password')}
               </Text>
             </TouchableOpacity>
           </View>

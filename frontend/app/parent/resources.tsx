@@ -23,12 +23,14 @@ import { useApp } from '../../src/context/AppContext';
 
 const TOPICS = [
   { id: 'all', name: 'All', icon: 'apps' as const },
+  { id: 'general', name: 'General', icon: 'folder' as const },
   { id: 'emotions_program', name: 'Emotions Program', icon: 'auto-stories' as const },
   { id: 'emotions', name: 'Emotions', icon: 'mood' as const },
   { id: 'healthy_relationships', name: 'Healthy Relationships', icon: 'people' as const },
   { id: 'leader_online', name: 'Leader Online', icon: 'computer' as const },
   { id: 'you_are_what_you_eat', name: 'You Are What You Eat', icon: 'restaurant' as const },
   { id: 'special_needs', name: 'Special Needs', icon: 'accessibility' as const },
+  { id: 'parent_hub', name: 'Parent Hub', icon: 'family-restroom' as const },
 ];
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -44,7 +46,6 @@ export default function ResourcesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedResource, setSelectedResource] = useState<Resource | TeacherResource | null>(null);
-  const [activeTab, setActiveTab] = useState<'general' | 'teacher'>('general');
   const [selectedTopic, setSelectedTopic] = useState('all');
   const [downloading, setDownloading] = useState(false);
 
@@ -57,6 +58,7 @@ export default function ResourcesScreen() {
   const [loadingRatings, setLoadingRatings] = useState(false);
 
   const fetchResources = async () => {
+    console.log('🔵🔵🔵 fetchResources CALLED — diagnostic marker Aug 14 🔵🔵🔵');
     try {
       const [generalData, parentResourcesData] = await Promise.all([
         resourcesApi.getAll(),
@@ -65,14 +67,26 @@ export default function ResourcesScreen() {
           try {
             const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
             const token = await AsyncStorage.getItem('session_token');
+            console.log('🟡 About to fetch URL:', `${BACKEND_URL}/api/parent/resources`);
             const r = await fetch(`${BACKEND_URL}/api/parent/resources`, {
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token || ''}`,
               }
             });
-            return r.ok ? r.json() : [];
-          } catch { return []; }
+            if (!r.ok) {
+              // Temporary diagnostic, Aug 14: this was silently swallowing real errors.
+              const errText = await r.text().catch(() => '(no body)');
+              console.error(`/api/parent/resources failed: HTTP ${r.status} — ${errText}`);
+              return [];
+            }
+            const jsonData = await r.json();
+            console.log(`🟢 /api/parent/resources SUCCEEDED — ${Array.isArray(jsonData) ? jsonData.length : 'not-array'} items:`, JSON.stringify(jsonData).slice(0, 500));
+            return jsonData;
+          } catch (err) {
+            console.error('/api/parent/resources threw:', err);
+            return [];
+          }
         })(),
       ]);
       setResources(generalData);
@@ -194,16 +208,26 @@ export default function ResourcesScreen() {
     return (sum / ratings.length).toFixed(1);
   };
 
-  const filteredResources = resources;
-  const filteredTeacherResources = (() => {
-    const base = selectedTopic === 'all'
+  // Real fix Aug 14: merged both sources into one unified, ACTUALLY topic-filtered list.
+  // Previously "filteredResources = resources" never filtered at all — every topic tab
+  // showed the exact same unfiltered list — and the separate "General"/"From Teacher"
+  // pills hid content depending which was selected (e.g. Parent Hub uploads only ever
+  // showed on one side, regardless of which pill you had open).
+  const filteredResources = (() => {
+    const generalBase = selectedTopic === 'all'
+      ? resources
+      : resources.filter(r => r.topic === selectedTopic);
+    const teacherBase = selectedTopic === 'all'
       ? parentTeacherResources
       : parentTeacherResources.filter(r => r.topic === selectedTopic);
-    // Emotions Program always sorted by order_index (week 1 → 6)
+    const combined: any[] = [
+      ...generalBase.map((r: any) => ({ ...r, _fromTeacher: false })),
+      ...teacherBase.map((r: any) => ({ ...r, _fromTeacher: true })),
+    ];
     if (selectedTopic === 'emotions_program') {
-      return [...base].sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0));
+      return combined.sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
     }
-    return base;
+    return combined;
   })();
 
   const isTeacherResource = (resource: Resource | TeacherResource | null): resource is TeacherResource => {
@@ -228,28 +252,6 @@ export default function ResourcesScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Tab Selector */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'general' && styles.tabActive]}
-            onPress={() => setActiveTab('general')}
-          >
-            <MaterialIcons name="library-books" size={20} color={activeTab === 'general' ? '#5C6BC0' : '#999'} />
-            <Text style={[styles.tabText, activeTab === 'general' && styles.tabTextActive]}>
-              {t('resources') || 'General'} ({filteredResources.length})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'teacher' && styles.tabActive]}
-            onPress={() => setActiveTab('teacher')}
-          >
-            <MaterialIcons name="school" size={20} color={activeTab === 'teacher' ? '#5C6BC0' : '#999'} />
-            <Text style={[styles.tabText, activeTab === 'teacher' && styles.tabTextActive]}>
-              {t('from_teacher') || t('from_teacher') || 'From Teacher'} ({filteredTeacherResources.length})
-            </Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Topic Filter */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.topicScroll}>
           {TOPICS.map((topic) => (
@@ -274,117 +276,73 @@ export default function ResourcesScreen() {
           </Text>
         </View>
 
-        {/* Resources List */}
+        {/* Resources List — unified single list, real fix Aug 14 (see above) */}
         {loading ? (
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>{t('loading_resources') || 'Loading resources...'}</Text>
           </View>
-        ) : activeTab === 'general' ? (
-          filteredResources.length === 0 ? (
-            <View style={styles.emptyState}>
-              <MaterialIcons name="folder-open" size={64} color="#CCC" />
-              <Text style={styles.emptyStateText}>{t('no_resources_yet') || 'No resources available yet'}</Text>
-              <Text style={styles.emptyStateSubtext}>{t('no_resources_yet') || 'No resources yet'}</Text>
-            </View>
-          ) : (
-            filteredResources.map((resource) => (
-              <TouchableOpacity
-                key={resource.id}
-                style={[styles.resourceCard, (resource as any).is_locked && { opacity: 0.65 }]}
-                onPress={() => {
-                  if ((resource as any).is_locked) {
-                    Alert.alert(
-                      '🔒 Subscribe to Unlock',
-                      'The Emotion Program is completely free! Every other program has its first 2 weeks free — subscribe to unlock everything.',
-                      [
-                        { text: 'Not Now', style: 'cancel' },
-                        { text: 'See Plans', onPress: () => router.push('/subscription') },
-                      ]
-                    );
-                    return;
-                  }
-                  handleViewResource(resource);
-                }}
-              >
-                <View style={styles.resourceIcon}>
-                  <MaterialIcons
-                    name={(resource as any).is_locked ? 'lock' : (resource.content_type === 'pdf' ? 'picture-as-pdf' : 'article')}
-                    size={32}
-                    color={(resource as any).is_locked ? '#AAA' : (resource.content_type === 'pdf' ? '#F44336' : '#5C6BC0')}
-                  />
-                </View>
-                <View style={styles.resourceContent}>
-                  <Text style={styles.resourceTitle}>{resource.title}</Text>
-                  <Text style={styles.resourceDescription} numberOfLines={2}>{resource.description}</Text>
-                  <View style={styles.resourceMeta}>
-                    <Text style={styles.resourceType}>
-                      {resource.content_type === 'pdf' ? 'PDF Document' : 'Article'}
-                    </Text>
-                    {(resource as any).is_locked ? (
-                      <View style={[styles.downloadBadge, { backgroundColor: '#F5F5F5' }]}>
-                        <MaterialIcons name="lock" size={12} color="#999" />
-                        <Text style={[styles.downloadBadgeText, { color: '#999' }]}>Subscribe to unlock</Text>
-                      </View>
-                    ) : resource.content_type === 'pdf' && (
-                      <View style={styles.downloadBadge}>
-                        <MaterialIcons name="download" size={12} color="#4CAF50" />
-                        <Text style={styles.downloadBadgeText}>{t('download_report') || t('download_report') || 'Download'}</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-                <MaterialIcons name="chevron-right" size={24} color="#CCC" />
-              </TouchableOpacity>
-            ))
-          )
+        ) : filteredResources.length === 0 ? (
+          <View style={styles.emptyState}>
+            <MaterialIcons name="folder-open" size={64} color="#CCC" />
+            <Text style={styles.emptyStateText}>{t('no_resources_yet') || 'No resources available yet'}</Text>
+            <Text style={styles.emptyStateSubtext}>{t('no_resources_yet') || 'No resources yet'}</Text>
+          </View>
         ) : (
-          filteredTeacherResources.length === 0 ? (
-            <View style={styles.emptyState}>
-              <MaterialIcons name="school" size={64} color="#CCC" />
-              <Text style={styles.emptyStateText}>{t('no_resources_yet') || 'No resources yet'}</Text>
-              <Text style={styles.emptyStateSubtext}>
-                {selectedTopic === 'emotions_program'
-                  ? 'Emotions Program resources will appear here once your teacher uploads them.'
-                  : "Your child's teacher will share resources here once they set audience to Parents or Both."}
-              </Text>
-            </View>
-          ) : (
-            filteredTeacherResources.map((resource) => (
-              <TouchableOpacity
-                key={resource.id}
-                style={[styles.resourceCard, styles.teacherResourceCard]}
-                onPress={() => handleViewResource(resource)}
-              >
-                <View style={[styles.resourceIcon, { backgroundColor: '#E8F5E9' }]}>
-                  <MaterialIcons
-                    name={resource.content_type === 'pdf' ? 'picture-as-pdf' : 'article'}
-                    size={32}
-                    color={resource.content_type === 'pdf' ? '#F44336' : '#4CAF50'}
-                  />
-                </View>
-                <View style={styles.resourceContent}>
+          filteredResources.map((resource: any) => (
+            <TouchableOpacity
+              key={resource.id}
+              style={[styles.resourceCard, resource.is_locked && { opacity: 0.65 }]}
+              onPress={() => {
+                if (resource.is_locked) {
+                  Alert.alert(
+                    '🔒 Subscribe to Unlock',
+                    'The Emotion Program is completely free! Every other program has its first 2 weeks free — subscribe to unlock everything.',
+                    [
+                      { text: 'Not Now', style: 'cancel' },
+                      { text: 'See Plans', onPress: () => router.push('/subscription') },
+                    ]
+                  );
+                  return;
+                }
+                handleViewResource(resource);
+              }}
+            >
+              <View style={[styles.resourceIcon, resource._fromTeacher && { backgroundColor: '#E8F5E9' }]}>
+                <MaterialIcons
+                  name={resource.is_locked ? 'lock' : (resource.content_type === 'pdf' ? 'picture-as-pdf' : 'article')}
+                  size={32}
+                  color={resource.is_locked ? '#AAA' : (resource.content_type === 'pdf' ? '#F44336' : (resource._fromTeacher ? '#4CAF50' : '#5C6BC0'))}
+                />
+              </View>
+              <View style={styles.resourceContent}>
+                {resource._fromTeacher && (
                   <View style={styles.teacherBadge}>
                     <MaterialIcons name="verified" size={14} color="#4CAF50" />
-                    <Text style={styles.teacherBadgeText}>{t('from_teacher') || t('from_teacher') || 'From Teacher'}</Text>
+                    <Text style={styles.teacherBadgeText}>{t('from_teacher') || 'From Teacher'}</Text>
                   </View>
-                  <Text style={styles.resourceTitle}>{resource.title}</Text>
-                  <Text style={styles.resourceDescription} numberOfLines={2}>{resource.description}</Text>
-                  <View style={styles.resourceMeta}>
-                    <Text style={styles.resourceTopic}>
-                      {TOPICS.find(t => t.id === resource.topic)?.name || resource.topic}
-                    </Text>
-                    {resource.content_type === 'pdf' && (
-                      <View style={styles.downloadBadge}>
-                        <MaterialIcons name="download" size={12} color="#4CAF50" />
-                        <Text style={styles.downloadBadgeText}>{t('download_report') || t('download_report') || 'Download'}</Text>
-                      </View>
-                    )}
-                  </View>
+                )}
+                <Text style={styles.resourceTitle}>{resource.title}</Text>
+                <Text style={styles.resourceDescription} numberOfLines={2}>{resource.description}</Text>
+                <View style={styles.resourceMeta}>
+                  <Text style={styles.resourceType}>
+                    {resource.content_type === 'pdf' ? 'PDF Document' : 'Article'}
+                  </Text>
+                  {resource.is_locked ? (
+                    <View style={[styles.downloadBadge, { backgroundColor: '#F5F5F5' }]}>
+                      <MaterialIcons name="lock" size={12} color="#999" />
+                      <Text style={[styles.downloadBadgeText, { color: '#999' }]}>Subscribe to unlock</Text>
+                    </View>
+                  ) : resource.content_type === 'pdf' && (
+                    <View style={styles.downloadBadge}>
+                      <MaterialIcons name="download" size={12} color="#4CAF50" />
+                      <Text style={styles.downloadBadgeText}>{t('download_report') || 'Download'}</Text>
+                    </View>
+                  )}
                 </View>
-                <MaterialIcons name="chevron-right" size={24} color="#CCC" />
-              </TouchableOpacity>
-            ))
-          )
+              </View>
+              <MaterialIcons name="chevron-right" size={24} color="#CCC" />
+            </TouchableOpacity>
+          ))
         )}
 
         <View style={styles.infoCard}>

@@ -3344,8 +3344,11 @@ async def create_resource(resource: ResourceCreate, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    # Any authenticated user can generate link codes for their students
-    # (auth check above is sufficient)
+    # Real role gate added Aug 14: this endpoint previously had NO role check at all —
+    # any authenticated user, including parents, could post a global resource. Matches
+    # the same fix applied to POST /teacher-resources for consistency.
+    if user.get("role") not in ("teacher", "school_admin", "admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Only teachers and admins can post resources here")
     new_resource = {
         "id": str(uuid.uuid4()),
         "created_by": user["user_id"],
@@ -7402,6 +7405,12 @@ async def create_teacher_resource(request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real role gate added Aug 14: this endpoint previously had NO role check at all —
+    # any authenticated user, including parents, could post here. Per Jono's 4 sharing
+    # rules: teacher-to-teacher (yes), teacher-to-parent (yes), parent-to-teacher (no).
+    # Superadmin/school_admin always allowed (curated content + moderation).
+    if user.get("role") not in ("teacher", "school_admin", "admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Only teachers and admins can post resources here")
     try:
         body = await request.json()
     except Exception:
@@ -7410,6 +7419,10 @@ async def create_teacher_resource(request: Request):
     if not title:
         raise HTTPException(status_code=400, detail="Title is required")
     topic = body.get("topic") or body.get("category") or "general"
+    # Hub topics are real, deliberate community-content areas — teachers can post to
+    # BOTH (teacher-to-teacher and teacher-to-parent are both "yes" in Jono's rules).
+    # Parents are already blocked above from reaching this endpoint at all, so parent
+    # posting to either hub is correctly prevented without needing topic-specific logic.
     audience = body.get("target_audience") or body.get("audience") or "teachers"
     content = body.get("content") or ""
     # Allow video URLs (stored as content, no size limit)
@@ -9731,7 +9744,15 @@ async def get_parent_resources(request: Request, topic: Optional[str] = None):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        resources_result = supabase.table("resources").select("*").eq("is_active", True).execute()
+        # Real fix Aug 14: this previously did select("*"), pulling every resource's full
+        # base64 PDF content inline for ALL rows in one response (some single rows are 3MB+).
+        # That's almost certainly why this endpoint was silently returning [] to every parent
+        # this whole time — the broad except below was swallowing a timeout/oversized-response
+        # failure with zero visible error. Content isn't needed for the list view — actual PDF
+        # bytes are fetched separately via the already-working /download endpoint when opened.
+        resources_result = supabase.table("resources").select(
+            "id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id"
+        ).eq("is_active", True).execute()
         all_resources = resources_result.data or []
         allowed_audiences = ["parents", "both", None, ""]
         visible = []

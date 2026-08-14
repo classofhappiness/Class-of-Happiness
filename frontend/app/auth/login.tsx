@@ -181,7 +181,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             <Text style={styles.hint}>
-              New users are created automatically.{'\n'}No password needed!
+              New users are created automatically.{'\n'}Password is optional — you can set one anytime in Settings.
             </Text>
           </View>
 

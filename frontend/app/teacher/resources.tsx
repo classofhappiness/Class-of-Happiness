@@ -18,7 +18,7 @@ import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { useApp } from '../../src/context/AppContext';
@@ -39,11 +39,14 @@ export default function TeacherResourcesScreen() {
   const { user, t } = useApp();
   
   const TOPICS = [
-    { id: 'emotions', name: t('emotions_topic') || 'Emotions', icon: 'mood' },
+    { id: 'general', name: t('general_topic') || 'General', icon: 'apps' },
+    { id: 'emotions_program', name: t('emotions_topic') || 'Emotions Program', icon: 'mood' },
     { id: 'healthy_relationships', name: t('healthy_relationships') || 'Healthy Relationships', icon: 'favorite' },
     { id: 'leader_online', name: t('leader_online') || 'Leader Online', icon: 'computer' },
     { id: 'you_are_what_you_eat', name: t('you_are_what_you_eat') || 'You Are What You Eat', icon: 'restaurant' },
     { id: 'special_needs_education', name: t('special_needs_education') || 'Special Needs', icon: 'accessibility' },
+    { id: 'teacher_hub', name: t('teacher_hub') || 'Teacher Hub', icon: 'groups' },
+    { id: 'parent_hub', name: t('parent_hub') || 'Parent Hub', icon: 'family-restroom' },
   ];
   
   const [selectedTopic, setSelectedTopic] = useState(TOPICS[0].id);
@@ -102,7 +105,11 @@ export default function TeacherResourcesScreen() {
       const seen = new Set(data.map((r: any) => r.id));
       const merged = [...data, ...(Array.isArray(myUploads) ? myUploads.filter((r: any) => !seen.has(r.id)) : [])];
       const userId = user?.user_id || '';
-      setResources(Array.isArray(data) ? data.map((r: any) => ({ ...r, uploaded_by_me: r.user_id === userId || r.created_by === userId })) : []);
+      // Real bug fixed Aug 14: this previously computed "merged" (data + my-uploads fallback)
+      // above but then only ever used "data" here, silently discarding the fallback that was
+      // specifically built to catch resources the main query missed — e.g. a just-created
+      // upload not yet visible. Now actually uses the merged list.
+      setResources(Array.isArray(merged) ? merged.map((r: any) => ({ ...r, uploaded_by_me: r.user_id === userId || r.created_by === userId })) : []);
     } catch (error) {
       console.error('Error fetching resources:', error);
       // Try without topic filter as fallback
@@ -261,8 +268,12 @@ export default function TeacherResourcesScreen() {
     setDownloading(true);
     
     try {
-      // Use the download endpoint
-      const pdfUrl = `${BACKEND_URL}/api/teacher-resources/${resource.id}/download`;
+      // Use the download endpoint. Real bug fixed Aug 14: FileSystem.downloadAsync sends a
+      // plain GET with no Authorization header at all, so this always 401'd. The backend's
+      // get_current_user() already supports a token-as-query-param fallback specifically
+      // for this case — append it here rather than relying on a header that never arrives.
+      const dlToken = await AsyncStorage.getItem('session_token');
+      const pdfUrl = `${BACKEND_URL}/api/teacher-resources/${resource.id}/download?token=${encodeURIComponent(dlToken || '')}`;
       const filename = resource.pdf_filename || `${resource.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
       
       console.log('Teacher resource download URL:', pdfUrl);
