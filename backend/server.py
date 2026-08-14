@@ -3535,6 +3535,33 @@ async def link_child(body: LinkChildRequest, request: Request):
         exp = datetime.fromisoformat(student["link_code_expires_at"].replace("Z", "+00:00"))
         if exp < datetime.now(timezone.utc):
             raise HTTPException(status_code=400, detail="Link code expired")
+
+    # Real freemium gate, per Jono's explicit rule: the home-school link only completes if
+    # EITHER the teacher has subscribed, OR the parent has subscribed, OR there's a school
+    # package covering either side (school_admin_id present). This is checked here (at
+    # redemption) rather than at code-generation, since it genuinely needs both parties' status.
+    parent_sub = user.get("subscription_status", "none")
+    parent_covered = parent_sub not in ("none", "free", None) or bool(user.get("school_admin_id"))
+    teacher_covered = False
+    classroom_id = student.get("classroom_id")
+    if classroom_id:
+        try:
+            classroom_result = supabase.table("classrooms").select("user_id").eq("id", classroom_id).execute()
+            if classroom_result.data:
+                teacher_id = classroom_result.data[0].get("user_id")
+                teacher_result = supabase.table("users").select("subscription_status,school_admin_id").eq("user_id", teacher_id).execute()
+                if teacher_result.data:
+                    teacher = teacher_result.data[0]
+                    teacher_sub = teacher.get("subscription_status", "none")
+                    teacher_covered = teacher_sub not in ("none", "free", None) or bool(teacher.get("school_admin_id"))
+        except Exception as e:
+            logger.warning(f"link_child teacher status check failed: {e}")
+    if not parent_covered and not teacher_covered:
+        raise HTTPException(
+            status_code=403,
+            detail="free_tier_limit|Home-school linking requires either you or your child's teacher to have a subscription, or a school plan covering your child's class. Upgrade to link your account."
+        )
+
     # Link parent to student
     supabase.table("parent_links").insert({
         "id": str(uuid.uuid4()),
