@@ -1,0 +1,211 @@
+import React, { useState } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity,
+  StyleSheet, SafeAreaView, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { MaterialIcons } from '@expo/vector-icons';
+
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+
+export default function ForgotPasswordScreen() {
+  const router = useRouter();
+  const [step, setStep] = useState<'request' | 'reset'>('request');
+  const [email, setEmail] = useState('');
+  const [token, setToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const handleRequestReset = async () => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed || !trimmed.includes('@')) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/reset-password-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmed }),
+      });
+      const data = await res.json();
+      if (data.token) {
+        setToken(data.token);
+      }
+      setStep('reset');
+    } catch (e) {
+      setError('Could not request a reset. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!token.trim()) {
+      setError('Reset token is required');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token.trim(), new_password: newPassword }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.detail || 'Could not reset password. Please try again.');
+        return;
+      }
+      setSuccess(true);
+    } catch (e) {
+      setError('Could not reset password. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (success) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centered}>
+          <MaterialIcons name="check-circle" size={64} color="#4CAF50" />
+          <Text style={styles.successTitle}>Password Reset!</Text>
+          <Text style={styles.successText}>You can now sign in with your new password.</Text>
+          <TouchableOpacity style={styles.button} onPress={() => router.replace('/auth/login')}>
+            <Text style={styles.buttonText}>Back to Sign In</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.inner}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <MaterialIcons name="arrow-back" size={24} color="#333" />
+          </TouchableOpacity>
+
+          <Text style={styles.title}>Reset Password</Text>
+
+          {step === 'request' ? (
+            <>
+              <Text style={styles.subtitle}>Enter your email to reset your password.</Text>
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="you@example.com"
+                placeholderTextColor="#BBB"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoFocus
+                onSubmitEditing={handleRequestReset}
+                returnKeyType="go"
+              />
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+              <TouchableOpacity
+                style={[styles.button, loading && styles.buttonDisabled]}
+                onPress={handleRequestReset}
+                disabled={loading}
+              >
+                {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Continue</Text>}
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={styles.subtitle}>Enter your new password below.</Text>
+              <Text style={styles.label}>Reset Token</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Reset token"
+                placeholderTextColor="#BBB"
+                value={token}
+                onChangeText={setToken}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Text style={styles.label}>New Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="At least 8 characters"
+                placeholderTextColor="#BBB"
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Text style={styles.label}>Confirm Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Re-enter password"
+                placeholderTextColor="#BBB"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                onSubmitEditing={handleResetPassword}
+                returnKeyType="go"
+              />
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+              <TouchableOpacity
+                style={[styles.button, loading && styles.buttonDisabled]}
+                onPress={handleResetPassword}
+                disabled={loading}
+              >
+                {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Reset Password</Text>}
+              </TouchableOpacity>
+            </>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#F8F9FA' },
+  inner: { flex: 1 },
+  scrollContent: { flexGrow: 1, padding: 24, paddingTop: 16 },
+  backButton: { marginBottom: 16, width: 40 },
+  title: { fontSize: 24, fontWeight: '900', color: '#1A1A2E', marginBottom: 8, fontFamily: 'Nunito' },
+  subtitle: { fontSize: 14, color: '#666', marginBottom: 20 },
+  label: { fontSize: 13, fontWeight: '700', color: '#333', marginBottom: 6, marginTop: 12 },
+  input: {
+    backgroundColor: 'white', borderRadius: 12, padding: 14, fontSize: 15,
+    borderWidth: 1, borderColor: '#E0E0E0', color: '#1A1A2E',
+  },
+  error: { color: '#E53935', fontSize: 13, marginTop: 8, marginBottom: 8 },
+  button: {
+    backgroundColor: '#5C6BC0', borderRadius: 14, padding: 16,
+    alignItems: 'center', justifyContent: 'center', marginTop: 20,
+  },
+  buttonDisabled: { opacity: 0.6 },
+  buttonText: { color: 'white', fontSize: 16, fontWeight: '700' },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  successTitle: { fontSize: 22, fontWeight: '900', color: '#1A1A2E', marginTop: 16, marginBottom: 8 },
+  successText: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 24 },
+});

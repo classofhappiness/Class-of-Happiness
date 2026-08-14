@@ -527,7 +527,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // ✅ FIXED: Now surfaces the real error message from the server
-  const loginWithEmail = async (email: string, adminPin?: string, attempt = 1) => {
+  const loginWithEmail = async (email: string, adminPin?: string, attempt = 1, password?: string) => {
     try {
       setIsLoading(true);
 
@@ -537,7 +537,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         response = await fetch('https://class-of-happiness-production.up.railway.app/api/auth/email-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, admin_pin: adminPin || '' }),
+          body: JSON.stringify({ email, admin_pin: adminPin || '', password: password || undefined }),
           // No signal/timeout — let Railway wake up naturally
         });
       } catch (fetchErr: any) {
@@ -550,7 +550,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             'The server is starting. Trying again in 5 seconds...',
             [{ text: 'OK' }]
           );
-          setTimeout(() => loginWithEmail(email, adminPin, 2), 5000);
+          setTimeout(() => loginWithEmail(email, adminPin, 2, password), 5000);
           return;
         }
         throw new Error('Could not reach server. Please check your connection and try again.');

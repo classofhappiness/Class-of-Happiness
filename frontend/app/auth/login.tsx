@@ -27,6 +27,7 @@ export default function LoginScreen() {
   const { loginWithEmail, loginWithGoogle, t } = useApp();
   const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -69,7 +70,7 @@ export default function LoginScreen() {
     setError('');
     setLoading(true);
     try {
-      await loginWithEmail(trimmed, pin);
+      await loginWithEmail(trimmed, pin, 1, password);
       router.replace('/');
     } catch (e) {
       setError('Sign in failed. Please try again.');
@@ -136,6 +137,23 @@ export default function LoginScreen() {
               </>
             )}
 
+            <Text style={styles.label}>Password (optional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Only if you've set one"
+              placeholderTextColor="#BBB"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              onSubmitEditing={handleLogin}
+              returnKeyType="go"
+            />
+            <TouchableOpacity onPress={() => router.push('/auth/forgot-password')}>
+              <Text style={styles.forgotPasswordLink}>Forgot password?</Text>
+            </TouchableOpacity>
+
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
             <TouchableOpacity
@@ -197,6 +215,7 @@ const styles = StyleSheet.create({
     padding: 14, fontSize: 16, color: '#333', marginBottom: 12,
   },
   error: { color: '#E53935', fontSize: 13, marginBottom: 8 },
+  forgotPasswordLink: { color: '#5C6BC0', fontSize: 13, marginBottom: 12, textAlign: 'right', fontWeight: '600' },
   button: {
     backgroundColor: '#5C6BC0', borderRadius: 14, padding: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
