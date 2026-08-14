@@ -8010,7 +8010,11 @@ async def get_school_admin_stats(request: Request):
     # Get all students for this school admin's teachers
     teachers = supabase.table("users").select("user_id, name, email").eq("school_admin_id", user_id).execute()
     teacher_ids = [t["user_id"] for t in (teachers.data or [])]
-    students = supabase.table("students").select("*").in_("user_id", teacher_ids).execute() if teacher_ids else type("obj", (object,), {"data": []})()
+    # Real fix Aug 14: same architectural fact fixed 3x elsewhere in this file today —
+    # students link via classroom_id, not a direct teacher-owned user_id column. Resolve
+    # real classrooms first.
+    classroom_ids_sa = [c["id"] for c in (supabase.table("classrooms").select("id").in_("user_id", teacher_ids).execute().data or [])] if teacher_ids else []
+    students = supabase.table("students").select("*").in_("classroom_id", classroom_ids_sa).execute() if classroom_ids_sa else type("obj", (object,), {"data": []})()
     return {
         "total_teachers": len(teacher_ids),
         "total_students": len(students.data or []),
@@ -8277,8 +8281,11 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
     classrooms = classrooms_res.data or []
     classroom_ids = [c["id"] for c in classrooms]
 
-    # Get students
-    students_res = supabase.table("students").select("*").in_("user_id", teacher_ids).execute()
+    # Get students. Real fix Aug 14: this queried students by "user_id" in teacher_ids,
+    # but students link via classroom_id, not a direct teacher-owned user_id column (same
+    # architectural fact already fixed twice elsewhere in this file today). classroom_ids
+    # is already correctly computed right above — just wasn't being used here.
+    students_res = supabase.table("students").select("*").in_("classroom_id", classroom_ids).execute() if classroom_ids else type('obj', (object,), {'data': []})()
     students = students_res.data or []
     student_ids = [s["id"] for s in students]
 
