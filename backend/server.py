@@ -8708,7 +8708,7 @@ async def update_teacher_strategy(strategy_id: str, request: Request):
     if not user or user.get("role") not in ["admin", "superadmin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     body = await request.json()
-    allowed = ["name","description","icon","is_active","zone","strategy_type","target_countries","target_schools","audience"]
+    allowed = ["name","description","icon","is_active","zone","strategy_type","target_countries","target_schools","audience","order_index"]
     updates = {k:v for k,v in body.items() if k in allowed}
     result = supabase.table("admin_teacher_strategies").update(updates).eq("id", strategy_id).execute()
     return result.data[0] if result.data else updates
