@@ -298,7 +298,7 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
 }
 
 function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, isSuperAdmin: boolean }) {
-  const [type, setType] = useState<'teacher'|'student'>('student');
+  const [type, setType] = useState<'teacher'|'student'|'parent'>('student');
   const [strats, setStrats] = useState<any[]>([]);
   const [zone, setZone] = useState('green');
   const [name, setName] = useState('');
@@ -306,12 +306,13 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
   const [editing, setEditing] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [zoneFilter, setZoneFilter] = useState('');
+  const [audience, setAudience] = useState<'all_students'|'all_teachers'|'all_parents'>('all_students');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      if (type === 'teacher') {
-        const d = await apiCall('/admin/teacher-strategies', authToken);
+      if (type === 'teacher' || type === 'parent') {
+        const d = await apiCall(`/admin/teacher-strategies?strategy_type=${type}`, authToken);
         setStrats(Array.isArray(d) ? d : []);
       } else {
         const all = await Promise.all(ZONES.map(z =>
@@ -331,12 +332,14 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
 
   const save = async () => {
     if (!name.trim()) { Alert.alert('Name required'); return; }
-    const ep = type === 'teacher' ? '/admin/teacher-strategies' : '/strategies';
+    const ep = (type === 'teacher' || type === 'parent') ? '/admin/teacher-strategies' : '/strategies';
+    const body: any = { name, description: desc, zone, icon: 'star' };
+    if (type === 'teacher' || type === 'parent') { body.strategy_type = type; body.audience = audience; }
     try {
       if (editing) {
-        await apiCall(`${ep}/${editing.id}`, authToken, { method: 'PUT', body: JSON.stringify({ name, description: desc, zone, icon: 'star' }) });
+        await apiCall(`${ep}/${editing.id}`, authToken, { method: 'PUT', body: JSON.stringify(body) });
       } else {
-        await apiCall(ep, authToken, { method: 'POST', body: JSON.stringify({ name, description: desc, zone, icon: 'star' }) });
+        await apiCall(ep, authToken, { method: 'POST', body: JSON.stringify(body) });
       }
       setName(''); setDesc(''); setEditing(null); load();
       Alert.alert('✅ Saved');
@@ -347,7 +350,7 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
     Alert.alert('Delete', `Delete "${strat.name}"?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-        const ep = type === 'teacher' ? '/admin/teacher-strategies' : '/strategies';
+        const ep = (type === 'teacher' || type === 'parent') ? '/admin/teacher-strategies' : '/strategies';
         try { await apiCall(`${ep}/${strat.id}`, authToken, { method: 'DELETE' }); load(); }
         catch { Alert.alert('Error', 'Could not delete.'); }
       }},
@@ -360,9 +363,9 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
 
       {/* Type toggle */}
       <View style={s.chipRow}>
-        {(['student', 'teacher'] as const).map(tp => (
+        {(['student', 'teacher', 'parent'] as const).map(tp => (
           <TouchableOpacity key={tp} style={[s.chip, type === tp && s.chipActive]} onPress={() => setType(tp)}>
-            <Text style={[s.chipText, type === tp && s.chipTextActive]}>{tp === 'teacher' ? '👩‍🏫 Teacher' : '🧒 Student'}</Text>
+            <Text style={[s.chipText, type === tp && s.chipTextActive]}>{tp === 'teacher' ? '👩‍🏫 Teacher' : tp === 'parent' ? '👨‍👩‍👧 Parent' : '🧒 Student'}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -397,6 +400,21 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
               </TouchableOpacity>
             ))}
           </View>
+          {(type === 'teacher' || type === 'parent') && (
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+              {(['all_students', 'all_teachers', 'all_parents'] as const).map(a => (
+                <TouchableOpacity
+                  key={a}
+                  style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: audience === a ? '#1A1A2E' : '#F0F0F0' }}
+                  onPress={() => setAudience(a)}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: audience === a ? 'white' : '#666' }}>
+                    {a === 'all_students' ? 'All Students' : a === 'all_teachers' ? 'All Teachers' : 'All Parents'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
           <TextInput style={s.input} placeholder="Strategy name..." value={name} onChangeText={setName} placeholderTextColor="#AAA" />
           <TextInput style={s.input} placeholder="Description..." value={desc} onChangeText={setDesc} placeholderTextColor="#AAA" />
           <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -418,18 +436,31 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
         <View key={strat.id || i} style={s.stratRow}>
           <View style={[s.stratDot, { backgroundColor: ZONE_COLORS[strat.zone] || '#999' }]} />
           <View style={{ flex: 1 }}>
-            <Text style={s.stratName}>{strat.name}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={s.stratName}>{strat.name}</Text>
+              {(strat.is_builtin || strat.builtin) && (
+                <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: '#EDE7F6' }}>
+                  <Text style={{ fontSize: 8, fontWeight: '800', color: '#7C5CBF' }}>BUILT-IN</Text>
+                </View>
+              )}
+            </View>
             {strat.description ? <Text style={s.stratDesc}>{strat.description}</Text> : null}
             {/* Real fix Aug 15: shows who added it, using the real created_by_role field */}
             {strat.created_by_role && (
               <Text style={{ fontSize: 9, color: '#AAA', marginTop: 2 }}>
                 Added by {strat.created_by_role === 'superadmin' ? 'Superadmin' : strat.created_by_role === 'school_admin' ? 'School Admin' : strat.created_by_role}
+                {strat.audience ? ` · ${strat.audience === 'all_students' ? 'All Students' : strat.audience === 'all_teachers' ? 'All Teachers' : strat.audience === 'all_parents' ? 'All Parents' : strat.audience}` : ''}
+              </Text>
+            )}
+            {strat.created_at && (
+              <Text style={{ fontSize: 9, color: '#CCC', marginTop: 1 }}>
+                Added {new Date(strat.created_at).toLocaleDateString()}
               </Text>
             )}
           </View>
           {isSuperAdmin && (
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity onPress={() => { setEditing(strat); setName(strat.name || ''); setDesc(strat.description || ''); setZone(strat.zone || 'blue'); }}>
+              <TouchableOpacity onPress={() => { setEditing(strat); setName(strat.name || ''); setDesc(strat.description || ''); setZone(strat.zone || 'blue'); setAudience(strat.audience || 'all_students'); }}>
                 <MaterialIcons name="edit" size={16} color={INDIGO} />
               </TouchableOpacity>
               <TouchableOpacity onPress={() => del(strat)}>

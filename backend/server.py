@@ -7998,6 +7998,7 @@ async def create_admin_teacher_strategy(request: Request):
         "is_active": True,
         "created_by": user["user_id"],
         "created_by_role": user.get("role", "admin"),
+        "audience": body.get("audience"),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     result = supabase.table("admin_teacher_strategies").insert(new_strat).execute()
@@ -8707,7 +8708,7 @@ async def update_teacher_strategy(strategy_id: str, request: Request):
     if not user or user.get("role") not in ["admin", "superadmin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     body = await request.json()
-    allowed = ["name","description","icon","is_active","zone","strategy_type","target_countries","target_schools"]
+    allowed = ["name","description","icon","is_active","zone","strategy_type","target_countries","target_schools","audience"]
     updates = {k:v for k,v in body.items() if k in allowed}
     result = supabase.table("admin_teacher_strategies").update(updates).eq("id", strategy_id).execute()
     return result.data[0] if result.data else updates
