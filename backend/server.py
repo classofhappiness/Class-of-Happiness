@@ -6089,13 +6089,14 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
             zone_counts[colour] += 1
         for h in log.get("helpers_selected", log.get("strategies_selected", [])):
             strategy_counts[h] = strategy_counts.get(h, 0) + 1
-    top_strategies = sorted(strategy_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+    top_strategies = [(resolve_strategy_name(sid), count) for sid, count in sorted(strategy_counts.items(), key=lambda x: x[1], reverse=True)[:5]]
     total_checkins = len(logs)
 
-    import io
+    import io, os
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    from reportlab.platypus import Image as RLImage
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import cm
 
@@ -6117,7 +6118,16 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
     section_style = ParagraphStyle('CoHSection', parent=styles['Heading2'], textColor=INDIGO, fontSize=13, spaceBefore=14, spaceAfter=8)
 
     elements = []
-    elements.append(Paragraph("Class of Happiness — School Wellbeing Report", title_style))
+    logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_coh.png")
+    try:
+        if not os.path.exists(logo_path): raise FileNotFoundError()
+        coh_logo = RLImage(logo_path, width=44, height=44)
+        logo_cell = Table([[coh_logo, Paragraph("Class of Happiness — School Wellbeing Report", title_style)]],
+            colWidths=[52, 400],
+            style=[('VALIGN',(0,0),(-1,-1),'MIDDLE'),('PADDING',(0,0),(-1,-1),0),('LEFTPADDING',(1,0),(1,0),6)])
+        elements.append(logo_cell)
+    except Exception:
+        elements.append(Paragraph("Class of Happiness — School Wellbeing Report", title_style))
     elements.append(Paragraph(f"{display_name} · Last {days} days · Generated {datetime.now(timezone.utc).strftime('%d %b %Y')}", sub_style))
     elements.append(Spacer(1, 0.4*cm))
     elements.append(HRFlowable(width="100%", color=LIGHT_GREY))
