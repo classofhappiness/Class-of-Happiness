@@ -4,7 +4,7 @@ import {
   TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, Linking, Pressable,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import DraggableFlatList from 'react-native-draggable-flatlist';
+import DraggableFlatList, { NestableScrollContainer, NestableDraggableFlatList } from 'react-native-draggable-flatlist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { useRouter } from 'expo-router';
@@ -312,7 +312,20 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      if (type === 'teacher' || type === 'parent') {
+      if (!isSuperAdmin) {
+        // Real fix Aug 16: school_admin sees a MERGED view — superadmin's global
+        // defaults for this type, plus their own custom/forked strategies. A global
+        // item that's been forked (edited/deleted/reordered locally) is excluded
+        // from the global side and shown from the school's own copy instead.
+        const d = await apiCall(`/school-admin/school-strategies?strategy_type=${type}`, authToken);
+        const schoolSpecific = Array.isArray(d?.school_specific) ? d.school_specific : [];
+        const globalList = Array.isArray(d?.global) ? d.global : [];
+        const forkedIds = new Set(schoolSpecific.map((s: any) => s.forked_from).filter(Boolean));
+        const visibleGlobal = globalList.filter((g: any) => !forkedIds.has(g.id)).map((g: any) => ({ ...g, _isGlobal: true }));
+        const visibleSchool = schoolSpecific.filter((s: any) => s.is_active !== false);
+        const merged = [...visibleGlobal, ...visibleSchool].sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0));
+        setStrats(merged);
+      } else if (type === 'teacher' || type === 'parent') {
         const d = await apiCall(`/admin/teacher-strategies?strategy_type=${type}`, authToken);
         setStrats(Array.isArray(d) ? d : []);
       } else {
@@ -327,17 +340,29 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
       }
     } catch { setStrats([]); }
     setLoading(false);
-  }, [type, authToken]);
+  }, [type, authToken, isSuperAdmin]);
 
   useEffect(() => { load(); }, [load]);
 
   const save = async () => {
     if (!name.trim()) { Alert.alert('Name required'); return; }
-    const ep = (type === 'teacher' || type === 'parent') ? '/admin/teacher-strategies' : '/strategies';
+    // Real fix Aug 16: school_admin always saves to their own scoped table with
+    // strategy_type set (no separate student-only endpoint like superadmin has).
+    const ep = !isSuperAdmin
+      ? '/school-admin/school-strategies'
+      : (type === 'teacher' || type === 'parent') ? '/admin/teacher-strategies' : '/strategies';
     const body: any = { name, description: desc, zone, icon: 'star' };
-    if (type === 'teacher' || type === 'parent') { body.strategy_type = type; body.audience = audience; }
+    if (!isSuperAdmin) {
+      body.strategy_type = type;
+      // Editing a GLOBAL (superadmin-set) item forks it into the school's own
+      // copy instead of trying to edit the shared global record.
+      if (editing?._isGlobal) { body.forked_from = editing.id; body.order_index = editing.order_index ?? 0; }
+    } else if (type === 'teacher' || type === 'parent') {
+      body.strategy_type = type; body.audience = audience;
+    }
+    const isForkOnEdit = !isSuperAdmin && editing?._isGlobal;
     try {
-      if (editing) {
+      if (editing && !isForkOnEdit) {
         await apiCall(`${ep}/${editing.id}`, authToken, { method: 'PUT', body: JSON.stringify(body) });
       } else {
         await apiCall(ep, authToken, { method: 'POST', body: JSON.stringify(body) });
@@ -351,9 +376,23 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
     Alert.alert('Delete', `Delete "${strat.name}"?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-        const ep = (type === 'teacher' || type === 'parent') ? '/admin/teacher-strategies' : '/strategies';
-        try { await apiCall(`${ep}/${strat.id}`, authToken, { method: 'DELETE' }); load(); }
-        catch { Alert.alert('Error', 'Could not delete.'); }
+        try {
+          if (!isSuperAdmin && strat._isGlobal) {
+            // Real fix Aug 16: can't delete a global (superadmin-owned) record —
+            // fork it as inactive instead. Hides it from this school's view while
+            // leaving the original global item untouched for every other school.
+            await apiCall('/school-admin/school-strategies', authToken, {
+              method: 'POST',
+              body: JSON.stringify({ name: strat.name, description: strat.description, icon: strat.icon, zone: strat.zone, strategy_type: type, forked_from: strat.id, is_active: false, order_index: strat.order_index ?? 0 }),
+            });
+          } else {
+            const ep = !isSuperAdmin
+              ? '/school-admin/school-strategies'
+              : (type === 'teacher' || type === 'parent') ? '/admin/teacher-strategies' : '/strategies';
+            await apiCall(`${ep}/${strat.id}`, authToken, { method: 'DELETE' });
+          }
+          load();
+        } catch { Alert.alert('Error', 'Could not delete.'); }
       }},
     ]);
   };
@@ -390,8 +429,8 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
         ))}
       </View>
 
-      {/* Add/Edit form */}
-      {isSuperAdmin && (
+      {/* Add/Edit form — real fix Aug 16: available to school_admin now too */}
+      {(
         <View style={s.formBox}>
           <Text style={s.formTitle}>{editing ? '✏️ Editing strategy' : '➕ Add strategy'}</Text>
           <View style={s.chipRow}>
@@ -401,7 +440,7 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
               </TouchableOpacity>
             ))}
           </View>
-          {(type === 'teacher' || type === 'parent') && (
+          {isSuperAdmin && (type === 'teacher' || type === 'parent') && (
             <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
               {(['all_students', 'all_teachers', 'all_parents'] as const).map(a => (
                 <TouchableOpacity
@@ -436,7 +475,7 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
           only for real teacher/parent items — student ones use a different endpoint,
           built-ins have no real record to reorder) */}
       {loading ? <ActivityIndicator color={INDIGO} /> : (
-        <DraggableFlatList
+        <NestableDraggableFlatList
           data={strats.filter((strat: any) => !zoneFilter || strat.zone === zoneFilter)}
           keyExtractor={(strat: any, i: number) => strat.id || String(i)}
           scrollEnabled={false}
@@ -445,18 +484,31 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
               const others = prev.filter((p: any) => zoneFilter && p.zone !== zoneFilter);
               return zoneFilter ? [...others, ...data] : data;
             });
-            if (type === 'teacher' || type === 'parent') {
-              const ep = '/admin/teacher-strategies';
+            // Real fix Aug 16: school_admin can reorder ALL types via their own
+            // scoped table; superadmin keeps the original teacher/parent-only reorder.
+            const ep = !isSuperAdmin ? '/school-admin/school-strategies' : '/admin/teacher-strategies';
+            const canReorderThisType = !isSuperAdmin || type === 'teacher' || type === 'parent';
+            if (canReorderThisType) {
               const reorderable = data.filter((s: any) => !s.is_builtin && !s.builtin);
               try {
-                await Promise.all(reorderable.map((s: any, i: number) =>
-                  apiCall(`${ep}/${s.id}`, authToken, { method: 'PUT', body: JSON.stringify({ order_index: i + 1 }) })
-                ));
+                // Real fix Aug 16: a global item being dragged gets forked into the
+                // school's own copy at its new position; already-owned items just
+                // get their order_index updated.
+                await Promise.all(reorderable.map((s: any, i: number) => {
+                  if (!isSuperAdmin && s._isGlobal) {
+                    return apiCall('/school-admin/school-strategies', authToken, {
+                      method: 'POST',
+                      body: JSON.stringify({ name: s.name, description: s.description, icon: s.icon, zone: s.zone, strategy_type: type, forked_from: s.id, order_index: i + 1 }),
+                    });
+                  }
+                  return apiCall(`${ep}/${s.id}`, authToken, { method: 'PUT', body: JSON.stringify({ order_index: i + 1 }) });
+                }));
+                load();
               } catch { Alert.alert('Error', 'Could not save new order.'); }
             }
           }}
           renderItem={({ item: strat, drag, isActive }: any) => {
-            const canDrag = (type === 'teacher' || type === 'parent') && !strat.is_builtin && !strat.builtin && !zoneFilter;
+            const canDrag = (!isSuperAdmin || type === 'teacher' || type === 'parent') && !strat.is_builtin && !strat.builtin && !zoneFilter;
             return (
               <Pressable
                 onLongPress={canDrag ? drag : undefined}
@@ -1132,8 +1184,10 @@ export default function AdminDashboard() {
         ))}
       </View>
 
-      {/* Content — scrollable */}
-      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+      {/* Content — scrollable. Real fix Aug 16: NestableScrollContainer, not plain
+          ScrollView, so the Strategies tab's draggable list can coexist with this
+          outer scroll instead of blocking it entirely. */}
+      <NestableScrollContainer contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
 
         {tab === 'analytics' && (
           isSuperAdmin
@@ -1169,7 +1223,7 @@ export default function AdminDashboard() {
             : <SchoolSettings authToken={authToken} user={user} />
         )}
 
-      </ScrollView>
+      </NestableScrollContainer>
     </SafeAreaView>
   );
 }

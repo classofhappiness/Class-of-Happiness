@@ -9058,16 +9058,23 @@ async def delete_service(service_id: str, request: Request):
     return {"status": "deleted"}
 
 @api_router.get("/school-admin/school-strategies")
-async def get_school_strategies(request: Request):
+async def get_school_strategies(request: Request, strategy_type: str = None):
     """School-specific strategies. School admin can add/edit/remove these for their community. Teachers can view (read-only)."""
     user = await get_current_user(request)
     if not user or user.get("role") not in ["school_admin", "teacher"]:
         raise HTTPException(status_code=403, detail="School admin access required")
     try:
         # Global strategies (read-only for school admin)
-        global_strats = supabase.table("admin_teacher_strategies").select("*").filter("target_schools", "eq", "[]").execute().data or []
-        # School-specific strategies
-        school_strats = supabase.table("school_strategies").select("*").eq("school_admin_id", user["user_id"]).execute().data or []
+        global_q = supabase.table("admin_teacher_strategies").select("*").filter("target_schools", "eq", "[]")
+        if strategy_type:
+            global_q = global_q.eq("strategy_type", strategy_type)
+        global_strats = global_q.execute().data or []
+        # School-specific strategies — real fix Aug 16: sort by order_index (then created_at
+        # as tiebreaker), and support optional strategy_type filter to match /admin/teacher-strategies
+        school_q = supabase.table("school_strategies").select("*").eq("school_admin_id", user["user_id"])
+        if strategy_type:
+            school_q = school_q.eq("strategy_type", strategy_type)
+        school_strats = school_q.order("order_index").order("created_at").execute().data or []
         return {"global": global_strats, "school_specific": school_strats}
     except Exception as e:
         return {"global": [], "school_specific": []}
@@ -9079,6 +9086,8 @@ async def create_school_strategy(request: Request):
     if not user or user.get("role") not in ["school_admin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
     body = await request.json()
+    # Real fix Aug 16: now accepts order_index + forked_from (for the global-item
+    # "fork on touch" flow) and a real is_active value instead of always True.
     strategy = {
         "id": str(uuid.uuid4()),
         "school_admin_id": user["user_id"],
@@ -9088,7 +9097,9 @@ async def create_school_strategy(request: Request):
         "icon": body.get("icon", "⭐"),
         "zone": body.get("zone", "green"),
         "strategy_type": body.get("strategy_type", "student"),
-        "is_active": True,
+        "is_active": body.get("is_active", True),
+        "order_index": body.get("order_index", 0),
+        "forked_from": body.get("forked_from"),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     supabase.table("school_strategies").insert(strategy).execute()
@@ -9100,8 +9111,10 @@ async def update_school_strategy(strategy_id: str, request: Request):
     if not user or user.get("role") not in ["school_admin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
     body = await request.json()
-    supabase.table("school_strategies").update(body).eq("id", strategy_id).eq("school_admin_id", user["user_id"]).execute()
-    return body
+    allowed = ["name", "description", "icon", "zone", "strategy_type", "is_active", "order_index"]
+    updates = {k: v for k, v in body.items() if k in allowed}
+    supabase.table("school_strategies").update(updates).eq("id", strategy_id).eq("school_admin_id", user["user_id"]).execute()
+    return updates
 
 @api_router.delete("/school-admin/school-strategies/{strategy_id}")
 async def delete_school_strategy(strategy_id: str, request: Request):
