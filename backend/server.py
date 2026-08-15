@@ -7951,7 +7951,11 @@ async def get_admin_settings(request: Request):
 @api_router.get("/admin/teacher-strategies")
 async def get_admin_teacher_strategies(request: Request):
     """Admin-defined strategies shown to all teachers on checkin"""
-    result = supabase.table("admin_teacher_strategies").select("*").eq("is_active", True).execute()
+    # Real fix Aug 15: no explicit order at all — Supabase could return rows in any
+    # order, which is exactly why the list appeared to "randomly reorder" after every
+    # refetch (e.g. right after saving an edit). Sorting by created_at is a stable interim
+    # fix; real drag-to-reorder needs a proper order_index column (bigger, separate piece).
+    result = supabase.table("admin_teacher_strategies").select("*").eq("is_active", True).order("created_at").execute()
     if result.data:
         return result.data
     # Return defaults if none set

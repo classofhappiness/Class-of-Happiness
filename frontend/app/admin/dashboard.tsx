@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal,
+  TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, Linking,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -305,6 +305,7 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
   const [desc, setDesc] = useState('');
   const [editing, setEditing] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [zoneFilter, setZoneFilter] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -366,6 +367,25 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
         ))}
       </View>
 
+      {/* Real fix Aug 15: zone-color filter, added per Jono's request */}
+      <View style={{ flexDirection: 'row', gap: 6 }}>
+        <TouchableOpacity
+          style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: zoneFilter === '' ? '#1A1A2E' : '#F0F0F0' }}
+          onPress={() => setZoneFilter('')}
+        >
+          <Text style={{ fontSize: 10, fontWeight: '700', color: zoneFilter === '' ? 'white' : '#666' }}>All</Text>
+        </TouchableOpacity>
+        {ZONES.map(z => (
+          <TouchableOpacity
+            key={z}
+            style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: ZONE_COLORS[z], alignItems: 'center', justifyContent: 'center', opacity: zoneFilter === '' || zoneFilter === z ? 1 : 0.3, borderWidth: zoneFilter === z ? 2 : 0, borderColor: '#1A1A2E' }}
+            onPress={() => setZoneFilter(zoneFilter === z ? '' : z)}
+          >
+            <Text style={{ color: 'white', fontSize: 11, fontWeight: '800' }}>{z[0].toUpperCase()}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       {/* Add/Edit form */}
       {isSuperAdmin && (
         <View style={s.formBox}>
@@ -394,12 +414,18 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
       )}
 
       {/* Strategy list */}
-      {loading ? <ActivityIndicator color={INDIGO} /> : strats.map((strat, i) => (
+      {loading ? <ActivityIndicator color={INDIGO} /> : strats.filter((strat: any) => !zoneFilter || strat.zone === zoneFilter).map((strat, i) => (
         <View key={strat.id || i} style={s.stratRow}>
           <View style={[s.stratDot, { backgroundColor: ZONE_COLORS[strat.zone] || '#999' }]} />
           <View style={{ flex: 1 }}>
             <Text style={s.stratName}>{strat.name}</Text>
             {strat.description ? <Text style={s.stratDesc}>{strat.description}</Text> : null}
+            {/* Real fix Aug 15: shows who added it, using the real created_by_role field */}
+            {strat.created_by_role && (
+              <Text style={{ fontSize: 9, color: '#AAA', marginTop: 2 }}>
+                Added by {strat.created_by_role === 'superadmin' ? 'Superadmin' : strat.created_by_role === 'school_admin' ? 'School Admin' : strat.created_by_role}
+              </Text>
+            )}
           </View>
           {isSuperAdmin && (
             <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -816,13 +842,13 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
     try {
       const dlToken = authToken;
       const pdfUrl = `${BACKEND_URL}/api/teacher-resources/${resource.id}/download?token=${encodeURIComponent(dlToken || '')}`;
-      if (Platform.OS === 'web') {
-        Linking.openURL(pdfUrl);
-      } else {
-        Linking.openURL(pdfUrl);
-      }
-    } catch {
-      Alert.alert('Error', 'Could not open resource.');
+      console.log('🟡 Attempting to open:', pdfUrl);
+      const supported = await Linking.canOpenURL(pdfUrl);
+      console.log('🟡 canOpenURL result:', supported);
+      await Linking.openURL(pdfUrl);
+    } catch (err: any) {
+      console.log('🔴 handleDownload error:', err?.message || err);
+      Alert.alert('Error', `Could not open resource: ${err?.message || 'unknown'}`);
     }
   };
 
