@@ -7949,22 +7949,28 @@ async def get_admin_settings(request: Request):
         return {}
 
 @api_router.get("/admin/teacher-strategies")
-async def get_admin_teacher_strategies(request: Request):
-    """Admin-defined strategies shown to all teachers on checkin"""
-    # Real fix Aug 15: no explicit order at all — Supabase could return rows in any
-    # order, which is exactly why the list appeared to "randomly reorder" after every
-    # refetch (e.g. right after saving an edit). Sorting by created_at is a stable interim
-    # fix; real drag-to-reorder needs a proper order_index column (bigger, separate piece).
-    result = supabase.table("admin_teacher_strategies").select("*").eq("is_active", True).order("created_at").execute()
+async def get_admin_teacher_strategies(request: Request, strategy_type: str = None):
+    """Admin-defined strategies shown to all teachers on checkin.
+    Real fix Aug 15: this table genuinely holds MULTIPLE types (student/teacher/parent)
+    via its own real strategy_type field, but this endpoint never filtered by it — every
+    caller got everything mixed together, undifferentiated. Added real optional filtering.
+    Also added stable ordering (was previously unordered, causing apparent "random"
+    reordering on every refetch, e.g. right after saving an edit)."""
+    query = supabase.table("admin_teacher_strategies").select("*").eq("is_active", True)
+    if strategy_type:
+        query = query.eq("strategy_type", strategy_type)
+    result = query.order("created_at").execute()
     if result.data:
         return result.data
-    # Return defaults if none set
+    # Return defaults if none set (only for teacher — these 5 are teacher-specific fallbacks)
+    if strategy_type and strategy_type != "teacher":
+        return []
     return [
-        {"id": "admin_1", "zone": "blue", "name": "Talk to a trusted colleague", "description": "Peer support reduces isolation.", "icon": "chat"},
-        {"id": "admin_2", "zone": "blue", "name": "Brief outdoor walk", "description": "Light and movement reset the nervous system.", "icon": "directions-walk"},
-        {"id": "admin_3", "zone": "green", "name": "Positive micro-moment", "description": "Name one student success from today.", "icon": "thumb-up"},
-        {"id": "admin_4", "zone": "yellow", "name": "Deep breathing set", "description": "Box breathing for 2-3 minutes.", "icon": "air"},
-        {"id": "admin_5", "zone": "red", "name": "Ask for immediate cover", "description": "Request support from nearby staff.", "icon": "support-agent"},
+        {"id": "admin_1", "zone": "blue", "name": "Talk to a trusted colleague", "description": "Peer support reduces isolation.", "icon": "chat", "is_builtin": True},
+        {"id": "admin_2", "zone": "blue", "name": "Brief outdoor walk", "description": "Light and movement reset the nervous system.", "icon": "directions-walk", "is_builtin": True},
+        {"id": "admin_3", "zone": "green", "name": "Positive micro-moment", "description": "Name one student success from today.", "icon": "thumb-up", "is_builtin": True},
+        {"id": "admin_4", "zone": "yellow", "name": "Deep breathing set", "description": "Box breathing for 2-3 minutes.", "icon": "air", "is_builtin": True},
+        {"id": "admin_5", "zone": "red", "name": "Ask for immediate cover", "description": "Request support from nearby staff.", "icon": "support-agent", "is_builtin": True},
     ]
 
 
