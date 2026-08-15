@@ -69,6 +69,234 @@ function ColourBar({ zone, count, total }: any) {
 
 // ── Strategy Manager ─────────────────────────────────────────────────────────
 
+const PERIOD_LABELS: any = { 1: 'Today', 7: '7 Days', 30: '30 Days', 90: '3 Months', 180: '6 Months', 365: '1 Year', 730: '2 Years', 1095: '3 Years' };
+
+const ROLE_COLORS: any = { teacher: '#4CAF73', parent: '#4A90D9', school_admin: '#FFD93D', student: '#9C27B0', superadmin: '#E05252' };
+const ROLE_EMOJI: any = { teacher: '👩‍🏫', parent: '👨‍👩‍👧', school_admin: '🏫' };
+
+function UsersManager({ authToken }: { authToken: string|null }) {
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [roleFilter, setRoleFilter] = useState('');
+
+  useEffect(() => {
+    apiCall('/admin/users?limit=200', authToken)
+      .then((d: any) => setUsers(Array.isArray(d?.users) ? d.users : (Array.isArray(d) ? d : [])))
+      .catch(() => setUsers([]))
+      .finally(() => setLoading(false));
+  }, [authToken]);
+
+  if (loading) {
+    return (
+      <View style={{ padding: 40, alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#5C6BC0" />
+      </View>
+    );
+  }
+
+  const roles = Array.from(new Set(users.map((u: any) => u.role).filter(Boolean)));
+  const filtered = roleFilter ? users.filter((u: any) => u.role === roleFilter) : users;
+
+  return (
+    <View style={{ padding: 12 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          <TouchableOpacity
+            style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: roleFilter === '' ? '#1A1A2E' : '#F0F0F0' }}
+            onPress={() => setRoleFilter('')}
+          >
+            <Text style={{ fontSize: 11, fontWeight: '700', color: roleFilter === '' ? 'white' : '#666' }}>All ({users.length})</Text>
+          </TouchableOpacity>
+          {roles.map((r: any) => (
+            <TouchableOpacity
+              key={r}
+              style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: roleFilter === r ? (ROLE_COLORS[r] || '#5C6BC0') : '#F0F0F0' }}
+              onPress={() => setRoleFilter(r)}
+            >
+              <Text style={{ fontSize: 11, fontWeight: '700', color: roleFilter === r ? 'white' : '#666' }}>{r}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
+
+      {filtered.length === 0 ? (
+        <View style={{ padding: 24, alignItems: 'center' }}>
+          <MaterialIcons name="people" size={40} color="#CCC" />
+          <Text style={{ marginTop: 8, color: '#999', fontSize: 13 }}>No users found</Text>
+        </View>
+      ) : (
+        filtered.slice(0, 50).map((u: any, i: number) => (
+          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
+            <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: (ROLE_COLORS[u.role] || '#E0E0E0') + '22', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 14 }}>{ROLE_EMOJI[u.role] || '👤'}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#1A1A2E' }} numberOfLines={1}>{u.name || u.email}</Text>
+              <Text style={{ fontSize: 11, color: '#999' }} numberOfLines={1}>{u.school_name ? `${u.school_name} · ` : ''}{u.email}</Text>
+            </View>
+            <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: (ROLE_COLORS[u.role] || '#E0E0E0') + '22' }}>
+              <Text style={{ fontSize: 10, fontWeight: '800', color: ROLE_COLORS[u.role] || '#666' }}>{u.role}</Text>
+            </View>
+          </View>
+        ))
+      )}
+      {filtered.length > 50 && (
+        <Text style={{ textAlign: 'center', fontSize: 11, color: '#999', marginTop: 10 }}>Showing first 50 of {filtered.length}</Text>
+      )}
+    </View>
+  );
+}
+
+function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats: any, statsLoading: boolean, authToken: string|null, statsPeriod: number }) {
+  const { t } = useApp();
+  const schools = stats?.schools_breakdown || [];
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    apiCall('/admin/school-profiles', authToken).then((d: any[]) => setProfiles(Array.isArray(d) ? d : [])).catch(() => setProfiles([]));
+  }, [authToken]);
+
+  if (statsLoading) {
+    return (
+      <View style={{ padding: 40, alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#5C6BC0" />
+      </View>
+    );
+  }
+
+  if (schools.length === 0) {
+    return (
+      <View style={{ padding: 24, alignItems: 'center' }}>
+        <MaterialIcons name="business" size={40} color="#CCC" />
+        <Text style={{ marginTop: 8, color: '#999', fontSize: 13 }}>No schools yet</Text>
+      </View>
+    );
+  }
+
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<any>({});
+  const field = (key: string) => (
+    <TextInput
+      style={{ backgroundColor: '#F5F5F5', borderRadius: 8, padding: 10, fontSize: 13, marginBottom: 8 }}
+      placeholder={key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+      value={form[key] || ''}
+      onChangeText={v => setForm((f: any) => ({ ...f, [key]: v }))}
+    />
+  );
+
+  const handleAddSchool = async () => {
+    if (!form.school_name?.trim()) { Alert.alert('Error', 'School name is required'); return; }
+    setSaving(true);
+    try {
+      await apiCall('/admin/school-profiles', authToken, { method: 'POST', body: JSON.stringify(form) });
+      setForm({});
+      setShowAddForm(false);
+      const fresh = await apiCall('/admin/school-profiles', authToken);
+      setProfiles(Array.isArray(fresh) ? fresh : []);
+      Alert.alert('✅ Success', 'School added.');
+    } catch {
+      Alert.alert('Error', 'Could not add school.');
+    }
+    setSaving(false);
+  };
+
+  return (
+    <View style={{ padding: 12 }}>
+      <TouchableOpacity
+        onPress={() => setShowAddForm(v => !v)}
+        style={{ backgroundColor: '#1A1A2E', borderRadius: 25, paddingVertical: 10, alignItems: 'center', marginBottom: 12 }}
+      >
+        <Text style={{ color: '#FFD93D', fontWeight: '800', fontSize: 13 }}>{showAddForm ? '✕ Cancel' : '+ Add School'}</Text>
+      </TouchableOpacity>
+
+      {showAddForm && (
+        <View style={{ backgroundColor: '#FAFAFA', borderRadius: 12, padding: 12, marginBottom: 14 }}>
+          {field('school_name')}
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flex: 1 }}>{field('city')}</View>
+            <View style={{ flex: 1 }}>{field('country')}</View>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flex: 1 }}>{field('lat')}</View>
+            <View style={{ flex: 1 }}>{field('lng')}</View>
+          </View>
+          {field('website')}
+          {field('phone')}
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flex: 1 }}>{field('principal_name')}</View>
+            <View style={{ flex: 1 }}>{field('principal_email')}</View>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flex: 1 }}>{field('wellbeing_lead_name')}</View>
+            <View style={{ flex: 1 }}>{field('wellbeing_lead_email')}</View>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flex: 1 }}>{field('school_type')}</View>
+            <View style={{ flex: 1 }}>{field('student_count_official')}</View>
+          </View>
+          <TouchableOpacity
+            onPress={handleAddSchool}
+            disabled={saving}
+            style={{ backgroundColor: '#5C6BC0', borderRadius: 25, paddingVertical: 10, alignItems: 'center', marginTop: 4, opacity: saving ? 0.6 : 1 }}
+          >
+            <Text style={{ color: 'white', fontWeight: '800', fontSize: 13 }}>{saving ? 'Saving...' : 'Save School'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <Text style={{ fontSize: 11, color: '#999', marginBottom: 8, textAlign: 'center' }}>
+        Check-in counts for: {PERIOD_LABELS[statsPeriod] || `${statsPeriod} days`}
+      </Text>
+      {schools.map((school: any, i: number) => {
+        const zc = school.zone_counts || {};
+        const total = school.total_checkins || 0;
+        const profile = profiles.find((p: any) => (p.school_name || '').trim().toLowerCase() === (school.name || '').trim().toLowerCase());
+        const isOpen = !!expanded[school.name];
+        return (
+          <View key={i} style={{ backgroundColor: 'white', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#EEE' }}>
+            <TouchableOpacity onPress={() => setExpanded(e => ({ ...e, [school.name]: !e[school.name] }))} activeOpacity={0.7}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <MaterialIcons name="business" size={20} color="#5C6BC0" />
+                <Text style={{ fontSize: 15, fontWeight: '800', color: '#1A1A2E', flex: 1 }}>{school.name}</Text>
+                <MaterialIcons name={isOpen ? 'expand-less' : 'expand-more'} size={22} color="#999" />
+              </View>
+              {!!school.description && (
+                <Text style={{ fontSize: 12, color: '#888', marginTop: 4 }}>{school.description}</Text>
+              )}
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+                <Text style={{ fontSize: 12, color: '#666' }}>Check-ins: <Text style={{ fontWeight: '700', color: '#1A1A2E' }}>{total}</Text></Text>
+                <Text style={{ fontSize: 12, color: '#4CAF73' }}>🟢 {zc.green || 0}</Text>
+                <Text style={{ fontSize: 12, color: '#4A90D9' }}>🔵 {zc.blue || 0}</Text>
+                <Text style={{ fontSize: 12, color: '#E0A800' }}>🟡 {zc.yellow || 0}</Text>
+                <Text style={{ fontSize: 12, color: '#E05252' }}>🔴 {zc.red || 0}</Text>
+              </View>
+            </TouchableOpacity>
+            {isOpen && (
+              <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F0F0F0' }}>
+                {profile ? (
+                  <>
+                    {!!profile.city && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>📍 {profile.city}{profile.country ? `, ${profile.country}` : ''}</Text>}
+                    {!!profile.website && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>🌐 {profile.website}</Text>}
+                    {!!profile.phone && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>📞 {profile.phone}</Text>}
+                    {!!profile.principal_name && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>👤 Principal: {profile.principal_name}{profile.principal_email ? ` (${profile.principal_email})` : ''}</Text>}
+                    {!!profile.wellbeing_lead_name && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>💚 Wellbeing Lead: {profile.wellbeing_lead_name}{profile.wellbeing_lead_email ? ` (${profile.wellbeing_lead_email})` : ''}</Text>}
+                    {!!profile.school_type && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>🏫 Type: {profile.school_type}</Text>}
+                    {!!profile.student_count_official && <Text style={{ fontSize: 12, color: '#666' }}>👥 Official student count: {profile.student_count_official}</Text>}
+                  </>
+                ) : (
+                  <Text style={{ fontSize: 12, color: '#AAA', fontStyle: 'italic' }}>No contact details added yet</Text>
+                )}
+              </View>
+            )}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, isSuperAdmin: boolean }) {
   const [type, setType] = useState<'teacher'|'student'>('student');
   const [strats, setStrats] = useState<any[]>([]);
@@ -221,6 +449,11 @@ function WorldWall({ authToken }: { authToken: string|null }) {
 // ── Super Admin Dashboard ─────────────────────────────────────────────────────
 
 function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setStatsPeriod, loadStats }: any) {
+  // Real fix Aug 14: this component called t(...) throughout but never pulled it from
+  // context — could never surface before since superadmin access to this screen was
+  // itself broken (see /admin/verify fix). Matches the same pattern already used
+  // elsewhere in this file.
+  const { t } = useApp();
   const [unlinkEmail, setUnlinkEmail] = useState('');
   const [unlinkType, setUnlinkType] = useState<'teacher'|'parent'>('teacher');
   const [showUnlink, setShowUnlink] = useState(false);
@@ -243,9 +476,9 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
     <>
       {/* Period toggle */}
       <View style={s.periodRow}>
-        {([7, 30, 90] as const).map(p => (
+        {([1, 7, 30, 90, 180, 365, 730, 1095] as const).map(p => (
           <TouchableOpacity key={p} style={[s.periodBtn, statsPeriod === p && s.periodBtnActive]} onPress={() => setStatsPeriod(p)}>
-            <Text style={[s.periodTxt, statsPeriod === p && s.periodTxtActive]}>{p === 7 ? '7 Days' : p === 30 ? '30 Days' : '3 Months'}</Text>
+            <Text style={[s.periodTxt, statsPeriod === p && s.periodTxtActive]}>{p === 1 ? 'Today' : p === 7 ? '7 Days' : p === 30 ? '30 Days' : p === 90 ? '3 Months' : p === 180 ? '6 Months' : p === 365 ? '1 Year' : p === 730 ? '2 Years' : '3 Years'}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -424,6 +657,19 @@ function SchoolSettings({ authToken, user }: any) {
   const [studentCount, setStudentCount] = useState('');
   const [wellbeingEmail, setWellbeingEmail] = useState('');
   const [saving, setSaving] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
+  const [generatingCode, setGeneratingCode] = useState(false);
+
+  const generateInviteCode = async () => {
+    setGeneratingCode(true);
+    try {
+      const d = await apiCall('/school/generate-invite-code', authToken, { method: 'POST' });
+      setInviteCode(d.code || d.invite_code || '');
+    } catch {
+      Alert.alert('Error', 'Could not generate invite code.');
+    }
+    setGeneratingCode(false);
+  };
 
   useEffect(() => {
     if (!authToken) return;
@@ -489,6 +735,23 @@ function SchoolSettings({ authToken, user }: any) {
       <SectionCard title={t("wellbeing_alerts") || "Wellbeing Alerts"} subtitle={t("get_notified") || "Get notified"} icon="notifications-active" color="#F44336">
         <Text style={s.hint}>{t("wellbeing_alert_desc") || "Receive email alerts when students or teachers request support."}</Text>
         <TextInput style={s.input} placeholder="Wellbeing alert email" value={wellbeingEmail} onChangeText={setWellbeingEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#AAA" />
+      </SectionCard>
+
+      <SectionCard title="Invite Teachers" subtitle="Link your teachers to this school" icon="group-add" color="#5C6BC0">
+        <Text style={s.hint}>Generate a code and share it with your teachers so they link to your school.</Text>
+        {!!inviteCode && (
+          <View style={{ backgroundColor: '#F0F4FF', borderRadius: 10, padding: 14, marginVertical: 8, alignItems: 'center' }}>
+            <Text style={{ fontSize: 18, fontWeight: '900', color: '#1A1A2E', letterSpacing: 1 }}>{inviteCode}</Text>
+          </View>
+        )}
+        <TouchableOpacity
+          style={[s.btn, generatingCode && { opacity: 0.6 }]}
+          onPress={generateInviteCode}
+          disabled={generatingCode}
+        >
+          <MaterialIcons name="qr-code" size={16} color="white" />
+          <Text style={s.btnText}>{generatingCode ? 'Generating...' : (inviteCode ? 'Generate New Code' : 'Generate Invite Code')}</Text>
+        </TouchableOpacity>
       </SectionCard>
 
       <TouchableOpacity style={s.btn} onPress={save} disabled={saving}>
@@ -592,7 +855,7 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState<'analytics'|'strategies'|'resources'|'settings'>('analytics');
   const [stats, setStats] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(false);
-  const [statsPeriod, setStatsPeriod] = useState<7|30|90>(7);
+  const [statsPeriod, setStatsPeriod] = useState<1|7|30|90|180|365|730|1095>(7);
 
   useEffect(() => {
     AsyncStorage.getItem('session_token').then(t => setAuthToken(t));
@@ -638,6 +901,8 @@ export default function AdminDashboard() {
         { id: 'analytics', icon: 'bar-chart', label: 'Analytics' },
         { id: 'strategies', icon: 'lightbulb', label: 'Strategies' },
         { id: 'resources', icon: 'folder', label: 'Resources' },
+        { id: 'schools', icon: 'business', label: 'Schools' },
+        { id: 'users', icon: 'people', label: 'Users' },
         { id: 'settings', icon: 'settings', label: 'Settings' },
       ]
     : [
@@ -721,6 +986,14 @@ export default function AdminDashboard() {
           <ResourceUpload authToken={authToken} />
         )}
 
+        {tab === 'schools' && (
+          <SchoolsManager stats={stats} statsLoading={statsLoading} authToken={authToken} statsPeriod={statsPeriod} />
+        )}
+
+        {tab === 'users' && (
+          <UsersManager authToken={authToken} />
+        )}
+
         {tab === 'settings' && (
           isSuperAdmin
             ? <View>
@@ -777,9 +1050,9 @@ const s = StyleSheet.create({
   statRowValue: { fontSize: 14, fontWeight: '700' },
   // Period toggle
   periodRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  periodBtn: { flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: '#F0F0F0' },
+  periodBtn: { flex: 1, paddingVertical: 6, paddingHorizontal: 2, borderRadius: 8, alignItems: 'center', backgroundColor: '#F0F0F0' },
   periodBtnActive: { backgroundColor: INDIGO },
-  periodTxt: { fontSize: 12, fontWeight: '600', color: '#666' },
+  periodTxt: { fontSize: 9, fontWeight: '600', color: '#666' },
   periodTxtActive: { color: 'white' },
   // Colour bars
   colourRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },

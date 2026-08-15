@@ -6593,9 +6593,16 @@ async def get_admin_stats(request: Request, days: int = 7):
         # Basic counts — scoped to the caller's own school if they're a school_admin, global for superadmin
         if user.get("role") == "school_admin":
             admin_id = user.get("user_id")
-            school_teachers_r = supabase.table("users").select("user_id", count="exact").eq("school_admin_id", admin_id).execute()
-            total_teachers = school_teachers_r.count or 0
-            school_teacher_ids = [t["user_id"] for t in (supabase.table("users").select("user_id").eq("school_admin_id", admin_id).execute().data or [])]
+            school_name = user.get("school_name", "")
+            # Real fix Aug 15: this only matched teachers via school_admin_id, but real
+            # teacher accounts are often linked only by matching school_name instead (same
+            # dual-lookup pattern already working correctly in /school-admin/analytics —
+            # that's why the portal showed real numbers while this endpoint, used by the
+            # COH app, showed all zeros for the exact same account).
+            teachers_by_id_r = supabase.table("users").select("user_id").eq("school_admin_id", admin_id).execute()
+            teachers_by_name_r = supabase.table("users").select("user_id").eq("school_name", school_name).eq("role", "teacher").execute() if school_name else type('obj', (object,), {'data': []})()
+            school_teacher_ids = list({t["user_id"] for t in (teachers_by_id_r.data or []) + (teachers_by_name_r.data or [])})
+            total_teachers = len(school_teacher_ids)
             # Real fix Aug 14: students link via classroom_id, NOT teacher_id (that column
             # doesn't exist on the students table — same architectural fact already
             # documented earlier this session). Resolve real classrooms first.
