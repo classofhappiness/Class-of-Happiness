@@ -7,6 +7,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import * as SplashScreen from 'expo-splash-screen';
 import { AppProvider, useApp } from '../src/context/AppContext';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 // Keep splash screen visible until app is ready
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -345,8 +346,10 @@ function HomeToDashboard() {
 
 export default function RootLayout() {
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </GestureHandlerRootView>
   );
 }

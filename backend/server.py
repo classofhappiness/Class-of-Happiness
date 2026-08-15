@@ -8694,13 +8694,32 @@ async def create_school_profile(request: Request):
 
 @api_router.put("/admin/school-profiles/{profile_id}")
 async def update_school_profile(profile_id: str, request: Request):
+    """Real fix Aug 15: this passed the entire raw request body straight to Supabase's
+    update with no field whitelist and no try/except at all — unlike the very similar
+    teacher-strategies PUT right below it. Any unexpected field would cause a real
+    unhandled database-level crash, which can produce a malformed response missing CORS
+    headers — the browser then reports it as a "CORS error" instead of showing the real
+    500. Added the same safe whitelist pattern + proper error handling."""
     user = await get_current_user(request)
     if not user or user.get("role") not in ["admin", "superadmin"]:
         raise HTTPException(status_code=403, detail="Superadmin access required")
-    body = await request.json()
-    body["updated_at"] = datetime.now(timezone.utc).isoformat()
-    result = supabase.table("school_profiles").update(body).eq("id", profile_id).execute()
-    return result.data[0] if result.data else body
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid request body")
+    allowed = ["school_name","school_admin_user_id","address","city","country","country_code",
+               "lat","lng","principal_name","principal_email","wellbeing_lead_name",
+               "wellbeing_lead_email","phone","website","subscription_package",
+               "subscription_renewal_date","subscription_seats","student_count_official",
+               "school_type","notes","tasks","contact_history","feedback_score","status"]
+    updates = {k: v for k, v in body.items() if k in allowed}
+    updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+    try:
+        result = supabase.table("school_profiles").update(updates).eq("id", profile_id).execute()
+        return result.data[0] if result.data else updates
+    except Exception as e:
+        logger.error(f"update_school_profile error: {e}")
+        raise HTTPException(status_code=500, detail=f"Could not update school profile: {str(e)[:150]}")
 
 @api_router.put("/admin/teacher-strategies/{strategy_id}")
 async def update_teacher_strategy(strategy_id: str, request: Request):

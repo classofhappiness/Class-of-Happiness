@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, Linking,
+  TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, Linking, Pressable,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import DraggableFlatList from 'react-native-draggable-flatlist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { useRouter } from 'expo-router';
@@ -431,45 +432,77 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
         </View>
       )}
 
-      {/* Strategy list */}
-      {loading ? <ActivityIndicator color={INDIGO} /> : strats.filter((strat: any) => !zoneFilter || strat.zone === zoneFilter).map((strat, i) => (
-        <View key={strat.id || i} style={s.stratRow}>
-          <View style={[s.stratDot, { backgroundColor: ZONE_COLORS[strat.zone] || '#999' }]} />
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={s.stratName}>{strat.name}</Text>
-              {(strat.is_builtin || strat.builtin) && (
-                <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: '#EDE7F6' }}>
-                  <Text style={{ fontSize: 8, fontWeight: '800', color: '#7C5CBF' }}>BUILT-IN</Text>
+      {/* Strategy list — real drag-reorder Aug 15 (only when unfiltered by zone, and
+          only for real teacher/parent items — student ones use a different endpoint,
+          built-ins have no real record to reorder) */}
+      {loading ? <ActivityIndicator color={INDIGO} /> : (
+        <DraggableFlatList
+          data={strats.filter((strat: any) => !zoneFilter || strat.zone === zoneFilter)}
+          keyExtractor={(strat: any, i: number) => strat.id || String(i)}
+          scrollEnabled={false}
+          onDragEnd={async ({ data }: any) => {
+            setStrats((prev: any[]) => {
+              const others = prev.filter((p: any) => zoneFilter && p.zone !== zoneFilter);
+              return zoneFilter ? [...others, ...data] : data;
+            });
+            if (type === 'teacher' || type === 'parent') {
+              const ep = '/admin/teacher-strategies';
+              const reorderable = data.filter((s: any) => !s.is_builtin && !s.builtin);
+              try {
+                await Promise.all(reorderable.map((s: any, i: number) =>
+                  apiCall(`${ep}/${s.id}`, authToken, { method: 'PUT', body: JSON.stringify({ order_index: i + 1 }) })
+                ));
+              } catch { Alert.alert('Error', 'Could not save new order.'); }
+            }
+          }}
+          renderItem={({ item: strat, drag, isActive }: any) => {
+            const canDrag = (type === 'teacher' || type === 'parent') && !strat.is_builtin && !strat.builtin && !zoneFilter;
+            return (
+              <Pressable
+                onLongPress={canDrag ? drag : undefined}
+                delayLongPress={200}
+                disabled={isActive}
+                style={[s.stratRow, isActive && { opacity: 0.6 }]}
+              >
+                {canDrag && <MaterialIcons name="drag-indicator" size={18} color="#CCC" style={{ marginRight: 2 }} />}
+                <View style={[s.stratDot, { backgroundColor: ZONE_COLORS[strat.zone] || '#999' }]} />
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={s.stratName}>{strat.name}</Text>
+                    {(strat.is_builtin || strat.builtin) && (
+                      <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: '#EDE7F6' }}>
+                        <Text style={{ fontSize: 8, fontWeight: '800', color: '#7C5CBF' }}>BUILT-IN</Text>
+                      </View>
+                    )}
+                  </View>
+                  {strat.description ? <Text style={s.stratDesc}>{strat.description}</Text> : null}
+                  {strat.created_by_role && (
+                    <Text style={{ fontSize: 9, color: '#AAA', marginTop: 2 }}>
+                      Added by {strat.created_by_role === 'superadmin' ? 'Superadmin' : strat.created_by_role === 'school_admin' ? 'School Admin' : strat.created_by_role}
+                      {strat.audience ? ` · ${strat.audience === 'all_students' ? 'All Students' : strat.audience === 'all_teachers' ? 'All Teachers' : strat.audience === 'all_parents' ? 'All Parents' : strat.audience}` : ''}
+                    </Text>
+                  )}
+                  {strat.created_at && (
+                    <Text style={{ fontSize: 9, color: '#CCC', marginTop: 1 }}>
+                      Added {new Date(strat.created_at).toLocaleDateString()}
+                    </Text>
+                  )}
                 </View>
-              )}
-            </View>
-            {strat.description ? <Text style={s.stratDesc}>{strat.description}</Text> : null}
-            {/* Real fix Aug 15: shows who added it, using the real created_by_role field */}
-            {strat.created_by_role && (
-              <Text style={{ fontSize: 9, color: '#AAA', marginTop: 2 }}>
-                Added by {strat.created_by_role === 'superadmin' ? 'Superadmin' : strat.created_by_role === 'school_admin' ? 'School Admin' : strat.created_by_role}
-                {strat.audience ? ` · ${strat.audience === 'all_students' ? 'All Students' : strat.audience === 'all_teachers' ? 'All Teachers' : strat.audience === 'all_parents' ? 'All Parents' : strat.audience}` : ''}
-              </Text>
-            )}
-            {strat.created_at && (
-              <Text style={{ fontSize: 9, color: '#CCC', marginTop: 1 }}>
-                Added {new Date(strat.created_at).toLocaleDateString()}
-              </Text>
-            )}
-          </View>
-          {isSuperAdmin && (
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity onPress={() => { setEditing(strat); setName(strat.name || ''); setDesc(strat.description || ''); setZone(strat.zone || 'blue'); setAudience(strat.audience || 'all_students'); }}>
-                <MaterialIcons name="edit" size={16} color={INDIGO} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => del(strat)}>
-                <MaterialIcons name="delete" size={16} color="#F44336" />
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      ))}
+                {isSuperAdmin && (
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity onPress={() => { setEditing(strat); setName(strat.name || ''); setDesc(strat.description || ''); setZone(strat.zone || 'blue'); setAudience(strat.audience || 'all_students'); }}>
+                      <MaterialIcons name="edit" size={16} color={INDIGO} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => del(strat)}>
+                      <MaterialIcons name="delete" size={16} color="#F44336" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </Pressable>
+            );
+          }}
+        />
+      )}
     </View>
   );
 }
