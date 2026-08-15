@@ -9232,6 +9232,10 @@ async def create_global_strategy(request: Request):
         "is_custom": False,
         "is_active": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
+        # Real fix Aug 15: added real attribution, matching what /admin/teacher-strategies
+        # already had — student strategies previously had no way to show who added them.
+        "created_by": user["user_id"],
+        "created_by_role": user.get("role", "admin"),
     }
     try:
         result = supabase.table("helpers").insert(new_strat).execute()

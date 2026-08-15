@@ -483,7 +483,12 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
         ))}
       </View>
 
-      {statsLoading ? <ActivityIndicator color={INDIGO} style={{ marginTop: 20 }} /> : <>
+      {false ? <ActivityIndicator color={INDIGO} style={{ marginTop: 20 }} /> : <>
+        {statsLoading && (
+          <View style={{ paddingVertical: 6, alignItems: 'center' }}>
+            <ActivityIndicator color={INDIGO} size="small" />
+          </View>
+        )}
 
         {/* Global Stats */}
         <SectionCard title="Global Overview" subtitle="All schools · anonymised" icon="bar-chart" color={INDIGO} defaultOpen>
@@ -586,14 +591,29 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
 
 // ── School Admin Dashboard ────────────────────────────────────────────────────
 
-function SchoolAdminDashboard({ authToken, stats, statsLoading }: any) {
+function SchoolAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setStatsPeriod }: any) {
   const { t } = useApp();
   const zc = stats?.zone_counts || {};
   const tzc = Object.values(zc).reduce((a: any, b: any) => a + b, 0) as number;
 
   return (
     <>
-      {statsLoading ? <ActivityIndicator color={INDIGO} style={{ marginTop: 20 }} /> : <>
+      {/* Real fix Aug 15: period pills added — school_admin previously had no time filter
+          at all, only superadmin's dashboard had these. */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
+        {([1, 7, 30, 90, 180, 365, 730, 1095] as const).map(p => (
+          <TouchableOpacity key={p} style={[s.periodBtn, statsPeriod === p && s.periodBtnActive]} onPress={() => setStatsPeriod(p)}>
+            <Text style={[s.periodTxt, statsPeriod === p && s.periodTxtActive]}>{p === 1 ? 'Today' : p === 7 ? '7 Days' : p === 30 ? '30 Days' : p === 90 ? '3 Months' : p === 180 ? '6 Months' : p === 365 ? '1 Year' : p === 730 ? '2 Years' : '3 Years'}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {false ? <ActivityIndicator color={INDIGO} style={{ marginTop: 20 }} /> : <>
+        {statsLoading && (
+          <View style={{ paddingVertical: 6, alignItems: 'center' }}>
+            <ActivityIndicator color={INDIGO} size="small" />
+          </View>
+        )}
 
         {/* School overview */}
         <SectionCard title={t("your_school_overview") || "Your School Overview"} subtitle={t("anonymised_data") || "Your school's data"} icon="account-balance" color={INDIGO} defaultOpen>
@@ -764,28 +784,58 @@ function SchoolSettings({ authToken, user }: any) {
 
 // ── Resource Upload ───────────────────────────────────────────────────────────
 
+const ADMIN_RESOURCE_TOPICS = [
+  { id: 'general', name: 'General' },
+  { id: 'emotions_program', name: 'Emotions Program' },
+  { id: 'healthy_relationships', name: 'Healthy Relationships' },
+  { id: 'leader_online', name: 'Leader Online' },
+  { id: 'you_are_what_you_eat', name: 'You Are What You Eat' },
+  { id: 'special_needs_education', name: 'Special Needs' },
+  { id: 'teacher_hub', name: 'Teacher Hub' },
+  { id: 'parent_hub', name: 'Parent Hub' },
+];
+
 function ResourceUpload({ authToken }: { authToken: string|null }) {
   const { t } = useApp();
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [audience, setAudience] = useState<'teacher'|'parent'|'both'>('teacher');
+  const [topic, setTopic] = useState('general');
   const [saving, setSaving] = useState(false);
   const [resources, setResources] = useState<any[]>([]);
 
-  useEffect(() => {
-    apiCall('/teacher/resources', authToken)
+  const loadResources = () => {
+    apiCall('/teacher-resources', authToken)
       .then(d => setResources(Array.isArray(d) ? d : []))
       .catch(() => {});
-  }, []);
+  };
+
+  useEffect(() => { loadResources(); }, []);
+
+  const handleDownload = async (resource: any) => {
+    try {
+      const dlToken = authToken;
+      const pdfUrl = `${BACKEND_URL}/api/teacher-resources/${resource.id}/download?token=${encodeURIComponent(dlToken || '')}`;
+      if (Platform.OS === 'web') {
+        Linking.openURL(pdfUrl);
+      } else {
+        Linking.openURL(pdfUrl);
+      }
+    } catch {
+      Alert.alert('Error', 'Could not open resource.');
+    }
+  };
 
   const save = async () => {
     if (!title.trim() || !url.trim()) { Alert.alert('Title and URL required'); return; }
     setSaving(true);
     try {
-      await apiCall('/teacher/resources', authToken, { method: 'POST', body: JSON.stringify({ title, url, audience }) });
+      // Real fix Aug 15: added a real topic field so admin-created resources are
+      // categorized the same way as everywhere else (teacher/parent screens, portal) —
+      // matches Jono's explicit design-sync principle, instead of one flat uncategorized list.
+      await apiCall('/teacher-resources', authToken, { method: 'POST', body: JSON.stringify({ title, url, content: url, audience, target_audience: audience, topic, category: topic }) });
       setTitle(''); setUrl('');
-      const d = await apiCall('/teacher/resources', authToken);
-      setResources(Array.isArray(d) ? d : []);
+      loadResources();
       Alert.alert('✅ Added');
     } catch { Alert.alert('Error', 'Could not add resource.'); }
     setSaving(false);
@@ -796,7 +846,7 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
         try {
-          await apiCall(`/teacher/resources/${id}`, authToken, { method: 'DELETE' });
+          await apiCall(`/teacher-resources/${id}`, authToken, { method: 'DELETE' });
           setResources(r => r.filter(x => x.id !== id));
         } catch { Alert.alert('Error'); }
       }},
@@ -808,6 +858,16 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
       <SectionCard title={t("add_resource") || "Add Resource"} subtitle={t("share_pdfs") || "Share PDFs or links"} icon="add-circle" color={INDIGO} defaultOpen>
         <TextInput style={s.input} placeholder="Title" value={title} onChangeText={setTitle} placeholderTextColor="#AAA" />
         <TextInput style={s.input} placeholder="URL or PDF link" value={url} onChangeText={setUrl} autoCapitalize="none" placeholderTextColor="#AAA" />
+        <Text style={s.fieldLabel}>Category</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {ADMIN_RESOURCE_TOPICS.map(tp => (
+              <TouchableOpacity key={tp.id} style={[s.chip, topic === tp.id && s.chipActive]} onPress={() => setTopic(tp.id)}>
+                <Text style={[s.chipText, topic === tp.id && s.chipTextActive]}>{tp.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
         <Text style={s.fieldLabel}>{t("audience") || "Audience"}</Text>
         <View style={s.chipRow}>
           {(['teacher', 'parent', 'both'] as const).map(a => (
@@ -822,23 +882,36 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
         </TouchableOpacity>
       </SectionCard>
 
-      <SectionCard title={t("current_resources") || "Current Resources"} subtitle={`${resources.length} resources shared`} icon="folder" color="#FF9800">
-        {resources.length === 0
-          ? <Text style={s.hint}>{t("no_resources_added") || "No resources yet."}</Text>
-          : resources.map((r, i) => (
-            <View key={r.id || i} style={s.stratRow}>
-              <MaterialIcons name="description" size={16} color={INDIGO} />
-              <View style={{ flex: 1 }}>
-                <Text style={s.stratName}>{r.title}</Text>
-                <Text style={s.stratDesc}>{r.audience === 'teacher' ? '👩‍🏫 Teachers' : r.audience === 'parent' ? '👨‍👩‍👧 Parents' : '👥 Both'}</Text>
+      {/* Real fix Aug 15: grouped by category (matching teacher/parent/portal), each
+          category pre-expanded — per Jono's design-sync principle. */}
+      {ADMIN_RESOURCE_TOPICS.map(tp => {
+        const items = resources.filter((r: any) => (r.topic || r.category || 'general') === tp.id);
+        if (items.length === 0) return null;
+        return (
+          <SectionCard key={tp.id} title={tp.name} subtitle={`${items.length} resource${items.length === 1 ? '' : 's'}`} icon="folder" color="#FF9800" defaultOpen>
+            {items.map((r: any, i: number) => (
+              <View key={r.id || i} style={s.stratRow}>
+                <MaterialIcons name="description" size={16} color={INDIGO} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.stratName}>{r.title}</Text>
+                  <Text style={s.stratDesc}>{r.target_audience === 'teacher' || r.audience === 'teacher' ? '👩‍🏫 Teachers' : r.target_audience === 'parent' || r.audience === 'parent' ? '👨‍👩‍👧 Parents' : '👥 Both'}</Text>
+                </View>
+                <TouchableOpacity onPress={() => handleDownload(r)} style={{ padding: 4 }}>
+                  <MaterialIcons name="visibility" size={18} color="#4CAF50" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => del(r.id)} style={{ padding: 4 }}>
+                  <MaterialIcons name="delete" size={16} color="#F44336" />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={() => del(r.id)}>
-                <MaterialIcons name="delete" size={16} color="#F44336" />
-              </TouchableOpacity>
-            </View>
-          ))
-        }
-      </SectionCard>
+            ))}
+          </SectionCard>
+        );
+      })}
+      {resources.length === 0 && (
+        <SectionCard title={t("current_resources") || "Current Resources"} subtitle="0 resources" icon="folder" color="#FF9800" defaultOpen>
+          <Text style={s.hint}>{t("no_resources_added") || "No resources yet."}</Text>
+        </SectionCard>
+      )}
     </View>
   );
 }
@@ -975,7 +1048,7 @@ export default function AdminDashboard() {
         {tab === 'analytics' && (
           isSuperAdmin
             ? <SuperAdminDashboard authToken={authToken} stats={stats} statsLoading={statsLoading} statsPeriod={statsPeriod} setStatsPeriod={setStatsPeriod} loadStats={loadStats} />
-            : <SchoolAdminDashboard authToken={authToken} stats={stats} statsLoading={statsLoading} />
+            : <SchoolAdminDashboard authToken={authToken} stats={stats} statsLoading={statsLoading} statsPeriod={statsPeriod} setStatsPeriod={setStatsPeriod} />
         )}
 
         {tab === 'strategies' && (
