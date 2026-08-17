@@ -10759,7 +10759,7 @@ async def get_awaiting_global_approval(request: Request):
     return result.data or []
 
 
-app.include_router(api_router)
+
 
 # Translation cache buster - v2
 # translation update Sat May  2 10:27:02 WEST 2026
@@ -10881,3 +10881,10 @@ async def reset_password(request: Request):
         "reset_token_expires": None,
     }).eq("user_id", user["user_id"]).execute()
     return {"status": "password reset successfully"}
+
+# Real fix Aug 18: moved to the true end of the file. Was previously
+# called mid-file, silently orphaning every route defined after that
+# point (including creatures/upload-image, creatures/notify-expiry, and
+# possibly others) - they existed in code but were never actually wired
+# into the running app.
+app.include_router(api_router)
