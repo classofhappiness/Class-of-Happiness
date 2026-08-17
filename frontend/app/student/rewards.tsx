@@ -72,6 +72,21 @@ export default function RewardsScreen() {
   const [showCollection, setShowCollection] = useState(false);
   const [previousStage, setPreviousStage] = useState(0);
   const [collectionData, setCollectionData] = useState<any>(null);
+  const [tipVisible, setTipVisible] = useState(true);
+  const tipOpacityAnim = useRef(new Animated.Value(1)).current;
+
+  const dismissTip = () => {
+    Animated.timing(tipOpacityAnim, {
+      toValue: 0,
+      duration: 500,
+      useNativeDriver: true,
+    }).start(() => setTipVisible(false));
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => dismissTip(), 5000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Animation refs
   const pointsAnim = useRef(new Animated.Value(0)).current;
@@ -305,19 +320,28 @@ export default function RewardsScreen() {
         </View>
       )}
 
-      {/* Zone-specific tip */}
+      {/* Zone-specific tip - real fix Aug 16: auto-dismisses after 5s, or tap
+          the X to close immediately. Was permanently on-screen before,
+          blocking the creature graphic below it. */}
       {(() => {
         const colour = (params as any)?.zone || '';
         const tips = ZONE_TIPS[colour] || ZONE_TIPS.green;
         const tip = tips[Math.floor(Date.now() / 1000) % tips.length];
         const msg = STUDENT_COLOUR_MESSAGE[colour] || '';
-        return colour ? (
-          <View style={{ marginHorizontal:20, marginBottom:10, padding:14, borderRadius:14,
+        return colour && tipVisible ? (
+          <Animated.View style={{ opacity: tipOpacityAnim, marginHorizontal:20, marginBottom:10, padding:14, borderRadius:14,
             backgroundColor: colour==='blue'?'#EBF5FB': colour==='green'?'#EAFAF1': colour==='yellow'?'#FEFDE7':'#FDEDEC',
             borderLeftWidth:4, borderLeftColor: colour==='blue'?'#4A90D9': colour==='green'?'#4CAF50': colour==='yellow'?'#FFC107':'#F44336' }}>
-            <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:4 }}>{tip}</Text>
-            <Text style={{ fontSize:12, color:'#555', lineHeight:18 }}>{msg}</Text>
-          </View>
+            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
+              <View style={{ flex:1 }}>
+                <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:4 }}>{tip}</Text>
+                <Text style={{ fontSize:12, color:'#555', lineHeight:18 }}>{msg}</Text>
+              </View>
+              <TouchableOpacity onPress={dismissTip} style={{ padding:4, marginLeft:8 }}>
+                <Text style={{ fontSize:16, color:'#888', fontWeight:'700' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
         ) : null;
       })()}
 

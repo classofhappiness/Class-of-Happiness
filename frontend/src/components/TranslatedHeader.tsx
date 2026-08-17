@@ -9,6 +9,9 @@ interface TranslatedHeaderProps {
   showBack?: boolean;
   backTo?: string;
   showHome?: boolean;
+  // Real addition Aug 16: for multi-step screens (like Submit a Creature) where
+  // "back" means a previous internal step, not a different route.
+  onBackPress?: () => void;
 }
 
 export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({ 
@@ -16,12 +19,15 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
   showBack = true,
   backTo,
   showHome = false,
+  onBackPress,
 }) => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
   const handleBack = () => {
-    if (backTo) {
+    if (onBackPress) {
+      onBackPress();
+    } else if (backTo) {
       router.replace(backTo as any);
     } else {
       router.back();

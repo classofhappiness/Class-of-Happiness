@@ -346,6 +346,10 @@ export const parentApi = {
   
   linkChild: (linkCode: string): Promise<{ message: string; student_id: string; student_name: string }> =>
     apiRequest('/students/link', { method: 'POST', body: JSON.stringify({ link_code: linkCode }) }),
+
+  // Real addition Aug 16: parent generates a code so their child can submit a creature.
+  generateCreatureCode: (): Promise<{ code: string; expires_in_days: number; max_uses: number }> =>
+    apiRequest('/creatures/generate-code', { method: 'POST' }),
 };
 
 // Teacher API
@@ -357,6 +361,25 @@ export const teacherApi = {
   // Unlink student from parent
   unlinkStudent: (studentId: string): Promise<{ message: string }> =>
     apiRequest(`/students/${studentId}/unlink`, { method: 'DELETE' }),
+
+  // Real addition Aug 16: teacher generates a code so a student can submit a creature.
+  generateCreatureCode: (): Promise<{ code: string; expires_in_days: number; max_uses: number }> =>
+    apiRequest('/creatures/generate-code', { method: 'POST' }),
+};
+
+// Real addition Aug 16: creature approval workflow, shared by teacher + parent screens.
+export const creaturesApi = {
+  getPending: (): Promise<any[]> =>
+    apiRequest('/creatures/pending'),
+
+  approve: (submissionId: string): Promise<{ status: string }> =>
+    apiRequest(`/creatures/approve/${submissionId}`, { method: 'POST' }),
+
+  reject: (submissionId: string, reason: string): Promise<{ status: string }> =>
+    apiRequest(`/creatures/reject/${submissionId}`, { method: 'POST', body: JSON.stringify({ reason }) }),
+
+  getMySubmissions: (): Promise<any[]> =>
+    apiRequest('/creatures/my-submissions'),
 };
 
 // Resources API

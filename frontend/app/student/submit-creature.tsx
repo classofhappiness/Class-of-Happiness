@@ -7,8 +7,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useApp } from '../../src/context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+console.log('[SubmitCreature] API_URL is:', JSON.stringify(API_URL));
 
 const EMOTIONS = [
   { key: 'green',  label: '😊 Green',  color: '#4CAF73', bg: '#E8F5E9' },
@@ -59,7 +61,7 @@ export default function SubmitCreatureScreen() {
   };
 
   const uploadImage = async (uri: string, stage: number): Promise<string> => {
-    const token = await AsyncStorage.getItem('authToken') || '';
+    const token = await AsyncStorage.getItem('session_token') || '';
     // Convert URI to base64
     const response = await fetch(uri);
     const blob = await response.blob();
@@ -88,7 +90,7 @@ export default function SubmitCreatureScreen() {
     if (!name.trim()) { Alert.alert('Name required', 'Give your creature a name!'); return; }
     setUploading(true);
     try {
-      const token = await AsyncStorage.getItem('authToken') || '';
+      const token = await AsyncStorage.getItem('session_token') || '';
       const urls = await Promise.all(photos.map((p, i) => uploadImage(p!, i + 1)));
       const res = await fetch(`${API_URL}/api/creatures/submit`, {
         method: 'POST',
@@ -107,17 +109,14 @@ export default function SubmitCreatureScreen() {
       Alert.alert('🎉 Submitted!', 'Your creature is waiting for approval from your teacher or parent!',
         [{ text: 'OK', onPress: () => router.back() }]);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Please try again.');
+      Alert.alert('Error', `${err.message || 'Please try again.'}\n\nURL used: ${API_URL}/api/creatures/submit`);
     } finally { setUploading(false); }
   };
 
   // TUTORIAL SCREEN
   if (step === 'tutorial') return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
-      <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
-        <Text style={s.backTxt}>← Back</Text>
-      </TouchableOpacity>
-      <Text style={s.title}>🎨 How to make your creature</Text>
+      <TranslatedHeader title="How to make your creature" showHome />
       <Text style={s.subtitle}>Read these tips before you start!</Text>
       {TIPS.map((tip, i) => (
         <View key={i} style={s.tipRow}>
@@ -137,10 +136,7 @@ export default function SubmitCreatureScreen() {
   // CODE SCREEN
   if (step === 'code') return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
-      <TouchableOpacity style={s.backBtn} onPress={() => setStep('tutorial')}>
-        <Text style={s.backTxt}>← Back</Text>
-      </TouchableOpacity>
-      <Text style={s.title}>🔑 Enter your code</Text>
+      <TranslatedHeader title="Enter your code" showHome onBackPress={() => setStep('tutorial')} />
       <Text style={s.subtitle}>Get a code from your teacher or parent first.</Text>
       <TextInput style={s.codeInput} value={code} onChangeText={v => setCode(v.toUpperCase())}
         placeholder="e.g. ABC12345" autoCapitalize="characters" maxLength={8} />
@@ -154,10 +150,7 @@ export default function SubmitCreatureScreen() {
   // DETAILS SCREEN
   if (step === 'details') return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
-      <TouchableOpacity style={s.backBtn} onPress={() => setStep('code')}>
-        <Text style={s.backTxt}>← Back</Text>
-      </TouchableOpacity>
-      <Text style={s.title}>Your creature details</Text>
+      <TranslatedHeader title="Your creature details" showHome onBackPress={() => setStep('code')} />
       <Text style={s.label}>Creature name</Text>
       <TextInput style={s.input} value={name} onChangeText={setName}
         placeholder="Give it a name!" maxLength={50} />
@@ -184,10 +177,7 @@ export default function SubmitCreatureScreen() {
   // PHOTOS SCREEN
   if (step === 'photos') return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
-      <TouchableOpacity style={s.backBtn} onPress={() => setStep('details')}>
-        <Text style={s.backTxt}>← Back</Text>
-      </TouchableOpacity>
-      <Text style={s.title}>📸 4 stage photos</Text>
+      <TranslatedHeader title="4 stage photos" showHome onBackPress={() => setStep('details')} />
       <Text style={s.subtitle}>White background · good lighting · clear outline</Text>
       {STAGES.map((label, i) => (
         <View key={i} style={s.photoCard}>
@@ -215,10 +205,7 @@ export default function SubmitCreatureScreen() {
   // REVIEW SCREEN
   return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
-      <TouchableOpacity style={s.backBtn} onPress={() => setStep('photos')}>
-        <Text style={s.backTxt}>← Back</Text>
-      </TouchableOpacity>
-      <Text style={s.title}>✅ Review your submission</Text>
+      <TranslatedHeader title="Review your submission" showHome onBackPress={() => setStep('photos')} />
       <View style={s.card}>
         <Text style={s.label}>Name: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{name}</Text></Text>
         <Text style={s.label}>Emotion: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{emotion}</Text></Text>

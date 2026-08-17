@@ -159,6 +159,25 @@ function AppContent() {
           }}
         />
         <Stack.Screen
+          name="student/submit-creature"
+          options={{
+            headerShown: false,
+            title: 'Submit a Creature',
+          }}
+        />
+        <Stack.Screen
+          name="teacher/creature-code"
+          options={{
+            title: 'Manage Creatures',
+          }}
+        />
+        <Stack.Screen
+          name="parent/creature-code"
+          options={{
+            title: 'Manage Creatures',
+          }}
+        />
+        <Stack.Screen
           name="profiles/create"
           options={{
             headerShown: false,

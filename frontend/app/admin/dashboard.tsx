@@ -733,10 +733,32 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
 
 // ── School Admin Dashboard ────────────────────────────────────────────────────
 
-function SchoolAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setStatsPeriod }: any) {
+function SchoolAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setStatsPeriod, user }: any) {
   const { t } = useApp();
   const zc = stats?.zone_counts || {};
   const tzc = Object.values(zc).reduce((a: any, b: any) => a + b, 0) as number;
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  // Real fix Aug 16: school-overview PDF download button — backend endpoint
+  // has existed and been confirmed working since Aug 15, just never had a
+  // real UI trigger. Same proven token-in-query pattern as teacher-wellbeing PDF.
+  const downloadSchoolPDF = async () => {
+    setDownloadingPdf(true);
+    try {
+      const token = await AsyncStorage.getItem('session_token');
+      const lang = await AsyncStorage.getItem('app_language') || 'en';
+      const schoolName = encodeURIComponent(user?.school_name || '');
+      const url = `${BACKEND_URL}/api/reports/pdf/school-overview?days=${statsPeriod}&school_name=${schoolName}&token=${token}&lang=${lang}`;
+      const checkRes = await fetch(url);
+      if (!checkRes.ok) {
+        Alert.alert('Error', 'Could not generate report right now.');
+        setDownloadingPdf(false);
+        return;
+      }
+      await Linking.openURL(url);
+    } catch { Alert.alert('Error', 'Could not generate report right now.'); }
+    setDownloadingPdf(false);
+  };
 
   return (
     <>
@@ -749,6 +771,15 @@ function SchoolAdminDashboard({ authToken, stats, statsLoading, statsPeriod, set
           </TouchableOpacity>
         ))}
       </View>
+
+      <TouchableOpacity
+        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: INDIGO, borderRadius: 10, paddingVertical: 10, marginBottom: 10 }}
+        onPress={downloadSchoolPDF}
+        disabled={downloadingPdf}
+      >
+        {downloadingPdf ? <ActivityIndicator color="white" size="small" /> : <MaterialIcons name="picture-as-pdf" size={16} color="white" />}
+        <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>{downloadingPdf ? 'Generating…' : 'Download School Report (PDF)'}</Text>
+      </TouchableOpacity>
 
       {false ? <ActivityIndicator color={INDIGO} style={{ marginTop: 20 }} /> : <>
         {statsLoading && (
@@ -1192,7 +1223,7 @@ export default function AdminDashboard() {
         {tab === 'analytics' && (
           isSuperAdmin
             ? <SuperAdminDashboard authToken={authToken} stats={stats} statsLoading={statsLoading} statsPeriod={statsPeriod} setStatsPeriod={setStatsPeriod} loadStats={loadStats} />
-            : <SchoolAdminDashboard authToken={authToken} stats={stats} statsLoading={statsLoading} statsPeriod={statsPeriod} setStatsPeriod={setStatsPeriod} />
+            : <SchoolAdminDashboard authToken={authToken} stats={stats} statsLoading={statsLoading} statsPeriod={statsPeriod} setStatsPeriod={setStatsPeriod} user={user} />
         )}
 
         {tab === 'strategies' && (

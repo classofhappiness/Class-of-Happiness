@@ -8,7 +8,6 @@ import {
   Text,
   FlatList,
   StyleSheet,
-  ActivityIndicator,
   TouchableOpacity,
   SafeAreaView,
 } from 'react-native';
@@ -16,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 interface Creature {
@@ -45,7 +45,7 @@ export default function CreatureCollectionScreen() {
     try {
       setLoading(true);
       setError(null);
-      const token = await AsyncStorage.getItem('authToken') || '';
+      const token = await AsyncStorage.getItem('session_token') || '';
 
       // Fetch all creatures
       const allRes = await fetch(`${API_URL}/api/creatures`, {
@@ -139,7 +139,7 @@ export default function CreatureCollectionScreen() {
       )}
 
       {loading ? (
-        <ActivityIndicator size="large" color="#6C63FF" style={styles.loader} />
+        <View style={styles.loader}><EmotionColourLoader visible={loading} /></View>
       ) : error ? (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
