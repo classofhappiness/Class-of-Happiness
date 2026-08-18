@@ -6884,10 +6884,15 @@ async def get_admin_stats(request: Request, days: int = 7):
                 if school_name_key in seen_school_names:
                     continue
                 seen_school_names.add(school_name_key)
-                # Get students belonging to this admin's school (via teachers linked through school_admin_id)
+                # Get students belonging to this admin's school (via teachers linked through
+                # school_admin_id OR school_name — dual-match, same pattern as
+                # /school-admin/analytics, since teachers whose school_admin_id was never
+                # backfilled would otherwise be silently dropped from this breakdown).
                 try:
-                    school_teachers = supabase.table("users").select("user_id").eq("school_admin_id", admin_id).execute()
-                    teacher_ids_for_school = [t["user_id"] for t in (school_teachers.data or [])]
+                    admin_school_name = admin.get("school_name") or ""
+                    school_teachers_by_id = supabase.table("users").select("user_id").eq("school_admin_id", admin_id).execute()
+                    school_teachers_by_name = supabase.table("users").select("user_id").eq("school_name", admin_school_name).eq("role", "teacher").execute() if admin_school_name else type("obj", (object,), {"data": []})()
+                    teacher_ids_for_school = list({t["user_id"] for t in (school_teachers_by_id.data or []) + (school_teachers_by_name.data or [])})
                     student_ids = []
                     # Real fix Aug 14: same architectural fact as above — students link via
                     # classroom_id, not a direct teacher_id column (which doesn't exist).
@@ -8177,9 +8182,15 @@ async def get_school_admin_stats(request: Request):
     if not user or user.get("role") not in ["school_admin", "admin", "superadmin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
     user_id = user["user_id"]
-    # Get all students for this school admin's teachers
-    teachers = supabase.table("users").select("user_id, name, email").eq("school_admin_id", user_id).execute()
-    teacher_ids = [t["user_id"] for t in (teachers.data or [])]
+    # Get all teachers for this school admin — by school_admin_id OR school_name, same
+    # dual-match pattern already used correctly in /school-admin/analytics and
+    # /reports/pdf/school-overview. Without this, teachers whose school_admin_id was never
+    # backfilled (only school_name set) are silently dropped from this admin's own stats.
+    school_name = user.get("school_name", "")
+    teachers_by_id = supabase.table("users").select("user_id, name, email").eq("school_admin_id", user_id).execute()
+    teachers_by_name = supabase.table("users").select("user_id, name, email").eq("school_name", school_name).eq("role", "teacher").execute() if school_name else type("obj", (object,), {"data": []})()
+    all_teachers = {t["user_id"]: t for t in (teachers_by_id.data or []) + (teachers_by_name.data or [])}
+    teacher_ids = list(all_teachers.keys())
     # Real fix Aug 14: same architectural fact fixed 3x elsewhere in this file today —
     # students link via classroom_id, not a direct teacher-owned user_id column. Resolve
     # real classrooms first.
@@ -8584,8 +8595,13 @@ async def get_school_subscription(request: Request):
     user = await get_current_user(request)
     if not user or user.get("role") not in ["school_admin", "admin", "superadmin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
-    teachers = supabase.table("users").select("user_id,name,email,subscription_status").eq("school_admin_id", user["user_id"]).execute()
-    teacher_list = teachers.data or []
+    # Dual-match by school_admin_id OR school_name — see /school-admin/stats for why. Matters
+    # here specifically because seats_used feeds real billing/seat-limit decisions.
+    school_name = user.get("school_name", "")
+    teachers_by_id = supabase.table("users").select("user_id,name,email,subscription_status").eq("school_admin_id", user["user_id"]).execute()
+    teachers_by_name = supabase.table("users").select("user_id,name,email,subscription_status").eq("school_name", school_name).eq("role", "teacher").execute() if school_name else type("obj", (object,), {"data": []})()
+    all_teachers = {t["user_id"]: t for t in (teachers_by_id.data or []) + (teachers_by_name.data or [])}
+    teacher_list = list(all_teachers.values())
     sub_status = user.get("subscription_status", "none")
     expires = user.get("subscription_expires_at")
     return {

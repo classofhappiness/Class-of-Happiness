@@ -1,0 +1,241 @@
+# CLASS OF HAPPINESS — ARCHITECTURAL REVIEW FINDINGS & FIX PLAN
+**Date: 18 August 2026 · Read-only review per COH-HANDOVER.md Section 10 · Verified against real source files, live Supabase data, and the live website**
+
+Every finding below was checked against actual code (file:line), live Supabase queries (via the service key in `backend/.env`), and — for the website — a live `curl` of classofhappiness.com, not against COH-HANDOVER.md's claims or stale local file copies. Several handover claims turned out to be stale, incomplete, or backwards; those are flagged explicitly.
+
+Items are grouped **LAUNCH-BLOCKING** (must be true before real money/real school data is on the line) → **LAUNCH-ACCEPTABLE** (real, evidenced problems that don't block launch — ship and fix soon) → **POST-LAUNCH** (explicitly deferred by Jono). Within each group, items still map back to the original review's Section 6 (Admin Sync) / Section 7 (Fundamental Issues) framing, noted in each heading. Execute one item at a time with Sonnet.
+
+---
+
+## VERIFICATION GAP — READ THIS FIRST
+
+`portal.html` and the legacy `admin.html` are **not in the git repo** — hand-uploaded to Namecheap/cPanel, and no local copy could be confirmed as exactly what's live. This review used the most-recently-modified local scratch copies as the best available proxy:
+- Portal: `/Users/jono/Desktop/portal100.html` (Aug 18 08:38 — same day as this review, plausibly current)
+- Legacy admin: `/Users/jono/Downloads/coh_admin-2.html` (Aug 4 08:32 — 2 weeks stale relative to portal)
+
+The marketing site **was** checked live via `curl https://classofhappiness.com`, and that check proved the risk exactly: two findings from the stale local copy (Jul 30) turned out to already be fixed live. **Before executing any portal.html/admin.html fix in this plan, pull the actual live file from cPanel first** — the same gap almost certainly applies there too.
+
+---
+
+# LAUNCH-BLOCKING
+
+### L1. [SECURITY] Hardcoded superadmin bypass code shipped in the app bundle *(Section 6 #1)*
+**File:** `frontend/app/admin/dashboard.tsx:1123-1141`
+
+The in-app admin unlock screen calls `POST /admin/verify` to check the real session's role (correct, fixed Aug 14 — `backend/server.py:7031`). But the `catch` block still contains a **client-side fallback**:
+```
+} catch {
+  if (adminCode === 'COH_SUPER_2026') { setUnlocked(true); setIsSuperAdmin(true); }
+  else if (adminCode.length === 6) { setUnlocked(true); setIsSuperAdmin(false); }
+  else { Alert.alert('Invalid code'); }
+}
+```
+This fires on ANY network failure (Railway cold start, transient timeout, offline device) — not just a missing endpoint. The hardcoded string `COH_SUPER_2026` is sitting in the shipped JS bundle and grants full superadmin unlock with zero server validation; **any 6-character string** grants school_admin-level unlock. Once unlocked, `isSuperAdmin` is a plain local `useState` boolean (`:1100`) never re-verified for the component's lifetime. Entry to this screen is role-gated upstream (`frontend/app/settings.tsx:530-533` only shows "Admin Dashboard" to `admin`/`superadmin`/`school_admin`), so it isn't reachable by a random teacher/parent — but it's reachable by exactly the population (school admins) for whom this wrongly grants a higher privilege tier than they should ever get client-side.
+
+**Fix:** delete the entire `catch` fallback block. If `/admin/verify` fails, show a retry/error state — never grant access client-side.
+
+### L2. School subscription pricing — backend and Stripe must be updated to match the website *(Section 7 #2)*
+**Files:** `backend/server.py:67-79` (`SUBSCRIPTION_PLANS`), `backend/server.py:10568-10572` (`_get_plan_from_price`), `backend/server.py:6029-6031` (`GET /subscription/plans`, confirmed live-consumed by the app at `frontend/src/utils/api.ts:199`), Stripe dashboard products/prices, `portal100.html` (verified below).
+
+**Ground truth from Jono: the website's school pricing is correct.** Live-confirmed via `curl https://classofhappiness.com` (`calcSavings()`, lines 1239-1241): **Starter €499/yr (≤5 teachers), Standard €999/yr (≤15 teachers), Plus €1,999/yr (>15 teachers)** — three tiers, differing by included teacher count.
+
+The backend today defines only **two** school tiers at the **wrong** prices: `school_small` (`server.py:67-73`, €399/year, "5 teacher accounts, 150 students") and `school_large` (`server.py:74-80`, €1,499/year, "unlimited teachers"). This is a missing middle tier, not just two wrong numbers — there is no backend plan at all for a school with 6-15 teachers, and neither existing price matches any of the three real prices.
+
+Confirmed **portal.html does not display school-plan pricing anywhere** (grepped for 399/499/999/1499/1999/"School Plan"/"Starter plan" — zero matches). The portal's "Subscriptions & Revenue" dashboard aggregates real subscription data rather than hardcoding plan prices, so it needs no direct price edit — but should be spot-checked after the fix to confirm its revenue totals reconcile against the corrected tiers.
+
+Why this is launch-blocking, not cosmetic:
+1. **The app itself shows the wrong prices.** `/subscription/plans` (`server.py:6029`) returns `SUBSCRIPTION_PLANS` directly and is fetched by the live app — any school admin viewing pricing in-app today sees €399/€1,499, not €499/€999/€1,999.
+2. **Stripe products/prices must exist for the real three tiers.** No Stripe price IDs are hardcoded anywhere in the codebase (`grep` for `price_1`/`payment-link`/`buy.stripe.com` returns nothing) — checkout appears to rely on Stripe-hosted products/prices set up directly in the dashboard (acct `1TBwO3GVgsNSHYyt`), which must be created/verified for Starter/Standard/Plus before any school can be charged the advertised amount.
+3. **The Stripe webhook can't currently tell school tiers apart at all.** `_get_plan_from_price` (`server.py:10568-10572`) only branches on whether the Stripe price id/nickname contains `"parent"` or `"teacher"` — every school price falls through to a generic `"subscriber"` label. Live-verified: `subscription_plan` is `NULL` for every user today regardless of `subscription_status` — no evidence school tier is tracked anywhere post-payment.
+4. The closest thing to seat-based enforcement is informational only: `school_profiles.subscription_seats` (default 5, `server.py:8814`) and a `seats_used` count (`server.py:8595`) shown on the school admin's billing view — no code path blocks inviting more teachers than the seat count. Confirm whether that should become real enforcement now that tiers are correctly seat-differentiated.
+
+**Fix (in order):**
+1. Update `SUBSCRIPTION_PLANS` in `server.py:67-79` to three tiers matching the website exactly: Starter €499/yr (≤5 teachers), Standard €999/yr (≤15 teachers), Plus €1,999/yr (>15 teachers).
+2. Create/verify the three corresponding Stripe products+prices (acct `1TBwO3GVgsNSHYyt`); confirm whatever generates the checkout link/session points at the correct price IDs (see L3 below — this checkout path is itself broken today and needs fixing in the same pass).
+3. Extend `_get_plan_from_price` (`server.py:10568-10572`) with real branches for the three school price ids/nicknames so `subscription_plan` gets set correctly on webhook events, instead of falling through to `"subscriber"`.
+4. Decide whether `subscription_seats`/`seats_used` should become real enforcement now that tiers are seat-differentiated, or stay informational by design.
+5. Re-test school signup → Stripe checkout → webhook → `/subscription/plans` display end-to-end once (1)-(3) land — this touches real billing.
+
+**Teacher pricing (€7.99/month) is unchanged** — independently verified to already match the live site exactly.
+
+### L3. Parent pricing model — free with school package, €2.99/mo self-serve otherwise; the self-serve payment path doesn't exist yet *(Section 7 #2, extended)*
+**Files:** `backend/server.py:3546-3567` (`/parent/link-child`), `:3425-3441` (`/family/members`), `:9913-9921` (`/family/custom-strategies`), `:3311-3336` (`/resources`), `frontend/src/utils/api.ts:203-207` (`subscriptionApi.createCheckout`/`getPaymentStatus`), `frontend/app/subscription/index.tsx`, live website pricing copy.
+
+**Ground truth from Jono: parents are free when their school has a package (linked via school invite code); parents at schools without a package subscribe €2.99/mo/family in-app, paid via web/Stripe — never Apple IAP.** (Confirmed: no `react-native-iap`/`expo-in-app-purchases`/StoreKit code exists anywhere in `frontend/` — nothing to remove there, good.)
+
+This requires two things to actually work, and **neither does today**:
+
+**(a) "Free with school package" is only partially wired, and has real gaps.** Four backend gates touch parent-facing limits, but only one of them checks school-package coverage at all:
+- `POST /parent/link-child` (`:3546-3567`, the invite-code redemption itself) **does** check school coverage — `parent_covered` includes `bool(user.get("school_admin_id"))`, and it also checks the linked teacher's own `school_admin_id`/subscription via the classroom lookup. This one is close to correct already, modulo the pricing/tier fix in L2 not affecting its logic.
+- `POST /family/members` (`:3425-3441`, "2 children" cap) — checks **only** `user.get("subscription_status")`, with **no school-coverage check at all**. A parent linked to a package school who hasn't personally been marked "active" would incorrectly hit this cap.
+- `POST /family/custom-strategies` (`:9913-9921`, "6 strategies" cap) — same gap: subscription_status only, no school-coverage exemption.
+- `GET /resources` (`:3311-3336`, `is_locked` flag) — same gap: subscription_status only, no school-coverage exemption.
+
+None of these three carry a persistent "this parent's child attends a package school" flag set at link time — they'd need to look up the parent's linked children (`parent_links` → `students` → `classrooms` → teacher's `school_admin_id`) the same way `/parent/link-child` already does, or a `school_covered` flag should be written onto the parent's own user row at link time so subsequent checks are cheap. Either approach works; today none of the three do it at all, so **a parent at a fully-paid package school can still be told to upgrade** for adding a 3rd child, a 7th family strategy, or unlocking a resource.
+
+**(b) The €2.99/mo self-serve payment flow for unlinked parents is completely non-functional today** — this is the launch-blocker inside the launch-blocker. The app's "Subscribe" button (`frontend/app/subscription/index.tsx:80-91`, `handleSubscribe`) calls `subscriptionApi.createCheckout` → `POST /subscription/checkout`, and payment confirmation calls `subscriptionApi.getPaymentStatus` → `GET /subscription/status/{session_id}`. **Neither endpoint exists anywhere in `backend/server.py`** — confirmed by direct grep, zero matches for `checkout` (case-insensitive) in the entire file. There is no `GET /subscription/status` collision either (the one existing route at `server.py:6445` is `/subscription/status`, a different no-path-param endpoint that just returns the caller's own current status — not the session-lookup one the frontend calls). **Right now, tapping "Subscribe" as either a parent or a teacher fails outright.** Live Supabase confirms this isn't theoretical: of 17 parent-role users, 0 have a `stripe_customer_id` set — nobody has ever actually completed a real Stripe payment as a parent. (4 parent rows show `subscription_status: active` with no Stripe customer behind them — almost certainly manually-set demo/test data, not real payments; no refund/cancellation cleanup needed.)
+
+**Fix (in order):**
+1. Build `POST /subscription/checkout` (create a Stripe Checkout Session for the given plan, return `{url, session_id}`) and `GET /subscription/status/{session_id}` (look up session status) — these are referenced by working frontend code today and simply don't exist server-side. This is required for the parent €2.99 flow to function at all, and also fixes teacher self-serve checkout, which is equally broken today.
+2. Add the missing school-coverage check to `/family/members` (`:3425-3441`), `/family/custom-strategies` (`:9913-9921`), and `/resources` (`:3311-3336`) so a parent linked to a package school is treated as covered consistently everywhere, not just at link time.
+3. Update `frontend/app/subscription/index.tsx` copy: the parent plan currently reads unconditionally "from €2.99/mo" (`:174`) with a flat `PARENT_PLANS`/`PARENT_FEATURES` list (`:10-13, 20-29`) that doesn't mention the free-with-school-package condition at all. Update to state the real model (e.g. "Free if your child's school has a Class of Happiness package — otherwise €2.99/mo per family") and skip straight to a "you're covered" state for parents who are already school-linked, rather than showing them a price at all.
+4. Update the live website's parent pricing card (currently "EUR 2.99/month… Get started", unconditional, no mention of the free path — confirmed live at the pricing section) to clearly state the same conditional model.
+5. **Bonus find, fix alongside this:** `frontend/app/subscription/index.tsx:37` (`TEACHER_FEATURES`) lists "SMS & push alerts" as a teacher plan feature — SMS is not implemented anywhere in the backend (same false claim pattern as the now-fixed website one). Correct to "Push alerts" while this file is being edited.
+6. Re-test end-to-end once (1)-(2) land: invite-code redemption → parent sees no paywall anywhere in the app; a genuinely unlinked parent → sees the €2.99/mo prompt → completes real Stripe checkout → `subscription_status` flips to `active` correctly.
+
+**Decided by Jono (2026-08-18):** `/reports/pdf/family/{id}` stays ungated — free for all parents regardless of subscription status, deliberately. It's a caring wellbeing report about their own child, not a premium feature, so it's intentionally excluded from the free/paid parent split described above. No change needed here as part of L3; this also settles A8's open question about this specific route (the school-overview and classroom-overview PDF gating question in A8 is unaffected and still open).
+
+### L4. School identity (school_admin_id vs school_name) — real data loss happening today *(Section 7 #1)* — ✅ DONE 2026-08-18
+**File:** `backend/server.py` (every `.eq("school_admin_id"` / `.eq("school_name"` query site)
+
+Queried live Supabase `users` table directly:
+- All 4 `school_admin` rows have `school_admin_id = NULL` on their own row (matched to their school purely by `school_name`).
+- Of 23 `teacher` rows: **0 have both fields set.** 3 real teachers at "Sunshine International School" have `school_name` set but `school_admin_id = NULL`. 1 has only `school_admin_id`. 19 have neither.
+- A **third** school-identity concept exists beyond the two the handover names: a separate `school_profiles` table with its own `school_admin_user_id` column, currently 1 row ("St Lucy's ", trailing space in the stored name), `school_admin_user_id` also NULL. Not resolved by this fix — flagged as-is for a future canonical-school-entity decision.
+
+Any endpoint filtering by `school_admin_id` alone silently drops the 3 real, active Sunshine teachers' data — not theoretical, today's actual data. This is launch-blocking rather than a nice-to-have because it directly undermines L2/L3's school-package coverage logic too: if a school's own teachers/parents aren't reliably matched to that school, "free because your school has a package" can't be trusted to work correctly for exactly the accounts most likely to be affected (newly-linked ones).
+
+**What was actually fixed:**
+1. **Root cause re-investigated, turned out different from the original hypothesis.** `/school/join` (`server.py:8280-8323`, the real invite-code redemption flow) already correctly sets *both* `school_admin_id` and `school_name` — it was never broken. The 3 affected teachers (`demo_teacher_001/002/003`, sarah.mitchell/james.okonkwo/maria.santos @sunshine-school.com) are pre-existing seed data created May 30–Jun 9, 2026, *before* any "Sunshine" school_admin account existed (created Jul 28) — they were seeded directly with only a `school_name` string, never run through the join flow. No ongoing linking-flow bug to fix.
+2. **Ambiguity found and resolved:** two separate school_admin rows both use `school_name = "Sunshine International School"` — `demo_school_001` (demo@schoolportal.app) and `44bf76b1-c0ee-49d5-bc68-3e47bb5cf8b3` (schooladmindemo@classofhappiness.com, the account documented in COH-HANDOVER.md Section 2 as the real demo login). Backfilled against the documented account per Jono's decision; `demo_school_001` is an unused duplicate seed row, tracked separately in A13 below rather than fixed here.
+3. **Backfilled** `school_admin_id = 44bf76b1-c0ee-49d5-bc68-3e47bb5cf8b3` onto all 3 teacher rows via direct Supabase PATCH — confirmed in the update response for each.
+4. **Dual-match code fix applied** at the 3 single-match risk sites identified in the original review, using the same pattern already correct elsewhere in the file (merge-and-dedupe by `user_id` across an `school_admin_id` lookup and a `school_name`+`role=="teacher"` lookup):
+   - `GET /school-admin/stats` (`server.py:8180-8186`)
+   - `GET /school-admin/subscription` (`server.py:8592-8598`)
+   - Superadmin "Schools Breakdown" loop (`server.py:6887-6892`)
+   - `python3 -m py_compile backend/server.py` confirmed valid syntax after the edit.
+
+**Verified live**, logged in as the real `schooladmindemo@classofhappiness.com` account against production (`https://class-of-happiness-production.up.railway.app`):
+- `GET /school-admin/stats` → `total_teachers: 3, total_students: 24` (was silently 0 before the backfill)
+- `GET /school-admin/subscription` → `seats_used: 3`, all 3 teachers (Maria Santos, Sarah Mitchell, James Okonkwo) listed by name/email
+- `GET /school-admin/analytics` → `total_teachers: 3, total_students: 24`
+
+All three checks ran against the **already-deployed** (pre-dual-match-fix) backend and passed purely from the data backfill — confirming the data-layer fix alone resolves the user-visible symptom immediately. The dual-match code change is deployed as defense-in-depth for any future similarly-orphaned row (e.g. from manual Table Editor edits, which the handover notes has happened before) — re-verify these same 3 endpoints once Railway redeploys, to confirm the new code path doesn't change the (already-correct) result.
+
+**Deferred, not part of this fix:** part (d) of the original fix list — whether `school_profiles` becomes the canonical school entity long-term — remains open. `demo_school_001` cleanup is tracked in A13.
+
+---
+
+# LAUNCH-ACCEPTABLE
+*(Real, evidenced problems. Don't block launch, but should be worked through soon after — roughly in the order listed.)*
+
+### A1. Duplicate route registrations — dead code, no live impact *(Section 6 #2)*
+**File:** `backend/server.py`
+
+Two paths are registered twice under `api_router`; FastAPI matches in registration order, so the first definition wins and the second is unreachable — same bug class as commit `0792701`:
+- `POST /auth/promote-admin` — line 2469 (live) vs 7307 (dead).
+- `DELETE /admin/teacher-strategies/{strategy_id}` — line 8110 (live) vs 9456 (dead).
+
+**Fix:** delete the dead (second) definition of each pair or merge intentionally; grep for other duplicates after any large edit.
+
+### A2. Full admin-capability parity map — retire legacy admin.html, close the school_admin app/portal gap *(Section 6 #3)*
+
+**App — `frontend/app/admin/dashboard.tsx`, one shared component for both roles, no `frontend/app/school-admin/` directory exists:**
+Superadmin: 6 tabs (Analytics, Strategies, Resources, Schools, Users, Settings). School_admin: strict subset, 4 tabs (Analytics, Strategies, Resources, "School"=Settings). Sharpest asymmetry: superadmin's Settings (`:1246-1253`) is one static "Platform Version" card; school_admin's Settings (`SchoolSettings`, `:843-956`) is a real functional form (school profile, wellbeing-alert email, teacher invite-code generator).
+
+**Portal (`portal100.html`) — superadmin (`buildSuperAdminPortal`, line 415): 6 tabs** (Dashboard, Creatures, Schools, Users, Strategies, Resources).
+
+**Portal — school_admin (`buildSchoolAdminPortal`, line 1423) — 9 tabs, the biggest gap the handover missed:** Dashboard, Resources, Strategies, Users, **Wellbeing Tracker, Our Team, Services** (third-party provider directory), **Creatures, My Wellbeing** — the last four exist *only* in the school_admin portal, zero app equivalent. This is the largest concrete SYNC PRINCIPLE violation found: not a lighter app version, just absent from the app.
+
+**Legacy admin.html (`coh_admin-2.html`, 1,844 lines) — superadmin-only, targets Railway directly:** Login, Dashboard, Resources, Strategies, Users, Alerts, Schools, School Mgmt, Reports. Every capability maps 1:1 to something the portal already covers against the identical backend — **zero unique capabilities** — and it's demonstrably broken: `loadSubscriptionIntents()` (`:876`) is called but never defined (dashboard subscription card permanently stuck loading); School Analytics panel is fully broken (`:1223`, `:643` — references to a DOM element and handler that don't exist in this version); its "Grant Trial" button calls `POST /auth/apply-promo-trial` (`:1184`) — **this endpoint doesn't exist in `server.py`** (only `/auth/promo-code` does).
+
+**Fix:**
+1. **Retire legacy admin.html entirely** — zero unique capabilities, three already-broken features, unmaintained since Aug 4. Confirm portal's own Grant Trial / School Analytics equivalents work first, then remove from cPanel. (Also closes A5's XSS finding for this file.)
+2. Decide whether Wellbeing Tracker / Our Team / Services / My Wellbeing stay portal-only by design or need an app equivalent — product call.
+3. Build an app-side school_admin "School Profile" settings screen matching the portal; decide what superadmin's app Settings should actually contain.
+4. Port `/admin/wellbeing-alerts` into the portal's superadmin Dashboard if still wanted — live endpoint, no surface points at it today.
+
+### A3. Creatures global-approve — confirmed missing from the app, unconfirmed in portal *(Section 6 #4)*
+**Files:** `frontend/src/components/CreatureManagement.tsx:6-11`, `backend/server.py:10715-10745`
+
+`CreatureManagement.tsx`'s own comment describes a two-step approval (teacher/parent approve locally — works; superadmin global-approve — the real gate before anything goes public). Grepping `frontend/` for `global-approve` returns exactly one hit, that same comment — **no React Native app code calls this endpoint.** Portal's Aug 18 Creatures tab renders an approval queue, but this review didn't confirm its Approve button actually posts to `/creatures/global-approve` with `visibility_scope`.
+
+**Fix:** confirm live whether portal's Approve button calls this endpoint correctly; if not, it's a fully orphaned backend capability needing a UI built.
+
+### A4. Superadmin period-pill bug — appears ALREADY FIXED, handover is stale *(Section 6 #5)*
+**File:** `portal100.html:544-559`
+
+Live code has an Aug 18-dated comment describing the exact cross-call fix the handover still lists as open. `changeSAStatsPeriod` now calls only `loadSuperAdminData()`.
+
+**Fix:** no code change — live-test to confirm, then strike from the priority list.
+
+### A5. [SECURITY] Stored-XSS risk in legacy admin.html; audit portal.html for the same pattern *(Section 6 #7)*
+**File:** `coh_admin-2.html` — `schoolCompCard()` (`:902-916`), `userRows()` (`:1438-1450`), `renderSchools()` (`:1621-1666`), `renderTasks()`/`renderContactHistory()` (`:1710-1727`), alert rendering (`:1527-1533`)
+
+Lower-privilege-originated data (school names, task notes, alert messages, teacher/user names) is inserted into the superadmin's DOM via unescaped template-literal `innerHTML`. Moot once A2's retirement lands for this file specifically — but the same hand-built-HTML-string pattern is used in `portal.html`, which isn't being retired.
+
+**Fix:** audit `portal100.html`'s equivalent render functions (Users, Schools, Alerts/Wellbeing Tracker) for the same unescaped pattern before considering this closed.
+
+### A6. The 'admin' role — vestigial, inconsistently privileged across surfaces *(Section 6 #6)*
+Live Supabase has zero `role='admin'` rows, but `POST /auth/promote-admin` (`server.py:2469`) can still create one. Once set, `admin` = `school_admin`-level in the portal (`portal100.html:408`) but `admin` = `superadmin`-level in legacy admin.html (`coh_admin-2.html:797`) — same role string, two different privilege levels depending which surface reads it.
+
+**Fix:** decide what `admin` is for (stepping-stone role vs. dead code) and make every surface agree; becomes moot once A2's admin.html retirement lands.
+
+### A7. Colour drift — systemic, worse than "app vs. portal," no central fix point *(Section 7 #3/#4)*
+- 42 files use the old palette (`#4CAF50`/`#F44336`/`#FFC107`) vs. 5 using brand (`#4CAF73`/`#E05252`/`#FFD93D`) across `frontend/src`+`frontend/app`.
+- `ZoneButton.tsx:29-58` (`ZONE_CONFIG`) is the nominal shared source but bypassed by 10+ local redeclarations (`admin/dashboard.tsx:14`, `parent/alerts.tsx:11`, `teacher/dashboard.tsx:42`, `kiosk/index.tsx:14`, and more).
+- **Three, not two, mutually-inconsistent palettes exist**: old, brand, and a third variant inside `teacher/dashboard.tsx:199,213` (`#43A047`/`#F9A825`/`#E53935`) — one file disagreeing with itself.
+- Backend (`server.py` CREATURES model + every PDF generator) and portal (several functions, e.g. `renderTeacherAlerts`, the strategy zone picker) both lean old-palette too, alongside brand-correct sections in the same files.
+- Brand yellow `#FFD93D` barely appears live anywhere — app, backend, and portal all default to `#FFC107` instead. This is the design doc being out of sync with reality, not surface drift.
+- No central colour-constants file exists anywhere.
+
+**Fix:** one shared colour-constants module (`frontend/src/constants/emotionColours.ts` + matching Python dict), single pass across all drifted files. Recommend canon `#4CAF73`/`#E05252`/`#4A90D9`, and update the design doc's yellow to the real `#FFC107` rather than repainting 45+ files.
+
+### A8. Freemium/gating consistency — PDF endpoints *(Section 7 #5)*
+5 PDF routes exist; only student (`:4240`) and teacher-wellbeing (`:4917`) enforce download caps. Family, school-overview, and classroom-overview PDFs have zero cap gating (verified with a 120-line post-route grep window).
+
+**Fix:** extend the existing cap pattern to the 3 ungated routes, or confirm deliberately that they're meant to stay uncapped. Revisit alongside L3's open question about whether family PDFs should gate on the parent's new coverage status.
+
+### A9. Three strategy systems — confirmed orphaned content *(Section 7 #2 old / now #6)*
+Live Supabase `admin_teacher_strategies`: 39 rows, 22 student/9 teacher/8 parent. `GET /strategies` (the real check-in consumer) only reads `helpers`+`custom_helpers`, never this table. **The 17 teacher/parent rows are real, editable superadmin content, structurally unreachable by any teacher or parent today.**
+
+**Fix:** build the missing teacher/parent-facing consumer screens, or explicitly stop presenting this content as if it reaches users.
+
+### A10. Website claims — mostly already fixed live *(Section 7 #6)*
+Checked live via `curl`: the stale local copy's "Now on iOS & Android" claim is already corrected live to "Now in Beta — iOS & Android" (honest); the stale copy's raw "SMS alerts" fallback text is already corrected live to "Wellbeing alerts" (only a harmless invisible HTML comment remains at line 550). No fix needed for either. The school pricing mismatch originally flagged here is now tracked as L2/L3 above (and reclassified: backend was wrong, not the site).
+
+**Fix:** optional — remove the stale `<!-- SMS alerts -->` comment for cleanliness. Nothing else required.
+
+### A11. Portal.html fragility — standing risk, no quick fix *(Section 7 #7)*
+5,770-line hand-edited file, string-concatenated HTML, inconsistent escaping styles (cosmetic, not currently broken). The file's own version comment documents a prior incident where one missing brace broke the *entire* portal (60+ nested functions, blank/unclickable tabs) — real evidence of fragility. No build step, no linting, no local diff against cPanel.
+
+**Fix:** not urgent, but plan a longer-term move to versioned `.js` files so syntax errors are catchable pre-upload.
+
+### A12. PIN/auth model — handover's description was wrong; code is fine *(Section 7 #8)*
+Verified `server.py:7321-7353`: PIN required for the 4 `ALWAYS_OPEN_PINS` demo accounts and for `admin`/`superadmin` roles via `ADMIN_PIN`; everyone else uses password/OAuth, no PIN. Opposite of what the handover claimed, but the actual behavior is coherent and needs no code change.
+
+**Fix:** correct the handover doc only.
+
+### A13. Cleanup, no dependencies
+- `backend/server_backup.py`/`server_old.py` (6,548 lines each) — untouched since the repo's first commit, not referenced by `Procfile`/`railway.toml`/any import. Safe to delete.
+- `/creatures/analytics` (`server.py:10891-10933`) — correctly superadmin-gated; N+1 query pattern building `top_users`/`top_schools`, and groups schools by raw `school_name` string (fragile to spelling/casing variants, e.g. the "St Lucy's " trailing-space example already in `school_profiles`) rather than a canonical school ID. Code-quality, not correctness.
+- **`demo_school_001`** (email `demo@schoolportal.app`) — duplicate seed `school_admin` row for "Sunshine International School", found while executing L4. Created 21 minutes before the real demo account (`schooladmindemo@classofhappiness.com`, `44bf76b1-c0ee-49d5-bc68-3e47bb5cf8b3`, the one documented in COH-HANDOVER.md Section 2 and actually used for logins). `demo_school_001` isn't referenced by the handover, isn't the account the 3 Sunshine teachers were backfilled against, and appears to be an unused leftover from seeding. Confirm it's genuinely orphaned (no other rows reference `demo_school_001` as their `school_admin_id`) before deleting.
+
+---
+
+# POST-LAUNCH
+*(Explicitly deferred by Jono — record only, no work now.)*
+
+### P1. Multi-currency / country-adjusted pricing
+Launch is **EUR-only**. AUD figures currently exist in `SUBSCRIPTION_PLANS` (`price_aud` fields, `server.py:44-79`) as leftover/parallel values — leave as-is for now, don't extend or fix them as part of L2/L3. Deferred work for later: real multi-currency support, purchasing-power-adjusted pricing by country, and a public-vs-private-school pricing distinction. For now, affordability cases are handled manually via NGO grants and ad hoc discounts, not through product-level pricing tiers.
+
+---
+
+## SUGGESTED EXECUTION ORDER
+
+1. **L1** — hardcoded bypass, five-minute security fix, do first regardless of everything else.
+2. **L2 + L3 together** — these share the same Stripe/checkout surface area (`SUBSCRIPTION_PLANS`, the missing `/subscription/checkout` + `/subscription/status/{session_id}` endpoints, `_get_plan_from_price`) and are the actual revenue-launch-blockers. Do the school tier fix (L2) and the parent free/paid split + missing checkout build (L3) as one connected pass, then test the full signup→payment→webhook→display loop for all three account types (school, unlinked parent, teacher) before calling this done.
+3. **L4** — ✅ DONE 2026-08-18 — school identity backfill + dual-match audit, verified live.
+4. **A1** — dead duplicate routes, quick, do anytime early.
+5. **A4** — period-pill, just a live test.
+6. **A2** — retire legacy admin.html (closes A5, touches A6).
+7. **A3** — confirm/build creatures global-approve.
+8. **A9** — orphaned strategy content — needs Jono's product call first.
+9. **A7** — colour drift — larger mechanical pass, once other in-flight UI work settles.
+10. **A5 remainder** — audit portal.html's own render functions for the same XSS pattern, alongside A7 since both touch the same functions.
+11. **A8** — PDF gating — family PDF stays ungated by decision (see L3); still open for school-overview/classroom-overview routes.
+12. **A6** — `admin` role cleanup, rides along with A2.
+13. **A11** — portal fragility — standing risk, plan separately, no fixed timeline.
+14. **A12** — doc correction only.
+15. **A13** — cleanup, anytime.
+16. **P1** — do not schedule; revisit after launch.
