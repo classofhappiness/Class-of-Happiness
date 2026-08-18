@@ -6595,14 +6595,17 @@ async def get_checkout_session_status(session_id: str, request: Request):
     except Exception as e:
         logger.error(f"Could not retrieve checkout session {session_id}: {e}")
         raise HTTPException(status_code=404, detail="Checkout session not found")
-    if session.get("client_reference_id") != user["user_id"]:
+    # Real fix Aug 18, found live-testing: this stripe-python version's objects don't
+    # support .get() at all (AttributeError) — only bracket access works. See _sget,
+    # defined near the webhook handler below.
+    if _sget(session, "client_reference_id") != user["user_id"]:
         raise HTTPException(status_code=403, detail="This checkout session does not belong to you")
     # Read payment_status directly from the Stripe session — it's set synchronously on
     # successful payment, unlike Supabase's subscription_status which only updates once the
     # async webhook lands. Matches what frontend/app/subscription/success.tsx checks for.
     return {
-        "status": session.get("payment_status", "unpaid"),
-        "plan": (session.get("metadata") or {}).get("plan"),
+        "status": _sget(session, "payment_status", "unpaid"),
+        "plan": _sget(_sget(session, "metadata", {}), "plan"),
         "expires_at": None,
     }
 
@@ -10767,6 +10770,20 @@ def _get_plan_from_price(price_id: str) -> str:
     if "teacher" in pid: return "teacher"
     return "subscriber"
 
+# Real fix Aug 18, found while live-testing L2/L3 against Stripe test mode: the installed
+# stripe-python version's StripeObject does NOT implement .get() at all (raises
+# AttributeError — confirmed live via Railway logs) — only bracket/index access ([]) works.
+# The webhook handler below (and the new /subscription/status/{session_id} endpoint) had
+# used .get() throughout since it was first written; every single one of those calls would
+# have thrown, meaning this webhook has likely never successfully processed a real Stripe
+# event. _sget wraps safe bracket access with the same (key, default) signature as dict.get
+# so the fix is a mechanical find-and-replace rather than a rewrite.
+def _sget(obj, key, default=None):
+    try:
+        return obj[key]
+    except (KeyError, TypeError, IndexError):
+        return default
+
 @api_router.post("/stripe/webhook")
 async def stripe_webhook(request: Request):
     if not STRIPE_WEBHOOK_SECRET:
@@ -10790,7 +10807,7 @@ async def stripe_webhook(request: Request):
             if res.data: return res.data[0]
             if STRIPE_SECRET_KEY:
                 cus = stripe_lib.Customer.retrieve(customer_id)
-                email = cus.get("email")
+                email = _sget(cus, "email")
                 if email:
                     res2 = supabase.table("users").select("*").eq("email", email).execute()
                     if res2.data:
@@ -10801,24 +10818,24 @@ async def stripe_webhook(request: Request):
         return None
 
     if event_type in ("customer.subscription.created", "customer.subscription.updated"):
-        customer_id = data_obj.get("customer")
-        status = data_obj.get("status")
-        current_period_end = data_obj.get("current_period_end")
+        customer_id = _sget(data_obj, "customer")
+        status = _sget(data_obj, "status")
+        current_period_end = _sget(data_obj, "current_period_end")
         user = _find_user(customer_id)
         if user:
             sub_status = "active" if status in ("active", "trialing") else ("past_due" if status == "past_due" else "none")
             exp_dt = None
             if current_period_end:
                 exp_dt = datetime.fromtimestamp(current_period_end, tz=timezone.utc).isoformat()
-            items = data_obj.get("items", {}).get("data", [])
+            items = _sget(_sget(data_obj, "items", {}), "data", [])
             # Real fix Aug 18: this used to pass only price.id — Stripe auto-generates that
             # as a random string (price_1Abc...), which would never contain "teacher"/
             # "parent"/"school_starter" etc. no matter what Jono names the product. The
             # actual identifying name lives in price.nickname (what Jono sets in the
             # dashboard) or price.lookup_key — check all three so it works regardless of
             # which one ends up set.
-            price_obj = (items[0].get("price", {}) if items else {}) or {}
-            price_key = " ".join(filter(None, [price_obj.get("nickname"), price_obj.get("lookup_key"), price_obj.get("id")]))
+            price_obj = _sget(items[0], "price", {}) if items else {}
+            price_key = " ".join(filter(None, [_sget(price_obj, "nickname"), _sget(price_obj, "lookup_key"), _sget(price_obj, "id")]))
             plan = _get_plan_from_price(price_key)
             supabase.table("users").update({
                 "subscription_status": sub_status, "subscription_plan": plan,
@@ -10827,21 +10844,21 @@ async def stripe_webhook(request: Request):
             print(f"[Stripe] {event_type}: {user['user_id']} -> {sub_status} ({plan})")
 
     elif event_type == "customer.subscription.deleted":
-        user = _find_user(data_obj.get("customer"))
+        user = _find_user(_sget(data_obj, "customer"))
         if user:
             supabase.table("users").update({"subscription_status": "none", "subscription_expires_at": None}).eq("user_id", user["user_id"]).execute()
 
     elif event_type == "invoice.payment_succeeded":
-        customer_id = data_obj.get("customer")
+        customer_id = _sget(data_obj, "customer")
         user = _find_user(customer_id)
         if user:
-            lines = data_obj.get("lines", {}).get("data", [])
-            period_end = lines[0].get("period", {}).get("end") if lines else None
+            lines = _sget(_sget(data_obj, "lines", {}), "data", [])
+            period_end = _sget(_sget(lines[0], "period", {}), "end") if lines else None
             exp_dt = datetime.fromtimestamp(period_end, tz=timezone.utc).isoformat() if period_end else None
             supabase.table("users").update({"subscription_status": "active", "subscription_expires_at": exp_dt}).eq("user_id", user["user_id"]).execute()
 
     elif event_type == "invoice.payment_failed":
-        user = _find_user(data_obj.get("customer"))
+        user = _find_user(_sget(data_obj, "customer"))
         if user:
             supabase.table("users").update({"subscription_status": "past_due"}).eq("user_id", user["user_id"]).execute()
 
