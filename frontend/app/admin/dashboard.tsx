@@ -1130,14 +1130,7 @@ export default function AdminDashboard() {
         Alert.alert('Invalid code');
       }
     } catch {
-      // Fallback: check hardcoded super admin code
-      if (adminCode === 'COH_SUPER_2026') {
-        setUnlocked(true); setIsSuperAdmin(true);
-      } else if (adminCode.length === 6) {
-        setUnlocked(true); setIsSuperAdmin(false);
-      } else {
-        Alert.alert('Invalid code');
-      }
+      Alert.alert('Could not verify', 'Check your connection and try again.');
     }
   };
 

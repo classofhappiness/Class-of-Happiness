@@ -19,7 +19,7 @@ The marketing site **was** checked live via `curl https://classofhappiness.com`,
 
 # LAUNCH-BLOCKING
 
-### L1. [SECURITY] Hardcoded superadmin bypass code shipped in the app bundle *(Section 6 #1)*
+### L1. [SECURITY] Hardcoded superadmin bypass code shipped in the app bundle *(Section 6 #1)* — ✅ DONE 2026-08-18
 **File:** `frontend/app/admin/dashboard.tsx:1123-1141`
 
 The in-app admin unlock screen calls `POST /admin/verify` to check the real session's role (correct, fixed Aug 14 — `backend/server.py:7031`). But the `catch` block still contains a **client-side fallback**:
@@ -33,6 +33,13 @@ The in-app admin unlock screen calls `POST /admin/verify` to check the real sess
 This fires on ANY network failure (Railway cold start, transient timeout, offline device) — not just a missing endpoint. The hardcoded string `COH_SUPER_2026` is sitting in the shipped JS bundle and grants full superadmin unlock with zero server validation; **any 6-character string** grants school_admin-level unlock. Once unlocked, `isSuperAdmin` is a plain local `useState` boolean (`:1100`) never re-verified for the component's lifetime. Entry to this screen is role-gated upstream (`frontend/app/settings.tsx:530-533` only shows "Admin Dashboard" to `admin`/`superadmin`/`school_admin`), so it isn't reachable by a random teacher/parent — but it's reachable by exactly the population (school admins) for whom this wrongly grants a higher privilege tier than they should ever get client-side.
 
 **Fix:** delete the entire `catch` fallback block. If `/admin/verify` fails, show a retry/error state — never grant access client-side.
+
+**What was actually done:**
+1. **Verified the real path first**, as required before touching this: logged in live against production (`https://class-of-happiness-production.up.railway.app`) as `jono@classofhappiness.com` with PIN `COH2026JONO` — confirmed `role: superadmin` and a valid session token. Called `POST /admin/verify` with that real session token and got `{valid: true, is_super_admin: true}` back — the primary, server-checked path works correctly and doesn't depend on the fallback in any way.
+2. **Removed the hardcoded bypass.** The `catch` block in `unlock()` (`frontend/app/admin/dashboard.tsx:1132-1141`) no longer contains the `COH_SUPER_2026` string or the "any 6-character code" school_admin fallback — a network/server failure now shows an error alert and denies access, full stop. Diff confirmed isolated to exactly this block (7 lines removed, replaced with one `Alert.alert` call) — no other part of the file touched.
+3. `npx tsc --noEmit` shows 3 pre-existing type errors in this file (lines 32, 1230, 1234) — all unrelated to the edited lines (1123-1135), confirmed present regardless of this change.
+
+**Not yet done — flag before considering this fully live:** this fix is committed to the repo but has **not been deployed** (no `git push`, no Expo/EAS rebuild). The hardcoded bypass remains live in any already-shipped app bundle and in the current Railway/Expo deployment until a new build goes out. Deploying is a separate, more consequential action (affects real users' installed app) — confirm with Jono before pushing/rebuilding.
 
 ### L2. School subscription pricing — backend and Stripe must be updated to match the website *(Section 7 #2)*
 **Files:** `backend/server.py:67-79` (`SUBSCRIPTION_PLANS`), `backend/server.py:10568-10572` (`_get_plan_from_price`), `backend/server.py:6029-6031` (`GET /subscription/plans`, confirmed live-consumed by the app at `frontend/src/utils/api.ts:199`), Stripe dashboard products/prices, `portal100.html` (verified below).
@@ -223,7 +230,7 @@ Launch is **EUR-only**. AUD figures currently exist in `SUBSCRIPTION_PLANS` (`pr
 
 ## SUGGESTED EXECUTION ORDER
 
-1. **L1** — hardcoded bypass, five-minute security fix, do first regardless of everything else.
+1. **L1** — ✅ DONE 2026-08-18 — hardcoded bypass removed, verified against real login. Not yet deployed (no push/rebuild done).
 2. **L2 + L3 together** — these share the same Stripe/checkout surface area (`SUBSCRIPTION_PLANS`, the missing `/subscription/checkout` + `/subscription/status/{session_id}` endpoints, `_get_plan_from_price`) and are the actual revenue-launch-blockers. Do the school tier fix (L2) and the parent free/paid split + missing checkout build (L3) as one connected pass, then test the full signup→payment→webhook→display loop for all three account types (school, unlinked parent, teacher) before calling this done.
 3. **L4** — ✅ DONE 2026-08-18 — school identity backfill + dual-match audit, verified live.
 4. **A1** — dead duplicate routes, quick, do anytime early.
