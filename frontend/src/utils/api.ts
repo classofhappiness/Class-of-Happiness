@@ -211,10 +211,13 @@ export const subscriptionApi = {
     apiRequest(`/subscription/status/${sessionId}`),
     
   redeemTrialCode: (code: string): Promise<{ message: string; trial_days: number; trial_ends_at: string }> =>
-    apiRequest('/subscription/redeem-trial-code', { 
-      method: 'POST', 
-      body: JSON.stringify({ code }) 
+    apiRequest('/subscription/redeem-trial-code', {
+      method: 'POST',
+      body: JSON.stringify({ code })
     }),
+
+  getParentCoverage: (): Promise<{ covered: boolean }> =>
+    apiRequest('/parent/coverage-status'),
 };
 
 // Translations API

@@ -59,22 +59,35 @@ SUBSCRIPTION_PLANS = {
     },
     "parent_monthly": {
         "id": "parent_monthly", "name": "Parent", "type": "parent",
-        "price_eur": 2.99, "price_aud": 6.99,
-        "label_eur": "€2.99/month", "label_aud": "A$6.99/month",
+        # Real fix Aug 18: was €2.99 — Jono's actual considered price is €4.99/mo, confirmed
+        "price_eur": 4.99, "price_aud": 11.99,
+        "label_eur": "€4.99/month", "label_aud": "A$11.99/month",
         "trial_days": 7, "duration_days": 30,
         "features": ["Unlimited family members","Home check-ins","Family strategies","School linking"],
     },
-    "school_small": {
-        "id": "school_small", "name": "School — Small", "type": "school",
-        "price_eur": 399, "price_aud": 699,
-        "label_eur": "€399/year", "label_aud": "A$699/year",
+    # Real fix Aug 18: this used to be two tiers (school_small €399, school_large €1499),
+    # both wrong — the live website has always advertised three tiers by teacher-seat count
+    # (Starter/Standard/Plus). Corrected to match the website exactly; website is the source
+    # of truth here, not this dict. price_aud values below are rough placeholders (not a
+    # real currency conversion) — proper multi-currency pricing is a deferred post-launch item.
+    "school_starter": {
+        "id": "school_starter", "name": "School — Starter", "type": "school",
+        "price_eur": 499, "price_aud": 899,
+        "label_eur": "€499/year", "label_aud": "A$899/year",
         "trial_days": 30, "duration_days": 365,
-        "features": ["5 teacher accounts","150 students","School admin dashboard","All features"],
+        "features": ["Up to 5 teacher accounts","150 students","School admin dashboard","All features"],
     },
-    "school_large": {
-        "id": "school_large", "name": "School — Large", "type": "school",
-        "price_eur": 1499, "price_aud": 2499,
-        "label_eur": "€1,499/year", "label_aud": "A$2,499/year",
+    "school_standard": {
+        "id": "school_standard", "name": "School — Standard", "type": "school",
+        "price_eur": 999, "price_aud": 1749,
+        "label_eur": "€999/year", "label_aud": "A$1,749/year",
+        "trial_days": 30, "duration_days": 365,
+        "features": ["Up to 15 teacher accounts","Unlimited students","School admin dashboard","All features"],
+    },
+    "school_plus": {
+        "id": "school_plus", "name": "School — Plus", "type": "school",
+        "price_eur": 1999, "price_aud": 3499,
+        "label_eur": "€1,999/year", "label_aud": "A$3,499/year",
         "trial_days": 30, "duration_days": 365,
         "features": ["Unlimited teachers","Unlimited students","Priority support","Custom branding"],
     },
@@ -3323,8 +3336,14 @@ async def get_resources(request: Request):
     # for free-tier users — they're returned with an is_locked flag so the app can show what
     # exists with a real "Subscribe to unlock" prompt, matching Jono's own notification idea,
     # rather than making paid content invisible.
+    # Real fix Aug 18: this never checked school-package coverage for parents — a parent free
+    # because their school pays could still see resources marked locked. Teacher gating is
+    # unchanged (teacher pricing didn't change), so the coverage exemption only applies when
+    # role == "parent".
     sub_status = user.get("subscription_status", "none")
-    is_free_tier = sub_status in ("none", "free", None)
+    is_free_tier = sub_status in ("none", "free", None) and not (
+        user.get("role") == "parent" and _parent_is_school_covered(user)
+    )
     for r in items:
         if not is_free_tier:
             r["is_locked"] = False
@@ -3427,10 +3446,13 @@ async def add_family_member(member: FamilyMemberCreate, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     # Free tier: limit to 2 children (mirrors the same real pattern used for classrooms/students —
-    # only counts relationship=="child", adult family members like partners aren't capped)
+    # only counts relationship=="child", adult family members like partners aren't capped).
+    # Real fix Aug 18: this never checked school-package coverage, only the parent's own
+    # subscription_status — a parent free because their school pays could still incorrectly
+    # hit this cap. See _parent_is_school_covered (defined near /parent/link-child).
     if member.relationship == "child":
         sub_status = user.get("subscription_status", "none")
-        if sub_status in ("none", "free", None):
+        if sub_status in ("none", "free", None) and not _parent_is_school_covered(user):
             existing = supabase.table("family_members").select("id", count="exact").eq("user_id", user["user_id"]).eq("relationship", "child").execute()
             child_count = existing.count or len(existing.data or [])
             if child_count >= 2:
@@ -3522,6 +3544,64 @@ async def delete_family_member(member_id: str, request: Request):
     supabase.table("family_members").delete().eq("id", member_id).execute()
     return {"message": "Member deleted"}
 
+def _parent_is_school_covered(user: dict) -> bool:
+    """True if any of this parent's linked children attend a school whose own school_admin
+    account has an ACTIVE paid plan. Real fix Aug 18, per Jono's final pricing model
+    (parents are free specifically because the school paid): being merely linked to a
+    school_admin used to count as 'covered' regardless of whether that school ever actually
+    paid (bool(school_admin_id) alone) — that was a real loophole under the old logic, since
+    a school_admin on a lapsed/none subscription would make all their teachers' parents free
+    forever. Now requires subscription_status == 'active' on the school_admin's own row."""
+    def _admin_is_active(admin_id):
+        if not admin_id:
+            return False
+        r = supabase.table("users").select("subscription_status").eq("user_id", admin_id).execute()
+        return bool(r.data) and r.data[0].get("subscription_status") == "active"
+
+    # Rare case: a parent row itself carries a school_admin_id.
+    if _admin_is_active(user.get("school_admin_id")):
+        return True
+
+    try:
+        links = supabase.table("parent_links").select("student_id").eq("parent_user_id", user["user_id"]).execute()
+        student_ids = [l["student_id"] for l in (links.data or [])]
+        if not student_ids:
+            return False
+        students = supabase.table("students").select("classroom_id").in_("id", student_ids).execute()
+        classroom_ids = list({s["classroom_id"] for s in (students.data or []) if s.get("classroom_id")})
+        if not classroom_ids:
+            return False
+        classrooms = supabase.table("classrooms").select("user_id").in_("id", classroom_ids).execute()
+        teacher_ids = list({c["user_id"] for c in (classrooms.data or []) if c.get("user_id")})
+        if not teacher_ids:
+            return False
+        teachers = supabase.table("users").select("school_admin_id,school_name").in_("user_id", teacher_ids).execute()
+        for t in (teachers.data or []):
+            if _admin_is_active(t.get("school_admin_id")):
+                return True
+            # Dual-match fallback, same principle as the L4 school-identity fix: a teacher's
+            # own school_admin_id can be unbackfilled even when their school_name correctly
+            # matches an active school's admin.
+            school_name = t.get("school_name")
+            if school_name:
+                admins = supabase.table("users").select("subscription_status").eq("role", "school_admin").eq("school_name", school_name).execute()
+                if any(a.get("subscription_status") == "active" for a in (admins.data or [])):
+                    return True
+        return False
+    except Exception as e:
+        logger.warning(f"_parent_is_school_covered check failed for {user.get('user_id')}: {e}")
+        return False
+
+@api_router.get("/parent/coverage-status")
+async def get_parent_coverage_status(request: Request):
+    """New Aug 18, for the subscription screen: lets the app show 'free — covered by your
+    school' instead of a €4.99 paywall it would otherwise never need for covered parents."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    covered = user.get("role") == "parent" and _parent_is_school_covered(user)
+    return {"covered": covered}
+
 @api_router.post("/parent/link-child")
 async def link_child(body: LinkChildRequest, request: Request):
     user = await get_current_user(request)
@@ -3541,10 +3621,12 @@ async def link_child(body: LinkChildRequest, request: Request):
 
     # Real freemium gate, per Jono's explicit rule: the home-school link only completes if
     # EITHER the teacher has subscribed, OR the parent has subscribed, OR there's a school
-    # package covering either side (school_admin_id present). This is checked here (at
-    # redemption) rather than at code-generation, since it genuinely needs both parties' status.
+    # package covering either side. Real fix Aug 18: school-package coverage now requires
+    # the school_admin's own subscription_status == "active" (see _parent_is_school_covered
+    # above), not just link presence — closes the "free forever via an unpaid school_admin"
+    # loophole under the new parent pricing model.
     parent_sub = user.get("subscription_status", "none")
-    parent_covered = parent_sub not in ("none", "free", None) or bool(user.get("school_admin_id"))
+    parent_covered = parent_sub not in ("none", "free", None) or _parent_is_school_covered(user)
     teacher_covered = False
     classroom_id = student.get("classroom_id")
     if classroom_id:
@@ -3552,11 +3634,19 @@ async def link_child(body: LinkChildRequest, request: Request):
             classroom_result = supabase.table("classrooms").select("user_id").eq("id", classroom_id).execute()
             if classroom_result.data:
                 teacher_id = classroom_result.data[0].get("user_id")
-                teacher_result = supabase.table("users").select("subscription_status,school_admin_id").eq("user_id", teacher_id).execute()
+                teacher_result = supabase.table("users").select("subscription_status,school_admin_id,school_name").eq("user_id", teacher_id).execute()
                 if teacher_result.data:
                     teacher = teacher_result.data[0]
                     teacher_sub = teacher.get("subscription_status", "none")
-                    teacher_covered = teacher_sub not in ("none", "free", None) or bool(teacher.get("school_admin_id"))
+                    teacher_school_covered = False
+                    admin_id = teacher.get("school_admin_id")
+                    if admin_id:
+                        admin_r = supabase.table("users").select("subscription_status").eq("user_id", admin_id).execute()
+                        teacher_school_covered = bool(admin_r.data) and admin_r.data[0].get("subscription_status") == "active"
+                    if not teacher_school_covered and teacher.get("school_name"):
+                        admins = supabase.table("users").select("subscription_status").eq("role", "school_admin").eq("school_name", teacher["school_name"]).execute()
+                        teacher_school_covered = any(a.get("subscription_status") == "active" for a in (admins.data or []))
+                    teacher_covered = teacher_sub not in ("none", "free", None) or teacher_school_covered
         except Exception as e:
             logger.warning(f"link_child teacher status check failed: {e}")
     if not parent_covered and not teacher_covered:
@@ -6453,6 +6543,67 @@ async def get_subscription_status(request: Request):
         "status": user.get("subscription_status", "none"),
         "expires_at": user.get("subscription_expires_at"),
         "trial_started_at": user.get("trial_started_at")
+    }
+
+# Real fix Aug 18: the app's subscription screen has always called these two endpoints
+# (frontend/src/utils/api.ts subscriptionApi.createCheckout/getPaymentStatus) but neither
+# existed on the backend — every "Subscribe" tap 404'd. Self-serve checkout is scoped to
+# teacher_monthly/parent_monthly only; school plans are sold manually (mailto enquiry in
+# the app), so no school branch here by design.
+@api_router.post("/subscription/checkout")
+async def create_subscription_checkout(request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=500, detail="Payments are not configured")
+    body = await request.json()
+    plan = body.get("plan", "")
+    origin_url = (body.get("origin_url") or "").rstrip("/")
+    if plan not in ("teacher_monthly", "parent_monthly"):
+        raise HTTPException(status_code=400, detail="Invalid plan. Only teacher_monthly and parent_monthly are available for self-serve checkout.")
+    if not origin_url:
+        raise HTTPException(status_code=400, detail="origin_url required")
+    price_id = STRIPE_PRICE_IDS.get(plan, "")
+    if not price_id:
+        raise HTTPException(status_code=500, detail=f"Stripe price for '{plan}' is not configured yet")
+    try:
+        session = stripe_lib.checkout.Session.create(
+            mode="subscription",
+            payment_method_types=["card"],
+            line_items=[{"price": price_id, "quantity": 1}],
+            customer_email=user.get("email"),
+            client_reference_id=user["user_id"],
+            metadata={"user_id": user["user_id"], "plan": plan},
+            success_url=f"{origin_url}/subscription/success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{origin_url}/subscription",
+        )
+    except Exception as e:
+        logger.error(f"Stripe checkout session creation failed for {user['user_id']} ({plan}): {e}")
+        raise HTTPException(status_code=500, detail="Could not start checkout. Try again.")
+    return {"url": session.url, "session_id": session.id}
+
+@api_router.get("/subscription/status/{session_id}")
+async def get_checkout_session_status(session_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=500, detail="Payments are not configured")
+    try:
+        session = stripe_lib.checkout.Session.retrieve(session_id)
+    except Exception as e:
+        logger.error(f"Could not retrieve checkout session {session_id}: {e}")
+        raise HTTPException(status_code=404, detail="Checkout session not found")
+    if session.get("client_reference_id") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="This checkout session does not belong to you")
+    # Read payment_status directly from the Stripe session — it's set synchronously on
+    # successful payment, unlike Supabase's subscription_status which only updates once the
+    # async webhook lands. Matches what frontend/app/subscription/success.tsx checks for.
+    return {
+        "status": session.get("payment_status", "unpaid"),
+        "plan": (session.get("metadata") or {}).get("plan"),
+        "expires_at": None,
     }
 
 
@@ -9926,8 +10077,10 @@ async def create_family_custom_strategy(request: Request):
     if not name:
         raise HTTPException(status_code=400, detail="Name required")
 
+    # Real fix Aug 18: same gap as /family/members and /resources — never checked
+    # school-package coverage, only the parent's own subscription_status.
     sub_status = user.get("subscription_status", "none")
-    if sub_status in ("none", "free", None):
+    if sub_status in ("none", "free", None) and not _parent_is_school_covered(user):
         existing = supabase.table("custom_helpers").select("id", count="exact").eq("user_id", user["user_id"]).execute()
         existing_count = existing.count or len(existing.data or [])
         if existing_count >= 6:
@@ -10575,14 +10728,41 @@ async def delete_admin_strategy(strategy_id: str, request: Request):
 
 import stripe as stripe_lib
 
-STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
-STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+# Real fix Aug 18: temporary test-mode toggle for verifying the new checkout/webhook flow
+# (L2/L3) without touching real money — the only Stripe secret configured before this was a
+# LIVE key. When STRIPE_TEST_MODE is on, this deliberately does NOT fall back to the live
+# key if the test vars are unset — better to fail closed ("not configured") than silently
+# run test-mode intent against live Stripe. Flip STRIPE_TEST_MODE off (or unset it) once the
+# test is done; this affects the whole running server, not just one request.
+STRIPE_TEST_MODE = os.environ.get("STRIPE_TEST_MODE", "").strip().lower() in ("1", "true", "yes")
+if STRIPE_TEST_MODE:
+    STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY_TEST", "")
+    STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET_TEST", "")
+else:
+    STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+    STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 
 if STRIPE_SECRET_KEY:
     stripe_lib.api_key = STRIPE_SECRET_KEY
 
+# Real fix Aug 18: /subscription/checkout (below) needs an actual Stripe Price ID per
+# self-serve plan. Kept as env vars rather than hardcoded so Jono can create/rotate the
+# underlying Stripe products without a code deploy. Only teacher/parent monthly are
+# self-serve today — school plans are sold manually (see the mailto enquiry in the app),
+# so no school price IDs are needed here.
+STRIPE_PRICE_IDS = {
+    "teacher_monthly": os.environ.get("STRIPE_PRICE_TEACHER_MONTHLY", ""),
+    "parent_monthly": os.environ.get("STRIPE_PRICE_PARENT_MONTHLY", ""),
+}
+
 def _get_plan_from_price(price_id: str) -> str:
     pid = (price_id or "").lower()
+    # Real fix Aug 18: school tiers used to fall through to the generic "subscriber" label —
+    # no way to tell Starter/Standard/Plus apart post-payment. Matches on the Stripe
+    # price nickname/lookup_key Jono names the products with.
+    if "school_starter" in pid: return "school_starter"
+    if "school_standard" in pid: return "school_standard"
+    if "school_plus" in pid: return "school_plus"
     if "parent" in pid: return "parent"
     if "teacher" in pid: return "teacher"
     return "subscriber"
@@ -10631,7 +10811,15 @@ async def stripe_webhook(request: Request):
             if current_period_end:
                 exp_dt = datetime.fromtimestamp(current_period_end, tz=timezone.utc).isoformat()
             items = data_obj.get("items", {}).get("data", [])
-            plan = _get_plan_from_price(items[0].get("price", {}).get("id", "") if items else "")
+            # Real fix Aug 18: this used to pass only price.id — Stripe auto-generates that
+            # as a random string (price_1Abc...), which would never contain "teacher"/
+            # "parent"/"school_starter" etc. no matter what Jono names the product. The
+            # actual identifying name lives in price.nickname (what Jono sets in the
+            # dashboard) or price.lookup_key — check all three so it works regardless of
+            # which one ends up set.
+            price_obj = (items[0].get("price", {}) if items else {}) or {}
+            price_key = " ".join(filter(None, [price_obj.get("nickname"), price_obj.get("lookup_key"), price_obj.get("id")]))
+            plan = _get_plan_from_price(price_key)
             supabase.table("users").update({
                 "subscription_status": sub_status, "subscription_plan": plan,
                 "subscription_expires_at": exp_dt, "stripe_customer_id": customer_id,

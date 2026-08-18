@@ -4,17 +4,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as ExpoLinking from 'expo-linking';
 import { useApp } from '../../src/context/AppContext';
 import { subscriptionApi } from '../../src/utils/api';
 
+// Real fix Aug 18: annual billing isn't offered yet — neither the backend's
+// SUBSCRIPTION_PLANS nor Stripe have annual prices configured, and the old $39.99/$59.99
+// figures here were placeholder USD values, not real pricing. Monthly-only for launch;
+// annual is a deferred post-launch item (see COH-REVIEW-PLAN.md).
 const PARENT_PLANS = [
-  { id: 'parent_monthly', name: 'Monthly', price: '€2.99', period: '/month', savings: '', popular: false },
-  { id: 'parent_annual', name: 'Annual', price: '$39.99', period: '/year', savings: 'Save 33%', popular: true },
+  { id: 'parent_monthly', name: 'Monthly', price: '€4.99', period: '/month', savings: '', popular: true },
 ];
 
 const TEACHER_PLANS = [
-  { id: 'teacher_monthly', name: 'Monthly', price: '€7.99', period: '/month', savings: '', popular: false },
-  { id: 'teacher_annual', name: 'Annual', price: '$59.99', period: '/year', savings: 'Save 37%', popular: true },
+  { id: 'teacher_monthly', name: 'Monthly', price: '€7.99', period: '/month', savings: '', popular: true },
 ];
 
 const PARENT_FEATURES = [
@@ -34,7 +37,7 @@ const TEACHER_FEATURES = [
   'PDF reports per student',
   'Family linking & home data',
   'Bulk check-ins',
-  'SMS & push alerts',
+  'Push alerts',
   'Strategy library',
   '6 languages supported',
 ];
@@ -44,17 +47,29 @@ export default function SubscriptionScreen() {
   const insets = useSafeAreaInsets();
   const { user, t, checkAuth, isAuthenticated, login } = useApp();
   const [selectedRole, setSelectedRole] = useState<'parent' | 'teacher'>('parent');
-  const [selectedPlan, setSelectedPlan] = useState('parent_annual');
+  const [selectedPlan, setSelectedPlan] = useState('parent_monthly');
   const [loading, setLoading] = useState(false);
   const [trialLoading, setTrialLoading] = useState(false);
   const [trialDays, setTrialDays] = useState(30);
+  // Real fix Aug 18: parents are free when their child's school has an active package
+  // (linked via invite code) — only unlinked parents should ever see the €4.99 paywall.
+  const [parentCoverageLoading, setParentCoverageLoading] = useState(true);
+  const [parentCovered, setParentCovered] = useState(false);
 
   useEffect(() => {
     subscriptionApi.getPlans().then(d => setTrialDays(d.trial_days || 30)).catch(() => {});
   }, []);
 
   useEffect(() => {
-    setSelectedPlan(selectedRole === 'parent' ? 'parent_annual' : 'teacher_annual');
+    if (!isAuthenticated || user?.role !== 'parent') { setParentCoverageLoading(false); return; }
+    subscriptionApi.getParentCoverage()
+      .then(d => setParentCovered(!!d.covered))
+      .catch(() => setParentCovered(false))
+      .finally(() => setParentCoverageLoading(false));
+  }, [isAuthenticated, user?.role]);
+
+  useEffect(() => {
+    setSelectedPlan(selectedRole === 'parent' ? 'parent_monthly' : 'teacher_monthly');
   }, [selectedRole]);
 
   const plans = selectedRole === 'parent' ? PARENT_PLANS : TEACHER_PLANS;
@@ -81,7 +96,11 @@ export default function SubscriptionScreen() {
     if (!isAuthenticated) { login(); return; }
     setLoading(true);
     try {
-      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      // Real fix Aug 18: window.location.origin is undefined on native, so origin_url was
+      // silently sent as '' on every phone build — Stripe's success/cancel redirect would
+      // never have resolved to anything openable. ExpoLinking.createURL builds the correct
+      // classofhappiness:// deep link on native and a real origin on web, from one call.
+      const origin = typeof window !== 'undefined' ? window.location.origin : ExpoLinking.createURL('/');
       const { url } = await subscriptionApi.createCheckout(selectedPlan, origin);
       if (url) {
         if (typeof window !== 'undefined') window.location.href = url;
@@ -171,7 +190,7 @@ export default function SubscriptionScreen() {
           onPress={() => setSelectedRole('parent')}>
           <MaterialIcons name="family-restroom" size={22} color={selectedRole === 'parent' ? 'white' : '#5C6BC0'} />
           <Text style={[st.roleBtnText, selectedRole === 'parent' && st.roleBtnTextActive]}>Parent / Family</Text>
-          <Text style={[st.rolePrice, selectedRole === 'parent' && { color: 'rgba(255,255,255,0.8)' }]}>from €2.99/mo</Text>
+          <Text style={[st.rolePrice, selectedRole === 'parent' && { color: 'rgba(255,255,255,0.8)' }]}>from €4.99/mo</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[st.roleBtn, selectedRole === 'teacher' && st.roleBtnActive]}
@@ -192,50 +211,68 @@ export default function SubscriptionScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Plans */}
-      <Text style={st.sectionLabel}>Choose your plan</Text>
-      {plans.map(plan => (
-        <TouchableOpacity
-          key={plan.id}
-          style={[st.planCard, selectedPlan === plan.id && st.planCardActive, plan.popular && st.planCardPopular]}
-          onPress={() => setSelectedPlan(plan.id)}>
-          {plan.popular && <View style={st.popularPill}><Text style={st.popularText}>Best Value</Text></View>}
-          <View style={st.planRow}>
-            <View style={[st.radio, selectedPlan === plan.id && st.radioActive]}>
-              {selectedPlan === plan.id && <View style={st.radioDot} />}
-            </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={st.planName}>{plan.name}</Text>
-              {plan.savings ? <View style={st.savingsPill}><Text style={st.savingsText}>{plan.savings}</Text></View> : null}
-            </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text style={st.planPrice}>{plan.price}</Text>
-              <Text style={st.planPeriod}>{plan.period}</Text>
-            </View>
+      {/* Parent, covered by an active school package — no paywall, real fix Aug 18 */}
+      {selectedRole === 'parent' && parentCoverageLoading && (
+        <View style={[st.statusCard, { backgroundColor: '#F5F5F5', justifyContent: 'center' }]}>
+          <ActivityIndicator color="#5C6BC0" />
+        </View>
+      )}
+      {selectedRole === 'parent' && !parentCoverageLoading && parentCovered ? (
+        <View style={[st.statusCard, { backgroundColor: '#E8F5E9', alignItems: 'flex-start' }]}>
+          <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
+          <View style={{ flex: 1 }}>
+            <Text style={[st.statusText, { color: '#2E7D32' }]}>✅ Free — your child's school has a Class of Happiness package</Text>
+            <Text style={{ fontSize: 12, color: '#388E3C', marginTop: 4 }}>No subscription needed. All parent features are included.</Text>
           </View>
-        </TouchableOpacity>
-      ))}
+        </View>
+      ) : (
+        <>
+          {/* Plans */}
+          <Text style={st.sectionLabel}>Choose your plan</Text>
+          {plans.map(plan => (
+            <TouchableOpacity
+              key={plan.id}
+              style={[st.planCard, selectedPlan === plan.id && st.planCardActive, plan.popular && st.planCardPopular]}
+              onPress={() => setSelectedPlan(plan.id)}>
+              {plan.popular && <View style={st.popularPill}><Text style={st.popularText}>Best Value</Text></View>}
+              <View style={st.planRow}>
+                <View style={[st.radio, selectedPlan === plan.id && st.radioActive]}>
+                  {selectedPlan === plan.id && <View style={st.radioDot} />}
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={st.planName}>{plan.name}</Text>
+                  {plan.savings ? <View style={st.savingsPill}><Text style={st.savingsText}>{plan.savings}</Text></View> : null}
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={st.planPrice}>{plan.price}</Text>
+                  <Text style={st.planPeriod}>{plan.period}</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))}
 
-      {/* Features */}
-      <View style={st.featuresCard}>
-        <Text style={st.featuresTitle}>
-          {selectedRole === 'parent' ? '👨‍👩‍👧 Parent Plan includes' : '🏫 Teacher Plan includes'}
-        </Text>
-        {features.map((f, i) => (
-          <View key={i} style={st.featureRow}>
-            <MaterialIcons name="check" size={16} color="#4CAF50" />
-            <Text style={st.featureText}>{f}</Text>
+          {/* Features */}
+          <View style={st.featuresCard}>
+            <Text style={st.featuresTitle}>
+              {selectedRole === 'parent' ? '👨‍👩‍👧 Parent Plan includes' : '🏫 Teacher Plan includes'}
+            </Text>
+            {features.map((f, i) => (
+              <View key={i} style={st.featureRow}>
+                <MaterialIcons name="check" size={16} color="#4CAF50" />
+                <Text style={st.featureText}>{f}</Text>
+              </View>
+            ))}
           </View>
-        ))}
-      </View>
 
-      {/* Subscribe Button */}
-      {!isActive && (
-        <TouchableOpacity style={st.subscribeBtn} onPress={handleSubscribe} disabled={loading}>
-          {loading
-            ? <ActivityIndicator color="white" />
-            : <Text style={st.subscribeBtnText}>Subscribe — {selectedPrice}</Text>}
-        </TouchableOpacity>
+          {/* Subscribe Button */}
+          {!isActive && (
+            <TouchableOpacity style={st.subscribeBtn} onPress={handleSubscribe} disabled={loading}>
+              {loading
+                ? <ActivityIndicator color="white" />
+                : <Text style={st.subscribeBtnText}>Subscribe — {selectedPrice}</Text>}
+            </TouchableOpacity>
+          )}
+        </>
       )}
 
       {/* School Package CTA */}
@@ -245,14 +282,14 @@ export default function SubscriptionScreen() {
         onPress={() => Linking.openURL('mailto:hello@classofhappiness.com?subject=School Package Enquiry')}>
         <View style={{ flex: 1 }}>
           <Text style={st.schoolTitle}>🏛️ School Package</Text>
-          <Text style={st.schoolSub}>Whole-school pricing from $299/year · All teachers + parents included · Admin dashboard · GDPR docs</Text>
+          <Text style={st.schoolSub}>From €499/year, based on teacher seats · Parents free when linked via your school's invite code · Admin dashboard · Analytics · GDPR docs</Text>
         </View>
         <MaterialIcons name="chevron-right" size={24} color="#5C6BC0" />
       </TouchableOpacity>
 
       <Text style={st.legalText}>
         Subscriptions renew automatically. Cancel anytime in Settings.{'\n'}
-        Prices in USD · Local pricing may vary by region.
+        Prices in EUR.
       </Text>
 
     </ScrollView>
