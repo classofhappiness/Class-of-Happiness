@@ -194,10 +194,12 @@ Superadmin: 6 tabs (Analytics, Strategies, Resources, Schools, Users, Settings).
 **Legacy admin.html (`coh_admin-2.html`, 1,844 lines) — superadmin-only, targets Railway directly:** Login, Dashboard, Resources, Strategies, Users, Alerts, Schools, School Mgmt, Reports. Every capability maps 1:1 to something the portal already covers against the identical backend — **zero unique capabilities** — and it's demonstrably broken: `loadSubscriptionIntents()` (`:876`) is called but never defined (dashboard subscription card permanently stuck loading); School Analytics panel is fully broken (`:1223`, `:643` — references to a DOM element and handler that don't exist in this version); its "Grant Trial" button calls `POST /auth/apply-promo-trial` (`:1184`) — **this endpoint doesn't exist in `server.py`** (only `/auth/promo-code` does).
 
 **Fix:**
-1. **Retire legacy admin.html entirely** — zero unique capabilities, three already-broken features, unmaintained since Aug 4. Confirm portal's own Grant Trial / School Analytics equivalents work first, then remove from cPanel. (Also closes A5's XSS finding for this file.)
-2. Decide whether Wellbeing Tracker / Our Team / Services / My Wellbeing stay portal-only by design or need an app equivalent — product call.
-3. Build an app-side school_admin "School Profile" settings screen matching the portal; decide what superadmin's app Settings should actually contain.
-4. Port `/admin/wellbeing-alerts` into the portal's superadmin Dashboard if still wanted — live endpoint, no surface points at it today.
+1. **Retire legacy admin.html entirely** — zero unique capabilities, three already-broken features, unmaintained since Aug 4. Confirm portal's own Grant Trial / School Analytics equivalents work first, then remove from cPanel. (Also closes A5's XSS finding for this file.) — ✅ DONE 2026-08-18, see below.
+2. Decide whether Wellbeing Tracker / Our Team / Services / My Wellbeing stay portal-only by design or need an app equivalent — product call. **Still open.**
+3. Build an app-side school_admin "School Profile" settings screen matching the portal; decide what superadmin's app Settings should actually contain. **Still open.**
+4. Port `/admin/wellbeing-alerts` into the portal's superadmin Dashboard if still wanted — live endpoint, no surface points at it today. **Resolved as not-needed** — see below, portal deliberately replaced this with the Wellbeing Tracker system instead.
+
+**Item 1 — what was actually done (2026-08-18):** before touching anything, re-verified the live file directly rather than trusting the local scratch copy at face value. The real live URL wasn't literally `admin.html` (that path 404s) — it was `https://classofhappiness.com/coh_admin.html`, confirmed byte-identical to the `coh_admin-2.html` copy used throughout this review, so every finding above (broken Subscription Intents, broken School Analytics, dead Grant Trial endpoint) applied to the live file with no staleness gap. Confirmed zero dependencies before removal: no reference anywhere in the frontend app or marketing site; not served by the backend at all (a static file in cPanel's web root, independent of the FastAPI app — no code change needed); no `.htaccess` or server config reference; COH-HANDOVER.md only lists it as a surface to reconcile, no operational workflow depends on it. Found portal.html's own comments confirming deliberate, already-completed supersession — `// SCHOOL MANAGEMENT (ported from admin.html...)` at `portal100.html:1160`, and critically `// Replaces the old wrong /admin/wellbeing-alerts calls...` at `:1777`, which resolves item 4 above (the one capability the original review flagged as possibly-orphaned turns out to have already been deliberately replaced by the richer Wellbeing Tracker system, with the old endpoint explicitly recognized as wrong for the job). Jono deleted `coh_admin.html` from cPanel; confirmed 404 on the live URL immediately after. Items 2 and 3 remain open product/build decisions, unrelated to the retirement itself.
 
 ### A3. Creatures global-approve — confirmed missing from the app, unconfirmed in portal *(Section 6 #4)*
 **Files:** `frontend/src/components/CreatureManagement.tsx:6-11`, `backend/server.py:10715-10745`
@@ -206,24 +208,30 @@ Superadmin: 6 tabs (Analytics, Strategies, Resources, Schools, Users, Settings).
 
 **Fix:** confirm live whether portal's Approve button calls this endpoint correctly; if not, it's a fully orphaned backend capability needing a UI built.
 
-### A4. Superadmin period-pill bug — appears ALREADY FIXED, handover is stale *(Section 6 #5)*
+### A4. Superadmin period-pill bug — appears ALREADY FIXED, handover is stale *(Section 6 #5)* — ✅ VERIFIED RESOLVED 2026-08-18, no code change
 **File:** `portal100.html:544-559`
 
 Live code has an Aug 18-dated comment describing the exact cross-call fix the handover still lists as open. `changeSAStatsPeriod` now calls only `loadSuperAdminData()`.
 
 **Fix:** no code change — live-test to confirm, then strike from the priority list.
 
-### A5. [SECURITY] Stored-XSS risk in legacy admin.html; audit portal.html for the same pattern *(Section 6 #7)*
+**Re-verified against the actual live file** (fetched `https://classofhappiness.com/portal.html` directly and diffed byte-for-byte against the local `portal100.html` scratch copy used throughout this review — identical, so no staleness gap here unlike the marketing site earlier). Confirmed the fix genuinely holds: `changeSAStatsPeriod`/`saStatsPeriod` (superadmin) calls only `loadSuperAdminData()`; `changeSAPeriod`/`currentSAPeriod` (school_admin) calls only `renderOverview()`. No cross-call exists. The duplicate `#saPeriodTabs` DOM id (lines 430, 1582) is confirmed still present but dormant — the two builder functions are mutually exclusive per page load, so it never collides in a live DOM. Nothing to fix; struck from the priority list as the handover's own claim was simply stale.
+
+### A5. [SECURITY] Stored-XSS risk in legacy admin.html; audit portal.html for the same pattern *(Section 6 #7)* — ✅ DONE (admin.html instance) 2026-08-18, portal.html audit still open
 **File:** `coh_admin-2.html` — `schoolCompCard()` (`:902-916`), `userRows()` (`:1438-1450`), `renderSchools()` (`:1621-1666`), `renderTasks()`/`renderContactHistory()` (`:1710-1727`), alert rendering (`:1527-1533`)
 
 Lower-privilege-originated data (school names, task notes, alert messages, teacher/user names) is inserted into the superadmin's DOM via unescaped template-literal `innerHTML`. Moot once A2's retirement lands for this file specifically — but the same hand-built-HTML-string pattern is used in `portal.html`, which isn't being retired.
 
 **Fix:** audit `portal100.html`'s equivalent render functions (Users, Schools, Alerts/Wellbeing Tracker) for the same unescaped pattern before considering this closed.
 
-### A6. The 'admin' role — vestigial, inconsistently privileged across surfaces *(Section 6 #6)*
+**Resolved for this specific file**: moot as of A2 item 1 — `coh_admin.html` was deleted from cPanel 2026-08-18 (confirmed 404 on the live URL), so this exact vulnerable code no longer exists anywhere. **Not yet done: the broader ask** — auditing `portal100.html`'s own render functions for the same unescaped-`innerHTML` pattern — was out of scope for this pass (that file isn't being retired) and remains a separate, open follow-up.
+
+### A6. The 'admin' role — vestigial, inconsistently privileged across surfaces *(Section 6 #6)* — ✅ CROSS-SURFACE CONFLICT RESOLVED 2026-08-18, role itself still vestigial
 Live Supabase has zero `role='admin'` rows, but `POST /auth/promote-admin` (`server.py:2469`) can still create one. Once set, `admin` = `school_admin`-level in the portal (`portal100.html:408`) but `admin` = `superadmin`-level in legacy admin.html (`coh_admin-2.html:797`) — same role string, two different privilege levels depending which surface reads it.
 
 **Fix:** decide what `admin` is for (stepping-stone role vs. dead code) and make every surface agree; becomes moot once A2's admin.html retirement lands.
+
+**Resolved as far as this fix goes:** the specific conflict — `admin` meaning two different privilege levels depending which surface read it — is gone now that `coh_admin.html` (the surface treating it as superadmin-equivalent) no longer exists. Portal is now the only surface interpreting this role, so it's no longer literally inconsistent. **Deliberately not done, and not part of this change:** the role itself is still vestigial (zero live rows, but `/auth/promote-admin` can still mint one) and the underlying question — is `admin` a real stepping-stone tier worth keeping, or dead code to remove — is unresolved. Left open as a separate, low-priority product/cleanup decision rather than folded into the admin.html retirement.
 
 ### A7. Colour drift — systemic, worse than "app vs. portal," no central fix point *(Section 7 #3/#4)*
 - 42 files use the old palette (`#4CAF50`/`#F44336`/`#FFC107`) vs. 5 using brand (`#4CAF73`/`#E05252`/`#FFD93D`) across `frontend/src`+`frontend/app`.
@@ -281,14 +289,14 @@ Launch is **EUR-only**. AUD figures currently exist in `SUBSCRIPTION_PLANS` (`pr
 2. **L2 + L3 together** — ✅ DONE & VERIFIED 2026-08-18. Deployed, tested end-to-end against Stripe test mode (checkout → webhook → subscription_status/plan), and a real pre-existing webhook bug (`.get()` on Stripe objects) was found and fixed in the same pass — see both sections above for full detail. Remaining: Jono to create the 3 school Stripe products/Payment Links (manual sales flow, not blocking), and upload the corrected website copy to cPanel.
 3. **L4** — ✅ DONE 2026-08-18 — school identity backfill + dual-match audit, verified live.
 4. **A1** — ✅ DONE 2026-08-18 — dead duplicate routes merged/removed, verified, not yet deployed.
-5. **A4** — period-pill, just a live test.
-6. **A2** — retire legacy admin.html (closes A5, touches A6).
+5. **A4** — ✅ VERIFIED RESOLVED 2026-08-18 — re-checked against the live portal.html, no code change needed.
+6. **A2 item 1** — ✅ DONE 2026-08-18 — legacy admin.html retired (closed A5's admin.html instance, resolved A6's cross-surface conflict). A2 items 2-3 (Wellbeing Tracker/Team/Services app parity, Settings tab decisions) still open — Jono's product call.
 7. **A3** — confirm/build creatures global-approve.
 8. **A9** — orphaned strategy content — needs Jono's product call first.
 9. **A7** — colour drift — larger mechanical pass, once other in-flight UI work settles.
 10. **A5 remainder** — audit portal.html's own render functions for the same XSS pattern, alongside A7 since both touch the same functions.
 11. **A8** — PDF gating — family PDF stays ungated by decision (see L3); still open for school-overview/classroom-overview routes.
-12. **A6** — `admin` role cleanup, rides along with A2.
+12. **A6** — ✅ cross-surface conflict resolved 2026-08-18 (rode along with A2). Vestigial-role cleanup itself still open, low priority.
 13. **A11** — portal fragility — standing risk, plan separately, no fixed timeline.
 14. **A12** — doc correction only.
 15. **A13** — cleanup, anytime.
