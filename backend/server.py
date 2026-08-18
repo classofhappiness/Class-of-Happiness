@@ -2481,12 +2481,19 @@ async def update_role(request: Request):
 
 @api_router.post("/auth/promote-admin")
 async def promote_admin(request: Request):
+    # Real fix Aug 18 (A1): this used to hardcode ["ADMINCLASS2026", "HAPPYADMIN2026"]
+    # directly, duplicating PROMO_CODES rather than reading from it — a second, better
+    # version reading PROMO_CODES (with .upper().strip() normalization) existed later in
+    # this file at the same route+method, making it permanently unreachable. Merged the
+    # better version in here; the duplicate below is deleted. Codes accepted are unchanged
+    # today (PROMO_CODES currently has the exact same two "type":"admin" entries).
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     body = await request.json()
-    code = body.get("admin_code", "")
-    if code not in ["ADMINCLASS2026", "HAPPYADMIN2026"]:
+    code = body.get("admin_code", "").upper().strip()
+    admin_codes = [k for k, v in PROMO_CODES.items() if v.get("type") == "admin"]
+    if code not in admin_codes:
         raise HTTPException(status_code=403, detail="Invalid admin code")
     supabase.table("users").update({"role": "admin"}).eq("user_id", user["user_id"]).execute()
     return {"message": "Promoted to admin", "role": "admin"}
@@ -7463,20 +7470,6 @@ async def redeem_trial_code(request: Request):
         "trial_ends_at": trial_ends.isoformat()
     }
 
-@api_router.post("/auth/promote-admin")
-async def promote_admin(request: Request):
-    user = await get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    body = await request.json()
-    code = body.get("admin_code", "").upper().strip()
-    admin_codes = [k for k,v in PROMO_CODES.items() if v.get("type") == "admin"]
-    if code not in admin_codes:
-        raise HTTPException(status_code=400, detail="Invalid admin code")
-    supabase.table("users").update({"role": "admin"}).eq("user_id", user["user_id"]).execute()
-    return {"role": "admin", "message": "Admin access granted!"}
-
-
 @api_router.post("/auth/email-login")
 async def email_login(request: Request):
     """Email-based login. Admin/superadmin accounts require an admin PIN."""
@@ -8268,11 +8261,29 @@ async def get_admin_teacher_strategies(request: Request, strategy_type: str = No
 
 @api_router.delete("/admin/teacher-strategies/{strategy_id}")
 async def delete_teacher_strategy(strategy_id: str, request: Request):
+    """Delete a teacher strategy - superadmin can delete any, school_admin only their own.
+    Real fix Aug 18 (A1): merged in from a second, richer definition of this same route+
+    method that existed later in the file and was permanently unreachable (FastAPI matches
+    the first registration). That version added school_admin support with an ownership
+    check, and proper error handling - a safe superset for the current callers (only
+    admin/superadmin actually call this today, per frontend/portal grep - school_admin's
+    own strategy screens use /school-admin/school-strategies instead), so promoting it
+    changes nothing for existing behavior and enables a capability that was clearly
+    intended but never reachable."""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin"]:
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
-    supabase.table("admin_teacher_strategies").delete().eq("id", strategy_id).execute()
-    return {"message": "Strategy deleted"}
+    try:
+        if user.get("role") == "school_admin":
+            existing = supabase.table("admin_teacher_strategies").select("*").eq("id", strategy_id).execute()
+            if existing.data and existing.data[0].get("created_by") != user["user_id"]:
+                raise HTTPException(status_code=403, detail="You can only delete strategies you created")
+        supabase.table("admin_teacher_strategies").delete().eq("id", strategy_id).execute()
+        return {"message": "Strategy deleted"}
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Could not delete strategy")
 
 @api_router.post("/admin/teacher-strategies")
 async def create_admin_teacher_strategy(request: Request):
@@ -9622,25 +9633,6 @@ async def delete_global_strategy(strategy_id: str, request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail="Could not delete strategy")
 
-
-@api_router.delete("/admin/teacher-strategies/{strategy_id}")
-async def delete_admin_teacher_strategy(strategy_id: str, request: Request):
-    """Delete a teacher strategy - superadmin can delete any, school_admin only their own"""
-    user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    try:
-        # Check ownership for school_admin
-        if user.get("role") == "school_admin":
-            existing = supabase.table("admin_teacher_strategies").select("*").eq("id", strategy_id).execute()
-            if existing.data and existing.data[0].get("created_by") != user["user_id"]:
-                raise HTTPException(status_code=403, detail="You can only delete strategies you created")
-        supabase.table("admin_teacher_strategies").delete().eq("id", strategy_id).execute()
-        return {"status": "deleted"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Could not delete strategy")
 
 
 @api_router.post("/auth/update-language")

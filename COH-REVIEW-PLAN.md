@@ -165,14 +165,22 @@ All three checks ran against the **already-deployed** (pre-dual-match-fix) backe
 # LAUNCH-ACCEPTABLE
 *(Real, evidenced problems. Don't block launch, but should be worked through soon after — roughly in the order listed.)*
 
-### A1. Duplicate route registrations — dead code, no live impact *(Section 6 #2)*
+### A1. Duplicate route registrations — dead code, no live impact *(Section 6 #2)* — ✅ DONE 2026-08-18
 **File:** `backend/server.py`
 
-Two paths are registered twice under `api_router`; FastAPI matches in registration order, so the first definition wins and the second is unreachable — same bug class as commit `0792701`:
+Two paths were registered twice under `api_router`; FastAPI matches in registration order, so the first definition won and the second was unreachable — same bug class as commit `0792701`:
 - `POST /auth/promote-admin` — line 2469 (live) vs 7307 (dead).
 - `DELETE /admin/teacher-strategies/{strategy_id}` — line 8110 (live) vs 9456 (dead).
 
 **Fix:** delete the dead (second) definition of each pair or merge intentionally; grep for other duplicates after any large edit.
+
+**What was actually done:** re-ran the full-file duplicate-route scan first (`grep` every `@api_router.*` decorator, sorted, counted) to confirm these were still the only two duplicates after all the L1-L4/L2-L3 edits — they were, no new ones introduced.
+
+For each pair, read both full definitions before touching anything, since "merge intentionally" turned out to be the right call in both cases, not a plain delete:
+1. **`POST /auth/promote-admin`**: the live version hardcoded `["ADMINCLASS2026", "HAPPYADMIN2026"]` directly; the dead version read the same two codes from the shared `PROMO_CODES` dict (single source of truth, plus `.upper().strip()` input normalization) — confirmed `PROMO_CODES` currently holds exactly those two `"type":"admin"` entries, so accepted codes are unchanged today. Merged the dead version's logic into the live slot (better engineered, no duplication), kept the live version's original response shape (`{"message":..., "role":...}`), then deleted the now-fully-duplicate dead definition.
+2. **`DELETE /admin/teacher-strategies/{strategy_id}`**: the live version only allowed `admin`/`superadmin`; the dead version was a genuine capability superset — added `school_admin` with an ownership check (school_admin can only delete their own) and proper try/except error handling. Grepped every frontend/app and portal.html caller of this path first — confirmed `school_admin` never actually calls this endpoint today from either surface (the app's `StrategyManager` and portal both route school_admin to `/school-admin/school-strategies` instead) — so promoting the richer version changes nothing for existing admin/superadmin behavior and simply enables a capability that was clearly intended but permanently unreachable. Merged it into the live slot, kept the original response shape (`{"message": "Strategy deleted"}`), deleted the dead definition.
+
+**Verified:** `python3 -m py_compile server.py` passes; re-ran the duplicate-route scan — zero duplicates remain anywhere in the file; confirmed via grep that no frontend/portal caller inspects the response body of either endpoint (both call sites `await` the request without reading the result), so the response-shape choices above were low-risk either way. Not deployed as part of this change — bundle with the next push.
 
 ### A2. Full admin-capability parity map — retire legacy admin.html, close the school_admin app/portal gap *(Section 6 #3)*
 
@@ -272,7 +280,7 @@ Launch is **EUR-only**. AUD figures currently exist in `SUBSCRIPTION_PLANS` (`pr
 1. **L1** — ✅ DONE 2026-08-18 — hardcoded bypass removed, verified against real login. Not yet deployed (no push/rebuild done).
 2. **L2 + L3 together** — ✅ DONE & VERIFIED 2026-08-18. Deployed, tested end-to-end against Stripe test mode (checkout → webhook → subscription_status/plan), and a real pre-existing webhook bug (`.get()` on Stripe objects) was found and fixed in the same pass — see both sections above for full detail. Remaining: Jono to create the 3 school Stripe products/Payment Links (manual sales flow, not blocking), and upload the corrected website copy to cPanel.
 3. **L4** — ✅ DONE 2026-08-18 — school identity backfill + dual-match audit, verified live.
-4. **A1** — dead duplicate routes, quick, do anytime early.
+4. **A1** — ✅ DONE 2026-08-18 — dead duplicate routes merged/removed, verified, not yet deployed.
 5. **A4** — period-pill, just a live test.
 6. **A2** — retire legacy admin.html (closes A5, touches A6).
 7. **A3** — confirm/build creatures global-approve.
