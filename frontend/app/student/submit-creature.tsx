@@ -39,6 +39,7 @@ export default function SubmitCreatureScreen() {
   const { t } = useApp();
   const [step, setStep] = useState<'tutorial'|'code'|'details'|'photos'|'review'>('tutorial');
   const [code, setCode] = useState('');
+  const [checkingCode, setCheckingCode] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [emotion, setEmotion] = useState('');
@@ -83,6 +84,26 @@ export default function SubmitCreatureScreen() {
       reader.onerror = () => reject(new Error('Could not read image'));
       reader.readAsDataURL(blob);
     });
+  };
+
+  const handleContinueFromCode = async () => {
+    setCheckingCode(true);
+    try {
+      const token = await AsyncStorage.getItem('session_token') || '';
+      const res = await fetch(`${API_URL}/api/creatures/validate-code/${code.toUpperCase()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setStep('details');
+      } else {
+        Alert.alert('Code not valid', data.reason || 'Please check the code and try again.');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', 'Could not check the code. Please try again.');
+    } finally {
+      setCheckingCode(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -140,9 +161,11 @@ export default function SubmitCreatureScreen() {
       <Text style={s.subtitle}>Get a code from your teacher or parent first.</Text>
       <TextInput style={s.codeInput} value={code} onChangeText={v => setCode(v.toUpperCase())}
         placeholder="e.g. ABC12345" autoCapitalize="characters" maxLength={8} />
-      <TouchableOpacity style={[s.btn, code.length < 6 && s.btnOff]}
-        disabled={code.length < 6} onPress={() => setStep('details')}>
-        <Text style={s.btnTxt}>Continue →</Text>
+      <TouchableOpacity style={[s.btn, (code.length < 8 || checkingCode) && s.btnOff]}
+        disabled={code.length < 8 || checkingCode} onPress={handleContinueFromCode}>
+        {checkingCode
+          ? <ActivityIndicator color="white" />
+          : <Text style={s.btnTxt}>Continue →</Text>}
       </TouchableOpacity>
     </ScrollView>
   );

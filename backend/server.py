@@ -6648,6 +6648,28 @@ async def generate_submission_code(request: Request):
     }).execute()
     return {"code": code, "expires_in_days": 30, "max_uses": 10}
 
+# Real fix Aug 19: the app's code-entry screen only ever did a client-side length check
+# (code.length < 6) before letting a student proceed through the whole submit flow -
+# details, emotion, 4 photo uploads - only to find out the code was invalid at the very
+# last step. Same validation /creatures/submit already does (existence, use count,
+# expiry), exposed standalone so the app can check it immediately, before any of that
+# work happens.
+@api_router.get("/creatures/validate-code/{code}")
+async def validate_submission_code(code: str, request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    code = code.upper().strip()
+    code_row = supabase.table("submission_codes").select("*").eq("code", code).execute()
+    if not code_row.data:
+        return {"valid": False, "reason": "Invalid code"}
+    c = code_row.data[0]
+    if c["used_count"] >= c["max_uses"]:
+        return {"valid": False, "reason": "Code has been used too many times"}
+    if datetime.fromisoformat(c["expires_at"].replace("Z", "+00:00")) < datetime.now(timezone.utc):
+        return {"valid": False, "reason": "Code has expired"}
+    return {"valid": True}
+
 @api_router.post("/creatures/submit")
 async def submit_creature(request: Request):
     """Student submits a creature using 4 Supabase Storage URLs + a code."""
