@@ -10888,6 +10888,53 @@ async def reset_password(request: Request):
     }).eq("user_id", user["user_id"]).execute()
     return {"status": "password reset successfully"}
 
+@api_router.get("/creatures/analytics")
+async def get_creature_analytics(request: Request):
+    """Superadmin-only aggregate stats: active featured creatures + expiry,
+    most engaging creatures (by global_uses), top users and top schools by
+    fully-completed creatures obtained. Real fix Aug 18."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+
+    now = datetime.now(timezone.utc).isoformat()
+    featured_r = supabase.table("featured_creatures").select("*, creature_submissions(*)")        .lte("active_from", now).gte("active_until", now).execute()
+    featured = featured_r.data or []
+
+    top_creatures_r = supabase.table("creature_submissions").select(
+        "id,creature_name,emotion_colour,school_name,country,global_uses,stage4_url"
+    ).eq("status", "approved").order("global_uses", desc=True).limit(10).execute()
+    top_creatures = top_creatures_r.data or []
+
+    unlocks_r = supabase.table("creature_unlocks").select("student_id,creature_id,completed_at").eq("stages_unlocked", 4).execute()
+    unlocks = unlocks_r.data or []
+
+    user_counts = {}
+    for u in unlocks:
+        sid = u.get("student_id")
+        if sid: user_counts[sid] = user_counts.get(sid, 0) + 1
+    top_user_ids = sorted(user_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+
+    top_users = []
+    school_counts = {}
+    user_school_cache = {}
+    for sid, count in user_counts.items():
+        if sid not in user_school_cache:
+            ur = supabase.table("users").select("name,school_name").eq("user_id", sid).execute()
+            user_school_cache[sid] = (ur.data[0].get("name",""), ur.data[0].get("school_name","")) if ur.data else ("", "")
+        name, school = user_school_cache[sid]
+        if school:
+            school_counts[school] = school_counts.get(school, 0) + count
+
+    for sid, count in top_user_ids:
+        name, school = user_school_cache.get(sid, ("", ""))
+        top_users.append({"user_id": sid, "name": name or sid, "school_name": school, "count": count})
+
+    top_schools = sorted(school_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+    top_schools = [{"school_name": s, "count": c} for s, c in top_schools]
+
+    return {"featured": featured, "top_creatures": top_creatures, "top_users": top_users, "top_schools": top_schools}
+
 # Real fix Aug 18: moved to the true end of the file. Was previously
 # called mid-file, silently orphaning every route defined after that
 # point (including creatures/upload-image, creatures/notify-expiry, and
