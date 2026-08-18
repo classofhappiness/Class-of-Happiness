@@ -201,12 +201,16 @@ Superadmin: 6 tabs (Analytics, Strategies, Resources, Schools, Users, Settings).
 
 **Item 1 — what was actually done (2026-08-18):** before touching anything, re-verified the live file directly rather than trusting the local scratch copy at face value. The real live URL wasn't literally `admin.html` (that path 404s) — it was `https://classofhappiness.com/coh_admin.html`, confirmed byte-identical to the `coh_admin-2.html` copy used throughout this review, so every finding above (broken Subscription Intents, broken School Analytics, dead Grant Trial endpoint) applied to the live file with no staleness gap. Confirmed zero dependencies before removal: no reference anywhere in the frontend app or marketing site; not served by the backend at all (a static file in cPanel's web root, independent of the FastAPI app — no code change needed); no `.htaccess` or server config reference; COH-HANDOVER.md only lists it as a surface to reconcile, no operational workflow depends on it. Found portal.html's own comments confirming deliberate, already-completed supersession — `// SCHOOL MANAGEMENT (ported from admin.html...)` at `portal100.html:1160`, and critically `// Replaces the old wrong /admin/wellbeing-alerts calls...` at `:1777`, which resolves item 4 above (the one capability the original review flagged as possibly-orphaned turns out to have already been deliberately replaced by the richer Wellbeing Tracker system, with the old endpoint explicitly recognized as wrong for the job). Jono deleted `coh_admin.html` from cPanel; confirmed 404 on the live URL immediately after. Items 2 and 3 remain open product/build decisions, unrelated to the retirement itself.
 
-### A3. Creatures global-approve — confirmed missing from the app, unconfirmed in portal *(Section 6 #4)*
-**Files:** `frontend/src/components/CreatureManagement.tsx:6-11`, `backend/server.py:10715-10745`
+### A3. Creatures global-approve — ✅ DONE for backend/portal 2026-08-18, live-tested; mobile-parity question flagged separately below *(Section 6 #4)*
+**Files:** `frontend/src/components/CreatureManagement.tsx:6-11`, `backend/server.py:10928-10971`
 
 `CreatureManagement.tsx`'s own comment describes a two-step approval (teacher/parent approve locally — works; superadmin global-approve — the real gate before anything goes public). Grepping `frontend/` for `global-approve` returns exactly one hit, that same comment — **no React Native app code calls this endpoint.** Portal's Aug 18 Creatures tab renders an approval queue, but this review didn't confirm its Approve button actually posts to `/creatures/global-approve` with `visibility_scope`.
 
 **Fix:** confirm live whether portal's Approve button calls this endpoint correctly; if not, it's a fully orphaned backend capability needing a UI built.
+
+**What was actually found:** the premise didn't hold — portal already does this correctly, no building needed. Confirmed against the live portal file: `loadSACreatures()` → `GET /creatures/awaiting-global-approval` populates the queue; `renderSACreatureQueue()` renders three distinct approve buttons per item ("Classroom only" / "Whole school" / "Everyone (global)") plus reject; `saGlobalApprove(id, scope)` → `POST /creatures/global-approve/{id}` with `{action:'approve', visibility_scope: scope}`, exactly matching the backend contract; `saGlobalReject(id)` → same endpoint with `{action:'reject', reason}`. Live-tested read-only as real superadmin against production: `GET /creatures/awaiting-global-approval` → `200 OK`, `[]` (nothing currently queued — a normal empty state, not an error). Backend and portal sides are complete, correct, and confirmed working end-to-end.
+
+**Separate open item, not urgent, deliberately not decided now:** the mobile app still has zero equivalent UI for this (confirmed no React Native code anywhere calls `global-approve`). Whether that's a real gap or an intentional portal-only capability (similar to how superadmin's app Settings tab is already thin by design, per the SYNC PRINCIPLE's "app matched at phone-appropriate level") is a product call for Jono, not something to build reflexively. If it does get built, it's a real UI task (queue screen, scope picker) — not a quick follow-up.
 
 ### A4. Superadmin period-pill bug — appears ALREADY FIXED, handover is stale *(Section 6 #5)* — ✅ VERIFIED RESOLVED 2026-08-18, no code change
 **File:** `portal100.html:544-559`
@@ -291,7 +295,7 @@ Launch is **EUR-only**. AUD figures currently exist in `SUBSCRIPTION_PLANS` (`pr
 4. **A1** — ✅ DONE 2026-08-18 — dead duplicate routes merged/removed, verified, not yet deployed.
 5. **A4** — ✅ VERIFIED RESOLVED 2026-08-18 — re-checked against the live portal.html, no code change needed.
 6. **A2 item 1** — ✅ DONE 2026-08-18 — legacy admin.html retired (closed A5's admin.html instance, resolved A6's cross-surface conflict). A2 items 2-3 (Wellbeing Tracker/Team/Services app parity, Settings tab decisions) still open — Jono's product call.
-7. **A3** — confirm/build creatures global-approve.
+7. **A3** — ✅ DONE 2026-08-18 — backend/portal confirmed complete and live-tested, no build needed. Mobile-parity question left open, not urgent, Jono's product call whenever.
 8. **A9** — orphaned strategy content — needs Jono's product call first.
 9. **A7** — colour drift — larger mechanical pass, once other in-flight UI work settles.
 10. **A5 remainder** — audit portal.html's own render functions for the same XSS pattern, alongside A7 since both touch the same functions.
