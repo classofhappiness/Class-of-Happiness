@@ -288,6 +288,26 @@ Verified `server.py:7321-7353`: PIN required for the 4 `ALWAYS_OPEN_PINS` demo a
 - `/creatures/analytics` (`server.py:10891-10933`) — correctly superadmin-gated; N+1 query pattern building `top_users`/`top_schools`, and groups schools by raw `school_name` string (fragile to spelling/casing variants, e.g. the "St Lucy's " trailing-space example already in `school_profiles`) rather than a canonical school ID. Code-quality, not correctness.
 - **`demo_school_001`** (email `demo@schoolportal.app`) — duplicate seed `school_admin` row for "Sunshine International School", found while executing L4. Created 21 minutes before the real demo account (`schooladmindemo@classofhappiness.com`, `44bf76b1-c0ee-49d5-bc68-3e47bb5cf8b3`, the one documented in COH-HANDOVER.md Section 2 and actually used for logins). `demo_school_001` isn't referenced by the handover, isn't the account the 3 Sunshine teachers were backfilled against, and appears to be an unused leftover from seeding. Confirm it's genuinely orphaned (no other rows reference `demo_school_001` as their `school_admin_id`) before deleting.
 
+### A14. Crash on parent "My Wellbeing" screen — `.map(resolveName)` argument leak — ✅ DONE 2026-08-19, live-tested via real device
+**File:** `frontend/app/parent/my-wellbeing.tsx:390,597`
+
+Found by Jono real-device-testing tonight's A9 fix (not part of the original review — surfaced during verification). `resolveName(id, customNames?, t?)` was passed directly as an `Array.prototype.map` callback in two places. `map` always calls its callback as `(element, index, array)` — three arguments — so the array itself landed in `resolveName`'s third parameter (`t`). A non-empty array is truthy, so `if (t)` passed, then `t('strat_' + id)` tried to call the array as a function, throwing `"t is not a function (it is an object)"` — exactly the crash reported, at exactly the reported line. Confirmed unrelated to tonight's A9 fix itself (this file wasn't touched by it) — the other `resolveName` definitions elsewhere (`parent/alerts.tsx`, `parent/linked-child/[id].tsx`) only take a single `id` param, so the same `.map(resolveName)` pattern is harmless there.
+
+**Fix:** wrapped both call sites in an arrow so only `id` gets passed (`.map((id: string) => resolveName(id))`), matching how every other caller already uses it.
+
+**Verified:** diff reviewed in full before applying (isolated to exactly the two call sites); `tsc --noEmit` shows only a pre-existing, unrelated error in this file. No RN simulator/device available in this session to visually run the app (Playwright's bundled Chromium doesn't support this host's macOS version) — instead reproduced the exact error and confirmed the fix with a plain Node.js repro of the isolated `.map()` logic: buggy version throws `"t is not a function"` verbatim, fixed version resolves cleanly. Confirmed by Jono on a real device afterward.
+
+### A15. "Most used strategies" showing raw UUIDs instead of names — ✅ DONE 2026-08-19, live-tested
+**File:** `frontend/app/parent/my-wellbeing.tsx:73-96` (`fetchStrategyNames`)
+
+Also found by Jono real-device-testing tonight. Traced via real production data (`family_zone_logs`, the actual table parent self-check-ins write to): the account's most recent entry (2026-08-18, i.e. that same testing session) had `strategies_selected: ["410a7a20-...", "074eee48-...", "1617e2c0-..."]` — real Supabase UUIDs. `074eee48...`/`1617e2c0...` resolved to `admin_teacher_strategies` rows "Routine check"/"Calm the environment" — parent-tagged content that only became selectable *tonight*, via the A9 fix. `resolveName`'s name-lookup chain (translation key → `strategyNames` state → hardcoded `STRATEGY_NAMES` dict → raw-id cleanup fallback) had no path to these: `strategyNames` is built from `GET /strategies`, which only ever queries the `helpers`/`custom_helpers` tables — it has never queried `admin_teacher_strategies` at all. So every parent strategy surfaced by tonight's A9 fix was guaranteed to display as a raw UUID here, by construction, until this fix.
+
+(The third UUID, `410a7a20...`, resolved to a personal custom strategy ("Water Garden") that — confirmed live — `GET /strategies?zone=yellow` already returns correctly; that case was most likely just a casualty of the A14 crash preventing the section from ever finishing its render, not a separate name-resolution gap.)
+
+**Fix:** extended `fetchStrategyNames()` to also fetch `GET /admin/teacher-strategies?strategy_type=parent` (same endpoint/pattern as the A9 fix) and merge those `id → name` pairs into `strategyNames` alongside the existing ones.
+
+**Verified:** diff reviewed before applying (isolated addition, no changes to existing fetch logic); `tsc --noEmit` shows only the same pre-existing unrelated error as A14. Live-tested directly against production: called the new endpoint with a real parent token and confirmed both real problem UUIDs from tonight's actual check-in history (`074eee48...`, `1617e2c0...`) now resolve to their correct names ("Routine check", "Calm the environment") instead of the raw id.
+
 ---
 
 # POST-LAUNCH
@@ -316,3 +336,5 @@ Launch is **EUR-only**. AUD figures currently exist in `SUBSCRIPTION_PLANS` (`pr
 14. **A12** — doc correction only.
 15. **A13** — cleanup, anytime.
 16. **P1** — do not schedule; revisit after launch.
+17. **A14** — ✅ DONE 2026-08-19 — parent My Wellbeing crash fixed, live-tested and confirmed by Jono on a real device. Found during real-device testing of A9, not part of the original review.
+18. **A15** — ✅ DONE 2026-08-19 — "most used strategies" raw-UUID display fixed, live-tested against real production check-in data. Same discovery session as A14.

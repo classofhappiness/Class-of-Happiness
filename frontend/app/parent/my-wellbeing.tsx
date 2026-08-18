@@ -83,6 +83,20 @@ export default function MyWellbeingScreen() {
           });
           if (res.ok) { const d = await res.json(); d.forEach((s:any) => { if(s.id&&s.name) nameMap[s.id]=s.name; }); }
         }));
+
+        // Real fix Aug 19: /strategies only ever covers the helpers/custom_helpers tables -
+        // it has never queried admin_teacher_strategies. Since tonight's A9 fix (parent
+        // check-in now actually surfaces admin-authored parent strategies), those UUIDs had
+        // no path to a name here at all and fell through resolveName() to the raw id. Mirrors
+        // the same endpoint/pattern used in parent/checkin.tsx.
+        const adminRes = await fetch(`${BACKEND_URL}/api/admin/teacher-strategies?strategy_type=parent`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (adminRes.ok) {
+          const adminStrats = await adminRes.json();
+          adminStrats.forEach((s: any) => { if (s.id && s.name) nameMap[s.id] = s.name; });
+        }
+
         setStrategyNames(nameMap);
       } catch {}
     };
