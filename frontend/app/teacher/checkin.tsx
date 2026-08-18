@@ -95,7 +95,11 @@ export default function TeacherCheckInScreen() {
     try {
       const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
       const token = await AsyncStorage.getItem('session_token');
-      const res = await fetch(`${BACKEND_URL}/api/admin/teacher-strategies`, {
+      // Real fix Aug 18 (A9): this never passed strategy_type, so it pulled back ALL
+      // admin_teacher_strategies rows (student + teacher + parent mixed) - a teacher's own
+      // check-in could show a strategy written for an 8-year-old student, purely because it
+      // happened to share a zone and not collide by name with the hardcoded list.
+      const res = await fetch(`${BACKEND_URL}/api/admin/teacher-strategies?strategy_type=teacher`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {

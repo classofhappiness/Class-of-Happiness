@@ -135,32 +135,49 @@ export default function FamilyCheckInScreen() {
       return;
     }
 
-    // Adults: parent strategies + any custom family strategies
+    // Adults: parent strategies + admin-authored parent strategies + any custom family strategies
     const baseStrats = PARENT_STRATEGIES[selectedZone] || [];
+    const allNames = new Set(baseStrats.map((s: any) => s.name.toLowerCase()));
+    let merged = [...baseStrats];
     try {
       const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
       const token = await (await import('@react-native-async-storage/async-storage')).default.getItem('session_token');
+
+      // Real fix Aug 18 (A9): superadmin-authored parent strategies were never fetched
+      // anywhere - mirrors the pattern teacher/checkin.tsx now uses, filtered by
+      // strategy_type=parent so it can't pull in student/teacher content by mistake.
+      const adminRes = await fetch(`${BACKEND_URL}/api/admin/teacher-strategies?strategy_type=parent`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (adminRes.ok) {
+        const adminStrats = await adminRes.json();
+        const adminMapped = (adminStrats || [])
+          .filter((s: any) => (s.zone || s.feeling_colour) === selectedZone)
+          .map((s: any) => ({
+            id: s.id, name: s.name, description: s.description || '',
+            icon: s.icon || 'star', zone: s.zone || selectedZone,
+          }))
+          .filter((s: any) => !allNames.has(s.name.toLowerCase()));
+        adminMapped.forEach((s: any) => allNames.add(s.name.toLowerCase()));
+        merged = [...merged, ...adminMapped];
+      }
+
       const res = await fetch(`${BACKEND_URL}/api/family/custom-strategies?zone=${selectedZone}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         const customStrats = await res.json();
-        const customMapped = (customStrats || []).map((s: any) => ({
-          id: s.id,
-          name: s.name,
-          description: s.description || '',
-          icon: s.icon || 'star',
-          zone: s.zone || selectedZone,
-        }));
-        // Merge custom with parent strategies
-        const allNames = new Set(baseStrats.map((s: any) => s.name.toLowerCase()));
-        const unique = customMapped.filter((s: any) => !allNames.has(s.name.toLowerCase()));
-        setStrategies([...baseStrats, ...unique] as any);
-      } else {
-        setStrategies(baseStrats as any);
+        const customMapped = (customStrats || [])
+          .map((s: any) => ({
+            id: s.id, name: s.name, description: s.description || '',
+            icon: s.icon || 'star', zone: s.zone || selectedZone,
+          }))
+          .filter((s: any) => !allNames.has(s.name.toLowerCase()));
+        merged = [...merged, ...customMapped];
       }
+      setStrategies(merged as any);
     } catch {
-      setStrategies(baseStrats as any);
+      setStrategies(merged as any);
     }
   };
 

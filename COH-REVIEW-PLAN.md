@@ -252,10 +252,21 @@ Live Supabase has zero `role='admin'` rows, but `POST /auth/promote-admin` (`ser
 
 **Fix:** extend the existing cap pattern to the 3 ungated routes, or confirm deliberately that they're meant to stay uncapped. Revisit alongside L3's open question about whether family PDFs should gate on the parent's new coverage status.
 
-### A9. Three strategy systems — confirmed orphaned content *(Section 7 #2 old / now #6)*
+### A9. Three strategy systems — ✅ DONE 2026-08-18 for teacher/parent content, live-tested *(Section 7 #2 old / now #6)*
 Live Supabase `admin_teacher_strategies`: 39 rows, 22 student/9 teacher/8 parent. `GET /strategies` (the real check-in consumer) only reads `helpers`+`custom_helpers`, never this table. **The 17 teacher/parent rows are real, editable superadmin content, structurally unreachable by any teacher or parent today.**
 
 **Fix:** build the missing teacher/parent-facing consumer screens, or explicitly stop presenting this content as if it reaches users.
+
+**Correction before fixing:** the original framing ("structurally unreachable") turned out to be half-true. Deeper investigation found the real student flow doesn't even use `GET /strategies` — the app calls `GET /helpers` directly, whose defaults are hardcoded Python dicts (`DEFAULT_HELPERS` + per-language translations), not a Supabase table at all; `helpers`/`custom_helpers` only feed the less-used `/strategies` alias. More importantly: **teacher/checkin.tsx already had a half-finished integration** — it fetched `GET /admin/teacher-strategies` into an `adminStrategies` state that genuinely was merged into the rendered picker (`strategiesForZone`, merged with a hardcoded `TEACHER_STRATEGIES` list by zone, deduped by name) — so teacher-tagged content *was* already reaching teachers. The real bug: the fetch never passed `strategy_type`, so it silently pulled back **all 39 rows** — student- and parent-tagged content could appear in a teacher's own wellbeing check-in alongside the real teacher content, whenever it shared a zone and didn't collide by name. **Parent side (`parent/checkin.tsx`) had no integration attempt at all** — a separate hardcoded `PARENT_STRATEGIES` list existed, but nothing ever fetched from `admin_teacher_strategies`.
+
+**What was actually done:**
+1. `frontend/app/teacher/checkin.tsx` — added `?strategy_type=teacher` to the existing `loadAdminStrategies()` fetch. One-line fix; no backend change needed, the endpoint already supported the filter (`server.py:8237-8247`), nothing in the app was passing it.
+2. `frontend/app/parent/checkin.tsx` — built the missing fetch from scratch, mirroring teacher's now-correct pattern: fetches `GET /admin/teacher-strategies?strategy_type=parent`, filters by zone client-side (the endpoint doesn't filter by zone), dedupes by name against both the hardcoded `PARENT_STRATEGIES` and the existing `/family/custom-strategies` fetch, merges all three sources.
+3. Both diffs confirmed isolated and clean (`git diff` reviewed in full before applying); `tsc --noEmit` shows only pre-existing, unrelated errors in both files.
+4. **Live-tested end-to-end** against production using real teacher and parent account logins (not just superadmin): `GET /admin/teacher-strategies?strategy_type=teacher` → exactly the 9 real teacher rows, no student/parent bleed-through; `?strategy_type=parent` → exactly the 8 real parent rows. Confirmed with both a superadmin token and the actual teacher/parent account types that call this in production.
+5. **Not verified:** the actual on-screen render in the Expo app — no simulator/device environment available in this session to visually confirm. Verified the data layer (backend contract) and the code (clean diff, type-safe, mirrors an already-proven merge pattern) instead.
+
+**Student-tagged rows (22) and the third-tier `school_strategies`/fork-on-touch system remain out of scope for this fix** — those were already reaching users via other paths per the original review; only the confirmed-orphaned teacher/parent content was addressed here.
 
 ### A10. Website claims — mostly already fixed live *(Section 7 #6)*
 Checked live via `curl`: the stale local copy's "Now on iOS & Android" claim is already corrected live to "Now in Beta — iOS & Android" (honest); the stale copy's raw "SMS alerts" fallback text is already corrected live to "Wellbeing alerts" (only a harmless invisible HTML comment remains at line 550). No fix needed for either. The school pricing mismatch originally flagged here is now tracked as L2/L3 above (and reclassified: backend was wrong, not the site).
@@ -296,7 +307,7 @@ Launch is **EUR-only**. AUD figures currently exist in `SUBSCRIPTION_PLANS` (`pr
 5. **A4** — ✅ VERIFIED RESOLVED 2026-08-18 — re-checked against the live portal.html, no code change needed.
 6. **A2 item 1** — ✅ DONE 2026-08-18 — legacy admin.html retired (closed A5's admin.html instance, resolved A6's cross-surface conflict). A2 items 2-3 (Wellbeing Tracker/Team/Services app parity, Settings tab decisions) still open — Jono's product call.
 7. **A3** — ✅ DONE 2026-08-18 — backend/portal confirmed complete and live-tested, no build needed. Mobile-parity question left open, not urgent, Jono's product call whenever.
-8. **A9** — orphaned strategy content — needs Jono's product call first.
+8. **A9** — ✅ DONE 2026-08-18 — teacher fix (add missing type filter) and parent fix (build missing fetch) both applied and live-tested against production with real teacher/parent accounts. Not yet deployed; on-screen render not visually confirmed (no simulator available this session).
 9. **A7** — colour drift — larger mechanical pass, once other in-flight UI work settles.
 10. **A5 remainder** — audit portal.html's own render functions for the same XSS pattern, alongside A7 since both touch the same functions.
 11. **A8** — PDF gating — family PDF stays ungated by decision (see L3); still open for school-overview/classroom-overview routes.
