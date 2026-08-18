@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Animated, Easing } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Creature } from '../utils/api';
 import { useApp } from '../context/AppContext';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../utils/sounds';
@@ -103,6 +104,7 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
 }) => {
   const { t: tContext } = useApp();
   const t = tProp || tContext;
+  const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<'creatures' | 'items'>('creatures');
   const [selectedCreature, setSelectedCreature] = useState<any>(null);
@@ -126,6 +128,11 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
   const equippedMove = moves.filter((m: any) => unlockedMoves.includes(m.id)).slice(-1)[0];
 
   const handleClose = () => { playButtonFeedback(); onClose(); };
+  const handleSubmitCreature = () => {
+    playButtonFeedback();
+    onClose();
+    router.push('/student/submit-creature');
+  };
 
   const PointsGuide = () => (
     <View style={styles.pointsGuide}>
@@ -205,6 +212,15 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
               <Text style={styles.closeTxt}>✕</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Submit a Creature shortcut — clear way in without needing a check-in first */}
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#9C27B0', marginHorizontal: 16, marginTop: 10, paddingVertical: 10, borderRadius: 50 }}
+            onPress={handleSubmitCreature}
+          >
+            <Text style={{ fontSize: 14 }}>🎨</Text>
+            <Text style={{ color: 'white', fontWeight: '900', fontSize: 13 }}>{t('submit_a_creature') || 'Submit a Creature'}</Text>
+          </TouchableOpacity>
 
           {/* Tabs */}
           <View style={styles.tabs}>

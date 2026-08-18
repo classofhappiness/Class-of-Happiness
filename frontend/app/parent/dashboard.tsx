@@ -1171,6 +1171,10 @@ export default function ParentDashboard() {
               <MaterialIcons name="pets" size={22} color="#9C27B0" />
               <Text style={styles.compactActionTxt}>{t('creatures_manage') || 'Creatures'}</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.compactAction} onPress={() => router.push('/student/submit-creature')}>
+              <MaterialIcons name="palette" size={22} color="#9C27B0" />
+              <Text style={styles.compactActionTxt}>{t('submit_a_creature') || 'Submit Creature'}</Text>
+            </TouchableOpacity>
             {/* Widget button removed for now — see app/parent/widget.tsx for the kept-intact
                 preview screen; no real native OS widget exists yet, was misleading to show
                 "Add Widget" without one. Jono's explicit decision: revisit when a real native
