@@ -387,7 +387,7 @@ export default function MyWellbeingScreen() {
         const journal = journals[e.id] ? `
     📝 ${journals[e.id]}` : '';
         const strats = (e as any).strategies_selected?.length ? `
-    🎯 ${((e as any).strategies_selected).slice(0,3).map(resolveName).join(', ')}` : '';
+    🎯 ${((e as any).strategies_selected).slice(0,3).map((id: string) => resolveName(id)).join(', ')}` : '';
         return `${zoneEmoji[e.zone]||'•'} ${d} ${time} — ${zoneLabel[e.zone]||e.zone}${note}${strats}${journal}`;
       }),
       '',
@@ -594,7 +594,7 @@ export default function MyWellbeingScreen() {
               const d = new Date(entry.timestamp);
               const dateStr = d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
               const timeStr = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-              const strats = ((entry as any).strategies_selected || []).map(resolveName).join(', ');
+              const strats = ((entry as any).strategies_selected || []).map((id: string) => resolveName(id)).join(', ');
               const j = journals[entry.id] || '';
               return (
                 <View key={entry.id} style={st.entryRow}>
