@@ -41,7 +41,7 @@ This fires on ANY network failure (Railway cold start, transient timeout, offlin
 
 **Not yet done — flag before considering this fully live:** this fix is committed to the repo but has **not been deployed** (no `git push`, no Expo/EAS rebuild). The hardcoded bypass remains live in any already-shipped app bundle and in the current Railway/Expo deployment until a new build goes out. Deploying is a separate, more consequential action (affects real users' installed app) — confirm with Jono before pushing/rebuilding.
 
-### L2. School subscription pricing — backend and Stripe must be updated to match the website *(Section 7 #2)* — ✅ CODE DONE 2026-08-18, Stripe products pending Jono
+### L2. School subscription pricing — backend and Stripe must be updated to match the website *(Section 7 #2)* — ✅ DONE & VERIFIED 2026-08-18
 **Files:** `backend/server.py:67-79` (`SUBSCRIPTION_PLANS`), `backend/server.py:10568-10572` (`_get_plan_from_price`), `backend/server.py:6029-6031` (`GET /subscription/plans`, confirmed live-consumed by the app at `frontend/src/utils/api.ts:199`), Stripe dashboard products/prices, `portal100.html` (verified below).
 
 **Ground truth from Jono: the website's school pricing is correct.** Live-confirmed via `curl https://classofhappiness.com` (`calcSavings()`, lines 1239-1241): **Starter €499/yr (≤5 teachers), Standard €999/yr (≤15 teachers), Plus €1,999/yr (>15 teachers)** — three tiers, differing by included teacher count.
@@ -71,13 +71,15 @@ Why this is launch-blocking, not cosmetic:
 3. **Real bug found and fixed while wiring this up:** the Stripe webhook (`server.py:~10800`) was passing only `price.id` (Stripe's auto-generated random string, e.g. `price_1Abc...`) into the plan-matching logic — which would **never** contain "teacher"/"parent"/"school_starter" no matter what Jono named the product, since Dashboard-created prices can't have a custom `id`. The actual identifying name lives in `price.nickname` or `price.lookup_key`. Fixed to check nickname → lookup_key → id, in that order, so it works regardless of which field ends up populated. Without this fix, none of the plan-matching work above would have actually worked in production.
 4. **Confirmed with Jono:** Teacher Monthly (€7.99) and Parent Monthly Stripe prices already existed with no nickname set; Jono has since set their nicknames to `teacher_monthly`/`parent_monthly` — matches this code's expectations exactly.
 
-**Still pending — not deployed, not fully live-tested:**
-- Jono is creating the 3 school Stripe products + Payment Links in parallel. Once done, need the price *nicknames* he used (to confirm they contain `school_starter`/`school_standard`/`school_plus`, or code adjusted to match whatever he actually named them).
-- `STRIPE_PRICE_TEACHER_MONTHLY` / `STRIPE_PRICE_PARENT_MONTHLY` env vars (the real Stripe **price IDs**, not nicknames) still need to be set on Railway — required by L3's checkout endpoint, not yet provided.
-- No live test of the full checkout → webhook → `subscription_plan` loop has been run yet — planned once (a) the price ID env vars are set and (b) this is deployed. See L3's verification plan, which covers both together.
-- Not yet pushed to `origin/main` — holding per Jono's instruction until L2+L3 are both fully ready for one combined deploy.
+**Deployed and verified live** (2026-08-18, against Stripe test mode — see L3 for the full test walkthrough): `GET /subscription/plans` confirmed returning all 5 correct plans in production. A real Stripe test subscription on the teacher price was created via the API, and the webhook correctly classified and persisted `subscription_plan: "teacher"` — proving the nickname-matching fix (#3 above) actually works end-to-end, not just in theory.
 
-### L3. Parent pricing model — free with school package, €4.99/mo self-serve otherwise; the self-serve payment path doesn't exist yet *(Section 7 #2, extended)* — ✅ CODE DONE 2026-08-18, deploy + live test pending
+**Two more real bugs found and fixed only while live-testing** (not from static review — these only surface when the code actually runs against Stripe):
+1. **The installed `stripe-python` version doesn't implement `.get()` on its response objects at all** (raises `AttributeError`, confirmed via Railway logs) — only bracket/index access works. This means the **entire webhook handler had been broken since it was first written**, for every event type, regardless of the nickname fix — `subscription_status`/`subscription_plan` updates from Stripe had very likely never once succeeded in production. Fixed with a small `_sget(obj, key, default)` helper (`server.py`, defined near the webhook) using proven-working bracket access, applied everywhere the webhook and the new status endpoint touch a Stripe SDK object. Separate commit: `89fc0d6`.
+2. **Test-mode setup gap** (test-environment only, confirmed the live webhook endpoint was already correctly configured): the freshly-created test webhook endpoint was subscribed to `checkout.session.completed`/`customer.subscription.updated` but not `customer.subscription.created` — meaning Stripe never even attempted delivery for the event our test relied on. Fixed by updating the test endpoint's subscribed events to match what the code actually handles (`customer.subscription.created/updated/deleted`, `invoice.payment_succeeded/failed`). Live webhook (`we_1TpWTXGVgsNSHYytdK2b3RQQ`) checked read-only and already had the correct event list — no live change needed.
+
+School Stripe products (Starter/Standard/Plus) and their Payment Links are still Jono's to create for the manual sales flow — not required for anything currently wired into the app, per the L3 scope decision (self-serve checkout is teacher/parent only).
+
+### L3. Parent pricing model — free with school package, €4.99/mo self-serve otherwise; the self-serve payment path doesn't exist yet *(Section 7 #2, extended)* — ✅ DONE & VERIFIED 2026-08-18
 **Files:** `backend/server.py:3546-3567` (`/parent/link-child`), `:3425-3441` (`/family/members`), `:9913-9921` (`/family/custom-strategies`), `:3311-3336` (`/resources`), `frontend/src/utils/api.ts:203-207` (`subscriptionApi.createCheckout`/`getPaymentStatus`), `frontend/app/subscription/index.tsx`, live website pricing copy.
 
 **Ground truth from Jono: parents are free when their school has a package (linked via school invite code); parents at schools without a package subscribe €4.99/mo/family in-app, paid via web/Stripe — never Apple IAP.** (Confirmed: no `react-native-iap`/`expo-in-app-purchases`/StoreKit code exists anywhere in `frontend/` — nothing to remove there, good.)
@@ -116,11 +118,18 @@ None of these three carry a persistent "this parent's child attends a package sc
 7. **`frontend/src/utils/api.ts`**: added `subscriptionApi.getParentCoverage()`.
 8. **Website parent pricing card** (local upload-ready copy at `/Users/jono/Desktop/index-UPLOAD-2026-08-18.html`, freshly fetched live and edited, **not yet uploaded to cPanel**) rewritten to lead with "Free with your school's package" and state the €4.99/mo fallback, across all 6 languages (translations reviewed but not natively verified — recommend a native-speaker check before upload, especially PT/ES/IT/DE/FR). Also fixed a real, separate bug in the school ROI calculator (`calcSavings()`, line 1235) that was still computing the "what you'd pay individually" comparison using the old €2.99 figure — now €4.99, which directly affects the savings number shown to prospective school buyers.
 
-**Still pending:**
-- Railway env vars `STRIPE_PRICE_TEACHER_MONTHLY`/`STRIPE_PRICE_PARENT_MONTHLY` need the real Stripe price IDs (not nicknames) once available.
+**Deployed and verified live** (2026-08-18): Railway env vars set (`STRIPE_PRICE_TEACHER_MONTHLY`, `STRIPE_PRICE_PARENT_MONTHLY`, plus a temporary `STRIPE_TEST_MODE` toggle + `STRIPE_SECRET_KEY_TEST`/`STRIPE_WEBHOOK_SECRET_TEST` used only for this test pass, since Railway had only ever had a **live** Stripe key configured — testing against real money wasn't an option). Full loop tested against Stripe test mode:
+- `POST /subscription/checkout` (teacher_monthly) → real Stripe Checkout Session created successfully.
+- `GET /subscription/status/{session_id}` on the unpaid session → correctly returned `{"status":"unpaid","plan":"teacher_monthly"}` (this call originally 500'd — see the `.get()` bug below, found and fixed during this same test pass).
+- A real test-mode subscription was created via the Stripe API (bypassing the hosted Checkout page, which can't be driven headlessly) using Stripe's built-in test payment method — this exercises the exact same webhook path a real completed checkout would. Webhook fired, `_find_user` matched the demo account by email and persisted `stripe_customer_id`, and `subscription_status`/`subscription_plan` updated correctly to `active`/`teacher` in Supabase — confirmed both directly in Supabase and via the app-facing `GET /subscription/status`.
+- `GET /parent/coverage-status` tested against a real linked parent account — returned `covered: true`, traced end-to-end through `parent_links → students → classrooms → teacher → school_admin` to confirm the logic fired for the right (if slightly tangled, pre-existing demo-data) reason rather than a false positive.
+- Test artifacts cleaned up afterward: Stripe test subscription cancelled, the demo teacher account (`jono+teacher@gmail.com`) reverted to its pre-test `subscription_status: trial` baseline, `STRIPE_TEST_MODE` flipped back to `false` (confirmed via a follow-up deploy) so the server is back on the live Stripe key.
+
+**Real bug found only by live-testing, not fixable from static review — see L2 above for full detail**: this stripe-python version doesn't support `.get()` on its response objects; the webhook (and the new status endpoint) had used it throughout. Fixed via a `_sget()` helper (commit `89fc0d6`) — without this, none of the webhook-driven `subscription_status`/`subscription_plan` updates in this whole plan would have worked, in test or live.
+
+**Still pending, not part of this fix:**
 - `/Users/jono/Desktop/index-UPLOAD-2026-08-18.html` needs manual upload to cPanel — not automated, no FTP access from here.
-- Full end-to-end live test (invite-code → free parent flow; unlinked parent → €4.99 checkout → webhook → `subscription_status` active) not yet run — planned together with L2's school-tier test once deployed.
-- Not yet pushed to `origin/main` — holding per Jono's instruction until L2+L3 are both fully ready for one combined deploy.
+- School Stripe products/Payment Links — Jono's to create for the manual sales flow (see L2).
 
 ### L4. School identity (school_admin_id vs school_name) — real data loss happening today *(Section 7 #1)* — ✅ DONE 2026-08-18
 **File:** `backend/server.py` (every `.eq("school_admin_id"` / `.eq("school_name"` query site)
@@ -261,7 +270,7 @@ Launch is **EUR-only**. AUD figures currently exist in `SUBSCRIPTION_PLANS` (`pr
 ## SUGGESTED EXECUTION ORDER
 
 1. **L1** — ✅ DONE 2026-08-18 — hardcoded bypass removed, verified against real login. Not yet deployed (no push/rebuild done).
-2. **L2 + L3 together** — ✅ CODE DONE 2026-08-18. Deploy + live test pending: Railway needs `STRIPE_PRICE_TEACHER_MONTHLY`/`STRIPE_PRICE_PARENT_MONTHLY` env vars set, then a combined push, then the full signup→payment→webhook→display loop needs testing for all three account types (school, unlinked parent, teacher).
+2. **L2 + L3 together** — ✅ DONE & VERIFIED 2026-08-18. Deployed, tested end-to-end against Stripe test mode (checkout → webhook → subscription_status/plan), and a real pre-existing webhook bug (`.get()` on Stripe objects) was found and fixed in the same pass — see both sections above for full detail. Remaining: Jono to create the 3 school Stripe products/Payment Links (manual sales flow, not blocking), and upload the corrected website copy to cPanel.
 3. **L4** — ✅ DONE 2026-08-18 — school identity backfill + dual-match audit, verified live.
 4. **A1** — dead duplicate routes, quick, do anytime early.
 5. **A4** — period-pill, just a live test.
