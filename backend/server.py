@@ -10729,14 +10729,20 @@ async def global_approve_creature(submission_id: str, request: Request):
 
     body = await request.json()
     action = body.get("action")  # "approve" or "reject"
+    # Real fix Aug 18: visibility_scope - who gets to see/unlock this creature.
+    # "classroom" = originating classroom only, "school" = whole school, "global" = every school.
+    scope = body.get("visibility_scope", "school")
+    if scope not in ["classroom", "school", "global"]:
+        raise HTTPException(status_code=400, detail="visibility_scope must be classroom, school, or global")
     from datetime import datetime, timezone
 
     if action == "approve":
         supabase.table("creature_submissions").update({
-            "is_globally_available": True,
+            "is_globally_available": scope == "global",
+            "visibility_scope": scope,
             "global_uses": 0,
         }).eq("id", submission_id).execute()
-        return {"success": True, "is_globally_available": True}
+        return {"success": True, "is_globally_available": scope == "global", "visibility_scope": scope}
     elif action == "reject":
         supabase.table("creature_submissions").update({
             "status": "rejected",
