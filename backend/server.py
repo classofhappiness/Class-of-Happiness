@@ -326,7 +326,7 @@ HELPERS_PT = {
         {"id":"y6","name":"Apertar e Soltar","description":"Aperta os punhos com força e depois solta. Repete 5 vezes.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
     ],
     "red": [
-        {"id":"r1","name":"Parar","description":"Para e fica imóvel por um momento. Não faças nada ainda.","feeling_colour":"red","icon":"stop","emoji":"✋"},
+        {"id":"r1","name":"Ficar Parado","description":"Para e fica imóvel por um momento. Não faças nada ainda.","feeling_colour":"red","icon":"stop","emoji":"✋"},
         {"id":"r2","name":"Respirações Profundas","description":"Faz 5 respirações profundas. Inspira pelo nariz, expira pela boca.","feeling_colour":"red","icon":"air","emoji":"🌬️"},
         {"id":"r3","name":"Contar ao Contrário","description":"Conta de 10 até 1 devagar. Isto acalma o teu cérebro.","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
         {"id":"r4","name":"Espaço Seguro","description":"Vai para um lugar calmo onde te sintas seguro.","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
@@ -503,7 +503,7 @@ HELPERS_PT = {
         {"id":"y6","name":"Apertar e Soltar","description":"Aperta os punhos com força e depois solta. Repete 5 vezes.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
     ],
     "red": [
-        {"id":"r1","name":"Parar","description":"Para e fica imóvel por um momento. Não faças nada ainda.","feeling_colour":"red","icon":"stop","emoji":"✋"},
+        {"id":"r1","name":"Ficar Parado","description":"Para e fica imóvel por um momento. Não faças nada ainda.","feeling_colour":"red","icon":"stop","emoji":"✋"},
         {"id":"r2","name":"Respirações Profundas","description":"Faz 5 respirações profundas. Inspira pelo nariz, expira pela boca.","feeling_colour":"red","icon":"air","emoji":"🌬️"},
         {"id":"r3","name":"Contar ao Contrário","description":"Conta de 10 até 1 devagar. Isto acalma o teu cérebro.","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
         {"id":"r4","name":"Espaço Seguro","description":"Vai para um lugar calmo onde te sintas seguro.","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
@@ -3860,11 +3860,11 @@ STRATEGY_NAME_MAP_PT = {
     "b1":"Alongamento Suave","b2":"Música Favorita","b3":"Contar a Alguém","b4":"Respiração Lenta",
     "g1":"Continuar!","g2":"Ajudar um Amigo","g3":"Definir um Objetivo","g4":"Gratidão",
     "y1":"Respiração de Bolha","y2":"Contar até 10","y3":"5 Sentidos","y4":"Falar Sobre Isso",
-    "r1":"Parar","r2":"Respirações Profundas","r3":"Espaço Seguro","r4":"Pedir Ajuda",
+    "r1":"Ficar Parado","r2":"Respirações Profundas","r3":"Espaço Seguro","r4":"Pedir Ajuda",
     "blue_1":"Alongamento Suave","blue_2":"Música Favorita","blue_3":"Contar a Alguém","blue_4":"Respiração Lenta",
     "green_1":"Continuar!","green_2":"Ajudar um Amigo","green_3":"Definir um Objetivo","green_4":"Gratidão",
     "yellow_1":"Respiração de Bolha","yellow_2":"Contar até 10","yellow_3":"5 Sentidos","yellow_4":"Falar Sobre Isso",
-    "red_1":"Parar","red_2":"Respirações Profundas","red_3":"Espaço Seguro","red_4":"Pedir Ajuda",
+    "red_1":"Ficar Parado","red_2":"Respirações Profundas","red_3":"Espaço Seguro","red_4":"Pedir Ajuda",
 }
 STRATEGY_NAME_MAP_ES = {
     "b1":"Estiramiento Suave","b2":"Canción Favorita","b3":"Contárselo a Alguien","b4":"Respiración Lenta",
