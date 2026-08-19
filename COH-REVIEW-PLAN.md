@@ -367,23 +367,38 @@ Neither the PIN input nor the "Unlock" button is gated on this load finishing. I
 
 ---
 
-### A19. [PRIORITY — ADMIN ACCESS] Admin unlock may be skipping PIN entry entirely — A17's fix not yet confirmed sufficient — 🔴 OPEN, found 2026-08-20 real-device testing, NOT YET INVESTIGATED
+### A19. [PRIORITY — ADMIN ACCESS] Admin unlock skipped PIN entry entirely — root-caused, fixed, and live-verified — ✅ DONE 2026-08-20
+**File:** `backend/server.py` (`/admin/verify`)
 
-**Reported by Jono, real device:** logged in as `jono@classofhappiness.com` (the superadmin demo account) and pressed "Unlock" on the admin PIN screen — it went straight through to the admin dashboard with **no PIN code typed at all**. Flagged as serious because this is the account that gates superadmin/admin access, and it directly touches the path A17 (above) was supposed to have secured today.
+**Reported by Jono, real device:** logged in as `jono@classofhappiness.com` (the superadmin demo account) and pressed "Unlock" on the admin PIN screen — it went straight through to the admin dashboard with **no PIN code typed at all**.
 
-**Do not assume A17 didn't work — but do not assume it did, either.** Explicitly re-investigate from scratch. Known context that's directly relevant and should be checked first, before forming a theory:
+**Root cause, fully traced — A17 is not broken; theory 2 confirmed, theory 1 ruled out.**
+1. **`ALWAYS_OPEN_PINS` (theory 1) is a dead end for this account.** Live Supabase check confirmed `jono@classofhappiness.com`'s `role` is `superadmin`. `/auth/email-login`'s PIN check (`server.py:7511-7519`) is an `if role in ("admin","superadmin") ... elif email in ALWAYS_OPEN_PINS`, so the role branch matches first and `ALWAYS_OPEN_PINS` never fires for this account — it's only reachable for non-admin roles (e.g. the demo `school_admin`/parent/teacher accounts). Confirmed live: `ADMIN_PIN` (checked via `railway variables`) is `COH2026JONO` — the actual PIN required and typed at login was real.
+2. **A17's own side-finding (theory 2) is the exact and complete cause.** `/admin/verify` (added `7627c0d`, "Real fix Aug 14") never read `code` from the request body at all — it granted `valid:true` purely from `get_current_user(request).role`, by deliberate design ("since the caller already has a real session token... no separate PIN needed"), predating A17 by a week. Frontend's `unlock()` sends `{code: adminCode}` with no non-empty check before calling it. Session tokens live 30 days in `AsyncStorage` (`server.py:7548`). Net effect: once logged in (with a real PIN, at login), the in-app "Unlock" screen — which visually implies a second PIN checkpoint — accepted anything, including empty, for up to 30 days per session, because the code was never inspected server-side.
 
-1. **`jono@classofhappiness.com` is one of the 4 `ALWAYS_OPEN_PINS` demo accounts** referenced in A12 (`server.py:7321-7353`) — its real PIN is `COH2026JONO`. The name "ALWAYS_OPEN_PINS" itself is suspicious in this context and was never fully read/audited as part of A12 — that item only confirmed a PIN is *required* for these accounts, not what value the backend actually checks it against, or whether some code path treats "always open" as "no PIN check needed at all" rather than "this specific demo PIN is always valid." Read `ALWAYS_OPEN_PINS`'s actual definition and every place it's referenced before doing anything else.
-2. **A17's own side-finding, immediately above, is directly relevant and may fully explain this if so:** `/admin/verify` never inspects the typed PIN value at all — access is purely role-gated server-side once a valid session token is present. If `jono@classofhappiness.com` was already logged in with a valid superadmin token (which it would be, since login happens before the PIN screen), pressing "Unlock" with an empty field may be **working exactly as A17 left it** — the PIN field doing nothing, by design of a decision already flagged (not fixed) in A17, not a regression. If that's confirmed, the real bug isn't A17's race-condition fix failing — it's that the PIN field was already known to be non-functional and nobody has decided yet whether that's acceptable.
-3. If neither of the above explains it — e.g. if `unlock()` fires or auto-succeeds *without the button being pressed*, or without a token being present at all — then A17's fix genuinely did not close the gap, and the race condition (or a different one) is still live. This would be more serious and needs the full A17 verification sequence re-run (real login → real PIN → unlock, all 4 backend-contract cases from A17's verification section) plus an actual on-device repro this time, not just a backend-contract check.
+**A17 confirmed NOT at fault** — its token-freshness fix is unrelated and still correct; re-verified alongside this fix (scenario 5 below).
 
-**What needs checking (in this order), next session:**
-- Read `ALWAYS_OPEN_PINS` in `server.py` in full — what does "always open" actually mean for these 4 accounts, and does it interact with `/admin/verify`'s role-only gating in a way that makes an empty/no-PIN unlock "correct" for this specific account?
-- Reproduce on the real device again, this time watching whether the "Unlock" button was actually tapped, and if possible capture the actual network request/response for `/admin/verify` (or add temporary logging) to see whether a token was sent and what the backend returned.
-- Test the same flow with a **non-demo** superadmin-role account (if one exists) to see if the empty-PIN-skip is specific to the `ALWAYS_OPEN_PINS` demo accounts or is a general failure of the PIN screen.
-- Only once the actual cause is confirmed, decide whether this is "working as already-flagged-but-undecided" (A17 side-finding) or a genuine new/unclosed security gap, and fix accordingly.
+**Decision (Jono): Option A — make the PIN a real second factor again, additive on top of the existing session+role check, not a replacement for it.**
 
-**Not yet fixed. Not yet root-caused. Treat as open and unresolved going into next session — do not close or fold into A17 without fresh verification.**
+**What was actually done:**
+`/admin/verify` now requires the role check to pass (unchanged) **and** a matching PIN:
+- `superadmin`/`admin` roles → compared against `ADMIN_PIN` env var (same value already required at login — no new secret).
+- Accounts whose email is in `ALWAYS_OPEN_PINS` (covers the demo `school_admin`, `schooladmindemo@classofhappiness.com`) → compared against that account's own fixed value.
+- **Real (non-demo) `school_admin` accounts intentionally left on the role-only check — Path 1, deliberate, not an oversight.** Live-checked who this actually affects: `kairos@classofhappiness.com` and `send@kairosmontessori.com` (a real school, Kairos Montessori) plus the orphaned `demo_school_001` (A13) have zero PIN infrastructure anywhere today — neither at login nor here. Inventing a shared/per-school PIN for them now was explicitly scoped out by Jono as a separate future feature (how a school admin would learn the PIN, reset flow, etc. — real design questions, not bundled into this additive fix).
+- Frontend required **zero changes** — `unlock()` already had `if (d.valid) {...} else Alert.alert('Invalid code')`; the gap was entirely that the backend always returned `true`.
+
+**Verified — full matrix run live against production, after deploy:**
+1. Superadmin, correct PIN (`COH2026JONO`) → `{"valid":true,"is_super_admin":true}` ✅
+2. Superadmin, **empty PIN — the exact original repro** → `{"valid":false,"is_super_admin":false}` ✅ (previously this returned `true`)
+3. Superadmin, wrong PIN → `{"valid":false}` ✅
+4. No token at all (A17's own race-condition scenario, re-confirmed still correctly denied) → `401 Not authenticated` ✅
+5. Demo school_admin, correct PIN (`COH2026DEMO`) → `{"valid":true,"is_super_admin":false}` ✅
+6. Demo school_admin, empty PIN → `{"valid":false}` ✅
+7. Real (non-demo) school_admin (`kairos@classofhappiness.com`), empty PIN → `{"valid":true,"is_super_admin":false}` ✅ — confirms Path 1 genuinely unchanged, no regression for real customers.
+8. Real school_admin, arbitrary random code → still `{"valid":true}` ✅ — same reasoning, role-only as designed.
+9. Unrelated role (teacher) → `{"valid":false}` ✅ — unaffected by this change, as before.
+
+All 9 scenarios matched expectations exactly. Diff reviewed and approved before applying (shown in full, no changes to session handling, A17's fix, or the general auth flow — purely additive). `python3 -m py_compile` clean. Deployed via `git push` (`a3a2539`), confirmed live via a fresh Railway deployment ID before testing. **Not yet visually confirmed on-device** — no simulator available in this environment; verified against the real backend contract instead, same methodology as A17. Frontend code required no changes, so no new client-side risk was introduced.
 
 ---
 
@@ -440,5 +455,5 @@ Record only, no investigation or design done yet. All raised by Jono during real
 18. **A15** — ✅ DONE 2026-08-19 — "most used strategies" raw-UUID display fixed, live-tested against real production check-in data. Same discovery session as A14.
 19. **A16** — ✅ DONE & LIVE-VERIFIED 2026-08-20 — creature submission code now validated before the full flow, not after. Confirmed live against production with both a real generated code and a garbage one.
 20. **A17** — ✅ DONE 2026-08-20 — admin PIN race condition fixed (reads session token fresh instead of racy state), all 4 outcome paths verified against the real backend contract, including re-confirming L1's security fix still holds alongside it.
-21. **A19** — 🔴 OPEN, PRIORITY — found 2026-08-20 real-device testing — admin unlock may be skipping PIN entry entirely for the superadmin demo account. Directly touches A17's fix; must be investigated fresh before trusting A17 is fully closed. Do first next session.
+21. **A19** — ✅ DONE 2026-08-20 — root-caused (A17's own side-finding was the exact cause, not a regression), real PIN check restored on top of the existing session+role gate, deployed and verified against 9 live-production scenarios. Real (non-demo) school_admin accounts intentionally left role-only (Path 1) — a per-school PIN is a separate future feature.
 22. **A18** — 🔴 OPEN — found 2026-08-20 real-device testing — family dashboard "check-ins today" count inflated (showed 3, actual was 1). Not yet investigated.
