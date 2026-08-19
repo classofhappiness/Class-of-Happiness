@@ -2864,6 +2864,33 @@ async def get_helpers(feeling_colour: Optional[str] = None, student_id: Optional
 
     return helpers
 
+# ================== VOICE CLIPS (student check-in narration) ==================
+# Real feature Aug 19: kids' voice recordings that play when a colour or helper button
+# is tapped on the student check-in flow. No DB table - the "voice-recordings" Storage
+# bucket itself is the source of truth (organised as {language}/{clip_key}.m4a), so
+# uploading/replacing a clip is the only step ever needed; nothing else can drift out of
+# sync with it. Missing keys (unfinished PT clips, unsupported languages) are simply
+# absent from the response - the app skips playback for those, same code path either way.
+VOICE_CLIP_KEYS = ["blue", "green", "yellow", "red"] + [
+    f"{zone}_{n}" for zone in ("blue", "green", "yellow", "red") for n in range(1, 7)
+]
+VOICE_CLIP_LANGUAGES = ("en", "pt")  # only these 2 have real recordings so far
+
+@api_router.get("/voice-clips")
+async def get_voice_clips(language: str = "en"):
+    if language not in VOICE_CLIP_LANGUAGES:
+        return {}
+    try:
+        files = supabase.storage.from_("voice-recordings").list(language)
+    except Exception as e:
+        logger.error(f"voice-clips list error: {e}")
+        return {}
+    existing = {f["name"].rsplit(".", 1)[0] for f in (files or [])}
+    return {
+        key: supabase.storage.from_("voice-recordings").get_public_url(f"{language}/{key}.m4a")
+        for key in VOICE_CLIP_KEYS if key in existing
+    }
+
 # Keep old endpoint name for frontend compatibility
 @api_router.get("/strategies")
 async def get_strategies(request: Request, zone: Optional[str] = None, feeling_colour: Optional[str] = None, 

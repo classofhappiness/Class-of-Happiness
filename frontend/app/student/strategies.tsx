@@ -11,6 +11,8 @@ import { zoneLogsApi, Strategy } from '../../src/utils/api';
 import { StrategyCard } from '../../src/components/StrategyCard';
 import { CelebrationOverlay } from '../../src/components/CelebrationOverlay';
 import { playButtonFeedback, playSelectFeedback, playSuccessSound, preloadSounds } from '../../src/utils/sounds';
+import { loadVoiceEnabled, loadVoiceManifest, playVoiceClip } from '../../src/utils/voiceClips';
+import { VoiceToggleButton } from '../../src/components/VoiceToggleButton';
 
 const MAX_COMMENT_LENGTH = 100;
 
@@ -69,6 +71,8 @@ export default function StrategiesScreen() {
 
   useEffect(() => {
     preloadSounds();
+    loadVoiceEnabled();
+    loadVoiceManifest(language);
     fetchStrategies();
   }, [zone, language]);
 
@@ -178,6 +182,8 @@ export default function StrategiesScreen() {
 
   const toggleStrategy = (strategyId: string) => {
     playSelectFeedback();
+    const isSelecting = !selectedStrategies.includes(strategyId);
+    if (isSelecting) playVoiceClip(strategyId); // only on select, not deselect
     setSelectedStrategies(prev =>
       prev.includes(strategyId) ? prev.filter(id => id !== strategyId) : [...prev, strategyId]
     );
@@ -285,6 +291,7 @@ export default function StrategiesScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <TranslatedHeader title={t('choose_helpers') || 'Choose Helpers'} />
+      <VoiceToggleButton style={styles.voiceToggle} />
       <CelebrationOverlay
         visible={showCelebration}
         studentName={currentStudent?.name || ''}
@@ -457,6 +464,7 @@ export default function StrategiesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
+  voiceToggle: { position: 'absolute', top: 8, right: 12, zIndex: 10 },
   scrollContent: { padding: 6, paddingBottom: 6 },
   zoneHeader: { flexDirection: 'row', alignItems: 'center', padding: 6, borderRadius: 10, borderWidth: 2, marginBottom: 6 },
   zoneColorDot: { width: 18, height: 18, borderRadius: 9, marginRight: 10 },

@@ -6,6 +6,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../../src/utils/sounds';
+import { loadVoiceEnabled, loadVoiceManifest, playVoiceClip } from '../../src/utils/voiceClips';
+import { VoiceToggleButton } from '../../src/components/VoiceToggleButton';
 
 const { width } = Dimensions.get('window');
 
@@ -71,7 +73,11 @@ export default function ColourSelectionScreen() {
   const { currentStudent, presetAvatars, t, language, translations } = useApp();
   const [showHelp, setShowHelp] = useState(false);
 
-  useEffect(() => { preloadSounds(); }, []);
+  useEffect(() => {
+    preloadSounds();
+    loadVoiceEnabled();
+    loadVoiceManifest(language);
+  }, [language]);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: '' });
@@ -81,6 +87,7 @@ export default function ColourSelectionScreen() {
 
   const handleZoneSelect = (zone: 'blue' | 'green' | 'yellow' | 'red') => {
     playSelectFeedback();
+    playVoiceClip(zone);
     router.push({ pathname: '/student/strategies', params: { zone, location: locationParam || '', fromFamily: fromFamily || '', returnTo: returnTo || '' } });
   };
 
@@ -96,6 +103,7 @@ export default function ColourSelectionScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <VoiceToggleButton style={styles.voiceToggle} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Greeting */}
         <View style={styles.greetingRow}>
@@ -218,6 +226,7 @@ const styles = StyleSheet.create({
   zoneTitle: { fontSize: 20, fontWeight: 'bold', color: 'white', marginBottom: 4 },
   zoneWords: { fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: '500' },
 
+  voiceToggle: { position: 'absolute', top: 8, right: 12, zIndex: 10 },
   helpButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, padding: 8, backgroundColor: 'white', borderRadius: 12 },
   helpButtonText: { fontSize: 12, color: '#5C6BC0', fontWeight: '600' },
   errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },

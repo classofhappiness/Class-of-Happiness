@@ -1,5 +1,5 @@
-import React, { useState, useLayoutEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput } from 'react-native';
+import React, { useState, useLayoutEffect, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useNavigation } from 'expo-router';
@@ -7,6 +7,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../src/context/AppContext';
 import { translationsApi, subscriptionApi, authApiExtended } from '../src/utils/api';
+import { loadVoiceEnabled, setVoiceEnabled } from '../src/utils/voiceClips';
 
 const LANGUAGES = [
   { code: 'en', name: 'English', flag: '🇦🇺' },
@@ -23,6 +24,14 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { user, language, setLanguage, logout, t, hasActiveSubscription, translations, checkAuth, isAuthenticated } = useApp();
   const [showLanguages, setShowLanguages] = useState(false);
+  const [voiceEnabled, setVoiceEnabledState] = useState(true);
+
+  useEffect(() => { loadVoiceEnabled().then(setVoiceEnabledState); }, []);
+
+  const handleVoiceToggle = async (value: boolean) => {
+    setVoiceEnabledState(value);
+    await setVoiceEnabled(value);
+  };
   const [pendingLanguage, setPendingLanguage] = useState<string | null>(null);
   const [showTrialCode, setShowTrialCode] = useState(false);
   const [trialCode, setTrialCode] = useState('');
@@ -448,6 +457,21 @@ export default function SettingsScreen() {
             ))}
           </View>
         )}
+      </View>
+
+      {/* Voice narration (student check-in colour/helper audio) */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('voice') || 'Voice'}</Text>
+        <View style={styles.settingItem}>
+          <View style={styles.settingLeft}>
+            <MaterialIcons name="record-voice-over" size={24} color="#5C6BC0" />
+            <View style={styles.settingText}>
+              <Text style={styles.settingLabel}>{t('voice_narration') || 'Voice Narration'}</Text>
+              <Text style={styles.settingValue}>{t('voice_narration_desc') || 'Plays a recording when a colour or helper is tapped during check-in'}</Text>
+            </View>
+          </View>
+          <Switch value={voiceEnabled} onValueChange={handleVoiceToggle} trackColor={{ false: '#ddd', true: '#81C784' }} thumbColor={voiceEnabled ? '#4CAF50' : '#999'} />
+        </View>
       </View>
 
       {/* {t('about_app')||'About'} & {t('legal')||'Legal'} */}
