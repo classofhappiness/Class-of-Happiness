@@ -2414,6 +2414,9 @@ async def google_auth(request: Request):
         existing = supabase.table("users").select("*").eq("email", email).execute()
         if existing.data:
             user = existing.data[0]
+            # Same pending-deletion block as /auth/email-login - see POST /account/delete-request
+            if user.get("deletion_requested_at"):
+                raise HTTPException(status_code=403, detail="This account is scheduled for deletion. Contact support@classofhappiness.com if this wasn't you or you'd like to cancel.")
             supabase.table("users").update({"name": name, "picture": picture}).eq("email", email).execute()
         else:
             user_id = f"user_{uuid.uuid4().hex[:12]}"
@@ -7560,6 +7563,11 @@ async def email_login(request: Request):
             if existing.data:
                 # User exists — use them
                 user = existing.data[0]
+                # Real feature Aug 20: blocks login for accounts with a pending self-service
+                # deletion (see POST /account/delete-request) - the account is soft-deleted
+                # immediately on request, not just at the end of the 30-day grace period.
+                if user.get("deletion_requested_at"):
+                    raise HTTPException(status_code=403, detail="This account is scheduled for deletion. Contact support@classofhappiness.com if this wasn't you or you'd like to cancel.")
                 # PIN check for superadmin role (existing)
                 if user.get("role") == "superadmin":
                     required_pin = os.environ.get("ADMIN_PIN", "")
@@ -10967,6 +10975,128 @@ async def stripe_webhook(request: Request):
             supabase.table("users").update({"subscription_status": "past_due"}).eq("user_id", user["user_id"]).execute()
 
     return {"status": "ok", "event": event_type}
+
+
+# ================== ACCOUNT DELETION ==================
+# Real feature Aug 20: self-service account deletion, scoped per Jono's decisions -
+# required for both Apple and Google Play submission (an app that supports account
+# creation must offer in-app deletion, not just an email-to-support path). Soft-delete
+# with a 30-day grace period, matching the Privacy Policy's own retention language.
+#
+# - Teacher: personal data only (login/name/email/push_token). Classrooms/students are
+#   reassigned to their linked school_admin immediately at request time (not left
+#   orphaned during the grace window) - real students' check-in history and creature
+#   progress belongs to the school, not to one teacher's personal account. Blocked with
+#   a contact-support message if no school_admin is linked (no safe place to reassign to).
+# - Parent: fully self-contained (family_members/family_zone_logs/custom_helpers/
+#   family_assigned_strategies/parent_links all key directly to this one parent's own
+#   user_id), no blocking condition.
+# - School_admin: blocked entirely for now. Closing a school account has real downstream
+#   consequences for every linked teacher/parent's free-plan coverage (see
+#   _teacher_is_school_covered/_parent_is_school_covered) that this pass deliberately
+#   doesn't attempt to handle - real support-assisted process only, per Jono's decision.
+#
+# Requires this migration to have been run first (this app has no DDL access from code):
+#   ALTER TABLE users ADD COLUMN deletion_requested_at timestamptz;
+
+@api_router.post("/account/delete-request")
+async def request_account_deletion(request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    role = user.get("role")
+    if role == "school_admin":
+        raise HTTPException(status_code=403, detail="Self-service deletion isn't available for school accounts yet. Please contact support@classofhappiness.com to close your school's account.")
+    if role not in ("teacher", "parent"):
+        raise HTTPException(status_code=403, detail="Account deletion is not available for this account type. Please contact support@classofhappiness.com.")
+
+    body = await request.json()
+
+    # Re-authentication required regardless of how the account normally signs in -
+    # this is destructive and eventually irreversible.
+    reauthed = False
+    if user.get("portal_password"):
+        password = body.get("password", "")
+        if password and verify_password(password, user["portal_password"]):
+            reauthed = True
+    google_token = body.get("google_token")
+    if not reauthed and google_token:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    "https://www.googleapis.com/oauth2/v3/userinfo",
+                    headers={"Authorization": f"Bearer {google_token}"}
+                )
+                if resp.status_code == 200 and resp.json().get("email", "").strip().lower() == (user.get("email") or "").strip().lower():
+                    reauthed = True
+        except Exception:
+            pass
+    if not reauthed:
+        raise HTTPException(status_code=403, detail="Re-authentication required — enter your password or sign in with Google again to confirm.")
+
+    if role == "teacher" and not user.get("school_admin_id"):
+        raise HTTPException(status_code=400, detail="We can't automatically reassign your classrooms yet — please contact support@classofhappiness.com to delete this account.")
+
+    # Write the deletion marker FIRST, before any other mutation. Deliberate ordering:
+    # this column (deletion_requested_at) requires a migration this app can't run itself
+    # (no DDL access from code - see the module comment above). If it's missing, this call
+    # fails immediately and nothing else below has happened yet - no partial state where
+    # classrooms got reassigned or a subscription got cancelled but the account was never
+    # actually marked for deletion.
+    supabase.table("users").update({"deletion_requested_at": datetime.now(timezone.utc).isoformat()}).eq("user_id", user["user_id"]).execute()
+
+    if role == "teacher":
+        school_admin_id = user["school_admin_id"]
+        supabase.table("classrooms").update({"user_id": school_admin_id}).eq("user_id", user["user_id"]).execute()
+        supabase.table("students").update({"user_id": school_admin_id}).eq("user_id", user["user_id"]).execute()
+
+    # Cancel any active Stripe subscription now rather than waiting for the purge -
+    # nothing else in this app currently cancels a subscription on account closure.
+    stripe_customer_id = user.get("stripe_customer_id")
+    if stripe_customer_id and STRIPE_SECRET_KEY:
+        try:
+            subs = stripe_lib.Subscription.list(customer=stripe_customer_id, status="active")
+            for sub in _sget(subs, "data", []):
+                stripe_lib.Subscription.delete(_sget(sub, "id"))
+        except Exception as e:
+            logger.warning(f"Could not cancel Stripe subscription during account deletion for {user['user_id']}: {e}")
+
+    # Immediate lockout - revoke every existing session. Future logins are already
+    # blocked via deletion_requested_at (see /auth/email-login and /auth/google).
+    supabase.table("user_sessions").delete().eq("user_id", user["user_id"]).execute()
+
+    return {"status": "deletion_scheduled", "purge_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()}
+
+
+@api_router.post("/admin/process-account-deletions")
+async def process_account_deletions(request: Request):
+    """Call this via a scheduled job (e.g. a daily cron hitting this endpoint) - hard-deletes
+    any account whose 30-day grace period from /account/delete-request has elapsed. Only
+    parent/teacher accounts can ever have deletion_requested_at set (see above), so this
+    never needs to handle school_admin/superadmin cascades."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403)
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    due = supabase.table("users").select("user_id,role").not_.is_("deletion_requested_at", "null").lte("deletion_requested_at", cutoff).execute()
+    purged, failed = [], []
+    for u in (due.data or []):
+        uid = u["user_id"]
+        try:
+            if u.get("role") == "parent":
+                supabase.table("family_zone_logs").delete().eq("user_id", uid).execute()
+                supabase.table("family_members").delete().eq("user_id", uid).execute()
+                supabase.table("parent_links").delete().eq("parent_user_id", uid).execute()
+                supabase.table("custom_helpers").delete().eq("user_id", uid).execute()
+                supabase.table("family_assigned_strategies").delete().eq("parent_user_id", uid).execute()
+            supabase.table("user_sessions").delete().eq("user_id", uid).execute()
+            supabase.table("users").delete().eq("user_id", uid).execute()
+            purged.append(uid)
+        except Exception as e:
+            logger.error(f"Account purge failed for {uid}: {e}")
+            failed.append(uid)
+    return {"purged": purged, "purged_count": len(purged), "failed": failed}
 
 
 @api_router.get("/classrooms/join/{code}")

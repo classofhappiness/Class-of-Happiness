@@ -1,7 +1,8 @@
 import React, { useState, useLayoutEffect, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput, Switch } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput, Switch, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as AuthSession from 'expo-auth-session';
 import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +18,17 @@ const LANGUAGES = [
   { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
   { code: 'it', name: 'Italiano', flag: '🇮🇹' },
 ];
+
+// Same client IDs as auth/login.tsx, reused here for re-authentication before account deletion.
+const GOOGLE_CLIENT_IDS = {
+  ios: '691097467706-b7qooo5be0iu5nlk8krb546ji98ik1k0.apps.googleusercontent.com',
+  android: '691097467706-k1s2g9p0ektmpmkj0t3j6l9bl22sg69c.apps.googleusercontent.com',
+  default: '691097467706-n2r5n885bqh8qtqrdgnlbvgfd4i2ti5k.apps.googleusercontent.com',
+};
+const GOOGLE_DISCOVERY = {
+  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+  tokenEndpoint: 'https://oauth2.googleapis.com/token',
+};
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -42,6 +54,75 @@ export default function SettingsScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPasswordText, setShowNewPasswordText] = useState(false);
   const [settingPassword, setSettingPassword] = useState(false);
+
+  // Account deletion (soft-delete, 30-day grace period — see POST /account/delete-request)
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
+  const [deleteGoogleRequest, deleteGoogleResponse, promptDeleteGoogleAsync] = AuthSession.useAuthRequest(
+    {
+      clientId: Platform.select({ ios: GOOGLE_CLIENT_IDS.ios, android: GOOGLE_CLIENT_IDS.android, default: GOOGLE_CLIENT_IDS.default }),
+      scopes: ['openid', 'profile', 'email'],
+      redirectUri: AuthSession.makeRedirectUri(),
+      responseType: AuthSession.ResponseType.Token,
+    },
+    GOOGLE_DISCOVERY
+  );
+
+  const submitDeleteAccount = async (body: { password?: string; google_token?: string }) => {
+    setDeletingAccount(true);
+    try {
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const token = await AsyncStorage.getItem('session_token');
+      const res = await fetch(`${BACKEND_URL}/api/account/delete-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        Alert.alert(
+          'Account scheduled for deletion',
+          'Your account has been deactivated and will be permanently deleted in 30 days. Contact support@classofhappiness.com if you change your mind.',
+          [{ text: 'OK', onPress: async () => { await logout(); router.replace('/'); } }]
+        );
+      } else {
+        Alert.alert(t('error') || 'Error', data.detail || 'Could not process your request.');
+      }
+    } catch {
+      Alert.alert(t('error') || 'Error', 'Could not process your request. Please try again.');
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
+  useEffect(() => {
+    if (deleteGoogleResponse?.type === 'success' && deleteGoogleResponse.authentication?.accessToken) {
+      submitDeleteAccount({ google_token: deleteGoogleResponse.authentication.accessToken });
+    }
+  }, [deleteGoogleResponse]);
+
+  const handleDeleteAccountConfirm = () => {
+    Alert.alert(
+      'Delete your account?',
+      'This deactivates your account immediately and permanently deletes your data in 30 days. This cannot be undone after that. Are you sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete My Account',
+          style: 'destructive',
+          onPress: () => {
+            if (deletePassword.trim()) {
+              submitDeleteAccount({ password: deletePassword });
+            } else {
+              promptDeleteGoogleAsync();
+            }
+          },
+        },
+      ]
+    );
+  };
 
   // Set translated header title - depend on language/translations to trigger updates
   useLayoutEffect(() => {
@@ -656,6 +737,62 @@ export default function SettingsScreen() {
         
 
         {/* Join School section consolidated above */}
+      </View>
+
+      {/* Delete Account */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Danger Zone</Text>
+        {(user?.role === 'teacher' || user?.role === 'parent') ? (
+          <>
+            <TouchableOpacity
+              style={[styles.settingItem, { borderWidth: 1, borderColor: '#FFCDD2' }]}
+              onPress={() => setShowDeleteAccount(!showDeleteAccount)}
+            >
+              <View style={styles.settingLeft}>
+                <MaterialIcons name="delete-forever" size={24} color="#F44336" />
+                <View style={styles.settingText}>
+                  <Text style={[styles.settingLabel, { color: '#F44336' }]}>Delete Account</Text>
+                  <Text style={styles.settingValue}>Permanently delete your account and data</Text>
+                </View>
+              </View>
+              <MaterialIcons name={showDeleteAccount ? 'expand-less' : 'expand-more'} size={24} color="#CCC" />
+            </TouchableOpacity>
+            {showDeleteAccount && (
+              <View style={styles.trialCodeContainer}>
+                <Text style={{ fontSize: 12, color: '#666', marginBottom: 10, lineHeight: 18 }}>
+                  Deleting your account deactivates it immediately and permanently removes your personal data after a 30-day grace period.
+                  {user?.role === 'teacher' ? ' Your classrooms and students will be reassigned to your school (requires a linked school account — contact support if you\'re not linked to one).' : ''}
+                  {' '}Confirm with your password, or with Google if that\'s how you sign in.
+                </Text>
+                <TextInput
+                  style={styles.trialCodeInputWithIcon}
+                  placeholder="Enter your password (if you have one)"
+                  placeholderTextColor="#999"
+                  value={deletePassword}
+                  onChangeText={setDeletePassword}
+                  secureTextEntry
+                />
+                <TouchableOpacity
+                  style={[styles.redeemButton, { backgroundColor: '#F44336', marginTop: 10 }, deletingAccount && styles.redeemButtonDisabled]}
+                  onPress={handleDeleteAccountConfirm}
+                  disabled={deletingAccount}
+                >
+                  <Text style={styles.redeemButtonText}>{deletingAccount ? 'Processing...' : 'Delete My Account'}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
+        ) : (
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <MaterialIcons name="delete-forever" size={24} color="#CCC" />
+              <View style={styles.settingText}>
+                <Text style={styles.settingLabel}>Delete Account</Text>
+                <Text style={styles.settingValue}>Contact support@classofhappiness.com to close this account</Text>
+              </View>
+            </View>
+          </View>
+        )}
       </View>
 
       {/* Logout */}
