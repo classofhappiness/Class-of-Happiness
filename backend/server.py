@@ -3549,6 +3549,30 @@ async def delete_family_member(member_id: str, request: Request):
     supabase.table("family_members").delete().eq("id", member_id).execute()
     return {"message": "Member deleted"}
 
+def _admin_is_active(admin_id: str) -> bool:
+    """True if this school_admin user_id has an ACTIVE paid plan. Shared by
+    _parent_is_school_covered and _teacher_is_school_covered — extracted Aug 19
+    (A8) from what used to be a private closure inside the parent version only."""
+    if not admin_id:
+        return False
+    r = supabase.table("users").select("subscription_status").eq("user_id", admin_id).execute()
+    return bool(r.data) and r.data[0].get("subscription_status") == "active"
+
+def _teacher_is_school_covered(user: dict) -> bool:
+    """True if this teacher's own school (via school_admin_id, with the same school_name
+    dual-match fallback used everywhere else in this file since L4) has an ACTIVE paid plan.
+    Real feature Aug 19 (A8): used to gate the classroom-overview PDF's historical-month
+    access — simpler than the parent version since a teacher already carries their own
+    school_admin_id/school_name directly, no parent_links walk needed."""
+    if _admin_is_active(user.get("school_admin_id")):
+        return True
+    school_name = user.get("school_name")
+    if school_name:
+        admins = supabase.table("users").select("subscription_status").eq("role", "school_admin").eq("school_name", school_name).execute()
+        if any(a.get("subscription_status") == "active" for a in (admins.data or [])):
+            return True
+    return False
+
 def _parent_is_school_covered(user: dict) -> bool:
     """True if any of this parent's linked children attend a school whose own school_admin
     account has an ACTIVE paid plan. Real fix Aug 18, per Jono's final pricing model
@@ -3557,12 +3581,6 @@ def _parent_is_school_covered(user: dict) -> bool:
     paid (bool(school_admin_id) alone) — that was a real loophole under the old logic, since
     a school_admin on a lapsed/none subscription would make all their teachers' parents free
     forever. Now requires subscription_status == 'active' on the school_admin's own row."""
-    def _admin_is_active(admin_id):
-        if not admin_id:
-            return False
-        r = supabase.table("users").select("subscription_status").eq("user_id", admin_id).execute()
-        return bool(r.data) and r.data[0].get("subscription_status") == "active"
-
     # Rare case: a parent row itself carries a school_admin_id.
     if _admin_is_active(user.get("school_admin_id")):
         return True
@@ -6158,7 +6176,17 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
     if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    # Real feature Aug 19 (A8): free-tier access is current-month-only. Unlike
+    # classroom-overview's year/month/period shape, this endpoint takes a rolling `days`
+    # window with no clean way to express "you asked for a disallowed range" - so an
+    # uncovered request is soft-clamped to since-the-1st-of-this-month instead of rejected,
+    # rather than migrating the whole endpoint to a different parameter shape.
+    _now = datetime.now(timezone.utc)
+    covered = user.get("role") == "superadmin" or user.get("subscription_status") == "active"
+    if covered:
+        start_date = (_now - timedelta(days=days)).isoformat()
+    else:
+        start_date = _now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
 
     if user.get("role") == "school_admin":
         admin_id = user.get("user_id")
@@ -6292,6 +6320,12 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real authorization gap fixed Aug 19 (A8): this only checked that SOMEONE was logged in,
+    # never that the logged-in user actually owns the user_id in the URL — same pattern as the
+    # teacher-wellbeing PDF fix above, just missed there. Any authenticated account could pull
+    # any other teacher's classroom PDF (real student wellbeing data) just by changing the URL.
+    if user_id != user["user_id"] and user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Not authorized to view this report")
 
     import io, calendar as cal_mod, os
     from reportlab.lib.pagesizes import A4
@@ -6309,6 +6343,14 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
     display_name = teacher.get("name") or teacher.get("email", "").split("@")[0].replace(".", " ").title()
 
     n_months = {"1":1, "3":3, "6":6, "12":12}.get(str(period), 1)
+    # Real feature Aug 19 (A8): free-tier access is current-month-only; full history unlocks
+    # if EITHER the teacher's own subscription OR their school's package covers them.
+    teacher_sub_active = teacher.get("subscription_status") not in ("none", "free", None)
+    covered = user.get("role") == "superadmin" or teacher_sub_active or _teacher_is_school_covered(teacher)
+    if not covered:
+        _now = datetime.now(timezone.utc)
+        if n_months != 1 or (year, month) != (_now.year, _now.month):
+            raise HTTPException(status_code=403, detail="Historical reports require an active plan for you or your school. Free access covers the current month only.")
     buckets = _month_buckets(year, month, n_months)
     range_start = datetime(buckets[0][0], buckets[0][1], 1, tzinfo=timezone.utc).isoformat()
     _, last_day_end = cal_mod.monthrange(buckets[-1][0], buckets[-1][1])
@@ -9551,6 +9593,65 @@ async def get_school_profile(request: Request):
         }
     except Exception as e:
         return {}
+
+# Real fix Aug 19 (A2 item 3, minimal path): the app's own SchoolSettings screen has called
+# GET/PUT /schools/my-school since it was built, but neither route existed server-side - every
+# call 404'd silently (the GET's .catch(()=>{}) just left the form blank; the PUT showed a
+# generic "Could not save" alert). Wired to the simplest existing source per field rather than
+# inventing a new one: school name comes from the users table (the canonical source everywhere
+# else in this app); city/flag use the exact admin_settings keys /schools/world-wall already
+# reads, so nothing drifts further out of sync; school_type/student_count reuse the same keys
+# /school/register already writes (unlike that endpoint, this one correctly scopes every
+# admin_settings query to school_admin_id, avoiding the cross-tenant read/write bug in
+# /school/profile and /school/register above); curriculum and wellbeing_email are new keys,
+# nothing existed for them before. This is the minimal fix, not a consolidation - the bigger
+# option (moving all of this onto the richer school_profiles table already used by
+# superadmin's own Schools panel, and switching World Wall to match) is deliberately deferred
+# post-launch - see COH-REVIEW-PLAN.md A2.
+_MY_SCHOOL_SETTINGS_KEYS = {
+    "city": "school_city",
+    "flag": "school_country_flag",
+    "school_type": "school_type",
+    "curriculum": "school_curriculum",
+    "student_count": "school_student_count",
+    "wellbeing_email": "school_wellbeing_email",
+}
+
+@api_router.get("/schools/my-school")
+async def get_my_school(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    settings_r = supabase.table("admin_settings").select("key,value").eq("school_admin_id", user["user_id"]).execute()
+    settings = {row["key"]: row["value"] for row in (settings_r.data or [])}
+    return {
+        "name": user.get("school_name", ""),
+        "city": settings.get("school_city", ""),
+        "flag": settings.get("school_country_flag", "🌍"),
+        "school_type": settings.get("school_type", ""),
+        "curriculum": settings.get("school_curriculum", ""),
+        "student_count": int(settings.get("school_student_count") or 0),
+        "wellbeing_email": settings.get("school_wellbeing_email", ""),
+    }
+
+@api_router.put("/schools/my-school")
+async def update_my_school(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    body = await request.json()
+    if "name" in body:
+        supabase.table("users").update({"school_name": body["name"]}).eq("user_id", user["user_id"]).execute()
+    for field, key in _MY_SCHOOL_SETTINGS_KEYS.items():
+        if field not in body:
+            continue
+        value = str(body[field])
+        existing = supabase.table("admin_settings").select("id").eq("school_admin_id", user["user_id"]).eq("key", key).execute()
+        if existing.data:
+            supabase.table("admin_settings").update({"value": value}).eq("school_admin_id", user["user_id"]).eq("key", key).execute()
+        else:
+            supabase.table("admin_settings").insert({"school_admin_id": user["user_id"], "key": key, "value": value}).execute()
+    return {"status": "saved"}
 
 @api_router.get("/schools/world-wall")
 async def get_schools_world_wall(request: Request):
