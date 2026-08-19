@@ -1122,7 +1122,13 @@ export default function AdminDashboard() {
 
   const unlock = async () => {
     try {
-      const d = await apiCall('/admin/verify', authToken, { method: 'POST', body: JSON.stringify({ code: adminCode }) });
+      // Real fix Aug 20 (A17): authToken state loads asynchronously and nothing gated
+      // Unlock on that finishing - firing before it resolved sent /admin/verify with no
+      // auth header at all (apiCall omits it entirely for a falsy token), which now
+      // correctly denies instead of falling into the old bypass L1 removed. Read the
+      // token fresh here instead of trusting component state that might not have settled.
+      const freshToken = await AsyncStorage.getItem('session_token');
+      const d = await apiCall('/admin/verify', freshToken, { method: 'POST', body: JSON.stringify({ code: adminCode }) });
       if (d.valid) {
         setUnlocked(true);
         setIsSuperAdmin(d.is_super_admin || false);
