@@ -435,6 +435,46 @@ All 9 scenarios matched expectations exactly. Diff reviewed and approved before 
 
 ---
 
+# APP STORE / PLAY STORE READINESS
+*(Audit only, 2026-08-19 — TestFlight targeted this weekend, App Store/Play Store after TestFlight feedback. Nothing fixed yet, per Jono's instruction — this is the findings + decision list.)*
+
+### S1. Account deletion — ❌ CONFIRMED MISSING, real submission blocker for both stores
+No backend endpoint anywhere (thorough grep for delete/deactivate/GDPR/erase/purge patterns across `server.py` — zero real hits). No UI anywhere in the app or portal. The in-app Privacy Policy (`frontend/app/about.tsx`) explicitly promises a deletion **right**, but describes it as an **email request to jono@classofhappiness.com**, not in-app self-service.
+
+**Why this blocks submission, not just "nice to have":** Apple's App Store Review Guideline 5.1.1(v) (enforced since June 2022) requires any app that supports account creation to also offer in-app account deletion — an email-to-support path does not satisfy it. Google Play has an equivalent Account Deletion requirement. This app has real account creation (teacher/parent/school_admin signup), so this applies.
+
+**Needs Jono's decision:** what should deletion actually do — hard-delete the user row and cascade to their students/logs/creatures, or soft-delete/anonymize? Does it need to handle a school_admin deleting themselves while teachers/parents are still linked to their school? Scope this properly before building, given real user data is involved.
+
+### S2. Privacy Policy / Terms of Service — ✅ real content exists, 2 concrete bugs found
+**Real and substantive, not boilerplate:** live at `classofhappiness.com/privacy-policy.html` and `/terms.html` — fetched and confirmed ~13,000 characters of real text, GDPR/COPPA framing, a student-safety-specific section, named third-party processors (Supabase/Railway/Stripe/Expo), real data categories. The in-app "About" screen (`frontend/app/about.tsx`) has its own condensed but genuine versions of both, not filler text.
+
+**Bug 1 — broken in-app link:** `about.tsx:142` tells users the full policy is at `classofhappiness.com/privacy-policy` (no `.html`). Checked live — that exact URL **404s**. The real working page is `/privacy-policy.html` (confirmed via the website's own footer links). One-line fix, not yet applied.
+
+**Bug 2 — the policy claims data handling the code doesn't actually enforce:** *"Student check-in data is retained for up to 12 months. Account data is deleted within 30 days of account closure."* Grepped for any retention/cleanup/purge job in `server.py` — none exists. No automated enforcement of either claim, and (per S1) there's no "account closure" mechanism to even trigger the second one. This is a real gap between what's written and what the code does — a reviewer or regulator could hold the company to the written claims. Needs a decision: build real enforcement, or soften the written claims to match reality.
+
+### S3. Google OAuth Testing vs. Production status — ⚠️ NOT VERIFIABLE FROM THIS ENVIRONMENT
+Confirmed what's actually configured in code: a real Google Cloud project (`691097467706`), three real client IDs (iOS/Android/web) wired via `expo-auth-session` in `frontend/app/auth/login.tsx:14-17`. Whether the OAuth consent screen is in **Testing** or **Production** is a Google Cloud Console setting (APIs & Services → OAuth consent screen → Publishing status) — not exposed through the Supabase service key or any API reachable without `gcloud` authentication, which isn't set up in this environment (`gcloud` isn't even installed here).
+
+**Could not confirm or deny Jono's belief that it's still in Testing.** If it is: Google caps it at 100 explicitly-added test users and shows an "unverified app" warning to everyone else — would silently block Google Sign-In for real users at scale. **Action needed from Jono directly:** check the console, and if still in Testing, submit for verification (may require the privacy policy fix in S2 and a few other prerequisites Google's flow will specify) before general users can use Google Sign-In.
+
+### S4. Data collection inventory — real, pulled from the live 31-table schema, not a guess
+Compiled for Apple's "nutrition label" and Google's "Data Safety" form:
+
+| Category | What's actually collected | Source |
+|---|---|---|
+| Contact Info | Email, name | `users`, `family_members` |
+| Identifiers | `user_id`, Expo push token, Stripe customer ID, session token | `users`, `user_sessions` |
+| Photos | Creature-drawing photo uploads (4 stages per submission), custom avatar images | `creature_submissions.stage1-4_url`, `avatar_custom` fields |
+| User Content | Check-in comments, creature names/descriptions, alert/support messages, wellbeing-tracker notes | `feeling_logs`, `creature_submissions`, `student_alerts`, `school_wellbeing_tracker` |
+| Emotional/wellbeing data | Zone check-ins (blue/green/yellow/red) + free-text comments — the app's core data, and genuinely sensitive-adjacent (a minor's emotional state) — likely needs its own line item, not lumped into generic "usage data," on both platforms' disclosure forms | `feeling_logs`, `family_zone_logs` |
+| Usage Data | Timestamps, language preference, subscription/trial status | `users`, most tables |
+| Financial | Stripe customer ID + subscription status only — confirmed no raw card data anywhere (Stripe handles that directly, matching the policy's own claim) | `users` |
+| Confirmed NOT collected | No location/GPS, no contacts. `students.device_id` column exists in the schema but is verified never read or written anywhere in backend or frontend — dead/unused, so the policy's "no device identifiers from students" claim is actually accurate in practice | grep-confirmed across `server.py` and the full frontend |
+
+**Needs Jono's decision:** use this table directly to fill in Apple's App Privacy questionnaire and Google's Data Safety form — recommend treating the emotional/wellbeing check-in data as its own disclosed category rather than folding it into generic usage data, given how central and sensitive it is to what this app actually does.
+
+---
+
 # FEATURES BUILT (outside the original review scope)
 
 ### F1. Kids' voice recording playback on colour/helper check-in buttons — ✅ DONE 2026-08-19, live-verified
