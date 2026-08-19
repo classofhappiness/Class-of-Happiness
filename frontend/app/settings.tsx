@@ -28,10 +28,6 @@ export default function SettingsScreen() {
   const [trialCode, setTrialCode] = useState('');
   const [redeemingCode, setRedeemingCode] = useState(false);
   const [showTrialCodeText, setShowTrialCodeText] = useState(false);
-  const [showAdminCode, setShowAdminCode] = useState(false);
-  const [adminCode, setAdminCode] = useState('');
-  const [promotingAdmin, setPromotingAdmin] = useState(false);
-  const [showAdminCodeText, setShowAdminCodeText] = useState(false);
   const [showSetPassword, setShowSetPassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -126,56 +122,6 @@ export default function SettingsScreen() {
       setRedeemingCode(false);
     }
   };
-
-  // Handle superadmin promotion (Jono only)
-  const handleSuperAdminCode = async () => {
-    const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-    try {
-      const token = await AsyncStorage.getItem('session_token');
-      const res = await fetch(`${BACKEND_URL}/api/auth/promote-superadmin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ code: adminCode.trim() }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        Alert.alert('✅ Superadmin', 'You now have full superadmin access!');
-      }
-    } catch (e) { console.log("[silent]", e); }
-  };
-
-  // Handle admin code promotion
-  const handlePromoteAdmin = async () => {
-    if (!adminCode.trim()) {
-      Alert.alert(t('error') || 'Error', 'Please enter an admin code');
-      return;
-    }
-    
-    setPromotingAdmin(true);
-    try {
-      // Try superadmin first, fall back to school admin
-      if (['JONO_SUPERADMIN_2026', 'CLASS_CREATOR_2026'].includes(adminCode.trim())) {
-        await handleSuperAdminCode();
-        setAdminCode('');
-        return;
-      }
-      const result = await authApiExtended.promoteToAdmin(adminCode.trim());
-      Alert.alert(
-        '🔐 ' + (t('success') || 'Success'),
-        result.message,
-        [{ text: 'OK' }]
-      );
-      setAdminCode('');
-      setShowAdminCode(false);
-      // Refresh user data to get updated role
-      await checkAuth();
-    } catch (error: any) {
-      Alert.alert(t('error') || 'Error', error.message || 'Invalid admin code');
-    } finally {
-      setPromotingAdmin(false);
-    }
-  };
-
 
   // Join school with invite code
   const [schoolInviteCode, setSchoolInviteCode] = useState('');
@@ -686,70 +632,6 @@ export default function SettingsScreen() {
         
 
         {/* Join School section consolidated above */}
-
-        {/* Admin Code Entry (only show if not already admin) */}
-        {user?.role !== 'admin' && user?.role !== 'superadmin' && (
-          <>
-            <TouchableOpacity
-              style={styles.settingItem}
-              onPress={() => setShowAdminCode(!showAdminCode)}
-            >
-              <View style={styles.settingLeft}>
-                <MaterialIcons name="vpn-key" size={24} color="#9C27B0" />
-                <View style={styles.settingText}>
-                  <Text style={styles.settingLabel}>{t('admin_access') || 'Admin Access'}</Text>
-                  <Text style={styles.settingValue}>{t('enter_admin_code') || 'Enter admin code to unlock'}</Text>
-                </View>
-              </View>
-              <MaterialIcons 
-                name={showAdminCode ? "expand-less" : "expand-more"} 
-                size={24} 
-                color="#CCC" 
-              />
-            </TouchableOpacity>
-            
-            {showAdminCode && (
-              <View style={styles.trialCodeContainer}>
-                {!user && (
-                  <Text style={styles.loginRequiredText}>
-                    {t('logged_in_required') || '⚠️ You must be logged in as Teacher or Parent first'}
-                  </Text>
-                )}
-                <View style={styles.codeInputWrapper}>
-                  <TextInput
-                    style={styles.trialCodeInputWithIcon}
-                    placeholder="Enter admin code"
-                    placeholderTextColor="#999"
-                    value={adminCode}
-                    onChangeText={setAdminCode}
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                    secureTextEntry={!showAdminCodeText}
-                  />
-                  <TouchableOpacity
-                    style={styles.eyeIconButton}
-                    onPress={() => setShowAdminCodeText(!showAdminCodeText)}
-                  >
-                    <MaterialIcons 
-                      name={showAdminCodeText ? "visibility" : "visibility-off"} 
-                      size={22} 
-                      color="#888" 
-                    />
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity
-                  style={[styles.redeemButton, { backgroundColor: '#9C27B0' }, (promotingAdmin || !user) && styles.redeemButtonDisabled]}
-                  onPress={handlePromoteAdmin}
-                  disabled={promotingAdmin || !user}
-                >
-                  <Text style={styles.redeemButtonText}>
-                    {promotingAdmin ? 'Verifying...' : 'Unlock Admin'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </>
-        )}
       </View>
 
       {/* Logout */}

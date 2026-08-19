@@ -417,9 +417,6 @@ export const resourcesApi = {
 export const authApiExtended = {
   updateRole: (role: 'teacher' | 'parent'): Promise<{ role: string }> =>
     apiRequest('/auth/role', { method: 'PUT', body: JSON.stringify({ role }) }),
-  
-  promoteToAdmin: (adminCode: string): Promise<{ role: string; message: string }> =>
-    apiRequest('/auth/promote-admin', { method: 'POST', body: JSON.stringify({ admin_code: adminCode }) }),
 };
 
 // Admin API

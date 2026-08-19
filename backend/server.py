@@ -8313,37 +8313,16 @@ async def create_admin_teacher_strategy(request: Request):
     return result.data[0] if result.data else new_strat
 
 # ================== SUPER ADMIN (App Creator) ==================
-@api_router.post("/auth/promote-superadmin")
-async def promote_superadmin(request: Request):
-    """Jono only - grants superadmin access to see all schools"""
-    user = await get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    body = await request.json()
-    code = body.get("code", "")
-    # Secret code only Jono knows
-    if code not in ["JONO_SUPERADMIN_2026", "CLASS_CREATOR_2026"]:
-        raise HTTPException(status_code=403, detail="Invalid superadmin code")
-    supabase.table("users").update({"role": "superadmin"}).eq("user_id", user["user_id"]).execute()
-    return {"role": "superadmin", "message": "Superadmin access granted!"}
-
-# ================== SCHOOL ADMIN ==================
-@api_router.post("/auth/promote-school-admin")
-async def promote_school_admin(request: Request):
-    """Grants school_admin access - purchased by schools"""
-    user = await get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    body = await request.json()
-    code = body.get("code", "")
-    school_name = body.get("school_name", "")
-    if code not in ["ADMINCLASS2026", "HAPPYADMIN2026", "SCHOOLADMIN2026"]:
-        raise HTTPException(status_code=403, detail="Invalid school admin code")
-    supabase.table("users").update({
-        "role": "school_admin",
-        "school_name": school_name or "My School",
-    }).eq("user_id", user["user_id"]).execute()
-    return {"role": "school_admin", "message": "School admin access granted!"}
+# Real fix Aug 20 (A6 follow-up): /auth/promote-superadmin and /auth/promote-school-admin
+# used to grant full superadmin / school_admin roles to any authenticated account that
+# sent one of a handful of hardcoded code strings (JONO_SUPERADMIN_2026/CLASS_CREATOR_2026
+# for superadmin; ADMINCLASS2026/HAPPYADMIN2026/SCHOOLADMIN2026 for school_admin) - no
+# other authorization, and the superadmin codes were also shipped client-side in
+# settings.tsx. Same class of bug as L1 (hardcoded superadmin bypass in the app bundle),
+# just not caught in that pass. Both removed entirely, along with the "Admin Access" UI
+# in settings.tsx that exposed them to every logged-in user. Real school_admin onboarding
+# already has a proper superadmin-gated path (POST /admin/create-school-admin, below) -
+# unaffected by this removal. See COH-REVIEW-PLAN.md A6.
 
 @api_router.get("/school-admin/stats")
 async def get_school_admin_stats(request: Request):
