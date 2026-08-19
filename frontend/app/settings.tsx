@@ -746,9 +746,11 @@ const styles = StyleSheet.create({
   settingLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   settingText: {
     marginLeft: 12,
+    flex: 1,
   },
   settingLabel: {
     fontSize: 14,

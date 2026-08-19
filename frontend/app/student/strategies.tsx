@@ -291,7 +291,6 @@ export default function StrategiesScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <TranslatedHeader title={t('choose_helpers') || 'Choose Helpers'} />
-      <VoiceToggleButton style={styles.voiceToggle} />
       <CelebrationOverlay
         visible={showCelebration}
         studentName={currentStudent?.name || ''}
@@ -314,8 +313,11 @@ export default function StrategiesScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={[styles.zoneHeader, { backgroundColor: zoneColor + '20', borderColor: zoneColor }]}>
-            <View style={[styles.zoneColorDot, { backgroundColor: zoneColor }]} />
-            <Text style={[styles.zoneLabel, { color: zoneColor }]}>{getZoneLabel()}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <View style={[styles.zoneColorDot, { backgroundColor: zoneColor }]} />
+              <Text style={[styles.zoneLabel, { color: zoneColor }]}>{getZoneLabel()}</Text>
+            </View>
+            <VoiceToggleButton />
           </View>
           <Text style={styles.instruction}>
             {zone === 'green' ? t('tap_helpers_green') || 'Tap helpers you would like to try:' : t('tap_helpers_other') || 'Tap to select helpers:'}
@@ -464,7 +466,6 @@ export default function StrategiesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  voiceToggle: { position: 'absolute', top: 8, right: 12, zIndex: 10 },
   scrollContent: { padding: 6, paddingBottom: 6 },
   zoneHeader: { flexDirection: 'row', alignItems: 'center', padding: 6, borderRadius: 10, borderWidth: 2, marginBottom: 6 },
   zoneColorDot: { width: 18, height: 18, borderRadius: 9, marginRight: 10 },

@@ -103,7 +103,6 @@ export default function ColourSelectionScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <VoiceToggleButton style={styles.voiceToggle} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Greeting */}
         <View style={styles.greetingRow}>
@@ -118,6 +117,7 @@ export default function ColourSelectionScreen() {
             <Text style={styles.greetingHi}>{t('hi') || 'Hi'}, {currentStudent.name}! 👋</Text>
             <Text style={styles.greetingSub}>{t('tap_colour_help') || 'How are you feeling today?'}</Text>
           </View>
+          <VoiceToggleButton style={{ marginLeft: 8 }} />
         </View>
 
         {/* Full-width Zone Buttons */}
@@ -226,7 +226,6 @@ const styles = StyleSheet.create({
   zoneTitle: { fontSize: 20, fontWeight: 'bold', color: 'white', marginBottom: 4 },
   zoneWords: { fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: '500' },
 
-  voiceToggle: { position: 'absolute', top: 8, right: 12, zIndex: 10 },
   helpButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, padding: 8, backgroundColor: 'white', borderRadius: 12 },
   helpButtonText: { fontSize: 12, color: '#5C6BC0', fontWeight: '600' },
   errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
