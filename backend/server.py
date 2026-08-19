@@ -105,8 +105,6 @@ ALWAYS_OPEN_PINS = {
 PROMO_CODES = {
     "HAPPYCLASS2026": {"type": "trial", "days": 30},
     "CLASSOFHAPPINESS2026": {"type": "trial", "days": 30},
-    "ADMINCLASS2026": {"type": "admin"},
-    "HAPPYADMIN2026": {"type": "admin"},
 }
 
 # ================== FEELINGS / COLOURS ==================
@@ -2342,7 +2340,7 @@ def check_subscription_active(user: dict) -> bool:
     if not user:
         return False
     # Internal staff roles always have full access
-    if user.get("role") in ("admin", "superadmin"):
+    if user.get("role") == "superadmin":
         return True
     # The 4 permanent always-open accounts (PIN-protected at login, see ALWAYS_OPEN_PINS)
     if (user.get("email") or "").strip().lower() in ALWAYS_OPEN_PINS:
@@ -2479,41 +2477,17 @@ async def update_role(request: Request):
     supabase.table("users").update({"role": role}).eq("user_id", user["user_id"]).execute()
     return {"role": role}
 
-@api_router.post("/auth/promote-admin")
-async def promote_admin(request: Request):
-    # Real fix Aug 18 (A1): this used to hardcode ["ADMINCLASS2026", "HAPPYADMIN2026"]
-    # directly, duplicating PROMO_CODES rather than reading from it — a second, better
-    # version reading PROMO_CODES (with .upper().strip() normalization) existed later in
-    # this file at the same route+method, making it permanently unreachable. Merged the
-    # better version in here; the duplicate below is deleted. Codes accepted are unchanged
-    # today (PROMO_CODES currently has the exact same two "type":"admin" entries).
-    user = await get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    body = await request.json()
-    code = body.get("admin_code", "").upper().strip()
-    admin_codes = [k for k, v in PROMO_CODES.items() if v.get("type") == "admin"]
-    if code not in admin_codes:
-        raise HTTPException(status_code=403, detail="Invalid admin code")
-    supabase.table("users").update({"role": "admin"}).eq("user_id", user["user_id"]).execute()
-    return {"message": "Promoted to admin", "role": "admin"}
-
-@api_router.post("/auth/fix-role")
-async def fix_user_role(request: Request):
-    """Superadmin: fix a specific user role by user_id"""
-    body = await request.json()
-    secret = body.get("secret", "")
-    if secret != "FIXROLE2026CLASS":
-        raise HTTPException(status_code=403, detail="Invalid secret")
-    user_id = body.get("user_id")
-    role = body.get("role")
-    if not user_id or role not in ["teacher", "parent", "admin", "school_admin"]:
-        raise HTTPException(status_code=400, detail="Invalid params")
-    supabase.table("users").update({"role": role}).eq("user_id", user_id).execute()
-    return {"ok": True, "user_id": user_id, "role": role}
-
 @api_router.post("/auth/promo-code")
 async def apply_promo_code(request: Request, body: PromoCodeRequest):
+    """Real fix Aug 20 (A6): this and two sibling endpoints (/auth/promote-admin,
+    /subscription/redeem-trial-code) used to also grant role="admin" via these same
+    promo codes with no other authorization check. /auth/fix-role (a hardcoded-secret
+    endpoint that could set any user_id's role, admin included) has been removed too.
+    All were live, self-serve privilege-escalation paths into a role that ~20 backend
+    endpoints treated as fully equal to superadmin (their own docstrings said
+    "superadmin only") while /admin/verify treated it as school_admin-tier - a real,
+    reachable gap, not just dead code. Zero live users ever had this role. See
+    COH-REVIEW-PLAN.md A6."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -2521,9 +2495,6 @@ async def apply_promo_code(request: Request, body: PromoCodeRequest):
     promo = PROMO_CODES.get(code)
     if not promo:
         raise HTTPException(status_code=400, detail="Invalid promo code")
-    if promo["type"] == "admin":
-        supabase.table("users").update({"role": "admin"}).eq("user_id", user["user_id"]).execute()
-        return {"message": "Admin access granted!"}
     days = promo.get("days", 30)
     ends_at = datetime.now(timezone.utc) + timedelta(days=days)
     supabase.table("users").update({
@@ -4299,7 +4270,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     student_data = student.data[0]
 
     is_authorized = False
-    if user.get("role") in ("admin", "superadmin"):
+    if user.get("role") == "superadmin":
         is_authorized = True
     elif student_data.get("user_id") == user["user_id"]:
         is_authorized = True
@@ -5003,7 +4974,7 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     # Real authorization gap fixed: this only checked that SOMEONE was logged in, never that the
     # logged-in user actually owns the user_id in the URL — meaning any authenticated account
     # could view any other teacher's wellbeing PDF just by changing the URL parameter.
-    if user_id != user["user_id"] and user.get("role") not in ("admin", "superadmin"):
+    if user_id != user["user_id"] and user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Not authorized to view this report")
 
     # Free tier: 1 teacher-wellbeing PDF per month (separate counter from the student PDF one,
@@ -5999,7 +5970,7 @@ async def get_alerts(request: Request, limit: int = 100):
                     student_ids.append(s["id"])
                     seen_ids.add(s["id"])
             # Superadmin/admin — if no direct classrooms, see all students
-            if not student_ids and role in ("superadmin", "admin"):
+            if not student_ids and role == "superadmin":
                 all_students_r = supabase.table("students").select("id").execute()
                 student_ids = [s["id"] for s in (all_students_r.data or [])]
         else:
@@ -6771,7 +6742,7 @@ async def reject_creature(submission_id: str, request: Request):
 async def cancel_creature(submission_id: str, request: Request):
     """Superadmin can cancel any creature globally."""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin","superadmin"]:
+    if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin only")
     supabase.table("creature_submissions").update({
         "status": "cancelled",
@@ -7231,14 +7202,14 @@ async def verify_admin_access(request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     role = user.get("role")
-    if role not in ("superadmin", "school_admin", "admin"):
+    if role not in ("superadmin", "school_admin"):
         return {"valid": False, "is_super_admin": False}
 
     body = await request.json()
     code = (body.get("code") or "").strip()
     email = (user.get("email") or "").strip().lower()
 
-    if role in ("superadmin", "admin"):
+    if role == "superadmin":
         required_pin = os.environ.get("ADMIN_PIN", "")
         if required_pin and code != required_pin:
             return {"valid": False, "is_super_admin": False}
@@ -7491,9 +7462,6 @@ async def redeem_trial_code(request: Request):
         raise HTTPException(status_code=400, detail="Invalid trial code")
     promo = PROMO_CODES[code]
     now = datetime.now(timezone.utc)
-    if promo.get("type") == "admin":
-        supabase.table("users").update({"role": "admin"}).eq("user_id", user["user_id"]).execute()
-        return {"message": "Admin access granted!", "trial_days": 0, "trial_ends_at": ""}
     days = promo.get("days", 30)
     trial_ends = now + timedelta(days=days)
     supabase.table("users").update({
@@ -7523,8 +7491,8 @@ async def email_login(request: Request):
             if existing.data:
                 # User exists — use them
                 user = existing.data[0]
-                # PIN check for superadmin/admin roles (existing)
-                if user.get("role") in ("admin", "superadmin"):
+                # PIN check for superadmin role (existing)
+                if user.get("role") == "superadmin":
                     required_pin = os.environ.get("ADMIN_PIN", "")
                     if required_pin and admin_pin != required_pin:
                         raise HTTPException(status_code=403, detail="Admin PIN required. Contact Jono.")
@@ -7837,7 +7805,7 @@ async def update_teacher_resource(resource_id: str, request: Request):
     if not existing.data:
         raise HTTPException(status_code=404, detail="Resource not found")
     resource = existing.data[0]
-    if resource.get("topic") in {"emotions_program"} and user.get("role") not in ("superadmin", "admin"):
+    if resource.get("topic") in {"emotions_program"} and user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Only superadmin can edit Emotions Program resources")
     is_owner = (resource.get("created_by") == user.get("user_id") or resource.get("user_id") == user.get("user_id"))
     is_admin = user.get("role") in ["admin", "superadmin", "school_admin"]
@@ -8408,7 +8376,7 @@ async def get_school_admin_stats(request: Request):
 async def unlink_user(request: Request):
     """Superadmin unlinks a parent-teacher connection"""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin"]:
+    if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Admin access required")
     body = await request.json()
     email = (body.get("email") or "").strip().lower()
@@ -8820,7 +8788,7 @@ async def get_school_subscription(request: Request):
 async def get_all_users(request: Request, limit: int = 100, offset: int = 0, role: str = ""):
     """Returns all users for superadmin. Paginated."""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin"]:
+    if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
     query = supabase.table("users").select(
         "user_id,email,name,role,subscription_status,subscription_expires_at,"
@@ -8835,7 +8803,7 @@ async def get_all_users(request: Request, limit: int = 100, offset: int = 0, rol
 async def get_dashboard_summary(request: Request):
     """Rich summary for superadmin dashboard — schools comparison, country breakdown, daily trends."""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin"]:
+    if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
 
     users = supabase.table("users").select("*").execute().data or []
@@ -8941,7 +8909,7 @@ async def get_dashboard_summary(request: Request):
 async def get_growth_stats(request: Request):
     """Monthly user growth for last 6 months, broken down by role."""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin"]:
+    if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
     users = supabase.table("users").select("role,created_at,subscription_status").execute().data or []
     from datetime import datetime, timezone, timedelta
@@ -8972,7 +8940,7 @@ async def get_growth_stats(request: Request):
 async def get_help_stats(request: Request):
     """Stats on which strategies students requested help with via the need-help button."""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin"]:
+    if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
     try:
         alerts = supabase.table("student_alerts").select("*").eq("type", "need_help").execute().data or []
@@ -8997,7 +8965,7 @@ async def get_help_stats(request: Request):
 @api_router.get("/admin/school-profiles")
 async def get_school_profiles(request: Request):
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin"]:
+    if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
     try:
         profiles = supabase.table("school_profiles").select("*").execute().data or []
@@ -9008,7 +8976,7 @@ async def get_school_profiles(request: Request):
 @api_router.post("/admin/school-profiles")
 async def create_school_profile(request: Request):
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin"]:
+    if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
     body = await request.json()
     profile = {
@@ -9052,7 +9020,7 @@ async def update_school_profile(profile_id: str, request: Request):
     headers — the browser then reports it as a "CORS error" instead of showing the real
     500. Added the same safe whitelist pattern + proper error handling."""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin"]:
+    if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
     try:
         body = await request.json()
@@ -9075,7 +9043,7 @@ async def update_school_profile(profile_id: str, request: Request):
 @api_router.put("/admin/teacher-strategies/{strategy_id}")
 async def update_teacher_strategy(strategy_id: str, request: Request):
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin"]:
+    if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Admin access required")
     body = await request.json()
     allowed = ["name","description","icon","is_active","zone","strategy_type","target_countries","target_schools","audience","order_index"]
@@ -9088,7 +9056,7 @@ async def update_teacher_strategy(strategy_id: str, request: Request):
 async def create_school_admin(request: Request):
     """Create a school admin account. Superadmin only."""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin"]:
+    if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
     body = await request.json()
     email = body.get("email", "").strip().lower()
@@ -9642,7 +9610,7 @@ async def create_global_strategy(request: Request):
 async def update_global_strategy(strategy_id: str, request: Request):
     """Admin updates a global student strategy"""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin"]:
+    if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
     body = await request.json()
     update_data = {k:v for k,v in {
@@ -9662,7 +9630,7 @@ async def update_global_strategy(strategy_id: str, request: Request):
 async def delete_global_strategy(strategy_id: str, request: Request):
     """Superadmin deletes a global student strategy"""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin"]:
+    if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
     try:
         supabase.table("helpers").delete().eq("id", strategy_id).execute()
@@ -11029,7 +10997,7 @@ async def get_awaiting_global_approval(request: Request):
 async def notify_creature_expiry(request: Request):
     """Call this via a scheduled job — notifies students when featured creatures expire in 7 days."""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin","superadmin"]:
+    if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403)
     now = datetime.now(timezone.utc)
     week_away = now + timedelta(days=7)
