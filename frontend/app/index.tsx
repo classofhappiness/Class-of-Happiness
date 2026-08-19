@@ -5,6 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../src/context/AppContext';
 import { ZONE_FACES } from '../src/components/ZoneButton';
+import { EMOTION_COLOURS } from '../src/constants/emotionColours';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -50,10 +51,10 @@ export default function HomeScreen() {
         {/* Zone emoji faces — decorative, sets the tone */}
         <View style={styles.zonePreviewRow}>
           {[
-            { color: '#4A90D9', face: ZONE_FACES.blue },
-            { color: '#4CAF50', face: ZONE_FACES.green },
-            { color: '#FFC107', face: ZONE_FACES.yellow },
-            { color: '#F44336', face: ZONE_FACES.red },
+            { color: EMOTION_COLOURS.blue, face: ZONE_FACES.blue },
+            { color: EMOTION_COLOURS.green, face: ZONE_FACES.green },
+            { color: EMOTION_COLOURS.yellow, face: ZONE_FACES.yellow },
+            { color: EMOTION_COLOURS.red, face: ZONE_FACES.red },
           ].map((z, i) => (
             <View key={i} style={[styles.zoneFaceContainer, { backgroundColor: z.color }]}>
               <Text style={styles.zoneFace}>{z.face}</Text>

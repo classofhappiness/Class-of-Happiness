@@ -12,6 +12,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
+import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { rewardsApi, Creature, AddPointsResponse } from '../../src/utils/api';
 import { getStudentShield, SHIELD_LEVELS } from '../../src/utils/notifications';
 import { CreatureDisplay } from '../../src/components/CreatureDisplay';
@@ -331,7 +332,7 @@ export default function RewardsScreen() {
         return colour && tipVisible ? (
           <Animated.View style={{ opacity: tipOpacityAnim, marginHorizontal:20, marginBottom:10, padding:14, borderRadius:14,
             backgroundColor: colour==='blue'?'#EBF5FB': colour==='green'?'#EAFAF1': colour==='yellow'?'#FEFDE7':'#FDEDEC',
-            borderLeftWidth:4, borderLeftColor: colour==='blue'?'#4A90D9': colour==='green'?'#4CAF50': colour==='yellow'?'#FFC107':'#F44336' }}>
+            borderLeftWidth:4, borderLeftColor: colour==='blue'?EMOTION_COLOURS.blue: colour==='green'?EMOTION_COLOURS.green: colour==='yellow'?EMOTION_COLOURS.yellow:EMOTION_COLOURS.red }}>
             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
               <View style={{ flex:1 }}>
                 <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:4 }}>{tip}</Text>

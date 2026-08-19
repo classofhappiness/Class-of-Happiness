@@ -8,6 +8,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
+import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { zoneLogsApi, ZoneLog } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
@@ -39,7 +40,7 @@ const COLOUR_TIPS_TEACHER: Record<string, {tip: string, action: string}[]> = {
 };
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-const ZONE_COLORS: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
+const ZONE_COLORS: Record<string,string> = EMOTION_COLOURS;
 
 const STRATEGY_NAMES: Record<string, string> = {
   // Parent strategies
@@ -196,7 +197,7 @@ export default function TeacherDashboardScreen() {
         // Build barData for BarChart
         const ZONE_ORDER = ['blue','green','yellow','red'] as const;
         const ZONE_LABELS: Record<string,string> = { blue:'😊', green:'😌', yellow:'😟', red:'😡' };
-        const ZONE_COLORS_MAP: Record<string,string> = { blue:'#4A90D9', green:'#43A047', yellow:'#F9A825', red:'#E53935' };
+        const ZONE_COLORS_MAP: Record<string,string> = EMOTION_COLOURS;
         setBarData(ZONE_ORDER.map(z => ({
           value: periodZones[z] || 0,
           label: ZONE_LABELS[z],
@@ -210,7 +211,7 @@ export default function TeacherDashboardScreen() {
         // Build barData from raw logs
         const ZONE_ORDER2 = ['blue','green','yellow','red'] as const;
         const ZONE_LABELS2: Record<string,string> = { blue:'😊', green:'😌', yellow:'😟', red:'😡' };
-        const ZONE_COLORS_MAP2: Record<string,string> = { blue:'#4A90D9', green:'#43A047', yellow:'#F9A825', red:'#E53935' };
+        const ZONE_COLORS_MAP2: Record<string,string> = EMOTION_COLOURS;
         setBarData(ZONE_ORDER2.map(z => ({
           value: snap[z] || 0,
           label: ZONE_LABELS2[z],
