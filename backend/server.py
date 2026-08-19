@@ -7218,21 +7218,36 @@ async def get_admin_resources(request: Request):
 
 @api_router.post("/admin/verify")
 async def verify_admin_access(request: Request):
-    """Real fix Aug 14: this endpoint was called by the COH app's in-app admin panel
-    (app/admin/dashboard.tsx) but never existed on the backend at all — every call 404'd,
-    silently falling into a broken hardcoded-PIN fallback that never correctly recognized
-    real superadmin logins. Fixed properly: since the caller already has a real session
-    token, verify against their ACTUAL account role — no separate PIN needed, and no risk
-    of a hardcoded string ever drifting out of sync with real accounts again."""
+    """Role check added Aug 14. Real second-factor PIN check re-added Aug 20 (A19) after
+    real-device testing found the in-app Unlock screen accepted an empty/any PIN — this
+    endpoint never actually read the code the user typed, only their session's role. Role
+    remains the primary gate (unchanged); PIN is now checked on top of it, not instead of it.
+    superadmin/admin check against ADMIN_PIN (same value already required at login).
+    ALWAYS_OPEN_PINS accounts (covers the demo school_admin) check their own fixed value.
+    Real (non-demo) school_admin accounts have no PIN infrastructure yet — deliberately left
+    on the role-only check, same as before Aug 20; a real per-school PIN is a separate future
+    feature (Path 2, COH-REVIEW-PLAN.md A19), not bundled into this fix."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     role = user.get("role")
-    if role == "superadmin":
-        return {"valid": True, "is_super_admin": True}
-    if role in ("school_admin", "admin"):
-        return {"valid": True, "is_super_admin": False}
-    return {"valid": False, "is_super_admin": False}
+    if role not in ("superadmin", "school_admin", "admin"):
+        return {"valid": False, "is_super_admin": False}
+
+    body = await request.json()
+    code = (body.get("code") or "").strip()
+    email = (user.get("email") or "").strip().lower()
+
+    if role in ("superadmin", "admin"):
+        required_pin = os.environ.get("ADMIN_PIN", "")
+        if required_pin and code != required_pin:
+            return {"valid": False, "is_super_admin": False}
+    elif email in ALWAYS_OPEN_PINS:
+        if code != ALWAYS_OPEN_PINS[email]:
+            return {"valid": False, "is_super_admin": False}
+    # else: real school_admin, not in ALWAYS_OPEN_PINS — role-only gate, unchanged (Path 1)
+
+    return {"valid": True, "is_super_admin": role == "superadmin"}
 
 
 @api_router.post("/admin/resources")
