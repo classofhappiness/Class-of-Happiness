@@ -223,11 +223,8 @@ export default function MyWellbeingScreen() {
     try {
       const token = await AsyncStorage.getItem('session_token');
       const days = parseInt(range);
-      const end = new Date();
-      const start = new Date();
-      start.setDate(start.getDate() - days);
       const res = await fetch(
-        `${BACKEND_URL}/api/family/members/${memberId}/checkins?start=${start.toISOString()}&end=${end.toISOString()}`,
+        `${BACKEND_URL}/api/family/members/${memberId}/checkins?days=${days}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (res.ok) {
