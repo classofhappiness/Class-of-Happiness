@@ -402,16 +402,18 @@ All 9 scenarios matched expectations exactly. Diff reviewed and approved before 
 
 ---
 
-### A18. Family dashboard shows inflated "check-ins today" count — data accuracy bug, not yet investigated
+### A18. "Today" range pill on parent "My Wellbeing" showed a mislabeled 7-day count — root-caused, fixed, and live-verified — ✅ DONE 2026-08-19
+**File:** `frontend/app/parent/my-wellbeing.tsx` (`loadData`)
 
-**Reported by Jono, real device:** family/parent dashboard showed "3 check-ins today" when only 1 real check-in actually happened (for the family member Madalena). Likely location: `frontend/app/parent/dashboard.tsx`, wherever the "today" check-in count is computed/displayed — **not yet confirmed**, this file wasn't opened to investigate this specific issue this session.
+**Reported by Jono, real device:** family/parent screen showed "3 check-ins today" for the family member Madalena when only 1 real check-in actually happened. Turned out not to be the family dashboard (`parent/dashboard.tsx`) at all — traced to the per-member "My Wellbeing" screen (`my-wellbeing.tsx`), reached via each adult family member's "Wellbeing" button.
 
-**What's known:** nothing beyond the reported symptom — this has not been investigated at all yet. Open questions for next session:
-- Is the overcount coming from the frontend (e.g. counting entries across multiple family members' data incorrectly, double-counting on refresh/re-render, or a stale-cache issue) or is the backend endpoint itself returning 3 rows for what should be 1 (e.g. a join fanning out, or a per-family-member count being summed incorrectly)?
-- Does "3" correspond to some real but miscategorized data — e.g. 3 total historical check-ins for Madalena being shown instead of "today's," or check-ins from other family members bleeding into Madalena's or the family's "today" count?
-- Confirm against real Supabase data (the relevant check-in table for the family, filtered to today's date and the specific family member) what the true count should be, then trace how the dashboard's displayed number diverges from it.
+**Scope check done first:** verified `parent/dashboard.tsx`'s own multi-source check-in fetch (`fetchMemberData`, covers `relationship==='child'` family members + school-linked children) separately — its 3 backend calls (`GET /zone-logs/student/{id}`, `GET /family/zone-logs/{id}`, `GET /parent/linked-child/{id}/all-checkins`) all correctly declare and honor a `days: int` query param matching what the frontend sends. **That path is unaffected** — this bug is isolated to the one `my-wellbeing.tsx` screen. (Also ruled out: Madalena is `relationship: 'partner'`, not `'child'`, so she was never in `fetchMemberData`'s scope in the first place — this initially misdirected the investigation toward the wrong file before the real screen was found.)
 
-**Not yet fixed. Not yet root-caused.**
+**Root cause: a query-parameter contract mismatch, not a fan-out or duplicate-data bug.** `loadData()` sent `?start=<ISO>&end=<ISO>` to `GET /family/members/{member_id}/checkins`, computed from whichever range pill (Today/7/14/30 days) was selected. The backend endpoint (`server.py:9690-9691`) only ever declared `days: int = 7` — it never read `start`/`end` at all, and FastAPI silently drops query params that don't match a declared parameter. Every range pill therefore always returned the same hardcoded last-7-days window, mislabeled with whatever pill happened to be selected. Confirmed live before fixing: hit the endpoint with the app's exact "Today" request (a real 24-hour window) and it still returned 3 rows — 1 from today plus 2 from exactly 7 days earlier, which is precisely what Jono saw.
+
+**Fix:** `loadData()` already computed `const days = parseInt(range)` locally one line above the fetch — it just wasn't being sent. Changed the request to `?days=${days}`, matching the `days: int` convention every other check-in endpoint in this codebase already uses. Confirmed via grep this is the *only* caller of this endpoint sending `start`/`end` — the endpoint's other two callers (`linked-child/[id].tsx`, `family-member-stats/[id].tsx`) already correctly sent `days=`, so this was an isolated outlier, not a wider pattern. No backend change needed — the endpoint already correctly implemented `days`, it just never received it.
+
+**Verified:** diff reviewed before applying (4-line change, isolated to the one fetch call, no other logic touched); `tsc --noEmit` shows only the same pre-existing, unrelated `useWindowDimensions` error already present in this file all session. This is a frontend-only change — no backend deploy needed. Live-tested all 4 range pills against production with the real fixed request shape: `days=1` → 1 (correct, was 3), `days=7` → 3, `days=14` → 4, `days=30` → 4 — each now genuinely distinct and matching the real underlying data, where before every pill silently returned the same number. Committed and pushed (`b78d20d`).
 
 ---
 
@@ -456,4 +458,4 @@ Record only, no investigation or design done yet. All raised by Jono during real
 19. **A16** — ✅ DONE & LIVE-VERIFIED 2026-08-20 — creature submission code now validated before the full flow, not after. Confirmed live against production with both a real generated code and a garbage one.
 20. **A17** — ✅ DONE 2026-08-20 — admin PIN race condition fixed (reads session token fresh instead of racy state), all 4 outcome paths verified against the real backend contract, including re-confirming L1's security fix still holds alongside it.
 21. **A19** — ✅ DONE 2026-08-20 — root-caused (A17's own side-finding was the exact cause, not a regression), real PIN check restored on top of the existing session+role gate, deployed and verified against 9 live-production scenarios. Real (non-demo) school_admin accounts intentionally left role-only (Path 1) — a per-school PIN is a separate future feature.
-22. **A18** — 🔴 OPEN — found 2026-08-20 real-device testing — family dashboard "check-ins today" count inflated (showed 3, actual was 1). Not yet investigated.
+22. **A18** — ✅ DONE 2026-08-19 — root-caused to a query-param mismatch on the parent "My Wellbeing" screen (not the family dashboard as first suspected), fixed by sending the already-computed `days` param instead of unread `start`/`end`, live-verified all 4 range pills against production.
