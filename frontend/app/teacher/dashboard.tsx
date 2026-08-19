@@ -331,7 +331,6 @@ Students enter this when creating their profile to join your class automatically
     { label: t('resources')||'Resources', icon: 'library-books', color: '#5C6BC0', route: '/teacher/resources', count: null },
     { label: t('alerts')||'Alerts', icon: 'notifications', color: '#F44336', route: '/teacher/alerts', count: alertCount > 0 ? alertCount : null },
     { label: t('creatures_manage')||'Creatures', icon: 'pets', color: '#9C27B0', route: '/teacher/creature-code', count: null },
-    { label: 'Submit\nCreature', icon: 'palette', color: '#9C27B0', route: '/student/submit-creature', count: null },
   ];
 
   const handleShowClassCode = async (classroomId: string, classroomName: string) => {

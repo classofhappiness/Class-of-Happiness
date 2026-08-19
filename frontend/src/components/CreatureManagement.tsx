@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Image, Share, TextInput, Modal } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { teacherApi, parentApi, creaturesApi } from '../utils/api';
 import { useApp } from '../context/AppContext';
 import { EMOTION_COLOURS } from '../constants/emotionColours';
@@ -19,6 +20,7 @@ interface Props {
 
 export const CreatureManagement: React.FC<Props> = ({ role }) => {
   const { t } = useApp();
+  const router = useRouter();
   const [code, setCode] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [pending, setPending] = useState<any[]>([]);
@@ -97,6 +99,10 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
             ? "Generate a code for your class. Students enter it in \"Submit a Creature\" to send in their drawing."
             : "Generate a code for your family. Your child enters it in \"Submit a Creature\" to send in their drawing."}
         </Text>
+        <TouchableOpacity style={[s.btn, { marginBottom: 14 }]} onPress={() => router.push('/student/submit-creature')}>
+          <MaterialIcons name="palette" size={18} color="white" />
+          <Text style={s.btnText}>Submit a Creature</Text>
+        </TouchableOpacity>
         {!code ? (
           <TouchableOpacity style={[s.btn, generating && s.btnDisabled]} onPress={generateCode} disabled={generating}>
             {generating ? <ActivityIndicator color="white" size="small" /> : <MaterialIcons name="vpn-key" size={18} color="white" />}
