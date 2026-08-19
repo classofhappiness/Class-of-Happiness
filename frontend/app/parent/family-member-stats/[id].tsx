@@ -45,9 +45,10 @@ const resolveStratName = (id: string, nameMap: Record<string,string>): string =>
   return id.replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase());
 };
 import { useApp } from '../../../src/context/AppContext';
+import { EMOTION_COLOURS } from '../../../src/constants/emotionColours';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-const ZONE_COLORS: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
+const ZONE_COLORS: Record<string,string> = EMOTION_COLOURS;
 const ZONE_EMOJI: Record<string,string> = { blue:'😢', green:'😊', yellow:'😰', red:'😠' };
 const ZONES = ['green','yellow','blue','red'] as const;
 

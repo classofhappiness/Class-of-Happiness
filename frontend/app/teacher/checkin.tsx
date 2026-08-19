@@ -8,18 +8,17 @@ import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { useApp } from '../../src/context/AppContext';
+import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 
 type FeelingZone = 'blue' | 'green' | 'yellow' | 'red';
 
-const ZONE_COLORS: Record<FeelingZone, string> = {
-  blue: '#4A90D9', green: '#4CAF50', yellow: '#FFC107', red: '#F44336',
-};
+const ZONE_COLORS: Record<FeelingZone, string> = EMOTION_COLOURS;
 
 const ZONES: Array<{ id: FeelingZone; label: string; emoji: string; color: string }> = [
-  { id: 'blue', label: 'Low energy', emoji: '😔', color: '#4A90D9' },
-  { id: 'green', label: 'Steady', emoji: '🙂', color: '#4CAF50' },
-  { id: 'yellow', label: 'Stressed', emoji: '😟', color: '#FFC107' },
-  { id: 'red', label: 'Overloaded', emoji: '😣', color: '#F44336' },
+  { id: 'blue', label: 'Low energy', emoji: '😔', color: EMOTION_COLOURS.blue },
+  { id: 'green', label: 'Steady', emoji: '🙂', color: EMOTION_COLOURS.green },
+  { id: 'yellow', label: 'Stressed', emoji: '😟', color: EMOTION_COLOURS.yellow },
+  { id: 'red', label: 'Overloaded', emoji: '😣', color: EMOTION_COLOURS.red },
 ];
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -726,7 +725,7 @@ export default function TeacherCheckInScreen() {
                 const count = (zoneCounts as any)[zone] || 0;
                 const total = Object.values(zoneCounts).reduce((a:any,b:any)=>a+b,0) as number;
                 const pct = total > 0 ? Math.round(count/total*100) : 0;
-                const colors: Record<string,string> = {blue:'#4A90D9',green:'#4CAF50',yellow:'#FFC107',red:'#F44336'};
+                const colors: Record<string,string> = EMOTION_COLOURS;
                 return (
                   <View key={zone} style={{flexDirection:'row',alignItems:'center',gap:8}}>
                     <Text style={{fontSize:16}}>{zone==='blue'?'😔':zone==='green'?'😊':zone==='yellow'?'😟':'😣'}</Text>

@@ -22,6 +22,7 @@ import { registerForPushNotifications } from '../../src/utils/notifications';
 import { PieChart, BarChart } from 'react-native-gifted-charts';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
+import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { 
   parentApi, Student, zoneLogsApi, ZoneLog, analyticsApi,
   familyApi, FamilyMember, FamilyZoneLog, authApiExtended, teacherApi, rewardsApi, linkedChildApi
@@ -115,12 +116,7 @@ const resolveStrategy = (id: string): string => {
   return stripped.replace(/\b\w/g, (c:string) => c.toUpperCase());
 };
 
-const ZONE_COLORS: Record<string, string> = {
-  blue: '#4A90D9',
-  green: '#4CAF50',
-  yellow: '#FFC107',
-  red: '#F44336',
-};
+const ZONE_COLORS: Record<string, string> = EMOTION_COLOURS;
 
 // Use translations for zone labels - will be populated from context
 const getZoneLabel = (zone: string, t: (key: string) => string) => {
@@ -871,11 +867,11 @@ export default function ParentDashboard() {
           const colour = logs[0]?.feeling_colour || logs[0]?.zone || 'green';
           const tips = (COLOUR_TIPS_PARENT as any)[colour] || COLOUR_TIPS_PARENT.green;
           const tip = tips[new Date().getDate() % tips.length];
-          const clrs: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
+          const clrs: Record<string,string> = EMOTION_COLOURS;
           const bgs: Record<string,string> = { blue:'#EBF5FB', green:'#EAFAF1', yellow:'#FEFDE7', red:'#FDEDEC' };
           return (
             <View style={{ marginHorizontal:16, marginBottom:10, padding:12, borderRadius:12,
-              backgroundColor: bgs[colour] || '#EAFAF1', borderLeftWidth:4, borderLeftColor: clrs[colour] || '#4CAF50',
+              backgroundColor: bgs[colour] || '#EAFAF1', borderLeftWidth:4, borderLeftColor: clrs[colour] || EMOTION_COLOURS.green,
               flexDirection:'row', alignItems:'flex-start' }}>
               <View style={{ flex:1 }}>
                 <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:3 }}>{tip.tip}</Text>
@@ -1316,7 +1312,7 @@ export default function ParentDashboard() {
                             const fullName = (log as any).member_name || (log as any).student_name || '';
                             const initial = fullName.length >= 2 ? fullName.slice(0,2) : fullName.toUpperCase();
                             const zone = (log as any).zone || (log as any).feeling_colour || 'green';
-                            const dotColor = ZONE_COLORS[zone] || '#4CAF50';
+                            const dotColor = ZONE_COLORS[zone] || EMOTION_COLOURS.green;
                             return (
                               <View key={idx} style={{ alignItems:'center', marginBottom:3 }}>
                                 <View style={{ flexDirection:'row', alignItems:'center', gap:2 }}>

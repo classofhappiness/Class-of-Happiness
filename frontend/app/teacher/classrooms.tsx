@@ -17,13 +17,9 @@ import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { classroomsApi, studentsApi, customStrategiesApi } from '../../src/utils/api';
+import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 
-const ZONE_COLORS = {
-  blue: '#4A90D9',
-  green: '#4CAF50',
-  yellow: '#FFC107',
-  red: '#F44336',
-};
+const ZONE_COLORS = EMOTION_COLOURS;
 
 const BULK_STRATEGIES = {
   blue: [

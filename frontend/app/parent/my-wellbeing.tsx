@@ -9,11 +9,10 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
+import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-const ZONE_COLORS: Record<string, string> = {
-  blue: '#4A90D9', green: '#4CAF50', yellow: '#FFC107', red: '#F44336',
-};
+const ZONE_COLORS: Record<string, string> = EMOTION_COLOURS;
 const ZONE_EMOJI: Record<string, string> = {
   blue: '😔', green: '😊', yellow: '😟', red: '😣',
 };
@@ -580,7 +579,7 @@ export default function MyWellbeingScreen() {
             return sorted.length === 0
               ? <Text style={[st.noData,{marginTop:8}]}>{t('no_data_period') || t('no_data_period') || 'No strategies yet'}</Text>
               : sorted.map(([id,count]) => {
-                  const zc = id.startsWith('blue')?'#4A90D9':id.startsWith('green')?'#4CAF50':id.startsWith('yellow')?'#FFC107':id.startsWith('red')?'#F44336':'#999';
+                  const zc = id.startsWith('blue')?EMOTION_COLOURS.blue:id.startsWith('green')?EMOTION_COLOURS.green:id.startsWith('yellow')?EMOTION_COLOURS.yellow:id.startsWith('red')?EMOTION_COLOURS.red:'#999';
                   const name = resolveName(id, strategyNames, t);
                   return (
                     <View key={id} style={{flexDirection:'row',alignItems:'center',paddingVertical:8,borderBottomWidth:1,borderBottomColor:'#F0F0F0'}}>
@@ -683,7 +682,7 @@ export default function MyWellbeingScreen() {
                   return (
                     <View key={date} style={{alignItems:'center',width:38}}>
                       <Text style={{fontSize:9,color:'#888',marginBottom:3}}>{dayName}</Text>
-                      <View style={{width:28,height:28,borderRadius:14,backgroundColor:ZONE_COLORS[dom]||'#4CAF50',alignItems:'center',justifyContent:'center'}}>
+                      <View style={{width:28,height:28,borderRadius:14,backgroundColor:ZONE_COLORS[dom]||EMOTION_COLOURS.green,alignItems:'center',justifyContent:'center'}}>
                         <Text style={{fontSize:11,fontWeight:'700',color:'white'}}>{dayNum}</Text>
                       </View>
                       <Text style={{fontSize:8,color:'#888',marginTop:2}}>{dayLogs.length}x</Text>

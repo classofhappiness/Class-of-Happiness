@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
+import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -23,9 +24,7 @@ async function familyStratApi(endpoint: string, method = 'GET', body?: any) {
   return res.json();
 }
 
-const ZONE_COLORS: Record<string, string> = {
-  blue: '#4A90D9', green: '#4CAF50', yellow: '#FFC107', red: '#F44336',
-};
+const ZONE_COLORS: Record<string, string> = EMOTION_COLOURS;
 const ZONE_BG: Record<string, string> = {
   blue: '#EBF3FB', green: '#E8F5E9', yellow: '#FFF8E1', red: '#FFEBEE',
 };

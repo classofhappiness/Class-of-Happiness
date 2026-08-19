@@ -1,5 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
+import { EMOTION_COLOURS, EMOTION_LIGHT_COLOURS } from '../constants/emotionColours';
 
 interface ZoneButtonProps {
   zone: 'blue' | 'green' | 'yellow' | 'red';
@@ -28,29 +29,29 @@ const ZONE_FACES = {
 
 const ZONE_CONFIG = {
   blue: {
-    color: '#4A90D9',
-    lightColor: '#E3F2FD',
+    color: EMOTION_COLOURS.blue,
+    lightColor: EMOTION_LIGHT_COLOURS.blue,
     label: 'Blue Emotions',
     description: 'Sad, Tired, Bored',
     face: ZONE_FACES.blue,
   },
   green: {
-    color: '#4CAF50',
-    lightColor: '#E8F5E9',
+    color: EMOTION_COLOURS.green,
+    lightColor: EMOTION_LIGHT_COLOURS.green,
     label: 'Green Emotions',
     description: 'Calm, Happy, Focused',
     face: ZONE_FACES.green,
   },
   yellow: {
-    color: '#FFC107',
-    lightColor: '#FFF8E1',
+    color: EMOTION_COLOURS.yellow,
+    lightColor: EMOTION_LIGHT_COLOURS.yellow,
     label: 'Yellow Emotions',
     description: 'Worried, Frustrated, Silly',
     face: ZONE_FACES.yellow,
   },
   red: {
-    color: '#F44336',
-    lightColor: '#FFEBEE',
+    color: EMOTION_COLOURS.red,
+    lightColor: EMOTION_LIGHT_COLOURS.red,
     label: 'Red Emotions',
     description: 'Angry, Scared, Out of Control',
     face: ZONE_FACES.red,

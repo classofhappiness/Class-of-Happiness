@@ -8,10 +8,11 @@ import DraggableFlatList, { NestableScrollContainer, NestableDraggableFlatList }
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { useRouter } from 'expo-router';
+import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const INDIGO = '#5C6BC0';
-const ZONE_COLORS: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
+const ZONE_COLORS: Record<string,string> = EMOTION_COLOURS;
 const ZONE_LABELS: Record<string,string> = { blue:'Blue Emotions', green:'Green Emotions', yellow:'Yellow Emotions', red:'Red Emotions' };
 const ZONES = ['blue','green','yellow','red'];
 
@@ -268,10 +269,10 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
               )}
               <View style={{ flexDirection: 'row', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
                 <Text style={{ fontSize: 12, color: '#666' }}>Check-ins: <Text style={{ fontWeight: '700', color: '#1A1A2E' }}>{total}</Text></Text>
-                <Text style={{ fontSize: 12, color: '#4CAF73' }}>🟢 {zc.green || 0}</Text>
-                <Text style={{ fontSize: 12, color: '#4A90D9' }}>🔵 {zc.blue || 0}</Text>
-                <Text style={{ fontSize: 12, color: '#E0A800' }}>🟡 {zc.yellow || 0}</Text>
-                <Text style={{ fontSize: 12, color: '#E05252' }}>🔴 {zc.red || 0}</Text>
+                <Text style={{ fontSize: 12, color: EMOTION_COLOURS.green }}>🟢 {zc.green || 0}</Text>
+                <Text style={{ fontSize: 12, color: EMOTION_COLOURS.blue }}>🔵 {zc.blue || 0}</Text>
+                <Text style={{ fontSize: 12, color: EMOTION_COLOURS.yellow }}>🟡 {zc.yellow || 0}</Text>
+                <Text style={{ fontSize: 12, color: EMOTION_COLOURS.red }}>🔴 {zc.red || 0}</Text>
               </View>
             </TouchableOpacity>
             {isOpen && (

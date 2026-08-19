@@ -29,6 +29,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy, reportsApi, teacherApi, teacherHomeDataApi } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
+import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 
 const { width } = Dimensions.get('window');
 
@@ -54,12 +55,7 @@ const STRATEGY_NAME_MAP: Record<string, string> = {
   p_r4: 'No Teaching Now', p_r5: 'Reconnect with Warmth',
 };
 
-const ZONE_COLORS = {
-  blue: '#4A90D9',
-  green: '#4CAF50',
-  yellow: '#FFC107',
-  red: '#F44336',
-};
+const ZONE_COLORS = EMOTION_COLOURS;
 
 // Use translations for zone labels
 const getZoneLabel = (zone: string, t: (key: string) => string) => {
@@ -571,14 +567,14 @@ export default function StudentDetailScreen() {
               .sort(([,a],[,b]) => (b as number) - (a as number))
               .map(([strategyId, count]) => {
                 // Determine zone colour from strategy ID prefix
-                const zoneColour = strategyId.startsWith('b') ? '#4A90D9'
-                  : strategyId.startsWith('g') ? '#4CAF50'
-                  : strategyId.startsWith('y') ? '#FFC107'
-                  : strategyId.startsWith('r') ? '#F44336'
-                  : strategyId.startsWith('p_b') ? '#4A90D9'
-                  : strategyId.startsWith('p_g') ? '#4CAF50'
-                  : strategyId.startsWith('p_y') ? '#FFC107'
-                  : strategyId.startsWith('p_r') ? '#F44336'
+                const zoneColour = strategyId.startsWith('b') ? EMOTION_COLOURS.blue
+                  : strategyId.startsWith('g') ? EMOTION_COLOURS.green
+                  : strategyId.startsWith('y') ? EMOTION_COLOURS.yellow
+                  : strategyId.startsWith('r') ? EMOTION_COLOURS.red
+                  : strategyId.startsWith('p_b') ? EMOTION_COLOURS.blue
+                  : strategyId.startsWith('p_g') ? EMOTION_COLOURS.green
+                  : strategyId.startsWith('p_y') ? EMOTION_COLOURS.yellow
+                  : strategyId.startsWith('p_r') ? EMOTION_COLOURS.red
                   : '#999';
                 return (
                   <View key={strategyId} style={styles.strategyItem}>
@@ -674,7 +670,7 @@ export default function StudentDetailScreen() {
                   const zoneCounts: Record<string,number> = {};
                   zones.forEach(z => { zoneCounts[z] = (zoneCounts[z]||0)+1; });
                   const dominant = Object.entries(zoneCounts).sort((a,b)=>b[1]-a[1])[0]?.[0] || 'green';
-                  const ZONE_COLORS_MAP: Record<string,string> = {blue:'#4A90D9',green:'#4CAF50',yellow:'#FFC107',red:'#F44336'};
+                  const ZONE_COLORS_MAP: Record<string,string> = EMOTION_COLOURS;
                   return (
                     <View key={date} style={styles.calendarDay}>
                       <Text style={styles.calendarDayName}>{dayName}</Text>
@@ -728,7 +724,7 @@ export default function StudentDetailScreen() {
               const counts: Record<string,number> = {blue:0,green:0,yellow:0,red:0};
               filtered.forEach(l => { if (l.zone in counts) counts[l.zone]++; });
               const total = Object.values(counts).reduce((a,b)=>a+b,0);
-              const ZONE_COLORS_MAP: Record<string,string> = {blue:'#4A90D9',green:'#4CAF50',yellow:'#FFC107',red:'#F44336'};
+              const ZONE_COLORS_MAP: Record<string,string> = EMOTION_COLOURS;
               const ZONE_NAMES: Record<string,string> = {blue:'Blue',green:'Green',yellow:'Yellow',red:'Red'};
               return (
                 <View style={styles.zoneDistBars}>

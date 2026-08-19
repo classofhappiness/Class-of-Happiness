@@ -10,18 +10,17 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { BarChart } from 'react-native-gifted-charts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../../src/context/AppContext';
+import { EMOTION_COLOURS } from '../../../src/constants/emotionColours';
 import { linkedChildApi, LinkedChild, FamilyAssignedStrategy } from '../../../src/utils/api';
 
 const { width } = Dimensions.get('window');
 
-const ZONE_COLORS: Record<string, string> = {
-  blue: '#4A90D9', green: '#4CAF50', yellow: '#FFC107', red: '#F44336',
-};
+const ZONE_COLORS: Record<string, string> = EMOTION_COLOURS;
 const ZONE_CONFIG: Record<string, { color: string; emoji: string; label: string }> = {
-  blue:   { color: '#4A90D9', emoji: '\u{1F622}', label: 'Blue Emotions' },
-  green:  { color: '#4CAF50', emoji: '\u{1F60A}', label: 'Green Emotions' },
-  yellow: { color: '#FFC107', emoji: '\u{1F630}', label: 'Yellow Emotions' },
-  red:    { color: '#F44336', emoji: '\u{1F620}', label: 'Red Emotions' },
+  blue:   { color: EMOTION_COLOURS.blue, emoji: '\u{1F622}', label: 'Blue Emotions' },
+  green:  { color: EMOTION_COLOURS.green, emoji: '\u{1F60A}', label: 'Green Emotions' },
+  yellow: { color: EMOTION_COLOURS.yellow, emoji: '\u{1F630}', label: 'Yellow Emotions' },
+  red:    { color: EMOTION_COLOURS.red, emoji: '\u{1F620}', label: 'Red Emotions' },
 };
 const STRATEGY_ICONS = [
   { id: 'star', name: 'star' }, { id: 'favorite', name: 'favorite' },
@@ -370,7 +369,7 @@ export default function LinkedChildDetailScreen() {
 
         <View style={s.statsRow}>
           <View style={s.statCard}><Text style={s.statVal}>{totalCheckins}</Text><Text style={s.statLbl}>{t('wellbeing_total') || t('wellbeing_total') || 'Total'}</Text></View>
-          <View style={s.statCard}><Text style={[s.statVal,{color:'#4CAF50'}]}>{zoneCounts.green||0}</Text><Text style={s.statLbl}>{t('steady') || t('steady') || 'Positive'}</Text></View>
+          <View style={s.statCard}><Text style={[s.statVal,{color:EMOTION_COLOURS.green}]}>{zoneCounts.green||0}</Text><Text style={s.statLbl}>{t('steady') || t('steady') || 'Positive'}</Text></View>
           {!isFamilyChild && <>
             <View style={s.statCard}><Text style={s.statVal}>{homeCheckIns.length}</Text><Text style={s.statLbl}>{'\u{1F3E0}'} Home</Text></View>
             <View style={s.statCard}><Text style={s.statVal}>{schoolCheckIns.length}</Text><Text style={s.statLbl}>{'\u{1F3EB}'} School</Text></View>
@@ -445,10 +444,10 @@ export default function LinkedChildDetailScreen() {
           </TouchableOpacity>
           {secMostUsed && (Object.keys(stratCounts).length > 0
             ? Object.entries(stratCounts).sort(([,a],[,b]) => (b as number)-(a as number)).map(([stratId,count]) => {
-                const zc = stratId.startsWith('blue')?'#4A90D9':stratId.startsWith('green')?'#4CAF50':
-                           stratId.startsWith('yellow')?'#FFC107':stratId.startsWith('red')?'#F44336':
-                           stratId.startsWith('b')?'#4A90D9':stratId.startsWith('g')?'#4CAF50':
-                           stratId.startsWith('y')?'#FFC107':stratId.startsWith('r')?'#F44336':'#999';
+                const zc = stratId.startsWith('blue')?EMOTION_COLOURS.blue:stratId.startsWith('green')?EMOTION_COLOURS.green:
+                           stratId.startsWith('yellow')?EMOTION_COLOURS.yellow:stratId.startsWith('red')?EMOTION_COLOURS.red:
+                           stratId.startsWith('b')?EMOTION_COLOURS.blue:stratId.startsWith('g')?EMOTION_COLOURS.green:
+                           stratId.startsWith('y')?EMOTION_COLOURS.yellow:stratId.startsWith('r')?EMOTION_COLOURS.red:'#999';
                 return (
                   <View key={stratId} style={s.stratRow}>
                     <View style={[s.stratDot,{backgroundColor:zc}]} />
@@ -480,9 +479,9 @@ export default function LinkedChildDetailScreen() {
             )}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginVertical:8}}
               contentContainerStyle={{flexDirection:'row',gap:6,paddingHorizontal:2}}>
-              {[{id:null,label:'All',color:'#5C6BC0'},{id:'blue',label:'\u{1F622} Blue',color:'#4A90D9'},
-                {id:'green',label:'\u{1F60A} Green',color:'#4CAF50'},{id:'yellow',label:'\u{1F630} Yellow',color:'#FFC107'},
-                {id:'red',label:'\u{1F620} Red',color:'#F44336'}].map(z => (
+              {[{id:null,label:'All',color:'#5C6BC0'},{id:'blue',label:'\u{1F622} Blue',color:EMOTION_COLOURS.blue},
+                {id:'green',label:'\u{1F60A} Green',color:EMOTION_COLOURS.green},{id:'yellow',label:'\u{1F630} Yellow',color:EMOTION_COLOURS.yellow},
+                {id:'red',label:'\u{1F620} Red',color:EMOTION_COLOURS.red}].map(z => (
                 <TouchableOpacity key={z.id||'all'} style={[s.pill,activeZone===z.id&&{backgroundColor:z.color,borderColor:z.color}]}
                   onPress={() => setActiveZone(z.id)}>
                   <Text style={[s.pillText,activeZone===z.id&&{color:'white'}]}>{z.label}</Text>
@@ -551,7 +550,7 @@ export default function LinkedChildDetailScreen() {
                   return (
                     <View key={date} style={s.calDay}>
                       <Text style={s.calDayName}>{dayName}</Text>
-                      <View style={[s.calCircle,{backgroundColor:ZONE_COLORS[dom]||'#4CAF50'}]}>
+                      <View style={[s.calCircle,{backgroundColor:ZONE_COLORS[dom]||EMOTION_COLOURS.green}]}>
                         <Text style={s.calDayNum}>{dayNum}</Text>
                       </View>
                       <View style={{flexDirection:'row',gap:2,marginTop:2}}>

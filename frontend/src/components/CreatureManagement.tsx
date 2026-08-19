@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { MaterialIcons } from '@expo/vector-icons';
 import { teacherApi, parentApi, creaturesApi } from '../utils/api';
 import { useApp } from '../context/AppContext';
+import { EMOTION_COLOURS } from '../constants/emotionColours';
 
 // Real component, Aug 16: shared creature-management screen for both teacher and
 // parent roles. Generates a submission code, and shows pending creature
@@ -10,7 +11,7 @@ import { useApp } from '../context/AppContext';
 // just never had a UI). Two-step approval: this is step one - superadmin's
 // global-approve is the real second gate before anything goes public.
 
-const ZONE_COLORS: Record<string, string> = { blue: '#4A90D9', green: '#4CAF50', yellow: '#FFC107', red: '#F44336' };
+const ZONE_COLORS: Record<string, string> = EMOTION_COLOURS;
 
 interface Props {
   role: 'teacher' | 'parent';

@@ -9,13 +9,14 @@ import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
+import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 
 const ZONES = ['b', 'g', 'y', 'r'] as const;
 type ZoneKey = typeof ZONES[number];
 
 const ZONE_FULL: Record<ZoneKey, string> = { b: 'blue', g: 'green', y: 'yellow', r: 'red' };
 const ZONE_COLORS: Record<ZoneKey, string> = {
-  b: '#4A90D9', g: '#4CAF50', y: '#FFC107', r: '#F44336',
+  b: EMOTION_COLOURS.blue, g: EMOTION_COLOURS.green, y: EMOTION_COLOURS.yellow, r: EMOTION_COLOURS.red,
 };
 const ZONE_LABEL: Record<ZoneKey, string> = {
   b: 'B', g: 'G', y: 'Y', r: 'R',

@@ -7,11 +7,12 @@ import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 
 const { width } = Dimensions.get('window');
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const INDIGO = '#5C6BC0';
-const ZONE_COLORS: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
+const ZONE_COLORS: Record<string,string> = EMOTION_COLOURS;
 const ZONE_EMOJI: Record<string,string> = { blue:'😢', green:'😊', yellow:'😰', red:'😠' };
 const ZONE_LABELS: Record<string,string> = { blue:'Blue', green:'Green', yellow:'Yellow', red:'Red' };
 
