@@ -480,7 +480,7 @@ Launch is **EUR-only**. AUD figures currently exist in `SUBSCRIPTION_PLANS` (`pr
 ### P2. UX/polish backlog — from real-device testing, 2026-08-20
 Record only, no investigation or design done yet. All raised by Jono during real-device testing tonight, alongside A18/A19 above.
 
-- **Creature submission placement** — move the creature-submission entry point inside the existing "My Creatures" button/modal rather than (or in addition to) its own dashboard shortcut icon — the current purple-icon shortcut is overlapping with other dashboard elements on real devices. Revisit the placement decided for the creature-submission-shortcut feature.
+- **Creature submission placement** — ✅ DONE 2026-08-19. Removed the standalone "Submit Creature" shortcut from `parent/dashboard.tsx` and `teacher/dashboard.tsx`; added a persistent "Submit a Creature" button inside the shared `CreatureManagement` component instead (used by both `/parent/creature-code` and `/teacher/creature-code`), so one change covered both surfaces. `tsc --noEmit` clean on all 3 touched files (zero errors, not even pre-existing ones). Committed and pushed (`655ca44`). Not visually confirmed on a device.
 - **Classroom code — copy-to-clipboard.** Add a copy icon next to the classroom join code so teachers/parents don't have to manually retype it.
 - **Missing loading indicator, Family dashboard.** No emoji/spinner loading state shown while the family dashboard's data is fetching — screen likely appears blank or frozen during load.
 - **School contact details not editable.** Neither superadmin nor school_admin currently has a way to edit a school's contact details (address/phone/email or similar) — needs a real UI path, not currently exposed anywhere in app or portal.
