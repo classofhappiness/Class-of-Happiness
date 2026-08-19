@@ -139,7 +139,7 @@ export default function AboutScreen() {
 
           <Text style={styles.privacyHeading}>Full Privacy Policy</Text>
           <Text style={styles.legalText}>
-            Our full privacy policy is available at classofhappiness.com/privacy-policy
+            Our full privacy policy is available at classofhappiness.com/privacy-policy.html
           </Text>
           <Text style={styles.legalText}>
             We use industry-standard encryption and security measures to protect your data. 
