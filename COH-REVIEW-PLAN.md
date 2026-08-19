@@ -367,11 +367,54 @@ Neither the PIN input nor the "Unlock" button is gated on this load finishing. I
 
 ---
 
+### A19. [PRIORITY — ADMIN ACCESS] Admin unlock may be skipping PIN entry entirely — A17's fix not yet confirmed sufficient — 🔴 OPEN, found 2026-08-20 real-device testing, NOT YET INVESTIGATED
+
+**Reported by Jono, real device:** logged in as `jono@classofhappiness.com` (the superadmin demo account) and pressed "Unlock" on the admin PIN screen — it went straight through to the admin dashboard with **no PIN code typed at all**. Flagged as serious because this is the account that gates superadmin/admin access, and it directly touches the path A17 (above) was supposed to have secured today.
+
+**Do not assume A17 didn't work — but do not assume it did, either.** Explicitly re-investigate from scratch. Known context that's directly relevant and should be checked first, before forming a theory:
+
+1. **`jono@classofhappiness.com` is one of the 4 `ALWAYS_OPEN_PINS` demo accounts** referenced in A12 (`server.py:7321-7353`) — its real PIN is `COH2026JONO`. The name "ALWAYS_OPEN_PINS" itself is suspicious in this context and was never fully read/audited as part of A12 — that item only confirmed a PIN is *required* for these accounts, not what value the backend actually checks it against, or whether some code path treats "always open" as "no PIN check needed at all" rather than "this specific demo PIN is always valid." Read `ALWAYS_OPEN_PINS`'s actual definition and every place it's referenced before doing anything else.
+2. **A17's own side-finding, immediately above, is directly relevant and may fully explain this if so:** `/admin/verify` never inspects the typed PIN value at all — access is purely role-gated server-side once a valid session token is present. If `jono@classofhappiness.com` was already logged in with a valid superadmin token (which it would be, since login happens before the PIN screen), pressing "Unlock" with an empty field may be **working exactly as A17 left it** — the PIN field doing nothing, by design of a decision already flagged (not fixed) in A17, not a regression. If that's confirmed, the real bug isn't A17's race-condition fix failing — it's that the PIN field was already known to be non-functional and nobody has decided yet whether that's acceptable.
+3. If neither of the above explains it — e.g. if `unlock()` fires or auto-succeeds *without the button being pressed*, or without a token being present at all — then A17's fix genuinely did not close the gap, and the race condition (or a different one) is still live. This would be more serious and needs the full A17 verification sequence re-run (real login → real PIN → unlock, all 4 backend-contract cases from A17's verification section) plus an actual on-device repro this time, not just a backend-contract check.
+
+**What needs checking (in this order), next session:**
+- Read `ALWAYS_OPEN_PINS` in `server.py` in full — what does "always open" actually mean for these 4 accounts, and does it interact with `/admin/verify`'s role-only gating in a way that makes an empty/no-PIN unlock "correct" for this specific account?
+- Reproduce on the real device again, this time watching whether the "Unlock" button was actually tapped, and if possible capture the actual network request/response for `/admin/verify` (or add temporary logging) to see whether a token was sent and what the backend returned.
+- Test the same flow with a **non-demo** superadmin-role account (if one exists) to see if the empty-PIN-skip is specific to the `ALWAYS_OPEN_PINS` demo accounts or is a general failure of the PIN screen.
+- Only once the actual cause is confirmed, decide whether this is "working as already-flagged-but-undecided" (A17 side-finding) or a genuine new/unclosed security gap, and fix accordingly.
+
+**Not yet fixed. Not yet root-caused. Treat as open and unresolved going into next session — do not close or fold into A17 without fresh verification.**
+
+---
+
+### A18. Family dashboard shows inflated "check-ins today" count — data accuracy bug, not yet investigated
+
+**Reported by Jono, real device:** family/parent dashboard showed "3 check-ins today" when only 1 real check-in actually happened (for the family member Madalena). Likely location: `frontend/app/parent/dashboard.tsx`, wherever the "today" check-in count is computed/displayed — **not yet confirmed**, this file wasn't opened to investigate this specific issue this session.
+
+**What's known:** nothing beyond the reported symptom — this has not been investigated at all yet. Open questions for next session:
+- Is the overcount coming from the frontend (e.g. counting entries across multiple family members' data incorrectly, double-counting on refresh/re-render, or a stale-cache issue) or is the backend endpoint itself returning 3 rows for what should be 1 (e.g. a join fanning out, or a per-family-member count being summed incorrectly)?
+- Does "3" correspond to some real but miscategorized data — e.g. 3 total historical check-ins for Madalena being shown instead of "today's," or check-ins from other family members bleeding into Madalena's or the family's "today" count?
+- Confirm against real Supabase data (the relevant check-in table for the family, filtered to today's date and the specific family member) what the true count should be, then trace how the dashboard's displayed number diverges from it.
+
+**Not yet fixed. Not yet root-caused.**
+
+---
+
 # POST-LAUNCH
 *(Explicitly deferred by Jono — record only, no work now.)*
 
 ### P1. Multi-currency / country-adjusted pricing
 Launch is **EUR-only**. AUD figures currently exist in `SUBSCRIPTION_PLANS` (`price_aud` fields, `server.py:44-79`) as leftover/parallel values — leave as-is for now, don't extend or fix them as part of L2/L3. Deferred work for later: real multi-currency support, purchasing-power-adjusted pricing by country, and a public-vs-private-school pricing distinction. For now, affordability cases are handled manually via NGO grants and ad hoc discounts, not through product-level pricing tiers.
+
+### P2. UX/polish backlog — from real-device testing, 2026-08-20
+Record only, no investigation or design done yet. All raised by Jono during real-device testing tonight, alongside A18/A19 above.
+
+- **Creature submission placement** — move the creature-submission entry point inside the existing "My Creatures" button/modal rather than (or in addition to) its own dashboard shortcut icon — the current purple-icon shortcut is overlapping with other dashboard elements on real devices. Revisit the placement decided for the creature-submission-shortcut feature.
+- **Classroom code — copy-to-clipboard.** Add a copy icon next to the classroom join code so teachers/parents don't have to manually retype it.
+- **Missing loading indicator, Family dashboard.** No emoji/spinner loading state shown while the family dashboard's data is fetching — screen likely appears blank or frozen during load.
+- **School contact details not editable.** Neither superadmin nor school_admin currently has a way to edit a school's contact details (address/phone/email or similar) — needs a real UI path, not currently exposed anywhere in app or portal.
+- **Analytics: school-specific stats + colour-over-time graph.** Current analytics are aggregate; want the ability to drill into a single school's stats specifically, plus a graph showing zone-colour trends over time (not just point-in-time counts).
+- **Future idea: "team sharing" PDFs.** Rough concept, not scoped — some way to share PDF reports with a wider team/group rather than one-to-one. Needs real scoping before it's actionable.
 
 ---
 
@@ -397,3 +440,5 @@ Launch is **EUR-only**. AUD figures currently exist in `SUBSCRIPTION_PLANS` (`pr
 18. **A15** — ✅ DONE 2026-08-19 — "most used strategies" raw-UUID display fixed, live-tested against real production check-in data. Same discovery session as A14.
 19. **A16** — ✅ DONE & LIVE-VERIFIED 2026-08-20 — creature submission code now validated before the full flow, not after. Confirmed live against production with both a real generated code and a garbage one.
 20. **A17** — ✅ DONE 2026-08-20 — admin PIN race condition fixed (reads session token fresh instead of racy state), all 4 outcome paths verified against the real backend contract, including re-confirming L1's security fix still holds alongside it.
+21. **A19** — 🔴 OPEN, PRIORITY — found 2026-08-20 real-device testing — admin unlock may be skipping PIN entry entirely for the superadmin demo account. Directly touches A17's fix; must be investigated fresh before trusting A17 is fully closed. Do first next session.
+22. **A18** — 🔴 OPEN — found 2026-08-20 real-device testing — family dashboard "check-ins today" count inflated (showed 3, actual was 1). Not yet investigated.
