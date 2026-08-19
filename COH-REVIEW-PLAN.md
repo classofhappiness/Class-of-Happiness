@@ -435,6 +435,27 @@ All 9 scenarios matched expectations exactly. Diff reviewed and approved before 
 
 ---
 
+# FEATURES BUILT (outside the original review scope)
+
+### F1. Kids' voice recording playback on colour/helper check-in buttons — ✅ DONE 2026-08-19, live-verified
+**Files:** `backend/server.py` (`GET /voice-clips`), `frontend/src/utils/voiceClips.ts` (new), `frontend/src/components/VoiceToggleButton.tsx` (new), `frontend/app/student/zone.tsx`, `frontend/app/student/strategies.tsx`, `frontend/app/settings.tsx`
+
+Real narrated audio (Matilda in English, Mateus in Portuguese) now plays automatically when a student taps a colour on the check-in zone screen or selects a helper strategy. English and Portuguese only — the other 4 app languages silently skip playback since no clips exist for them yet, by design (same "missing key → skip" path used for unfinished Portuguese clips).
+
+**Storage decision:** no new DB table. `GET /voice-clips?language=X` lists the `voice-recordings` Supabase Storage bucket directly and returns `{clip_key: url}` for whatever's actually uploaded — replacing or adding a clip is the only step ever needed; nothing else can drift out of sync with it (the kind of dual-source-of-truth drift this review repeatedly found elsewhere, e.g. A7, A9).
+
+**Bucket reorganization:** the bucket Jono had already created (`voice-recordings`, not `voice-clips` as first proposed — caught and corrected before building) held 50 real `.m4a` files flat at the root, human-named (`Blue_emotions.m4a`, `Ajudar_um_amigo.m4a`, etc.), not organized by language or matching the 28 canonical `clip_key` IDs (4 colours + 24 helpers, from `DEFAULT_HELPERS`). Listed the full inventory live, mapped every file to its canonical key by content (2 ambiguous matches — `Drink_water.m4a`→`blue_2`, `Continua_assim.m4a`→`green_1` — confirmed with Jono before moving anything), and moved all 35 real clips into `{language}/{clip_key}.m4a` via the Storage move API. Fixed two filename hazards in the process: a literal `&` in `Squeeze_&_release.m4a` and a trailing space in `Emocoes_Vermelhas .m4a` — both gone once renamed to plain `clip_key` names. Left 15 non-matching clips (greeting/praise/closing lines — `Well_done`, `See_you_tomorrow`, `Como_te_sentes_hoje`, etc.) untouched at the bucket root; Jono confirmed these are for a future phase (check-in start/completion screens), not this build.
+
+**Coverage after reorganization:** English 27/28 (missing only the `green` colour clip). Portuguese 8/28 (4 colours + 4 of 6 green-zone helpers; all blue/yellow/red helper clips still pending from Mateus) — matches what Jono described going in.
+
+**Playback + mute:** `voiceClips.ts` mirrors the existing (but previously unused/unwired) `sounds.ts` pattern. One persisted setting (`AsyncStorage`, device-local — not synced to the account, since check-in devices are often shared classroom tablets) with two entry points: a Settings toggle and a quick per-screen mute button on both check-in screens, rather than two states that could drift apart. Helper audio fires only when a card is *selected*, not deselected. Both of the app's two different strategy-ID schemes (`blue_1` from the real backend data, `b1` from the frontend's hardcoded emergency fallback) are normalized to the same clip key at lookup time, so playback doesn't silently break depending on which source a strategy card came from.
+
+**Verified:** `python3 -m py_compile` and `tsc --noEmit` clean on every touched/new file (zero errors, not even pre-existing ones). All 35 reorganized Storage files confirmed publicly fetchable (200, correct `audio/x-m4a` content-type) via direct HTTP checks before and after deploy. Live-tested `GET /voice-clips` against production for both languages post-deploy: English returns exactly 27 keys, Portuguese exactly 8, an unsupported language (`es`) returns `{}` cleanly. **Not audio-tested in a running app** — no simulator/device available in this environment, so playback itself (does it actually sound right, timing, volume) hasn't been confirmed — only that the URLs, manifest, and code are correct. Committed and pushed (`c5ba4cc`).
+
+**Not built yet, explicitly out of scope for this pass:** the 15 future-phase greeting/praise clips (F1 follow-up, whenever those screens get their own audio treatment); backend translation-dict entries for the new `t('voice')`/`t('voice_narration')`/`t('voice_narration_desc')` keys (currently rely on the English fallback string, same as many other keys in this app — not a functional gap, just unpolished for non-English Settings screens).
+
+---
+
 # POST-LAUNCH
 *(Explicitly deferred by Jono — record only, no work now.)*
 
