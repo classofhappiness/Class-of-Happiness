@@ -1625,7 +1625,7 @@ TRANSLATED_HELPERS = {
 DEFAULT_HELPERS = {
     "blue": [
         {"id": "blue_1", "name": "Gentle Stretch", "description": "Slowly stretch your arms and legs", "icon": "accessibility", "feeling_colour": "blue"},
-        {"id": "blue_2", "name": "Warm Drink", "description": "Have a warm drink of water", "icon": "local-cafe", "feeling_colour": "blue"},
+        {"id": "blue_2", "name": "Drink Water", "description": "Have a warm drink of water", "icon": "local-cafe", "feeling_colour": "blue"},
         {"id": "blue_3", "name": "Favourite Song", "description": "Listen to your favourite song", "icon": "music-note", "feeling_colour": "blue"},
         {"id": "blue_4", "name": "Cosy Spot", "description": "Find a comfortable, cosy spot", "icon": "weekend", "feeling_colour": "blue"},
         {"id": "blue_5", "name": "Tell Someone", "description": "Tell a trusted person how you feel", "icon": "chat", "feeling_colour": "blue"},
@@ -3832,12 +3832,12 @@ async def toggle_strategy_sync(strategy_id: str, request: Request):
 # Full strategy name map (mirrors frontend STRATEGY_NAME_MAP)
 STRATEGY_NAME_MAP = {
     # Short IDs b/g/y/r + number
-    "b1": "Gentle Stretch", "b2": "Warm Drink", "b3": "Favourite Song", "b4": "Cosy Spot", "b5": "Tell Someone", "b6": "Slow Breathing",
+    "b1": "Gentle Stretch", "b2": "Drink Water", "b3": "Favourite Song", "b4": "Cosy Spot", "b5": "Tell Someone", "b6": "Slow Breathing",
     "g1": "Keep Going!", "g2": "Help a Friend", "g3": "Try Something New", "g4": "Share Your Smile", "g5": "Set a Goal", "g6": "Gratitude",
     "y1": "Bubble Breathing", "y2": "Body Shake", "y3": "Count to 10", "y4": "5 Senses", "y5": "Squeeze & Release", "y6": "Talk About It",
     "r1": "Freeze", "r2": "Big Breaths", "r3": "Count Backwards", "r4": "Safe Space", "r5": "Ask for Help", "r6": "Self Hug",
     # Underscore variants (blue_N format)
-    "blue_1": "Gentle Stretch", "blue_2": "Warm Drink", "blue_3": "Favourite Song", "blue_4": "Cosy Spot", "blue_5": "Tell Someone", "blue_6": "Slow Breathing",
+    "blue_1": "Gentle Stretch", "blue_2": "Drink Water", "blue_3": "Favourite Song", "blue_4": "Cosy Spot", "blue_5": "Tell Someone", "blue_6": "Slow Breathing",
     "green_1": "Keep Going!", "green_2": "Help a Friend", "green_3": "Try Something New", "green_4": "Share Your Smile", "green_5": "Set a Goal", "green_6": "Gratitude",
     "yellow_1": "Bubble Breathing", "yellow_2": "Body Shake", "yellow_3": "Count to 10", "yellow_4": "5 Senses", "yellow_5": "Squeeze & Release", "yellow_6": "Talk About It",
     "red_1": "Freeze", "red_2": "Big Breaths", "red_3": "Count Backwards", "red_4": "Safe Space", "red_5": "Ask for Help", "red_6": "Self Hug",
@@ -3852,7 +3852,7 @@ STRATEGY_NAME_MAP = {
     "tell_someone": "Tell Someone", "gentle_stretch": "Gentle Stretch", "gratitude": "Gratitude",
     "help_friend": "Help a Friend", "keep_going": "Keep Going", "set_goal": "Set a Goal",
     "ask_for_help": "Ask for Help", "self_hug": "Self Hug", "big_breaths": "Big Breaths",
-    "cosy_spot": "Cosy Spot", "warm_drink": "Warm Drink", "favourite_song": "Favourite Song",
+    "cosy_spot": "Cosy Spot", "warm_drink": "Drink Water", "favourite_song": "Favourite Song",
     "squeeze_release": "Squeeze & Release", "5_senses": "5 Senses", "count_backwards": "Count Backwards",
 }
 
@@ -5096,7 +5096,7 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     except: pass
 
     STRATEGY_NAMES_LOCAL = {
-        "blue_1": "Gentle Stretch", "blue_2": "Warm Drink", "blue_3": "Favourite Song",
+        "blue_1": "Gentle Stretch", "blue_2": "Drink Water", "blue_3": "Favourite Song",
         "blue_4": "Cosy Spot", "blue_5": "Tell Someone", "blue_6": "Slow Breathing",
         "green_1": "Gratitude", "green_2": "Help a Friend", "green_3": "Set a Goal",
         "green_4": "Keep Going", "green_5": "Celebrate", "green_6": "Share Joy",
@@ -6372,11 +6372,11 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
     students_by_id = {s["id"]: s for s in (students_result.data or [])}
 
     STRAT_NAMES_LOCAL = {
-        "blue_1":"Gentle Stretch","blue_2":"Warm Drink","blue_3":"Favourite Song","blue_4":"Cosy Spot","blue_5":"Tell Someone","blue_6":"Slow Breathing",
+        "blue_1":"Gentle Stretch","blue_2":"Drink Water","blue_3":"Favourite Song","blue_4":"Cosy Spot","blue_5":"Tell Someone","blue_6":"Slow Breathing",
         "green_1":"Keep Going!","green_2":"Help a Friend","green_3":"Try Something New","green_4":"Share Your Smile","green_5":"Set a Goal","green_6":"Gratitude",
         "yellow_1":"Bubble Breathing","yellow_2":"Body Shake","yellow_3":"Count to 10","yellow_4":"5 Senses","yellow_5":"Squeeze & Release","yellow_6":"Talk About It",
         "red_1":"Freeze","red_2":"Big Breaths","red_3":"Count Backwards","red_4":"Safe Space","red_5":"Ask for Help","red_6":"Self Hug",
-        "b1":"Gentle Stretch","b2":"Warm Drink","b3":"Favourite Song","b4":"Cosy Spot","b5":"Tell Someone","b6":"Slow Breathing",
+        "b1":"Gentle Stretch","b2":"Drink Water","b3":"Favourite Song","b4":"Cosy Spot","b5":"Tell Someone","b6":"Slow Breathing",
         "g1":"Keep Going!","g2":"Help a Friend","g3":"Try Something New","g4":"Share Your Smile","g5":"Set a Goal","g6":"Gratitude",
         "y1":"Bubble Breathing","y2":"Body Shake","y3":"Count to 10","y4":"5 Senses","y5":"Squeeze & Release","y6":"Talk About It",
         "r1":"Freeze","r2":"Big Breaths","r3":"Count Backwards","r4":"Safe Space","r5":"Ask for Help","r6":"Self Hug",

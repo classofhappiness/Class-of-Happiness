@@ -66,7 +66,7 @@ const STRATEGY_NAMES: Record<string, string> = {
   // this was previously ONLY covered by the now-removed STRATEGY_NAMES_LOCAL, a genuine gap
   // introduced when that dict was deleted (only checked for short-code b1/g1 collisions, missed
   // that THIS longer format wasn't duplicated anywhere else at all).
-  blue_1:'Gentle Stretch', blue_2:'Warm Drink', blue_3:'Favourite Song', blue_4:'Cosy Spot', blue_5:'Tell Someone', blue_6:'Slow Breathing',
+  blue_1:'Gentle Stretch', blue_2:'Drink Water', blue_3:'Favourite Song', blue_4:'Cosy Spot', blue_5:'Tell Someone', blue_6:'Slow Breathing',
   green_1:'Keep Going!', green_2:'Help a Friend', green_3:'Try Something New', green_4:'Share Your Smile', green_5:'Set a Goal', green_6:'Gratitude',
   yellow_1:'Bubble Breathing', yellow_2:'Body Shake', yellow_3:'Count to 10', yellow_4:'5 Senses', yellow_5:'Squeeze & Release', yellow_6:'Talk About It',
   red_1:'Freeze', red_2:'Big Breaths', red_3:'Count Backwards', red_4:'Safe Space', red_5:'Ask for Help', red_6:'Self Hug',

@@ -31,7 +31,7 @@ const STRATEGY_ICONS = [
 
 // Full strategy name map — current backend IDs (blue_1 format) + legacy short IDs
 const STRATEGY_NAMES: Record<string, string> = {
-  blue_1:'Gentle Stretch',   blue_2:'Warm Drink',         blue_3:'Favourite Song',
+  blue_1:'Gentle Stretch',   blue_2:'Drink Water',        blue_3:'Favourite Song',
   blue_4:'Cosy Spot',        blue_5:'Tell Someone',        blue_6:'Slow Breathing',
   green_1:'Keep Going!',     green_2:'Help a Friend',      green_3:'Try Something New',
   green_4:'Share Your Smile',green_5:'Set a Goal',         green_6:'Gratitude',
