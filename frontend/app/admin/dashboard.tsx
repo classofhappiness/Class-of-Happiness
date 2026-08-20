@@ -1175,6 +1175,8 @@ export default function AdminDashboard() {
             value={adminCode}
             onChangeText={setAdminCode}
             secureTextEntry
+            autoCapitalize="characters"
+            autoCorrect={false}
             maxLength={20}
             placeholderTextColor="#CCC"
             returnKeyType="done"
