@@ -235,6 +235,7 @@ export default function SettingsScreen() {
       if (res.ok) {
         Alert.alert('Welcome! 🎉', data.message || 'You have joined your school!');
         setSchoolInviteCode('');
+        await checkAuth();
       } else {
         Alert.alert('Error', data.detail || 'Invalid invite code');
       }
