@@ -8474,19 +8474,41 @@ def generate_invite_code(prefix="SCH"):
 
 @api_router.post("/school/generate-invite-code")
 async def generate_school_invite_code(request: Request):
-    """School admin generates an invite code for their teachers"""
+    """School admin generates an invite code for their teachers. Real fix Aug 20: the portal's
+    superadmin Schools panel (saGenerateInviteCode) has always passed a target school_id in the
+    body, but this endpoint silently ignored it and always used the CALLER's own user_id/
+    school_name - meaning a superadmin generating "a code for Sunshine" from that panel was
+    actually generating a code tied to their own superadmin account, not Sunshine. Any teacher
+    who redeemed it would have been incorrectly linked to superadmin as their school_admin.
+    Doesn't affect a school_admin generating their own code for themselves (the real, working,
+    already-tested path) - user_id/school_name there were always the caller's own regardless."""
     user = await get_current_user(request)
     if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
-    
+
+    target_admin_id = user["user_id"]
+    target_school_name = user.get("school_name", "My School")
+    if user.get("role") == "superadmin":
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        requested_admin_id = body.get("school_admin_id")
+        if requested_admin_id:
+            target_r = supabase.table("users").select("user_id,school_name").eq("user_id", requested_admin_id).eq("role", "school_admin").execute()
+            if not target_r.data:
+                raise HTTPException(status_code=404, detail="No school_admin account found with that user_id")
+            target_admin_id = target_r.data[0]["user_id"]
+            target_school_name = target_r.data[0].get("school_name") or "My School"
+
     code = generate_invite_code("SCH")
     expires_at = (datetime.now(timezone.utc) + timedelta(days=90)).isoformat()
-    
+
     invite_data = {
         "id": str(uuid.uuid4()),
         "code": code,
-        "school_admin_id": user["user_id"],
-        "school_name": user.get("school_name", "My School"),
+        "school_admin_id": target_admin_id,
+        "school_name": target_school_name,
         "type": "school",
         "expires_at": expires_at,
         "uses": 0,
