@@ -8542,11 +8542,20 @@ async def join_school_with_invite(request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Must be logged in")
+    # Real fix Aug 20: school invite codes are only meant for teachers joining a school -
+    # this endpoint had no role check at all, so any authenticated user (e.g. a parent who
+    # got hold of a code) could set their own school_admin_id/school_name. That silently
+    # made them show up in the school's teacher roster (server.py ~8416, filtered by
+    # school_admin_id with no role check) and unlocked school-plan free-tier benefits
+    # (is_school_covered, server.py ~2583). Parents get school access via parent_links
+    # (linking to their own child), a completely separate mechanism - they never need this.
+    if user.get("role") != "teacher":
+        raise HTTPException(status_code=403, detail="Only teacher accounts can join a school with an invite code.")
     body = await request.json()
     code = (body.get("code") or "").strip().upper()
     if not code:
         raise HTTPException(status_code=400, detail="Invite code required")
-    
+
     try:
         result = supabase.table("invite_codes").select("*").eq("code", code).execute()
         # Fallback: check admin_settings if invite_codes table is empty/missing
