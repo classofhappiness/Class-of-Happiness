@@ -1,5 +1,5 @@
 import React, { useState, useLayoutEffect, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput, Switch, Platform, Linking } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput, Switch, Platform, Linking, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as AuthSession from 'expo-auth-session';
@@ -59,6 +59,43 @@ export default function SettingsScreen() {
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deletingAccount, setDeletingAccount] = useState(false);
+
+  // Real feature Aug 21: teacher-consent for school_admin to see individual wellbeing
+  // check-ins — default-off, explicit opt-in, revocable any time. Mirrors the parent<->
+  // teacher home-sharing toggle pattern.
+  const [wellbeingShared, setWellbeingShared] = useState(false);
+  const [wellbeingSharedLoading, setWellbeingSharedLoading] = useState(false);
+  useEffect(() => {
+    if (user?.role !== 'teacher') return;
+    (async () => {
+      try {
+        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        const token = await AsyncStorage.getItem('session_token');
+        const res = await fetch(`${BACKEND_URL}/api/teacher/wellbeing-sharing-status`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (res.ok) { const data = await res.json(); setWellbeingShared(!!data.shared); }
+      } catch {}
+    })();
+  }, [user?.role]);
+  const handleWellbeingSharingToggle = async () => {
+    setWellbeingSharedLoading(true);
+    try {
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const token = await AsyncStorage.getItem('session_token');
+      const res = await fetch(`${BACKEND_URL}/api/teacher/toggle-wellbeing-sharing`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) { setWellbeingShared(!!data.shared); }
+      else { Alert.alert(t('error') || 'Error', data.detail || 'Could not update sharing status.'); }
+    } catch {
+      Alert.alert(t('error') || 'Error', 'Could not update sharing status. Please try again.');
+    } finally {
+      setWellbeingSharedLoading(false);
+    }
+  };
 
   const [deleteGoogleRequest, deleteGoogleResponse, promptDeleteGoogleAsync] = AuthSession.useAuthRequest(
     {
@@ -686,6 +723,32 @@ export default function SettingsScreen() {
                   {joiningSchool ? (t('joining') || 'Joining...') : (t('join_school_btn') || '🏫 Join School')}
                 </Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Real feature Aug 21: teacher wellbeing-sharing consent - only shown once actually
+            linked to a school (matches "Join Your School" above being gated the same way).
+            Default off, explicit opt-in, revocable any time. */}
+        {isAuthenticated && user?.role === 'teacher' && !!(user as any)?.school_name && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <MaterialIcons name="favorite-border" size={20} color="#5C6BC0" />
+              <Text style={styles.sectionTitle}>Share My Wellbeing</Text>
+            </View>
+            <View style={styles.settingItem}>
+              <View style={[styles.settingLeft, { flex: 1 }]}>
+                <View style={[styles.settingText, { flex: 1 }]}>
+                  <Text style={styles.settingLabel}>Share with my school admin</Text>
+                  <Text style={styles.settingValue}>
+                    When on, your school admin can see your individual wellbeing check-ins. Off by default — you can turn this on or off any time.
+                  </Text>
+                </View>
+              </View>
+              {wellbeingSharedLoading
+                ? <ActivityIndicator size="small" color="#5C6BC0" />
+                : <Switch value={wellbeingShared} onValueChange={handleWellbeingSharingToggle} trackColor={{ false: '#ddd', true: '#81C784' }} thumbColor={wellbeingShared ? '#4CAF50' : '#999'} />
+              }
             </View>
           </View>
         )}

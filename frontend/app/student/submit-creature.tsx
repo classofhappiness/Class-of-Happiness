@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Image,
   TextInput, ScrollView, Alert, ActivityIndicator
@@ -37,7 +37,7 @@ const TIPS = [
 
 export default function SubmitCreatureScreen() {
   const router = useRouter();
-  const { t } = useApp();
+  const { t, user } = useApp();
   const [step, setStep] = useState<'tutorial'|'code'|'details'|'photos'|'review'>('tutorial');
   const [code, setCode] = useState('');
   const [checkingCode, setCheckingCode] = useState(false);
@@ -46,6 +46,36 @@ export default function SubmitCreatureScreen() {
   const [emotion, setEmotion] = useState('');
   const [photos, setPhotos] = useState<(string|null)[]>([null,null,null,null]);
   const [uploading, setUploading] = useState(false);
+
+  // Real feature Aug 21: "which student is this?" picker - previously this screen never
+  // asked, so every submission was attributed to whichever account was logged in (teacher
+  // or parent), never a real student. Optional - if nothing resolves (e.g. a home-only
+  // family member with no school link), submission still works, just without classroom
+  // info attached. Teacher -> their own students; parent -> their linked children.
+  const [pickableStudents, setPickableStudents] = useState<{ id: string; name: string; realStudentId: string | null }[]>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        const token = await AsyncStorage.getItem('session_token');
+        if (user?.role === 'teacher') {
+          const res = await fetch(`${BACKEND_URL}/api/students`, { headers: { 'Authorization': `Bearer ${token}` } });
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : [];
+          setPickableStudents(list.map((s: any) => ({ id: s.id, name: s.name, realStudentId: s.id })));
+        } else if (user?.role === 'parent') {
+          const res = await fetch(`${BACKEND_URL}/api/family/members`, { headers: { 'Authorization': `Bearer ${token}` } });
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : [];
+          setPickableStudents(
+            list.filter((m: any) => m.relationship === 'child')
+              .map((m: any) => ({ id: m.id, name: m.name, realStudentId: m.student_id || null }))
+          );
+        }
+      } catch {}
+    })();
+  }, [user?.role]);
 
   const pickOrCamera = async (index: number, source: 'camera'|'library') => {
     const perm = source === 'camera'
@@ -124,6 +154,7 @@ export default function SubmitCreatureScreen() {
           description: description.trim(),
           stage1_url: urls[0], stage2_url: urls[1],
           stage3_url: urls[2], stage4_url: urls[3],
+          ...(selectedStudentId ? { real_student_id: pickableStudents.find(p => p.id === selectedStudentId)?.realStudentId || undefined } : {}),
         }),
       });
       const data = await res.json();
@@ -191,6 +222,20 @@ export default function SubmitCreatureScreen() {
       <Text style={s.label}>Description (optional)</Text>
       <TextInput style={[s.input, { height: 80 }]} value={description}
         onChangeText={setDescription} placeholder="Tell us about your creature..." maxLength={200} multiline />
+      {pickableStudents.length > 0 && (
+        <>
+          <Text style={s.label}>Who made this? (optional)</Text>
+          <View style={s.emotionRow}>
+            {pickableStudents.map(p => (
+              <TouchableOpacity key={p.id}
+                style={[s.emotionBtn, { backgroundColor: selectedStudentId === p.id ? '#5C6BC0' : '#EEE' }]}
+                onPress={() => setSelectedStudentId(selectedStudentId === p.id ? null : p.id)}>
+                <Text style={[s.emotionLabel, { color: selectedStudentId === p.id ? 'white' : '#333' }]}>{p.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </>
+      )}
       <TouchableOpacity style={[s.btn, (!emotion || !name) && s.btnOff]}
         disabled={!emotion || !name} onPress={() => setStep('photos')}>
         <Text style={s.btnTxt}>Next: Add photos →</Text>

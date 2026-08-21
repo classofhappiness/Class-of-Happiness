@@ -2768,7 +2768,16 @@ async def create_zone_log(log: FeelingLogCreate, request: Request):
     return await create_feeling_log(log, request)
 
 @api_router.get("/feeling-logs/{student_id}")
-async def get_feeling_logs(student_id: str, days: int = 7):
+async def get_feeling_logs(student_id: str, request: Request, days: int = 7):
+    # Real fix Aug 21: this and its two aliases below (zone-logs/{id}, zone-logs/student/{id})
+    # had NO authentication or authorization at all - anyone who knew or guessed a student_id
+    # got that child's raw check-in log, no login required. Same shared ownership check now
+    # used by /analytics/student/{id}, including the new school_admin case.
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized to view this student's logs")
     start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     result = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
     logs = result.data or []
@@ -2780,13 +2789,13 @@ async def get_feeling_logs(student_id: str, days: int = 7):
 
 # Keep old endpoint name for frontend compatibility
 @api_router.get("/zone-logs/{student_id}")
-async def get_zone_logs(student_id: str, days: int = 7):
-    return await get_feeling_logs(student_id, days)
+async def get_zone_logs(student_id: str, request: Request, days: int = 7):
+    return await get_feeling_logs(student_id, request, days)
 
 # Frontend compatibility route
 @api_router.get("/zone-logs/student/{student_id}")
-async def get_zone_logs_by_student(student_id: str, days: int = 7):
-    return await get_feeling_logs(student_id, days)
+async def get_zone_logs_by_student(student_id: str, request: Request, days: int = 7):
+    return await get_feeling_logs(student_id, request, days)
 
 @api_router.get("/zone-logs")
 async def get_zone_logs_all(
@@ -3248,35 +3257,10 @@ async def get_student_analytics(student_id: str, request: Request, days: int = 3
         raise HTTPException(status_code=404, detail="Student not found")
     student_data = student.data[0]
 
-    is_authorized = False
-    if user.get("role") == "superadmin":
-        is_authorized = True
-    elif student_data.get("user_id") == user["user_id"]:
-        is_authorized = True
-    elif student_data.get("classroom_id"):
-        try:
-            cls = supabase.table("classrooms").select("user_id").eq("id", student_data["classroom_id"]).execute()
-            if cls.data and cls.data[0].get("user_id") == user["user_id"]:
-                is_authorized = True
-        except Exception:
-            pass
-    if not is_authorized:
-        try:
-            pl = supabase.table("parent_links").select("id,expires_at").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
-            for l in (pl.data or []):
-                if not l.get("expires_at") or datetime.fromisoformat(l["expires_at"].replace("Z", "+00:00")) > datetime.now(timezone.utc):
-                    is_authorized = True
-                    break
-        except Exception:
-            pass
-    if not is_authorized:
-        try:
-            fm = supabase.table("family_members").select("id").eq("user_id", user["user_id"]).eq("student_id", student_id).execute()
-            if fm.data:
-                is_authorized = True
-        except Exception:
-            pass
-    if not is_authorized:
+    # Real feature Aug 21: this inline check is now the shared _is_authorized_for_student
+    # helper (also used by /feeling-logs and /reports/available-months below), which adds
+    # school_admin as a real authorized role for their own school's students.
+    if not await _is_authorized_for_student(user, student_id, student_data):
         raise HTTPException(status_code=403, detail="Not authorized to view this student's analytics")
 
     start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
@@ -3615,6 +3599,60 @@ async def delete_family_member(member_id: str, request: Request):
     supabase.table("family_members").delete().eq("id", member_id).execute()
     return {"message": "Member deleted"}
 
+async def _is_authorized_for_student(user: dict, student_id: str, student_data: dict = None) -> bool:
+    """Shared authorization check for viewing an individual student's data (analytics, zone
+    logs, available months). Real feature Aug 21: adds school_admin as a real authorized
+    role for their own school's students - mirrors the dual-match (school_admin_id OR
+    school_name) pattern used everywhere else for resolving "this school_admin's teachers".
+    Reuses an already-fetched student_data row if the caller has one, to skip a duplicate
+    query."""
+    if student_data is None:
+        student_r = supabase.table("students").select("*").eq("id", student_id).execute()
+        if not student_r.data:
+            return False
+        student_data = student_r.data[0]
+    if user.get("role") == "superadmin":
+        return True
+    if student_data.get("user_id") == user["user_id"]:
+        return True
+    classroom_id = student_data.get("classroom_id")
+    classroom_owner_id = None
+    if classroom_id:
+        try:
+            cls = supabase.table("classrooms").select("user_id").eq("id", classroom_id).execute()
+            if cls.data:
+                classroom_owner_id = cls.data[0].get("user_id")
+        except Exception:
+            pass
+        if classroom_owner_id and classroom_owner_id == user["user_id"]:
+            return True
+    if user.get("role") == "school_admin" and classroom_owner_id:
+        try:
+            owner_r = supabase.table("users").select("school_admin_id,school_name").eq("user_id", classroom_owner_id).execute()
+            if owner_r.data:
+                owner = owner_r.data[0]
+                if owner.get("school_admin_id") == user["user_id"]:
+                    return True
+                school_name = user.get("school_name", "")
+                if school_name and owner.get("school_name") == school_name:
+                    return True
+        except Exception:
+            pass
+    try:
+        pl = supabase.table("parent_links").select("id,expires_at").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
+        for l in (pl.data or []):
+            if not l.get("expires_at") or datetime.fromisoformat(l["expires_at"].replace("Z", "+00:00")) > datetime.now(timezone.utc):
+                return True
+    except Exception:
+        pass
+    try:
+        fm = supabase.table("family_members").select("id").eq("user_id", user["user_id"]).eq("student_id", student_id).execute()
+        if fm.data:
+            return True
+    except Exception:
+        pass
+    return False
+
 def _admin_is_active(admin_id: str) -> bool:
     """True if this school_admin user_id has an ACTIVE paid plan. Shared by
     _parent_is_school_covered and _teacher_is_school_covered — extracted Aug 19
@@ -3623,6 +3661,25 @@ def _admin_is_active(admin_id: str) -> bool:
         return False
     r = supabase.table("users").select("subscription_status").eq("user_id", admin_id).execute()
     return bool(r.data) and r.data[0].get("subscription_status") == "active"
+
+def _school_admin_can_view_teacher_wellbeing(admin_user: dict, target_teacher: dict) -> bool:
+    """Real feature Aug 21: teacher-consent mechanism for individual wellbeing visibility -
+    previously there was NO path at all for a school_admin to see a specific teacher's
+    wellbeing, not even opt-in. Default-off, explicit opt-in, revocable at any time - mirrors
+    the parent<->teacher home_sharing_enabled pattern, just at the teacher-account level
+    since there's no separate link table here (the relationship already exists via
+    school_admin_id/school_name). Requires the new teacher_wellbeing_shared_with_admin
+    column (see COH-REVIEW-PLAN.md for the migration) - defensively returns False if that
+    column doesn't exist yet rather than erroring."""
+    if not target_teacher.get("teacher_wellbeing_shared_with_admin"):
+        return False
+    admin_id = admin_user.get("user_id")
+    if target_teacher.get("school_admin_id") == admin_id:
+        return True
+    school_name = admin_user.get("school_name")
+    if school_name and target_teacher.get("school_name") == school_name:
+        return True
+    return False
 
 def _teacher_is_school_covered(user: dict) -> bool:
     """True if this teacher's own school (via school_admin_id, with the same school_name
@@ -4016,7 +4073,15 @@ def resolve_strategy_name(sid: str, lang: str = "en") -> str:
     return sid_clean.replace("_", " ").title()
 
 @api_router.get("/reports/available-months/{student_id}")
-async def get_available_months(student_id: str):
+async def get_available_months(student_id: str, request: Request):
+    # Real fix Aug 21: had NO authentication or authorization at all - which months a
+    # student has check-ins for is minor on its own, but it's still real per-student data
+    # with zero access control. Same shared ownership check as /analytics/student/{id}.
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized to view this student's reports")
     logs = supabase.table("feeling_logs").select("timestamp").eq("student_id", student_id).execute()
     months = set()
     for log in (logs.data or []):
@@ -5144,11 +5209,6 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    # Real authorization gap fixed: this only checked that SOMEONE was logged in, never that the
-    # logged-in user actually owns the user_id in the URL — meaning any authenticated account
-    # could view any other teacher's wellbeing PDF just by changing the URL parameter.
-    if user_id != user["user_id"] and user.get("role") != "superadmin":
-        raise HTTPException(status_code=403, detail="Not authorized to view this report")
 
     # Fetch teacher info
     teacher_r = supabase.table("users").select("*").eq("user_id", user_id).execute()
@@ -5158,6 +5218,14 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     teacher_name = teacher.get("name") or ""
     teacher_email = teacher.get("email", "")
     display_name = teacher_name or teacher_email.split("@")[0].replace(".", " ").title()
+
+    # Real authorization gap fixed: this only checked that SOMEONE was logged in, never that
+    # the logged-in user actually owns the user_id in the URL. Real feature Aug 21: also
+    # allows a school_admin, but ONLY if the teacher has explicitly opted in via
+    # teacher_wellbeing_shared_with_admin - see _school_admin_can_view_teacher_wellbeing.
+    if (user_id != user["user_id"] and user.get("role") != "superadmin"
+            and not (user.get("role") == "school_admin" and _school_admin_can_view_teacher_wellbeing(user, teacher))):
+        raise HTTPException(status_code=403, detail="Not authorized to view this report")
 
     # Real fix Aug 21: this used to gate on a COUNT (1 free PDF/month, for ANY month), and only
     # checked the teacher's own subscription_status - never school coverage. That's a different
@@ -5509,6 +5577,67 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     return StreamingResponse(buffer, media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"})
 
+
+# Real feature Aug 21: teacher-consent mechanism for wellbeing visibility. Default-off,
+# explicit opt-in, revocable any time - same shape as the parent<->teacher home-sharing
+# toggle. Requires the new teacher_wellbeing_shared_with_admin column (migration in
+# COH-REVIEW-PLAN.md) - both endpoints below fail gracefully (rather than 500) if it
+# doesn't exist yet, so nothing breaks in the meantime.
+@api_router.get("/teacher/wellbeing-sharing-status")
+async def get_teacher_wellbeing_sharing_status(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "teacher":
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    try:
+        r = supabase.table("users").select("teacher_wellbeing_shared_with_admin").eq("user_id", user["user_id"]).execute()
+        shared = bool(r.data and r.data[0].get("teacher_wellbeing_shared_with_admin"))
+    except Exception:
+        shared = False
+    return {"shared": shared}
+
+@api_router.put("/teacher/toggle-wellbeing-sharing")
+async def toggle_teacher_wellbeing_sharing(request: Request):
+    """Teacher toggles whether their school_admin can see their individual wellbeing
+    check-ins. Mirrors PUT /parent/linked-child/{id}/toggle-home-sharing exactly."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "teacher":
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    try:
+        r = supabase.table("users").select("teacher_wellbeing_shared_with_admin").eq("user_id", user["user_id"]).execute()
+        current = bool(r.data and r.data[0].get("teacher_wellbeing_shared_with_admin"))
+        new_value = not current
+        supabase.table("users").update({"teacher_wellbeing_shared_with_admin": new_value}).eq("user_id", user["user_id"]).execute()
+        return {"shared": new_value}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Could not update sharing status. This feature may not be available yet.")
+
+@api_router.get("/school-admin/teacher-wellbeing/{user_id}")
+async def get_school_admin_teacher_wellbeing(user_id: str, request: Request, days: int = 30):
+    """Real feature Aug 21: in-portal JSON view of one consenting teacher's wellbeing stats
+    (aggregate zone counts, not raw entries), for school_admin to browse without needing to
+    download a PDF each time. Gated by the same consent check as the PDF endpoint."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin", "admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    teacher_r = supabase.table("users").select("*").eq("user_id", user_id).eq("role", "teacher").execute()
+    if not teacher_r.data:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+    teacher = teacher_r.data[0]
+    if user.get("role") != "superadmin" and not _school_admin_can_view_teacher_wellbeing(user, teacher):
+        raise HTTPException(status_code=403, detail="This teacher hasn't shared their wellbeing check-ins")
+    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    logs = supabase.table("teacher_checkins").select("*").eq("user_id", user_id).gte("created_at", start_date).execute().data or []
+    zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+    for log in logs:
+        z = log.get("zone") or log.get("feeling_colour", "")
+        if z in zone_counts:
+            zone_counts[z] += 1
+    return {
+        "teacher_name": teacher.get("name", ""),
+        "total_checkins": len(logs),
+        "zone_counts": zone_counts,
+        "period_days": days,
+    }
 
 
 @api_router.post("/user/update-name")
@@ -6862,7 +6991,30 @@ async def submit_creature(request: Request):
         "submission_code": code,
         "status": "pending",
     }
-    result = supabase.table("creature_submissions").insert(submission).execute()
+    # Real fix Aug 21: "student_id" above has always actually been the SUBMITTING ACCOUNT's
+    # own user_id (teacher or parent), never a real students.id - confirmed live, e.g. a
+    # real "approved" row's student_id resolves to a users row with role=teacher, not any
+    # students row at all. So there was never a reliable way to show which actual child made
+    # a creature, or their classroom. real_student_id/classroom_id are a genuine new capture,
+    # populated only when the submission screen's new student-picker step resolves one (a
+    # school-linked family member or a teacher's own student both resolve to a real
+    # students.id; a home-only family member has no classroom, only a name).
+    # Requires a migration this environment can't run (no DDL access) - see COH-REVIEW-PLAN.md.
+    # Old submissions are NOT backfilled, by design - defensive fallback below means the
+    # feature just silently doesn't capture this until the migration runs, without breaking
+    # submission for anyone in the meantime.
+    real_student_id = body.get("real_student_id")
+    classroom_id = body.get("classroom_id")
+    if real_student_id:
+        try:
+            result = supabase.table("creature_submissions").insert({
+                **submission, "real_student_id": real_student_id, "classroom_id": classroom_id
+            }).execute()
+        except Exception as e:
+            logger.warning(f"[creatures/submit] real_student_id/classroom_id columns not available yet, falling back: {e}")
+            result = supabase.table("creature_submissions").insert(submission).execute()
+    else:
+        result = supabase.table("creature_submissions").insert(submission).execute()
     # Increment code usage
     supabase.table("submission_codes").update({"used_count": c["used_count"]+1}).eq("code", code).execute()
     return {"status": "submitted", "id": result.data[0]["id"], "message": "Your creature is under review!"}
@@ -6932,14 +7084,69 @@ async def cancel_creature(submission_id: str, request: Request):
 
 @api_router.get("/creatures/global")
 async def get_global_creatures(request: Request):
-    """Global feed of approved creatures — visible to all authenticated users."""
+    """Global feed of approved creatures — visible to all authenticated users. Real fix
+    Aug 21: system-wide, not scoped to any one school (no school filter on this query) - so
+    school_admin's "Approved Creatures" card and any superadmin view of the same data are
+    already looking at the exact same list, not separate school-scoped/global versions."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    rows = supabase.table("creature_submissions").select(
-        "id,creature_name,emotion_colour,student_name,school_name,country,year_group,stage1_url,global_uses,approved_at"
-    ).eq("status","approved").eq("is_globally_available",True)        .order("global_uses", desc=True).limit(50).execute()
-    return rows.data or []
+    base_fields = ("id,creature_name,emotion_colour,student_name,school_name,country,year_group,"
+                   "stage1_url,stage2_url,stage3_url,stage4_url,global_uses,approved_at")
+    # Real feature Aug 21: real_student_id/classroom_id are new columns (see /creatures/submit)
+    # that may not exist yet if the migration hasn't run - try the enriched select first, fall
+    # back to the base one so this endpoint never breaks for anyone in the meantime.
+    try:
+        rows = supabase.table("creature_submissions").select(
+            base_fields + ",real_student_id,classroom_id"
+        ).eq("status","approved").eq("is_globally_available",True)            .order("global_uses", desc=True).limit(50).execute()
+    except Exception:
+        rows = supabase.table("creature_submissions").select(
+            base_fields
+        ).eq("status","approved").eq("is_globally_available",True)            .order("global_uses", desc=True).limit(50).execute()
+    creatures = rows.data or []
+    creature_ids = [c["id"] for c in creatures]
+
+    # Resolve classroom names for whichever creatures have a real classroom_id captured
+    classroom_ids = list({c["classroom_id"] for c in creatures if c.get("classroom_id")})
+    classroom_names = {}
+    if classroom_ids:
+        cls_r = supabase.table("classrooms").select("id,name").in_("id", classroom_ids).execute()
+        classroom_names = {cl["id"]: cl["name"] for cl in (cls_r.data or [])}
+    for c in creatures:
+        c["classroom_name"] = classroom_names.get(c.get("classroom_id"))
+
+    # Real feature Aug 21: per-creature "times fully evolved by other students" - same
+    # underlying data/pattern already used in /creatures/analytics' aggregate top-users/
+    # top-schools view (stages_unlocked==4 = fully evolved), just grouped by creature_id
+    # instead. Unlock rows only ever come from students who aren't the original creator
+    # (creators get their own creature via student_rewards, a separate mechanism), so this
+    # is already correctly "by other students" with no extra filtering needed.
+    evolved_counts = {}
+    if creature_ids:
+        unlocks_r = supabase.table("creature_unlocks").select("creature_id").eq("stages_unlocked", 4).in_("creature_id", creature_ids).execute()
+        for u in (unlocks_r.data or []):
+            cid = u.get("creature_id")
+            if cid:
+                evolved_counts[cid] = evolved_counts.get(cid, 0) + 1
+
+    # Real feature Aug 21: expiry only applies to a creature currently featured - not
+    # tracked at all otherwise, matching how featured_creatures.active_until already works
+    # for the separate "Feature a Creature This Month" card.
+    featured_map = {}
+    if creature_ids:
+        now = datetime.now(timezone.utc).isoformat()
+        featured_r = supabase.table("featured_creatures").select("creature_id,active_until").lte("active_from", now).gte("active_until", now).in_("creature_id", creature_ids).execute()
+        for f in (featured_r.data or []):
+            cid = f.get("creature_id")
+            if cid:
+                featured_map[cid] = f.get("active_until")
+
+    for c in creatures:
+        c["times_fully_evolved"] = evolved_counts.get(c["id"], 0)
+        c["featured_until"] = featured_map.get(c["id"])
+
+    return creatures
 
 @api_router.get("/creatures/featured")
 async def get_featured_creatures(request: Request):
@@ -9038,11 +9245,47 @@ async def get_school_admin_users(request: Request, limit: int = 200):
     user = await get_current_user(request)
     if not user or user.get("role") not in ["school_admin", "admin", "superadmin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
-    result = supabase.table("users").select(
-        "user_id,email,name,role,subscription_status,subscription_expires_at,"
-        "school_name,school_admin_id,school_country,created_at,language,promo_trial_ends_at,trial_started_at"
-    ).eq("school_admin_id", user["user_id"]).order("created_at", desc=True).limit(limit).execute()
+    base_fields = ("user_id,email,name,role,subscription_status,subscription_expires_at,"
+                   "school_name,school_admin_id,school_country,created_at,language,promo_trial_ends_at,trial_started_at")
+    # Real feature Aug 21: teacher_wellbeing_shared_with_admin may not exist yet if the
+    # migration hasn't run - try the enriched select first, fall back to the base one.
+    try:
+        result = supabase.table("users").select(
+            base_fields + ",teacher_wellbeing_shared_with_admin"
+        ).eq("school_admin_id", user["user_id"]).order("created_at", desc=True).limit(limit).execute()
+    except Exception:
+        result = supabase.table("users").select(
+            base_fields
+        ).eq("school_admin_id", user["user_id"]).order("created_at", desc=True).limit(limit).execute()
     return {"users": result.data or [], "total": len(result.data or [])}
+
+@api_router.get("/school-admin/students")
+async def get_school_admin_students(request: Request):
+    """Real feature Aug 21: school_admin's own scoped student roster (names + classroom),
+    built to support real per-student click-through - previously school_admin had no student
+    list at all (/school-admin/analytics is deliberately aggregate-only, no names/IDs). Same
+    dual-match (school_admin_id OR school_name) + own-directly-owned-classrooms pattern
+    already used by /school-admin/analytics and /admin/stats."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin", "admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    admin_id = user["user_id"]
+    school_name = user.get("school_name", "")
+    teachers_by_id = supabase.table("users").select("user_id").eq("school_admin_id", admin_id).execute()
+    teachers_by_name = supabase.table("users").select("user_id").eq("school_name", school_name).eq("role", "teacher").execute() if school_name else type("o",(object,),{"data":[]})()
+    teacher_ids = list({t["user_id"] for t in (teachers_by_id.data or []) + (teachers_by_name.data or [])})
+    classroom_owner_ids = teacher_ids + [admin_id]
+    classrooms_r = supabase.table("classrooms").select("id,name").in_("user_id", classroom_owner_ids).execute()
+    classrooms = classrooms_r.data or []
+    classroom_ids = [c["id"] for c in classrooms]
+    classroom_names = {c["id"]: c["name"] for c in classrooms}
+    if not classroom_ids:
+        return []
+    students_r = supabase.table("students").select("id,name,classroom_id").in_("classroom_id", classroom_ids).order("name").execute()
+    students = students_r.data or []
+    for s in students:
+        s["classroom_name"] = classroom_names.get(s.get("classroom_id"), "")
+    return students
 
 @api_router.get("/school-admin/subscription")
 async def get_school_subscription(request: Request):
