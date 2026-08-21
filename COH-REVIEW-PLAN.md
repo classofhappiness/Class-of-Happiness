@@ -742,3 +742,26 @@ Jono asked whether the app supports iPad, both at the config level and the real 
   - **`"orientation": "portrait"` is set globally** in `app.json` — locks both iPhone and iPad to portrait-only. Worth an explicit product decision on whether iPad should support landscape, separate from the layout-polish work above.
 
 **Explicitly deferred, not built tonight** — genuinely a separate session per Jono's call. For tonight's App Store submission: iPad screenshots left blank, shipping iPhone-only visuals; iPad users can still install and use the app (it isn't blocked), it just won't look tablet-native until this is scoped and built.
+
+### A21 — default + community creature systems unified, one-active-per-colour rule — 2026-08-21 — ✅ DONE & LIVE-VERIFIED
+Real bug found by live testing (Jono's daughter): fully evolving the default "Aqua Buddy" then tapping "Start" on a community creature appeared to work, but check-ins still fed Aqua Buddy, and going back into World Creatures showed no trace the creature had ever been started. Root cause, confirmed by reading `add_points` in full: `target_creature = FEELING_COLOUR_MAP.get(feeling_colour)` was hardcoded to the 4 default creatures — there was no code path anywhere for a community creature to ever become what check-ins feed into.
+
+**The rule this settles** (explicitly reversing the earlier "can a student progress multiple creatures at once" finding from earlier tonight — the real answer is no): one active creature per colour; a student may only choose a new one once their current active creature for that colour is fully evolved; progress on the non-active one is blocked server-side, not just hidden in the UI.
+
+Built:
+- New `students.active_creatures` (JSONB, one slot per colour — holds either a default creature id or a community creature id).
+- `add_points` now branches per colour: default ids keep the original points-based path unchanged; community ids route through a new shared `_progress_community_creature()` helper (extracted from `unlock_creature_stage`, removing ~80 lines of duplicated logic) using the real check-in-count mechanic.
+- New `POST /creatures/start/{id}` — a genuine selection action (not progress), gated on eligibility + the current active creature for that colour being fully evolved first.
+- `unlock_creature_stage` now also enforces "must be your active creature" server-side — closes a bypass where the endpoint could be called directly to progress a non-active creature.
+- New `GET /students/{id}/my-creatures` — the real permanent "My Creatures" collection (Pokedex-style): every creature ever started/evolved, default or community, grouped by colour, real total-collected count. A creature leaving "active" status is never removed — progress rows are never deleted, so its final state (or the expiry-snapshot from earlier tonight) just stays as permanent history.
+- New `GET /students/{id}/active-creatures` for frontend gating.
+- Frontend: new `CommunityCreatureDisplay` (photo-based) alongside the existing emoji/animation-based `CreatureDisplay`; `rewards.tsx` branches between them. `world-creatures.tsx`'s interaction model changed from "tap to manually progress" to "tap to set as active" (progress now automatic via check-ins, matching how defaults always worked). `creatures.tsx` rewritten as the one real "My Creatures" screen — 4 collapsible colour sections (collapsed by default, matching the app's existing pattern), real total-collected count, a direct "🔍 Find a New Creature" shortcut (per Jono's follow-up: browsing/starting shouldn't require going through check-in first). Consolidates what used to be **three** separate, inconsistent "My Creatures" surfaces (a defaults-only modal on the reward screen, this screen's earlier community-only version, and nothing unified) into one.
+- Two smaller real bugs caught and fixed in the same pass: the Bronze Shield badge could visually overlap the bouncing creature (creatureSection's greedy `flex: 1` bounded to a fixed `minHeight`), and the Continue button's background colour silently broke (`undefined`) for community creatures, which have no `color` field — now falls back to the real `EMOTION_COLOURS` palette.
+
+**Live-verified end-to-end against real production data** (Mateus, a real Kairos student who already had Aqua Buddy [blue] and Blaze Heart [red] fully evolved from real usage) — full 7-step verification, all correct: starting Waterman persisted and was immediately readable back; My Creatures showed Aqua Buddy (frozen, `is_active: false`) alongside the new Waterman (`is_active: true`) with nothing disappearing; a real check-in correctly routed to Waterman while Aqua Buddy's points stayed frozen; attempting to start a second blue creature while Waterman was incomplete was correctly rejected (400); attempting to directly progress that second creature via `/creatures/unlock` was correctly rejected too (403, confirms the bypass-closing gate); `/creatures/unlock` still worked normally on the genuinely-active creature. All test state reverted to Mateus's original values afterward.
+
+  **Migration required** (ran 2026-08-21, no DDL access from this environment):
+  ```sql
+  ALTER TABLE students ADD COLUMN active_creatures jsonb
+    DEFAULT '{"blue":"aqua_buddy","green":"leaf_friend","yellow":"spark_pal","red":"blaze_heart"}'::jsonb;
+  ```
