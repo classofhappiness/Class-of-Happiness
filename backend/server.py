@@ -3215,7 +3215,51 @@ async def add_points(student_id: str, req: AddPointsRequest):
 
 # ================== ANALYTICS ==================
 @api_router.get("/analytics/student/{student_id}")
-async def get_student_analytics(student_id: str, days: int = 30):
+async def get_student_analytics(student_id: str, request: Request, days: int = 30):
+    # Real fix Aug 21: this had NO authentication or authorization at all - anyone who knew
+    # or guessed a student_id got that child's full zone/strategy history. Mirrors the same
+    # verified ownership pattern already used on /reports/pdf/student/{student_id}/... (owns
+    # directly, owns their classroom, or is a genuinely linked parent).
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    student = supabase.table("students").select("*").eq("id", student_id).execute()
+    if not student.data:
+        raise HTTPException(status_code=404, detail="Student not found")
+    student_data = student.data[0]
+
+    is_authorized = False
+    if user.get("role") == "superadmin":
+        is_authorized = True
+    elif student_data.get("user_id") == user["user_id"]:
+        is_authorized = True
+    elif student_data.get("classroom_id"):
+        try:
+            cls = supabase.table("classrooms").select("user_id").eq("id", student_data["classroom_id"]).execute()
+            if cls.data and cls.data[0].get("user_id") == user["user_id"]:
+                is_authorized = True
+        except Exception:
+            pass
+    if not is_authorized:
+        try:
+            pl = supabase.table("parent_links").select("id,expires_at").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
+            for l in (pl.data or []):
+                if not l.get("expires_at") or datetime.fromisoformat(l["expires_at"].replace("Z", "+00:00")) > datetime.now(timezone.utc):
+                    is_authorized = True
+                    break
+        except Exception:
+            pass
+    if not is_authorized:
+        try:
+            fm = supabase.table("family_members").select("id").eq("user_id", user["user_id"]).eq("student_id", student_id).execute()
+            if fm.data:
+                is_authorized = True
+        except Exception:
+            pass
+    if not is_authorized:
+        raise HTTPException(status_code=403, detail="Not authorized to view this student's analytics")
+
     start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     logs = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).execute()
     logs_data = logs.data or []
@@ -3968,7 +4012,11 @@ async def generate_family_pdf_report(family_member_id: str, year: int, month: in
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    fm_r = supabase.table("family_members").select("*").eq("id", family_member_id).execute()
+    # Real fix Aug 21: this looked up the family member by id alone, with no check that it
+    # belonged to the caller - any authenticated account, any role, could pull any family's
+    # PDF by guessing the id. Kept as a 404 (not 403) for both "doesn't exist" and "isn't
+    # yours", so the response doesn't confirm whether a given id exists at all.
+    fm_r = supabase.table("family_members").select("*").eq("id", family_member_id).eq("user_id", user["user_id"]).execute()
     if not fm_r.data:
         raise HTTPException(status_code=404, detail="Family member not found")
     fm = fm_r.data[0]
