@@ -76,17 +76,22 @@ const PERIOD_LABELS: any = { 1: 'Today', 7: '7 Days', 30: '30 Days', 90: '3 Mont
 const ROLE_COLORS: any = { teacher: '#4CAF73', parent: '#4A90D9', school_admin: '#FFD93D', student: '#9C27B0', superadmin: '#E05252' };
 const ROLE_EMOJI: any = { teacher: '👩‍🏫', parent: '👨‍👩‍👧', school_admin: '🏫' };
 
-function UsersManager({ authToken }: { authToken: string|null }) {
+function UsersManager({ authToken, isSuperAdmin }: { authToken: string|null, isSuperAdmin: boolean }) {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState('');
 
   useEffect(() => {
-    apiCall('/admin/users?limit=200', authToken)
+    // Real fix Aug 21: this always called /admin/users, which is hardcoded superadmin-only
+    // (server.py) - for a school_admin this silently 403'd and the .catch() below swallowed
+    // it into an empty list, same bug class already found and fixed on the portal tonight.
+    // /school-admin/users is the school-scoped equivalent (same {users,total} response shape).
+    const endpoint = isSuperAdmin ? '/admin/users?limit=200' : '/school-admin/users?limit=200';
+    apiCall(endpoint, authToken)
       .then((d: any) => setUsers(Array.isArray(d?.users) ? d.users : (Array.isArray(d) ? d : [])))
       .catch(() => setUsers([]))
       .finally(() => setLoading(false));
-  }, [authToken]);
+  }, [authToken, isSuperAdmin]);
 
   if (loading) {
     return (
@@ -1241,7 +1246,7 @@ export default function AdminDashboard() {
         )}
 
         {tab === 'users' && (
-          <UsersManager authToken={authToken} />
+          <UsersManager authToken={authToken} isSuperAdmin={isSuperAdmin} />
         )}
 
         {tab === 'settings' && (

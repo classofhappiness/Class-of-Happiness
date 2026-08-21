@@ -6950,6 +6950,8 @@ async def get_admin_stats(request: Request, days: int = 7):
         month_ago = (now - timedelta(days=30)).isoformat()
 
         # Basic counts — scoped to the caller's own school if they're a school_admin, global for superadmin
+        school_teacher_ids = []
+        student_ids_for_school = None  # only populated for school_admin; None means "not scoped" (superadmin)
         if user.get("role") == "school_admin":
             admin_id = user.get("user_id")
             school_name = user.get("school_name", "")
@@ -6965,16 +6967,20 @@ async def get_admin_stats(request: Request, days: int = 7):
             # Real fix Aug 14: students link via classroom_id, NOT teacher_id (that column
             # doesn't exist on the students table — same architectural fact already
             # documented earlier this session). Resolve real classrooms first.
-            if school_teacher_ids:
-                school_classrooms_r = supabase.table("classrooms").select("id").in_("user_id", school_teacher_ids).execute()
-                school_classroom_ids = [c["id"] for c in (school_classrooms_r.data or [])]
-                if school_classroom_ids:
-                    students_result = supabase.table("students").select("id", count="exact").in_("classroom_id", school_classroom_ids).execute()
-                    total_students = students_result.count or 0
-                else:
-                    total_students = 0
+            # Real fix Aug 21: classroom_owner_ids also includes the school_admin's own
+            # user_id now — same gap just fixed on /school-admin/analytics tonight (a
+            # classroom reassigned to the school_admin directly, e.g. via account-deletion,
+            # was invisible here too, since this only ever looked at classrooms owned by
+            # linked teachers).
+            classroom_owner_ids = school_teacher_ids + [admin_id]
+            school_classrooms_r = supabase.table("classrooms").select("id").in_("user_id", classroom_owner_ids).execute()
+            school_classroom_ids = [c["id"] for c in (school_classrooms_r.data or [])]
+            if school_classroom_ids:
+                students_r = supabase.table("students").select("id").in_("classroom_id", school_classroom_ids).execute()
+                student_ids_for_school = [s["id"] for s in (students_r.data or [])]
             else:
-                total_students = 0
+                student_ids_for_school = []
+            total_students = len(student_ids_for_school)
         else:
             students_result = supabase.table("students").select("id", count="exact").execute()
             total_students = students_result.count or 0
@@ -6989,10 +6995,23 @@ async def get_admin_stats(request: Request, days: int = 7):
 
         # Zone logs for this week
         # Query both zone_logs and feeling_logs
+        # Real fix Aug 21: for a school_admin caller, this previously queried feeling_logs
+        # with NO scoping at all — the app's "Your school's data" donut/stats were actually
+        # showing PLATFORM-WIDE numbers. Live-confirmed, same account/window: this summed to
+        # 1000 (the whole platform's 90-day volume) vs the correctly-scoped
+        # /school-admin/analytics' 840 for Sunshine specifically. Chunked in batches of 50
+        # (Supabase .in_() practical limit), not truncated to the first 50 like the
+        # pre-existing schools_breakdown code further down does.
         logs = []
         try:
-            r2 = supabase.table("feeling_logs").select("*").gte("timestamp", week_ago).execute()
-            logs.extend(r2.data or [])
+            if user.get("role") == "school_admin":
+                for i in range(0, len(student_ids_for_school or []), 50):
+                    chunk = student_ids_for_school[i:i + 50]
+                    r2 = supabase.table("feeling_logs").select("*").in_("student_id", chunk).gte("timestamp", week_ago).execute()
+                    logs.extend(r2.data or [])
+            else:
+                r2 = supabase.table("feeling_logs").select("*").gte("timestamp", week_ago).execute()
+                logs.extend(r2.data or [])
         except: pass
 
         # Zone counts
@@ -7025,8 +7044,14 @@ async def get_admin_stats(request: Request, days: int = 7):
         teacher_zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
         teacher_daily = [0] * 7
         try:
-            # Try teacher_checkins table first
-            tc_r = supabase.table("teacher_checkins").select("*").gte("created_at", week_ago).execute()
+            # Try teacher_checkins table first. Real fix Aug 21: scoped to this school's
+            # teachers for a school_admin caller — teacher_checkins has a real user_id
+            # column (confirmed via /school-admin/analytics' identical query), same bug
+            # class as the feeling_logs scoping above.
+            if user.get("role") == "school_admin":
+                tc_r = supabase.table("teacher_checkins").select("*").in_("user_id", school_teacher_ids).gte("created_at", week_ago).execute() if school_teacher_ids else type('obj', (object,), {'data': []})()
+            else:
+                tc_r = supabase.table("teacher_checkins").select("*").gte("created_at", week_ago).execute()
             for tc in (tc_r.data or []):
                 tz = tc.get("zone") or tc.get("feeling_colour", "")
                 if tz in teacher_zone_counts:
@@ -7040,6 +7065,9 @@ async def get_admin_stats(request: Request, days: int = 7):
                             teacher_daily[6 - d_ago] += 1
                 except: pass
         except: pass
+        # Note: feeling_logs has no teacher/user identity column at all (only student_id), so
+        # entries with a null student_id genuinely can't be scoped to a school without a
+        # schema change — left global for both roles, unlike the two blocks above.
         try:
             teacher_logs_r = supabase.table("feeling_logs").select("*").is_("student_id", "null").gte("timestamp", week_ago).execute()
             teacher_logs = teacher_logs_r.data or []
@@ -7071,10 +7099,21 @@ async def get_admin_stats(request: Request, days: int = 7):
         # Streak students — students with check-ins on 3+ consecutive days
         streak_students = 0
         try:
-            all_logs_r = supabase.table("feeling_logs").select("student_id,timestamp").gte("timestamp", month_ago).execute()
+            # Real fix Aug 21: same unscoped-for-school_admin bug as the zone_counts logs
+            # query above — this counted streaks across the whole platform, not just this
+            # school's students.
+            all_logs_data = []
+            if user.get("role") == "school_admin":
+                for i in range(0, len(student_ids_for_school or []), 50):
+                    chunk = student_ids_for_school[i:i + 50]
+                    r = supabase.table("feeling_logs").select("student_id,timestamp").in_("student_id", chunk).gte("timestamp", month_ago).execute()
+                    all_logs_data.extend(r.data or [])
+            else:
+                all_logs_r = supabase.table("feeling_logs").select("student_id,timestamp").gte("timestamp", month_ago).execute()
+                all_logs_data = all_logs_r.data or []
             from collections import defaultdict
             student_dates = defaultdict(set)
-            for l in (all_logs_r.data or []):
+            for l in all_logs_data:
                 try:
                     d = datetime.fromisoformat(l["timestamp"].replace("Z","+00:00")).date()
                     student_dates[l["student_id"]].add(d)
