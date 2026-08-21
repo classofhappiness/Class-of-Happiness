@@ -7377,16 +7377,22 @@ async def unlock_creature_stage(submission_id: str, request: Request):
     except Exception:
         body = {}
     real_student_id = body.get("real_student_id") if isinstance(body, dict) else None
+
+    # Real bug fix Aug 21: fetch the creature (incl. its own colour) unconditionally, not just
+    # inside the real_student_id branch - needed below to filter check-ins by matching colour.
+    creature_r = supabase.table("creature_submissions").select(
+        "visibility_scope,school_name,classroom_id,status,emotion_colour,creature_name,stage4_url"
+    ).eq("id", submission_id).execute()
+    if not creature_r.data or creature_r.data[0].get("status") != "approved":
+        raise HTTPException(status_code=404, detail="Creature not found")
+    creature = creature_r.data[0]
+
     if real_student_id:
         student_r = supabase.table("students").select("*").eq("id", real_student_id).execute()
         student_data = student_r.data[0] if student_r.data else None
         if not student_data or not await _is_authorized_for_student(user, real_student_id, student_data):
             raise HTTPException(status_code=403, detail="Not authorized for this student")
         classroom_id, school_name = _resolve_student_classroom_school(student_data)
-        creature_r = supabase.table("creature_submissions").select("visibility_scope,school_name,classroom_id,status").eq("id", submission_id).execute()
-        if not creature_r.data or creature_r.data[0].get("status") != "approved":
-            raise HTTPException(status_code=404, detail="Creature not found")
-        creature = creature_r.data[0]
         scope = creature.get("visibility_scope") or "global"
         is_eligible = (
             scope == "global"
@@ -7402,7 +7408,12 @@ async def unlock_creature_stage(submission_id: str, request: Request):
     # one; fall back to the old (still-broken) behaviour only when it's absent, so nothing
     # regresses for any other caller.
     checkin_student_id = real_student_id or user["user_id"]
-    checkins = supabase.table("feeling_logs").select("id")        .eq("student_id", checkin_student_id)        .gte("timestamp", (datetime.now(timezone.utc) - timedelta(days=30)).isoformat())        .execute()
+    # Real bug fix Aug 21: check-ins were counted with no colour filter at all - a blue
+    # check-in could progress a red creature. Mirrors the default per-colour creature system's
+    # real pattern (add_points routes each check-in's own feeling_colour to the matching
+    # creature via FEELING_COLOUR_MAP, server.py ~line 3158) - only check-ins whose
+    # feeling_colour matches this creature's emotion_colour count toward it.
+    checkins = supabase.table("feeling_logs").select("id")        .eq("student_id", checkin_student_id)        .eq("feeling_colour", creature.get("emotion_colour"))        .gte("timestamp", (datetime.now(timezone.utc) - timedelta(days=30)).isoformat())        .execute()
     total_checkins = len(checkins.data) if checkins.data else 0
     existing = _creature_unlocks_for(user["user_id"], real_student_id, [submission_id])
     current_stages = existing.data[0]["stages_unlocked"] if existing.data else 0
@@ -7421,21 +7432,16 @@ async def unlock_creature_stage(submission_id: str, request: Request):
     # since that's the one moment that becomes permanent history.
     snapshot_fields = {}
     if next_stage == 4:
-        creature_full = supabase.table("creature_submissions").select(
-            "creature_name,emotion_colour,stage4_url"
-        ).eq("id", submission_id).execute()
-        if creature_full.data:
-            cf = creature_full.data[0]
-            now_iso = datetime.now(timezone.utc).isoformat()
-            featured_now = supabase.table("featured_creatures").select("active_until")                .eq("creature_id", submission_id).lte("active_from", now_iso).gte("active_until", now_iso).execute()
-            was_featured = bool(featured_now.data)
-            snapshot_fields = {
-                "creature_name_snapshot": cf.get("creature_name"),
-                "emotion_colour_snapshot": cf.get("emotion_colour"),
-                "stage_image_snapshot": cf.get("stage4_url"),
-                "was_featured": was_featured,
-                "featured_until_snapshot": featured_now.data[0]["active_until"] if was_featured else None,
-            }
+        now_iso = datetime.now(timezone.utc).isoformat()
+        featured_now = supabase.table("featured_creatures").select("active_until")            .eq("creature_id", submission_id).lte("active_from", now_iso).gte("active_until", now_iso).execute()
+        was_featured = bool(featured_now.data)
+        snapshot_fields = {
+            "creature_name_snapshot": creature.get("creature_name"),
+            "emotion_colour_snapshot": creature.get("emotion_colour"),
+            "stage_image_snapshot": creature.get("stage4_url"),
+            "was_featured": was_featured,
+            "featured_until_snapshot": featured_now.data[0]["active_until"] if was_featured else None,
+        }
     if existing.data:
         completed = datetime.now(timezone.utc).isoformat() if next_stage == 4 else None
         update_body = {"stages_unlocked": next_stage, "completed_at": completed}
