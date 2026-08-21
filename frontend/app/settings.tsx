@@ -1,5 +1,5 @@
 import React, { useState, useLayoutEffect, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput, Switch, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput, Switch, Platform, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as AuthSession from 'expo-auth-session';
@@ -568,6 +568,21 @@ export default function SettingsScreen() {
             <View style={styles.settingText}>
               <Text style={styles.settingLabel}>{t('about_privacy') || 'About & Privacy'}</Text>
               <Text style={styles.settingValue}>{t('disclaimer_privacy_terms') || 'Disclaimer, Privacy Policy, Terms'}</Text>
+            </View>
+          </View>
+          <MaterialIcons name="chevron-right" size={24} color="#CCC" />
+        </TouchableOpacity>
+        {/* Real feature Aug 21: simple mailto link, matching how account-deletion support
+            already works - no in-app ticketing. */}
+        <TouchableOpacity
+          style={styles.settingItem}
+          onPress={() => Linking.openURL('mailto:jono@classofhappiness.com')}
+        >
+          <View style={styles.settingLeft}>
+            <MaterialIcons name="help-outline" size={24} color="#5C6BC0" />
+            <View style={styles.settingText}>
+              <Text style={styles.settingLabel}>{t('contact_support') || 'Contact Support'}</Text>
+              <Text style={styles.settingValue}>jono@classofhappiness.com</Text>
             </View>
           </View>
           <MaterialIcons name="chevron-right" size={24} color="#CCC" />
