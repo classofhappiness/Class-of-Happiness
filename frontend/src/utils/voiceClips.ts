@@ -78,3 +78,32 @@ export const playVoiceClip = (rawKey: string) => {
     } catch {}
   }, 0);
 };
+
+// Real feature Aug 21: reward-screen ("Great Job!") voice clip - same mute toggle, same
+// play-once pattern as playVoiceClip, but a separate endpoint/cache since this clip lives
+// outside the 28-key manifest (GET /voice-clips/reward, not /voice-clips).
+let rewardClipLanguage: string | null = null;
+let rewardClipUrl: string | null = null;
+
+export const playRewardVoiceClip = (language: string) => {
+  if (!voiceEnabled) return;
+  setTimeout(async () => {
+    try {
+      let url = rewardClipLanguage === language ? rewardClipUrl : null;
+      if (url === null && rewardClipLanguage !== language) {
+        const res = await fetch(`${BACKEND_URL}/api/voice-clips/reward?language=${encodeURIComponent(language)}`);
+        const data = res.ok ? await res.json() : {};
+        url = data?.url || null;
+        rewardClipLanguage = language;
+        rewardClipUrl = url;
+      }
+      if (!url) return;
+      const { sound } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: true, volume: 1.0 });
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync().catch(() => {});
+        }
+      });
+    } catch {}
+  }, 0);
+};

@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Linking } from 'react-native';
+import { EmotionColourLoader } from '../../../src/components/EmotionColourLoader';
 
 // Fallback for old-format strategy codes
 const STRATEGY_NAMES_LOCAL: Record<string,string> = {
@@ -203,7 +204,7 @@ export default function FamilyMemberStatsScreen() {
         </View>
         <View style={{width:40}} />
       </View>
-      <ActivityIndicator size="large" color="#4CAF50" style={{marginTop:60}} />
+      <View style={{marginTop:60}}><EmotionColourLoader visible size={64} /></View>
     </SafeAreaView>
   );
 

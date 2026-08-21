@@ -8,6 +8,7 @@ import { getAlerts, resolveAlert } from '../../src/utils/notifications';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
+import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 
 const ZONE_COLOR: Record<string,string> = EMOTION_COLOURS;
 const ZONE_LABEL: Record<string,string> = { blue:'Blue Emotions', green:'Green Emotions', yellow:'Yellow Emotions', red:'Red Emotions' };
@@ -211,7 +212,7 @@ export default function ParentAlertsScreen() {
       </View>
       <ScrollView contentContainerStyle={{ padding:14 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-        {loading && <Text style={{ textAlign:'center', color:'#999', marginTop:30 }}>Loading...</Text>}
+        {loading && <View style={{ alignItems:'center', marginTop:30 }}><EmotionColourLoader visible size={48} /></View>}
         {!loading && filtered.length === 0 && (
           <View style={{ alignItems:'center', marginTop:50 }}>
             <Text style={{ fontSize:40 }}>✅</Text>

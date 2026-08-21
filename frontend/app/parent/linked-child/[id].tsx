@@ -12,6 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../../src/constants/emotionColours';
 import { linkedChildApi, LinkedChild, FamilyAssignedStrategy } from '../../../src/utils/api';
+import { EmotionColourLoader } from '../../../src/components/EmotionColourLoader';
 
 const { width } = Dimensions.get('window');
 
@@ -296,7 +297,7 @@ export default function LinkedChildDetailScreen() {
 
   if (loading) return (
     <SafeAreaView style={s.container}><View style={s.center}>
-      <ActivityIndicator size="large" color="#4CAF50" /><Text style={s.loadingText}>Loading...</Text>
+      <EmotionColourLoader visible size={64} /><Text style={s.loadingText}>Loading...</Text>
     </View></SafeAreaView>
   );
   if (!child) return (

@@ -19,6 +19,7 @@ import { CreatureDisplay } from '../../src/components/CreatureDisplay';
 import { EvolutionAnimation } from '../../src/components/EvolutionAnimation';
 import { CreatureCollection } from '../../src/components/CreatureCollection';
 import { playButtonFeedback, playRewardFeedback, playEvolutionSound, preloadSounds } from '../../src/utils/sounds';
+import { playRewardVoiceClip } from '../../src/utils/voiceClips';
 
 
 // Zone-specific tips — research-backed, age appropriate (6-12), 3-4 words max
@@ -56,7 +57,7 @@ export default function RewardsScreen() {
   const router = useRouter();
   const navigation = useNavigation() as any;
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
-  const { currentStudent, t } = useApp();
+  const { currentStudent, t, language } = useApp();
   const params = useLocalSearchParams<{ 
     strategiesUsed?: string; 
     hasComment?: string;
@@ -85,7 +86,9 @@ export default function RewardsScreen() {
   };
 
   useEffect(() => {
-    const timer = setTimeout(() => dismissTip(), 5000);
+    // Real fix Aug 21: bumped from 5000ms - kids weren't getting enough time to read the tip
+    // before it faded.
+    const timer = setTimeout(() => dismissTip(), 7000);
     return () => clearTimeout(timer);
   }, []);
 
@@ -155,6 +158,8 @@ export default function RewardsScreen() {
       
       // Play reward sound
       playRewardFeedback();
+      // Real feature Aug 21: reward voice clip, same mute toggle as check-in voice clips
+      playRewardVoiceClip(language);
 
       // Check if evolved
       if (response.evolved && response.current_stage > previousStage) {
@@ -196,11 +201,14 @@ export default function RewardsScreen() {
       ]).start();
     }
 
-    // Bounce animation for creature
+    // Bounce animation for creature. Real fix Aug 21: was -15 - combined with the header's
+    // paddingBottom, the bounce could reach up into the "Keep it up!" subtitle above it.
+    // Softened to -8, plus more fixed clearance in the header style, so it can't overlap
+    // even at the top of the bounce.
     Animated.loop(
       Animated.sequence([
         Animated.timing(bounceAnim, {
-          toValue: -15,
+          toValue: -8,
           duration: 600,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
@@ -480,7 +488,10 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     paddingTop: 20,
-    paddingBottom: 10,
+    // Real fix Aug 21: was 10 - not enough fixed clearance before the creature circle below,
+    // so its bounce animation reached up into this subtitle. Combined with softening the
+    // bounce range itself (see bounceAnim below) so there's no overlap even at full bounce.
+    paddingBottom: 26,
   },
   headerTitle: {
     fontSize: 32,

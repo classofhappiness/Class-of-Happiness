@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { useRouter } from 'expo-router';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
+import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const INDIGO = '#5C6BC0';
@@ -96,7 +97,7 @@ function UsersManager({ authToken, isSuperAdmin }: { authToken: string|null, isS
   if (loading) {
     return (
       <View style={{ padding: 40, alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#5C6BC0" />
+        <EmotionColourLoader visible size={56} />
       </View>
     );
   }
@@ -167,7 +168,7 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
   if (statsLoading) {
     return (
       <View style={{ padding: 40, alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#5C6BC0" />
+        <EmotionColourLoader visible size={56} />
       </View>
     );
   }
@@ -480,7 +481,7 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
       {/* Strategy list — real drag-reorder Aug 15 (only when unfiltered by zone, and
           only for real teacher/parent items — student ones use a different endpoint,
           built-ins have no real record to reorder) */}
-      {loading ? <ActivityIndicator color={INDIGO} /> : (
+      {loading ? <View style={{ padding: 20, alignItems: 'center' }}><EmotionColourLoader visible size={48} /></View> : (
         <NestableDraggableFlatList
           data={strats.filter((strat: any) => !zoneFilter || strat.zone === zoneFilter)}
           keyExtractor={(strat: any, i: number) => strat.id || String(i)}
@@ -578,7 +579,7 @@ function WorldWall({ authToken }: { authToken: string|null }) {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <ActivityIndicator color={INDIGO} style={{ marginVertical: 12 }} />;
+  if (loading) return <View style={{ marginVertical: 12, alignItems: 'center' }}><EmotionColourLoader visible size={40} /></View>;
   if (schools.length === 0) return <Text style={s.hint}>No schools registered yet.</Text>;
 
   return (
