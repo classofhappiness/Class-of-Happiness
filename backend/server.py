@@ -2894,6 +2894,25 @@ async def get_voice_clips(language: str = "en"):
         for key in VOICE_CLIP_KEYS if key in existing
     }
 
+# Real feature Aug 21: reward-screen ("Great Job!") voice clip. Matilda/Mateus recorded a batch
+# of clips for future check-in start/completion moments that were left sitting in the
+# voice-recordings bucket ROOT (not the en/pt/ canonical structure the 28 clips above live in).
+# Great_job.m4a / Muito_bem.m4a are the closest match to this specific moment - picked by
+# filename only, NOT manually verified by listening (no audio playback in this environment).
+REWARD_VOICE_CLIP_FILES = {"en": "Great_job.m4a", "pt": "Muito_bem.m4a"}
+
+@api_router.get("/voice-clips/reward")
+async def get_reward_voice_clip(language: str = "en"):
+    filename = REWARD_VOICE_CLIP_FILES.get(language) or REWARD_VOICE_CLIP_FILES["en"]
+    try:
+        files = supabase.storage.from_("voice-recordings").list()
+        if not any(f["name"] == filename for f in (files or [])):
+            return {"url": None}
+    except Exception as e:
+        logger.error(f"reward voice-clip list error: {e}")
+        return {"url": None}
+    return {"url": supabase.storage.from_("voice-recordings").get_public_url(filename)}
+
 # Keep old endpoint name for frontend compatibility
 @api_router.get("/strategies")
 async def get_strategies(request: Request, zone: Optional[str] = None, feeling_colour: Optional[str] = None, 
@@ -4005,22 +4024,12 @@ async def get_available_months(student_id: str):
         months.add(month)
     return sorted(list(months), reverse=True)
 
-@api_router.get("/reports/pdf/family/{family_member_id}/month/{year}/{month}")
-async def generate_family_pdf_report(family_member_id: str, year: int, month: int, request: Request, lang: str = ""):
-    """Generate PDF report for a family member (home check-ins only)."""
-    user = await get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
-    # Real fix Aug 21: this looked up the family member by id alone, with no check that it
-    # belonged to the caller - any authenticated account, any role, could pull any family's
-    # PDF by guessing the id. Kept as a 404 (not 403) for both "doesn't exist" and "isn't
-    # yours", so the response doesn't confirm whether a given id exists at all.
-    fm_r = supabase.table("family_members").select("*").eq("id", family_member_id).eq("user_id", user["user_id"]).execute()
-    if not fm_r.data:
-        raise HTTPException(status_code=404, detail="Family member not found")
-    fm = fm_r.data[0]
-
+async def _generate_family_member_pdf_bytes(fm: dict, family_member_id: str, year: int, month: int, lang: str = ""):
+    """Builds one family member's PDF (home check-ins only) and returns (pdf_bytes, safe_name).
+    Real fix Aug 21: extracted out of generate_family_pdf_report so both the single-member
+    route and the family-wide ZIP export (generate_family_pdf_all, below) share this exact
+    ReportLab-building logic instead of duplicating ~330 lines of it. fm/family_member_id are
+    passed in already-resolved and already-ownership-checked by the caller."""
     # Use student record if available, else create synthetic student_data
     student_data = {
         "name": fm.get("name", "Family Member"),
@@ -4340,13 +4349,81 @@ async def generate_family_pdf_report(family_member_id: str, year: int, month: in
 
     import urllib.parse
     safe_name = urllib.parse.quote(fm.get("name","family"))
+    return buffer.getvalue(), safe_name
+
+
+@api_router.get("/reports/pdf/family/{family_member_id}/month/{year}/{month}")
+async def generate_family_pdf_report(family_member_id: str, year: int, month: int, request: Request, lang: str = ""):
+    """Generate PDF report for a family member (home check-ins only)."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    # Real fix Aug 21: this looked up the family member by id alone, with no check that it
+    # belonged to the caller - any authenticated account, any role, could pull any family's
+    # PDF by guessing the id. Kept as a 404 (not 403) for both "doesn't exist" and "isn't
+    # yours", so the response doesn't confirm whether a given id exists at all.
+    fm_r = supabase.table("family_members").select("*").eq("id", family_member_id).eq("user_id", user["user_id"]).execute()
+    if not fm_r.data:
+        raise HTTPException(status_code=404, detail="Family member not found")
+    fm = fm_r.data[0]
+
+    pdf_bytes, safe_name = await _generate_family_member_pdf_bytes(fm, family_member_id, year, month, lang)
     from fastapi.responses import StreamingResponse
     return StreamingResponse(
-        buffer,
+        io.BytesIO(pdf_bytes),
         media_type="application/pdf",
         headers={"Content-Disposition": f'inline; filename="wellbeing_{safe_name}_{year}_{month:02d}.pdf"'}
     )
 
+
+# Real feature Aug 21: whole-family PDF export, requested alongside the parent-portal audit
+# ("no way to download all family members at once, only one at a time"). ZIP-of-individual-
+# PDFs rather than one merged document - no PDF-merge library is installed, and building a
+# true single combined document would mean a much larger, riskier refactor of the ReportLab
+# generation logic above. Same one-click outcome for the parent; a true merged PDF can be a
+# later polish pass. Same A8-style gating as classroom/school-overview and (fixed tonight)
+# teacher-wellbeing: current-month-only unless the parent's own subscription or their child's
+# school package covers them.
+@api_router.get("/reports/pdf/family-all/month/{year}/{month}")
+async def generate_family_pdf_all(year: int, month: int, request: Request, lang: str = ""):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    parent_sub_active = user.get("subscription_status") not in ("none", "free", None)
+    covered = parent_sub_active or _parent_is_school_covered(user)
+    if not covered:
+        _now = datetime.now(timezone.utc)
+        if (year, month) != (_now.year, _now.month):
+            raise HTTPException(status_code=403, detail="Historical reports require an active plan for you or your school. Free access covers the current month only.")
+
+    members_r = supabase.table("family_members").select("*").eq("user_id", user["user_id"]).execute()
+    members = members_r.data or []
+    if not members:
+        raise HTTPException(status_code=404, detail="No family members found")
+
+    import zipfile
+    zip_buffer = io.BytesIO()
+    included = 0
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fm in members:
+            try:
+                pdf_bytes, safe_name = await _generate_family_member_pdf_bytes(fm, fm["id"], year, month, lang)
+                zf.writestr(f"wellbeing_{safe_name}_{year}_{month:02d}.pdf", pdf_bytes)
+                included += 1
+            except HTTPException:
+                # No check-ins for this member this month - skip them, don't fail the batch
+                continue
+    if included == 0:
+        raise HTTPException(status_code=404, detail=f"No check-ins found for any family member in {year}/{month:02d}")
+    zip_buffer.seek(0)
+    from fastapi.responses import StreamingResponse
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="wellbeing_family_{year}_{month:02d}.zip"'}
+    )
 
 
 @api_router.get("/reports/pdf/student/{student_id}/month/{year}/{month}")
@@ -5073,43 +5150,6 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     if user_id != user["user_id"] and user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Not authorized to view this report")
 
-    # Free tier: 1 teacher-wellbeing PDF per month (separate counter from the student PDF one,
-    # per Jono's explicit design decision)
-    sub_status = user.get("subscription_status", "none")
-    if sub_status in ("none", "free", None):
-        reset_at = user.get("pdf_downloads_month_reset_at")
-        current_count = user.get("pdf_downloads_teacher_this_month", 0) or 0
-        now = datetime.now(timezone.utc)
-        needs_reset = True
-        if reset_at:
-            try:
-                reset_dt = datetime.fromisoformat(reset_at.replace("Z", "+00:00"))
-                needs_reset = (now.year, now.month) != (reset_dt.year, reset_dt.month)
-            except Exception:
-                needs_reset = True
-        if needs_reset:
-            current_count = 0
-            supabase.table("users").update({
-                "pdf_downloads_student_this_month": 0,
-                "pdf_downloads_teacher_this_month": 0,
-                "pdf_downloads_month_reset_at": now.isoformat(),
-            }).eq("user_id", user["user_id"]).execute()
-        if current_count >= 1:
-            raise HTTPException(
-                status_code=403,
-                detail="free_tier_limit|You've used your free wellbeing report for this month. Upgrade to Teacher Pro for unlimited reports."
-            )
-        supabase.table("users").update({
-            "pdf_downloads_teacher_this_month": current_count + 1
-        }).eq("user_id", user["user_id"]).execute()
-
-    import io, calendar as cal_mod, os
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib import colors
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
-    from reportlab.platypus import Image as RLImage
-
     # Fetch teacher info
     teacher_r = supabase.table("users").select("*").eq("user_id", user_id).execute()
     if not teacher_r.data:
@@ -5118,6 +5158,26 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     teacher_name = teacher.get("name") or ""
     teacher_email = teacher.get("email", "")
     display_name = teacher_name or teacher_email.split("@")[0].replace(".", " ").title()
+
+    # Real fix Aug 21: this used to gate on a COUNT (1 free PDF/month, for ANY month), and only
+    # checked the teacher's own subscription_status - never school coverage. That's a different
+    # rule from the one used everywhere else (A8, 2026-08-19): current-month-only for uncovered
+    # accounts, unlimited historical months for covered ones. A school-covered-but-personally-
+    # unsubscribed teacher was incorrectly treated as free-tier and hit the count limit. Now
+    # matches classroom-overview/school-overview exactly.
+    teacher_sub_active = teacher.get("subscription_status") not in ("none", "free", None)
+    covered = user.get("role") == "superadmin" or teacher_sub_active or _teacher_is_school_covered(teacher)
+    if not covered:
+        _now = datetime.now(timezone.utc)
+        if (year, month) != (_now.year, _now.month):
+            raise HTTPException(status_code=403, detail="Historical reports require an active plan for you or your school. Free access covers the current month only.")
+
+    import io, calendar as cal_mod, os
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    from reportlab.platypus import Image as RLImage
 
     # Date range
     start = datetime(year, month, 1, tzinfo=timezone.utc).isoformat()
