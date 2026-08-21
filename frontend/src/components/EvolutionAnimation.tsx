@@ -24,8 +24,8 @@ export const EvolutionAnimation: React.FC<EvolutionAnimationProps> = ({
   const [showNewForm, setShowNewForm] = useState(false);
   const [animationComplete, setAnimationComplete] = useState(false);
 
-  const oldStageInfo = creature.stages[fromStage];
-  const newStageInfo = creature.stages[toStage];
+  const oldStageInfo = creature.stages![fromStage];
+  const newStageInfo = creature.stages![toStage];
 
   useEffect(() => {
     if (!visible) {
@@ -116,7 +116,7 @@ export const EvolutionAnimation: React.FC<EvolutionAnimationProps> = ({
 
   const glowColor = glowAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ['transparent', creature.color],
+    outputRange: ['transparent', creature.color!],
   });
 
   const currentEmoji = showNewForm ? newStageInfo.emoji : oldStageInfo.emoji;

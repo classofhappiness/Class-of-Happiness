@@ -1,3 +1,8 @@
+// Real redesign Aug 21: interaction model changed from "tap to manually progress" to "tap to
+// select as your active creature for this colour" - progress then happens automatically
+// through normal check-ins, exactly like the default per-colour creatures always worked.
+// Enforces the real rule: one active creature per colour, and a student can only pick a new
+// one once their current active creature for that colour is fully evolved.
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -13,14 +18,17 @@ const EMOTION_EMOJI: Record<string, string> = {
   green: '😊', blue: '😔', yellow: '😬', red: '😤'
 };
 
+interface ActiveInfo { active_id: string; is_default: boolean; is_fully_evolved: boolean; }
+
 export default function GlobalCreaturesScreen() {
   const { t, currentStudent } = useApp();
   const router = useRouter();
   const [creatures, setCreatures] = useState<any[]>([]);
+  const [active, setActive] = useState<Record<string, ActiveInfo>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<string>('all');
-  const [unlockingId, setUnlockingId] = useState<string | null>(null);
+  const [startingId, setStartingId] = useState<string | null>(null);
   const [scopePref, setScopePref] = useState<string>('any');
   const [hasClassroom, setHasClassroom] = useState(false);
   const [scopeChanging, setScopeChanging] = useState(false);
@@ -33,6 +41,12 @@ export default function GlobalCreaturesScreen() {
       setCreatures(data?.creatures || []);
       setScopePref(data?.scope_pref || 'any');
       setHasClassroom(!!data?.has_classroom);
+      if (studentId) {
+        try {
+          const activeData = await creaturesApi.getActiveCreatures(studentId);
+          setActive(activeData || {});
+        } catch (e) {}
+      }
     } catch (e) {}
     setLoading(false);
     setRefreshing(false);
@@ -64,25 +78,26 @@ export default function GlobalCreaturesScreen() {
 
   const filtered = filter === 'all' ? creatures : creatures.filter(c => c.emotion_colour === filter);
 
-  const handleUnlock = async (item: any) => {
+  const handleSetActive = async (item: any) => {
     if (!studentId) return;
-    setUnlockingId(item.id);
+    setStartingId(item.id);
     try {
-      const res = await creaturesApi.unlockStage(item.id, studentId);
-      if (typeof res?.stages_unlocked === 'number') {
-        setCreatures(prev => prev.map(c => c.id === item.id ? { ...c, my_stages_unlocked: res.stages_unlocked } : c));
-      }
-      if (res?.message) Alert.alert(res.stages_unlocked > (item.my_stages_unlocked || 0) ? (t('unlocked') || 'Unlocked!') : (t('keep_going') || 'Keep going!'), res.message);
-    } catch (e) {
-      Alert.alert(t('error') || 'Error', 'Could not unlock this creature right now.');
+      const res = await creaturesApi.startCreature(item.id, studentId);
+      Alert.alert(t('unlocked') || 'Started!', res?.message || `${item.creature_name} is now your active creature!`);
+      await load();
+    } catch (e: any) {
+      Alert.alert(t('error') || 'Error', e?.message || 'Could not set this creature as active right now.');
     }
-    setUnlockingId(null);
+    setStartingId(null);
   };
 
   const renderCreature = ({ item }: { item: any }) => {
     const stage = Math.max(1, item.my_stages_unlocked || 0) as 1 | 2 | 3 | 4;
     const imgUrl = item[`stage${Math.min(stage, 4)}_url`] || item.stage1_url;
     const fullyEvolved = (item.my_stages_unlocked || 0) >= 4;
+    const colourActive = active[item.emotion_colour];
+    const isActive = colourActive?.active_id === item.id;
+    const canStart = !!colourActive?.is_fully_evolved;
     return (
       <View style={[styles.card, { borderTopColor: EMOTION_COLORS[item.emotion_colour], borderTopWidth: 3 }]}>
         <Image source={{ uri: imgUrl }} style={styles.creatureImg} />
@@ -99,17 +114,21 @@ export default function GlobalCreaturesScreen() {
           </View>
           {fullyEvolved ? (
             <Text style={styles.fullyEvolved}>🏆 Fully evolved!</Text>
-          ) : (
+          ) : isActive ? (
+            <Text style={styles.activeHint}>★ Active — check in to grow!</Text>
+          ) : canStart ? (
             <TouchableOpacity
-              disabled={unlockingId === item.id}
-              onPress={() => handleUnlock(item)}
+              disabled={startingId === item.id}
+              onPress={() => handleSetActive(item)}
               style={[styles.unlockBtn, { backgroundColor: EMOTION_COLORS[item.emotion_colour] }]}>
-              {unlockingId === item.id ? (
+              {startingId === item.id ? (
                 <ActivityIndicator size="small" color="white" />
               ) : (
-                <Text style={styles.unlockBtnText}>{(item.my_stages_unlocked || 0) > 0 ? (t('keep_going') || 'Keep Going!') : (t('start') || 'Start')}</Text>
+                <Text style={styles.unlockBtnText}>Set as Active</Text>
               )}
             </TouchableOpacity>
+          ) : (
+            <Text style={styles.lockedHint}>Finish your {item.emotion_colour} creature first</Text>
           )}
         </View>
       </View>
@@ -124,11 +143,11 @@ export default function GlobalCreaturesScreen() {
             <MaterialIcons name="arrow-back" size={22} color="white" />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => router.push('/student/creatures')} style={styles.collectionBtn}>
-            <Text style={styles.collectionBtnText}>🐾 {t('my_creatures') || 'My Collection'}</Text>
+            <Text style={styles.collectionBtnText}>🐾 {t('my_creatures') || 'My Creatures'}</Text>
           </TouchableOpacity>
         </View>
         <Text style={styles.title}>🌍 World Creatures</Text>
-        <Text style={styles.subtitle}>Creatures you can work toward</Text>
+        <Text style={styles.subtitle}>Find your next creature to work toward</Text>
       </View>
       {studentId ? (
         <View style={styles.scopeRow}>
@@ -201,6 +220,8 @@ const styles = StyleSheet.create({
   progressRow: { flexDirection: 'row', gap: 4, marginTop: 2, marginBottom: 8 },
   progressDot: { width: 8, height: 8, borderRadius: 4 },
   fullyEvolved: { fontSize: 11, fontWeight: '800', color: '#4CAF73' },
+  activeHint: { fontSize: 11, fontWeight: '800', color: '#5C6BC0' },
+  lockedHint: { fontSize: 10, fontWeight: '700', color: '#AAA', fontStyle: 'italic' },
   unlockBtn: { paddingVertical: 8, borderRadius: 50, alignItems: 'center' },
   unlockBtnText: { color: 'white', fontWeight: '800', fontSize: 12 },
   empty: { textAlign: 'center', color: '#9CA3AF', fontSize: 15, fontWeight: '700', marginTop: 80, padding: 20 },

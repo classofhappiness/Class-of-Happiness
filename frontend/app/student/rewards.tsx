@@ -16,8 +16,8 @@ import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { rewardsApi, Creature, AddPointsResponse } from '../../src/utils/api';
 import { getStudentShield, SHIELD_LEVELS } from '../../src/utils/notifications';
 import { CreatureDisplay } from '../../src/components/CreatureDisplay';
+import { CommunityCreatureDisplay } from '../../src/components/CommunityCreatureDisplay';
 import { EvolutionAnimation } from '../../src/components/EvolutionAnimation';
-import { CreatureCollection } from '../../src/components/CreatureCollection';
 import { playButtonFeedback, playRewardFeedback, playEvolutionSound, preloadSounds } from '../../src/utils/sounds';
 import { playRewardVoiceClip } from '../../src/utils/voiceClips';
 
@@ -71,9 +71,7 @@ export default function RewardsScreen() {
   const [loading, setLoading] = useState(true);
   const [showContinue, setShowContinue] = useState(false);
   const [showEvolution, setShowEvolution] = useState(false);
-  const [showCollection, setShowCollection] = useState(false);
   const [previousStage, setPreviousStage] = useState(0);
-  const [collectionData, setCollectionData] = useState<any>(null);
   const [tipVisible, setTipVisible] = useState(true);
   const tipOpacityAnim = useRef(new Animated.Value(1)).current;
 
@@ -145,12 +143,9 @@ export default function RewardsScreen() {
 
       setRewardsData(response);
 
-      // Fetch collection data
-      const collection = await rewardsApi.getCollection(effectiveStudentId);
       // Fetch shield badge
       const shieldData = await getStudentShield(effectiveStudentId);
       setShield(shieldData);
-      setCollectionData(collection);
 
       // Start animations
       startAnimations(response);
@@ -295,17 +290,31 @@ export default function RewardsScreen() {
         </Text>
       </View>
 
-      {/* Creature Display */}
+      {/* Creature Display — real feature Aug 21: a community creature (photo-based) can now be
+          the active pursuit for a colour, alongside the emoji-based default creatures. */}
       <Animated.View style={[styles.creatureSection, { transform: [{ translateY: bounceAnim }] }]}>
-        <CreatureDisplay
-          creature={rewardsData?.current_creature}
-          stage={rewardsData?.current_stage}
-          currentPoints={rewardsData?.current_points}
-          pointsForNext={rewardsData?.points_for_next_evolution}
-          size="large"
-          showProgress={true}
-          animated={true}
-        />
+        {rewardsData?.current_creature?.creature_type === 'community' ? (
+          <CommunityCreatureDisplay
+            name={rewardsData.current_creature.name}
+            emotionColour={rewardsData.current_creature.feeling_colour}
+            stage1_url={rewardsData.current_creature.stage1_url}
+            stage2_url={rewardsData.current_creature.stage2_url}
+            stage3_url={rewardsData.current_creature.stage3_url}
+            stage4_url={rewardsData.current_creature.stage4_url}
+            stage={rewardsData.current_stage}
+            size="large"
+          />
+        ) : (
+          <CreatureDisplay
+            creature={rewardsData?.current_creature}
+            stage={rewardsData?.current_stage}
+            currentPoints={rewardsData?.current_points}
+            pointsForNext={rewardsData?.points_for_next_evolution}
+            size="large"
+            showProgress={true}
+            animated={true}
+          />
+        )}
       </Animated.View>
 
       {/* Points Earned */}
@@ -389,12 +398,15 @@ export default function RewardsScreen() {
 
       {/* Action Buttons */}
       <View style={styles.buttonContainer}>
-        {/* Collection Button */}
-        <TouchableOpacity 
+        {/* Collection Button - real fix Aug 21: this used to open a modal (CreatureCollection)
+            fed by the old defaults-only /rewards/{id}/collection endpoint, a separate surface
+            from the community-creature collection screen reachable via World Creatures. Now
+            navigates to the same, unified "My Creatures" screen either path leads to. */}
+        <TouchableOpacity
           style={styles.collectionButton}
           onPress={() => {
             playButtonFeedback();
-            setShowCollection(true);
+            router.push('/student/creatures');
           }}
         >
           <MaterialIcons name="pets" size={24} color="#FFD700" />
@@ -419,8 +431,8 @@ export default function RewardsScreen() {
 
         {/* Continue Button */}
         {showContinue && (
-          <TouchableOpacity 
-            style={[styles.continueButton, { backgroundColor: rewardsData?.current_creature.color }]}
+          <TouchableOpacity
+            style={[styles.continueButton, { backgroundColor: rewardsData?.current_creature?.color || EMOTION_COLOURS[(rewardsData?.current_creature?.feeling_colour || rewardsData?.feeling_colour) as keyof typeof EMOTION_COLOURS] || '#5C6BC0' }]}
             onPress={handleContinue}
           >
             <Text style={styles.continueText}>{t('continue')}</Text>
@@ -445,24 +457,6 @@ export default function RewardsScreen() {
         />
       )}
 
-      {/* Collection Modal */}
-      {collectionData && (
-        <CreatureCollection
-          visible={showCollection}
-          collectedCreatures={collectionData.collected_creatures || []}
-          currentCreature={rewardsData?.current_creature}
-          currentStage={rewardsData?.current_stage}
-          currentPoints={rewardsData?.current_points}
-          totalCreatures={collectionData.total_creatures}
-          unlockedMoves={collectionData.unlocked_moves || []}
-          unlockedOutfits={collectionData.unlocked_outfits || []}
-          unlockedFoods={collectionData.unlocked_foods || []}
-          unlockedHomes={collectionData.unlocked_homes || []}
-          allCreatures={collectionData.all_creatures || []}
-          t={t}
-          onClose={() => setShowCollection(false)}
-        />
-      )}
     </SafeAreaView>
   );
 }
@@ -504,7 +498,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   creatureSection: {
-    flex: 1,
+    // Real bug fix Aug 21: this was `flex: 1`, competing for space with every sibling below it
+    // (points/progress/tip/shield/buttons) in the same flex column - when the Bronze Shield
+    // badge was also showing, the box could compress enough that the bouncing creature's
+    // bottom edge visually overlapped the shield card. Bounded to a fixed minHeight instead so
+    // it never shrinks below the creature graphic's own size, regardless of what else renders.
+    minHeight: 240,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 20,
@@ -551,7 +550,7 @@ const styles = StyleSheet.create({
     gap: 8,
     width: '100%',
   },
-  shieldContainer: { paddingHorizontal: 20, marginBottom: 12 },
+  shieldContainer: { paddingHorizontal: 20, marginTop: 8, marginBottom: 12 },
   shieldCard: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#FFF8E1', borderRadius: 14, padding: 14, gap: 12, borderWidth: 1.5, borderColor: '#FFD54F' },
   shieldEmoji: { fontSize: 32, marginTop: 2 },
   shieldTitle: { fontSize: 15, fontWeight: '700', color: '#F57F17' },

@@ -3156,7 +3156,87 @@ async def add_points(student_id: str, req: AddPointsRequest):
 
     # Which creature gets the points - zone takes priority over feeling_colour default
     feeling_colour = req.zone or (req.feeling_colour if req.feeling_colour != "blue" else None) or "blue"
-    target_creature = FEELING_COLOUR_MAP.get(feeling_colour, "aqua_buddy")
+
+    # Real bug fix Aug 21: "starting" a community creature never actually became what check-ins
+    # feed into - this was always hardcoded to the 4 default creatures via FEELING_COLOUR_MAP.
+    # Now checks the student's real active_creatures selection first; only default-creature ids
+    # take the original points-based path below, community ids take the check-in-count path.
+    student_row = supabase.table("students").select("*").eq("id", student_id).execute()
+    student_data = student_row.data[0] if student_row.data else None
+    active_creatures = _get_active_creatures(student_data) if student_data else dict(FEELING_COLOUR_MAP)
+    active_id = active_creatures.get(feeling_colour) or FEELING_COLOUR_MAP.get(feeling_colour, "aqua_buddy")
+
+    if active_id not in DEFAULT_CREATURE_IDS:
+        # Community creature is this colour's active pursuit - points/streak are still
+        # student-level and always tracked, but stage progress goes through the real
+        # check-in-count mechanic (only "checkin" events count, matching the community
+        # system's own real rule) instead of the default system's points thresholds.
+        points_to_add = POINTS_CONFIG["checkin"] if req.points_type == "checkin" else (
+            POINTS_CONFIG["strategy_used"] * req.strategy_count if req.points_type == "strategy"
+            else POINTS_CONFIG["comment_added"] if req.points_type == "comment" else 0
+        )
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        last_checkin = rewards.get("last_checkin_date")
+        streak_days = rewards.get("streak_days", 0)
+        if req.points_type == "checkin":
+            if last_checkin:
+                yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+                if last_checkin == yesterday:
+                    streak_days += 1
+                    points_to_add += POINTS_CONFIG["daily_streak_bonus"]
+                elif last_checkin != today:
+                    streak_days = 1
+            else:
+                streak_days = 1
+        total_points = rewards.get("total_points_earned", 0) + points_to_add
+        update_data = {
+            "total_points_earned": total_points,
+            "streak_days": streak_days,
+            "last_checkin_date": today if req.points_type == "checkin" else last_checkin,
+        }
+        if rewards_result.data:
+            supabase.table("student_rewards").update(update_data).eq("student_id", student_id).execute()
+        else:
+            update_data["student_id"] = student_id
+            supabase.table("student_rewards").insert(update_data).execute()
+
+        progress = _progress_community_creature(student_id, active_id) if req.points_type == "checkin" else None
+        if progress is None:
+            # Not a check-in event, or the active community creature vanished - report current
+            # state without attempting to progress it.
+            unlocks_r = _creature_unlocks_for(student_id, student_id, [active_id])
+            cur = unlocks_r.data[0] if unlocks_r.data else {"stages_unlocked": 0}
+            creature_full = supabase.table("creature_submissions").select(
+                "creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url"
+            ).eq("id", active_id).execute()
+            cf = creature_full.data[0] if creature_full.data else {}
+            progress = {
+                "id": active_id, "name": cf.get("creature_name"), "emotion_colour": cf.get("emotion_colour"),
+                "stage1_url": cf.get("stage1_url"), "stage2_url": cf.get("stage2_url"),
+                "stage3_url": cf.get("stage3_url"), "stage4_url": cf.get("stage4_url"),
+                "current_stage": cur.get("stages_unlocked", 0), "evolved": False, "is_complete": cur.get("stages_unlocked", 0) >= 4,
+            }
+        return {
+            "current_creature": {
+                "id": progress["id"], "name": progress["name"], "feeling_colour": progress["emotion_colour"],
+                "creature_type": "community",
+                "stage1_url": progress.get("stage1_url"), "stage2_url": progress.get("stage2_url"),
+                "stage3_url": progress.get("stage3_url"), "stage4_url": progress.get("stage4_url"),
+            },
+            "current_stage": progress["current_stage"],
+            "current_points": progress["current_stage"],
+            "points_for_next_evolution": None,
+            "evolved": progress["evolved"],
+            "points_added": points_to_add,
+            "streak_bonus": POINTS_CONFIG["daily_streak_bonus"] if (req.points_type == "checkin" and last_checkin and streak_days > 1 and points_to_add > POINTS_CONFIG["checkin"]) else 0,
+            "streak_days": streak_days,
+            "total_points_earned": total_points,
+            "all_creatures_progress": rewards.get("creature_points") or {},
+            "feeling_colour": feeling_colour,
+            "zone": feeling_colour,
+        }
+
+    target_creature = active_id
 
     # Calculate points
     points_to_add = 0
@@ -3652,6 +3732,101 @@ async def _is_authorized_for_student(user: dict, student_id: str, student_data: 
     except Exception:
         pass
     return False
+
+DEFAULT_CREATURE_IDS = {"aqua_buddy", "leaf_friend", "spark_pal", "blaze_heart"}
+
+def _get_active_creatures(student_data: dict) -> dict:
+    """Real feature Aug 21 (bug fix): a student's active creature per colour - either one of
+    the 4 built-in default creatures (day-1 default, points-based evolution) or a community
+    creature_submissions id they've chosen to pursue (check-in-count-based evolution, see
+    _progress_community_creature). Defensive default if the column doesn't exist yet."""
+    active = student_data.get("active_creatures") if student_data else None
+    if not active or not isinstance(active, dict):
+        return dict(FEELING_COLOUR_MAP)
+    merged = dict(FEELING_COLOUR_MAP)
+    merged.update({k: v for k, v in active.items() if v})
+    return merged
+
+def _is_creature_fully_evolved(student_data: dict, active_id: str, real_student_id: str) -> bool:
+    """True if the currently-active creature for a colour has been fully evolved - gates
+    whether a student may pick a new one for that colour (default creatures: stage 3/3 via
+    student_rewards; community creatures: stages_unlocked 4/4 via creature_unlocks)."""
+    if active_id in DEFAULT_CREATURE_IDS:
+        rewards_r = supabase.table("student_rewards").select("creature_stages").eq("student_id", real_student_id).execute()
+        if not rewards_r.data:
+            return False
+        stages = rewards_r.data[0].get("creature_stages") or {}
+        return (stages.get(active_id, 0) or 0) >= 3
+    unlocks_r = _creature_unlocks_for(real_student_id, real_student_id, [active_id])
+    return bool(unlocks_r.data) and (unlocks_r.data[0].get("stages_unlocked", 0) or 0) >= 4
+
+def _progress_community_creature(real_student_id: str, submission_id: str):
+    """Real bug fix Aug 21: extracted from unlock_creature_stage so both the direct endpoint
+    and the check-in-driven path (add_points) share one real implementation - no duplicated
+    threshold/snapshot logic. real_student_id here is always a real students.id (this function
+    is only ever called once a creature is a student's genuine active pursuit for its colour)."""
+    creature_r = supabase.table("creature_submissions").select(
+        "emotion_colour,creature_name,stage1_url,stage2_url,stage3_url,stage4_url,status"
+    ).eq("id", submission_id).execute()
+    if not creature_r.data or creature_r.data[0].get("status") != "approved":
+        return None
+    creature = creature_r.data[0]
+    checkins = supabase.table("feeling_logs").select("id")        .eq("student_id", real_student_id)        .eq("feeling_colour", creature.get("emotion_colour"))        .gte("timestamp", (datetime.now(timezone.utc) - timedelta(days=30)).isoformat())        .execute()
+    total_checkins = len(checkins.data) if checkins.data else 0
+    existing = _creature_unlocks_for(real_student_id, real_student_id, [submission_id])
+    current_stages = existing.data[0]["stages_unlocked"] if existing.data else 0
+    required = [5, 10, 15, 20]
+    next_stage = current_stages + 1
+    evolved = False
+    if next_stage <= 4 and total_checkins >= required[current_stages]:
+        evolved = True
+        snapshot_fields = {}
+        if next_stage == 4:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            featured_now = supabase.table("featured_creatures").select("active_until")                .eq("creature_id", submission_id).lte("active_from", now_iso).gte("active_until", now_iso).execute()
+            was_featured = bool(featured_now.data)
+            snapshot_fields = {
+                "creature_name_snapshot": creature.get("creature_name"),
+                "emotion_colour_snapshot": creature.get("emotion_colour"),
+                "stage_image_snapshot": creature.get("stage4_url"),
+                "was_featured": was_featured,
+                "featured_until_snapshot": featured_now.data[0]["active_until"] if was_featured else None,
+            }
+        if existing.data:
+            completed = datetime.now(timezone.utc).isoformat() if next_stage == 4 else None
+            update_body = {"stages_unlocked": next_stage, "completed_at": completed}
+            try:
+                supabase.table("creature_unlocks").update({**update_body, **snapshot_fields}).eq("id", existing.data[0]["id"]).execute()
+            except Exception:
+                supabase.table("creature_unlocks").update(update_body).eq("id", existing.data[0]["id"]).execute()
+        else:
+            new_row = {"student_id": real_student_id, "creature_id": submission_id, "stages_unlocked": next_stage, "real_student_id": real_student_id}
+            try:
+                supabase.table("creature_unlocks").insert(new_row).execute()
+            except Exception:
+                supabase.table("creature_unlocks").insert({"student_id": real_student_id, "creature_id": submission_id, "stages_unlocked": next_stage}).execute()
+        current_stages = next_stage
+        if next_stage == 4:
+            supabase.table("creature_submissions").update({
+                "global_uses": supabase.table("creature_submissions").select("global_uses")                    .eq("id", submission_id).execute().data[0]["global_uses"] + 1
+            }).eq("id", submission_id).execute()
+    needed_for_next = 0
+    if current_stages < 4 and not evolved:
+        needed_for_next = max(0, required[current_stages] - total_checkins)
+    return {
+        "type": "community",
+        "id": submission_id,
+        "name": creature.get("creature_name"),
+        "emotion_colour": creature.get("emotion_colour"),
+        "stage1_url": creature.get("stage1_url"),
+        "stage2_url": creature.get("stage2_url"),
+        "stage3_url": creature.get("stage3_url"),
+        "stage4_url": creature.get("stage4_url"),
+        "current_stage": current_stages,
+        "evolved": evolved,
+        "is_complete": current_stages >= 4,
+        "needed_for_next": needed_for_next,
+    }
 
 def _creature_unlocks_for(user_id: str, real_student_id: Optional[str], creature_ids: list = None):
     """Real feature Aug 21: creature_unlocks was keyed only by the SUBMITTING ACCOUNT's user_id
@@ -7401,89 +7576,102 @@ async def unlock_creature_stage(submission_id: str, request: Request):
         )
         if not is_eligible:
             raise HTTPException(status_code=403, detail="This creature isn't available to this student")
-    # Real bug fix Aug 21: feeling_logs.student_id is always a real students.id, never an
-    # account's user_id (confirmed live) - this was querying the wrong id and would always
-    # count 0 check-ins for any real usage, silently invisible until tonight since this
-    # endpoint had zero UI call sites before now. Use real_student_id when the caller sends
-    # one; fall back to the old (still-broken) behaviour only when it's absent, so nothing
-    # regresses for any other caller.
-    checkin_student_id = real_student_id or user["user_id"]
-    # Real bug fix Aug 21: check-ins were counted with no colour filter at all - a blue
-    # check-in could progress a red creature. Mirrors the default per-colour creature system's
-    # real pattern (add_points routes each check-in's own feeling_colour to the matching
-    # creature via FEELING_COLOUR_MAP, server.py ~line 3158) - only check-ins whose
-    # feeling_colour matches this creature's emotion_colour count toward it.
-    checkins = supabase.table("feeling_logs").select("id")        .eq("student_id", checkin_student_id)        .eq("feeling_colour", creature.get("emotion_colour"))        .gte("timestamp", (datetime.now(timezone.utc) - timedelta(days=30)).isoformat())        .execute()
-    total_checkins = len(checkins.data) if checkins.data else 0
-    existing = _creature_unlocks_for(user["user_id"], real_student_id, [submission_id])
-    current_stages = existing.data[0]["stages_unlocked"] if existing.data else 0
-    # Stage thresholds: 5, 10, 15, 20 check-ins
-    required = [5, 10, 15, 20]
-    next_stage = current_stages + 1
-    if next_stage > 4:
+        # Real bug fix Aug 21: enforce the new one-active-creature-per-colour rule server-side,
+        # not just in the UI - a student may only progress the creature that's genuinely their
+        # active pursuit for this colour. Closes a bypass where this endpoint, called directly,
+        # could progress a creature that was never actually "started" via /creatures/start.
+        active = _get_active_creatures(student_data)
+        if active.get(creature.get("emotion_colour")) != submission_id:
+            raise HTTPException(status_code=403, detail="This isn't your active creature for this colour yet - set it as active first.")
+
+    # Real bug fix Aug 21: this function's whole body used to be duplicated between here and
+    # add_points' check-in-driven path - now both share _progress_community_creature, which
+    # already includes the colour-filtered check-in count fix and the expiry-snapshot capture.
+    result = _progress_community_creature(real_student_id or user["user_id"], submission_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Creature not found")
+    if result["is_complete"] and not result["evolved"]:
         return {"stages_unlocked": 4, "message": "Already fully unlocked!"}
-    if total_checkins < required[current_stages]:
-        return {"stages_unlocked": current_stages, "needed": required[current_stages] - total_checkins,
-                "message": f"Do {required[current_stages]-total_checkins} more check-ins to unlock stage {next_stage}!"}
-    # Real feature Aug 21: expiry-aware history - snapshot the creature's name/colour/final
-    # image and whether it was time-limited (featured) at the exact moment a student fully
-    # evolves it, so a later scope change, un-featuring, or removal can't silently rewrite
-    # what the student actually earned. Only captured on the completion step (next_stage==4)
-    # since that's the one moment that becomes permanent history.
-    snapshot_fields = {}
-    if next_stage == 4:
-        now_iso = datetime.now(timezone.utc).isoformat()
-        featured_now = supabase.table("featured_creatures").select("active_until")            .eq("creature_id", submission_id).lte("active_from", now_iso).gte("active_until", now_iso).execute()
-        was_featured = bool(featured_now.data)
-        snapshot_fields = {
-            "creature_name_snapshot": creature.get("creature_name"),
-            "emotion_colour_snapshot": creature.get("emotion_colour"),
-            "stage_image_snapshot": creature.get("stage4_url"),
-            "was_featured": was_featured,
-            "featured_until_snapshot": featured_now.data[0]["active_until"] if was_featured else None,
+    if not result["evolved"]:
+        return {
+            "stages_unlocked": result["current_stage"],
+            "needed": result["needed_for_next"],
+            "message": f"Do {result['needed_for_next']} more check-ins to unlock stage {result['current_stage']+1}!",
         }
-    if existing.data:
-        completed = datetime.now(timezone.utc).isoformat() if next_stage == 4 else None
-        update_body = {"stages_unlocked": next_stage, "completed_at": completed}
-        if snapshot_fields:
-            try:
-                supabase.table("creature_unlocks").update({**update_body, **snapshot_fields}).eq("id", existing.data[0]["id"]).execute()
-            except Exception as e:
-                logger.warning(f"[creatures/unlock] snapshot columns not available yet, falling back: {e}")
-                supabase.table("creature_unlocks").update(update_body).eq("id", existing.data[0]["id"]).execute()
-        else:
-            supabase.table("creature_unlocks").update(update_body).eq("id", existing.data[0]["id"]).execute()
-    else:
-        new_row = {"student_id": user["user_id"], "creature_id": submission_id, "stages_unlocked": 1}
-        if real_student_id:
-            try:
-                supabase.table("creature_unlocks").insert({**new_row, "real_student_id": real_student_id}).execute()
-            except Exception as e:
-                err = str(e)
-                if "23505" in err or "duplicate key" in err.lower():
-                    # Real bug fix Aug 21: the OLD unique constraint (student_id, creature_id)
-                    # predates real_student_id and still blocks two different real students on
-                    # the SAME account from getting independent rows for the same creature -
-                    # confirmed live (two students, one teacher account, second insert 500'd).
-                    # A DB-level migration is required to fix this properly (see
-                    # COH-REVIEW-PLAN.md) - surface an honest 409 instead of silently retrying
-                    # into the wrong row (which would corrupt another student's progress).
-                    raise HTTPException(
-                        status_code=409,
-                        detail="This account already has progress on this creature under a "
-                               "different student - a database constraint needs updating "
-                               "before per-student progress can fully separate."
-                    )
-                logger.warning(f"[creatures/unlock] real_student_id column not available yet, falling back: {e}")
-                supabase.table("creature_unlocks").insert(new_row).execute()
-        else:
-            supabase.table("creature_unlocks").insert(new_row).execute()
-    # Increment global uses if newly completed
-    if next_stage == 4:
-        supabase.table("creature_submissions").update({
-            "global_uses": supabase.table("creature_submissions").select("global_uses")                .eq("id", submission_id).execute().data[0]["global_uses"] + 1
-        }).eq("id", submission_id).execute()
-    return {"stages_unlocked": next_stage, "message": f"Stage {next_stage} unlocked!" }
+    return {"stages_unlocked": result["current_stage"], "message": f"Stage {result['current_stage']} unlocked!"}
+
+@api_router.post("/creatures/start/{submission_id}")
+async def start_creature(submission_id: str, request: Request):
+    """Real feature Aug 21: a student picks a community creature to become their active
+    pursuit for its colour - this is a SELECTION, not progress. Progress then happens
+    automatically through normal check-ins (same as the default per-colour creatures always
+    have), via add_points routing to whichever creature is active. Gated: the creature must
+    match the target colour (implicit - a creature only ever belongs to its own colour slot),
+    the student must be eligible to see it (classroom/school/global), and their CURRENTLY
+    active creature for that colour must already be fully evolved - "one active creature per
+    colour, choose the next only once you've finished the current one," per Jono's explicit
+    rule (this replaces the earlier multi-simultaneous-progress behaviour)."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    real_student_id = body.get("real_student_id")
+    if not real_student_id:
+        raise HTTPException(status_code=400, detail="real_student_id is required")
+
+    student_r = supabase.table("students").select("*").eq("id", real_student_id).execute()
+    student_data = student_r.data[0] if student_r.data else None
+    if not student_data or not await _is_authorized_for_student(user, real_student_id, student_data):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
+
+    creature_r = supabase.table("creature_submissions").select(
+        "visibility_scope,school_name,classroom_id,status,emotion_colour,creature_name"
+    ).eq("id", submission_id).execute()
+    if not creature_r.data or creature_r.data[0].get("status") != "approved":
+        raise HTTPException(status_code=404, detail="Creature not found")
+    creature = creature_r.data[0]
+    colour = creature.get("emotion_colour")
+
+    classroom_id, school_name = _resolve_student_classroom_school(student_data)
+    scope = creature.get("visibility_scope") or "global"
+    is_eligible = (
+        scope == "global"
+        or (scope == "school" and school_name and creature.get("school_name") == school_name)
+        or (scope == "classroom" and classroom_id and creature.get("classroom_id") == classroom_id)
+    )
+    if not is_eligible:
+        raise HTTPException(status_code=403, detail="This creature isn't available to this student")
+
+    active = _get_active_creatures(student_data)
+    current_active = active.get(colour)
+    if current_active == submission_id:
+        return {"active_creatures": active, "message": "Already your active creature for this colour."}
+    if not _is_creature_fully_evolved(student_data, current_active, real_student_id):
+        raise HTTPException(
+            status_code=400,
+            detail="You need to fully evolve your current creature for this colour before starting a new one."
+        )
+
+    active[colour] = submission_id
+    try:
+        supabase.table("students").update({"active_creatures": active}).eq("id", real_student_id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Starting a new creature isn't available yet - migration pending")
+
+    # Real feature Aug 21: create the creature_unlocks row immediately at start time (stage 0)
+    # rather than waiting for the first check-in threshold to be met, so "started_at" (the
+    # row's unlocked_at) genuinely reflects when the student chose this creature, not when
+    # they first made enough progress to move it to stage 1 - matters for the collection
+    # view's "when they started it" requirement.
+    existing = _creature_unlocks_for(user["user_id"], real_student_id, [submission_id])
+    if not existing.data:
+        new_row = {"student_id": user["user_id"], "creature_id": submission_id, "stages_unlocked": 0}
+        try:
+            supabase.table("creature_unlocks").insert({**new_row, "real_student_id": real_student_id}).execute()
+        except Exception:
+            pass
+
+    return {"active_creatures": active, "message": f"{creature.get('creature_name')} is now your active {colour} creature!"}
 
 @api_router.get("/creatures/my-unlocks")
 async def get_my_unlocks(request: Request, student_id: Optional[str] = None):
@@ -7510,6 +7698,108 @@ async def get_my_unlocks(request: Request, student_id: Optional[str] = None):
             pass
     rows = supabase.table("creature_unlocks").select(select_fields).eq("student_id", user["user_id"]).execute()
     return rows.data or []
+
+@api_router.get("/students/{student_id}/active-creatures")
+async def get_active_creatures_endpoint(student_id: str, request: Request):
+    """Real feature Aug 21: lets the frontend check, per colour, which creature is active and
+    whether it's fully evolved yet - drives whether World Creatures shows "Set as Active"
+    (enabled) or a locked/disabled state ("finish your current one first")."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    student_r = supabase.table("students").select("*").eq("id", student_id).execute()
+    student_data = student_r.data[0] if student_r.data else None
+    if not student_data or not await _is_authorized_for_student(user, student_id, student_data):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
+    active = _get_active_creatures(student_data)
+    result = {}
+    for colour, active_id in active.items():
+        result[colour] = {
+            "active_id": active_id,
+            "is_default": active_id in DEFAULT_CREATURE_IDS,
+            "is_fully_evolved": _is_creature_fully_evolved(student_data, active_id, student_id),
+        }
+    return result
+
+@api_router.get("/students/{student_id}/my-creatures")
+async def get_my_creatures(student_id: str, request: Request):
+    """Real feature Aug 21: the permanent "My Creatures" collection - Pokedex-style, not a
+    single current-creature slot. Every creature a student has ever started or fully evolved,
+    default or community, grouped by colour, with a real total-collected count. A creature
+    that stops being "active" is NEVER removed from this view - its final state (points/
+    stage for defaults, snapshot for community) just stays as permanent history."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    student_r = supabase.table("students").select("*").eq("id", student_id).execute()
+    student_data = student_r.data[0] if student_r.data else None
+    if not student_data or not await _is_authorized_for_student(user, student_id, student_data):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
+
+    active = _get_active_creatures(student_data)
+
+    rewards_r = supabase.table("student_rewards").select("creature_stages,creature_points").eq("student_id", student_id).execute()
+    creature_stages = (rewards_r.data[0].get("creature_stages") if rewards_r.data else None) or {}
+    creature_points = (rewards_r.data[0].get("creature_points") if rewards_r.data else None) or {}
+    creatures_map = {c["id"]: c for c in CREATURES}
+
+    buckets = {"blue": [], "green": [], "yellow": [], "red": []}
+    total_collected = 0
+
+    for colour, default_id in FEELING_COLOUR_MAP.items():
+        cdata = creatures_map.get(default_id, {})
+        stage = creature_stages.get(default_id, 0)
+        is_complete = stage >= 3
+        if is_complete:
+            total_collected += 1
+        buckets[colour].append({
+            "type": "default",
+            "id": default_id,
+            "name": cdata.get("name"),
+            "emoji": (cdata.get("stages") or [{}])[min(stage, 3)].get("emoji") if cdata.get("stages") else None,
+            "current_stage": stage,
+            "max_stage": 3,
+            "is_complete": is_complete,
+            "is_active": active.get(colour) == default_id,
+            "points": creature_points.get(default_id, 0),
+        })
+
+    try:
+        unlocks_r = supabase.table("creature_unlocks").select(
+            "*, creature_submissions(id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,visibility_scope)"
+        ).eq("real_student_id", student_id).execute()
+        unlock_rows = unlocks_r.data or []
+    except Exception:
+        unlock_rows = []
+    for u in unlock_rows:
+        cs = u.get("creature_submissions")
+        if not cs:
+            continue
+        colour = cs.get("emotion_colour")
+        if colour not in buckets:
+            continue
+        stages_unlocked = u.get("stages_unlocked", 0) or 0
+        is_complete = stages_unlocked >= 4
+        if is_complete:
+            total_collected += 1
+        name = (is_complete and u.get("creature_name_snapshot")) or cs.get("creature_name")
+        stage_img = (is_complete and u.get("stage_image_snapshot")) or cs.get(f"stage{max(1, min(stages_unlocked, 4))}_url") or cs.get("stage1_url")
+        buckets[colour].append({
+            "type": "community",
+            "id": cs["id"],
+            "name": name,
+            "stage_image": stage_img,
+            "current_stage": stages_unlocked,
+            "max_stage": 4,
+            "is_complete": is_complete,
+            "is_active": active.get(colour) == cs["id"],
+            "started_at": u.get("unlocked_at"),
+            "completed_at": u.get("completed_at"),
+            "was_featured": u.get("was_featured", False),
+            "featured_until": u.get("featured_until_snapshot"),
+        })
+
+    return {"colours": buckets, "total_collected": total_collected}
 
 @api_router.get("/creatures/my-submissions")
 async def get_my_submissions(request: Request):

@@ -412,6 +412,21 @@ export const creaturesApi = {
       method: 'PUT',
       body: JSON.stringify({ scope_pref: scopePref }),
     }),
+
+  // Real feature Aug 21 (redesign): "starting" a creature is a SELECTION (one active per
+  // colour), not manual progress - progress then happens automatically through normal
+  // check-ins, same as the default creatures always worked.
+  startCreature: (submissionId: string, realStudentId: string): Promise<any> =>
+    apiRequest(`/creatures/start/${submissionId}`, {
+      method: 'POST',
+      body: JSON.stringify({ real_student_id: realStudentId }),
+    }),
+
+  getActiveCreatures: (studentId: string): Promise<Record<string, { active_id: string; is_default: boolean; is_fully_evolved: boolean }>> =>
+    apiRequest(`/students/${studentId}/active-creatures`),
+
+  getMyCreatures: (studentId: string): Promise<{ colours: Record<string, any[]>; total_collected: number }> =>
+    apiRequest(`/students/${studentId}/my-creatures`),
 };
 
 // Resources API
@@ -844,14 +859,23 @@ export interface CreatureHome {
 export interface Creature {
   id: string;
   name: string;
-  zone: string;
-  description: string;
-  color: string;
-  stages: CreatureStage[];
+  zone?: string;
+  description?: string;
+  color?: string;
+  stages?: CreatureStage[];
   moves?: CreatureMove[];
   outfits?: CreatureOutfit[];
   foods?: CreatureFood[];
   homes?: CreatureHome[];
+  // Real feature Aug 21: community creatures (photo-based, image URLs per stage) can now also
+  // be the active creature for a colour - distinguished from the 4 emoji-based defaults by
+  // creature_type. See CommunityCreatureDisplay for how these render.
+  creature_type?: 'default' | 'community';
+  feeling_colour?: string;
+  stage1_url?: string;
+  stage2_url?: string;
+  stage3_url?: string;
+  stage4_url?: string;
 }
 
 export interface StudentRewards {
@@ -882,6 +906,8 @@ export interface AddPointsResponse {
   new_creature_started: boolean;
   collected_creatures: string[];
   streak_days: number;
+  feeling_colour?: string;
+  zone?: string;
 }
 
 export interface StudentCollection {

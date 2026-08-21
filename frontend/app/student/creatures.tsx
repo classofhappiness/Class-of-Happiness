@@ -1,20 +1,24 @@
-// My Creatures — real collection screen showing creatures this student has started/finished
-// unlocking, via the real GET /creatures/my-unlocks endpoint.
-// Real bug fix Aug 21: previously called a nonexistent `/api/creatures/student/${studentId}`
-// endpoint and an undefined `authToken`/`onBack` — this screen has never worked, and had zero
-// call sites anywhere in the app (fully orphaned). Rewritten against the real endpoint and
-// linked from World Creatures ("My Collection" button) so it's actually reachable.
+// My Creatures — the real, unified, permanent collection: every creature (default per-colour
+// AND community) a student has ever started or fully evolved, via GET /students/{id}/my-creatures.
+// Real redesign Aug 21: replaces three previously-separate "My Creatures" surfaces (a
+// defaults-only modal on the reward screen, this screen's earlier community-only version, and
+// nothing that showed both together) with one Pokedex-style view. A creature leaving "active"
+// status is never removed - it just stays here as permanent history. 4 colour sections,
+// collapsed by default (matches the app's existing collapsed-by-default pattern), tap to
+// expand. A real total-collected count up top, and a direct shortcut to browse/start a new
+// creature by scope (Family/School/Global) without having to check in first.
 
 import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   Image,
-  FlatList,
   StyleSheet,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { creaturesApi } from '../../src/utils/api';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
@@ -26,34 +30,31 @@ const EMOTION_COLORS: Record<string, string> = {
 const EMOTION_EMOJI: Record<string, string> = {
   green: '😊', blue: '😔', yellow: '😬', red: '😤'
 };
+const COLOUR_ORDER = ['blue', 'green', 'yellow', 'red'];
+const COLOUR_LABEL: Record<string, string> = {
+  blue: 'Blue', green: 'Green', yellow: 'Yellow', red: 'Red',
+};
 
-interface UnlockRow {
+interface CreatureEntry {
+  type: 'default' | 'community';
   id: string;
-  creature_id: string;
-  stages_unlocked: number;
+  name: string;
+  emoji?: string | null;
+  stage_image?: string | null;
+  current_stage: number;
+  max_stage: number;
+  is_complete: boolean;
+  is_active: boolean;
+  started_at?: string | null;
   completed_at?: string | null;
-  // Real feature Aug 21 (part 2): captured once, at the moment a creature is fully evolved,
-  // so a later scope change/un-featuring/removal can't silently rewrite what was earned.
-  // Absent on rows unlocked before the migration ran, or still in progress - falls back to
-  // the live creature_submissions join below in those cases.
-  creature_name_snapshot?: string | null;
-  emotion_colour_snapshot?: string | null;
-  stage_image_snapshot?: string | null;
-  was_featured?: boolean | null;
-  featured_until_snapshot?: string | null;
-  creature_submissions?: {
-    id: string;
-    creature_name: string;
-    emotion_colour: string;
-    stage1_url?: string;
-    stage2_url?: string;
-    stage3_url?: string;
-    stage4_url?: string;
-  } | null;
+  was_featured?: boolean;
+  featured_until?: string | null;
 }
 
 export default function CreatureCollectionScreen() {
-  const [unlocks, setUnlocks] = useState<UnlockRow[]>([]);
+  const [colours, setColours] = useState<Record<string, CreatureEntry[]>>({});
+  const [totalCollected, setTotalCollected] = useState(0);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -61,15 +62,17 @@ export default function CreatureCollectionScreen() {
   const studentId = (currentStudent as any)?.student_id || currentStudent?.id;
 
   useEffect(() => {
-    fetchUnlocks();
+    fetchMyCreatures();
   }, [studentId]);
 
-  const fetchUnlocks = async () => {
+  const fetchMyCreatures = async () => {
+    if (!studentId) { setLoading(false); return; }
     try {
       setLoading(true);
       setError(null);
-      const data = await creaturesApi.getMyUnlocks(studentId);
-      setUnlocks((data || []).filter((u: UnlockRow) => u.creature_submissions));
+      const data = await creaturesApi.getMyCreatures(studentId);
+      setColours(data?.colours || {});
+      setTotalCollected(data?.total_collected || 0);
     } catch (err) {
       setError('Could not load your creatures. Please try again.');
     } finally {
@@ -77,83 +80,92 @@ export default function CreatureCollectionScreen() {
     }
   };
 
-  const renderCreature = ({ item }: { item: UnlockRow }) => {
-    const c = item.creature_submissions!;
-    const fullyEvolved = item.stages_unlocked >= 4;
-    // Prefer the permanent snapshot (captured at the moment of full evolution) over the live
-    // join once one exists - the live creature may since have changed scope, been unfeatured,
-    // or been removed from global availability, none of which should rewrite earned history.
-    const name = (fullyEvolved && item.creature_name_snapshot) || c.creature_name;
-    const colour = (fullyEvolved && item.emotion_colour_snapshot) || c.emotion_colour;
-    const stage = Math.max(1, Math.min(4, item.stages_unlocked || 1));
-    const imgUrl = (fullyEvolved && item.stage_image_snapshot) || (c as any)[`stage${stage}_url`] || c.stage1_url;
-    const expired = item.was_featured && item.featured_until_snapshot && new Date(item.featured_until_snapshot) < new Date();
+  const toggleColour = (colour: string) => {
+    setExpanded(prev => ({ ...prev, [colour]: !prev[colour] }));
+  };
+
+  const renderEntry = (item: CreatureEntry, colour: string) => {
+    const expired = item.was_featured && item.featured_until && new Date(item.featured_until) < new Date();
+    const imgUrl = item.type === 'community' ? item.stage_image : null;
     return (
-      <View style={[styles.card, { borderTopColor: EMOTION_COLORS[colour], borderTopWidth: 3 }]}>
+      <View key={`${item.type}-${item.id}`} style={[styles.card, { borderColor: EMOTION_COLORS[colour], borderWidth: item.is_active ? 2 : 1 }]}>
         {imgUrl ? (
           <Image source={{ uri: imgUrl }} style={styles.imgWrap} />
         ) : (
-          <Text style={styles.emoji}>{EMOTION_EMOJI[colour] || '🐾'}</Text>
+          <Text style={styles.emoji}>{item.emoji || EMOTION_EMOJI[colour] || '🐾'}</Text>
         )}
-        <Text style={styles.name}>{name}</Text>
+        <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+        {item.is_active ? <Text style={styles.activeBadge}>★ Active</Text> : null}
         {item.was_featured ? (
           <Text style={styles.limitedBadge}>{expired ? '⭐ Limited Edition (expired)' : '⭐ Limited Edition'}</Text>
         ) : null}
         <View style={styles.progressRow}>
-          {[1, 2, 3, 4].map(s => (
-            <View key={s} style={[styles.progressDot, { backgroundColor: item.stages_unlocked >= s ? EMOTION_COLORS[colour] : '#E5E5E5' }]} />
+          {Array.from({ length: item.max_stage }, (_, i) => i + 1).map(s => (
+            <View key={s} style={[styles.progressDot, { backgroundColor: item.current_stage >= s ? EMOTION_COLORS[colour] : '#E5E5E5' }]} />
           ))}
         </View>
-        <Text style={fullyEvolved ? styles.fullyEvolved : styles.inProgress}>
-          {fullyEvolved ? (t('unlocked') || 'Fully evolved!') : `Stage ${item.stages_unlocked} / 4`}
+        <Text style={item.is_complete ? styles.fullyEvolved : styles.inProgress}>
+          {item.is_complete ? '🏆 Fully evolved!' : `Stage ${item.current_stage} / ${item.max_stage}`}
         </Text>
       </View>
     );
   };
 
-  const totalFullyEvolved = unlocks.filter(u => u.stages_unlocked >= 4).length;
   const goToWorld = () => router.push('/student/world-creatures');
   const goToSubmit = () => router.push('/student/submit-creature');
 
   return (
     <View style={styles.container}>
       <TranslatedHeader title={t('my_creatures') || 'My Creatures'} showHome />
-      <View style={{ flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 0 }}>
+
+      {!loading && !error && (
+        <Text style={styles.countText}>🏆 {totalCollected} {totalCollected === 1 ? 'creature' : 'creatures'} collected</Text>
+      )}
+
+      <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 }}>
         <TouchableOpacity style={styles.actionBtnDark} onPress={goToSubmit}>
           <Text style={styles.actionBtnDarkText}>🎨 Submit a Creature</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtnGreen} onPress={goToWorld}>
-          <Text style={styles.actionBtnGreenText}>🌍 World Creatures</Text>
+          <Text style={styles.actionBtnGreenText}>🔍 Find a New Creature</Text>
         </TouchableOpacity>
       </View>
-
-      {!loading && !error && (
-        <Text style={styles.countText}>
-          {totalFullyEvolved} / {unlocks.length} {t('unlocked') || 'fully evolved'}
-        </Text>
-      )}
 
       {loading ? (
         <View style={styles.loader}><EmotionColourLoader visible={loading} /></View>
       ) : error ? (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity onPress={fetchUnlocks} style={styles.retryButton}>
+          <TouchableOpacity onPress={fetchMyCreatures} style={styles.retryButton}>
             <Text style={styles.retryText}>{t('try_again') || 'Try Again'}</Text>
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
-          data={unlocks}
-          keyExtractor={item => item.id}
-          renderItem={renderCreature}
-          numColumns={2}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>No creatures started yet — head to World Creatures to begin one! 🌍</Text>
-          }
-        />
+        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+          {COLOUR_ORDER.map(colour => {
+            const entries = colours[colour] || [];
+            const collectedInColour = entries.filter(e => e.is_complete).length;
+            const isOpen = !!expanded[colour];
+            return (
+              <View key={colour} style={styles.section}>
+                <TouchableOpacity
+                  style={[styles.sectionHeader, { borderLeftColor: EMOTION_COLORS[colour] }]}
+                  onPress={() => toggleColour(colour)}
+                >
+                  <Text style={styles.sectionTitle}>
+                    {EMOTION_EMOJI[colour]} {COLOUR_LABEL[colour]} · {collectedInColour}/{entries.length}
+                  </Text>
+                  <MaterialIcons name={isOpen ? 'expand-less' : 'expand-more'} size={26} color="#666" />
+                </TouchableOpacity>
+                {isOpen && (
+                  <View style={styles.sectionBody}>
+                    {entries.map(e => renderEntry(e, colour))}
+                  </View>
+                )}
+              </View>
+            );
+          })}
+        </ScrollView>
       )}
     </View>
   );
@@ -170,46 +182,67 @@ const styles = StyleSheet.create({
   actionBtnGreenText: { color: 'white', fontWeight: '900', fontSize: 13 },
   countText: {
     textAlign: 'center',
-    fontSize: 14,
-    color: '#888',
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#333',
     marginTop: 12,
-    marginBottom: 4,
+    marginBottom: 8,
   },
   list: {
-    paddingHorizontal: 12,
-    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingTop: 8,
     paddingBottom: 40,
   },
-  card: {
-    flex: 1,
-    margin: 8,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
+  section: {
+    marginBottom: 12,
+    backgroundColor: 'white',
+    borderRadius: 14,
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    borderLeftWidth: 4,
+  },
+  sectionTitle: { fontSize: 15, fontWeight: '800', color: '#1A1A2E' },
+  sectionBody: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 10,
+    gap: 10,
+  },
+  card: {
+    width: '47%',
+    backgroundColor: '#FAFAFA',
+    borderRadius: 14,
+    padding: 12,
+    alignItems: 'center',
   },
   imgWrap: { width: '100%', aspectRatio: 1, marginBottom: 8, borderRadius: 10, backgroundColor: '#F5F5F5' },
   emoji: {
-    fontSize: 32,
-    marginBottom: 4,
+    fontSize: 40,
+    marginBottom: 8,
   },
   name: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: '#2D2D44',
     textAlign: 'center',
-    marginBottom: 6,
+    marginBottom: 4,
   },
+  activeBadge: { fontSize: 10, fontWeight: '800', color: '#5C6BC0', marginBottom: 4 },
   progressRow: { flexDirection: 'row', gap: 4, marginBottom: 6 },
   progressDot: { width: 8, height: 8, borderRadius: 4 },
-  fullyEvolved: { fontSize: 12, fontWeight: '800', color: '#4CAF73' },
+  fullyEvolved: { fontSize: 11, fontWeight: '800', color: '#4CAF73', textAlign: 'center' },
   limitedBadge: { fontSize: 10, fontWeight: '800', color: '#B8860B', marginBottom: 4 },
-  inProgress: { fontSize: 12, fontWeight: '700', color: '#9CA3AF' },
+  inProgress: { fontSize: 11, fontWeight: '700', color: '#9CA3AF', textAlign: 'center' },
   loader: {
     marginTop: 80,
   },
@@ -234,13 +267,5 @@ const styles = StyleSheet.create({
   retryText: {
     color: '#FFF',
     fontWeight: '600',
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: '#9CA3AF',
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: 60,
-    padding: 20,
   },
 });

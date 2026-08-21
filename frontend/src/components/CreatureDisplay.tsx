@@ -107,11 +107,11 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
   const effectAnim = useRef(new Animated.Value(0)).current;
   const effectOpacity = useRef(new Animated.Value(0)).current;
 
-  const stageInfo = creature.stages[stage];
-  const animConfig = getCreatureAnimationConfig(creature.zone, stage);
-  
+  const stageInfo = creature.stages![stage];
+  const animConfig = getCreatureAnimationConfig(creature.zone!, stage);
+
   // Calculate growth progress within current stage (0 to 1)
-  const previousThreshold = stage > 0 ? creature.stages[stage].required_points : 0;
+  const previousThreshold = stage > 0 ? creature.stages![stage].required_points : 0;
   const nextThreshold = pointsForNext || (previousThreshold + 20);
   const progressInStage = pointsForNext 
     ? Math.min((currentPoints - previousThreshold) / (nextThreshold - previousThreshold), 1)
