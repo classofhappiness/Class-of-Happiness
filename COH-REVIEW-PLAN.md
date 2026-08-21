@@ -627,6 +627,34 @@ Full gap analysis was reported inline before building (not reproduced here). All
   ALTER TABLE creature_submissions ADD COLUMN classroom_id text;
   ```
 
+### Creature superadmin scope-visibility bug — 2026-08-21 — ✅ DONE & LIVE-VERIFIED
+Found live while testing the newly-built superadmin scope-editing dropdown: `/creatures/global`'s query unconditionally filtered `.eq("is_globally_available", True)`, and changing a creature's scope away from "global" (via the dropdown) sets `is_globally_available: False` — so the creature immediately vanished from the very card the dropdown lives on. Fixed: superadmin callers now see all approved creatures regardless of scope/availability; every other role keeps the original global-only filter. Confirmed live via `/creatures/global`: superadmin session saw a school-scoped creature that a non-superadmin session correctly could not.
+
+### Student-facing creature eligibility + privacy fix — 2026-08-21 — ✅ trimmed scope DONE & LIVE-VERIFIED
+Real gap: approved community creatures (`visibility_scope`: classroom/school/global) never actually surfaced anywhere a student could see them — `world-creatures.tsx` called a nonexistent `api.get` (no such export existed in `api.ts`) wrapped in a silent `catch`, so it always rendered the empty state regardless of how many creatures were approved. This directly explains the original "approved creatures don't show up anywhere students can see" report — it wasn't a missing feature, it was a genuinely broken screen. Separately, `/creatures/unlock` and `/creatures/my-unlocks` were real, working endpoints with **zero frontend call sites** (never wired to any UI), and `student/creatures.tsx` ("My Creatures" collection screen) was fully orphaned dead code — wrong endpoint URL, undefined `authToken`/`onBack` refs, zero call sites anywhere in the app.
+
+Built (trimmed scope, per Jono's explicit call — scope-preference toggle and expiry-aware history snapshots deferred, see below):
+- New `GET /creatures/eligible?student_id=` — real eligibility computation (classroom/school/global match against each creature's `visibility_scope`, resolving the student's classroom→owning teacher's `school_name`), replacing the broken `api.get('/creatures/global')` call in `world-creatures.tsx`.
+- **Privacy fix** (explicit ClassDojo precedent, non-negotiable per Jono): `/creatures/eligible` never includes peer creator identity (`student_name`/`school_name`/`country`) — the admin-only `/creatures/global` (school_admin/superadmin moderation tooling) keeps identity, since that's a separate, appropriately-gated audience.
+- `unlock_creature_stage` now optionally enforces eligibility server-side when the caller sends `real_student_id` in the body — a student can no longer unlock a creature outside their own eligibility (403), while old callers with no `real_student_id` are unaffected.
+- Rewired `world-creatures.tsx` (real progress dots + unlock button per card, "My Collection" link) and rewrote `student/creatures.tsx` from scratch against the real `/creatures/my-unlocks` shape, now reachable from World Creatures.
+- **Live-verified end-to-end** against real production data (Kairos Montessori's "Waterman" [global] / "Waterman 2" [school-scoped]): a Kairos student's `/creatures/eligible` correctly returned both; a different-school student correctly returned only the global one; the different-school student's unlock attempt on the school-scoped creature correctly 403'd ("This creature isn't available to this student"); the Kairos student's unlock attempt correctly proceeded (200, check-in-threshold message). No creator identity present in any `/creatures/eligible` response.
+
+**Deferred to next session, explicitly logged per Jono's call** (not built tonight):
+- Student scope-preference toggle (family/school/global/any) in "My Creatures" — confirmed genuinely absent from both `students` and `users` tables, needs a new column.
+- Expiry-aware obtained-history — `creature_unlocks` only stores a final `completed_at`, no per-stage timestamps and no snapshot of the creature's state (name/scope/images) at the moment of obtaining, so a later scope change or removal would silently rewrite history. Needs new columns/a snapshot mechanism.
+- Also flagged, not fixed: `TRANSLATED_HELPERS`' PT `red_6` entry (dead-code strategy dict, unreachable) shows "Conta até 20" instead of Self Hug — cosmetic, zero live impact.
+
+### Portuguese translation drift — 2026-08-21 — ✅ DONE & VALIDATED
+Jono flagged 7 specific card-text mismatches plus a Settings i18n gap, all pulled from what he was actually seeing live on a real device, cross-checked against real source (not translated from scratch):
+- Fixed 7 strategy-card name mismatches (Favourite Song→"Música Preferida", Tell Someone→"Contar a Alguém", Drink Water→"Beber Água", Keep Going!→"Continua Assim!", Try Something New→"Experimentar Algo Novo", Body Shake→"Abanar o Corpo", Self Hug→"Abraçar-te a Ti Mesmo") — applied to both live copies of `HELPERS_PT` in `server.py` (confirmed duplicated, in-sync) and the matching `strat_*` keys in `pt.json`, including a second, separately-live key family used by teacher-side strategy assignment (`strat_favourite_song`, `strat_tell_someone`).
+- Settings' Security/Voice sections were already using `t()` with English fallbacks but the PT keys were simply never added (also confirmed absent from ES/FR/DE/IT); Danger Zone had **zero** i18n at all, fully hardcoded English. Added all missing PT keys, wired Danger Zone through `t()` for the first time.
+- **Confirmed the exact same "Warm Drink" pre-rename staleness exists in ES/FR/DE/IT too** (`id: b5` still reads as a literal warm-drink phrase in all four, never updated when EN renamed this concept to "Drink Water") — same bug class as the PT one just fixed. Flagged, not fixed tonight — a real follow-up item whenever Jono's ready to do the other 4 languages properly.
+- Validated: `py_compile` clean, `json.tool` clean on `pt.json`, `tsc` clean on `settings.tsx`.
+
+### Queued for a future session — strategy/check-in collapse-by-default UX pass
+Not started. Jono's ask: parent portal's Family Strategies colour groups should start collapsed (tap to expand); check-ins should default-expand only for today's date, collapsed for all other dates; same collapse/expand pattern applied to the equivalent teacher/school_admin/superadmin views across both app and portal, reusing existing collapse UI already in the codebase (e.g. `SchoolsManager`'s expand/collapse pattern in `admin/dashboard.tsx`, or the school contact-details expand/collapse just built in the portal) rather than building new. Explicitly lower priority than the builds — pick up after.
+
 ---
 
 ## SUGGESTED EXECUTION ORDER
