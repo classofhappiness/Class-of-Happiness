@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { useApp } from '../../src/context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
+import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 console.log('[SubmitCreature] API_URL is:', JSON.stringify(API_URL));
@@ -238,7 +239,7 @@ export default function SubmitCreatureScreen() {
         </View>
         {uploading
           ? <View style={s.uploadRow}>
-              <ActivityIndicator color="#4CAF73" />
+              <EmotionColourLoader visible size={40} />
               <Text style={s.uploadTxt}>Uploading your creature... please wait</Text>
             </View>
           : <TouchableOpacity style={s.btn} onPress={handleSubmit}>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { api } from '../../src/utils/api';
 import { useApp } from '../../src/context/AppContext';
+import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 
 const EMOTION_COLORS: Record<string, string> = {
   green: '#4CAF73', blue: '#4A90D9', yellow: '#FFC107', red: '#E05252'
@@ -67,7 +68,7 @@ export default function GlobalCreaturesScreen() {
         ))}
       </View>
       {loading ? (
-        <ActivityIndicator style={{ marginTop: 60 }} color="#4CAF73" size="large" />
+        <View style={{ marginTop: 60, alignItems: 'center' }}><EmotionColourLoader visible size={64} /></View>
       ) : (
         <FlatList
           data={filtered}
