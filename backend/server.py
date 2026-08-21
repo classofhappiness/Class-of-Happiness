@@ -8709,15 +8709,23 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
     teacher_list = list(all_teachers.values())
     teacher_ids = [t["user_id"] for t in teacher_list]
 
-    if not teacher_ids:
+    # Real fix Aug 21: classrooms reassigned to the school_admin directly (e.g. via account-
+    # deletion's teacher-reassignment logic - see POST /account/delete-request - or any
+    # classroom a school_admin creates themselves) were invisible here, since this only ever
+    # looked at classrooms owned by linked teacher_ids. classroom_owner_ids is used ONLY for
+    # the classroom/student lookup below - teacher_ids itself must stay teacher-only, since it
+    # also drives total_teachers/seats_used/teacher_checkin_rate further down.
+    classroom_owner_ids = teacher_ids + [user_id]
+
+    # Get classrooms
+    classrooms_res = supabase.table("classrooms").select("*").in_("user_id", classroom_owner_ids).execute()
+    classrooms = classrooms_res.data or []
+    classroom_ids = [c["id"] for c in classrooms]
+
+    if not teacher_ids and not classrooms:
         return {"total_teachers": 0, "total_students": 0, "total_checkins": 0,
                 "zone_distribution": {}, "daily_counts": {}, "classroom_breakdown": [],
                 "school_name": school_name or "My School"}
-
-    # Get classrooms
-    classrooms_res = supabase.table("classrooms").select("*").in_("user_id", teacher_ids).execute()
-    classrooms = classrooms_res.data or []
-    classroom_ids = [c["id"] for c in classrooms]
 
     # Get students. Real fix Aug 14: this queried students by "user_id" in teacher_ids,
     # but students link via classroom_id, not a direct teacher-owned user_id column (same
@@ -8758,7 +8766,12 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
     # Classroom breakdown (aggregate only)
     classroom_breakdown = []
     for c in classrooms:
-        teacher = next((t for t in teacher_list if t["user_id"] == c.get("user_id")), {})
+        owner_id = c.get("user_id")
+        if owner_id == user_id:
+            teacher_name = user.get("name") or "School Admin"
+        else:
+            teacher = next((t for t in teacher_list if t["user_id"] == owner_id), {})
+            teacher_name = teacher.get("name", "Teacher")
         c_students = [s for s in students if s.get("classroom_id") == c["id"]]
         c_logs = [l for l in logs if l.get("student_id") in {s["id"] for s in c_students}]
         c_zones = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
@@ -8768,7 +8781,7 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
                 c_zones[z] += 1
         classroom_breakdown.append({
             "classroom_name": c.get("name", "Classroom"),
-            "teacher_name": teacher.get("name", "Teacher"),
+            "teacher_name": teacher_name,
             "student_count": len(c_students),
             "checkin_count": len(c_logs),
             "zone_distribution": c_zones,
@@ -8845,6 +8858,22 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
         "students_needing_support": students_needing_support,
         "students_needing_support": students_needing_support,
     }
+
+@api_router.get("/school-admin/users")
+async def get_school_admin_users(request: Request, limit: int = 200):
+    """School admin's own scoped user list - teachers/parents linked via school_admin_id.
+    Real fix Aug 21: the portal's "Users at Your School" section called /admin/users, which
+    is hardcoded superadmin-only - every school_admin call silently 403'd and the portal's
+    own .catch() swallowed it into an empty list. This mirrors /admin/users' shape but scopes
+    to the caller's own school instead of returning every user in the system."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin", "admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    result = supabase.table("users").select(
+        "user_id,email,name,role,subscription_status,subscription_expires_at,"
+        "school_name,school_admin_id,school_country,created_at,language,promo_trial_ends_at,trial_started_at"
+    ).eq("school_admin_id", user["user_id"]).order("created_at", desc=True).limit(limit).execute()
+    return {"users": result.data or [], "total": len(result.data or [])}
 
 @api_router.get("/school-admin/subscription")
 async def get_school_subscription(request: Request):
