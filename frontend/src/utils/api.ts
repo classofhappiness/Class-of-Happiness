@@ -398,8 +398,8 @@ export const creaturesApi = {
       body: JSON.stringify(realStudentId ? { real_student_id: realStudentId } : {}),
     }),
 
-  getMyUnlocks: (): Promise<any[]> =>
-    apiRequest('/creatures/my-unlocks'),
+  getMyUnlocks: (studentId?: string): Promise<any[]> =>
+    apiRequest(studentId ? `/creatures/my-unlocks?student_id=${studentId}` : '/creatures/my-unlocks'),
 };
 
 // Resources API

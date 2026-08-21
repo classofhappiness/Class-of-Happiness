@@ -48,17 +48,18 @@ export default function CreatureCollectionScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const { t } = useApp();
+  const { t, currentStudent } = useApp();
+  const studentId = (currentStudent as any)?.student_id || currentStudent?.id;
 
   useEffect(() => {
     fetchUnlocks();
-  }, []);
+  }, [studentId]);
 
   const fetchUnlocks = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await creaturesApi.getMyUnlocks();
+      const data = await creaturesApi.getMyUnlocks(studentId);
       setUnlocks((data || []).filter((u: UnlockRow) => u.creature_submissions));
     } catch (err) {
       setError('Could not load your creatures. Please try again.');

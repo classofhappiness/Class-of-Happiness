@@ -3653,6 +3653,26 @@ async def _is_authorized_for_student(user: dict, student_id: str, student_data: 
         pass
     return False
 
+def _creature_unlocks_for(user_id: str, real_student_id: Optional[str], creature_ids: list = None):
+    """Real feature Aug 21: creature_unlocks was keyed only by the SUBMITTING ACCOUNT's user_id
+    (student_id column) - meaning a teacher's whole classroom, or a multi-child parent's kids,
+    all shared ONE progress bucket per creature. real_student_id is a new, migration-dependent
+    column that keys progress to the actual student instead. Tries the real_student_id lookup
+    first when one is given; falls back to the old account-level lookup if the column doesn't
+    exist yet (migration pending) or no real_student_id was provided, so nothing breaks."""
+    if real_student_id:
+        try:
+            q = supabase.table("creature_unlocks").select("*").eq("real_student_id", real_student_id)
+            if creature_ids is not None:
+                q = q.in_("creature_id", creature_ids)
+            return q.execute()
+        except Exception:
+            pass
+    q = supabase.table("creature_unlocks").select("*").eq("student_id", user_id)
+    if creature_ids is not None:
+        q = q.in_("creature_id", creature_ids)
+    return q.execute()
+
 def _resolve_student_classroom_school(student_data: dict):
     """Real feature Aug 21: given a students row, resolve (classroom_id, school_name) for
     creature-eligibility matching. school_name comes from the classroom owner (teacher)'s
@@ -7202,11 +7222,13 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     classroom_id, school_name = None, None
+    authorized_student_id = None
     if student_id:
         student_r = supabase.table("students").select("*").eq("id", student_id).execute()
         student_data = student_r.data[0] if student_r.data else None
         if student_data and await _is_authorized_for_student(user, student_id, student_data):
             classroom_id, school_name = _resolve_student_classroom_school(student_data)
+            authorized_student_id = student_id
 
     base_fields = ("id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,"
                    "global_uses,approved_at,visibility_scope,school_name,classroom_id")
@@ -7226,7 +7248,7 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
     creature_ids = [c["id"] for c in eligible]
     my_unlocks = {}
     if creature_ids:
-        unlocks_r = supabase.table("creature_unlocks").select("creature_id,stages_unlocked")            .eq("student_id", user["user_id"]).in_("creature_id", creature_ids).execute()
+        unlocks_r = _creature_unlocks_for(user["user_id"], authorized_student_id, creature_ids)
         for u in (unlocks_r.data or []):
             my_unlocks[u["creature_id"]] = u.get("stages_unlocked", 0)
 
@@ -7336,7 +7358,7 @@ async def unlock_creature_stage(submission_id: str, request: Request):
     checkin_student_id = real_student_id or user["user_id"]
     checkins = supabase.table("feeling_logs").select("id")        .eq("student_id", checkin_student_id)        .gte("timestamp", (datetime.now(timezone.utc) - timedelta(days=30)).isoformat())        .execute()
     total_checkins = len(checkins.data) if checkins.data else 0
-    existing = supabase.table("creature_unlocks").select("*")        .eq("student_id", user["user_id"]).eq("creature_id", submission_id).execute()
+    existing = _creature_unlocks_for(user["user_id"], real_student_id, [submission_id])
     current_stages = existing.data[0]["stages_unlocked"] if existing.data else 0
     # Stage thresholds: 5, 10, 15, 20 check-ins
     required = [5, 10, 15, 20]
@@ -7353,11 +7375,15 @@ async def unlock_creature_stage(submission_id: str, request: Request):
             "completed_at": completed,
         }).eq("id", existing.data[0]["id"]).execute()
     else:
-        supabase.table("creature_unlocks").insert({
-            "student_id": user["user_id"],
-            "creature_id": submission_id,
-            "stages_unlocked": 1,
-        }).execute()
+        new_row = {"student_id": user["user_id"], "creature_id": submission_id, "stages_unlocked": 1}
+        if real_student_id:
+            try:
+                supabase.table("creature_unlocks").insert({**new_row, "real_student_id": real_student_id}).execute()
+            except Exception as e:
+                logger.warning(f"[creatures/unlock] real_student_id column not available yet, falling back: {e}")
+                supabase.table("creature_unlocks").insert(new_row).execute()
+        else:
+            supabase.table("creature_unlocks").insert(new_row).execute()
     # Increment global uses if newly completed
     if next_stage == 4:
         supabase.table("creature_submissions").update({
@@ -7366,14 +7392,29 @@ async def unlock_creature_stage(submission_id: str, request: Request):
     return {"stages_unlocked": next_stage, "message": f"Stage {next_stage} unlocked!" }
 
 @api_router.get("/creatures/my-unlocks")
-async def get_my_unlocks(request: Request):
-    """Student sees all creatures they've started unlocking."""
+async def get_my_unlocks(request: Request, student_id: Optional[str] = None):
+    """Student sees all creatures they've started unlocking. Real feature Aug 21: optional
+    student_id (a real students.id) scopes this to one specific student instead of the whole
+    account, once real_student_id-keyed rows exist for them - see _creature_unlocks_for.
+    Privacy fix: peer creator identity is stripped here too, same as /creatures/eligible -
+    a creature in your own collection may have been made by another student."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    rows = supabase.table("creature_unlocks").select(
-        "*, creature_submissions(id,creature_name,emotion_colour,student_name,school_name,country,stage1_url,stage2_url,stage3_url,stage4_url)"
-    ).eq("student_id", user["user_id"]).execute()
+    real_student_id = None
+    if student_id:
+        student_r = supabase.table("students").select("*").eq("id", student_id).execute()
+        student_data = student_r.data[0] if student_r.data else None
+        if student_data and await _is_authorized_for_student(user, student_id, student_data):
+            real_student_id = student_id
+    select_fields = "*, creature_submissions(id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url)"
+    if real_student_id:
+        try:
+            rows = supabase.table("creature_unlocks").select(select_fields).eq("real_student_id", real_student_id).execute()
+            return rows.data or []
+        except Exception:
+            pass
+    rows = supabase.table("creature_unlocks").select(select_fields).eq("student_id", user["user_id"]).execute()
     return rows.data or []
 
 @api_router.get("/creatures/my-submissions")
