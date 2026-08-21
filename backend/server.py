@@ -5626,7 +5626,15 @@ async def get_school_admin_teacher_wellbeing(user_id: str, request: Request, day
     if user.get("role") != "superadmin" and not _school_admin_can_view_teacher_wellbeing(user, teacher):
         raise HTTPException(status_code=403, detail="This teacher hasn't shared their wellbeing check-ins")
     start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    logs = supabase.table("teacher_checkins").select("*").eq("user_id", user_id).gte("created_at", start_date).execute().data or []
+    # Real fix Aug 21: teacher_checkins' real timestamp column is "timestamp" (confirmed
+    # against the insert path, POST /teacher-checkins) - this used "created_at", which
+    # doesn't exist on this table, causing a real live 500 (caught by testing right after
+    # the migration ran). Same wrong column name also exists in /admin/stats' teacher_zone_
+    # counts block (server.py ~7367) - that one is wrapped in a bare try/except so it fails
+    # silently instead of 500ing, but has been returning empty teacher data ever since it
+    # was written, not something from tonight. Flagged in COH-REVIEW-PLAN.md, not fixed here
+    # - out of scope for this endpoint's fix.
+    logs = supabase.table("teacher_checkins").select("*").eq("user_id", user_id).gte("timestamp", start_date).execute().data or []
     zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
     for log in logs:
         z = log.get("zone") or log.get("feeling_colour", "")
