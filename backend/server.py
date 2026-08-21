@@ -2416,7 +2416,7 @@ async def google_auth(request: Request):
             user = existing.data[0]
             # Same pending-deletion block as /auth/email-login - see POST /account/delete-request
             if user.get("deletion_requested_at"):
-                raise HTTPException(status_code=403, detail="This account is scheduled for deletion. Contact support@classofhappiness.com if this wasn't you or you'd like to cancel.")
+                raise HTTPException(status_code=403, detail="This account is scheduled for deletion. Contact jono@classofhappiness.com if this wasn't you or you'd like to cancel.")
             supabase.table("users").update({"name": name, "picture": picture}).eq("email", email).execute()
         else:
             user_id = f"user_{uuid.uuid4().hex[:12]}"
@@ -7714,7 +7714,7 @@ async def email_login(request: Request):
                 # deletion (see POST /account/delete-request) - the account is soft-deleted
                 # immediately on request, not just at the end of the 30-day grace period.
                 if user.get("deletion_requested_at"):
-                    raise HTTPException(status_code=403, detail="This account is scheduled for deletion. Contact support@classofhappiness.com if this wasn't you or you'd like to cancel.")
+                    raise HTTPException(status_code=403, detail="This account is scheduled for deletion. Contact jono@classofhappiness.com if this wasn't you or you'd like to cancel.")
                 # PIN check for superadmin role (existing)
                 if user.get("role") == "superadmin":
                     required_pin = os.environ.get("ADMIN_PIN", "")
@@ -11236,9 +11236,9 @@ async def request_account_deletion(request: Request):
 
     role = user.get("role")
     if role == "school_admin":
-        raise HTTPException(status_code=403, detail="Self-service deletion isn't available for school accounts yet. Please contact support@classofhappiness.com to close your school's account.")
+        raise HTTPException(status_code=403, detail="Self-service deletion isn't available for school accounts yet. Please contact jono@classofhappiness.com to close your school's account.")
     if role not in ("teacher", "parent"):
-        raise HTTPException(status_code=403, detail="Account deletion is not available for this account type. Please contact support@classofhappiness.com.")
+        raise HTTPException(status_code=403, detail="Account deletion is not available for this account type. Please contact jono@classofhappiness.com.")
 
     body = await request.json()
 
@@ -11265,7 +11265,7 @@ async def request_account_deletion(request: Request):
         raise HTTPException(status_code=403, detail="Re-authentication required — enter your password or sign in with Google again to confirm.")
 
     if role == "teacher" and not user.get("school_admin_id"):
-        raise HTTPException(status_code=400, detail="We can't automatically reassign your classrooms yet — please contact support@classofhappiness.com to delete this account.")
+        raise HTTPException(status_code=400, detail="We can't automatically reassign your classrooms yet — please contact jono@classofhappiness.com to delete this account.")
 
     # Write the deletion marker FIRST, before any other mutation. Deliberate ordering:
     # this column (deletion_requested_at) requires a migration this app can't run itself

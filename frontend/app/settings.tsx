@@ -84,7 +84,7 @@ export default function SettingsScreen() {
       if (res.ok) {
         Alert.alert(
           'Account scheduled for deletion',
-          'Your account has been deactivated and will be permanently deleted in 30 days. Contact support@classofhappiness.com if you change your mind.',
+          'Your account has been deactivated and will be permanently deleted in 30 days. Contact jono@classofhappiness.com if you change your mind.',
           [{ text: 'OK', onPress: async () => { await logout(); router.replace('/'); } }]
         );
       } else {
@@ -789,7 +789,7 @@ export default function SettingsScreen() {
               <MaterialIcons name="delete-forever" size={24} color="#CCC" />
               <View style={styles.settingText}>
                 <Text style={styles.settingLabel}>Delete Account</Text>
-                <Text style={styles.settingValue}>Contact support@classofhappiness.com to close this account</Text>
+                <Text style={styles.settingValue}>Contact jono@classofhappiness.com to close this account</Text>
               </View>
             </View>
           </View>
