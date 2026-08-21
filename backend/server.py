@@ -7101,17 +7101,29 @@ async def get_global_creatures(request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
     base_fields = ("id,creature_name,emotion_colour,student_name,school_name,country,year_group,"
                    "stage1_url,stage2_url,stage3_url,stage4_url,global_uses,approved_at,visibility_scope")
+    # Real bug fix Aug 21: superadmin needs to see (and edit the scope of) ALL approved
+    # creatures, including ones scoped to "school"/"classroom" (is_globally_available=False).
+    # Everyone else keeps seeing only the is_globally_available=True subset - otherwise
+    # changing a creature's scope away from "global" via the superadmin scope-editing dropdown
+    # made it vanish from the very card the dropdown lives on.
+    is_superadmin = user.get("role") == "superadmin"
     # Real feature Aug 21: real_student_id/classroom_id are new columns (see /creatures/submit)
     # that may not exist yet if the migration hasn't run - try the enriched select first, fall
     # back to the base one so this endpoint never breaks for anyone in the meantime.
     try:
-        rows = supabase.table("creature_submissions").select(
+        query = supabase.table("creature_submissions").select(
             base_fields + ",real_student_id,classroom_id"
-        ).eq("status","approved").eq("is_globally_available",True)            .order("global_uses", desc=True).limit(50).execute()
+        ).eq("status","approved")
+        if not is_superadmin:
+            query = query.eq("is_globally_available", True)
+        rows = query.order("global_uses", desc=True).limit(50).execute()
     except Exception:
-        rows = supabase.table("creature_submissions").select(
+        query = supabase.table("creature_submissions").select(
             base_fields
-        ).eq("status","approved").eq("is_globally_available",True)            .order("global_uses", desc=True).limit(50).execute()
+        ).eq("status","approved")
+        if not is_superadmin:
+            query = query.eq("is_globally_available", True)
+        rows = query.order("global_uses", desc=True).limit(50).execute()
     creatures = rows.data or []
     creature_ids = [c["id"] for c in creatures]
 
