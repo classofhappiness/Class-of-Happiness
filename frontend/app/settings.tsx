@@ -828,7 +828,7 @@ export default function SettingsScreen() {
 
       {/* Delete Account */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Danger Zone</Text>
+        <Text style={styles.sectionTitle}>{t('danger_zone') || 'Danger Zone'}</Text>
         {(user?.role === 'teacher' || user?.role === 'parent') ? (
           <>
             <TouchableOpacity
@@ -838,8 +838,8 @@ export default function SettingsScreen() {
               <View style={styles.settingLeft}>
                 <MaterialIcons name="delete-forever" size={24} color="#F44336" />
                 <View style={styles.settingText}>
-                  <Text style={[styles.settingLabel, { color: '#F44336' }]}>Delete Account</Text>
-                  <Text style={styles.settingValue}>Permanently delete your account and data</Text>
+                  <Text style={[styles.settingLabel, { color: '#F44336' }]}>{t('delete_account') || 'Delete Account'}</Text>
+                  <Text style={styles.settingValue}>{t('delete_account_desc') || 'Permanently delete your account and data'}</Text>
                 </View>
               </View>
               <MaterialIcons name={showDeleteAccount ? 'expand-less' : 'expand-more'} size={24} color="#CCC" />
@@ -847,9 +847,9 @@ export default function SettingsScreen() {
             {showDeleteAccount && (
               <View style={styles.trialCodeContainer}>
                 <Text style={{ fontSize: 12, color: '#666', marginBottom: 10, lineHeight: 18 }}>
-                  Deleting your account deactivates it immediately and permanently removes your personal data after a 30-day grace period.
-                  {user?.role === 'teacher' ? ' Your classrooms and students will be reassigned to your school (requires a linked school account — contact support if you\'re not linked to one).' : ''}
-                  {' '}Confirm with your password, or with Google if that\'s how you sign in.
+                  {t('delete_account_warning_1') || 'Deleting your account deactivates it immediately and permanently removes your personal data after a 30-day grace period.'}
+                  {user?.role === 'teacher' ? ' ' + (t('delete_account_warning_teacher') || 'Your classrooms and students will be reassigned to your school (requires a linked school account — contact support if you\'re not linked to one).') : ''}
+                  {' '}{t('delete_account_warning_2') || 'Confirm with your password, or with Google if that\'s how you sign in.'}
                 </Text>
                 <TextInput
                   style={styles.trialCodeInputWithIcon}
@@ -864,7 +864,7 @@ export default function SettingsScreen() {
                   onPress={handleDeleteAccountConfirm}
                   disabled={deletingAccount}
                 >
-                  <Text style={styles.redeemButtonText}>{deletingAccount ? 'Processing...' : 'Delete My Account'}</Text>
+                  <Text style={styles.redeemButtonText}>{deletingAccount ? (t('processing') || 'Processing...') : (t('delete_account_btn') || 'Delete My Account')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -874,8 +874,8 @@ export default function SettingsScreen() {
             <View style={styles.settingLeft}>
               <MaterialIcons name="delete-forever" size={24} color="#CCC" />
               <View style={styles.settingText}>
-                <Text style={styles.settingLabel}>Delete Account</Text>
-                <Text style={styles.settingValue}>Contact jono@classofhappiness.com to close this account</Text>
+                <Text style={styles.settingLabel}>{t('delete_account') || 'Delete Account'}</Text>
+                <Text style={styles.settingValue}>{(t('delete_account_contact_support') || 'Contact {email} to close this account').replace('{email}', 'jono@classofhappiness.com')}</Text>
               </View>
             </View>
           </View>

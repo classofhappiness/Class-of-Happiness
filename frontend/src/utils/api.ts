@@ -383,6 +383,23 @@ export const creaturesApi = {
 
   getMySubmissions: (): Promise<any[]> =>
     apiRequest('/creatures/my-submissions'),
+
+  // Real feature Aug 21: the actual student-facing feed - approved creatures this specific
+  // student is eligible to see given their classroom/school, with no peer creator identity.
+  // Real bug fix Aug 21: world-creatures.tsx previously called a nonexistent `api.get` (no
+  // such export existed in this file) wrapped in a silent try/catch, so it always rendered
+  // the empty state no matter how many creatures were approved - this is the real fix.
+  getEligible: (studentId?: string): Promise<any[]> =>
+    apiRequest(studentId ? `/creatures/eligible?student_id=${studentId}` : '/creatures/eligible'),
+
+  unlockStage: (submissionId: string, realStudentId?: string): Promise<any> =>
+    apiRequest(`/creatures/unlock/${submissionId}`, {
+      method: 'POST',
+      body: JSON.stringify(realStudentId ? { real_student_id: realStudentId } : {}),
+    }),
+
+  getMyUnlocks: (): Promise<any[]> =>
+    apiRequest('/creatures/my-unlocks'),
 };
 
 // Resources API

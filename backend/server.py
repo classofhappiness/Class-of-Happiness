@@ -303,18 +303,18 @@ PRESET_AVATARS = [
 HELPERS_PT = {
     "blue": [
         {"id":"b1","name":"Alongamento Suave","description":"Estira o corpo lentamente. Isto ajuda quando te sentes cansado ou triste.","feeling_colour":"blue","icon":"self-improvement","emoji":"🧘"},
-        {"id":"b2","name":"Canção Favorita","description":"Ouve ou canta a tua música favorita. A música pode fazer-nos sentir melhor.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
-        {"id":"b3","name":"Dizer a Alguém","description":"Fala com alguém em quem confias sobre como te sentes.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
+        {"id":"b2","name":"Música Preferida","description":"Ouve ou canta a tua música favorita. A música pode fazer-nos sentir melhor.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
+        {"id":"b3","name":"Contar a Alguém","description":"Fala com alguém em quem confias sobre como te sentes.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
         {"id":"b4","name":"Respiração Lenta","description":"Inspira devagar pelo nariz e expira pela boca. Repete 5 vezes.","feeling_colour":"blue","icon":"air","emoji":"💨"},
-        {"id":"b5","name":"Bebida Quente","description":"Bebe uma bebida quente e confortante. Deixa-te aquecer por dentro.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b5","name":"Beber Água","description":"Bebe uma bebida quente e confortante. Deixa-te aquecer por dentro.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
         {"id":"b6","name":"Canto Aconchegante","description":"Encontra um lugar confortável e senta-te ou deita-te por alguns minutos.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
     ],
     "green": [
-        {"id":"g1","name":"Continua!","description":"Estás a ir muito bem! Continua com o que estás a fazer.","feeling_colour":"green","icon":"star","emoji":"⭐"},
+        {"id":"g1","name":"Continua Assim!","description":"Estás a ir muito bem! Continua com o que estás a fazer.","feeling_colour":"green","icon":"star","emoji":"⭐"},
         {"id":"g2","name":"Ajudar um Amigo","description":"Oferece ajuda a alguém. Ajudar os outros faz-nos sentir bem.","feeling_colour":"green","icon":"favorite","emoji":"❤️"},
         {"id":"g3","name":"Definir um Objetivo","description":"Pensa num objetivo pequeno para hoje. O que queres alcançar?","feeling_colour":"green","icon":"flag","emoji":"🎯"},
         {"id":"g4","name":"Gratidão","description":"Pensa em 3 coisas pelas quais és grato. Isso ajuda-nos a sentir felizes.","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
-        {"id":"g5","name":"Tenta Algo Novo","description":"Experimenta uma atividade ou ideia nova hoje.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
+        {"id":"g5","name":"Experimentar Algo Novo","description":"Experimenta uma atividade ou ideia nova hoje.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
         {"id":"g6","name":"Partilha o Teu Sorriso","description":"Sorri para alguém. Os sorrisos são contagiantes!","feeling_colour":"green","icon":"mood","emoji":"😊"},
     ],
     "yellow": [
@@ -322,7 +322,7 @@ HELPERS_PT = {
         {"id":"y2","name":"Conta até 10","description":"Conta devagar até 10. Isto ajuda o teu cérebro a acalmar.","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
         {"id":"y3","name":"5 Sentidos","description":"Nomeia 5 coisas que vês, 4 que tocas, 3 que ouves, 2 que cheiras, 1 que sentes.","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
         {"id":"y4","name":"Falar Sobre Isso","description":"Fala com alguém sobre o que te está a preocupar.","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
-        {"id":"y5","name":"Sacudir o Corpo","description":"Agita as mãos e o corpo por 30 segundos para libertar a tensão.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
+        {"id":"y5","name":"Abanar o Corpo","description":"Agita as mãos e o corpo por 30 segundos para libertar a tensão.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
         {"id":"y6","name":"Apertar e Soltar","description":"Aperta os punhos com força e depois solta. Repete 5 vezes.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
     ],
     "red": [
@@ -331,7 +331,7 @@ HELPERS_PT = {
         {"id":"r3","name":"Contar ao Contrário","description":"Conta de 10 até 1 devagar. Isto acalma o teu cérebro.","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
         {"id":"r4","name":"Espaço Seguro","description":"Vai para um lugar calmo onde te sintas seguro.","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
         {"id":"r5","name":"Pedir Ajuda","description":"Diz a um adulto em quem confias que precisas de ajuda agora.","feeling_colour":"red","icon":"support-agent","emoji":"🆘"},
-        {"id":"r6","name":"Abraço a Si Mesmo","description":"Abraça-te a ti mesmo. Cruza os braços e aperta-te suavemente.","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
+        {"id":"r6","name":"Abraçar-te a Ti Mesmo","description":"Abraça-te a ti mesmo. Cruza os braços e aperta-te suavemente.","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
     ],
 }
 
@@ -480,18 +480,18 @@ HELPERS_IT = {
 HELPERS_PT = {
     "blue": [
         {"id":"b1","name":"Alongamento Suave","description":"Estira o corpo lentamente. Isto ajuda quando te sentes cansado ou triste.","feeling_colour":"blue","icon":"self-improvement","emoji":"🧘"},
-        {"id":"b2","name":"Canção Favorita","description":"Ouve ou canta a tua música favorita. A música pode fazer-nos sentir melhor.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
-        {"id":"b3","name":"Dizer a Alguém","description":"Fala com alguém em quem confias sobre como te sentes.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
+        {"id":"b2","name":"Música Preferida","description":"Ouve ou canta a tua música favorita. A música pode fazer-nos sentir melhor.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
+        {"id":"b3","name":"Contar a Alguém","description":"Fala com alguém em quem confias sobre como te sentes.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
         {"id":"b4","name":"Respiração Lenta","description":"Inspira devagar pelo nariz e expira pela boca. Repete 5 vezes.","feeling_colour":"blue","icon":"air","emoji":"💨"},
-        {"id":"b5","name":"Bebida Quente","description":"Bebe uma bebida quente e confortante. Deixa-te aquecer por dentro.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b5","name":"Beber Água","description":"Bebe uma bebida quente e confortante. Deixa-te aquecer por dentro.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
         {"id":"b6","name":"Canto Aconchegante","description":"Encontra um lugar confortável e senta-te ou deita-te por alguns minutos.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
     ],
     "green": [
-        {"id":"g1","name":"Continua!","description":"Estás a ir muito bem! Continua com o que estás a fazer.","feeling_colour":"green","icon":"star","emoji":"⭐"},
+        {"id":"g1","name":"Continua Assim!","description":"Estás a ir muito bem! Continua com o que estás a fazer.","feeling_colour":"green","icon":"star","emoji":"⭐"},
         {"id":"g2","name":"Ajudar um Amigo","description":"Oferece ajuda a alguém. Ajudar os outros faz-nos sentir bem.","feeling_colour":"green","icon":"favorite","emoji":"❤️"},
         {"id":"g3","name":"Definir um Objetivo","description":"Pensa num objetivo pequeno para hoje. O que queres alcançar?","feeling_colour":"green","icon":"flag","emoji":"🎯"},
         {"id":"g4","name":"Gratidão","description":"Pensa em 3 coisas pelas quais és grato. Isso ajuda-nos a sentir felizes.","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
-        {"id":"g5","name":"Tenta Algo Novo","description":"Experimenta uma atividade ou ideia nova hoje.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
+        {"id":"g5","name":"Experimentar Algo Novo","description":"Experimenta uma atividade ou ideia nova hoje.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
         {"id":"g6","name":"Partilha o Teu Sorriso","description":"Sorri para alguém. Os sorrisos são contagiantes!","feeling_colour":"green","icon":"mood","emoji":"😊"},
     ],
     "yellow": [
@@ -499,7 +499,7 @@ HELPERS_PT = {
         {"id":"y2","name":"Conta até 10","description":"Conta devagar até 10. Isto ajuda o teu cérebro a acalmar.","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
         {"id":"y3","name":"5 Sentidos","description":"Nomeia 5 coisas que vês, 4 que tocas, 3 que ouves, 2 que cheiras, 1 que sentes.","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
         {"id":"y4","name":"Falar Sobre Isso","description":"Fala com alguém sobre o que te está a preocupar.","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
-        {"id":"y5","name":"Sacudir o Corpo","description":"Agita as mãos e o corpo por 30 segundos para libertar a tensão.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
+        {"id":"y5","name":"Abanar o Corpo","description":"Agita as mãos e o corpo por 30 segundos para libertar a tensão.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
         {"id":"y6","name":"Apertar e Soltar","description":"Aperta os punhos com força e depois solta. Repete 5 vezes.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
     ],
     "red": [
@@ -508,7 +508,7 @@ HELPERS_PT = {
         {"id":"r3","name":"Contar ao Contrário","description":"Conta de 10 até 1 devagar. Isto acalma o teu cérebro.","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
         {"id":"r4","name":"Espaço Seguro","description":"Vai para um lugar calmo onde te sintas seguro.","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
         {"id":"r5","name":"Pedir Ajuda","description":"Diz a um adulto em quem confias que precisas de ajuda agora.","feeling_colour":"red","icon":"support-agent","emoji":"🆘"},
-        {"id":"r6","name":"Abraço a Si Mesmo","description":"Abraça-te a ti mesmo. Cruza os braços e aperta-te suavemente.","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
+        {"id":"r6","name":"Abraçar-te a Ti Mesmo","description":"Abraça-te a ti mesmo. Cruza os braços e aperta-te suavemente.","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
     ],
 }
 
@@ -3652,6 +3652,25 @@ async def _is_authorized_for_student(user: dict, student_id: str, student_data: 
     except Exception:
         pass
     return False
+
+def _resolve_student_classroom_school(student_data: dict):
+    """Real feature Aug 21: given a students row, resolve (classroom_id, school_name) for
+    creature-eligibility matching. school_name comes from the classroom owner (teacher)'s
+    own user record, mirroring the dual-match pattern used everywhere else in this file."""
+    classroom_id = student_data.get("classroom_id")
+    school_name = None
+    if classroom_id:
+        try:
+            cls = supabase.table("classrooms").select("user_id").eq("id", classroom_id).execute()
+            if cls.data:
+                owner_id = cls.data[0].get("user_id")
+                if owner_id:
+                    owner_r = supabase.table("users").select("school_name").eq("user_id", owner_id).execute()
+                    if owner_r.data:
+                        school_name = owner_r.data[0].get("school_name")
+        except Exception:
+            pass
+    return classroom_id, school_name
 
 def _admin_is_active(admin_id: str) -> bool:
     """True if this school_admin user_id has an ACTIVE paid plan. Shared by
@@ -7168,6 +7187,72 @@ async def get_global_creatures(request: Request):
 
     return creatures
 
+@api_router.get("/creatures/eligible")
+async def get_eligible_creatures(request: Request, student_id: Optional[str] = None):
+    """Real feature Aug 21: the actual student-facing feed — approved creatures this
+    specific student is eligible to see/pursue given their classroom/school and each
+    creature's visibility_scope, annotated with the caller's own unlock progress. Privacy
+    fix (ClassDojo precedent, explicitly requested): peer creator identity (student_name,
+    school_name, country) is NEVER included here - only in /creatures/global, which is
+    admin/superadmin/school_admin-only moderation tooling, not student-facing.
+    If student_id is omitted (or the caller isn't authorized for it), falls back to
+    global-scope-only creatures so this never breaks for an unresolvable caller."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    classroom_id, school_name = None, None
+    if student_id:
+        student_r = supabase.table("students").select("*").eq("id", student_id).execute()
+        student_data = student_r.data[0] if student_r.data else None
+        if student_data and await _is_authorized_for_student(user, student_id, student_data):
+            classroom_id, school_name = _resolve_student_classroom_school(student_data)
+
+    base_fields = ("id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,"
+                   "global_uses,approved_at,visibility_scope,school_name,classroom_id")
+    rows = supabase.table("creature_submissions").select(base_fields).eq("status", "approved").execute()
+    all_approved = rows.data or []
+
+    eligible = []
+    for c in all_approved:
+        scope = c.get("visibility_scope") or "global"
+        if scope == "global":
+            eligible.append(c)
+        elif scope == "school" and school_name and c.get("school_name") == school_name:
+            eligible.append(c)
+        elif scope == "classroom" and classroom_id and c.get("classroom_id") == classroom_id:
+            eligible.append(c)
+
+    creature_ids = [c["id"] for c in eligible]
+    my_unlocks = {}
+    if creature_ids:
+        unlocks_r = supabase.table("creature_unlocks").select("creature_id,stages_unlocked")            .eq("student_id", user["user_id"]).in_("creature_id", creature_ids).execute()
+        for u in (unlocks_r.data or []):
+            my_unlocks[u["creature_id"]] = u.get("stages_unlocked", 0)
+
+    classroom_ids = list({c["classroom_id"] for c in eligible if c.get("classroom_id")})
+    classroom_names = {}
+    if classroom_ids:
+        cls_r = supabase.table("classrooms").select("id,name").in_("id", classroom_ids).execute()
+        classroom_names = {cl["id"]: cl["name"] for cl in (cls_r.data or [])}
+
+    result = []
+    for c in eligible:
+        result.append({
+            "id": c["id"],
+            "creature_name": c["creature_name"],
+            "emotion_colour": c["emotion_colour"],
+            "stage1_url": c.get("stage1_url"),
+            "stage2_url": c.get("stage2_url"),
+            "stage3_url": c.get("stage3_url"),
+            "stage4_url": c.get("stage4_url"),
+            "global_uses": c.get("global_uses", 0),
+            "visibility_scope": c.get("visibility_scope") or "global",
+            "classroom_name": classroom_names.get(c.get("classroom_id")),
+            "my_stages_unlocked": my_unlocks.get(c["id"], 0),
+        })
+    return result
+
 @api_router.get("/creatures/featured")
 async def get_featured_creatures(request: Request):
     """Get this month's featured creature per emotion colour."""
@@ -7215,6 +7300,33 @@ async def unlock_creature_stage(submission_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real feature Aug 21: optional real_student_id in the body lets the new eligible-creatures
+    # UI enforce that a student can only unlock a creature they're actually eligible to see
+    # (their classroom/school matches the creature's visibility_scope, or it's global). If no
+    # real_student_id is sent, skip this check - preserves old behaviour for any other caller.
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    real_student_id = body.get("real_student_id") if isinstance(body, dict) else None
+    if real_student_id:
+        student_r = supabase.table("students").select("*").eq("id", real_student_id).execute()
+        student_data = student_r.data[0] if student_r.data else None
+        if not student_data or not await _is_authorized_for_student(user, real_student_id, student_data):
+            raise HTTPException(status_code=403, detail="Not authorized for this student")
+        classroom_id, school_name = _resolve_student_classroom_school(student_data)
+        creature_r = supabase.table("creature_submissions").select("visibility_scope,school_name,classroom_id,status").eq("id", submission_id).execute()
+        if not creature_r.data or creature_r.data[0].get("status") != "approved":
+            raise HTTPException(status_code=404, detail="Creature not found")
+        creature = creature_r.data[0]
+        scope = creature.get("visibility_scope") or "global"
+        is_eligible = (
+            scope == "global"
+            or (scope == "school" and school_name and creature.get("school_name") == school_name)
+            or (scope == "classroom" and classroom_id and creature.get("classroom_id") == classroom_id)
+        )
+        if not is_eligible:
+            raise HTTPException(status_code=403, detail="This creature isn't available to this student")
     # Count recent check-ins to validate unlock
     checkins = supabase.table("feeling_logs").select("id")        .eq("student_id", user["user_id"])        .gte("timestamp", (datetime.now(timezone.utc) - timedelta(days=30)).isoformat())        .execute()
     total_checkins = len(checkins.data) if checkins.data else 0

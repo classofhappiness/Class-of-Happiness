@@ -1,140 +1,116 @@
-// screens/CreatureCollectionScreen.tsx
-// Shows all creatures a student has unlocked, with locked ones shown greyed out
+// My Creatures — real collection screen showing creatures this student has started/finished
+// unlocking, via the real GET /creatures/my-unlocks endpoint.
+// Real bug fix Aug 21: previously called a nonexistent `/api/creatures/student/${studentId}`
+// endpoint and an undefined `authToken`/`onBack` — this screen has never worked, and had zero
+// call sites anywhere in the app (fully orphaned). Rewritten against the real endpoint and
+// linked from World Creatures ("My Collection" button) so it's actually reachable.
 
 import React, { useEffect, useState } from 'react';
-import { useNavigation } from '@react-navigation/native';
 import {
   View,
   Text,
+  Image,
   FlatList,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { creaturesApi } from '../../src/utils/api';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 
-interface Creature {
+const EMOTION_COLORS: Record<string, string> = {
+  green: '#4CAF73', blue: '#4A90D9', yellow: '#FFC107', red: '#E05252'
+};
+const EMOTION_EMOJI: Record<string, string> = {
+  green: '😊', blue: '😔', yellow: '😬', red: '😤'
+};
+
+interface UnlockRow {
   id: string;
-  name: string;
-  emoji: string;
-  description?: string;
-  unlocked: boolean;
-  unlock_condition?: string;
+  creature_id: string;
+  stages_unlocked: number;
+  completed_at?: string | null;
+  creature_submissions?: {
+    id: string;
+    creature_name: string;
+    emotion_colour: string;
+    stage1_url?: string;
+    stage2_url?: string;
+    stage3_url?: string;
+    stage4_url?: string;
+  } | null;
 }
 
 export default function CreatureCollectionScreen() {
-  const [creatures, setCreatures] = useState<Creature[]>([]);
+  const [unlocks, setUnlocks] = useState<UnlockRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const navigation = useNavigation() as any;
-  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
-  const { t, user } = useApp();
-  const studentId = user?.user_id || user?.student_id || '';
+  const { t } = useApp();
 
   useEffect(() => {
-    fetchCreatures();
+    fetchUnlocks();
   }, []);
 
-  const fetchCreatures = async () => {
+  const fetchUnlocks = async () => {
     try {
       setLoading(true);
       setError(null);
-      const token = await AsyncStorage.getItem('session_token') || '';
-
-      // Fetch all creatures
-      const allRes = await fetch(`${API_URL}/api/creatures`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const allData = await allRes.json();
-
-      // Fetch this student's unlocked creatures
-      const unlockedRes = await fetch(`${API_URL}/api/creatures/student/${studentId}`, {
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
-      const unlockedData = await unlockedRes.json();
-
-      const unlockedIds = new Set(
-        (unlockedData.creatures || []).map((c: Creature) => c.id)
-      );
-
-      const merged: Creature[] = (allData.creatures || []).map((c: Creature) => ({
-        ...c,
-        unlocked: unlockedIds.has(c.id),
-      }));
-
-      // Sort: unlocked first, then locked
-      merged.sort((a, b) => (b.unlocked ? 1 : 0) - (a.unlocked ? 1 : 0));
-      setCreatures(merged);
+      const data = await creaturesApi.getMyUnlocks();
+      setUnlocks((data || []).filter((u: UnlockRow) => u.creature_submissions));
     } catch (err) {
-      console.error('fetchCreatures error:', err);
-      setError('Could not load creatures. Please try again.');
+      setError('Could not load your creatures. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const renderCreature = ({ item }: { item: Creature }) => (
-    <View style={[styles.card, !item.unlocked && styles.cardLocked]}>
-      <Text style={[styles.emoji, !item.unlocked && styles.emojiLocked]}>
-        {item.unlocked ? item.emoji : '❓'}
-      </Text>
-      <Text style={[styles.name, !item.unlocked && styles.nameLocked]}>
-        {item.unlocked ? item.name : '???'}
-      </Text>
-      {item.unlocked && item.description ? (
-        <Text style={styles.description}>{item.description}</Text>
-      ) : !item.unlocked && item.unlock_condition ? (
-        <Text style={styles.hint}>{item.unlock_condition}</Text>
-      ) : null}
-    </View>
-  );
+  const renderCreature = ({ item }: { item: UnlockRow }) => {
+    const c = item.creature_submissions!;
+    const stage = Math.max(1, Math.min(4, item.stages_unlocked || 1));
+    const imgUrl = (c as any)[`stage${stage}_url`] || c.stage1_url;
+    const fullyEvolved = item.stages_unlocked >= 4;
+    return (
+      <View style={[styles.card, { borderTopColor: EMOTION_COLORS[c.emotion_colour], borderTopWidth: 3 }]}>
+        {imgUrl ? (
+          <Image source={{ uri: imgUrl }} style={styles.imgWrap} />
+        ) : (
+          <Text style={styles.emoji}>{EMOTION_EMOJI[c.emotion_colour] || '🐾'}</Text>
+        )}
+        <Text style={styles.name}>{c.creature_name}</Text>
+        <View style={styles.progressRow}>
+          {[1, 2, 3, 4].map(s => (
+            <View key={s} style={[styles.progressDot, { backgroundColor: item.stages_unlocked >= s ? EMOTION_COLORS[c.emotion_colour] : '#E5E5E5' }]} />
+          ))}
+        </View>
+        <Text style={fullyEvolved ? styles.fullyEvolved : styles.inProgress}>
+          {fullyEvolved ? (t('unlocked') || 'Fully evolved!') : `Stage ${item.stages_unlocked} / 4`}
+        </Text>
+      </View>
+    );
+  };
 
-
-  const goToSubmit = () => router.push('/student/submit-creature');
+  const totalFullyEvolved = unlocks.filter(u => u.stages_unlocked >= 4).length;
   const goToWorld = () => router.push('/student/world-creatures');
+  const goToSubmit = () => router.push('/student/submit-creature');
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <TranslatedHeader title={t('my_creatures') || 'My Creatures'} showHome />
       <View style={{ flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 0 }}>
-        <TouchableOpacity
-          style={{ flex: 1, backgroundColor: '#1A1A2E', borderRadius: 50, padding: 12, alignItems: 'center' }}
-          onPress={goToSubmit}>
-          <Text style={{ color: '#FFD93D', fontWeight: '900', fontSize: 13 }}>🎨 Submit a Creature</Text>
+        <TouchableOpacity style={styles.actionBtnDark} onPress={goToSubmit}>
+          <Text style={styles.actionBtnDarkText}>🎨 Submit a Creature</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={{ flex: 1, backgroundColor: '#4CAF73', borderRadius: 50, padding: 12, alignItems: 'center' }}
-          onPress={goToWorld}>
-          <Text style={{ color: 'white', fontWeight: '900', fontSize: 13 }}>🌍 World Creatures</Text>
+        <TouchableOpacity style={styles.actionBtnGreen} onPress={goToWorld}>
+          <Text style={styles.actionBtnGreenText}>🌍 World Creatures</Text>
         </TouchableOpacity>
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }} />
-        <TouchableOpacity onPress={() => router.replace('/student/select')} style={{ padding: 6 }}>
-          <MaterialIcons name="home" size={24} color="#333" />
-        </TouchableOpacity>
-      </View>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>🐾 {t('my_creatures') || t('my_creatures') || 'My Creatures'}</Text>
-        <View style={styles.backButton} />
       </View>
 
-      {/* Count badge */}
-      {!loading && (
+      {!loading && !error && (
         <Text style={styles.countText}>
-          {creatures.filter(c => c.unlocked).length} / {creatures.length}{' '}
-          {t('unlocked') || 'unlocked'}
+          {totalFullyEvolved} / {unlocks.length} {t('unlocked') || 'fully evolved'}
         </Text>
       )}
 
@@ -143,22 +119,24 @@ export default function CreatureCollectionScreen() {
       ) : error ? (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity onPress={fetchCreatures} style={styles.retryButton}>
+          <TouchableOpacity onPress={fetchUnlocks} style={styles.retryButton}>
             <Text style={styles.retryText}>{t('try_again') || 'Try Again'}</Text>
           </TouchableOpacity>
         </View>
       ) : (
-  
-      <FlatList
-          data={creatures}
+        <FlatList
+          data={unlocks}
           keyExtractor={item => item.id}
           renderItem={renderCreature}
           numColumns={2}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>No creatures started yet — head to World Creatures to begin one! 🌍</Text>
+          }
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -167,37 +145,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F6FF',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-  },
-  backText: {
-    fontSize: 24,
-    color: '#6C63FF',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2D2D44',
-    textAlign: 'center',
-  },
+  actionBtnDark: { flex: 1, backgroundColor: '#1A1A2E', borderRadius: 50, padding: 12, alignItems: 'center' },
+  actionBtnDarkText: { color: '#FFD93D', fontWeight: '900', fontSize: 13 },
+  actionBtnGreen: { flex: 1, backgroundColor: '#4CAF73', borderRadius: 50, padding: 12, alignItems: 'center' },
+  actionBtnGreenText: { color: 'white', fontWeight: '900', fontSize: 13 },
   countText: {
     textAlign: 'center',
     fontSize: 14,
     color: '#888',
-    marginBottom: 12,
+    marginTop: 12,
+    marginBottom: 4,
   },
   list: {
     paddingHorizontal: 12,
+    paddingTop: 12,
     paddingBottom: 40,
   },
   card: {
@@ -213,39 +174,22 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  cardLocked: {
-    backgroundColor: '#F0F0F0',
-    opacity: 0.7,
-  },
+  imgWrap: { width: '100%', aspectRatio: 1, marginBottom: 8, borderRadius: 10, backgroundColor: '#F5F5F5' },
   emoji: {
-    fontSize: 48,
-    marginBottom: 8,
-  },
-  emojiLocked: {
-    opacity: 0.4,
+    fontSize: 32,
+    marginBottom: 4,
   },
   name: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#2D2D44',
     textAlign: 'center',
+    marginBottom: 6,
   },
-  nameLocked: {
-    color: '#AAAAAA',
-  },
-  description: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  hint: {
-    fontSize: 11,
-    color: '#AAA',
-    textAlign: 'center',
-    marginTop: 4,
-    fontStyle: 'italic',
-  },
+  progressRow: { flexDirection: 'row', gap: 4, marginBottom: 6 },
+  progressDot: { width: 8, height: 8, borderRadius: 4 },
+  fullyEvolved: { fontSize: 12, fontWeight: '800', color: '#4CAF73' },
+  inProgress: { fontSize: 12, fontWeight: '700', color: '#9CA3AF' },
   loader: {
     marginTop: 80,
   },
@@ -270,5 +214,13 @@ const styles = StyleSheet.create({
   retryText: {
     color: '#FFF',
     fontWeight: '600',
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#9CA3AF',
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 60,
+    padding: 20,
   },
 });
