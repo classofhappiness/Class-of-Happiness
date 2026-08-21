@@ -653,6 +653,12 @@ Built (trimmed scope, per Jono's explicit call — scope-preference toggle and e
   ```sql
   ALTER TABLE creature_unlocks ADD COLUMN real_student_id text;
   ```
+  **✅ Migration ran 2026-08-21.** Live-verifying per-student persistence surfaced a SECOND real bug: the table's pre-existing unique constraint `creature_unlocks_student_id_creature_id_key` is on `(student_id, creature_id)` — `student_id` is always the account id, so this constraint predates `real_student_id` and still only allows ONE row per account per creature, regardless of which real student it's for. Confirmed live: two students (Emma/Liam) under one teacher account, same creature — Emma's insert succeeded, Liam's insert 500'd (`23505 duplicate key value violates unique constraint`, full traceback captured via `railway logs`). Fixed the immediate danger — an unhandled 500 that would have silently corrupted the wrong student's row if retried naively — by returning an honest 409 instead of attempting a workaround. The **actual fix** needs one more migration (not run by me):
+  ```sql
+  ALTER TABLE creature_unlocks DROP CONSTRAINT creature_unlocks_student_id_creature_id_key;
+  CREATE UNIQUE INDEX creature_unlocks_unique_progress ON creature_unlocks (COALESCE(real_student_id, student_id), creature_id);
+  ```
+  This keeps old (pre-migration) rows unique per account as before, while new real_student_id-keyed rows become unique per actual student — which is what makes two students on one account able to hold independent progress on the same creature at all.
 
 ### Portuguese translation drift — 2026-08-21 — ✅ DONE & VALIDATED
 Jono flagged 7 specific card-text mismatches plus a Settings i18n gap, all pulled from what he was actually seeing live on a real device, cross-checked against real source (not translated from scratch):
