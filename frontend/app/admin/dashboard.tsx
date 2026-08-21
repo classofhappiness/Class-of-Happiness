@@ -620,6 +620,28 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
   const tzc = Object.values(zc).reduce((a: any, b: any) => a + b, 0) as number;
   const tc = stats?.teacher_zone_counts || {};
   const ttc = Object.values(tc).reduce((a: any, b: any) => a + b, 0) as number;
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  // Real fix Aug 21: superadmin had NO PDF export UI anywhere (app or portal), despite the
+  // backend already granting superadmin the fullest access of any role to this exact
+  // endpoint - confirmed working since Aug 15 for school_admin, just never had a superadmin
+  // trigger. No school_name param, so the backend correctly falls back to "All Schools".
+  const downloadAllSchoolsPDF = async () => {
+    setDownloadingPdf(true);
+    try {
+      const token = await AsyncStorage.getItem('session_token');
+      const lang = await AsyncStorage.getItem('app_language') || 'en';
+      const url = `${BACKEND_URL}/api/reports/pdf/school-overview?days=${statsPeriod}&token=${token}&lang=${lang}`;
+      const checkRes = await fetch(url);
+      if (!checkRes.ok) {
+        Alert.alert('Error', 'Could not generate report right now.');
+        setDownloadingPdf(false);
+        return;
+      }
+      await Linking.openURL(url);
+    } catch { Alert.alert('Error', 'Could not generate report right now.'); }
+    setDownloadingPdf(false);
+  };
 
   return (
     <>
@@ -631,6 +653,15 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
           </TouchableOpacity>
         ))}
       </View>
+
+      <TouchableOpacity
+        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: INDIGO, borderRadius: 10, paddingVertical: 10, marginBottom: 10 }}
+        onPress={downloadAllSchoolsPDF}
+        disabled={downloadingPdf}
+      >
+        {downloadingPdf ? <ActivityIndicator color="white" size="small" /> : <MaterialIcons name="picture-as-pdf" size={16} color="white" />}
+        <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>{downloadingPdf ? 'Generating…' : 'Download All-Schools Report (PDF)'}</Text>
+      </TouchableOpacity>
 
       {false ? <ActivityIndicator color={INDIGO} style={{ marginTop: 20 }} /> : <>
         {statsLoading && (

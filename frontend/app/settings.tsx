@@ -10,13 +10,15 @@ import { useApp } from '../src/context/AppContext';
 import { translationsApi, subscriptionApi, authApiExtended } from '../src/utils/api';
 import { loadVoiceEnabled, setVoiceEnabled } from '../src/utils/voiceClips';
 
+// hasVoice matches the backend's VOICE_CLIP_LANGUAGES ("en","pt" only, as of Aug 21) -
+// real recordings exist only for these two; the other 4 languages are UI-text-only for now.
 const LANGUAGES = [
-  { code: 'en', name: 'English', flag: '🇦🇺' },
-  { code: 'es', name: 'Español', flag: '🇪🇸' },
-  { code: 'fr', name: 'Français', flag: '🇫🇷' },
-  { code: 'pt', name: 'Português', flag: '🇵🇹' },
-  { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
-  { code: 'it', name: 'Italiano', flag: '🇮🇹' },
+  { code: 'en', name: 'English', flag: '🇦🇺', hasVoice: true },
+  { code: 'es', name: 'Español', flag: '🇪🇸', hasVoice: false },
+  { code: 'fr', name: 'Français', flag: '🇫🇷', hasVoice: false },
+  { code: 'pt', name: 'Português', flag: '🇵🇹', hasVoice: true },
+  { code: 'de', name: 'Deutsch', flag: '🇩🇪', hasVoice: false },
+  { code: 'it', name: 'Italiano', flag: '🇮🇹', hasVoice: false },
 ];
 
 // Same client IDs as auth/login.tsx, reused here for re-authentication before account deletion.
@@ -569,6 +571,12 @@ export default function SettingsScreen() {
               >
                 <Text style={styles.langFlag}>{lang.flag}</Text>
                 <Text style={styles.langName}>{lang.name}</Text>
+                {!lang.hasVoice && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F0F0', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginRight: 6 }}>
+                    <MaterialIcons name="volume-off" size={11} color="#999" />
+                    <Text style={{ fontSize: 9, color: '#999', fontWeight: '700', marginLeft: 2 }}>Audio coming soon</Text>
+                  </View>
+                )}
                 {language === lang.code && (
                   <MaterialIcons name="check" size={20} color="#5C6BC0" />
                 )}

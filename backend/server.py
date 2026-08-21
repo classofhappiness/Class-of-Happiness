@@ -7100,7 +7100,7 @@ async def get_global_creatures(request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     base_fields = ("id,creature_name,emotion_colour,student_name,school_name,country,year_group,"
-                   "stage1_url,stage2_url,stage3_url,stage4_url,global_uses,approved_at")
+                   "stage1_url,stage2_url,stage3_url,stage4_url,global_uses,approved_at,visibility_scope")
     # Real feature Aug 21: real_student_id/classroom_id are new columns (see /creatures/submit)
     # that may not exist yet if the migration hasn't run - try the enriched select first, fall
     # back to the base one so this endpoint never breaks for anyone in the meantime.
