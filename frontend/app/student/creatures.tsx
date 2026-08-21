@@ -32,6 +32,15 @@ interface UnlockRow {
   creature_id: string;
   stages_unlocked: number;
   completed_at?: string | null;
+  // Real feature Aug 21 (part 2): captured once, at the moment a creature is fully evolved,
+  // so a later scope change/un-featuring/removal can't silently rewrite what was earned.
+  // Absent on rows unlocked before the migration ran, or still in progress - falls back to
+  // the live creature_submissions join below in those cases.
+  creature_name_snapshot?: string | null;
+  emotion_colour_snapshot?: string | null;
+  stage_image_snapshot?: string | null;
+  was_featured?: boolean | null;
+  featured_until_snapshot?: string | null;
   creature_submissions?: {
     id: string;
     creature_name: string;
@@ -70,20 +79,29 @@ export default function CreatureCollectionScreen() {
 
   const renderCreature = ({ item }: { item: UnlockRow }) => {
     const c = item.creature_submissions!;
-    const stage = Math.max(1, Math.min(4, item.stages_unlocked || 1));
-    const imgUrl = (c as any)[`stage${stage}_url`] || c.stage1_url;
     const fullyEvolved = item.stages_unlocked >= 4;
+    // Prefer the permanent snapshot (captured at the moment of full evolution) over the live
+    // join once one exists - the live creature may since have changed scope, been unfeatured,
+    // or been removed from global availability, none of which should rewrite earned history.
+    const name = (fullyEvolved && item.creature_name_snapshot) || c.creature_name;
+    const colour = (fullyEvolved && item.emotion_colour_snapshot) || c.emotion_colour;
+    const stage = Math.max(1, Math.min(4, item.stages_unlocked || 1));
+    const imgUrl = (fullyEvolved && item.stage_image_snapshot) || (c as any)[`stage${stage}_url`] || c.stage1_url;
+    const expired = item.was_featured && item.featured_until_snapshot && new Date(item.featured_until_snapshot) < new Date();
     return (
-      <View style={[styles.card, { borderTopColor: EMOTION_COLORS[c.emotion_colour], borderTopWidth: 3 }]}>
+      <View style={[styles.card, { borderTopColor: EMOTION_COLORS[colour], borderTopWidth: 3 }]}>
         {imgUrl ? (
           <Image source={{ uri: imgUrl }} style={styles.imgWrap} />
         ) : (
-          <Text style={styles.emoji}>{EMOTION_EMOJI[c.emotion_colour] || '🐾'}</Text>
+          <Text style={styles.emoji}>{EMOTION_EMOJI[colour] || '🐾'}</Text>
         )}
-        <Text style={styles.name}>{c.creature_name}</Text>
+        <Text style={styles.name}>{name}</Text>
+        {item.was_featured ? (
+          <Text style={styles.limitedBadge}>{expired ? '⭐ Limited Edition (expired)' : '⭐ Limited Edition'}</Text>
+        ) : null}
         <View style={styles.progressRow}>
           {[1, 2, 3, 4].map(s => (
-            <View key={s} style={[styles.progressDot, { backgroundColor: item.stages_unlocked >= s ? EMOTION_COLORS[c.emotion_colour] : '#E5E5E5' }]} />
+            <View key={s} style={[styles.progressDot, { backgroundColor: item.stages_unlocked >= s ? EMOTION_COLORS[colour] : '#E5E5E5' }]} />
           ))}
         </View>
         <Text style={fullyEvolved ? styles.fullyEvolved : styles.inProgress}>
@@ -190,6 +208,7 @@ const styles = StyleSheet.create({
   progressRow: { flexDirection: 'row', gap: 4, marginBottom: 6 },
   progressDot: { width: 8, height: 8, borderRadius: 4 },
   fullyEvolved: { fontSize: 12, fontWeight: '800', color: '#4CAF73' },
+  limitedBadge: { fontSize: 10, fontWeight: '800', color: '#B8860B', marginBottom: 4 },
   inProgress: { fontSize: 12, fontWeight: '700', color: '#9CA3AF' },
   loader: {
     marginTop: 80,

@@ -21,19 +21,46 @@ export default function GlobalCreaturesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<string>('all');
   const [unlockingId, setUnlockingId] = useState<string | null>(null);
+  const [scopePref, setScopePref] = useState<string>('any');
+  const [hasClassroom, setHasClassroom] = useState(false);
+  const [scopeChanging, setScopeChanging] = useState(false);
 
   const studentId = (currentStudent as any)?.student_id || currentStudent?.id;
 
   const load = async () => {
     try {
       const data = await creaturesApi.getEligible(studentId);
-      setCreatures(data || []);
+      setCreatures(data?.creatures || []);
+      setScopePref(data?.scope_pref || 'any');
+      setHasClassroom(!!data?.has_classroom);
     } catch (e) {}
     setLoading(false);
     setRefreshing(false);
   };
 
   useEffect(() => { load(); }, [studentId]);
+
+  // Real feature Aug 21: student scope-preference (classroom/school/global/any) - "classroom"
+  // is labelled "My Family" when the student has no classroom (a home-only family member),
+  // since visibility_scope only has classroom/school/global values and there's no separate
+  // "family" scope - this reuses "classroom" as the closest real match for a home context.
+  const SCOPE_OPTIONS = [
+    { key: 'any', label: 'Any' },
+    { key: 'classroom', label: hasClassroom ? 'My Classroom' : 'My Family' },
+    { key: 'school', label: 'My School' },
+    { key: 'global', label: 'Global' },
+  ];
+
+  const handleScopeChange = async (pref: string) => {
+    if (!studentId || pref === scopePref) return;
+    setScopeChanging(true);
+    setScopePref(pref);
+    try {
+      await creaturesApi.setScopePref(studentId, pref);
+      await load();
+    } catch (e) {}
+    setScopeChanging(false);
+  };
 
   const filtered = filter === 'all' ? creatures : creatures.filter(c => c.emotion_colour === filter);
 
@@ -103,6 +130,18 @@ export default function GlobalCreaturesScreen() {
         <Text style={styles.title}>🌍 World Creatures</Text>
         <Text style={styles.subtitle}>Creatures you can work toward</Text>
       </View>
+      {studentId ? (
+        <View style={styles.scopeRow}>
+          {SCOPE_OPTIONS.map(o => (
+            <TouchableOpacity key={o.key}
+              disabled={scopeChanging}
+              style={[styles.scopeBtn, scopePref === o.key && styles.scopeBtnActive]}
+              onPress={() => handleScopeChange(o.key)}>
+              <Text style={[styles.scopeBtnText, scopePref === o.key && styles.scopeBtnTextActive]}>{o.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
       <View style={styles.filterRow}>
         {['all','green','blue','yellow','red'].map(f => (
           <TouchableOpacity key={f}
@@ -143,6 +182,11 @@ const styles = StyleSheet.create({
   collectionBtnText: { color: '#FFD93D', fontWeight: '800', fontSize: 12 },
   title: { fontSize: 24, fontWeight: '900', color: '#FFD93D' },
   subtitle: { fontSize: 13, color: 'rgba(255,255,255,.6)', marginTop: 4 },
+  scopeRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4, backgroundColor: 'white' },
+  scopeBtn: { flex: 1, paddingVertical: 6, borderRadius: 50, backgroundColor: '#F0F0F0', alignItems: 'center' },
+  scopeBtnActive: { backgroundColor: '#5C6BC0' },
+  scopeBtnText: { fontSize: 10, fontWeight: '800', color: '#666' },
+  scopeBtnTextActive: { color: 'white' },
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 14, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   filterBtn: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 50, backgroundColor: '#F0F0F0' },
   filterText: { fontSize: 12, fontWeight: '800', color: '#666' },

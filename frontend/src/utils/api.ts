@@ -389,7 +389,10 @@ export const creaturesApi = {
   // Real bug fix Aug 21: world-creatures.tsx previously called a nonexistent `api.get` (no
   // such export existed in this file) wrapped in a silent try/catch, so it always rendered
   // the empty state no matter how many creatures were approved - this is the real fix.
-  getEligible: (studentId?: string): Promise<any[]> =>
+  // Real feature Aug 21 (part 2): now returns {creatures, scope_pref, has_classroom} instead
+  // of a bare array, so the caller knows the student's current scope preference and whether
+  // "classroom" should be labelled "My Family" (no classroom) vs "My Classroom".
+  getEligible: (studentId?: string): Promise<{ creatures: any[]; scope_pref: string; has_classroom: boolean }> =>
     apiRequest(studentId ? `/creatures/eligible?student_id=${studentId}` : '/creatures/eligible'),
 
   unlockStage: (submissionId: string, realStudentId?: string): Promise<any> =>
@@ -400,6 +403,15 @@ export const creaturesApi = {
 
   getMyUnlocks: (studentId?: string): Promise<any[]> =>
     apiRequest(studentId ? `/creatures/my-unlocks?student_id=${studentId}` : '/creatures/my-unlocks'),
+
+  getScopePref: (studentId: string): Promise<{ scope_pref: string; has_classroom: boolean }> =>
+    apiRequest(`/students/${studentId}/creature-scope-pref`),
+
+  setScopePref: (studentId: string, scopePref: string): Promise<{ scope_pref: string }> =>
+    apiRequest(`/students/${studentId}/creature-scope-pref`, {
+      method: 'PUT',
+      body: JSON.stringify({ scope_pref: scopePref }),
+    }),
 };
 
 // Resources API

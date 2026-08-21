@@ -7223,12 +7223,14 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
 
     classroom_id, school_name = None, None
     authorized_student_id = None
+    scope_pref = "any"
     if student_id:
         student_r = supabase.table("students").select("*").eq("id", student_id).execute()
         student_data = student_r.data[0] if student_r.data else None
         if student_data and await _is_authorized_for_student(user, student_id, student_data):
             classroom_id, school_name = _resolve_student_classroom_school(student_data)
             authorized_student_id = student_id
+            scope_pref = student_data.get("creature_scope_pref") or "any"
 
     base_fields = ("id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,"
                    "global_uses,approved_at,visibility_scope,school_name,classroom_id")
@@ -7238,6 +7240,14 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
     eligible = []
     for c in all_approved:
         scope = c.get("visibility_scope") or "global"
+        # Real feature Aug 21: student scope-preference (classroom/school/global/any) - once
+        # eligibility is computed as before, further narrow to just the preferred scope unless
+        # the student wants "any" (the default). A creature must still pass the real
+        # classroom/school/global eligibility check below regardless of preference - the
+        # preference can only narrow what's shown, never widen it beyond what's genuinely
+        # eligible.
+        if scope_pref != "any" and scope != scope_pref:
+            continue
         if scope == "global":
             eligible.append(c)
         elif scope == "school" and school_name and c.get("school_name") == school_name:
@@ -7273,7 +7283,43 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
             "classroom_name": classroom_names.get(c.get("classroom_id")),
             "my_stages_unlocked": my_unlocks.get(c["id"], 0),
         })
-    return result
+    return {"creatures": result, "scope_pref": scope_pref, "has_classroom": bool(classroom_id)}
+
+@api_router.get("/students/{student_id}/creature-scope-pref")
+async def get_creature_scope_pref(student_id: str, request: Request):
+    """Real feature Aug 21: student's own preference for which creature scope(s) to see/
+    pursue in World Creatures - classroom, school, global, or any (default). Purely a display
+    filter on top of real eligibility (see get_eligible_creatures) - narrows, never widens."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    student_r = supabase.table("students").select("*").eq("id", student_id).execute()
+    student_data = student_r.data[0] if student_r.data else None
+    if not student_data or not await _is_authorized_for_student(user, student_id, student_data):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
+    return {
+        "scope_pref": student_data.get("creature_scope_pref") or "any",
+        "has_classroom": bool(student_data.get("classroom_id")),
+    }
+
+@api_router.put("/students/{student_id}/creature-scope-pref")
+async def set_creature_scope_pref(student_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    student_r = supabase.table("students").select("*").eq("id", student_id).execute()
+    student_data = student_r.data[0] if student_r.data else None
+    if not student_data or not await _is_authorized_for_student(user, student_id, student_data):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
+    body = await request.json()
+    pref = body.get("scope_pref", "any")
+    if pref not in ("classroom", "school", "global", "any"):
+        raise HTTPException(status_code=400, detail="Invalid scope_pref")
+    try:
+        supabase.table("students").update({"creature_scope_pref": pref}).eq("id", student_id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Scope preference isn't available yet - migration pending")
+    return {"scope_pref": pref}
 
 @api_router.get("/creatures/featured")
 async def get_featured_creatures(request: Request):
@@ -7368,12 +7414,39 @@ async def unlock_creature_stage(submission_id: str, request: Request):
     if total_checkins < required[current_stages]:
         return {"stages_unlocked": current_stages, "needed": required[current_stages] - total_checkins,
                 "message": f"Do {required[current_stages]-total_checkins} more check-ins to unlock stage {next_stage}!"}
+    # Real feature Aug 21: expiry-aware history - snapshot the creature's name/colour/final
+    # image and whether it was time-limited (featured) at the exact moment a student fully
+    # evolves it, so a later scope change, un-featuring, or removal can't silently rewrite
+    # what the student actually earned. Only captured on the completion step (next_stage==4)
+    # since that's the one moment that becomes permanent history.
+    snapshot_fields = {}
+    if next_stage == 4:
+        creature_full = supabase.table("creature_submissions").select(
+            "creature_name,emotion_colour,stage4_url"
+        ).eq("id", submission_id).execute()
+        if creature_full.data:
+            cf = creature_full.data[0]
+            now_iso = datetime.now(timezone.utc).isoformat()
+            featured_now = supabase.table("featured_creatures").select("active_until")                .eq("creature_id", submission_id).lte("active_from", now_iso).gte("active_until", now_iso).execute()
+            was_featured = bool(featured_now.data)
+            snapshot_fields = {
+                "creature_name_snapshot": cf.get("creature_name"),
+                "emotion_colour_snapshot": cf.get("emotion_colour"),
+                "stage_image_snapshot": cf.get("stage4_url"),
+                "was_featured": was_featured,
+                "featured_until_snapshot": featured_now.data[0]["active_until"] if was_featured else None,
+            }
     if existing.data:
         completed = datetime.now(timezone.utc).isoformat() if next_stage == 4 else None
-        supabase.table("creature_unlocks").update({
-            "stages_unlocked": next_stage,
-            "completed_at": completed,
-        }).eq("id", existing.data[0]["id"]).execute()
+        update_body = {"stages_unlocked": next_stage, "completed_at": completed}
+        if snapshot_fields:
+            try:
+                supabase.table("creature_unlocks").update({**update_body, **snapshot_fields}).eq("id", existing.data[0]["id"]).execute()
+            except Exception as e:
+                logger.warning(f"[creatures/unlock] snapshot columns not available yet, falling back: {e}")
+                supabase.table("creature_unlocks").update(update_body).eq("id", existing.data[0]["id"]).execute()
+        else:
+            supabase.table("creature_unlocks").update(update_body).eq("id", existing.data[0]["id"]).execute()
     else:
         new_row = {"student_id": user["user_id"], "creature_id": submission_id, "stages_unlocked": 1}
         if real_student_id:
