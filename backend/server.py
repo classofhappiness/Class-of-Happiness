@@ -7327,8 +7327,14 @@ async def unlock_creature_stage(submission_id: str, request: Request):
         )
         if not is_eligible:
             raise HTTPException(status_code=403, detail="This creature isn't available to this student")
-    # Count recent check-ins to validate unlock
-    checkins = supabase.table("feeling_logs").select("id")        .eq("student_id", user["user_id"])        .gte("timestamp", (datetime.now(timezone.utc) - timedelta(days=30)).isoformat())        .execute()
+    # Real bug fix Aug 21: feeling_logs.student_id is always a real students.id, never an
+    # account's user_id (confirmed live) - this was querying the wrong id and would always
+    # count 0 check-ins for any real usage, silently invisible until tonight since this
+    # endpoint had zero UI call sites before now. Use real_student_id when the caller sends
+    # one; fall back to the old (still-broken) behaviour only when it's absent, so nothing
+    # regresses for any other caller.
+    checkin_student_id = real_student_id or user["user_id"]
+    checkins = supabase.table("feeling_logs").select("id")        .eq("student_id", checkin_student_id)        .gte("timestamp", (datetime.now(timezone.utc) - timedelta(days=30)).isoformat())        .execute()
     total_checkins = len(checkins.data) if checkins.data else 0
     existing = supabase.table("creature_unlocks").select("*")        .eq("student_id", user["user_id"]).eq("creature_id", submission_id).execute()
     current_stages = existing.data[0]["stages_unlocked"] if existing.data else 0
