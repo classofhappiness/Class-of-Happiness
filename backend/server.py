@@ -8612,11 +8612,33 @@ async def get_school_invite_codes(request: Request):
 
 @api_router.post("/school/bulk-invite")
 async def bulk_invite_teachers(request: Request):
-    """School admin pastes a list of emails — all get linked to the school instantly."""
+    """School admin pastes a list of emails — all get linked to the school instantly. Real fix
+    Aug 21: same bug as /school/generate-invite-code (fixed Aug 20) - this always used the
+    CALLER's own user_id/school_name/subscription_expires_at regardless of any target passed
+    in the body, so a superadmin bulk-inviting "for Sunshine" from the portal's Schools panel
+    would actually link those accounts to superadmin's own account instead. Doesn't affect a
+    school_admin bulk-inviting for themselves (the real, working, already-tested path) - those
+    fields were always the caller's own regardless. No role restriction on the TARGET account
+    (a bulk-invited email can be any role) - unlike /school/join, which is the self-service
+    path and is deliberately teacher-only."""
     user = await get_current_user(request)
     if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
     body = await request.json()
+
+    target_admin_id = user["user_id"]
+    target_school_name = user.get("school_name", "My School")
+    target_subscription_expires_at = user.get("subscription_expires_at")
+    if user.get("role") == "superadmin":
+        requested_admin_id = body.get("school_admin_id")
+        if requested_admin_id:
+            target_r = supabase.table("users").select("user_id,school_name,subscription_expires_at").eq("user_id", requested_admin_id).eq("role", "school_admin").execute()
+            if not target_r.data:
+                raise HTTPException(status_code=404, detail="No school_admin account found with that user_id")
+            target_admin_id = target_r.data[0]["user_id"]
+            target_school_name = target_r.data[0].get("school_name") or "My School"
+            target_subscription_expires_at = target_r.data[0].get("subscription_expires_at")
+
     raw_emails = body.get("emails", "")
     emails = [e.strip().lower() for e in raw_emails.replace(",", " ").split() if "@" in e.strip()]
     if not emails:
@@ -8629,14 +8651,14 @@ async def bulk_invite_teachers(request: Request):
                 results["not_found"].append(email)
                 continue
             target = res.data[0]
-            if target.get("school_admin_id") == user["user_id"]:
+            if target.get("school_admin_id") == target_admin_id:
                 results["already_linked"].append(email)
                 continue
             supabase.table("users").update({
-                "school_admin_id": user["user_id"],
-                "school_name": user.get("school_name", "My School"),
+                "school_admin_id": target_admin_id,
+                "school_name": target_school_name,
                 "subscription_status": "active",
-                "subscription_expires_at": user.get("subscription_expires_at"),
+                "subscription_expires_at": target_subscription_expires_at,
             }).eq("user_id", target["user_id"]).execute()
             results["linked"].append(email)
         except Exception as e:
