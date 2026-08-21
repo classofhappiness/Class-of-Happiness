@@ -341,7 +341,7 @@ HELPERS_ES = {
         {"id":"b2","name":"Canción Favorita","description":"Escucha o canta tu canción favorita. La música puede hacernos sentir mejor.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
         {"id":"b3","name":"Díselo a Alguien","description":"Habla con alguien de confianza sobre cómo te sientes.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
         {"id":"b4","name":"Respiración Lenta","description":"Inhala despacio por la nariz y exhala por la boca. Repite 5 veces.","feeling_colour":"blue","icon":"air","emoji":"💨"},
-        {"id":"b5","name":"Bebida Caliente","description":"Bebe algo caliente y reconfortante. Deja que te caliente por dentro.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b5","name":"Bebe Agua","description":"Bebe algo caliente y reconfortante. Deja que te caliente por dentro.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
         {"id":"b6","name":"Rincón Acogedor","description":"Encuentra un lugar cómodo y siéntate o túmbate unos minutos.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
     ],
     "green": [
@@ -376,7 +376,7 @@ HELPERS_FR = {
         {"id":"b2","name":"Chanson Préférée","description":"Écoute ou chante ta chanson préférée. La musique peut nous aider à aller mieux.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
         {"id":"b3","name":"Le Dire à Quelqu'un","description":"Parle à quelqu'un en qui tu as confiance de ce que tu ressens.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
         {"id":"b4","name":"Respiration Lente","description":"Inspire lentement par le nez et expire par la bouche. Répète 5 fois.","feeling_colour":"blue","icon":"air","emoji":"💨"},
-        {"id":"b5","name":"Boisson Chaude","description":"Bois quelque chose de chaud et réconfortant. Laisse-toi réchauffer de l'intérieur.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b5","name":"Bois de l'Eau","description":"Bois quelque chose de chaud et réconfortant. Laisse-toi réchauffer de l'intérieur.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
         {"id":"b6","name":"Coin Douillet","description":"Trouve un endroit confortable et assieds-toi ou allonge-toi quelques minutes.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
     ],
     "green": [
@@ -411,7 +411,7 @@ HELPERS_DE = {
         {"id":"b2","name":"Lieblingslied","description":"Hör dir dein Lieblingslied an oder singe es. Musik kann uns besser fühlen lassen.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
         {"id":"b3","name":"Jemandem Sagen","description":"Sprich mit jemandem, dem du vertraust, über deine Gefühle.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
         {"id":"b4","name":"Langsames Atmen","description":"Atme langsam durch die Nase ein und durch den Mund aus. Wiederhole 5 mal.","feeling_colour":"blue","icon":"air","emoji":"💨"},
-        {"id":"b5","name":"Warmes Getränk","description":"Trink etwas Warmes und Tröstliches. Lass dich von innen erwärmen.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b5","name":"Trink Wasser","description":"Trink etwas Warmes und Tröstliches. Lass dich von innen erwärmen.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
         {"id":"b6","name":"Gemütliche Ecke","description":"Finde einen bequemen Platz und sitz oder leg dich ein paar Minuten hin.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
     ],
     "green": [
@@ -446,7 +446,7 @@ HELPERS_IT = {
         {"id":"b2","name":"Canzone Preferita","description":"Ascolta o canta la tua canzone preferita. La musica può farci sentire meglio.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
         {"id":"b3","name":"Dillo a Qualcuno","description":"Parla con qualcuno di cui ti fidi di come ti senti.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
         {"id":"b4","name":"Respirazione Lenta","description":"Inspira lentamente dal naso ed espira dalla bocca. Ripeti 5 volte.","feeling_colour":"blue","icon":"air","emoji":"💨"},
-        {"id":"b5","name":"Bevanda Calda","description":"Bevi qualcosa di caldo e confortante. Lasciati riscaldare dall'interno.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b5","name":"Bevi Acqua","description":"Bevi qualcosa di caldo e confortante. Lasciati riscaldare dall'interno.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
         {"id":"b6","name":"Angolo Accogliente","description":"Trova un posto comodo e siediti o sdraiati per qualche minuto.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
     ],
     "green": [
@@ -518,7 +518,7 @@ HELPERS_ES = {
         {"id":"b2","name":"Canción Favorita","description":"Escucha o canta tu canción favorita. La música puede hacernos sentir mejor.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
         {"id":"b3","name":"Díselo a Alguien","description":"Habla con alguien de confianza sobre cómo te sientes.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
         {"id":"b4","name":"Respiración Lenta","description":"Inhala despacio por la nariz y exhala por la boca. Repite 5 veces.","feeling_colour":"blue","icon":"air","emoji":"💨"},
-        {"id":"b5","name":"Bebida Caliente","description":"Bebe algo caliente y reconfortante. Deja que te caliente por dentro.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b5","name":"Bebe Agua","description":"Bebe algo caliente y reconfortante. Deja que te caliente por dentro.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
         {"id":"b6","name":"Rincón Acogedor","description":"Encuentra un lugar cómodo y siéntate o túmbate unos minutos.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
     ],
     "green": [
@@ -553,7 +553,7 @@ HELPERS_FR = {
         {"id":"b2","name":"Chanson Préférée","description":"Écoute ou chante ta chanson préférée. La musique peut nous aider à aller mieux.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
         {"id":"b3","name":"Le Dire à Quelqu'un","description":"Parle à quelqu'un en qui tu as confiance de ce que tu ressens.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
         {"id":"b4","name":"Respiration Lente","description":"Inspire lentement par le nez et expire par la bouche. Répète 5 fois.","feeling_colour":"blue","icon":"air","emoji":"💨"},
-        {"id":"b5","name":"Boisson Chaude","description":"Bois quelque chose de chaud et réconfortant. Laisse-toi réchauffer de l'intérieur.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b5","name":"Bois de l'Eau","description":"Bois quelque chose de chaud et réconfortant. Laisse-toi réchauffer de l'intérieur.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
         {"id":"b6","name":"Coin Douillet","description":"Trouve un endroit confortable et assieds-toi ou allonge-toi quelques minutes.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
     ],
     "green": [
@@ -588,7 +588,7 @@ HELPERS_DE = {
         {"id":"b2","name":"Lieblingslied","description":"Hör dir dein Lieblingslied an oder singe es. Musik kann uns besser fühlen lassen.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
         {"id":"b3","name":"Jemandem Sagen","description":"Sprich mit jemandem, dem du vertraust, über deine Gefühle.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
         {"id":"b4","name":"Langsames Atmen","description":"Atme langsam durch die Nase ein und durch den Mund aus. Wiederhole 5 mal.","feeling_colour":"blue","icon":"air","emoji":"💨"},
-        {"id":"b5","name":"Warmes Getränk","description":"Trink etwas Warmes und Tröstliches. Lass dich von innen erwärmen.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b5","name":"Trink Wasser","description":"Trink etwas Warmes und Tröstliches. Lass dich von innen erwärmen.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
         {"id":"b6","name":"Gemütliche Ecke","description":"Finde einen bequemen Platz und sitz oder leg dich ein paar Minuten hin.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
     ],
     "green": [
@@ -623,7 +623,7 @@ HELPERS_IT = {
         {"id":"b2","name":"Canzone Preferita","description":"Ascolta o canta la tua canzone preferita. La musica può farci sentire meglio.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
         {"id":"b3","name":"Dillo a Qualcuno","description":"Parla con qualcuno di cui ti fidi di come ti senti.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
         {"id":"b4","name":"Respirazione Lenta","description":"Inspira lentamente dal naso ed espira dalla bocca. Ripeti 5 volte.","feeling_colour":"blue","icon":"air","emoji":"💨"},
-        {"id":"b5","name":"Bevanda Calda","description":"Bevi qualcosa di caldo e confortante. Lasciati riscaldare dall'interno.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b5","name":"Bevi Acqua","description":"Bevi qualcosa di caldo e confortante. Lasciati riscaldare dall'interno.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
         {"id":"b6","name":"Angolo Accogliente","description":"Trova un posto comodo e siediti o sdraiati per qualche minuto.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
     ],
     "green": [
