@@ -7380,6 +7380,21 @@ async def unlock_creature_stage(submission_id: str, request: Request):
             try:
                 supabase.table("creature_unlocks").insert({**new_row, "real_student_id": real_student_id}).execute()
             except Exception as e:
+                err = str(e)
+                if "23505" in err or "duplicate key" in err.lower():
+                    # Real bug fix Aug 21: the OLD unique constraint (student_id, creature_id)
+                    # predates real_student_id and still blocks two different real students on
+                    # the SAME account from getting independent rows for the same creature -
+                    # confirmed live (two students, one teacher account, second insert 500'd).
+                    # A DB-level migration is required to fix this properly (see
+                    # COH-REVIEW-PLAN.md) - surface an honest 409 instead of silently retrying
+                    # into the wrong row (which would corrupt another student's progress).
+                    raise HTTPException(
+                        status_code=409,
+                        detail="This account already has progress on this creature under a "
+                               "different student - a database constraint needs updating "
+                               "before per-student progress can fully separate."
+                    )
                 logger.warning(f"[creatures/unlock] real_student_id column not available yet, falling back: {e}")
                 supabase.table("creature_unlocks").insert(new_row).execute()
         else:
