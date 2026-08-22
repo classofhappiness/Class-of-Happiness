@@ -7267,12 +7267,47 @@ async def get_pending_creatures(request: Request):
         rows = supabase.table("creature_submissions").select("*")            .eq("status","pending").eq("school_name", school).order("created_at").execute()
     return rows.data or []
 
+async def _can_approve_creature(user: dict, submission: dict) -> bool:
+    """Real bug fix Aug 22 (urgent security fix): /creatures/approve and /creatures/reject had
+    ZERO ownership/school-scoping - any authenticated teacher/parent/school_admin could
+    approve or reject ANY creature submission system-wide, not just ones at their own school.
+    superadmin/admin keep unrestricted authority (matches their real final-approval role,
+    unchanged). teacher/school_admin are now scoped to their own resolved school - same
+    real-school resolution pattern already used by /creatures/pending. parent is scoped to
+    their OWN submissions only (student_id == their account) - the safest, most conservative
+    reading of "their own school" for an account type with no reliable school-affiliation
+    field of its own; whether parents should instead get broader same-school moderation
+    access (matching what the portal currently, incorrectly, already gives them) is a real
+    open product question, deliberately not resolved by this urgent fix."""
+    role = user.get("role")
+    if role in ("superadmin", "admin"):
+        return True
+    if role == "teacher":
+        admin_r = supabase.table("users").select("school_admin_id").eq("user_id", user["user_id"]).execute()
+        school_admin_id = (admin_r.data or [{}])[0].get("school_admin_id")
+        if not school_admin_id:
+            return False
+        profile_r = supabase.table("school_profiles").select("school_name").eq("school_admin_user_id", school_admin_id).execute()
+        school = profile_r.data[0].get("school_name") if profile_r.data else None
+        return bool(school) and submission.get("school_name") == school
+    if role == "school_admin":
+        school = user.get("school_name") or user.get("school_id")
+        return bool(school) and submission.get("school_name") == school
+    if role == "parent":
+        return submission.get("student_id") == user["user_id"]
+    return False
+
 @api_router.post("/creatures/approve/{submission_id}")
 async def approve_creature(submission_id: str, request: Request):
     """Teacher, parent or school admin approves a creature submission."""
     user = await get_current_user(request)
     if not user or user.get("role") not in ["teacher","parent","school_admin","admin","superadmin"]:
         raise HTTPException(status_code=403, detail="Not authorised")
+    sub_r = supabase.table("creature_submissions").select("school_name,student_id").eq("id", submission_id).execute()
+    if not sub_r.data:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    if not await _can_approve_creature(user, sub_r.data[0]):
+        raise HTTPException(status_code=403, detail="You can only approve submissions at your own school")
     # Teacher/parent approval no longer auto-publishes globally — superadmin's
     # global-approve endpoint is the real second gate before anything is public.
     supabase.table("creature_submissions").update({
@@ -7287,6 +7322,11 @@ async def reject_creature(submission_id: str, request: Request):
     user = await get_current_user(request)
     if not user or user.get("role") not in ["teacher","parent","school_admin","admin","superadmin"]:
         raise HTTPException(status_code=403, detail="Not authorised")
+    sub_r = supabase.table("creature_submissions").select("school_name,student_id").eq("id", submission_id).execute()
+    if not sub_r.data:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    if not await _can_approve_creature(user, sub_r.data[0]):
+        raise HTTPException(status_code=403, detail="You can only reject submissions at your own school")
     body = await request.json()
     supabase.table("creature_submissions").update({
         "status": "rejected",
