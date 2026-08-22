@@ -17,3 +17,4 @@ frontend/.metro-cache/
 !frontend/assets/**/*.png
 !frontend/assets/**/*.jpg
 *.swp
+COH-HANDOVER.md
