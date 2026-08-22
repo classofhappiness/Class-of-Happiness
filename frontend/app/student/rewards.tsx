@@ -410,22 +410,24 @@ export default function RewardsScreen() {
           }}
         >
           <MaterialIcons name="pets" size={24} color="#FFD700" />
-          <Text style={styles.collectionButtonText}>{t('my_creatures')}</Text>
+          <Text style={styles.collectionButtonText}>{t('my_creatures') || 'My Creatures'}</Text>
         </TouchableOpacity>
 
-        {/* New creature actions */}
+        {/* New creature actions - real bug fix Aug 22: these were hardcoded English strings
+            with zero t() wrapper, even though submit_creature/world_creatures already have
+            real translations in most shipped languages. */}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
           <TouchableOpacity
             style={{ flex: 1, backgroundColor: '#1A1A2E', borderRadius: 50, paddingVertical: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
             onPress={() => router.push('/student/submit-creature')}>
             <Text style={{ fontSize: 14 }}>🎨</Text>
-            <Text style={{ color: '#FFD93D', fontWeight: '900', fontSize: 12 }}>Submit a Creature</Text>
+            <Text style={{ color: '#FFD93D', fontWeight: '900', fontSize: 12 }}>{t('submit_creature') || 'Submit a Creature'}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={{ flex: 1, backgroundColor: '#4CAF73', borderRadius: 50, paddingVertical: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
             onPress={() => router.push('/student/world-creatures')}>
             <Text style={{ fontSize: 14 }}>🌍</Text>
-            <Text style={{ color: 'white', fontWeight: '900', fontSize: 12 }}>World Creatures</Text>
+            <Text style={{ color: 'white', fontWeight: '900', fontSize: 12 }}>{t('world_creatures') || 'World Creatures'}</Text>
           </TouchableOpacity>
         </View>
 

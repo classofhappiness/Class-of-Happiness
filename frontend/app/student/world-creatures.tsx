@@ -113,9 +113,9 @@ export default function GlobalCreaturesScreen() {
             ))}
           </View>
           {fullyEvolved ? (
-            <Text style={styles.fullyEvolved}>🏆 Fully evolved!</Text>
+            <Text style={styles.fullyEvolved}>{t('fully_evolved') || '🏆 Fully evolved!'}</Text>
           ) : isActive ? (
-            <Text style={styles.activeHint}>★ Active — check in to grow!</Text>
+            <Text style={styles.activeHint}>{t('active_checkin_hint') || '★ Active — check in to grow!'}</Text>
           ) : canStart ? (
             <TouchableOpacity
               disabled={startingId === item.id}
@@ -124,11 +124,11 @@ export default function GlobalCreaturesScreen() {
               {startingId === item.id ? (
                 <ActivityIndicator size="small" color="white" />
               ) : (
-                <Text style={styles.unlockBtnText}>Set as Active</Text>
+                <Text style={styles.unlockBtnText}>{t('set_as_active') || 'Set as Active'}</Text>
               )}
             </TouchableOpacity>
           ) : (
-            <Text style={styles.lockedHint}>Finish your {item.emotion_colour} creature first</Text>
+            <Text style={styles.lockedHint}>{(t('finish_creature_first') || 'Finish your {colour} creature first').replace('{colour}', item.emotion_colour)}</Text>
           )}
         </View>
       </View>
@@ -146,8 +146,8 @@ export default function GlobalCreaturesScreen() {
             <Text style={styles.collectionBtnText}>🐾 {t('my_creatures') || 'My Creatures'}</Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.title}>🌍 World Creatures</Text>
-        <Text style={styles.subtitle}>Find your next creature to work toward</Text>
+        <Text style={styles.title}>🌍 {t('world_creatures') || 'World Creatures'}</Text>
+        <Text style={styles.subtitle}>{t('find_next_creature_subtitle') || 'Find your next creature to work toward'}</Text>
       </View>
       {studentId ? (
         <View style={styles.scopeRow}>

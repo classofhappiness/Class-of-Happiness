@@ -95,9 +95,9 @@ export default function CreatureCollectionScreen() {
           <Text style={styles.emoji}>{item.emoji || EMOTION_EMOJI[colour] || '🐾'}</Text>
         )}
         <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-        {item.is_active ? <Text style={styles.activeBadge}>★ Active</Text> : null}
+        {item.is_active ? <Text style={styles.activeBadge}>{t('active_badge') || '★ Active'}</Text> : null}
         {item.was_featured ? (
-          <Text style={styles.limitedBadge}>{expired ? '⭐ Limited Edition (expired)' : '⭐ Limited Edition'}</Text>
+          <Text style={styles.limitedBadge}>{expired ? (t('limited_edition_expired') || '⭐ Limited Edition (expired)') : (t('limited_edition') || '⭐ Limited Edition')}</Text>
         ) : null}
         <View style={styles.progressRow}>
           {Array.from({ length: item.max_stage }, (_, i) => i + 1).map(s => (
@@ -105,7 +105,7 @@ export default function CreatureCollectionScreen() {
           ))}
         </View>
         <Text style={item.is_complete ? styles.fullyEvolved : styles.inProgress}>
-          {item.is_complete ? '🏆 Fully evolved!' : `Stage ${item.current_stage} / ${item.max_stage}`}
+          {item.is_complete ? (t('fully_evolved') || '🏆 Fully evolved!') : `${t('stage') || 'Stage'} ${item.current_stage} / ${item.max_stage}`}
         </Text>
       </View>
     );
@@ -119,15 +119,15 @@ export default function CreatureCollectionScreen() {
       <TranslatedHeader title={t('my_creatures') || 'My Creatures'} showHome />
 
       {!loading && !error && (
-        <Text style={styles.countText}>🏆 {totalCollected} {totalCollected === 1 ? 'creature' : 'creatures'} collected</Text>
+        <Text style={styles.countText}>🏆 {totalCollected} {t('creatures_collected') || 'creatures collected'}</Text>
       )}
 
       <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 }}>
         <TouchableOpacity style={styles.actionBtnDark} onPress={goToSubmit}>
-          <Text style={styles.actionBtnDarkText}>🎨 Submit a Creature</Text>
+          <Text style={styles.actionBtnDarkText}>🎨 {t('submit_creature') || 'Submit a Creature'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtnGreen} onPress={goToWorld}>
-          <Text style={styles.actionBtnGreenText}>🔍 Find a New Creature</Text>
+          <Text style={styles.actionBtnGreenText}>{t('find_new_creature') || '🔍 Find a New Creature'}</Text>
         </TouchableOpacity>
       </View>
 
