@@ -908,3 +908,18 @@ Checked each against live source before building anything, per standing practice
 
 ### Deploy status
 All of items 1, 2, 7 committed, pushed, and confirmed deployed (Railway `Application startup complete` after each push). No new iOS/Android build cut — per Jono's standing instruction, #22 waits for his own Expo Go verification of this whole round.
+
+### school_profiles root-cause fix — 2026-08-22 — ✅ DONE & LIVE-VERIFIED
+Follow-up to the item 3 investigation above. Root cause was singular and precise: `POST /admin/create-school-admin` (`server.py:10378`) is the ONLY real path that creates a school_admin account, and it never created a matching `school_profiles` row — confirmed live, 0 of the 3 real school_admin accounts (Kairos Montessori ×2, Sunshine International School ×1, all created 2026-07-28) had one, and the 1 orphaned row that existed ("St Lucy's") had `school_admin_user_id: None`, unlinked to any real account.
+
+**Built:** new `_ensure_school_profile(school_admin_user_id, school_name)` helper — idempotent, creates a linked `school_profiles` row with the same default shape as the portal's own "+ Add School" (`subscription_package: "starter"`, `status: "trial"`, 5 seats). Called from both branches of `create_school_admin` (new account and re-promotion of an existing user). Every school_admin account created from now on gets a real, linked profile automatically.
+
+**Backfill run** for the 3 real existing accounts — all 3 now have a correctly-linked `school_profiles` row. Orphaned "St Lucy's" row deleted after confirming it was still the same unlinked row (`school_admin_user_id: None`) before deletion.
+
+**Live-verified end to end**: (1) called the real deployed `/admin/create-school-admin` with a temporary test account — confirmed a correctly-linked profile was auto-created with the right defaults, then deleted the test account/profile/session. (2) Called `/admin/school-profiles` — the exact endpoint the portal's Schools tab uses — via a temporary superadmin session: returns exactly 3 rows, all `school_admin_user_id` linked (`True`), matching Kairos Montessori ×2 and Sunshine International School. Session deleted afterward.
+
+**Map (piece 3) — confirmed self-heals for the schools list, does NOT need a code change, and does NOT yet show pins.** `renderSAWorldMap` (`portal100.html:1144`) already handles missing coordinates honestly — it filters to `withCoords` and shows "Add latitude/longitude to a school's profile to see it appear here" rather than looking broken. The Schools tab itself (list, names, contact fields, expand/collapse, invite codes) is now fully populated and correct. The map's pins specifically still need real lat/lng entered per school via the already-working Edit form — nobody has ever entered that data, and none was fabricated here. Not a bug; a genuine remaining manual step, called out explicitly rather than left implicit.
+
+Not yet uploaded to cPanel — no portal.html changes were needed for this fix (backend + data only), so the currently-live portal file already reflects the correct behaviour once the data existed.
+
+Item 3 (schools directory PDF) is now real, small, and worth building whenever wanted — the same rich `school_profiles` schema (address/contact/subscription/counts) is genuinely populated for real accounts for the first time.
