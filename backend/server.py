@@ -7283,12 +7283,21 @@ async def _can_approve_creature(user: dict, submission: dict) -> bool:
     if role in ("superadmin", "admin"):
         return True
     if role == "teacher":
+        # Real bug fix Aug 22: the school_admin_id -> school_profiles resolution used by
+        # /creatures/pending is the "more correct" method, but school_profiles is confirmed
+        # live to be essentially empty in production (one unusable row, no admin_id) - using
+        # it as the ONLY path would silently lock out every real teacher, not just close the
+        # security hole. Falls back to the teacher's own school_name field (imperfect, but
+        # real and populated) rather than fail closed for everyone.
+        school = None
         admin_r = supabase.table("users").select("school_admin_id").eq("user_id", user["user_id"]).execute()
         school_admin_id = (admin_r.data or [{}])[0].get("school_admin_id")
-        if not school_admin_id:
-            return False
-        profile_r = supabase.table("school_profiles").select("school_name").eq("school_admin_user_id", school_admin_id).execute()
-        school = profile_r.data[0].get("school_name") if profile_r.data else None
+        if school_admin_id:
+            profile_r = supabase.table("school_profiles").select("school_name").eq("school_admin_user_id", school_admin_id).execute()
+            if profile_r.data:
+                school = profile_r.data[0].get("school_name")
+        if not school:
+            school = user.get("school_name")
         return bool(school) and submission.get("school_name") == school
     if role == "school_admin":
         school = user.get("school_name") or user.get("school_id")
