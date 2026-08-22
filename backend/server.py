@@ -7248,13 +7248,22 @@ async def submit_creature(request: Request):
 
 @api_router.get("/creatures/pending")
 async def get_pending_creatures(request: Request):
-    """Teachers, parents, school admin see pending submissions."""
+    """Teachers and school admin see their school's pending submissions. Parents see only
+    their own family's pending submissions.
+    Real bug fix Aug 22 (item 8c): parent used to fall into the same branch as school_admin
+    and get the exact same school-wide moderation queue - a parent could see every other
+    family's and every classroom's pending submissions at their school. Decided fix: parents
+    are scoped to their own submissions only, matching the approval authority
+    _can_approve_creature already gives them. See /creatures/my-submissions for the
+    equivalent teacher/parent self-service status view - this endpoint stays the
+    moderation-queue surface used by the approve/reject UI."""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["teacher","parent","school_admin","admin","superadmin"]:
+    role = user.get("role") if user else None
+    if not user or role not in ["teacher","parent","school_admin","admin","superadmin"]:
         raise HTTPException(status_code=403, detail="Not authorised")
-    if user.get("role") == "superadmin":
+    if role == "superadmin":
         rows = supabase.table("creature_submissions").select("*").eq("status","pending").order("created_at").execute()
-    elif user.get("role") == "teacher":
+    elif role == "teacher":
         # Resolve the teacher's real school via school_admin_id (school_name is unreliable/unset)
         admin_r = supabase.table("users").select("school_admin_id").eq("user_id", user["user_id"]).execute()
         school_admin_id = (admin_r.data or [{}])[0].get("school_admin_id")
@@ -7264,10 +7273,26 @@ async def get_pending_creatures(request: Request):
             if profile_r.data:
                 school = profile_r.data[0].get("school_name", "")
         rows = supabase.table("creature_submissions").select("*").eq("status","pending").eq("school_name", school).order("created_at").execute() if school else type("R",(),{"data":[]})()
+    elif role == "parent":
+        rows = supabase.table("creature_submissions").select("*").eq("status","pending").eq("student_id", user["user_id"]).order("created_at").execute()
     else:
         school = user.get("school_name", user.get("school_id", ""))
         rows = supabase.table("creature_submissions").select("*")            .eq("status","pending").eq("school_name", school).order("created_at").execute()
-    return rows.data or []
+    data = rows.data or []
+
+    # Real feature Aug 22 (item 8d): annotate each row with who submitted it (teacher vs
+    # parent) so the school_admin/teacher moderation queue can distinguish them. No new
+    # column needed - resolved with a batch lookup against users.role keyed on student_id
+    # (the submitting account's own id, per the Aug 21 finding that this field never holds
+    # a real students.id).
+    student_ids = list({r["student_id"] for r in data if r.get("student_id")})
+    role_map = {}
+    if student_ids:
+        users_r = supabase.table("users").select("user_id,role").in_("user_id", student_ids).execute()
+        role_map = {u["user_id"]: u.get("role") for u in (users_r.data or [])}
+    for r in data:
+        r["submitted_by_role"] = role_map.get(r.get("student_id"), "unknown")
+    return data
 
 async def _can_approve_creature(user: dict, submission: dict) -> bool:
     """Real bug fix Aug 22 (urgent security fix): /creatures/approve and /creatures/reject had
@@ -7886,12 +7911,67 @@ async def get_my_creatures(student_id: str, request: Request):
 
 @api_router.get("/creatures/my-submissions")
 async def get_my_submissions(request: Request):
-    """Student sees status of their own submissions."""
+    """Real feature Aug 22 (items 8a/8b): a parent's or teacher's own status view of
+    creature submissions, separate from the /creatures/pending moderation queue (which only
+    ever shows pending ones and, for parent, is now scoped the same way as this endpoint -
+    see item 8c). Was already wired into the frontend api client (creaturesApi.getMySubmissions)
+    but never called from any screen and never did more than a bare student_id match - dead
+    plumbing, not a real feature, until now.
+    Parent: their own family's submissions only (any status).
+    Teacher: explicit product decision - everything their classroom(s) have submitted, not
+    just what they personally logged. A teacher managing a whole class needs visibility over
+    the whole class. Falls back to their own directly-submitted rows too, since classroom_id
+    is a newer column that isn't populated on every legacy submission."""
     user = await get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    rows = supabase.table("creature_submissions").select("*")        .eq("student_id", user["user_id"]).order("created_at", desc=True).execute()
-    return rows.data or []
+    role = user.get("role") if user else None
+    if not user or role not in ["teacher", "parent"]:
+        raise HTTPException(status_code=403, detail="Not authorised")
+
+    base_fields = ("id,creature_name,emotion_colour,student_name,school_name,status,"
+                   "created_at,approved_at,rejection_reason,is_globally_available,visibility_scope,"
+                   "stage1_url,stage4_url")
+
+    if role == "parent":
+        try:
+            rows = supabase.table("creature_submissions").select(
+                base_fields + ",real_student_id,classroom_id"
+            ).eq("student_id", user["user_id"]).order("created_at", desc=True).execute()
+        except Exception:
+            rows = supabase.table("creature_submissions").select(
+                base_fields
+            ).eq("student_id", user["user_id"]).order("created_at", desc=True).execute()
+        return rows.data or []
+
+    # teacher: classroom-wide, not just self-submitted
+    classrooms_r = supabase.table("classrooms").select("id").eq("user_id", user["user_id"]).execute()
+    classroom_ids = [c["id"] for c in (classrooms_r.data or [])]
+    seen_ids = set()
+    results = []
+    if classroom_ids:
+        try:
+            by_classroom = supabase.table("creature_submissions").select(
+                base_fields + ",real_student_id,classroom_id"
+            ).in_("classroom_id", classroom_ids).order("created_at", desc=True).execute()
+        except Exception:
+            by_classroom = type("R", (), {"data": []})()
+        for row in (by_classroom.data or []):
+            if row["id"] not in seen_ids:
+                seen_ids.add(row["id"])
+                results.append(row)
+    try:
+        by_teacher = supabase.table("creature_submissions").select(
+            base_fields + ",real_student_id,classroom_id"
+        ).eq("student_id", user["user_id"]).order("created_at", desc=True).execute()
+    except Exception:
+        by_teacher = supabase.table("creature_submissions").select(
+            base_fields
+        ).eq("student_id", user["user_id"]).order("created_at", desc=True).execute()
+    for row in (by_teacher.data or []):
+        if row["id"] not in seen_ids:
+            seen_ids.add(row["id"])
+            results.append(row)
+    results.sort(key=lambda r: r.get("created_at") or "", reverse=True)
+    return results
 
 
 # ================== ADMIN ==================

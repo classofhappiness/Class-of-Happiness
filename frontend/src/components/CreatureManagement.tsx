@@ -14,6 +14,12 @@ import { EMOTION_COLOURS } from '../constants/emotionColours';
 
 const ZONE_COLORS: Record<string, string> = EMOTION_COLOURS;
 
+const STATUS_INFO: Record<string, { label: string; bg: string; color: string }> = {
+  pending: { label: 'Pending', bg: '#FFF3E0', color: '#E65100' },
+  approved: { label: 'Approved', bg: '#E8F5E9', color: '#2E7D32' },
+  rejected: { label: 'Rejected', bg: '#FFEBEE', color: '#C62828' },
+};
+
 interface Props {
   role: 'teacher' | 'parent';
 }
@@ -28,6 +34,8 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<any>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [mySubmissions, setMySubmissions] = useState<any[]>([]);
+  const [loadingMySubmissions, setLoadingMySubmissions] = useState(true);
 
   const loadPending = useCallback(async () => {
     setLoadingPending(true);
@@ -38,7 +46,16 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
     setLoadingPending(false);
   }, []);
 
-  useEffect(() => { loadPending(); }, [loadPending]);
+  const loadMySubmissions = useCallback(async () => {
+    setLoadingMySubmissions(true);
+    try {
+      const rows = await creaturesApi.getMySubmissions();
+      setMySubmissions(Array.isArray(rows) ? rows : []);
+    } catch { setMySubmissions([]); }
+    setLoadingMySubmissions(false);
+  }, []);
+
+  useEffect(() => { loadPending(); loadMySubmissions(); }, [loadPending, loadMySubmissions]);
 
   const generateCode = async () => {
     setGenerating(true);
@@ -65,6 +82,7 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
     try {
       await creaturesApi.approve(submission.id);
       setPending(prev => prev.filter(p => p.id !== submission.id));
+      loadMySubmissions();
       Alert.alert('✅', `${submission.creature_name} approved! Awaiting final review.`);
     } catch {
       Alert.alert(t('error') || 'Error', 'Could not approve this submission.');
@@ -78,6 +96,7 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
     try {
       await creaturesApi.reject(rejectTarget.id, rejectReason.trim() || 'Does not meet the Class of Happiness standards');
       setPending(prev => prev.filter(p => p.id !== rejectTarget.id));
+      loadMySubmissions();
     } catch {
       Alert.alert(t('error') || 'Error', 'Could not reject this submission.');
     }
@@ -168,6 +187,50 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
         )}
       </View>
 
+      {/* My Submissions - real feature Aug 22 (items 8a/8b): status view of this account's
+          own submissions, separate from the Pending Creatures moderation queue above. Parent
+          sees their own family's; teacher sees everything their classroom(s) have submitted
+          (explicit product decision - not just what they personally logged). */}
+      <View style={[s.card, { marginTop: 16 }]}>
+        <View style={s.cardHeader}>
+          <MaterialIcons name="checklist" size={24} color="#9C27B0" />
+          <Text style={s.cardTitle}>{role === 'teacher' ? "My Classroom's Submissions" : 'My Submissions'}</Text>
+        </View>
+        {loadingMySubmissions ? (
+          <ActivityIndicator color="#9C27B0" style={{ marginVertical: 20 }} />
+        ) : mySubmissions.length === 0 ? (
+          <Text style={s.emptyText}>No creatures submitted yet.</Text>
+        ) : (
+          mySubmissions.map((sub) => {
+            const statusInfo = STATUS_INFO[sub.status] || STATUS_INFO.pending;
+            return (
+              <View key={sub.id} style={s.subRow}>
+                {sub.stage4_url ? (
+                  <Image source={{ uri: sub.stage4_url }} style={s.thumb} />
+                ) : (
+                  <View style={[s.thumb, s.thumbPlaceholder]}>
+                    <MaterialIcons name="pets" size={22} color="#CCC" />
+                  </View>
+                )}
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={[s.zoneDot, { backgroundColor: ZONE_COLORS[sub.emotion_colour] || '#999' }]} />
+                    <Text style={s.subName}>{sub.creature_name}</Text>
+                  </View>
+                  <Text style={s.subMeta}>
+                    {sub.student_name}
+                    {sub.status === 'rejected' && sub.rejection_reason ? ` · ${sub.rejection_reason}` : ''}
+                  </Text>
+                </View>
+                <View style={[s.statusBadge, { backgroundColor: statusInfo.bg }]}>
+                  <Text style={[s.statusBadgeText, { color: statusInfo.color }]}>{statusInfo.label}</Text>
+                </View>
+              </View>
+            );
+          })
+        )}
+      </View>
+
       {/* Reject reason modal */}
       <Modal visible={!!rejectTarget} transparent animationType="fade">
         <View style={s.modalOverlay}>
@@ -215,6 +278,8 @@ const s = StyleSheet.create({
   subName: { fontSize: 14, fontWeight: '700', color: '#1A1A2E' },
   subMeta: { fontSize: 12, color: '#888', marginTop: 2 },
   smallBtn: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  statusBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  statusBadgeText: { fontSize: 11, fontWeight: '800' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   modalCard: { backgroundColor: 'white', borderRadius: 16, padding: 20, width: '100%' },
   modalTitle: { fontSize: 16, fontWeight: '800', color: '#1A1A2E', marginBottom: 4 },
