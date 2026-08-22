@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Pressable, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useNavigation, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -7,8 +7,12 @@ import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { rewardsApi, StudentCollection, StudentRewards, Creature } from '../../src/utils/api';
+import { rewardsApi, creaturesApi, StudentCollection, StudentRewards, Creature } from '../../src/utils/api';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../../src/utils/sounds';
+
+const COMMUNITY_ZONE_COLORS: Record<string, string> = {
+  blue: '#4A90D9', green: '#4CAF73', yellow: '#FFC107', red: '#E05252',
+};
 
 interface StudentCreatureData {
   currentCreature: Creature;
@@ -41,6 +45,13 @@ export default function StudentSelectScreen() {
   }, []);
   const [studentCreatures, setStudentCreatures] = useState<Record<string, StudentCreatureData>>({});
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  // Real feature Aug 22 (item 7): the tick/completion row here only ever reflected the 4
+  // default per-colour creatures - a Family/Class/School/Global creature a student actively
+  // selected to work on (via world-creatures.tsx's "Set as Active") never showed up here at
+  // all, only inside "My Creatures" itself. This fetches each student's actively-selected
+  // community creatures (per /students/{id}/my-creatures, filtered to is_active community
+  // entries) so they render alongside the defaults with the same tick/in-progress treatment.
+  const [studentActiveCommunity, setStudentActiveCommunity] = useState<Record<string, any[]>>({});
 
   // Hide default header and use custom translated header
   useLayoutEffect(() => {
@@ -109,6 +120,32 @@ export default function StudentSelectScreen() {
     });
   }, [students]);
 
+  // Real feature Aug 22 (item 7): fetch each student's actively-selected community creatures
+  // in parallel - one call per student (no batch endpoint exists for this yet, matching the
+  // same fallback pattern already used above), tolerant of individual failures.
+  useEffect(() => {
+    if (students.length === 0) return;
+    Promise.allSettled(
+      students.map(s => creaturesApi.getMyCreatures(s.id).then(data => ({ id: s.id, data })))
+    ).then(results => {
+      const active: Record<string, any[]> = {};
+      results.forEach(r => {
+        if (r.status !== 'fulfilled') return;
+        const { id, data } = r.value;
+        const entries: any[] = [];
+        Object.entries(data?.colours || {}).forEach(([colour, bucket]) => {
+          (bucket as any[]).forEach(entry => {
+            if (entry.type === 'community' && entry.is_active) {
+              entries.push({ ...entry, colour });
+            }
+          });
+        });
+        if (entries.length) active[id] = entries;
+      });
+      setStudentActiveCommunity(active);
+    }).catch(() => {});
+  }, [students]);
+
   const handleSelectStudent = useCallback((student: typeof students[0]) => {
     playSelectFeedback();
     setSelectedStudentId(student.id);
@@ -147,9 +184,31 @@ export default function StudentSelectScreen() {
   // Render mini creature icons for a student
   const renderCreatureIcons = (studentId: string) => {
     const data = studentCreatures[studentId];
+    const activeCommunity = studentActiveCommunity[studentId] || [];
     if (!data) return null;
 
     const { currentCreature, currentStage, collectedCreatures } = data;
+
+    const renderActiveCommunityIcons = () => activeCommunity.map((entry: any) => {
+      const zoneColor = COMMUNITY_ZONE_COLORS[entry.colour] || '#5C6BC0';
+      return (
+        <View
+          key={`community-${entry.id}`}
+          style={[styles.collectedCreatureIcon, { backgroundColor: zoneColor + '30', borderWidth: 1.5, borderColor: zoneColor }]}
+        >
+          {entry.stage_image ? (
+            <Image source={{ uri: entry.stage_image }} style={styles.communityThumb} />
+          ) : (
+            <Text style={styles.collectedEmoji}>🐾</Text>
+          )}
+          {entry.is_complete && (
+            <View style={[styles.completeBadge, { backgroundColor: zoneColor }]}>
+              <Text style={styles.completeBadgeText}>✓</Text>
+            </View>
+          )}
+        </View>
+      );
+    });
     
     // Get ALL 4 creatures with progress from collection data
     const allCreatures = (data as any).allCreatures || [];
@@ -200,6 +259,7 @@ export default function StudentSelectScreen() {
                 </View>
               );
             })}
+            {renderActiveCommunityIcons()}
           </View>
         </View>
       );
@@ -244,6 +304,9 @@ export default function StudentSelectScreen() {
               </View>
             )}
           </View>
+        )}
+        {activeCommunity.length > 0 && (
+          <View style={styles.collectedIcons}>{renderActiveCommunityIcons()}</View>
         )}
 
         {/* Total points badge */}
@@ -515,6 +578,11 @@ const styles = StyleSheet.create({
   },
   collectedEmoji: {
     fontSize: 12,
+  },
+  communityThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
   },
   completeBadge: {
     position: 'absolute',

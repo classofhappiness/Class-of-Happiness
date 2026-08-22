@@ -12,7 +12,6 @@ import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
-  Image,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
@@ -23,6 +22,8 @@ import { useApp } from '../../src/context/AppContext';
 import { creaturesApi } from '../../src/utils/api';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
+import { AnimatedCreatureVisual } from '../../src/components/AnimatedCreatureVisual';
+import { CreatureDetailModal, CreatureDetailEntry } from '../../src/components/CreatureDetailModal';
 
 const EMOTION_COLORS: Record<string, string> = {
   green: '#4CAF73', blue: '#4A90D9', yellow: '#FFC107', red: '#E05252'
@@ -41,6 +42,8 @@ interface CreatureEntry {
   name: string;
   emoji?: string | null;
   stage_image?: string | null;
+  stage_emojis?: string[];
+  stage_urls?: (string | null)[];
   current_stage: number;
   max_stage: number;
   is_complete: boolean;
@@ -57,6 +60,8 @@ export default function CreatureCollectionScreen() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [detailEntry, setDetailEntry] = useState<CreatureDetailEntry | null>(null);
+  const [detailColour, setDetailColour] = useState<string>('blue');
   const router = useRouter();
   const { t, currentStudent } = useApp();
   const studentId = (currentStudent as any)?.student_id || currentStudent?.id;
@@ -88,12 +93,20 @@ export default function CreatureCollectionScreen() {
     const expired = item.was_featured && item.featured_until && new Date(item.featured_until) < new Date();
     const imgUrl = item.type === 'community' ? item.stage_image : null;
     return (
-      <View key={`${item.type}-${item.id}`} style={[styles.card, { borderColor: EMOTION_COLORS[colour], borderWidth: item.is_active ? 2 : 1 }]}>
-        {imgUrl ? (
-          <Image source={{ uri: imgUrl }} style={styles.imgWrap} />
-        ) : (
-          <Text style={styles.emoji}>{item.emoji || EMOTION_EMOJI[colour] || '🐾'}</Text>
-        )}
+      <TouchableOpacity
+        key={`${item.type}-${item.id}`}
+        style={[styles.card, { borderColor: EMOTION_COLORS[colour], borderWidth: item.is_active ? 2 : 1 }]}
+        onPress={() => { setDetailColour(colour); setDetailEntry(item); }}
+      >
+        <View style={styles.imgWrap}>
+          <AnimatedCreatureVisual
+            zone={colour}
+            size={64}
+            unlocked={item.current_stage > 0 || item.is_complete}
+            emoji={item.type === 'default' ? item.emoji : undefined}
+            imageUrl={imgUrl || undefined}
+          />
+        </View>
         <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
         {item.is_active ? <Text style={styles.activeBadge}>{t('active_badge') || '★ Active'}</Text> : null}
         {item.was_featured ? (
@@ -107,7 +120,7 @@ export default function CreatureCollectionScreen() {
         <Text style={item.is_complete ? styles.fullyEvolved : styles.inProgress}>
           {item.is_complete ? (t('fully_evolved') || '🏆 Fully evolved!') : `${t('stage') || 'Stage'} ${item.current_stage} / ${item.max_stage}`}
         </Text>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -167,6 +180,13 @@ export default function CreatureCollectionScreen() {
           })}
         </ScrollView>
       )}
+      <CreatureDetailModal
+        visible={!!detailEntry}
+        onClose={() => setDetailEntry(null)}
+        entry={detailEntry}
+        colour={detailColour}
+        studentId={studentId}
+      />
     </View>
   );
 }
@@ -225,7 +245,7 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: 'center',
   },
-  imgWrap: { width: '100%', aspectRatio: 1, marginBottom: 8, borderRadius: 10, backgroundColor: '#F5F5F5' },
+  imgWrap: { width: '100%', aspectRatio: 1, marginBottom: 8, borderRadius: 10, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' },
   emoji: {
     fontSize: 40,
     marginBottom: 8,

@@ -9,13 +9,14 @@
 //    the cycling image for having actually obtained the fully-evolved creature).
 // 4) expiry date and country-of-origin (global scope only, 5-contributor privacy threshold)
 //    now shown on the card, both newly returned by /creatures/eligible.
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, ActivityIndicator, RefreshControl, Alert, useWindowDimensions, Animated, Easing } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, ActivityIndicator, RefreshControl, Alert, useWindowDimensions, Animated } from 'react-native';
 import { useRouter } from 'expo-router';
 import { creaturesApi } from '../../src/utils/api';
 import { useApp } from '../../src/context/AppContext';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
+import { useZoneMovement } from '../../src/components/AnimatedCreatureVisual';
 
 const EMOTION_COLORS: Record<string, string> = {
   green: '#4CAF73', blue: '#4A90D9', yellow: '#FFC107', red: '#E05252'
@@ -46,21 +47,11 @@ function CreatureCard({
   const { t } = useApp();
   const [previewStage, setPreviewStage] = useState(1);
   const fullyEvolved = (item.my_stages_unlocked || 0) >= 4;
-  // Real feature Aug 22: bring back some of the old creature modal's playful, alive feel
-  // (gentle idle movement) into the new unified screen, per Jono's explicit ask not to lose
-  // that polish in the redesign.
-  const bounceAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(bounceAnim, { toValue: -6, duration: 700, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(bounceAnim, { toValue: 0, duration: 700, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, []);
+  // Real feature Aug 22 (item 2): restored the old CreatureCollection modal's real per-zone
+  // movement variety (sway/hop/shiver/bounce, CreatureCollection.tsx:40-72) - the first pass
+  // at this screen only had one generic bounce for every colour, which wasn't the actual old
+  // behaviour, just a placeholder approximation of it.
+  const { transform: bounceTransform } = useZoneMovement(item.emotion_colour);
 
   useEffect(() => {
     // Preview only cycles for creatures not yet fully evolved by this student - a fully
@@ -78,7 +69,7 @@ function CreatureCard({
 
   return (
     <View style={[styles.card, { width: cardWidth, borderTopColor: EMOTION_COLORS[item.emotion_colour], borderTopWidth: 3 }]}>
-      <Animated.View style={[styles.imgWrap, { transform: [{ translateY: bounceAnim }] }]}>
+      <Animated.View style={[styles.imgWrap, { transform: bounceTransform }]}>
         <Image source={{ uri: imgUrl }} style={styles.creatureImg} />
         {!fullyEvolved && (
           <View style={styles.previewBadge}>

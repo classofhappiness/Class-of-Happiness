@@ -7929,6 +7929,11 @@ async def get_my_creatures(student_id: str, request: Request):
             "is_complete": is_complete,
             "is_active": active.get(colour) == default_id,
             "points": creature_points.get(default_id, 0),
+            # Real feature Aug 22 (item 2 visual polish): full per-stage emoji list, so the
+            # detail view can show the whole evolution row (egg -> full creature), not just
+            # the current stage - same real data _get_collection already exposes for the old
+            # modal, just not previously threaded through this endpoint.
+            "stage_emojis": [s.get("emoji") for s in (cdata.get("stages") or [])],
         })
 
     try:
@@ -7964,6 +7969,11 @@ async def get_my_creatures(student_id: str, request: Request):
             "completed_at": u.get("completed_at"),
             "was_featured": u.get("was_featured", False),
             "featured_until": u.get("featured_until_snapshot"),
+            # Real feature Aug 22 (item 2 visual polish): full per-stage photo URLs, so the
+            # detail view can show the whole evolution row the same way a default creature's
+            # stage_emojis does - the photos already exist on the submission row, just weren't
+            # threaded through this endpoint before.
+            "stage_urls": [cs.get("stage1_url"), cs.get("stage2_url"), cs.get("stage3_url"), cs.get("stage4_url")],
         })
 
     return {"colours": buckets, "total_collected": total_collected}
