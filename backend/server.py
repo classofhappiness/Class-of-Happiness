@@ -7177,6 +7177,32 @@ async def validate_submission_code(code: str, request: Request):
         return {"valid": False, "reason": "Code has expired"}
     return {"valid": True}
 
+@api_router.get("/creatures/submission-options")
+async def get_creature_submission_options(request: Request, real_student_id: Optional[str] = None):
+    """Real feature Aug 22 (item 1): resolves what scope options are genuinely valid for a
+    submission, so the frontend never has to guess from partial data. A real student with a
+    resolved classroom can offer Classroom/School/Global; one with only a resolved school (no
+    classroom) can offer School/Global; a home-only family member (no real_student_id, or one
+    that resolves to neither) can only offer Global. Reuses the exact same
+    _resolve_student_classroom_school + _is_authorized_for_student helpers the eligibility
+    feed already depends on, so this is a single source of truth, not a second guess at the
+    same logic."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    classroom_id, school_name = None, None
+    if real_student_id:
+        student_r = supabase.table("students").select("*").eq("id", real_student_id).execute()
+        student_data = student_r.data[0] if student_r.data else None
+        if student_data and await _is_authorized_for_student(user, real_student_id, student_data):
+            classroom_id, school_name = _resolve_student_classroom_school(student_data)
+    return {
+        "has_classroom": bool(classroom_id),
+        "has_school": bool(school_name),
+        "school_name": school_name,
+        "default_country": user.get("country") or "PT",
+    }
+
 @api_router.post("/creatures/submit")
 async def submit_creature(request: Request):
     """Student submits a creature using 4 Supabase Storage URLs + a code."""
@@ -7201,7 +7227,39 @@ async def submit_creature(request: Request):
     existing = supabase.table("creature_submissions").select("id")        .eq("student_id", user["user_id"])        .eq("emotion_colour", emotion)        .in_("status", ["pending","approved"])        .execute()
     if existing.data:
         raise HTTPException(status_code=400, detail=f"You already have a {emotion} creature submitted or approved")
-    # Create submission
+
+    # Real fix Aug 21: "student_id" above has always actually been the SUBMITTING ACCOUNT's
+    # own user_id (teacher or parent), never a real students.id - confirmed live, e.g. a
+    # real "approved" row's student_id resolves to a users row with role=teacher, not any
+    # students row at all. So there was never a reliable way to show which actual child made
+    # a creature, or their classroom. real_student_id/classroom_id are a genuine new capture,
+    # populated only when the submission screen's new student-picker step resolves one (a
+    # school-linked family member or a teacher's own student both resolve to a real
+    # students.id; a home-only family member has no classroom, only a name).
+    real_student_id = body.get("real_student_id")
+    classroom_id, school_name_resolved = None, None
+    if real_student_id:
+        student_r = supabase.table("students").select("*").eq("id", real_student_id).execute()
+        student_data = student_r.data[0] if student_r.data else None
+        if student_data and await _is_authorized_for_student(user, real_student_id, student_data):
+            classroom_id, school_name_resolved = _resolve_student_classroom_school(student_data)
+
+    # Real feature Aug 22 (item 1): submitter-chosen scope + country, resolved server-side
+    # against the SAME real classroom/school data _resolve_student_classroom_school just
+    # looked up - never trusted from the client directly, so a stale/tampered client can't
+    # request "classroom" scope for a submission with no real classroom behind it. Requested
+    # scope is clamped down to the widest option the real data actually supports; this
+    # becomes the submission's initial visibility_scope, which superadmin's existing
+    # global-approve gate can still freely override later - same two-gate authority as
+    # before, just no longer silently defaulting to "school" with no submitter input at all.
+    requested_scope = (body.get("visibility_scope") or "school").lower()
+    if requested_scope not in ("classroom", "school", "global"):
+        requested_scope = "school"
+    if requested_scope == "classroom" and not classroom_id:
+        requested_scope = "school" if school_name_resolved else "global"
+    if requested_scope == "school" and not school_name_resolved:
+        requested_scope = "global"
+
     submission = {
         "student_id": user["user_id"],
         "student_name": user.get("name", "Student"),
@@ -7217,21 +7275,12 @@ async def submit_creature(request: Request):
         "stage4_url": body["stage4_url"],
         "submission_code": code,
         "status": "pending",
+        "visibility_scope": requested_scope,
     }
-    # Real fix Aug 21: "student_id" above has always actually been the SUBMITTING ACCOUNT's
-    # own user_id (teacher or parent), never a real students.id - confirmed live, e.g. a
-    # real "approved" row's student_id resolves to a users row with role=teacher, not any
-    # students row at all. So there was never a reliable way to show which actual child made
-    # a creature, or their classroom. real_student_id/classroom_id are a genuine new capture,
-    # populated only when the submission screen's new student-picker step resolves one (a
-    # school-linked family member or a teacher's own student both resolve to a real
-    # students.id; a home-only family member has no classroom, only a name).
     # Requires a migration this environment can't run (no DDL access) - see COH-REVIEW-PLAN.md.
     # Old submissions are NOT backfilled, by design - defensive fallback below means the
     # feature just silently doesn't capture this until the migration runs, without breaking
     # submission for anyone in the meantime.
-    real_student_id = body.get("real_student_id")
-    classroom_id = body.get("classroom_id")
     if real_student_id:
         try:
             result = supabase.table("creature_submissions").insert({

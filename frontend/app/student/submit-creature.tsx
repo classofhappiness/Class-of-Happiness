@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Image,
-  TextInput, ScrollView, Alert, ActivityIndicator
+  TextInput, ScrollView, Alert, ActivityIndicator, Modal
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
@@ -9,6 +9,7 @@ import { useApp } from '../../src/context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
+import { COUNTRIES, countryFlagEmoji } from '../../src/constants/countries';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 console.log('[SubmitCreature] API_URL is:', JSON.stringify(API_URL));
@@ -38,7 +39,7 @@ const TIPS = [
 export default function SubmitCreatureScreen() {
   const router = useRouter();
   const { t, user } = useApp();
-  const [step, setStep] = useState<'tutorial'|'code'|'details'|'photos'|'review'>('tutorial');
+  const [step, setStep] = useState<'tutorial'|'code'|'details'|'scope'|'photos'|'review'>('tutorial');
   const [code, setCode] = useState('');
   const [checkingCode, setCheckingCode] = useState(false);
   const [name, setName] = useState('');
@@ -76,6 +77,42 @@ export default function SubmitCreatureScreen() {
       } catch {}
     })();
   }, [user?.role]);
+
+  // Real feature Aug 22 (item 1): submission-time scope + country picker, replacing the old
+  // silent behaviour where visibility_scope was only ever set later by an admin (defaulting
+  // to "school") and country silently inherited the submitter's own profile. Scope options
+  // are resolved server-side against the selected student's real classroom/school - never
+  // guessed client-side - so a family with no school link only ever sees "Global" offered,
+  // never a Classroom/School option that couldn't actually apply to them.
+  const [submissionOptions, setSubmissionOptions] = useState<{ has_classroom: boolean; has_school: boolean; school_name: string | null; default_country: string } | null>(null);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+  const [visibilityScope, setVisibilityScope] = useState<'classroom'|'school'|'global'|null>(null);
+  const [country, setCountry] = useState<string | null>(null);
+  const [countryPickerOpen, setCountryPickerOpen] = useState(false);
+  const [countrySearch, setCountrySearch] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      setLoadingOptions(true);
+      try {
+        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        const token = await AsyncStorage.getItem('session_token');
+        const realStudentId = selectedStudentId ? pickableStudents.find(p => p.id === selectedStudentId)?.realStudentId : null;
+        const url = realStudentId
+          ? `${BACKEND_URL}/api/creatures/submission-options?real_student_id=${realStudentId}`
+          : `${BACKEND_URL}/api/creatures/submission-options`;
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        setSubmissionOptions(data);
+        setVisibilityScope(null);
+        if (!country) setCountry(data.default_country || 'PT');
+      } catch {
+        setSubmissionOptions({ has_classroom: false, has_school: false, school_name: null, default_country: 'PT' });
+      }
+      setLoadingOptions(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStudentId]);
 
   const pickOrCamera = async (index: number, source: 'camera'|'library') => {
     const perm = source === 'camera'
@@ -154,6 +191,8 @@ export default function SubmitCreatureScreen() {
           description: description.trim(),
           stage1_url: urls[0], stage2_url: urls[1],
           stage3_url: urls[2], stage4_url: urls[3],
+          visibility_scope: visibilityScope || 'global',
+          country: country || 'PT',
           ...(selectedStudentId ? { real_student_id: pickableStudents.find(p => p.id === selectedStudentId)?.realStudentId || undefined } : {}),
         }),
       });
@@ -237,16 +276,83 @@ export default function SubmitCreatureScreen() {
         </>
       )}
       <TouchableOpacity style={[s.btn, (!emotion || !name) && s.btnOff]}
-        disabled={!emotion || !name} onPress={() => setStep('photos')}>
-        <Text style={s.btnTxt}>Next: Add photos →</Text>
+        disabled={!emotion || !name} onPress={() => setStep('scope')}>
+        <Text style={s.btnTxt}>Next →</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 
+  // SCOPE + COUNTRY SCREEN — real feature Aug 22 (item 1): who gets to see this creature, and
+  // where it's from, chosen here rather than silently defaulted/inherited.
+  if (step === 'scope') {
+    const scopeOptions: { key: 'classroom'|'school'|'global'; label: string; hint: string }[] = [
+      ...(submissionOptions?.has_classroom ? [{ key: 'classroom' as const, label: '👥 My Classroom', hint: 'Only your own classroom can see and unlock it' }] : []),
+      ...(submissionOptions?.has_school ? [{ key: 'school' as const, label: '🏫 My Whole School', hint: (submissionOptions?.school_name ? `Everyone at ${submissionOptions.school_name}` : 'Everyone at your school') }] : []),
+      { key: 'global', label: '🌍 Everyone, Everywhere', hint: 'Students at any school worldwide can see and unlock it' },
+    ];
+    const selectedCountry = COUNTRIES.find(c => c.code === country);
+    const filteredCountries = countrySearch.trim()
+      ? COUNTRIES.filter(c => c.name.toLowerCase().includes(countrySearch.trim().toLowerCase()))
+      : COUNTRIES;
+    return (
+      <ScrollView style={s.container} contentContainerStyle={s.content}>
+        <TranslatedHeader title="Who can see it?" showHome onBackPress={() => setStep('details')} />
+        <Text style={s.subtitle}>A teacher or superadmin can still change this later when they review it.</Text>
+        {loadingOptions ? (
+          <ActivityIndicator color="#1A1A2E" style={{ marginVertical: 30 }} />
+        ) : (
+          <>
+            <Text style={s.label}>Where should it be available?</Text>
+            {scopeOptions.map(opt => (
+              <TouchableOpacity key={opt.key} style={[s.scopeCard, visibilityScope === opt.key && s.scopeCardActive]}
+                onPress={() => setVisibilityScope(opt.key)}>
+                <Text style={[s.scopeCardLabel, visibilityScope === opt.key && s.scopeCardLabelActive]}>{opt.label}</Text>
+                <Text style={[s.scopeCardHint, visibilityScope === opt.key && s.scopeCardHintActive]}>{opt.hint}</Text>
+              </TouchableOpacity>
+            ))}
+
+            <Text style={[s.label, { marginTop: 20 }]}>Which country is this from?</Text>
+            <TouchableOpacity style={s.countryPickerBtn} onPress={() => setCountryPickerOpen(true)}>
+              <Text style={s.countryPickerTxt}>
+                {selectedCountry ? `${countryFlagEmoji(selectedCountry.code)}  ${selectedCountry.name}` : 'Select a country'}
+              </Text>
+              <Text style={s.countryPickerChevron}>▾</Text>
+            </TouchableOpacity>
+          </>
+        )}
+        <TouchableOpacity style={[s.btn, (!visibilityScope || !country) && s.btnOff]}
+          disabled={!visibilityScope || !country} onPress={() => setStep('photos')}>
+          <Text style={s.btnTxt}>Next: Add photos →</Text>
+        </TouchableOpacity>
+
+        <Modal visible={countryPickerOpen} transparent animationType="fade" onRequestClose={() => setCountryPickerOpen(false)}>
+          <View style={s.countryModalOverlay}>
+            <View style={s.countryModalCard}>
+              <Text style={s.countryModalTitle}>Select a country</Text>
+              <TextInput style={s.countrySearchInput} value={countrySearch} onChangeText={setCountrySearch}
+                placeholder="Search countries..." autoCapitalize="words" />
+              <ScrollView style={{ maxHeight: 360 }}>
+                {filteredCountries.map(c => (
+                  <TouchableOpacity key={c.code} style={s.countryRow}
+                    onPress={() => { setCountry(c.code); setCountryPickerOpen(false); setCountrySearch(''); }}>
+                    <Text style={s.countryRowTxt}>{countryFlagEmoji(c.code)}  {c.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <TouchableOpacity style={s.countryModalClose} onPress={() => { setCountryPickerOpen(false); setCountrySearch(''); }}>
+                <Text style={s.countryModalCloseTxt}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </ScrollView>
+    );
+  }
+
   // PHOTOS SCREEN
   if (step === 'photos') return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
-      <TranslatedHeader title="4 stage photos" showHome onBackPress={() => setStep('details')} />
+      <TranslatedHeader title="4 stage photos" showHome onBackPress={() => setStep('scope')} />
       <Text style={s.subtitle}>White background · good lighting · clear outline</Text>
       {STAGES.map((label, i) => (
         <View key={i} style={s.photoCard}>
@@ -279,6 +385,8 @@ export default function SubmitCreatureScreen() {
         <Text style={s.label}>Name: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{name}</Text></Text>
         <Text style={s.label}>Emotion: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{emotion}</Text></Text>
         <Text style={s.label}>Code: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{code}</Text></Text>
+        <Text style={s.label}>Visible to: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{visibilityScope === 'classroom' ? 'My Classroom' : visibilityScope === 'school' ? 'My Whole School' : 'Everyone, Everywhere'}</Text></Text>
+        <Text style={s.label}>Country: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{country ? `${countryFlagEmoji(country)} ${COUNTRIES.find(c => c.code === country)?.name || country}` : '—'}</Text></Text>
         <View style={s.stageGrid}>
           {photos.map((p,i) => p && <Image key={i} source={{ uri:p }} style={s.reviewPhoto} />)}
         </View>
@@ -329,4 +437,21 @@ const s = StyleSheet.create({
   reviewPhoto: { width:'47%', aspectRatio:1, borderRadius:8 },
   uploadRow: { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:12, padding:16 },
   uploadTxt: { fontSize:14, color:'#4CAF73', fontWeight:'700' },
+  scopeCard: { backgroundColor:'white', borderRadius:12, padding:14, marginBottom:10, borderWidth:2, borderColor:'rgba(0,0,0,.08)' },
+  scopeCardActive: { borderColor:'#1A1A2E', backgroundColor:'#FFF8E1' },
+  scopeCardLabel: { fontSize:15, fontWeight:'800', color:'#1A1A2E' },
+  scopeCardLabelActive: { color:'#1A1A2E' },
+  scopeCardHint: { fontSize:12, color:'#6B7280', marginTop:4 },
+  scopeCardHintActive: { color:'#4B4B3A' },
+  countryPickerBtn: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', borderWidth:1.5, borderColor:'rgba(0,0,0,.1)', borderRadius:10, padding:14, backgroundColor:'#F7F8FA' },
+  countryPickerTxt: { fontSize:15, fontWeight:'700', color:'#1A1A2E' },
+  countryPickerChevron: { fontSize:16, color:'#6B7280' },
+  countryModalOverlay: { flex:1, backgroundColor:'rgba(0,0,0,.4)', alignItems:'center', justifyContent:'center', padding:24 },
+  countryModalCard: { backgroundColor:'white', borderRadius:16, padding:16, width:'100%', maxWidth:420 },
+  countryModalTitle: { fontSize:16, fontWeight:'900', color:'#1A1A2E', marginBottom:10 },
+  countrySearchInput: { borderWidth:1.5, borderColor:'rgba(0,0,0,.1)', borderRadius:10, padding:10, fontSize:14, marginBottom:8, color:'#1A1A2E' },
+  countryRow: { paddingVertical:10, borderTopWidth:1, borderTopColor:'#F0F0F0' },
+  countryRowTxt: { fontSize:14, color:'#1A1A2E', fontWeight:'600' },
+  countryModalClose: { marginTop:10, alignItems:'center', paddingVertical:10 },
+  countryModalCloseTxt: { fontSize:14, fontWeight:'700', color:'#6B7280' },
 });
