@@ -739,5 +739,6 @@
   "delete_account_warning_2": "Confirme avec ton mot de passe, ou avec Google si c'est ainsi que tu te connectes.",
   "processing": "Traitement...",
   "delete_account_btn": "Supprimer Mon Compte",
-  "delete_account_contact_support": "Contacte {email} pour fermer ce compte"
+  "delete_account_contact_support": "Contacte {email} pour fermer ce compte",
+  "wellbeing_private": "Privé · juste pour toi"
 }

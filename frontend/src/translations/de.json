@@ -739,5 +739,6 @@
   "delete_account_warning_2": "Bestätige mit deinem Passwort oder mit Google, falls du dich so anmeldest.",
   "processing": "Wird verarbeitet...",
   "delete_account_btn": "Mein Konto Löschen",
-  "delete_account_contact_support": "Kontaktiere {email}, um dieses Konto zu schließen"
+  "delete_account_contact_support": "Kontaktiere {email}, um dieses Konto zu schließen",
+  "wellbeing_private": "Privat · nur für dich"
 }

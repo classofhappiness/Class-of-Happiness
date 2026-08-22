@@ -739,5 +739,6 @@
   "delete_account_warning_2": "Conferma con la tua password, o con Google se è così che accedi.",
   "processing": "Elaborazione in corso...",
   "delete_account_btn": "Elimina il Mio Account",
-  "delete_account_contact_support": "Contatta {email} per chiudere questo account"
+  "delete_account_contact_support": "Contatta {email} per chiudere questo account",
+  "wellbeing_private": "Privato · solo per te"
 }
