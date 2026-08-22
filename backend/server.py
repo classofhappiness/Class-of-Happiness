@@ -10375,6 +10375,32 @@ async def update_teacher_strategy(strategy_id: str, request: Request):
     return result.data[0] if result.data else updates
 
 
+def _ensure_school_profile(school_admin_user_id: str, school_name: str) -> None:
+    """Real bug fix Aug 22: creates a school_profiles row linked to a real school_admin
+    account, if one doesn't already exist. Idempotent - safe to call whenever a school_admin
+    account is created or re-promoted. Same default field shape as the superadmin portal's
+    own "+ Add School" (create_school_profile above), so a backfilled/auto-created profile
+    looks identical to one a superadmin entered by hand, just with the real link
+    (school_admin_user_id) that was always missing before."""
+    try:
+        existing = supabase.table("school_profiles").select("id").eq("school_admin_user_id", school_admin_user_id).execute()
+        if existing.data:
+            return
+        supabase.table("school_profiles").insert({
+            "id": str(uuid.uuid4()),
+            "school_name": school_name or "New School",
+            "school_admin_user_id": school_admin_user_id,
+            "subscription_package": "starter",
+            "subscription_seats": 5,
+            "status": "trial",
+            "tasks": [],
+            "contact_history": [],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).execute()
+    except Exception as e:
+        logger.warning(f"[_ensure_school_profile] could not create profile for {school_admin_user_id}: {e}")
+
 @api_router.post("/admin/create-school-admin")
 async def create_school_admin(request: Request):
     """Create a school admin account. Superadmin only."""
@@ -10391,11 +10417,13 @@ async def create_school_admin(request: Request):
     existing = supabase.table("users").select("*").eq("email", email).execute()
     if existing.data:
         # Update existing user to school_admin
+        existing_user_id = existing.data[0]["user_id"]
         supabase.table("users").update({
             "role": "school_admin",
             "school_name": school_name,
             "subscription_status": "trial",
         }).eq("email", email).execute()
+        _ensure_school_profile(existing_user_id, school_name)
         return {"status": "updated", "email": email, "role": "school_admin", "school_name": school_name}
     # Create new user
     new_user = {
@@ -10417,6 +10445,15 @@ async def create_school_admin(request: Request):
         "user_id": new_user["user_id"],
         "expires_at": expires_at,
     }).execute()
+    # Real bug fix Aug 22: this endpoint is the ONLY real path that ever creates a
+    # school_admin account, and it never created a matching school_profiles row - confirmed
+    # live, 0 of the 3 real school_admin accounts in production had one, and the 1 row that
+    # existed ("St Lucy's") wasn't linked to any real account at all (school_admin_user_id
+    # was null). Superadmin's Schools management tab, the schools map, and (once built) a
+    # schools directory PDF all read exclusively from school_profiles - without this, every
+    # school_admin this endpoint ever creates is invisible there, permanently, until someone
+    # notices and manually adds a profile. See _ensure_school_profile below.
+    _ensure_school_profile(new_user["user_id"], school_name)
     return {
         "status": "created",
         "email": email,
