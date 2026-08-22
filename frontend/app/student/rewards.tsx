@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigation } from '@react-navigation/native';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  SafeAreaView, 
-  TouchableOpacity, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  TouchableOpacity,
   Animated,
-  Easing
+  Easing,
+  ScrollView
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -279,6 +280,12 @@ export default function RewardsScreen() {
           <MaterialIcons name="home" size={24} color="#333" />
         </TouchableOpacity>
       </View>
+      {/* Real bug fix Aug 22: this whole middle section had no ScrollView - once the Bronze
+          Shield overlap fix removed creatureSection's greedy flex:1, content could exceed
+          screen height with nothing to scroll it, hiding the Continue button entirely. Action
+          buttons stay pinned outside the ScrollView so the primary CTA is always reachable
+          regardless of how much scrollable content stacks above it. */}
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
       {/* Header - pushed down from top */}
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
@@ -395,6 +402,7 @@ export default function RewardsScreen() {
           </View>
         </View>
       )}
+      </ScrollView>
 
       {/* Action Buttons */}
       <View style={styles.buttonContainer}>

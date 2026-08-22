@@ -6,7 +6,6 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
-import { CreatureCollection } from '../../src/components/CreatureCollection';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { rewardsApi, StudentCollection, StudentRewards, Creature } from '../../src/utils/api';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../../src/utils/sounds';
@@ -24,7 +23,6 @@ export default function StudentSelectScreen() {
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const { students, classrooms, presetAvatars, setCurrentStudent, currentStudent, refreshStudents, t, language, translations, user } = useApp();
   const isAdult = user && (user.role === 'teacher' || user.role === 'parent' || user.role === 'admin' || user.role === 'school_admin');
-  const [showCollection, setShowCollection] = useState(false);
   const [selectedClassroom, setSelectedClassroom] = useState<string | null>(null);
   const [localClassrooms, setLocalClassrooms] = useState<any[]>([]);
 
@@ -41,8 +39,6 @@ export default function StudentSelectScreen() {
     };
     fetchClassrooms();
   }, []);
-  const [collectionData, setCollectionData] = useState<StudentCollection | null>(null);
-  const [selectedStudentForCollection, setSelectedStudentForCollection] = useState<string | null>(null);
   const [studentCreatures, setStudentCreatures] = useState<Record<string, StudentCreatureData>>({});
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
@@ -128,15 +124,19 @@ export default function StudentSelectScreen() {
     }, 200);
   }, [setCurrentStudent, router]);
 
-  const handleViewCreatures = async (studentId: string) => {
-    playButtonFeedback(); // Sound effect for button press
-    try {
-      const collection = await rewardsApi.getCollection(studentId);
-      setCollectionData(collection);
-      setSelectedStudentForCollection(studentId);
-      setShowCollection(true);
-    } catch (error) {
-    }
+  // Real bug fix Aug 22: this used to open the old defaults-only CreatureCollection modal -
+  // completely disconnected from the real, unified "My Creatures" screen (browse by scope,
+  // preview, start, permanent collection). This button already lived in the right place (the
+  // student's card) - it just pointed at the wrong destination. Now navigates to the real one.
+  const handleViewCreatures = (student: typeof students[0]) => {
+    playButtonFeedback();
+    const enriched = {
+      ...student,
+      is_family_member: !!(student as any).is_family_member,
+      family_member_id: (student as any).family_member_id || null,
+    };
+    setCurrentStudent(enriched as any);
+    router.push('/student/creatures');
   };
 
   const handleCreateProfile = () => {
@@ -210,7 +210,7 @@ export default function StudentSelectScreen() {
         {/* Current creature (animated) */}
         <View style={[styles.currentCreatureIcon, { borderColor: currentCreature.color }]}>
           <Text style={styles.miniCreatureEmoji}>
-            {currentCreature.stages[currentStage].emoji}
+            {currentCreature.stages![currentStage].emoji}
           </Text>
           <View style={styles.stageDots}>
             {[0, 1, 2, 3].map((s) => (
@@ -231,7 +231,7 @@ export default function StudentSelectScreen() {
                 style={[styles.collectedCreatureIcon, { backgroundColor: creature.color + '30' }]}
               >
                 <Text style={styles.collectedEmoji}>
-                  {creature.stages[3].emoji}
+                  {creature.stages![3].emoji}
                 </Text>
                 <View style={[styles.completeBadge, { backgroundColor: creature.color }]}>
                   <Text style={styles.completeBadgeText}>✓</Text>
@@ -342,7 +342,7 @@ export default function StudentSelectScreen() {
               
               <TouchableOpacity
                 style={styles.creaturesButton}
-                onPress={() => handleViewCreatures(student.id)}
+                onPress={() => handleViewCreatures(student)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <MaterialIcons name="pets" size={14} color="#FF9800" />
@@ -386,25 +386,6 @@ export default function StudentSelectScreen() {
           </View>
         )}
       </ScrollView>
-
-      {/* Creature Collection Modal */}
-      {collectionData && (
-        <CreatureCollection
-          visible={showCollection}
-          collectedCreatures={collectionData.collected_creatures}
-          currentCreature={collectionData.current_creature}
-          currentStage={collectionData.current_stage}
-          currentPoints={collectionData.current_points || 0}
-          totalCreatures={collectionData.total_creatures}
-          unlockedMoves={collectionData.unlocked_moves || []}
-          unlockedOutfits={collectionData.unlocked_outfits || []}
-          unlockedFoods={collectionData.unlocked_foods || []}
-          unlockedHomes={collectionData.unlocked_homes || []}
-          allCreatures={(collectionData as any)?.all_creatures || []}
-          t={t}
-          onClose={() => setShowCollection(false)}
-        />
-      )}
     </View>
   );
 }

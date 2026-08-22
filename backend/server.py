@@ -7411,9 +7411,23 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
             scope_pref = student_data.get("creature_scope_pref") or "any"
 
     base_fields = ("id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,"
-                   "global_uses,approved_at,visibility_scope,school_name,classroom_id")
+                   "global_uses,approved_at,visibility_scope,school_name,classroom_id,country")
     rows = supabase.table("creature_submissions").select(base_fields).eq("status", "approved").execute()
     all_approved = rows.data or []
+
+    # Real feature Aug 22: country-of-origin, global-scope creatures only, gated behind the
+    # same real 5-contributor privacy threshold already used on the superadmin dashboard
+    # (portal100.html's MIN_THRESHOLD) - showing a single creature's country when it's the
+    # only one from that country would narrow down who made it. Computed across the full
+    # global population, not just this student's eligible subset, to match the real
+    # anonymity set the threshold is meant to protect.
+    from collections import Counter
+    global_country_counts = Counter(
+        c.get("country") for c in all_approved
+        if (c.get("visibility_scope") or "global") == "global" and c.get("country")
+    )
+    COUNTRY_MIN_THRESHOLD = 5
+    safe_countries = {country for country, count in global_country_counts.items() if count >= COUNTRY_MIN_THRESHOLD}
 
     eligible = []
     for c in all_approved:
@@ -7446,8 +7460,21 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
         cls_r = supabase.table("classrooms").select("id,name").in_("id", classroom_ids).execute()
         classroom_names = {cl["id"]: cl["name"] for cl in (cls_r.data or [])}
 
+    # Real feature Aug 22: expiry date wasn't shown anywhere - a creature currently featured
+    # (this month's spotlight pick) has a real active_until window; students need to see it to
+    # know they have a limited time to earn it.
+    featured_map = {}
+    if creature_ids:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        featured_r = supabase.table("featured_creatures").select("creature_id,active_until")            .lte("active_from", now_iso).gte("active_until", now_iso).in_("creature_id", creature_ids).execute()
+        for f in (featured_r.data or []):
+            fid = f.get("creature_id")
+            if fid:
+                featured_map[fid] = f.get("active_until")
+
     result = []
     for c in eligible:
+        scope = c.get("visibility_scope") or "global"
         result.append({
             "id": c["id"],
             "creature_name": c["creature_name"],
@@ -7457,9 +7484,11 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
             "stage3_url": c.get("stage3_url"),
             "stage4_url": c.get("stage4_url"),
             "global_uses": c.get("global_uses", 0),
-            "visibility_scope": c.get("visibility_scope") or "global",
+            "visibility_scope": scope,
             "classroom_name": classroom_names.get(c.get("classroom_id")),
             "my_stages_unlocked": my_unlocks.get(c["id"], 0),
+            "featured_until": featured_map.get(c["id"]),
+            "country": c.get("country") if scope == "global" and c.get("country") in safe_countries else None,
         })
     return {"creatures": result, "scope_pref": scope_pref, "has_classroom": bool(classroom_id)}
 
