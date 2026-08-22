@@ -7272,6 +7272,16 @@ async def get_pending_creatures(request: Request):
             profile_r = supabase.table("school_profiles").select("school_name").eq("school_admin_user_id", school_admin_id).execute()
             if profile_r.data:
                 school = profile_r.data[0].get("school_name", "")
+        # Real bug fix Aug 22: found live, during item 8 verification, testing this exact
+        # endpoint against a real teacher account - school_profiles is confirmed empty in
+        # production (same finding as the security fix), so `school` always resolved to ""
+        # here and this endpoint has been silently returning zero pending submissions for
+        # every real teacher, full stop. _can_approve_creature already got this same
+        # fallback during the Aug 22 security fix; this endpoint never did. Without it, a
+        # teacher's Pending Creatures queue shows nothing to review even when real
+        # submissions are genuinely waiting at their school.
+        if not school:
+            school = user.get("school_name")
         rows = supabase.table("creature_submissions").select("*").eq("status","pending").eq("school_name", school).order("created_at").execute() if school else type("R",(),{"data":[]})()
     elif role == "parent":
         rows = supabase.table("creature_submissions").select("*").eq("status","pending").eq("student_id", user["user_id"]).order("created_at").execute()
