@@ -18,14 +18,14 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryAddUsageDescription": "Save photos from Class of Happiness"
       },
-      "buildNumber": "20",
+      "buildNumber": "21",
       "entitlements": {
         "aps-environment": "production"
       }
     },
     "android": {
       "package": "com.classofhappiness.app",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
