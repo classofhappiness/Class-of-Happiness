@@ -166,6 +166,13 @@ function AppContent() {
           }}
         />
         <Stack.Screen
+          name="student/world-creatures"
+          options={{
+            headerShown: false,
+            title: 'World Creatures',
+          }}
+        />
+        <Stack.Screen
           name="teacher/creature-code"
           options={{
             title: 'Manage Creatures',

@@ -69,6 +69,7 @@ export default function RewardsScreen() {
 
   const [rewardsData, setRewardsData] = useState<AddPointsResponse | null>(null);
   const [shield, setShield] = useState<{ has_shield: boolean; level: string | null; count: number; label?: string } | null>(null);
+  const [shieldDismissed, setShieldDismissed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showContinue, setShowContinue] = useState(false);
   const [showEvolution, setShowEvolution] = useState(false);
@@ -371,9 +372,18 @@ export default function RewardsScreen() {
       })()}
 
       {/* Brave Shield Badge */}
-      {shield?.has_shield && (
+      {shield?.has_shield && !shieldDismissed && (
         <View style={styles.shieldContainer}>
           <View style={styles.shieldCard}>
+            {/* Real feature Aug 22: lets a student dismiss the badge and just see their
+                creature without it in the way. */}
+            <TouchableOpacity
+              onPress={() => setShieldDismissed(true)}
+              style={styles.shieldDismissBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.shieldDismissText}>✕</Text>
+            </TouchableOpacity>
             <Text style={styles.shieldEmoji}>
               {shield.level === 'gold' ? '🏆🛡️' :
                shield.level?.startsWith('silver') ? '🥈🛡️' : '🛡️'}
@@ -421,23 +431,16 @@ export default function RewardsScreen() {
           <Text style={styles.collectionButtonText}>{t('my_creatures') || 'My Creatures'}</Text>
         </TouchableOpacity>
 
-        {/* New creature actions - real bug fix Aug 22: these were hardcoded English strings
-            with zero t() wrapper, even though submit_creature/world_creatures already have
-            real translations in most shipped languages. */}
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-          <TouchableOpacity
-            style={{ flex: 1, backgroundColor: '#1A1A2E', borderRadius: 50, paddingVertical: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
-            onPress={() => router.push('/student/submit-creature')}>
-            <Text style={{ fontSize: 14 }}>🎨</Text>
-            <Text style={{ color: '#FFD93D', fontWeight: '900', fontSize: 12 }}>{t('submit_creature') || 'Submit a Creature'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={{ flex: 1, backgroundColor: '#4CAF73', borderRadius: 50, paddingVertical: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
-            onPress={() => router.push('/student/world-creatures')}>
-            <Text style={{ fontSize: 14 }}>🌍</Text>
-            <Text style={{ color: 'white', fontWeight: '900', fontSize: 12 }}>{t('world_creatures') || 'World Creatures'}</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Real fix Aug 22: this used to be two buttons (Submit a Creature + World Creatures) -
+            redundant now that My Creatures (above) already surfaces both "Submit a Creature"
+            and "Find a New Creature". Collapsed to the one action that's genuinely useful as a
+            reward-page shortcut - jumping straight to browsing/starting a new creature. */}
+        <TouchableOpacity
+          style={{ backgroundColor: '#4CAF73', borderRadius: 50, paddingVertical: 10, marginTop: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+          onPress={() => router.push('/student/world-creatures')}>
+          <Text style={{ fontSize: 14 }}>🌍</Text>
+          <Text style={{ color: 'white', fontWeight: '900', fontSize: 12 }}>{t('find_world_creatures') || 'Find World Creatures'}</Text>
+        </TouchableOpacity>
 
         {/* Continue Button */}
         {showContinue && (
@@ -561,7 +564,9 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   shieldContainer: { paddingHorizontal: 20, marginTop: 8, marginBottom: 12 },
-  shieldCard: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#FFF8E1', borderRadius: 14, padding: 14, gap: 12, borderWidth: 1.5, borderColor: '#FFD54F' },
+  shieldCard: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#FFF8E1', borderRadius: 14, padding: 14, paddingRight: 30, gap: 12, borderWidth: 1.5, borderColor: '#FFD54F', position: 'relative' },
+  shieldDismissBtn: { position: 'absolute', top: 8, right: 8, zIndex: 1 },
+  shieldDismissText: { fontSize: 14, fontWeight: '900', color: '#B8860B' },
   shieldEmoji: { fontSize: 32, marginTop: 2 },
   shieldTitle: { fontSize: 15, fontWeight: '700', color: '#F57F17' },
   shieldSub: { fontSize: 11, color: '#888', marginTop: 2 },

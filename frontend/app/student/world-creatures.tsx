@@ -10,7 +10,7 @@
 // 4) expiry date and country-of-origin (global scope only, 5-contributor privacy threshold)
 //    now shown on the card, both newly returned by /creatures/eligible.
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, ActivityIndicator, RefreshControl, Alert, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, ActivityIndicator, RefreshControl, Alert, useWindowDimensions, Animated, Easing } from 'react-native';
 import { useRouter } from 'expo-router';
 import { creaturesApi } from '../../src/utils/api';
 import { useApp } from '../../src/context/AppContext';
@@ -46,6 +46,21 @@ function CreatureCard({
   const { t } = useApp();
   const [previewStage, setPreviewStage] = useState(1);
   const fullyEvolved = (item.my_stages_unlocked || 0) >= 4;
+  // Real feature Aug 22: bring back some of the old creature modal's playful, alive feel
+  // (gentle idle movement) into the new unified screen, per Jono's explicit ask not to lose
+  // that polish in the redesign.
+  const bounceAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bounceAnim, { toValue: -6, duration: 700, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(bounceAnim, { toValue: 0, duration: 700, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
 
   useEffect(() => {
     // Preview only cycles for creatures not yet fully evolved by this student - a fully
@@ -63,14 +78,14 @@ function CreatureCard({
 
   return (
     <View style={[styles.card, { width: cardWidth, borderTopColor: EMOTION_COLORS[item.emotion_colour], borderTopWidth: 3 }]}>
-      <View style={styles.imgWrap}>
+      <Animated.View style={[styles.imgWrap, { transform: [{ translateY: bounceAnim }] }]}>
         <Image source={{ uri: imgUrl }} style={styles.creatureImg} />
         {!fullyEvolved && (
           <View style={styles.previewBadge}>
             <Text style={styles.previewBadgeText}>👀 {t('preview') || 'Preview'}</Text>
           </View>
         )}
-      </View>
+      </Animated.View>
       <View style={styles.cardBody}>
         <Text style={styles.creatureName} numberOfLines={1}>{item.creature_name}</Text>
         <View style={styles.metaRow}>
