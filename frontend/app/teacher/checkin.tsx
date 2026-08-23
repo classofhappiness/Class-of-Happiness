@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect , useWindowDimensions} from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
   ScrollView, KeyboardAvoidingView, Platform, Alert, TextInput, Modal, Linking,
@@ -75,6 +75,28 @@ export default function TeacherCheckInScreen() {
   const [showAddStrategy, setShowAddStrategy] = useState(false);
   const [newStrategyName, setNewStrategyName] = useState('');
   const [newStrategyDesc, setNewStrategyDesc] = useState('');
+  // Real fix Aug 23 (health check): these were declared much further down (originally right
+  // before handlePinDigit), but referenced here by the two effects below - pinUnlocked in
+  // particular sat inside a useEffect dependency array, which is evaluated eagerly during
+  // render (unlike an effect's callback body, which React defers) - a genuine
+  // temporal-dead-zone ReferenceError on every mount, confirmed by tsc's TS2448/TS2454. Moved
+  // up as one block, same relative order, so hook call order is unaffected.
+  const [displayName, setDisplayName] = useState('');
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+  const [pinUnlocked, setPinUnlocked] = useState(false);
+  const [pinStep, setPinStep] = useState<'enter'|'setup'|'confirm'>('enter');
+  const [pinInput, setPinInput] = useState('');
+  const [pinConfirm, setPinConfirm] = useState('');
+  const PIN_KEY = 'teacher_checkin_pin';
+  const [weekExpanded, setWeekExpanded] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [pdfExpanded, setPdfExpanded] = useState(false);
+  const [secDistrib, setSecDistrib] = useState(false);
+  const [secCompare, setSecCompare] = useState(false);
+  const [secStrategies, setSecStrategies] = useState(false);
+  const [zoneCounts, setZoneCounts] = useState({blue:0,green:0,yellow:0,red:0});
+  const [stratCounts, setStratCounts] = useState<Record<string,number>>({});
 
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   useEffect(() => {
@@ -351,23 +373,6 @@ export default function TeacherCheckInScreen() {
       await Linking.openURL(url);
     } catch { Alert.alert('Error', 'No data for this month yet'); }
   };
-
-  const [displayName, setDisplayName] = useState('');
-  const [editingName, setEditingName] = useState(false);
-  const [nameInput, setNameInput] = useState('');
-  const [pinUnlocked, setPinUnlocked] = useState(false);
-  const [pinStep, setPinStep] = useState<'enter'|'setup'|'confirm'>('enter');
-  const [pinInput, setPinInput] = useState('');
-  const [pinConfirm, setPinConfirm] = useState('');
-  const PIN_KEY = 'teacher_checkin_pin';
-  const [weekExpanded, setWeekExpanded] = useState(false);
-  const [historyExpanded, setHistoryExpanded] = useState(false);
-  const [pdfExpanded, setPdfExpanded] = useState(false);
-  const [secDistrib, setSecDistrib] = useState(false);
-  const [secCompare, setSecCompare] = useState(false);
-  const [secStrategies, setSecStrategies] = useState(false);
-  const [zoneCounts, setZoneCounts] = useState({blue:0,green:0,yellow:0,red:0});
-  const [stratCounts, setStratCounts] = useState<Record<string,number>>({});
 
   const handlePinDigit = (d: string) => {
     if (pinStep === 'setup') {

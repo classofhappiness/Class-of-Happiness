@@ -40,7 +40,7 @@ interface AppContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: () => void;
-  loginWithEmail: (email: string, adminPin?: string) => Promise<void>;
+  loginWithEmail: (email: string, adminPin?: string, attempt?: number, password?: string) => Promise<void>;
   loginWithGoogle: (googleAccessToken: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;

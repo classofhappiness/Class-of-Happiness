@@ -10,7 +10,7 @@ export default function SubscriptionSuccessScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { session_id } = useLocalSearchParams<{ session_id: string }>();
-  const { checkAuth } = useApp();
+  const { checkAuth, t } = useApp();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [plan, setPlan] = useState<string | null>(null);
 

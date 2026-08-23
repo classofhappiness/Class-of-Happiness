@@ -1136,7 +1136,7 @@ export default function AdminDashboard() {
   const [adminCode, setAdminCode] = useState('');
   const [unlocked, setUnlocked] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [tab, setTab] = useState<'analytics'|'strategies'|'resources'|'settings'>('analytics');
+  const [tab, setTab] = useState<'analytics'|'strategies'|'resources'|'schools'|'users'|'settings'>('analytics');
   const [stats, setStats] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsPeriod, setStatsPeriod] = useState<1|7|30|90|180|365|730|1095>(7);
