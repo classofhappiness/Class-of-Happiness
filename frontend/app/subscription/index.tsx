@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Linking, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Linking, Image, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -55,6 +55,17 @@ export default function SubscriptionScreen() {
   // (linked via invite code) — only unlinked parents should ever see the €4.99 paywall.
   const [parentCoverageLoading, setParentCoverageLoading] = useState(true);
   const [parentCovered, setParentCovered] = useState(false);
+  // Real fix Aug 23 (item 2): School Package used to open a mailto: link, which relies on
+  // the device having an email app configured - real enquiries were silently lost for
+  // anyone without one set up. Reuses the exact same Formspree endpoint (form ID mlgzvorz)
+  // already proven on the live website's own contact form, so enquiries land in the same
+  // inbox either way.
+  const [showSchoolEnquiry, setShowSchoolEnquiry] = useState(false);
+  const [enquiryName, setEnquiryName] = useState('');
+  const [enquiryEmail, setEnquiryEmail] = useState('');
+  const [enquiryMessage, setEnquiryMessage] = useState('');
+  const [enquirySubmitting, setEnquirySubmitting] = useState(false);
+  const [enquirySent, setEnquirySent] = useState(false);
 
   useEffect(() => {
     subscriptionApi.getPlans().then(d => setTrialDays(d.trial_days || 30)).catch(() => {});
@@ -131,6 +142,41 @@ export default function SubscriptionScreen() {
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not create checkout');
     } finally { setLoading(false); }
+  };
+
+  const handleSubmitSchoolEnquiry = async () => {
+    const name = enquiryName.trim();
+    const email = enquiryEmail.trim().toLowerCase();
+    const message = enquiryMessage.trim();
+    if (!name || !email || !email.includes('@') || !message) {
+      Alert.alert('Missing info', 'Please fill in your name, a valid email, and a message.');
+      return;
+    }
+    setEnquirySubmitting(true);
+    try {
+      const res = await fetch('https://formspree.io/f/mlgzvorz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          name, email, message,
+          _subject: 'School Package Enquiry',
+        }),
+      });
+      if (res.ok) {
+        setEnquirySent(true);
+      } else {
+        Alert.alert('Error', 'Could not send your enquiry. Please try again.');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Could not send your enquiry. Please try again.');
+    } finally {
+      setEnquirySubmitting(false);
+    }
+  };
+
+  const closeSchoolEnquiry = () => {
+    setShowSchoolEnquiry(false);
+    setEnquiryName(''); setEnquiryEmail(''); setEnquiryMessage(''); setEnquirySent(false);
   };
 
   const selectedPrice = plans.find(p => p.id === selectedPlan)?.price || '';
@@ -301,7 +347,7 @@ export default function SubscriptionScreen() {
       <Text style={[st.sectionLabel, { marginTop: 8 }]}>For schools & districts</Text>
       <TouchableOpacity
         style={st.schoolCard}
-        onPress={() => Linking.openURL('mailto:hello@classofhappiness.com?subject=School Package Enquiry')}>
+        onPress={() => setShowSchoolEnquiry(true)}>
         <View style={{ flex: 1 }}>
           <Text style={st.schoolTitle}>🏛️ School Package</Text>
           <Text style={st.schoolSub}>From €499/year, based on teacher seats · Parents free when linked via your school's invite code · Admin dashboard · Analytics · GDPR docs</Text>
@@ -313,6 +359,68 @@ export default function SubscriptionScreen() {
         Subscriptions renew automatically. Cancel anytime in Settings.{'\n'}
         Prices in EUR.
       </Text>
+
+      {/* School Package enquiry - real fix Aug 23 (item 2) */}
+      <Modal visible={showSchoolEnquiry} transparent animationType="slide" onRequestClose={closeSchoolEnquiry}>
+        <View style={st.enquiryOverlay}>
+          <View style={st.enquirySheet}>
+            {enquirySent ? (
+              <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+                <MaterialIcons name="check-circle" size={48} color="#4CAF50" />
+                <Text style={st.enquirySuccessTitle}>Thanks! 🎉</Text>
+                <Text style={st.enquirySuccessSub}>We've got your enquiry and will be in touch soon.</Text>
+                <TouchableOpacity style={st.enquirySendBtn} onPress={closeSchoolEnquiry}>
+                  <Text style={st.enquirySendBtnText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <Text style={st.enquiryTitle}>🏛️ School Package Enquiry</Text>
+                <Text style={st.enquirySub}>Tell us a bit about your school and we'll be in touch.</Text>
+
+                <Text style={st.enquiryLabel}>Name</Text>
+                <TextInput
+                  style={st.enquiryInput}
+                  value={enquiryName}
+                  onChangeText={setEnquiryName}
+                  placeholder="Your name"
+                  editable={!enquirySubmitting}
+                />
+                <Text style={st.enquiryLabel}>Email</Text>
+                <TextInput
+                  style={st.enquiryInput}
+                  value={enquiryEmail}
+                  onChangeText={setEnquiryEmail}
+                  placeholder="your@email.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  editable={!enquirySubmitting}
+                />
+                <Text style={st.enquiryLabel}>Message</Text>
+                <TextInput
+                  style={[st.enquiryInput, st.enquiryTextarea]}
+                  value={enquiryMessage}
+                  onChangeText={setEnquiryMessage}
+                  placeholder="Tell us about your school — number of teachers, timeline, questions..."
+                  multiline
+                  editable={!enquirySubmitting}
+                />
+
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                  <TouchableOpacity style={st.enquiryCancelBtn} onPress={closeSchoolEnquiry} disabled={enquirySubmitting}>
+                    <Text style={st.enquiryCancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[st.enquirySendBtn, { flex: 1 }]} onPress={handleSubmitSchoolEnquiry} disabled={enquirySubmitting}>
+                    {enquirySubmitting
+                      ? <ActivityIndicator color="white" />
+                      : <Text style={st.enquirySendBtnText}>Send Enquiry</Text>}
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
 
     </ScrollView>
   );
@@ -370,4 +478,17 @@ const st = StyleSheet.create({
   schoolTitle: { fontSize: 15, fontWeight: '700', color: '#4527A0', marginBottom: 4 },
   schoolSub: { fontSize: 12, color: '#666', lineHeight: 17 },
   legalText: { fontSize: 11, color: '#AAA', textAlign: 'center', lineHeight: 16, paddingHorizontal: 8 },
+  enquiryOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  enquirySheet: { backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  enquiryTitle: { fontSize: 18, fontWeight: '800', color: '#333', marginBottom: 4 },
+  enquirySub: { fontSize: 13, color: '#888', marginBottom: 18 },
+  enquiryLabel: { fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 6 },
+  enquiryInput: { borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 10, padding: 12, fontSize: 15, marginBottom: 14, color: '#333' },
+  enquiryTextarea: { height: 90, textAlignVertical: 'top' },
+  enquiryCancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: '#F5F5F5' },
+  enquiryCancelBtnText: { fontSize: 15, color: '#666' },
+  enquirySendBtn: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: '#5C6BC0', paddingHorizontal: 24 },
+  enquirySendBtnText: { fontSize: 15, fontWeight: '700', color: 'white' },
+  enquirySuccessTitle: { fontSize: 20, fontWeight: '800', color: '#333', marginTop: 12, marginBottom: 6 },
+  enquirySuccessSub: { fontSize: 14, color: '#888', textAlign: 'center', marginBottom: 20 },
 });
