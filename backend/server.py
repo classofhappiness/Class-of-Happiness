@@ -6653,7 +6653,14 @@ async def get_notification_stats(request: Request, days: int = 7):
 # ================== SUBSCRIPTION ==================
 @api_router.get("/subscription/plans")
 async def get_plans():
-    return SUBSCRIPTION_PLANS
+    # Real bug fix Aug 23 (item 1, critical): this returned the raw SUBSCRIPTION_PLANS dict,
+    # but frontend/src/utils/api.ts's getPlans() has always expected {plans, trial_days} at
+    # the top level (see its return type) - d.trial_days was therefore always undefined,
+    # silently falling back to the frontend's hardcoded 30. Wrapping it properly here also
+    # fixes the real bug this was investigating: subscription/index.tsx's Subscribe button
+    # was hidden using a stale trial_days figure with no real connection to
+    # TRIAL_DURATION_DAYS (14), the actual duration enforced everywhere else in this file.
+    return {"plans": SUBSCRIPTION_PLANS, "trial_days": TRIAL_DURATION_DAYS}
 
 @api_router.post("/subscription/start-trial")
 async def start_trial(request: Request):

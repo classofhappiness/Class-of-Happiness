@@ -76,7 +76,21 @@ export default function SubscriptionScreen() {
   // Teachers can also subscribe as parents — show note
   const features = selectedRole === 'parent' ? PARENT_FEATURES : TEACHER_FEATURES;
   const isTrialUsed = user?.trial_started_at != null;
-  const isActive = user?.subscription_status === 'active' || user?.subscription_status === 'trial';
+  // Real bug fix Aug 23 (CRITICAL, item 1): this used to trust subscription_status alone -
+  // 'trial' or 'active' meant "hide the Subscribe button," permanently, with no expiry
+  // check at all. Nothing in the backend ever flips subscription_status away from 'trial'
+  // once set (confirmed live - the only code that did this, /trial/status, is dead, never
+  // called by the app), so ANY user whose free trial lapsed without converting - exactly
+  // the people most ready to pay - could never see a Subscribe button again. Now checks
+  // real expiry against the same trial_days the backend actually enforces (from
+  // /subscription/plans, not a guessed default), and against subscription_expires_at for a
+  // lapsed paid plan, matching the "Expires in X days" logic already used below.
+  const trialExpired = user?.subscription_status === 'trial' && !!user?.trial_started_at
+    && (Date.now() - new Date(user.trial_started_at).getTime()) > trialDays * 24 * 60 * 60 * 1000;
+  const subscriptionExpired = user?.subscription_status === 'active' && !!user?.subscription_expires_at
+    && new Date(user.subscription_expires_at).getTime() < Date.now();
+  const isActive = (user?.subscription_status === 'active' || user?.subscription_status === 'trial')
+    && !trialExpired && !subscriptionExpired;
 
   const handleStartTrial = async () => {
     if (!isAuthenticated) { login(); return; }
