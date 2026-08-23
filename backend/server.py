@@ -7480,6 +7480,51 @@ async def cancel_creature(submission_id: str, request: Request):
     }).eq("id", submission_id).execute()
     return {"status": "cancelled"}
 
+@api_router.delete("/creatures/{submission_id}")
+async def delete_creature(submission_id: str, request: Request):
+    """Real feature Aug 23 (item 2, same portal-testing round as the featured-creature gap):
+    superadmin previously had no real delete - only approve/reject, and a cancel_creature
+    endpoint that existed in the backend but was never wired into any UI (soft-cancel only,
+    row stays forever). Explicit real ask: remove inappropriate content that slipped
+    through, and clean up test submissions - a soft "cancelled" status row sitting in the
+    table forever doesn't satisfy either use case. This is a genuine hard delete: the
+    submission row, any creature_unlocks referencing it (a student's real progress on a
+    creature that no longer exists - can't be kept pointing at nothing), and any
+    featured_creatures rows referencing it. Storage image cleanup is best-effort (never
+    blocks the actual delete if it fails) since no prior code in this file has ever
+    parsed a public Storage URL back into a bucket path - if that ever breaks, the DB
+    cleanup (the part that actually matters for both stated use cases) still succeeds."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin only")
+
+    existing = supabase.table("creature_submissions").select(
+        "id,creature_name,stage1_url,stage2_url,stage3_url,stage4_url"
+    ).eq("id", submission_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    c = existing.data[0]
+
+    supabase.table("creature_unlocks").delete().eq("creature_id", submission_id).execute()
+    supabase.table("featured_creatures").delete().eq("creature_id", submission_id).execute()
+    supabase.table("creature_submissions").delete().eq("id", submission_id).execute()
+
+    deleted_images = 0
+    try:
+        marker = "/public/creature-images/"
+        paths = []
+        for field in ("stage1_url", "stage2_url", "stage3_url", "stage4_url"):
+            url = c.get(field) or ""
+            if marker in url:
+                paths.append(url.split(marker, 1)[1])
+        if paths:
+            supabase.storage.from_("creature-images").remove(paths)
+            deleted_images = len(paths)
+    except Exception as e:
+        logger.warning(f"[delete_creature] storage cleanup failed for {submission_id}, DB rows already deleted: {e}")
+
+    return {"status": "deleted", "creature_name": c.get("creature_name"), "images_removed": deleted_images}
+
 @api_router.get("/creatures/global")
 async def get_global_creatures(request: Request):
     """Global feed of approved creatures — visible to all authenticated users. Real fix
@@ -7497,24 +7542,27 @@ async def get_global_creatures(request: Request):
     # changing a creature's scope away from "global" via the superadmin scope-editing dropdown
     # made it vanish from the very card the dropdown lives on.
     is_superadmin = user.get("role") == "superadmin"
-    # Real feature Aug 21: real_student_id/classroom_id are new columns (see /creatures/submit)
-    # that may not exist yet if the migration hasn't run - try the enriched select first, fall
-    # back to the base one so this endpoint never breaks for anyone in the meantime.
+    # Real bug fix Aug 23: found live during Jono's own portal testing of the safety fix -
+    # this endpoint only ever checked status=="approved" (teacher/parent gate), same gap
+    # class as get_eligible_creatures/start_creature/get_my_creatures, just missed in that
+    # earlier pass. Confirmed live: 6 real teacher/parent-approved-only submissions were
+    # showing here as "Approved Creatures" while simultaneously still sitting in
+    # "Awaiting Final Approval" - the two queues are meant to be mutually exclusive.
+    # superadmin_approved_at gates this the same way as the other surfaces; fails closed
+    # (empty) if the migration column is somehow unavailable, matching the same safety
+    # direction as everywhere else this signal is used.
     try:
         query = supabase.table("creature_submissions").select(
-            base_fields + ",real_student_id,classroom_id"
+            base_fields + ",real_student_id,classroom_id,superadmin_approved_at"
         ).eq("status","approved")
         if not is_superadmin:
             query = query.eq("is_globally_available", True)
         rows = query.order("global_uses", desc=True).limit(50).execute()
+        has_approval_gate = True
     except Exception:
-        query = supabase.table("creature_submissions").select(
-            base_fields
-        ).eq("status","approved")
-        if not is_superadmin:
-            query = query.eq("is_globally_available", True)
-        rows = query.order("global_uses", desc=True).limit(50).execute()
-    creatures = rows.data or []
+        rows = type("R", (), {"data": []})()
+        has_approval_gate = False
+    creatures = [c for c in (rows.data or []) if has_approval_gate and c.get("superadmin_approved_at")]
     creature_ids = [c["id"] for c in creatures]
 
     # Resolve classroom names for whichever creatures have a real classroom_id captured
@@ -7758,7 +7806,16 @@ async def get_featured_creatures(request: Request):
     rows = supabase.table("featured_creatures").select(
         "*, creature_submissions(*)"
     ).lte("active_from", now).gte("active_until", now).execute()
-    return rows.data or []
+    # Real bug fix Aug 23: feature_creature (write side) is now gated on
+    # superadmin_approved_at, but real bad data already existed from before that fix -
+    # confirmed live, "Waterman" was actively featured without ever being superadmin-approved.
+    # Filters it out here on the read side too rather than deleting the row, so it
+    # disappears from display immediately without losing the historical record.
+    approved_rows = [
+        r for r in (rows.data or [])
+        if (r.get("creature_submissions") or {}).get("superadmin_approved_at")
+    ]
+    return approved_rows
 
 @api_router.post("/creatures/feature/{submission_id}")
 async def feature_creature(submission_id: str, request: Request):
@@ -7771,6 +7828,13 @@ async def feature_creature(submission_id: str, request: Request):
     if not creature.data or creature.data[0]["status"] != "approved":
         raise HTTPException(status_code=400, detail="Creature not found or not approved")
     c = creature.data[0]
+    # Real bug fix Aug 23: found alongside get_global_creatures - a teacher/school_admin
+    # could feature (spotlight, this school or wider, for the whole month) a creature
+    # superadmin had never signed off on, same gap class as the urgent safety fix. Confirmed
+    # live: "Waterman" was actively featured (through 2026-08-31) despite never being
+    # superadmin-approved. Same superadmin_approved_at gate as everywhere else.
+    if not c.get("superadmin_approved_at"):
+        raise HTTPException(status_code=400, detail="This creature needs superadmin's final approval before it can be featured")
     # Deactivate existing featured for same school + colour
     supabase.table("featured_creatures").update({
         "active_until": datetime.now(timezone.utc).isoformat()
