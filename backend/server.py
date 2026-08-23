@@ -3183,6 +3183,18 @@ async def add_points(student_id: str, req: AddPointsRequest):
     active_creatures = _get_active_creatures(student_data) if student_data else dict(FEELING_COLOUR_MAP)
     active_id = active_creatures.get(feeling_colour) or FEELING_COLOUR_MAP.get(feeling_colour, "aqua_buddy")
 
+    # URGENT real security/product fix Aug 23: defensive gate, matching
+    # get_eligible_creatures/start_creature/get_my_creatures - start_creature can no longer
+    # set an active_creatures entry to an unapproved community creature going forward, but
+    # this guards against ever progressing or displaying one regardless of how it got set.
+    # Falls back to the default per-colour creature rather than erroring, so a check-in never
+    # fails outright over this.
+    if active_id not in DEFAULT_CREATURE_IDS:
+        gate_r = supabase.table("creature_submissions").select("status,global_uses").eq("id", active_id).execute()
+        gate = gate_r.data[0] if gate_r.data else None
+        if not gate or gate.get("status") != "approved" or gate.get("global_uses") is None:
+            active_id = FEELING_COLOUR_MAP.get(feeling_colour, "aqua_buddy")
+
     if active_id not in DEFAULT_CREATURE_IDS:
         # Community creature is this colour's active pursuit - points/streak are still
         # student-level and always tracked, but stage progress goes through the real
@@ -7365,7 +7377,10 @@ async def get_pending_creatures(request: Request):
         role_map = {u["user_id"]: u.get("role") for u in (users_r.data or [])}
     for r in data:
         r["submitted_by_role"] = role_map.get(r.get("student_id"), "unknown")
-    return data
+
+    # Real feature Aug 23 (item 4): resolve the REAL child a submission is for, not just
+    # which account submitted it - see _annotate_real_student_names below.
+    return _annotate_real_student_names(data)
 
 async def _can_approve_creature(user: dict, submission: dict) -> bool:
     """Real bug fix Aug 22 (urgent security fix): /creatures/approve and /creatures/reject had
@@ -7580,6 +7595,21 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
 
     eligible = []
     for c in all_approved:
+        # URGENT real security/product fix Aug 23: this loop only ever checked
+        # status=="approved" (the teacher/parent gate, applied above via .eq("status",
+        # "approved")) - superadmin's second gate (global_approve_creature) was never
+        # actually enforced on this, the real student-facing read path. It only ever set
+        # visibility_scope/is_globally_available, which affects WHICH scope a creature shows
+        # under, not WHETHER it's visible at all - so a teacher/parent-only-approved
+        # creature was immediately eligible to every matching student, completely bypassing
+        # superadmin. global_uses is the correct, already-existing signal: it's NULL until
+        # global_approve_creature's approve action sets it to 0, and only that action ever
+        # touches it - confirmed live, 0 real production submissions currently in this gap,
+        # so this closes a real hole with no bad data to remediate. Applies to every scope
+        # branch below, not just global - a classroom/school/family-scoped creature needs
+        # superadmin's sign-off exactly as much as a global one does.
+        if c.get("global_uses") is None:
+            continue
         scope = c.get("visibility_scope") or "global"
         # Real feature Aug 21: student scope-preference (classroom/school/global/any) - once
         # eligibility is computed as before, further narrow to just the preferred scope unless
@@ -7824,11 +7854,19 @@ async def start_creature(submission_id: str, request: Request):
         raise HTTPException(status_code=403, detail="Not authorized for this student")
 
     creature_r = supabase.table("creature_submissions").select(
-        "visibility_scope,school_name,classroom_id,status,emotion_colour,creature_name"
+        "visibility_scope,school_name,classroom_id,status,emotion_colour,creature_name,global_uses,student_id"
     ).eq("id", submission_id).execute()
     if not creature_r.data or creature_r.data[0].get("status") != "approved":
         raise HTTPException(status_code=404, detail="Creature not found")
     creature = creature_r.data[0]
+    # URGENT real security/product fix Aug 23: same gap as get_eligible_creatures - this
+    # only ever checked status=="approved" (teacher/parent gate), never superadmin's second
+    # gate. A student could START (create a real creature_unlocks row, appear in My
+    # Creatures/rewards) a creature the moment a teacher or parent approved it, fully
+    # bypassing superadmin. See get_eligible_creatures for the full writeup - same fix,
+    # same global_uses signal.
+    if creature.get("global_uses") is None:
+        raise HTTPException(status_code=404, detail="Creature not found")
     colour = creature.get("emotion_colour")
 
     classroom_id, school_name = _resolve_student_classroom_school(student_data)
@@ -7837,6 +7875,12 @@ async def start_creature(submission_id: str, request: Request):
         scope == "global"
         or (scope == "school" and school_name and creature.get("school_name") == school_name)
         or (scope == "classroom" and classroom_id and creature.get("classroom_id") == classroom_id)
+        # Real bug fix Aug 23: this endpoint never got the family-private matching branch
+        # added to get_eligible_creatures earlier today - a home-only family's own
+        # "classroom"/Family-scoped creature couldn't be started at all, browse-eligible or
+        # not. Same fix, same reasoning: no real classroom on either side means
+        # family-private, matched by the submitting account.
+        or (scope == "classroom" and not classroom_id and not creature.get("classroom_id") and creature.get("student_id") == user["user_id"])
     )
     if not is_eligible:
         raise HTTPException(status_code=403, detail="This creature isn't available to this student")
@@ -7970,7 +8014,7 @@ async def get_my_creatures(student_id: str, request: Request):
 
     try:
         unlocks_r = supabase.table("creature_unlocks").select(
-            "*, creature_submissions(id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,visibility_scope)"
+            "*, creature_submissions(id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,visibility_scope,status,global_uses)"
         ).eq("real_student_id", student_id).execute()
         unlock_rows = unlocks_r.data or []
     except Exception:
@@ -7978,6 +8022,14 @@ async def get_my_creatures(student_id: str, request: Request):
     for u in unlock_rows:
         cs = u.get("creature_submissions")
         if not cs:
+            continue
+        # URGENT real security/product fix Aug 23: same gate as get_eligible_creatures/
+        # start_creature, applied to the read/display side - a creature a student already
+        # started stays in creature_unlocks (real progress, never deleted), but shouldn't
+        # display in My Creatures/rewards unless superadmin has actually signed off. No real
+        # production rows hit this today (checked live), but the display path needs the same
+        # gate as the write path so this can never silently regress.
+        if cs.get("global_uses") is None or cs.get("status") != "approved":
             continue
         colour = cs.get("emotion_colour")
         if colour not in buckets:
@@ -8010,6 +8062,20 @@ async def get_my_creatures(student_id: str, request: Request):
 
     return {"colours": buckets, "total_collected": total_collected}
 
+def _annotate_real_student_names(rows: list) -> list:
+    """Real feature Aug 23 (item 4): "student_name" on a submission row has always actually
+    been the SUBMITTING ACCOUNT's own display name (teacher or parent), never the real
+    child's - a reviewer needs to know which real child a creature is for, not just who
+    logged in to submit it. Shared by /creatures/my-submissions' parent and teacher branches."""
+    real_student_ids = list({r["real_student_id"] for r in rows if r.get("real_student_id")})
+    real_name_map = {}
+    if real_student_ids:
+        students_r = supabase.table("students").select("id,name").in_("id", real_student_ids).execute()
+        real_name_map = {s["id"]: s.get("name") for s in (students_r.data or [])}
+    for r in rows:
+        r["real_student_name"] = real_name_map.get(r.get("real_student_id"))
+    return rows
+
 @api_router.get("/creatures/my-submissions")
 async def get_my_submissions(request: Request):
     """Real feature Aug 22 (items 8a/8b): a parent's or teacher's own status view of
@@ -8041,7 +8107,7 @@ async def get_my_submissions(request: Request):
             rows = supabase.table("creature_submissions").select(
                 base_fields
             ).eq("student_id", user["user_id"]).order("created_at", desc=True).execute()
-        return rows.data or []
+        return _annotate_real_student_names(rows.data or [])
 
     # teacher: classroom-wide, not just self-submitted
     classrooms_r = supabase.table("classrooms").select("id").eq("user_id", user["user_id"]).execute()
@@ -8072,7 +8138,7 @@ async def get_my_submissions(request: Request):
             seen_ids.add(row["id"])
             results.append(row)
     results.sort(key=lambda r: r.get("created_at") or "", reverse=True)
-    return results
+    return _annotate_real_student_names(results)
 
 
 # ================== ADMIN ==================
@@ -8316,9 +8382,19 @@ async def get_admin_stats(request: Request, days: int = 7):
                 school_checkins = 0
                 if student_ids:
                     try:
-                        school_logs = supabase.table("feeling_logs").select("feeling_colour,zone").in_("student_id", student_ids[:50]).gte("timestamp", week_ago).execute()
+                        # Real bug fix Aug 23 (item 7): "zone" was never a real column on
+                        # feeling_logs (confirmed live - the actual schema is student_id,
+                        # feeling_colour, helpers_selected, comment, location, timestamp,
+                        # logged_by, family_member_id, no "zone" at all). This select failed
+                        # with a Postgres "column does not exist" error on every single call,
+                        # silently swallowed by the except below - Schools Breakdown showed
+                        # 0 check-ins for every school, at every time period, regardless of
+                        # how much real check-in data existed, because the query never
+                        # actually succeeded even once. feeling_colour alone is correct and
+                        # sufficient - it's the only field that's ever been real.
+                        school_logs = supabase.table("feeling_logs").select("feeling_colour").in_("student_id", student_ids[:50]).gte("timestamp", week_ago).execute()
                         for log in (school_logs.data or []):
-                            z = log.get("feeling_colour") or log.get("zone", "")
+                            z = log.get("feeling_colour") or ""
                             if z in school_zone_counts:
                                 school_zone_counts[z] += 1
                         school_checkins = len(school_logs.data or [])
@@ -12548,12 +12624,22 @@ async def global_approve_creature(submission_id: str, request: Request):
 
 @api_router.get("/creatures/awaiting-global-approval")
 async def get_awaiting_global_approval(request: Request):
-    """Superadmin's queue — creatures already approved by teacher/parent, waiting for the final global check."""
+    """Superadmin's queue — creatures already approved by teacher/parent, waiting for the final global check.
+    URGENT real bug fix Aug 23: this filtered on is_globally_available==False, which stays
+    False forever for any non-global scope (classroom/school/family) regardless of whether
+    superadmin has already approved it - is_globally_available only ever means "is this in
+    the World Gallery", not "has superadmin reviewed this". Confirmed live: 2 real, already
+    superadmin-approved submissions were still showing as "awaiting" here. global_uses is the
+    correct signal (same one get_eligible_creatures/start_creature now gate on) - NULL means
+    genuinely never reviewed, 0+ means superadmin already acted on it, regardless of scope."""
     user = await get_current_user(request)
     if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
-    result = supabase.table("creature_submissions").select("*").eq("status", "approved").eq("is_globally_available", False).execute()
-    return result.data or []
+    result = supabase.table("creature_submissions").select("*").eq("status", "approved").is_("global_uses", "null").execute()
+    # Real feature Aug 23 (item 4): same real-student-name resolution as
+    # /creatures/pending and /creatures/my-submissions, so superadmin's final-approval
+    # decision isn't made blind to which real child a creature is for either.
+    return _annotate_real_student_names(result.data or [])
 
 
 

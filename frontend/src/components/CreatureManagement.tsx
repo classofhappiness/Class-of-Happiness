@@ -20,6 +20,15 @@ const STATUS_INFO: Record<string, { label: string; bg: string; color: string }> 
   rejected: { label: 'Rejected', bg: '#FFEBEE', color: '#C62828' },
 };
 
+// Real feature Aug 23 (item 4): reviewers need to know which real child a submission is
+// for, and when it was submitted - not just the submitting account's own name.
+function formatSubDate(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 interface Props {
   role: 'teacher' | 'parent';
 }
@@ -164,7 +173,11 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
                   <View style={[s.zoneDot, { backgroundColor: ZONE_COLORS[sub.emotion_colour] || '#999' }]} />
                   <Text style={s.subName}>{sub.creature_name}</Text>
                 </View>
-                <Text style={s.subMeta}>{sub.student_name}{sub.description ? ` · ${sub.description}` : ''}</Text>
+                <Text style={s.subMeta}>
+                  {sub.real_student_name ? `For: ${sub.real_student_name}` : sub.student_name}
+                  {formatSubDate(sub.created_at) ? ` · ${formatSubDate(sub.created_at)}` : ''}
+                </Text>
+                {sub.description ? <Text style={s.subMeta}>{sub.description}</Text> : null}
               </View>
               <View style={{ gap: 6 }}>
                 <TouchableOpacity
@@ -218,9 +231,12 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
                     <Text style={s.subName}>{sub.creature_name}</Text>
                   </View>
                   <Text style={s.subMeta}>
-                    {sub.student_name}
-                    {sub.status === 'rejected' && sub.rejection_reason ? ` · ${sub.rejection_reason}` : ''}
+                    {sub.real_student_name ? `For: ${sub.real_student_name}` : sub.student_name}
+                    {formatSubDate(sub.created_at) ? ` · ${formatSubDate(sub.created_at)}` : ''}
                   </Text>
+                  {sub.status === 'rejected' && sub.rejection_reason ? (
+                    <Text style={s.subMeta}>{sub.rejection_reason}</Text>
+                  ) : null}
                 </View>
                 <View style={[s.statusBadge, { backgroundColor: statusInfo.bg }]}>
                   <Text style={[s.statusBadgeText, { color: statusInfo.color }]}>{statusInfo.label}</Text>
