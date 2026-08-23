@@ -201,9 +201,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8F6FF',
   },
   actionBtnDark: { flex: 1, backgroundColor: '#1A1A2E', borderRadius: 50, padding: 12, alignItems: 'center' },
-  actionBtnDarkText: { color: '#FFD93D', fontWeight: '900', fontSize: 13 },
+  // Real bug fix Aug 23 (same class as rewards.tsx's find_world_creatures overflow): a
+  // longer translation in a flex:1 half-width button had no wrap/shrink safety net. This
+  // pair already used a single combined Text node (emoji + label together) rather than
+  // separate icon/label siblings, which RN wraps more safely by default - but hardened
+  // anyway rather than leaving it to inference, since no running app was available here to
+  // visually confirm.
+  actionBtnDarkText: { color: '#FFD93D', fontWeight: '900', fontSize: 13, textAlign: 'center' },
   actionBtnGreen: { flex: 1, backgroundColor: '#4CAF73', borderRadius: 50, padding: 12, alignItems: 'center' },
-  actionBtnGreenText: { color: 'white', fontWeight: '900', fontSize: 13 },
+  actionBtnGreenText: { color: 'white', fontWeight: '900', fontSize: 13, textAlign: 'center' },
   countText: {
     textAlign: 'center',
     fontSize: 16,

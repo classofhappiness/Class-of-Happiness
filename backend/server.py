@@ -3347,11 +3347,23 @@ async def add_points(student_id: str, req: AddPointsRequest):
 
     creature_data = next((c for c in CREATURES if c["id"] == target_creature), CREATURES[0])
 
+    # Real feature Aug 23 (Bonus Items celebration): which items just unlocked at this exact
+    # stage transition, so the frontend can celebrate them instead of only silently updating
+    # the Bonus Items grid. Items are catalog-defined per unlocks_at_stage (see CREATURES) -
+    # a stage transition can unlock up to 4 items at once, one per category.
+    newly_unlocked = []
+    if evolved:
+        for category in ("moves", "outfits", "foods", "homes"):
+            for item in creature_data.get(category, []):
+                if item.get("unlocks_at_stage") == new_stage:
+                    newly_unlocked.append({**item, "category": category})
+
     return {
         "current_creature": creature_data,
         "current_stage": new_stage,
         "current_points": new_points,
         "evolved": evolved,
+        "newly_unlocked": newly_unlocked,
         "streak_days": streak_days,
         "total_points_earned": total_points,
         "all_creatures_progress": creature_points,

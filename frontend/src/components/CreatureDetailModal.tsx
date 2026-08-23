@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
 import { AnimatedCreatureVisual } from './AnimatedCreatureVisual';
+import { BonusItemCelebration, CelebrationItem } from './BonusItemCelebration';
+import { BonusItemCategory } from '../utils/sounds';
 import { rewardsApi } from '../utils/api';
 import { useApp } from '../context/AppContext';
 
@@ -43,6 +45,11 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
   const { t } = useApp();
   const [bonusItems, setBonusItems] = useState<{ moves: any[]; outfits: any[]; foods: any[]; homes: any[]; unlockedMoves: string[]; unlockedOutfits: string[]; unlockedFoods: string[]; unlockedHomes: string[] } | null>(null);
   const [loadingBonus, setLoadingBonus] = useState(false);
+  // Real feature Aug 23: tap-to-replay for an already-unlocked item - no persistence (Jono's
+  // explicit simplified scope), just a fun replay of the same celebration animation+sound,
+  // one item at a time, with a border highlight on the tapped card while it plays.
+  const [replayItem, setReplayItem] = useState<CelebrationItem | null>(null);
+  const [replayingId, setReplayingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!visible || !entry || entry.type !== 'default' || !studentId) { setBonusItems(null); return; }
@@ -69,7 +76,7 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
   const color = ZONE_COLORS[colour] || '#4A90D9';
   const stageCount = entry.type === 'default' ? (entry.stage_emojis?.length || 4) : 4;
 
-  const renderItemGrid = (items: any[], unlockedIds: string[], label: string, emoji: string) => {
+  const renderItemGrid = (items: any[], unlockedIds: string[], label: string, emoji: string, category: BonusItemCategory) => {
     if (!items.length) return null;
     return (
       <View style={s.categoryBlock}>
@@ -77,8 +84,20 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
         <View style={s.itemsRow}>
           {items.slice(0, 3).map((item: any) => {
             const isUnlocked = unlockedIds.includes(item.id);
+            const isReplaying = replayingId === item.id;
+            const CardWrapper = isUnlocked ? TouchableOpacity : View;
             return (
-              <View key={item.id} style={[s.itemCard, !isUnlocked && s.itemLocked]}>
+              <CardWrapper
+                key={item.id}
+                style={[s.itemCard, !isUnlocked && s.itemLocked, isReplaying && { borderColor: color, borderWidth: 2.5 }]}
+                {...(isUnlocked ? {
+                  onPress: () => {
+                    setReplayingId(item.id);
+                    setReplayItem({ id: item.id, name: item.name, emoji: item.emoji, category });
+                    setTimeout(() => setReplayingId(null), 2200);
+                  },
+                } : {})}
+              >
                 <Text style={[s.itemEmoji, !isUnlocked && { opacity: 0.25 }]}>{item.emoji}</Text>
                 {!isUnlocked && <Text style={s.lockOverlay}>🔒</Text>}
                 <Text style={[s.itemName, !isUnlocked && s.itemNameLocked]} numberOfLines={2}>{item.name}</Text>
@@ -96,7 +115,7 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
                      item.unlocks_at_stage === 3 ? '⭐ 120 pts' : '🔒'}
                   </Text>
                 )}
-              </View>
+              </CardWrapper>
             );
           })}
         </View>
@@ -105,6 +124,7 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
   };
 
   return (
+    <>
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={s.overlay}>
         <View style={s.container}>
@@ -158,10 +178,10 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
                   <ActivityIndicator color={color} style={{ marginVertical: 20 }} />
                 ) : bonusItems ? (
                   <>
-                    {renderItemGrid(bonusItems.moves, bonusItems.unlockedMoves, t('moves') || 'Moves', '🎬')}
-                    {renderItemGrid(bonusItems.outfits, bonusItems.unlockedOutfits, t('outfits') || 'Outfits', '👗')}
-                    {renderItemGrid(bonusItems.foods, bonusItems.unlockedFoods, t('foods') || 'Foods', '🍎')}
-                    {renderItemGrid(bonusItems.homes, bonusItems.unlockedHomes, t('homes') || 'Homes', '🏠')}
+                    {renderItemGrid(bonusItems.moves, bonusItems.unlockedMoves, t('moves') || 'Moves', '🎬', 'moves')}
+                    {renderItemGrid(bonusItems.outfits, bonusItems.unlockedOutfits, t('outfits') || 'Outfits', '👗', 'outfits')}
+                    {renderItemGrid(bonusItems.foods, bonusItems.unlockedFoods, t('foods') || 'Foods', '🍎', 'foods')}
+                    {renderItemGrid(bonusItems.homes, bonusItems.unlockedHomes, t('homes') || 'Homes', '🏠', 'homes')}
                   </>
                 ) : (
                   <Text style={s.hintTxt}>{t('grow_creature_hint') || 'Use helpers and share your feelings to unlock bonus items!'}</Text>
@@ -172,6 +192,14 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
         </View>
       </View>
     </Modal>
+    <BonusItemCelebration
+      visible={!!replayItem}
+      items={replayItem ? [replayItem] : []}
+      colour={colour}
+      onClose={() => setReplayItem(null)}
+      autoAdvanceMs={2200}
+    />
+    </>
   );
 };
 

@@ -55,6 +55,26 @@ export const playSelectSound  = () => { if (soundEnabled) playSoundUrl(SOUND_URL
 export const setSoundEnabled = (enabled: boolean) => { soundEnabled = enabled; };
 export const isSoundEnabled  = () => soundEnabled;
 
+// Real feature Aug 23: Bonus Items celebration sounds. Category-level (one per
+// moves/outfits/foods/homes, not per individual item) - decided scope, per-item sounds are
+// a possible future enhancement. Self-hosted in a dedicated "sound-effects" Storage bucket
+// (deliberately separate from "voice-recordings", which is spoken narration, not UI sound
+// effects) rather than an external CDN like the other generic sounds above - same reasoning
+// as why voice clips are self-hosted. Same graceful pattern as everywhere else in this file
+// and playVoiceClip: if a file isn't uploaded yet, playSoundUrl's own try/catch just no-ops -
+// the celebration animation still plays, silently, until the real files land.
+const SOUND_EFFECTS_BASE = 'https://flyxezthxordlqkutfho.supabase.co/storage/v1/object/public/sound-effects';
+export type BonusItemCategory = 'moves' | 'outfits' | 'foods' | 'homes';
+const BONUS_ITEM_SOUND_URLS: Record<BonusItemCategory, string> = {
+  moves: `${SOUND_EFFECTS_BASE}/moves.m4a`,
+  outfits: `${SOUND_EFFECTS_BASE}/outfits.m4a`,
+  foods: `${SOUND_EFFECTS_BASE}/foods.m4a`,
+  homes: `${SOUND_EFFECTS_BASE}/homes.m4a`,
+};
+export const playBonusItemSound = (category: BonusItemCategory) => {
+  if (soundEnabled) playSoundUrl(BONUS_ITEM_SOUND_URLS[category]);
+};
+
 const playHaptic = (type: 'light' | 'medium' | 'heavy' = 'light') => {
   try {
     const style = type === 'heavy'  ? Haptics.ImpactFeedbackStyle.Heavy

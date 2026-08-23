@@ -19,6 +19,7 @@ import { getStudentShield, SHIELD_LEVELS } from '../../src/utils/notifications';
 import { CreatureDisplay } from '../../src/components/CreatureDisplay';
 import { CommunityCreatureDisplay } from '../../src/components/CommunityCreatureDisplay';
 import { EvolutionAnimation } from '../../src/components/EvolutionAnimation';
+import { BonusItemCelebration, CelebrationItem } from '../../src/components/BonusItemCelebration';
 import { playButtonFeedback, playRewardFeedback, playEvolutionSound, preloadSounds } from '../../src/utils/sounds';
 import { playRewardVoiceClip } from '../../src/utils/voiceClips';
 
@@ -73,6 +74,8 @@ export default function RewardsScreen() {
   const [loading, setLoading] = useState(true);
   const [showContinue, setShowContinue] = useState(false);
   const [showEvolution, setShowEvolution] = useState(false);
+  const [showBonusCelebration, setShowBonusCelebration] = useState(false);
+  const [celebrationItems, setCelebrationItems] = useState<CelebrationItem[]>([]);
   const [previousStage, setPreviousStage] = useState(0);
   const [tipVisible, setTipVisible] = useState(true);
   const tipOpacityAnim = useRef(new Animated.Value(1)).current;
@@ -164,6 +167,20 @@ export default function RewardsScreen() {
           playEvolutionSound(); // Play evolution sound
           setShowEvolution(true);
         }, 1500);
+      }
+
+      // Real feature Aug 23: Bonus Items celebration - triggered at the same real
+      // stage-transition event as the evolution sound above, not chained off
+      // EvolutionAnimation's onComplete (that modal's own mount condition requires
+      // rewardsData?.evolution_info, which this default-creature response never actually
+      // sets - a separate, pre-existing gap, out of scope here). Delayed further than the
+      // evolution sound so the two don't visually stack if EvolutionAnimation does happen
+      // to show.
+      if (response.evolved && response.newly_unlocked && response.newly_unlocked.length > 0) {
+        setTimeout(() => {
+          setCelebrationItems(response.newly_unlocked as CelebrationItem[]);
+          setShowBonusCelebration(true);
+        }, 4000);
       }
 
     } catch (error) {
@@ -440,10 +457,15 @@ export default function RewardsScreen() {
               "Submit a Creature" and "Find a New Creature". Collapsed to the one action
               that's genuinely useful as a reward-page shortcut. */}
           <TouchableOpacity
-            style={{ flex: 1, backgroundColor: '#4CAF73', borderRadius: 16, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+            style={{ flex: 1, backgroundColor: '#4CAF73', borderRadius: 16, paddingVertical: 16, paddingHorizontal: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
             onPress={() => router.push('/student/world-creatures')}>
             <Text style={{ fontSize: 14 }}>🌍</Text>
-            <Text style={{ color: 'white', fontWeight: '900', fontSize: 12 }}>{t('find_world_creatures') || 'Find World Creatures'}</Text>
+            {/* Real bug fix Aug 23: this text had no flexShrink/wrap protection at all in a
+                flex:1 row - fine for short English text, but a longer translation (e.g.
+                Spanish "Buscar Criaturas del Mundo") had nowhere to go but overflow the
+                button. flexShrink lets it wrap onto a second line instead, for any language,
+                not just a patch for this one string. */}
+            <Text style={{ color: 'white', fontWeight: '900', fontSize: 12, flexShrink: 1, textAlign: 'center' }}>{t('find_world_creatures') || 'Find World Creatures'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -474,6 +496,14 @@ export default function RewardsScreen() {
           onComplete={() => setShowEvolution(false)}
         />
       )}
+
+      {/* Bonus Items Celebration - real feature Aug 23 */}
+      <BonusItemCelebration
+        visible={showBonusCelebration}
+        items={celebrationItems}
+        colour={rewardsData?.feeling_colour || params.zone || 'blue'}
+        onClose={() => setShowBonusCelebration(false)}
+      />
 
     </SafeAreaView>
   );
@@ -583,6 +613,8 @@ const styles = StyleSheet.create({
     color: '#FFD700',
     fontSize: 16,
     fontWeight: '600',
+    flexShrink: 1,
+    textAlign: 'center',
   },
   continueButton: {
     flexDirection: 'row',

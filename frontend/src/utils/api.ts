@@ -908,6 +908,9 @@ export interface AddPointsResponse {
   streak_days: number;
   feeling_colour?: string;
   zone?: string;
+  // Real feature Aug 23 (Bonus Items celebration): items that unlocked at this exact stage
+  // transition (only present/non-empty when evolved is true), one per category at most.
+  newly_unlocked?: { id: string; name: string; emoji: string; category: 'moves'|'outfits'|'foods'|'homes'; unlocks_at_stage: number }[];
 }
 
 export interface StudentCollection {
