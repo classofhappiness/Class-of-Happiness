@@ -89,8 +89,16 @@ export default function SubscriptionScreen() {
     && (Date.now() - new Date(user.trial_started_at).getTime()) > trialDays * 24 * 60 * 60 * 1000;
   const subscriptionExpired = user?.subscription_status === 'active' && !!user?.subscription_expires_at
     && new Date(user.subscription_expires_at).getTime() < Date.now();
+  // isActive drives the status banner (accurate "trial active"/"plan active" info) - stays
+  // true for a genuinely valid trial OR an unexpired paid plan.
   const isActive = (user?.subscription_status === 'active' || user?.subscription_status === 'trial')
     && !trialExpired && !subscriptionExpired;
+  // Real fix Aug 23 (found live-testing the above fix): isActive alone also hid the
+  // Subscribe button for a genuinely valid, not-yet-expired trial - meaning nobody could
+  // ever convert early. The only thing that should ever hide "Subscribe" is already having
+  // a real, currently-paying, unexpired plan - a trial (valid or expired) should always be
+  // able to convert whenever the person wants to.
+  const canSubscribe = !(user?.subscription_status === 'active' && !subscriptionExpired);
 
   const handleStartTrial = async () => {
     if (!isAuthenticated) { login(); return; }
@@ -279,7 +287,7 @@ export default function SubscriptionScreen() {
           </View>
 
           {/* Subscribe Button */}
-          {!isActive && (
+          {canSubscribe && (
             <TouchableOpacity style={st.subscribeBtn} onPress={handleSubscribe} disabled={loading}>
               {loading
                 ? <ActivityIndicator color="white" />
