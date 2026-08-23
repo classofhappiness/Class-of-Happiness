@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Linking, Image, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Linking, Image, Modal, TextInput, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -133,10 +133,17 @@ export default function SubscriptionScreen() {
       // silently sent as '' on every phone build — Stripe's success/cancel redirect would
       // never have resolved to anything openable. ExpoLinking.createURL builds the correct
       // classofhappiness:// deep link on native and a real origin on web, from one call.
-      const origin = typeof window !== 'undefined' ? window.location.origin : ExpoLinking.createURL('/');
+      // Real bug fix Aug 24 (found live-testing on Expo Go, jono@gmail.com parent):
+      // `typeof window !== 'undefined'` is NOT a reliable web/native check in Expo/RN -
+      // Hermes/Metro can define a global `window` on native too, so this branch was wrongly
+      // taken on-device, then `window.location.href = url` threw ("Cannot set property href
+      // of #<Location> which has only a getter") since RN's window.location isn't a real
+      // navigable object. Platform.OS === 'web' is the actual reliable check.
+      const isWeb = Platform.OS === 'web';
+      const origin = isWeb ? window.location.origin : ExpoLinking.createURL('/');
       const { url } = await subscriptionApi.createCheckout(selectedPlan, origin);
       if (url) {
-        if (typeof window !== 'undefined') window.location.href = url;
+        if (isWeb) window.location.href = url;
         else await Linking.openURL(url);
       }
     } catch (e: any) {
