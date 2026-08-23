@@ -3183,16 +3183,20 @@ async def add_points(student_id: str, req: AddPointsRequest):
     active_creatures = _get_active_creatures(student_data) if student_data else dict(FEELING_COLOUR_MAP)
     active_id = active_creatures.get(feeling_colour) or FEELING_COLOUR_MAP.get(feeling_colour, "aqua_buddy")
 
-    # URGENT real security/product fix Aug 23: defensive gate, matching
-    # get_eligible_creatures/start_creature/get_my_creatures - start_creature can no longer
-    # set an active_creatures entry to an unapproved community creature going forward, but
-    # this guards against ever progressing or displaying one regardless of how it got set.
-    # Falls back to the default per-colour creature rather than erroring, so a check-in never
-    # fails outright over this.
+    # URGENT real security/product fix Aug 23 (corrected same day - see
+    # get_eligible_creatures for why global_uses never worked as a gate): defensive check,
+    # matching get_eligible_creatures/start_creature/get_my_creatures - start_creature can no
+    # longer set an active_creatures entry to an unapproved community creature going forward,
+    # but this guards against ever progressing or displaying one regardless of how it got
+    # set. Falls back to the default per-colour creature (not an error) if ungated, and also
+    # if the migration hasn't landed yet - a check-in should never fail outright over this.
     if active_id not in DEFAULT_CREATURE_IDS:
-        gate_r = supabase.table("creature_submissions").select("status,global_uses").eq("id", active_id).execute()
-        gate = gate_r.data[0] if gate_r.data else None
-        if not gate or gate.get("status") != "approved" or gate.get("global_uses") is None:
+        try:
+            gate_r = supabase.table("creature_submissions").select("status,superadmin_approved_at").eq("id", active_id).execute()
+            gate = gate_r.data[0] if gate_r.data else None
+        except Exception:
+            gate = None
+        if not gate or gate.get("status") != "approved" or not gate.get("superadmin_approved_at"):
             active_id = FEELING_COLOUR_MAP.get(feeling_colour, "aqua_buddy")
 
     if active_id not in DEFAULT_CREATURE_IDS:
@@ -7576,7 +7580,16 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
 
     base_fields = ("id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,"
                    "global_uses,approved_at,visibility_scope,school_name,classroom_id,country,student_id")
-    rows = supabase.table("creature_submissions").select(base_fields).eq("status", "approved").execute()
+    # URGENT real security fix Aug 23 (corrected): superadmin_approved_at is a genuine new
+    # column (global_uses turned out to have a DB default of 0, never actually NULL - see
+    # global_approve_creature). If the migration hasn't landed yet, fail CLOSED - nothing is
+    # eligible - rather than silently falling back to the old, unsafe status-only check.
+    try:
+        rows = supabase.table("creature_submissions").select(base_fields + ",superadmin_approved_at").eq("status", "approved").execute()
+        has_approval_gate = True
+    except Exception:
+        rows = type("R", (), {"data": []})()
+        has_approval_gate = False
     all_approved = rows.data or []
 
     # Real feature Aug 22: country-of-origin, global-scope creatures only, gated behind the
@@ -7602,13 +7615,18 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
         # visibility_scope/is_globally_available, which affects WHICH scope a creature shows
         # under, not WHETHER it's visible at all - so a teacher/parent-only-approved
         # creature was immediately eligible to every matching student, completely bypassing
-        # superadmin. global_uses is the correct, already-existing signal: it's NULL until
-        # global_approve_creature's approve action sets it to 0, and only that action ever
-        # touches it - confirmed live, 0 real production submissions currently in this gap,
-        # so this closes a real hole with no bad data to remediate. Applies to every scope
-        # branch below, not just global - a classroom/school/family-scoped creature needs
-        # superadmin's sign-off exactly as much as a global one does.
-        if c.get("global_uses") is None:
+        # superadmin. Applies to every scope branch below, not just global - a
+        # classroom/school/family-scoped creature needs superadmin's sign-off exactly as
+        # much as a global one does.
+        # CORRECTED same day: the first attempt at this fix used global_uses as the gate
+        # signal, on the assumption it was NULL until superadmin acted. Live-verified false -
+        # global_uses has a DB-level default of 0, confirmed 0 on a truly-fresh, zero-approval
+        # submission - it's a pre-existing popularity counter, never a usable approval gate,
+        # and that first fix was a silent no-op. superadmin_approved_at is a genuine new
+        # column (see global_approve_creature) that only that one action ever sets. If the
+        # migration hasn't landed yet (has_approval_gate False), this fails CLOSED - nothing
+        # eligible - rather than repeat the same mistake in a new shape.
+        if not has_approval_gate or not c.get("superadmin_approved_at"):
             continue
         scope = c.get("visibility_scope") or "global"
         # Real feature Aug 21: student scope-preference (classroom/school/global/any) - once
@@ -7853,19 +7871,23 @@ async def start_creature(submission_id: str, request: Request):
     if not student_data or not await _is_authorized_for_student(user, real_student_id, student_data):
         raise HTTPException(status_code=403, detail="Not authorized for this student")
 
-    creature_r = supabase.table("creature_submissions").select(
-        "visibility_scope,school_name,classroom_id,status,emotion_colour,creature_name,global_uses,student_id"
-    ).eq("id", submission_id).execute()
+    try:
+        creature_r = supabase.table("creature_submissions").select(
+            "visibility_scope,school_name,classroom_id,status,emotion_colour,creature_name,student_id,superadmin_approved_at"
+        ).eq("id", submission_id).execute()
+        has_approval_gate = True
+    except Exception:
+        creature_r = type("R", (), {"data": []})()
+        has_approval_gate = False
     if not creature_r.data or creature_r.data[0].get("status") != "approved":
         raise HTTPException(status_code=404, detail="Creature not found")
     creature = creature_r.data[0]
-    # URGENT real security/product fix Aug 23: same gap as get_eligible_creatures - this
-    # only ever checked status=="approved" (teacher/parent gate), never superadmin's second
-    # gate. A student could START (create a real creature_unlocks row, appear in My
-    # Creatures/rewards) a creature the moment a teacher or parent approved it, fully
-    # bypassing superadmin. See get_eligible_creatures for the full writeup - same fix,
-    # same global_uses signal.
-    if creature.get("global_uses") is None:
+    # URGENT real security/product fix Aug 23 (corrected same day - see
+    # get_eligible_creatures for the full writeup on why global_uses never worked as a gate):
+    # same gap, same real fix. A student could START (create a real creature_unlocks row,
+    # appear in My Creatures/rewards) a creature the moment a teacher or parent approved it,
+    # fully bypassing superadmin. Fails CLOSED if the migration hasn't landed yet.
+    if not has_approval_gate or not creature.get("superadmin_approved_at"):
         raise HTTPException(status_code=404, detail="Creature not found")
     colour = creature.get("emotion_colour")
 
@@ -8012,9 +8034,14 @@ async def get_my_creatures(student_id: str, request: Request):
             "stage_emojis": [s.get("emoji") for s in (cdata.get("stages") or [])],
         })
 
+    # URGENT real security/product fix Aug 23 (corrected same day - see
+    # get_eligible_creatures): joined select fails as one unit if superadmin_approved_at
+    # doesn't exist yet, which lands in the except below and fails CLOSED (unlock_rows = [],
+    # nothing displays) - the right direction to fail in, unlike the earlier global_uses
+    # attempt which looked gated but never actually was.
     try:
         unlocks_r = supabase.table("creature_unlocks").select(
-            "*, creature_submissions(id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,visibility_scope,status,global_uses)"
+            "*, creature_submissions(id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,visibility_scope,status,superadmin_approved_at)"
         ).eq("real_student_id", student_id).execute()
         unlock_rows = unlocks_r.data or []
     except Exception:
@@ -8023,13 +8050,10 @@ async def get_my_creatures(student_id: str, request: Request):
         cs = u.get("creature_submissions")
         if not cs:
             continue
-        # URGENT real security/product fix Aug 23: same gate as get_eligible_creatures/
-        # start_creature, applied to the read/display side - a creature a student already
-        # started stays in creature_unlocks (real progress, never deleted), but shouldn't
-        # display in My Creatures/rewards unless superadmin has actually signed off. No real
-        # production rows hit this today (checked live), but the display path needs the same
-        # gate as the write path so this can never silently regress.
-        if cs.get("global_uses") is None or cs.get("status") != "approved":
+        # A creature a student already started stays in creature_unlocks (real progress,
+        # never deleted), but shouldn't display in My Creatures/rewards unless superadmin
+        # has actually signed off.
+        if not cs.get("superadmin_approved_at") or cs.get("status") != "approved":
             continue
         colour = cs.get("emotion_colour")
         if colour not in buckets:
@@ -12604,11 +12628,30 @@ async def global_approve_creature(submission_id: str, request: Request):
     from datetime import datetime, timezone
 
     if action == "approve":
-        supabase.table("creature_submissions").update({
-            "is_globally_available": scope == "global",
-            "visibility_scope": scope,
-            "global_uses": 0,
-        }).eq("id", submission_id).execute()
+        # URGENT real security fix Aug 23 (corrected): global_uses turned out to be a
+        # pre-existing popularity counter with a DB-level DEFAULT of 0, not a signal that
+        # was ever NULL until this action set it - confirmed live against a truly-fresh,
+        # zero-approvals submission (global_uses was 0 from the moment of insert). It could
+        # never have worked as an approval gate. superadmin_approved_at is a genuine new
+        # column, only ever set here, NULL everywhere else (including old rows) until this
+        # action runs. Falls back to the old update if the migration hasn't landed yet, so
+        # this endpoint doesn't start hard-failing before then - see COH-REVIEW-PLAN.md for
+        # the exact migration SQL Jono needs to run.
+        approved_at_iso = datetime.now(timezone.utc).isoformat()
+        try:
+            supabase.table("creature_submissions").update({
+                "is_globally_available": scope == "global",
+                "visibility_scope": scope,
+                "global_uses": 0,
+                "superadmin_approved_at": approved_at_iso,
+            }).eq("id", submission_id).execute()
+        except Exception as e:
+            logger.warning(f"[global_approve_creature] superadmin_approved_at column not available yet, falling back: {e}")
+            supabase.table("creature_submissions").update({
+                "is_globally_available": scope == "global",
+                "visibility_scope": scope,
+                "global_uses": 0,
+            }).eq("id", submission_id).execute()
         return {"success": True, "is_globally_available": scope == "global", "visibility_scope": scope}
     elif action == "reject":
         supabase.table("creature_submissions").update({
@@ -12629,13 +12672,20 @@ async def get_awaiting_global_approval(request: Request):
     False forever for any non-global scope (classroom/school/family) regardless of whether
     superadmin has already approved it - is_globally_available only ever means "is this in
     the World Gallery", not "has superadmin reviewed this". Confirmed live: 2 real, already
-    superadmin-approved submissions were still showing as "awaiting" here. global_uses is the
-    correct signal (same one get_eligible_creatures/start_creature now gate on) - NULL means
-    genuinely never reviewed, 0+ means superadmin already acted on it, regardless of scope."""
+    superadmin-approved submissions were still showing as "awaiting" here.
+    CORRECTED same day: first fix used global_uses as the signal - live-verified false, it
+    has a DB default of 0 and was never NULL to begin with (see get_eligible_creatures for
+    the full story). superadmin_approved_at is the real, genuine-new-column signal. This
+    endpoint is superadmin's own queue, not a student-facing safety gate, so if the
+    migration hasn't landed yet this falls back to the old (imperfect but non-crashing)
+    is_globally_available filter rather than erroring outright."""
     user = await get_current_user(request)
     if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
-    result = supabase.table("creature_submissions").select("*").eq("status", "approved").is_("global_uses", "null").execute()
+    try:
+        result = supabase.table("creature_submissions").select("*").eq("status", "approved").is_("superadmin_approved_at", "null").execute()
+    except Exception:
+        result = supabase.table("creature_submissions").select("*").eq("status", "approved").eq("is_globally_available", False).execute()
     # Real feature Aug 23 (item 4): same real-student-name resolution as
     # /creatures/pending and /creatures/my-submissions, so superadmin's final-approval
     # decision isn't made blind to which real child a creature is for either.
