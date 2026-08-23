@@ -215,5 +215,6 @@
   "original_creatures_sub": "These creatures are always available to collect",
   "student_creatures": "Student Creatures",
   "student_creatures_sub": "Made by students like you, around the world",
-  "wellbeing_private": "Private · just for you"
+  "wellbeing_private": "Private · just for you",
+  "countries_joined_teaser": "{count} countries have joined — keep submitting to unlock the map!"
 }

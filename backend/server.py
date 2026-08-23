@@ -2561,10 +2561,22 @@ async def get_students(request: Request):
         else:
             linked_map = {}
 
+        # Real bug fix Aug 23 (item 7): is_linked only ever checked parent_links - the
+        # OTHER real linking path, family_members.student_id (set by
+        # /family/members/{id}/link-student), was never checked here, so a student linked
+        # only that way would incorrectly show as not linked. _is_authorized_for_student
+        # already treats both as equally real; this now does too.
+        linked_via_family_members = set()
+        if own_ids:
+            fm_result = supabase.table("family_members").select("student_id").in_(
+                "student_id", list(own_ids)[:50]
+            ).execute()
+            linked_via_family_members = {f["student_id"] for f in (fm_result.data or []) if f.get("student_id")}
+
         # Add is_linked flag to own students only
         for s in own_students:
             link = linked_map.get(s["id"])
-            s["is_linked"] = link is not None
+            s["is_linked"] = link is not None or s["id"] in linked_via_family_members
             s["home_sharing_enabled"] = link.get("home_sharing_enabled", False) if link else False
             s["parent_user_id"] = link.get("parent_user_id") if link else None
 
@@ -7640,7 +7652,12 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
             "featured_until": featured_map.get(c["id"]),
             "country": c.get("country") if scope == "global" and c.get("country") in safe_countries else None,
         })
-    return {"creatures": result, "scope_pref": scope_pref, "has_classroom": bool(classroom_id)}
+    # Real feature Aug 23 (item 8): aggregate teaser count - "X countries have joined" -
+    # reuses safe_countries (already computed above, zero extra query) so it only ever
+    # counts countries that have genuinely cleared the same 5-contributor threshold that
+    # protects individual creature country reveals. Never leaks a below-threshold country by
+    # counting it - the whole point is showing momentum without ever risking identification.
+    return {"creatures": result, "scope_pref": scope_pref, "has_classroom": bool(classroom_id), "countries_joined": len(safe_countries)}
 
 @api_router.get("/students/{student_id}/creature-scope-pref")
 async def get_creature_scope_pref(student_id: str, request: Request):

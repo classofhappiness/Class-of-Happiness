@@ -98,7 +98,11 @@ export default function CreatureCollectionScreen() {
         style={[styles.card, { borderColor: EMOTION_COLORS[colour], borderWidth: item.is_active ? 2 : 1 }]}
         onPress={() => { setDetailColour(colour); setDetailEntry(item); }}
       >
-        <View style={styles.imgWrap}>
+        {/* Real fix Aug 23: the old CreatureCollection modal's grid used a per-colour tinted
+            circular background behind each creature (cColor + '25') - this was lost when
+            rebuilt as a flat grey box. Restored, alongside the movement animations already
+            brought back. */}
+        <View style={[styles.imgWrap, { backgroundColor: EMOTION_COLORS[colour] + '25' }]}>
           <AnimatedCreatureVisual
             zone={colour}
             size={64}

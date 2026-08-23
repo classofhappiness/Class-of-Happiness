@@ -23,9 +23,9 @@ import { PieChart, BarChart } from 'react-native-gifted-charts';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
-import { 
+import {
   parentApi, Student, zoneLogsApi, ZoneLog, analyticsApi,
-  familyApi, FamilyMember, FamilyZoneLog, authApiExtended, teacherApi, rewardsApi, linkedChildApi
+  familyApi, FamilyMember, FamilyZoneLog, authApiExtended, teacherApi, rewardsApi, linkedChildApi, creaturesApi
 } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 
@@ -552,6 +552,23 @@ export default function ParentDashboard() {
               };
             }
           } catch { /* no creature yet - use default */ }
+          // Real feature Aug 23 (item 5): the small family-member cards never showed active
+          // community (Family/Class/School/Global) creatures at all - only defaults, via
+          // rewardsApi.getCollection above. Same enrichment already built for
+          // student/select.tsx's bigger cards, applied here too so both surfaces are
+          // consistent.
+          try {
+            const myCreatures = await creaturesApi.getMyCreatures(linkedId);
+            const active: any[] = [];
+            Object.entries(myCreatures?.colours || {}).forEach(([colour, bucket]) => {
+              (bucket as any[]).forEach(entry => {
+                if (entry.type === 'community' && entry.is_active) active.push({ ...entry, colour });
+              });
+            });
+            if (active.length) {
+              creatureMap[m.id] = { ...(creatureMap[m.id] || {}), activeCommunity: active };
+            }
+          } catch { /* no community creature - fine, defaults still show */ }
         }
         // Give non-linked members a default creature
         if (!creatureMap[m.id]) {
@@ -1066,6 +1083,25 @@ export default function ParentDashboard() {
                           {(!memberCreatures[member.id]?.allCreatures?.length) && (
                             <Text style={{ fontSize:20 }}>{creatureEmoji}</Text>
                           )}
+                          {/* Real feature Aug 23 (item 5): active community creatures,
+                              matching the same icon treatment student/select.tsx already has. */}
+                          {(memberCreatures[member.id]?.activeCommunity || []).map((entry: any) => {
+                            const zoneColor = EMOTION_COLOURS[entry.colour as keyof typeof EMOTION_COLOURS] || '#5C6BC0';
+                            return (
+                              <View key={`community-${entry.id}`} style={{ width: 16, height: 16, borderRadius: 4, borderWidth: 1, borderColor: zoneColor, overflow: 'hidden', position: 'relative' }}>
+                                {entry.stage_image ? (
+                                  <Image source={{ uri: entry.stage_image }} style={{ width: '100%', height: '100%' }} />
+                                ) : (
+                                  <Text style={{ fontSize: 10, textAlign: 'center' }}>🐾</Text>
+                                )}
+                                {entry.is_complete && (
+                                  <View style={{ position: 'absolute', bottom: -1, right: -1, width: 8, height: 8, borderRadius: 4, backgroundColor: zoneColor, alignItems: 'center', justifyContent: 'center' }}>
+                                    <Text style={{ fontSize: 6, color: 'white', fontWeight: '900' }}>✓</Text>
+                                  </View>
+                                )}
+                              </View>
+                            );
+                          })}
                         </View>
                         <Text style={{ fontSize:8, color:'#5C6BC0', marginTop:2 }}>{t('my_creatures') || 'My Creatures'}</Text>
                       </TouchableOpacity>

@@ -416,31 +416,36 @@ export default function RewardsScreen() {
 
       {/* Action Buttons */}
       <View style={styles.buttonContainer}>
-        {/* Collection Button - real fix Aug 21: this used to open a modal (CreatureCollection)
-            fed by the old defaults-only /rewards/{id}/collection endpoint, a separate surface
-            from the community-creature collection screen reachable via World Creatures. Now
-            navigates to the same, unified "My Creatures" screen either path leads to. */}
-        <TouchableOpacity
-          style={styles.collectionButton}
-          onPress={() => {
-            playButtonFeedback();
-            router.push('/student/creatures');
-          }}
-        >
-          <MaterialIcons name="pets" size={24} color="#FFD700" />
-          <Text style={styles.collectionButtonText}>{t('my_creatures') || 'My Creatures'}</Text>
-        </TouchableOpacity>
+        {/* Real fix Aug 23: My Creatures and Find World Creatures used to stack as two
+            full-width buttons - Jono's ask was one row, side by side, half-width each, with
+            Continue staying the one full-width, biggest button below. */}
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          {/* real fix Aug 21: this used to open a modal (CreatureCollection) fed by the old
+              defaults-only /rewards/{id}/collection endpoint, a separate surface from the
+              community-creature collection screen reachable via World Creatures. Now
+              navigates to the same, unified "My Creatures" screen either path leads to. */}
+          <TouchableOpacity
+            style={[styles.collectionButton, { flex: 1, width: undefined }]}
+            onPress={() => {
+              playButtonFeedback();
+              router.push('/student/creatures');
+            }}
+          >
+            <MaterialIcons name="pets" size={20} color="#FFD700" />
+            <Text style={styles.collectionButtonText}>{t('my_creatures') || 'My Creatures'}</Text>
+          </TouchableOpacity>
 
-        {/* Real fix Aug 22: this used to be two buttons (Submit a Creature + World Creatures) -
-            redundant now that My Creatures (above) already surfaces both "Submit a Creature"
-            and "Find a New Creature". Collapsed to the one action that's genuinely useful as a
-            reward-page shortcut - jumping straight to browsing/starting a new creature. */}
-        <TouchableOpacity
-          style={{ backgroundColor: '#4CAF73', borderRadius: 50, paddingVertical: 10, marginTop: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
-          onPress={() => router.push('/student/world-creatures')}>
-          <Text style={{ fontSize: 14 }}>🌍</Text>
-          <Text style={{ color: 'white', fontWeight: '900', fontSize: 12 }}>{t('find_world_creatures') || 'Find World Creatures'}</Text>
-        </TouchableOpacity>
+          {/* real fix Aug 22: this used to be two buttons (Submit a Creature + World
+              Creatures) - redundant now that My Creatures (above) already surfaces both
+              "Submit a Creature" and "Find a New Creature". Collapsed to the one action
+              that's genuinely useful as a reward-page shortcut. */}
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: '#4CAF73', borderRadius: 16, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+            onPress={() => router.push('/student/world-creatures')}>
+            <Text style={{ fontSize: 14 }}>🌍</Text>
+            <Text style={{ color: 'white', fontWeight: '900', fontSize: 12 }}>{t('find_world_creatures') || 'Find World Creatures'}</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Continue Button */}
         {showContinue && (

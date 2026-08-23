@@ -392,7 +392,7 @@ export const creaturesApi = {
   // Real feature Aug 21 (part 2): now returns {creatures, scope_pref, has_classroom} instead
   // of a bare array, so the caller knows the student's current scope preference and whether
   // "classroom" should be labelled "My Family" (no classroom) vs "My Classroom".
-  getEligible: (studentId?: string): Promise<{ creatures: any[]; scope_pref: string; has_classroom: boolean }> =>
+  getEligible: (studentId?: string): Promise<{ creatures: any[]; scope_pref: string; has_classroom: boolean; countries_joined?: number }> =>
     apiRequest(studentId ? `/creatures/eligible?student_id=${studentId}` : '/creatures/eligible'),
 
   unlockStage: (submissionId: string, realStudentId?: string): Promise<any> =>

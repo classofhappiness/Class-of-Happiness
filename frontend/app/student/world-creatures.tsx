@@ -123,6 +123,10 @@ export default function GlobalCreaturesScreen() {
   const [scopePref, setScopePref] = useState<string>('any');
   const [hasClassroom, setHasClassroom] = useState(false);
   const [scopeChanging, setScopeChanging] = useState(false);
+  // Real feature Aug 23 (item 8): aggregate teaser - shows momentum toward the world map
+  // without ever revealing a specific below-threshold country. Jono confirmed he wants to
+  // keep the 5-contributor threshold as-is; this is purely additive.
+  const [countriesJoined, setCountriesJoined] = useState(0);
 
   const studentId = (currentStudent as any)?.student_id || currentStudent?.id;
 
@@ -132,6 +136,7 @@ export default function GlobalCreaturesScreen() {
       setCreatures(data?.creatures || []);
       setScopePref(data?.scope_pref || 'any');
       setHasClassroom(!!data?.has_classroom);
+      setCountriesJoined(data?.countries_joined || 0);
       if (studentId) {
         try {
           const activeData = await creaturesApi.getActiveCreatures(studentId);
@@ -211,6 +216,11 @@ export default function GlobalCreaturesScreen() {
     <View style={styles.container}>
       <TranslatedHeader title={t('world_creatures') || 'World Creatures'} showHome />
       <Text style={styles.subtitle}>{t('find_next_creature_subtitle') || 'Find your next creature to work toward'}</Text>
+      {countriesJoined > 0 && (
+        <Text style={styles.countryTeaser}>
+          🌍 {(t('countries_joined_teaser') || '{count} countries have joined — keep submitting to unlock the map!').replace('{count}', String(countriesJoined))}
+        </Text>
+      )}
       {studentId ? (
         <View style={styles.scopeRow}>
           {SCOPE_OPTIONS.map(o => (
@@ -262,6 +272,7 @@ export default function GlobalCreaturesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F7F8FA' },
   subtitle: { fontSize: 12, color: '#888', textAlign: 'center', marginTop: 4 },
+  countryTeaser: { fontSize: 11, color: '#7C5CBF', fontWeight: '700', textAlign: 'center', marginTop: 3 },
   scopeRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 4 },
   scopeBtn: { flex: 1, paddingVertical: 6, borderRadius: 50, backgroundColor: '#F0F0F0', alignItems: 'center' },
   scopeBtnActive: { backgroundColor: '#5C6BC0' },

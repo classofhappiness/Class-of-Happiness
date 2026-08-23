@@ -82,10 +82,19 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
                 <Text style={[s.itemEmoji, !isUnlocked && { opacity: 0.25 }]}>{item.emoji}</Text>
                 {!isUnlocked && <Text style={s.lockOverlay}>🔒</Text>}
                 <Text style={[s.itemName, !isUnlocked && s.itemNameLocked]} numberOfLines={2}>{item.name}</Text>
-                {isUnlocked && (
+                {isUnlocked ? (
                   <View style={[s.unlockedTag, { backgroundColor: color }]}>
                     <Text style={s.unlockedTagText}>✓</Text>
                   </View>
+                ) : (
+                  // Real fix Aug 23: the old modal showed how many points away each locked
+                  // item was (CreatureCollection.tsx's renderItemGrid) - lost when this was
+                  // rebuilt, restored here using the same unlocks_at_stage -> points mapping.
+                  <Text style={s.unlockHint}>
+                    {item.unlocks_at_stage === 1 ? '⭐ 25 pts' :
+                     item.unlocks_at_stage === 2 ? '⭐ 60 pts' :
+                     item.unlocks_at_stage === 3 ? '⭐ 120 pts' : '🔒'}
+                  </Text>
                 )}
               </View>
             );
@@ -193,4 +202,5 @@ const s = StyleSheet.create({
   itemNameLocked: { color: '#BBB' },
   unlockedTag: { marginTop: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
   unlockedTagText: { fontSize: 9, color: 'white', fontWeight: 'bold' },
+  unlockHint: { fontSize: 9, color: '#AAA', textAlign: 'center', marginTop: 2 },
 });

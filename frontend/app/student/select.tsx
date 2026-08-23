@@ -52,6 +52,12 @@ export default function StudentSelectScreen() {
   // community creatures (per /students/{id}/my-creatures, filtered to is_active community
   // entries) so they render alongside the defaults with the same tick/in-progress treatment.
   const [studentActiveCommunity, setStudentActiveCommunity] = useState<Record<string, any[]>>({});
+  // Real feature Aug 23 (item 6): the card only ever reflected default-creature completion
+  // status - a student with all 4 defaults done had no way to know there were new
+  // Family/Class/School/Global creatures they hadn't started yet. Counts eligible creatures
+  // (per /creatures/eligible, same real scope/classroom/school matching the browse screen
+  // uses) with zero progress so far.
+  const [studentNewEligibleCount, setStudentNewEligibleCount] = useState<Record<string, number>>({});
 
   // Hide default header and use custom translated header
   useLayoutEffect(() => {
@@ -146,6 +152,22 @@ export default function StudentSelectScreen() {
     }).catch(() => {});
   }, [students]);
 
+  useEffect(() => {
+    if (students.length === 0) return;
+    Promise.allSettled(
+      students.map(s => creaturesApi.getEligible(s.id).then(data => ({ id: s.id, data })))
+    ).then(results => {
+      const counts: Record<string, number> = {};
+      results.forEach(r => {
+        if (r.status !== 'fulfilled') return;
+        const { id, data } = r.value;
+        const notYetStarted = (data?.creatures || []).filter((c: any) => !c.my_stages_unlocked).length;
+        if (notYetStarted > 0) counts[id] = notYetStarted;
+      });
+      setStudentNewEligibleCount(counts);
+    }).catch(() => {});
+  }, [students]);
+
   const handleSelectStudent = useCallback((student: typeof students[0]) => {
     playSelectFeedback();
     setSelectedStudentId(student.id);
@@ -231,6 +253,11 @@ export default function StudentSelectScreen() {
           {allComplete && (
             <Text style={{ fontSize: 9, color: '#4CAF50', textAlign: 'center', marginBottom: 2, fontWeight: '600' }}>
               ✅ All creatures complete!
+            </Text>
+          )}
+          {!!studentNewEligibleCount[studentId] && (
+            <Text style={{ fontSize: 9, color: '#9C27B0', textAlign: 'center', marginBottom: 2, fontWeight: '700' }}>
+              🌟 New creatures to evolve!
             </Text>
           )}
           <View style={styles.collectedIcons}>
@@ -376,6 +403,17 @@ export default function StudentSelectScreen() {
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               delayLongPress={200}
             >
+              {/* Real feature Aug 23 (item 7): same "genuinely linked between a school and
+                  home account" indicator the Family Dashboard's cards already have
+                  (parent/dashboard.tsx's linkedBadge), added here so the teacher's side
+                  shows it too - disappears automatically since is_linked is computed fresh
+                  from real parent_links/family_members rows on every /students fetch, not a
+                  stored flag that could go stale if a link is removed. */}
+              {(student as any).is_linked && (
+                <View style={styles.linkedIndicator}>
+                  <MaterialIcons name="link" size={11} color="#4CAF50" />
+                </View>
+              )}
               <View style={styles.studentMain}>
                 {/* Selection indicator */}
                 {selectedStudentId === student.id && (
@@ -490,6 +528,19 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     borderWidth: 2,
     borderColor: 'transparent',
+    position: 'relative',
+  },
+  linkedIndicator: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#E8F5E9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
   },
   studentCardSelected: {
     borderColor: '#4CAF50',
