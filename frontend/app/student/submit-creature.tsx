@@ -60,20 +60,27 @@ export default function SubmitCreatureScreen() {
       try {
         const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
         const token = await AsyncStorage.getItem('session_token');
+        let resolved: { id: string; name: string; realStudentId: string | null }[] = [];
         if (user?.role === 'teacher') {
           const res = await fetch(`${BACKEND_URL}/api/students`, { headers: { 'Authorization': `Bearer ${token}` } });
           const data = await res.json();
           const list = Array.isArray(data) ? data : [];
-          setPickableStudents(list.map((s: any) => ({ id: s.id, name: s.name, realStudentId: s.id })));
+          resolved = list.map((s: any) => ({ id: s.id, name: s.name, realStudentId: s.id }));
         } else if (user?.role === 'parent') {
           const res = await fetch(`${BACKEND_URL}/api/family/members`, { headers: { 'Authorization': `Bearer ${token}` } });
           const data = await res.json();
           const list = Array.isArray(data) ? data : [];
-          setPickableStudents(
-            list.filter((m: any) => m.relationship === 'child')
-              .map((m: any) => ({ id: m.id, name: m.name, realStudentId: m.student_id || null }))
-          );
+          resolved = list.filter((m: any) => m.relationship === 'child')
+              .map((m: any) => ({ id: m.id, name: m.name, realStudentId: m.student_id || null }));
         }
+        setPickableStudents(resolved);
+        // Real bug fix Aug 23 (parent scope options): "Who made this?" was optional and easy
+        // to skip - if nothing was ever selected, submission-options never got a
+        // real_student_id to resolve against, so classroom/school options silently never
+        // appeared even for a school-linked child. Auto-select when there's exactly one
+        // choice (the common case - one child) so the real scope options resolve without an
+        // extra tap; still changeable, and still an active choice when there's more than one.
+        if (resolved.length === 1) setSelectedStudentId(resolved[0].id);
       } catch {}
     })();
   }, [user?.role]);
@@ -285,8 +292,16 @@ export default function SubmitCreatureScreen() {
   // SCOPE + COUNTRY SCREEN — real feature Aug 22 (item 1): who gets to see this creature, and
   // where it's from, chosen here rather than silently defaulted/inherited.
   if (step === 'scope') {
+    // Real bug fix Aug 23: the narrowest option ("classroom") used to only appear when
+    // has_classroom was true - meaning a parent submitting for a home-only family member
+    // (no classroom at all, the common case) only ever saw "Global", never a private option.
+    // It now always appears, relabeled "My Family" when there's no real classroom - matches
+    // the same contextual relabeling world-creatures.tsx's scope-preference picker already
+    // uses, and the backend now genuinely supports it (see get_eligible_creatures).
     const scopeOptions: { key: 'classroom'|'school'|'global'; label: string; hint: string }[] = [
-      ...(submissionOptions?.has_classroom ? [{ key: 'classroom' as const, label: '👥 My Classroom', hint: 'Only your own classroom can see and unlock it' }] : []),
+      submissionOptions?.has_classroom
+        ? { key: 'classroom', label: '👥 My Classroom', hint: 'Only your own classroom can see and unlock it' }
+        : { key: 'classroom', label: '👨‍👩‍👧 My Family', hint: 'Only your own family can see and unlock it' },
       ...(submissionOptions?.has_school ? [{ key: 'school' as const, label: '🏫 My Whole School', hint: (submissionOptions?.school_name ? `Everyone at ${submissionOptions.school_name}` : 'Everyone at your school') }] : []),
       { key: 'global', label: '🌍 Everyone, Everywhere', hint: 'Students at any school worldwide can see and unlock it' },
     ];
@@ -385,7 +400,7 @@ export default function SubmitCreatureScreen() {
         <Text style={s.label}>Name: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{name}</Text></Text>
         <Text style={s.label}>Emotion: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{emotion}</Text></Text>
         <Text style={s.label}>Code: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{code}</Text></Text>
-        <Text style={s.label}>Visible to: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{visibilityScope === 'classroom' ? 'My Classroom' : visibilityScope === 'school' ? 'My Whole School' : 'Everyone, Everywhere'}</Text></Text>
+        <Text style={s.label}>Visible to: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{visibilityScope === 'classroom' ? (submissionOptions?.has_classroom ? 'My Classroom' : 'My Family') : visibilityScope === 'school' ? 'My Whole School' : 'Everyone, Everywhere'}</Text></Text>
         <Text style={s.label}>Country: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{country ? `${countryFlagEmoji(country)} ${COUNTRIES.find(c => c.code === country)?.name || country}` : '—'}</Text></Text>
         <View style={s.stageGrid}>
           {photos.map((p,i) => p && <Image key={i} source={{ uri:p }} style={s.reviewPhoto} />)}

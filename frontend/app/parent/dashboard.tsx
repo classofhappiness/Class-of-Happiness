@@ -29,7 +29,6 @@ import {
 } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 
-import { CreatureCollection } from '../../src/components/CreatureCollection';
 
 // Pick image with camera or library choice
 const pickImageWithChoice = (
@@ -225,8 +224,6 @@ export default function ParentDashboard() {
   const [checkInsExpanded, setCheckInsExpanded] = useState(false);
 
   const [tipDismissed, setTipDismissed] = useState(false);
-  const [showCollection, setShowCollection] = useState(false);
-  const [collectionMember, setCollectionMember] = useState<any>(null);
   // removed duplicate checkInsExpanded state — using checkInsExpanded
   const [recentLogs, setRecentLogs] = useState<(ZoneLog | FamilyZoneLog)[]>([]);
   
@@ -1036,8 +1033,29 @@ export default function ParentDashboard() {
                         style={{ marginTop: 4, alignItems: 'center', width: '100%', borderWidth:1, borderColor:'#C5CAE9', borderRadius:8, paddingVertical:3, backgroundColor:'#F3F4FF', minHeight:28 }}
                         onPress={(e) => {
                           e.stopPropagation?.();
-                          setCollectionMember(member);
-                          setShowCollection(true);
+                          // Real bug fix Aug 23: this used to open the old defaults-only
+                          // CreatureCollection modal - the same disconnected-destination bug
+                          // already fixed once on student/select.tsx's card button, just never
+                          // fixed here too. Now routes to the real unified My Creatures screen,
+                          // same setCurrentStudent enrichment pattern already used by
+                          // handleMemberCheckin above (linked child -> real student record;
+                          // non-linked -> family-member wrapper with the resolved id).
+                          const linkedStudent = linkedChildren.find((s: any) => s.name === member.name || s.id === (member as any).student_id);
+                          if (linkedStudent) {
+                            setCurrentStudent(linkedStudent);
+                          } else {
+                            setCurrentStudent({
+                              id: (member as any).student_id || member.id,
+                              name: member.name,
+                              avatar_type: member.avatar_type || 'preset',
+                              avatar_preset: member.avatar_preset || 'bear',
+                              avatar_custom: member.avatar_custom || null,
+                              is_family_member: true,
+                              family_member_id: member.id,
+                              student_id: (member as any).student_id,
+                            } as any);
+                          }
+                          router.push('/student/creatures');
                         }}
                       >
                         <View style={{ flexDirection:'row', justifyContent:'center', flexWrap:'wrap', gap:2 }}>
@@ -1389,23 +1407,6 @@ export default function ParentDashboard() {
           </>
       </ScrollView>
 
-      {/* Creature Collection Modal */}
-      {showCollection && collectionMember && (
-        <CreatureCollection
-          visible={showCollection}
-          onClose={() => { setShowCollection(false); setCollectionMember(null); }}
-          collectedCreatures={memberCreatures[collectionMember.id]?.allCreatures || childCreatures[collectionMember.id]?.allCreatures || []}
-          currentCreature={memberCreatures[collectionMember.id]?.currentCreature || (memberCreatures[collectionMember.id]?.allCreatures?.[0]) || null}
-          currentStage={memberCreatures[collectionMember.id]?.currentStage || 0}
-          currentPoints={memberCreatures[collectionMember.id]?.totalPoints || 0}
-          totalCreatures={4}
-          unlockedMoves={[]}
-          unlockedOutfits={[]}
-          unlockedFoods={[]}
-          unlockedHomes={[]}
-          allCreatures={memberCreatures[collectionMember.id]?.allCreatures || childCreatures[collectionMember.id]?.allCreatures || []}
-        />
-      )}
 
       {/* Link Child Modal */}
       <Modal visible={showLinkModal} transparent animationType="slide" onRequestClose={() => setShowLinkModal(false)}>

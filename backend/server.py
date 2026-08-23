@@ -7246,17 +7246,19 @@ async def submit_creature(request: Request):
 
     # Real feature Aug 22 (item 1): submitter-chosen scope + country, resolved server-side
     # against the SAME real classroom/school data _resolve_student_classroom_school just
-    # looked up - never trusted from the client directly, so a stale/tampered client can't
-    # request "classroom" scope for a submission with no real classroom behind it. Requested
-    # scope is clamped down to the widest option the real data actually supports; this
-    # becomes the submission's initial visibility_scope, which superadmin's existing
-    # global-approve gate can still freely override later - same two-gate authority as
-    # before, just no longer silently defaulting to "school" with no submitter input at all.
+    # looked up - never trusted from the client directly. Requested scope is clamped down to
+    # the widest option the real data actually supports; this becomes the submission's
+    # initial visibility_scope, which superadmin's existing global-approve gate can still
+    # freely override later - same two-gate authority as before, just no longer silently
+    # defaulting to "school" with no submitter input at all.
     requested_scope = (body.get("visibility_scope") or "school").lower()
     if requested_scope not in ("classroom", "school", "global"):
         requested_scope = "school"
-    if requested_scope == "classroom" and not classroom_id:
-        requested_scope = "school" if school_name_resolved else "global"
+    # Real bug fix Aug 23: "classroom" used to be downgraded to "school"/"global" whenever
+    # there was no real classroom_id - which meant it was NEVER a real option for a home-only
+    # family submission (the common parent case). "classroom" is now always valid: real
+    # classroom match when classroom_id exists, family-private match (see
+    # get_eligible_creatures) when it doesn't - so no downgrade needed here any more.
     if requested_scope == "school" and not school_name_resolved:
         requested_scope = "global"
 
@@ -7546,7 +7548,7 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
             scope_pref = student_data.get("creature_scope_pref") or "any"
 
     base_fields = ("id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,"
-                   "global_uses,approved_at,visibility_scope,school_name,classroom_id,country")
+                   "global_uses,approved_at,visibility_scope,school_name,classroom_id,country,student_id")
     rows = supabase.table("creature_submissions").select(base_fields).eq("status", "approved").execute()
     all_approved = rows.data or []
 
@@ -7580,6 +7582,19 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
         elif scope == "school" and school_name and c.get("school_name") == school_name:
             eligible.append(c)
         elif scope == "classroom" and classroom_id and c.get("classroom_id") == classroom_id:
+            eligible.append(c)
+        # Real bug fix Aug 23 (parent scope options): "classroom" scope only ever matched a
+        # real classroom_id - for a home-only family member (no classroom at all, the common
+        # parent case), a "classroom"-scoped submission was eligible to NOBODY, not even the
+        # family that made it, since `classroom_id and ...` short-circuits false whenever the
+        # browsing student has none either. This is the real reason parents only ever saw
+        # "Global" in the submission-time scope picker - "classroom"/"Family" scope was
+        # silently non-functional for exactly the account type it would matter most for.
+        # Fix: when NEITHER side has a real classroom, "classroom" scope now means
+        # family-private - eligible only to the same account that submitted it. Deliberately
+        # narrow (this one login, not "every parent linked to this child") - matches the
+        # plain reading of "family" for an unlinked, home-only household.
+        elif scope == "classroom" and not classroom_id and not c.get("classroom_id") and c.get("student_id") == user["user_id"]:
             eligible.append(c)
 
     creature_ids = [c["id"] for c in eligible]
