@@ -2903,7 +2903,12 @@ async def get_helpers(feeling_colour: Optional[str] = None, student_id: Optional
 VOICE_CLIP_KEYS = ["blue", "green", "yellow", "red"] + [
     f"{zone}_{n}" for zone in ("blue", "green", "yellow", "red") for n in range(1, 7)
 ]
-VOICE_CLIP_LANGUAGES = ("en", "pt")  # only these 2 have real recordings so far
+VOICE_CLIP_LANGUAGES = ("en", "pt", "es")  # es partial rollout Aug 23: only the 4 colour
+# names (blue/green/yellow/red) have real recordings so far - the 24 helpers and other
+# clips don't exist yet. Safe by design: get_voice_clips only ever returns keys that
+# genuinely have a file in Storage, and the frontend already no-ops silently for any
+# missing key (same code path as pt's own partial rollout), so this doesn't need special
+# handling - it's the same mechanism already proven for pt.
 
 @api_router.get("/voice-clips")
 async def get_voice_clips(language: str = "en"):
