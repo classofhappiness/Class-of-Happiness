@@ -171,11 +171,8 @@ export default function RewardsScreen() {
 
       // Real feature Aug 23: Bonus Items celebration - triggered at the same real
       // stage-transition event as the evolution sound above, not chained off
-      // EvolutionAnimation's onComplete (that modal's own mount condition requires
-      // rewardsData?.evolution_info, which this default-creature response never actually
-      // sets - a separate, pre-existing gap, out of scope here). Delayed further than the
-      // evolution sound so the two don't visually stack if EvolutionAnimation does happen
-      // to show.
+      // EvolutionAnimation's onComplete. Delayed further than the evolution sound so the
+      // two don't visually stack.
       if (response.evolved && response.newly_unlocked && response.newly_unlocked.length > 0) {
         setTimeout(() => {
           setCelebrationItems(response.newly_unlocked as CelebrationItem[]);
@@ -486,8 +483,12 @@ export default function RewardsScreen() {
         )}
       </View>
 
-      {/* Evolution Animation Modal */}
-      {showEvolution && rewardsData?.evolution_info && (
+      {/* Evolution Animation Modal — real fix Aug 23: this was gated on rewardsData?.evolution_info,
+          a field add_points never actually returns, so the modal never showed for anyone. The
+          real requirement is that current_creature has a stages array (only default creatures
+          do — community creatures don't and would crash EvolutionAnimation's stages![fromStage]
+          lookup), which this gate now checks directly. */}
+      {showEvolution && rewardsData?.current_creature?.stages && (
         <EvolutionAnimation
           visible={showEvolution}
           creature={rewardsData?.current_creature}

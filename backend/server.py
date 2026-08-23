@@ -6707,9 +6707,19 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
         t2 = supabase.table("users").select("user_id").eq("school_name", real_school_name).eq("role", "teacher").execute() if real_school_name else type("o",(object,),{"data":[]})()
         teacher_ids = list({t["user_id"] for t in (t1.data or []) + (t2.data or [])})
         display_name = real_school_name or "My School"
+    elif school_name:
+        # Real bug fix Aug 23 (item 4): superadmin/admin passing a specific school_name
+        # previously only changed the PDF's display_name (title) - teacher_ids stayed the
+        # ALL-teachers-system-wide list from the branch below, so a per-school export would
+        # have shown that one school's name as the title while every school's data fed the
+        # actual numbers. Nothing called this with school_name before this round's per-school
+        # export button existed, so the bug was real but never yet triggered.
+        t = supabase.table("users").select("user_id").eq("school_name", school_name).in_("role", ["teacher", "school_admin"]).execute()
+        teacher_ids = [u["user_id"] for u in (t.data or [])]
+        display_name = school_name
     else:
         teacher_ids = [u["user_id"] for u in (supabase.table("users").select("user_id").in_("role", ["teacher","school_admin"]).execute().data or [])]
-        display_name = school_name or "All Schools"
+        display_name = "All Schools"
 
     classroom_ids = [c["id"] for c in (supabase.table("classrooms").select("id").in_("user_id", teacher_ids).execute().data or [])] if teacher_ids else []
     students = supabase.table("students").select("id").in_("classroom_id", classroom_ids).execute().data or [] if classroom_ids else []
@@ -7771,6 +7781,51 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
     # protects individual creature country reveals. Never leaks a below-threshold country by
     # counting it - the whole point is showing momentum without ever risking identification.
     return {"creatures": result, "scope_pref": scope_pref, "has_classroom": bool(classroom_id), "countries_joined": len(safe_countries)}
+
+@api_router.get("/creatures/country-leaderboard")
+async def get_creature_country_leaderboard(request: Request):
+    """Real feature Aug 23 (item 3, the deferred "creatures per country" leaderboard/graph
+    from item 5 of the Aug 22 round - see COH-REVIEW-PLAN.md): student-facing UI on the exact
+    same k-anonymity computation already proven for get_eligible_creatures' countries_joined
+    teaser and portal100.html's world map (MIN_THRESHOLD=5). Global-scope, superadmin-approved
+    creatures only, counted by country. A country below the threshold is never shown
+    individually - not even dropped, since a dropped count would still shrink the visible
+    total in a way that could be reasoned about - it's folded into a single "Rest of World"
+    bucket instead, so the leaderboard's total always matches the real worldwide count with
+    zero individual-identification risk, resolving Jono's "bucket sub-5 into rest of world"
+    decision."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        rows = supabase.table("creature_submissions").select(
+            "country,visibility_scope,superadmin_approved_at"
+        ).eq("status", "approved").execute()
+        approved = rows.data or []
+    except Exception:
+        approved = []
+
+    from collections import Counter
+    counts = Counter(
+        c.get("country") for c in approved
+        if c.get("superadmin_approved_at")
+        and (c.get("visibility_scope") or "global") == "global"
+        and c.get("country")
+    )
+
+    THRESHOLD = 5
+    leaderboard = [{"country": country, "count": count} for country, count in counts.items() if count >= THRESHOLD]
+    leaderboard.sort(key=lambda x: -x["count"])
+    rest_of_world = sum(count for count in counts.values() if count < THRESHOLD)
+    if rest_of_world > 0:
+        leaderboard.append({"country": "Rest of World", "count": rest_of_world})
+
+    return {
+        "leaderboard": leaderboard,
+        "total_countries": len(counts),
+        "total_creatures": sum(counts.values()),
+    }
 
 @api_router.get("/students/{student_id}/creature-scope-pref")
 async def get_creature_scope_pref(student_id: str, request: Request):
@@ -12923,14 +12978,17 @@ async def get_creature_analytics(request: Request):
         if sid: user_counts[sid] = user_counts.get(sid, 0) + 1
     top_user_ids = sorted(user_counts.items(), key=lambda x: x[1], reverse=True)[:10]
 
+    # Real fix Aug 23 (item 12): this was one users-table query per unique student with any
+    # fully-completed creature - unbounded, scaling with total platform-wide unlocks rather
+    # than the top 10 actually returned. Single batched query instead, same result shape.
+    all_sids = list(user_counts.keys())
+    user_rows = supabase.table("users").select("user_id,name,school_name").in_("user_id", all_sids).execute().data if all_sids else []
+    user_school_cache = {r["user_id"]: (r.get("name", ""), r.get("school_name", "")) for r in (user_rows or [])}
+
     top_users = []
     school_counts = {}
-    user_school_cache = {}
     for sid, count in user_counts.items():
-        if sid not in user_school_cache:
-            ur = supabase.table("users").select("name,school_name").eq("user_id", sid).execute()
-            user_school_cache[sid] = (ur.data[0].get("name",""), ur.data[0].get("school_name","")) if ur.data else ("", "")
-        name, school = user_school_cache[sid]
+        name, school = user_school_cache.get(sid, ("", ""))
         if school:
             school_counts[school] = school_counts.get(school, 0) + count
 

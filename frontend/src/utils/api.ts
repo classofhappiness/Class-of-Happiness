@@ -427,6 +427,11 @@ export const creaturesApi = {
 
   getMyCreatures: (studentId: string): Promise<{ colours: Record<string, any[]>; total_collected: number }> =>
     apiRequest(`/students/${studentId}/my-creatures`),
+
+  // Real feature Aug 23 (item 3): "creatures per country" leaderboard - same 5-contributor
+  // threshold as countries_joined, sub-threshold countries bucketed into "Rest of World".
+  getCountryLeaderboard: (): Promise<{ leaderboard: { country: string; count: number }[]; total_countries: number; total_creatures: number }> =>
+    apiRequest('/creatures/country-leaderboard'),
 };
 
 // Resources API
