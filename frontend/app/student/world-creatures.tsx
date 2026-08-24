@@ -12,6 +12,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, ActivityIndicator, RefreshControl, Alert, useWindowDimensions, Animated } from 'react-native';
 import { useRouter } from 'expo-router';
+import { MaterialIcons } from '@expo/vector-icons';
 import { creaturesApi } from '../../src/utils/api';
 import { useApp } from '../../src/context/AppContext';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
@@ -50,7 +51,7 @@ function CreatureCard({
 }: {
   item: any; isActive: boolean; canStart: boolean; starting: boolean; onStart: () => void; cardWidth: number;
 }) {
-  const { t } = useApp();
+  const { t, currentStudent } = useApp();
   const [previewStage, setPreviewStage] = useState(1);
   const fullyEvolved = (item.my_stages_unlocked || 0) >= 4;
   // Real feature Aug 22 (item 2): restored the old CreatureCollection modal's real per-zone
@@ -72,46 +73,71 @@ function CreatureCard({
   const displayStage = fullyEvolved ? 4 : previewStage;
   const imgUrl = item[`stage${displayStage}_url`] || item.stage1_url;
   const expiry = formatExpiry(item.featured_until);
+  // Real feature Aug 24 (item 1, free-tier collection cap): item.locked comes straight from
+  // /creatures/eligible - a free-tier account already has one fully-evolved creature for this
+  // colour, so this one is shown (not hidden, per Jono's spec) but faded and non-interactive.
+  // Deliberately no "Subscribe" button in the upsell itself - a kid could be the one tapping
+  // this card, not the parent/teacher who'd actually decide to subscribe.
+  const locked = !!item.locked;
+  const showUpsell = () => {
+    Alert.alert(
+      '🔒 Locked',
+      `${(currentStudent as any)?.name || 'This student'} has already fully evolved their free ${item.emotion_colour} creature. Subscribing unlocks unlimited community creatures for every colour.`,
+      [{ text: 'OK' }]
+    );
+  };
 
   return (
-    <View style={[styles.card, { width: cardWidth, borderTopColor: EMOTION_COLORS[item.emotion_colour], borderTopWidth: 3 }]}>
-      <Animated.View style={[styles.imgWrap, { transform: bounceTransform }]}>
-        <Image source={{ uri: imgUrl }} style={styles.creatureImg} />
-        {!fullyEvolved && (
-          <View style={styles.previewBadge}>
-            <Text style={styles.previewBadgeText}>👀 {t('preview') || 'Preview'}</Text>
-          </View>
-        )}
-      </Animated.View>
-      <View style={styles.cardBody}>
-        <Text style={styles.creatureName} numberOfLines={1}>{item.creature_name}</Text>
-        <View style={styles.metaRow}>
-          {item.classroom_name ? <Text style={styles.metaTag} numberOfLines={1}>🏫 {item.classroom_name}</Text> : null}
-          {item.country ? <Text style={styles.metaTag} numberOfLines={1}>🌍 {item.country}</Text> : null}
+    <View style={[styles.card, { width: cardWidth, borderTopColor: EMOTION_COLORS[item.emotion_colour], borderTopWidth: 3 }, locked && styles.cardLocked]}>
+      <TouchableOpacity activeOpacity={locked ? 0.8 : 1} onPress={locked ? showUpsell : undefined} disabled={!locked}>
+        <Animated.View style={[styles.imgWrap, { transform: bounceTransform }]}>
+          <Image source={{ uri: imgUrl }} style={[styles.creatureImg, locked && styles.creatureImgLocked]} />
+          {locked ? (
+            <View style={styles.lockOverlay}>
+              <MaterialIcons name="lock" size={28} color="white" />
+            </View>
+          ) : !fullyEvolved && (
+            <View style={styles.previewBadge}>
+              <Text style={styles.previewBadgeText}>👀 {t('preview') || 'Preview'}</Text>
+            </View>
+          )}
+        </Animated.View>
+        <View style={styles.cardBody}>
+          <Text style={[styles.creatureName, locked && styles.textLocked]} numberOfLines={1}>{item.creature_name}</Text>
+          {locked ? (
+            <Text style={styles.lockedHint} numberOfLines={2}>Free plan limit reached for {item.emotion_colour} — tap to learn more</Text>
+          ) : (
+            <>
+              <View style={styles.metaRow}>
+                {item.classroom_name ? <Text style={styles.metaTag} numberOfLines={1}>🏫 {item.classroom_name}</Text> : null}
+                {item.country ? <Text style={styles.metaTag} numberOfLines={1}>🌍 {item.country}</Text> : null}
+              </View>
+              {expiry ? <Text style={styles.expiryTag}>⏳ {(t('available_until') || 'Available until')} {expiry}</Text> : null}
+              <View style={styles.progressRow}>
+                {[1, 2, 3, 4].map(s => (
+                  <View key={s} style={[styles.progressDot, { backgroundColor: (item.my_stages_unlocked || 0) >= s ? EMOTION_COLORS[item.emotion_colour] : '#E5E5E5' }]} />
+                ))}
+              </View>
+              {fullyEvolved ? (
+                <Text style={styles.fullyEvolved} numberOfLines={1}>🏆 {t('fully_evolved') || 'Fully evolved!'}</Text>
+              ) : isActive ? (
+                <Text style={styles.activeHint} numberOfLines={1}>{t('active_checkin_hint') || '★ Active — check in to grow!'}</Text>
+              ) : canStart ? (
+                <TouchableOpacity
+                  disabled={starting}
+                  onPress={onStart}
+                  style={[styles.unlockBtn, { backgroundColor: EMOTION_COLORS[item.emotion_colour] }]}>
+                  {starting ? <ActivityIndicator size="small" color="white" /> : (
+                    <Text style={styles.unlockBtnText}>{t('set_as_active') || 'Set as Active'}</Text>
+                  )}
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.lockedHint} numberOfLines={2}>{(t('finish_creature_first') || 'Finish your {colour} creature first').replace('{colour}', item.emotion_colour)}</Text>
+              )}
+            </>
+          )}
         </View>
-        {expiry ? <Text style={styles.expiryTag}>⏳ {(t('available_until') || 'Available until')} {expiry}</Text> : null}
-        <View style={styles.progressRow}>
-          {[1, 2, 3, 4].map(s => (
-            <View key={s} style={[styles.progressDot, { backgroundColor: (item.my_stages_unlocked || 0) >= s ? EMOTION_COLORS[item.emotion_colour] : '#E5E5E5' }]} />
-          ))}
-        </View>
-        {fullyEvolved ? (
-          <Text style={styles.fullyEvolved} numberOfLines={1}>🏆 {t('fully_evolved') || 'Fully evolved!'}</Text>
-        ) : isActive ? (
-          <Text style={styles.activeHint} numberOfLines={1}>{t('active_checkin_hint') || '★ Active — check in to grow!'}</Text>
-        ) : canStart ? (
-          <TouchableOpacity
-            disabled={starting}
-            onPress={onStart}
-            style={[styles.unlockBtn, { backgroundColor: EMOTION_COLORS[item.emotion_colour] }]}>
-            {starting ? <ActivityIndicator size="small" color="white" /> : (
-              <Text style={styles.unlockBtnText}>{t('set_as_active') || 'Set as Active'}</Text>
-            )}
-          </TouchableOpacity>
-        ) : (
-          <Text style={styles.lockedHint} numberOfLines={2}>{(t('finish_creature_first') || 'Finish your {colour} creature first').replace('{colour}', item.emotion_colour)}</Text>
-        )}
-      </View>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -210,7 +236,17 @@ export default function GlobalCreaturesScreen() {
       Alert.alert(t('unlocked') || 'Started!', res?.message || `${item.creature_name} is now your active creature!`);
       await load();
     } catch (e: any) {
-      Alert.alert(t('error') || 'Error', e?.message || 'Could not set this creature as active right now.');
+      const msg = e?.message || '';
+      // Real feature Aug 24 (item 1): defensive catch-all for the free-tier collection cap -
+      // the card itself should already show as locked before this is ever reachable, but a
+      // stale list (loaded before crossing the cap) could still let a tap through. Same
+      // no-subscribe-button, informational-only treatment as the locked card itself.
+      if (msg.startsWith('free_tier_limit|')) {
+        Alert.alert('🔒 Locked', msg.split('|')[1] || 'Free plan is limited to one fully-evolved creature per colour.', [{ text: 'OK' }]);
+        await load();
+      } else {
+        Alert.alert(t('error') || 'Error', msg || 'Could not set this creature as active right now.');
+      }
     }
     setStartingId(null);
   };
@@ -349,12 +385,16 @@ const styles = StyleSheet.create({
   filterText: { fontSize: 12, fontWeight: '800', color: '#666' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' },
   card: { backgroundColor: 'white', borderRadius: 14, overflow: 'hidden', marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  cardLocked: { opacity: 0.6 },
   imgWrap: { width: '100%', aspectRatio: 1.1, backgroundColor: '#F5F5F5' },
   creatureImg: { width: '100%', height: '100%' },
+  creatureImgLocked: { opacity: 0.4 },
+  lockOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,.35)', alignItems: 'center', justifyContent: 'center' },
   previewBadge: { position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(0,0,0,.55)', borderRadius: 50, paddingHorizontal: 8, paddingVertical: 3 },
   previewBadgeText: { color: 'white', fontSize: 9, fontWeight: '800' },
   cardBody: { padding: 8 },
   creatureName: { fontSize: 12, fontWeight: '900', color: '#1A1A2E', marginBottom: 3 },
+  textLocked: { color: '#9CA3AF' },
   metaRow: { marginBottom: 2 },
   metaTag: { fontSize: 9, color: '#9CA3AF', fontWeight: '700' },
   expiryTag: { fontSize: 9, color: '#B8860B', fontWeight: '800', marginBottom: 3 },

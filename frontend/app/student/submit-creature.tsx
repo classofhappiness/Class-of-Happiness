@@ -208,6 +208,18 @@ export default function SubmitCreatureScreen() {
       Alert.alert('🎉 Submitted!', 'Your creature is waiting for approval from your teacher or parent!',
         [{ text: 'OK', onPress: () => router.back() }]);
     } catch (err: any) {
+      // Real feature Aug 24 (item 2, free-tier submission cap): same free_tier_limit pattern
+      // already used elsewhere (profiles/create.tsx, teacher/checkin.tsx, etc.) - a real
+      // upgrade prompt instead of the generic error, since this one's an intentional limit,
+      // not a bug.
+      const msg = err.message || '';
+      if (msg.startsWith('free_tier_limit|')) {
+        Alert.alert('Free Plan Limit Reached', msg.split('|')[1] || 'Upgrade for unlimited creature submissions.', [
+          { text: 'Not Now', style: 'cancel' },
+          { text: 'See Plans', onPress: () => router.push('/subscription') },
+        ]);
+        return;
+      }
       Alert.alert('Error', `${err.message || 'Please try again.'}\n\nURL used: ${API_URL}/api/creatures/submit`);
     } finally { setUploading(false); }
   };

@@ -3898,6 +3898,28 @@ def _creature_unlocks_for(user_id: str, real_student_id: Optional[str], creature
         q = q.in_("creature_id", creature_ids)
     return q.execute()
 
+def _free_tier_colour_locks(user_id: str, real_student_id: Optional[str]) -> dict:
+    """Real feature Aug 24 (item 1, free-tier collection cap): for a given student, which
+    colours already have one fully-evolved (stages_unlocked>=4) community creature - once a
+    colour appears here, no OTHER creature of that same colour should be startable/selectable
+    for a free-tier account, per Jono's spec (one fully-evolved community creature per colour,
+    ever, pooled per real student). Returns {colour: creature_id} for the creature that used
+    up each colour's one free slot. Reuses _creature_unlocks_for's own real_student_id-first,
+    account-level-fallback resolution, so this degrades the same way every other
+    real_student_id-aware check in this file already does when that data isn't available for
+    a given row."""
+    unlocks_r = _creature_unlocks_for(user_id, real_student_id)
+    fully_evolved_ids = [u["creature_id"] for u in (unlocks_r.data or []) if u.get("stages_unlocked", 0) >= 4]
+    if not fully_evolved_ids:
+        return {}
+    creatures_r = supabase.table("creature_submissions").select("id,emotion_colour").in_("id", fully_evolved_ids).execute()
+    locks = {}
+    for c in (creatures_r.data or []):
+        colour = c.get("emotion_colour")
+        if colour and colour not in locks:
+            locks[colour] = c["id"]
+    return locks
+
 def _resolve_student_classroom_school(student_data: dict):
     """Real feature Aug 21: given a students row, resolve (classroom_id, school_name) for
     creature-eligibility matching. school_name comes from the classroom owner (teacher)'s
@@ -4001,6 +4023,36 @@ def _parent_is_school_covered(user: dict) -> bool:
     except Exception as e:
         logger.warning(f"_parent_is_school_covered check failed for {user.get('user_id')}: {e}")
         return False
+
+def _is_genuinely_free_tier(user: dict) -> bool:
+    """Real feature Aug 24 (creature free-tier caps): every existing free_tier_limit check in
+    this file (students/classrooms/children/reports/family-strategies) treats ANY
+    subscription_status other than 'none'/'free' as "not free" - including a trial or paid
+    plan that has genuinely EXPIRED, since nothing ever flips subscription_status back once
+    set (same root cause already found and fixed on the subscription screen's Subscribe
+    button, Aug 23). A lapsed account would incorrectly dodge every existing cap forever.
+    Per Jono's explicit decision, the new creature caps check real expiry instead - this is a
+    deliberate, acknowledged divergence from the older checks, not an oversight; the older
+    ones are flagged as a separate future fix, not silently copied here.
+    Also respects the same school-coverage bypass every other free-tier check uses, so a
+    teacher/parent whose school pays is never capped just because their own personal
+    subscription_status says otherwise."""
+    sub_status = user.get("subscription_status") or "none"
+    now = datetime.now(timezone.utc)
+    if sub_status == "active":
+        exp = user.get("subscription_expires_at")
+        if not exp or datetime.fromisoformat(exp.replace("Z", "+00:00")) > now:
+            return False  # genuinely active, not free tier
+    elif sub_status == "trial":
+        start = user.get("trial_started_at")
+        if start and (now - datetime.fromisoformat(start.replace("Z", "+00:00"))) <= timedelta(days=TRIAL_DURATION_DAYS):
+            return False  # genuinely still in a valid trial, not free tier
+    role = user.get("role")
+    if role == "teacher" and _teacher_is_school_covered(user):
+        return False
+    if role == "parent" and _parent_is_school_covered(user):
+        return False
+    return True
 
 @api_router.get("/parent/coverage-status")
 async def get_parent_coverage_status(request: Request):
@@ -7290,6 +7342,19 @@ async def submit_creature(request: Request):
     if existing.data:
         raise HTTPException(status_code=400, detail=f"You already have a {emotion} creature submitted or approved")
 
+    # Real feature Aug 24 (item 2, free-tier submission cap): mirrors the existing
+    # free_tier_limit pattern used for students/classrooms/children - free accounts get 2
+    # total submission tries, any status (Jono's explicit call: a rejection still counts as
+    # a used try, not a free retry) across every colour/scope combined.
+    if _is_genuinely_free_tier(user):
+        submit_count = supabase.table("creature_submissions").select("id", count="exact").eq("student_id", user["user_id"]).execute()
+        total_submitted = submit_count.count or len(submit_count.data or [])
+        if total_submitted >= 2:
+            raise HTTPException(
+                status_code=403,
+                detail="free_tier_limit|Free plan is limited to 2 creature submissions. Upgrade for unlimited creature submissions."
+            )
+
     # Real fix Aug 21: "student_id" above has always actually been the SUBMITTING ACCOUNT's
     # own user_id (teacher or parent), never a real students.id - confirmed live, e.g. a
     # real "approved" row's student_id resolves to a users row with role=teacher, not any
@@ -7764,9 +7829,16 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
             if fid:
                 featured_map[fid] = f.get("active_until")
 
+    # Real feature Aug 24 (item 1, free-tier collection cap): locked creatures still need to
+    # show up here (faded, not hidden - Jono's explicit spec) rather than being filtered out,
+    # so the frontend gets a real "locked" flag per creature instead of a bare exclusion.
+    # Computed once per request, not per-creature - _free_tier_colour_locks is one query pair.
+    free_tier_locks = _free_tier_colour_locks(user["user_id"], authorized_student_id) if _is_genuinely_free_tier(user) else {}
+
     result = []
     for c in eligible:
         scope = c.get("visibility_scope") or "global"
+        locked_id = free_tier_locks.get(c["emotion_colour"])
         result.append({
             "id": c["id"],
             "creature_name": c["creature_name"],
@@ -7781,6 +7853,7 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
             "my_stages_unlocked": my_unlocks.get(c["id"], 0),
             "featured_until": featured_map.get(c["id"]),
             "country": c.get("country") if scope == "global" and c.get("country") in safe_countries else None,
+            "locked": bool(locked_id) and locked_id != c["id"],
         })
     # Real feature Aug 23 (item 8): aggregate teaser count - "X countries have joined" -
     # reuses safe_countries (already computed above, zero extra query) so it only ever
@@ -8059,6 +8132,21 @@ async def start_creature(submission_id: str, request: Request):
             status_code=400,
             detail="You need to fully evolve your current creature for this colour before starting a new one."
         )
+
+    # Real feature Aug 24 (item 1, free-tier collection cap): the check just above already
+    # lets a student cycle through creatures for a colour one at a time, fully evolving each
+    # before moving to the next - this additionally caps how many they can ever collect per
+    # colour when NOT subscribed. Once a free-tier account has fully evolved one creature for
+    # this colour, they can't move on to a genuinely different one. Subscribed/school-covered
+    # accounts are unaffected - same unlimited behaviour as before.
+    if _is_genuinely_free_tier(user):
+        locks = _free_tier_colour_locks(user["user_id"], real_student_id)
+        locked_creature_id = locks.get(colour)
+        if locked_creature_id and locked_creature_id != submission_id:
+            raise HTTPException(
+                status_code=403,
+                detail="free_tier_limit|Free plan is limited to one fully-evolved creature per colour. Upgrade for unlimited community creatures."
+            )
 
     active[colour] = submission_id
     try:
