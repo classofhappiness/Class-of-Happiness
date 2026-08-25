@@ -12529,10 +12529,21 @@ if STRIPE_SECRET_KEY:
 # underlying Stripe products without a code deploy. Only teacher/parent monthly are
 # self-serve today — school plans are sold manually (see the mailto enquiry in the app),
 # so no school price IDs are needed here.
-STRIPE_PRICE_IDS = {
-    "teacher_monthly": os.environ.get("STRIPE_PRICE_TEACHER_MONTHLY", ""),
-    "parent_monthly": os.environ.get("STRIPE_PRICE_PARENT_MONTHLY", ""),
-}
+# Real fix Aug 25: this always read the plain (live) price vars regardless of
+# STRIPE_TEST_MODE, unlike STRIPE_SECRET_KEY/STRIPE_WEBHOOK_SECRET above - flipping test mode
+# on made checkout try to use a live-mode price ID against a test-mode key, which Stripe
+# correctly rejects ("a similar object exists in live mode, but a test mode key was used").
+# Same test/live split as the secret key now applies here too.
+if STRIPE_TEST_MODE:
+    STRIPE_PRICE_IDS = {
+        "teacher_monthly": os.environ.get("STRIPE_PRICE_TEACHER_MONTHLY_TEST", ""),
+        "parent_monthly": os.environ.get("STRIPE_PRICE_PARENT_MONTHLY_TEST", ""),
+    }
+else:
+    STRIPE_PRICE_IDS = {
+        "teacher_monthly": os.environ.get("STRIPE_PRICE_TEACHER_MONTHLY", ""),
+        "parent_monthly": os.environ.get("STRIPE_PRICE_PARENT_MONTHLY", ""),
+    }
 
 def _get_plan_from_price(price_id: str) -> str:
     pid = (price_id or "").lower()
