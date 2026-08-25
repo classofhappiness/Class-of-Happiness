@@ -1201,3 +1201,25 @@ Investigated before building, per Jono's ask: confirmed via direct source readin
 - All test users, submissions, unlocks, and temporarily-modified shared fixtures (`demo_teacher_001`, `dstu001`) fully cleaned up and confirmed restored to their exact original state afterward.
 
 `tsc` clean (24, same pre-existing baseline, zero new errors), backend compiles clean. Committed and pushed; not yet in any built binary (same as the native-checkout-redirect fix above - both are in the repo, neither is in build 22).
+
+---
+
+## A36 — promo code (HAPPYCLASS2026) investigation + 14-vs-30-day fix, 2026-08-25
+
+Jono asked about a promo/bypass code he remembered but had no record of from this session - investigated real source first, no changes, before touching anything.
+
+**Findings reported:** it's a hardcoded `PROMO_CODES` dict in `backend/server.py` (two codes actually exist - HAPPYCLASS2026 and CLASSOFHAPPINESS2026, both 30-day trials), zero Stripe involvement, redeemed via a real Settings-screen code-entry field hitting `POST /subscription/redeem-trial-code`. While tracing the real redemption path, found the actual bug: that endpoint writes its 30-day expiry into `subscription_expires_at`, but every trial-status expiry check in the file (`check_subscription_active`, and last night's new `_is_genuinely_free_tier`) only ever computed expiry from `trial_started_at` + the standard 14-day `TRIAL_DURATION_DAYS`, completely ignoring `subscription_expires_at` - so a promo-code account silently lost real access after 14 of its advertised 30 days, including hitting the brand-new creature caps 16 days early. Also found a second, apparently dead endpoint (`/auth/promo-code`) writing to an unused `promo_trial_ends_at` field that nothing in the frontend ever called.
+
+**Fixed, both items Jono asked for:**
+- New shared `_trial_is_valid(user)` helper: checks `subscription_expires_at` first when present (the real promo-granted value), falls back to the standard 14-day `trial_started_at` window otherwise - a regular trial via `/subscription/start-trial` never sets `subscription_expires_at`, so this doesn't change behaviour for non-promo trials. Both `check_subscription_active` and `_is_genuinely_free_tier` now call this one shared helper instead of each duplicating the same buggy logic.
+- Removed the dead `/auth/promo-code` endpoint and its `PromoCodeRequest` model entirely - confirmed via grep it was genuinely unreachable from the frontend before deleting.
+
+**Live-verified end to end against production, real redemption, real cleanup:**
+- Created a fresh free-tier test account, redeemed the real `HAPPYCLASS2026` code through the actual endpoint a real user would hit - confirmed `subscription_expires_at` set to exactly 30 days out.
+- Simulated day 20 (past the old broken 14-day cutoff, within the real 30-day window): `/subscription/status` correctly returned `is_active: true`; 3 creature submissions in a row succeeded with zero cap applied - both checks correctly honoured the real 30-day window.
+- Negative control, simulated day 35 (past the real 30-day window): `/subscription/status` correctly flipped to `is_active: false`; a further submission correctly hit the `free_tier_limit` cap - confirms this is a genuine, bounded fix, not a permanent bypass.
+- All test data (account, sessions, submissions, submission code) fully cleaned up and confirmed gone afterward.
+
+Not touched, flagged only: two admin/portal user-listing endpoints (`/school-admin/users`, `/admin/users`) still include the now-permanently-stale `promo_trial_ends_at` column in their SELECT list - harmless (nothing writes to it anymore, so it'll just read null), left alone since it's outside what was asked. Also flagged, not fixed: the subscription screen's frontend trial-days display (`trialDays`, from `/subscription/plans`) is a single global 14-day figure, not personalized - a promo-code user's "days remaining" banner text would still be off past day 14, even though the real backend access is now correct. Cosmetic only, doesn't gate anything.
+
+`tsc`/backend compile clean, committed and pushed, live on production (backend-only change, no frontend touched this round).
