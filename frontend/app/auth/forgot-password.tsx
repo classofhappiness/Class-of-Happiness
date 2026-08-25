@@ -18,6 +18,13 @@ export default function ForgotPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  // CRITICAL security fix Aug 26: the backend used to hand the reset token straight back in
+  // this response, which this screen then auto-filled into the token field below - meaning
+  // "forgot password" required nothing but knowing the target's email, no identity
+  // verification at all. Fixed on the backend to stop returning it; this screen now shows
+  // that honest message instead of silently moving to a "reset" step with a token nobody
+  // actually has.
+  const [requestMessage, setRequestMessage] = useState('');
 
   const handleRequestReset = async () => {
     const trimmed = email.trim().toLowerCase();
@@ -34,10 +41,7 @@ export default function ForgotPasswordScreen() {
         body: JSON.stringify({ email: trimmed }),
       });
       const data = await res.json();
-      if (data.token) {
-        setToken(data.token);
-      }
-      setStep('reset');
+      setRequestMessage(data.status || "If this email exists, please contact jono@classofhappiness.com to reset your password for now.");
     } catch (e) {
       setError('Could not request a reset. Please try again.');
     } finally {
@@ -125,12 +129,18 @@ export default function ForgotPasswordScreen() {
                 returnKeyType="go"
               />
               {error ? <Text style={styles.error}>{error}</Text> : null}
+              {requestMessage ? <Text style={styles.subtitle}>{requestMessage}</Text> : null}
               <TouchableOpacity
                 style={[styles.button, loading && styles.buttonDisabled]}
                 onPress={handleRequestReset}
                 disabled={loading}
               >
                 {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Continue</Text>}
+              </TouchableOpacity>
+              {/* Manual recovery path: Jono can verify identity out-of-band (phone/email) and
+                  hand a real reset code to a real user - this just lets them enter it. */}
+              <TouchableOpacity style={{ marginTop: 16, alignItems: 'center' }} onPress={() => setStep('reset')}>
+                <Text style={{ color: '#5C6BC0', fontSize: 13, fontWeight: '600' }}>I already have a reset code</Text>
               </TouchableOpacity>
             </>
           ) : (

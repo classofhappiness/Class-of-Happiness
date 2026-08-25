@@ -13007,21 +13007,35 @@ async def set_password(request: Request):
     supabase.table("users").update({"portal_password": hashed}).eq("user_id", user["user_id"]).execute()
     return {"status": "password set successfully"}
 
-@api_router.post("/auth/reset-password-request") 
+@api_router.post("/auth/reset-password-request")
 async def reset_password_request(request: Request):
-    """Send a password reset code — for now returns a token directly (email integration later)."""
+    """CRITICAL security fix Aug 26: this used to return the reset token directly in the API
+    response, and the frontend auto-filled it into the reset form (forgot-password.tsx) - so
+    "forgot password" required nothing but knowing the target's email. No identity
+    verification at all. This is a genuine account-takeover primitive - it worked even
+    against accounts that already had a real password set, since completing this flow
+    unconditionally overwrites portal_password. Confirmed there is no email-sending
+    infrastructure anywhere in this codebase (no SMTP/SendGrid/etc.) to send the token to the
+    real owner instead, so the only safe fix available today is to stop handing the token to
+    whoever asks. Self-service reset is temporarily unavailable until real email delivery is
+    built - the token is still generated and stored (server.py already had the storage/expiry
+    plumbing), just never returned to the caller, so a real email-reset flow can be wired in
+    later without another schema change. Real recovery in the meantime: contact
+    jono@classofhappiness.com, same pattern already used for the account-deletion block."""
     body = await request.json()
     email = body.get("email", "").strip()
     existing = supabase.table("users").select("user_id,email").eq("email", email).execute()
-    if not existing.data:
-        return {"status": "if this email exists, a reset link will be sent"}
-    # Generate a reset token
-    reset_token = secrets.token_urlsafe(32)
-    supabase.table("users").update({
-        "reset_token": reset_token,
-        "reset_token_expires": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
-    }).eq("email", email).execute()
-    return {"status": "reset token generated", "token": reset_token, "note": "In production this would email the user"}
+    if existing.data:
+        reset_token = secrets.token_urlsafe(32)
+        supabase.table("users").update({
+            "reset_token": reset_token,
+            "reset_token_expires": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+        }).eq("email", email).execute()
+        logger.warning(f"[SECURITY] Password reset requested for {email} - token generated but not emailed (no email infra yet). Manual recovery: contact support.")
+    # Same response whether or not the email exists, and never includes the token - both
+    # deliberate: don't leak which emails are real accounts, and don't hand out the one
+    # secret this whole flow exists to protect.
+    return {"status": "If this email exists, please contact jono@classofhappiness.com to complete your password reset for now - self-service reset isn't available yet."}
 
 @api_router.post("/auth/reset-password")
 async def reset_password(request: Request):
