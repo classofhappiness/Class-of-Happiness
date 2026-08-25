@@ -753,5 +753,11 @@
   "processing": "Wird verarbeitet...",
   "delete_account_btn": "Mein Konto Löschen",
   "delete_account_contact_support": "Kontaktiere {email}, um dieses Konto zu schließen",
-  "wellbeing_private": "Privat · nur für dich"
+  "wellbeing_private": "Privat · nur für dich",
+  "back_to_settings": "Zurück zu Einstellungen",
+  "countries_joined_teaser": "{count} Länder sind schon dabei — mach weiter mit, um die Karte freizuschalten!",
+  "new_move_unlocked": "🎬 Neue Bewegung!",
+  "new_outfit_unlocked": "👗 Neues Outfit!",
+  "new_food_unlocked": "🍎 Neues Essen!",
+  "new_home_unlocked": "🏠 Neues Zuhause!"
 }

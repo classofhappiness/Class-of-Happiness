@@ -730,5 +730,11 @@
   "delete_account_warning_2": "Confirma com a tua palavra-passe, ou com o Google se for assim que inicias sessão.",
   "processing": "A processar...",
   "delete_account_btn": "Eliminar a Minha Conta",
-  "delete_account_contact_support": "Contacta {email} para encerrar esta conta"
+  "delete_account_contact_support": "Contacta {email} para encerrar esta conta",
+  "back_to_settings": "Voltar às Configurações",
+  "countries_joined_teaser": "{count} países já aderiram — continua a submeter para desbloquear o mapa!",
+  "new_move_unlocked": "🎬 Novo Movimento!",
+  "new_outfit_unlocked": "👗 Novo Traje!",
+  "new_food_unlocked": "🍎 Nova Comida!",
+  "new_home_unlocked": "🏠 Nova Casa!"
 }

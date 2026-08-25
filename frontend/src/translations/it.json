@@ -753,5 +753,11 @@
   "processing": "Elaborazione in corso...",
   "delete_account_btn": "Elimina il Mio Account",
   "delete_account_contact_support": "Contatta {email} per chiudere questo account",
-  "wellbeing_private": "Privato · solo per te"
+  "wellbeing_private": "Privato · solo per te",
+  "back_to_settings": "Torna alle Impostazioni",
+  "countries_joined_teaser": "{count} paesi hanno già aderito — continua a inviare per sbloccare la mappa!",
+  "new_move_unlocked": "🎬 Nuova Mossa!",
+  "new_outfit_unlocked": "👗 Nuovo Outfit!",
+  "new_food_unlocked": "🍎 Nuovo Cibo!",
+  "new_home_unlocked": "🏠 Nuova Casa!"
 }

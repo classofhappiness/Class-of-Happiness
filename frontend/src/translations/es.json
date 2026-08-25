@@ -730,5 +730,11 @@
   "voice": "Voz",
   "voice_narration": "Narración por Voz",
   "voice_narration_desc": "Reproduce una grabación cuando se toca un color o ayudante durante el check-in",
-  "zone_alert": "Alerta de Zona"
+  "zone_alert": "Alerta de Zona",
+  "back_to_settings": "Volver a Configuración",
+  "countries_joined_teaser": "¡{count} países ya se han unido — sigue enviando para desbloquear el mapa!",
+  "new_move_unlocked": "🎬 ¡Nuevo Movimiento!",
+  "new_outfit_unlocked": "👗 ¡Nuevo Look!",
+  "new_food_unlocked": "🍎 ¡Nueva Comida!",
+  "new_home_unlocked": "🏠 ¡Nueva Casa!"
 }
