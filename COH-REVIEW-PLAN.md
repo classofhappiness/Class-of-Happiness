@@ -1286,3 +1286,33 @@ All 28 canonical Italian files uploaded to `voice-recordings/it/{key}.m4a` - rea
 2. **Longer app-narration phrases feature**: the 4 "let's pick a helper"-style clips need a real feature built from scratch - deciding which UI moments they'd play at, then the same backend+frontend wiring. Nothing to reuse here, this is new scope.
 
 Not uploading Italian versions of either until the underlying feature exists in some language first - uploading now wouldn't play anywhere, per Jono's own reasoning.
+
+---
+
+## A40 — CRITICAL: access-control investigation and fix (password bypass, auto-account-creation, dashboard role-gating), 2026-08-26
+
+Jono reported someone logged into the Android APK with no password and no role selected, but could see both dashboards. Treated as the single highest-priority item of the entire engagement, ahead of everything else including i18n. Full investigation against real source, then fixed and live-verified, in this order.
+
+**Investigation findings, all confirmed against real source, nothing assumed:**
+- `POST /auth/email-login` only ever checked a password `if user.get("portal_password")` - i.e. only for accounts that had explicitly opted into Settings' "Set Password" flow. Any account that never did (the default state) could be logged into by anyone who typed that email - no verification at all.
+- Unrecognized emails silently created a brand-new real account with `role: "teacher"` hardcoded - not a demo/sandbox account, a genuine row in `users`.
+- `app/index.tsx` showed Teacher and Parent buttons unconditionally to every logged-in user; neither `teacher/dashboard.tsx` nor `parent/dashboard.tsx` had any role check at all. Confirmed via direct grep - zero enforcement either direction.
+- **A second, more severe bug found independently while investigating, not something Jono had flagged**: `POST /auth/reset-password-request` returned the real reset token directly in its API response, and `forgot-password.tsx` auto-filled it into the reset form. "Forgot password" required nothing but knowing the target's email - a full account-takeover primitive that worked even against accounts that already had a real password, since completing the flow unconditionally overwrites `portal_password`. Confirmed there is no email-sending infrastructure anywhere in this codebase (no SMTP/SendGrid/etc.) to fix this the "right" way today.
+- Real blast-radius check before deciding the fix: **46 of 47 real accounts (98%) have no password set** - 25 teachers, 17 parents, 3 school_admins. An immediate hard block on no-password login would have locked out nearly the entire real user base with no self-service recovery path, especially right after disabling the broken reset flow.
+
+**Fixed, in agreed order:**
+1. **Reset-token leak - closed immediately, no downside.** `/auth/reset-password-request` no longer returns the token; same honest response whether or not the email exists (doesn't leak which emails are real accounts either). Token generation/storage untouched so a real email-delivery flow can be wired in later without a schema change. Frontend shows the honest "contact support for now" message instead of silently advancing to a token-entry step nobody has a token for, with a manual "I already have a reset code" path for Jono to hand a verified user a code out-of-band.
+2. **Force-password-on-next-login - the agreed smallest safe fix for the password bypass**, not a hard block, given the 98% blast radius. New `has_password` field (from a new `_public_user()` sanitizer - also fixes a real, separate issue: `/auth/me`, `/auth/email-login`, and `/auth/google` were all returning the raw user row to the client, including `portal_password`, a real bcrypt hash). `app/_layout.tsx` redirects any authenticated session with `has_password === false` to a new hard-gated `set-password-required.tsx` screen (no back button, `gestureEnabled: false`) on every navigation until a real password is set - closes the gap for each real account the moment they're next active, without an immediate mass lockout.
+3. **Auto-account-creation on unrecognized email - removed.** `/auth/email-login` now returns a real 404 "no account found" instead of silently creating one. `/auth/google` still creates real accounts on first sign-in, deliberately left alone - Google itself verifies the email is genuinely owned, that's real identity verification, not a bypass.
+4. **Dashboard role-gating - built to Jono's exact intended design.** Parent-only accounts are now locked out of `teacher/dashboard.tsx`; teacher accounts can still reach both (many real teachers are also parents). Caught and fixed a real rules-of-hooks violation while building this - the first draft put the early-return before some of the component's own hooks, which would have thrown/behaved inconsistently; moved to after every hook is declared, the only safe place for a conditional return in a function component.
+5. **Found and fixed a second bug live-verifying fix #3**: the "no account found" 404 came back as a 500 instead. Root cause: the inner try/except around user lookup had a broad `except Exception` that also caught every `HTTPException` raised inside it - not just the new one, but the *pre-existing* "Incorrect password" 401, "Admin PIN required" 403, and "scheduled for deletion" 403 checks too. All of them were silently being rewrapped into 500s, real status code and message never reaching the client, this whole time. Fixed with an `except HTTPException: raise` before the generic handler.
+
+**Live-verified against production, real accounts, real cleanup:**
+- Unrecognized email → real `404`, confirmed no phantom account created in the DB afterward.
+- Existing real no-password account (`sarah.mitchell@sunshine-school.com`) → `200`, `has_password: false`, confirmed `portal_password`/`reset_token` no longer present in the response at all.
+- PIN-protected account with wrong PIN → confirmed real `403` with its real message now (would have been a `500` before fix #5).
+- Reset-token endpoint → confirmed real response contains no `token` field of any kind; confirmed the token is still generated/stored server-side (for future real email wiring) via direct DB read, then cleared the test token from the real account.
+
+**Not independently live-verifiable**: dashboard role-gating is a client-side redirect with no API surface to test directly - confirmed via type-checking and careful manual trace (including catching the hooks-order bug above), but needs Jono's own device pass for final visual confirmation, same limitation as every other frontend-only change this engagement.
+
+All committed, pushed, deployed, and live on production. This was treated as fully blocking - no other work continued until this was complete.
