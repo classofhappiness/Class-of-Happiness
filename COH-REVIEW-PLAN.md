@@ -1225,3 +1225,15 @@ Not touched, flagged only: two admin/portal user-listing endpoints (`/school-adm
 **Confirmed deferred by Jono**: this is a minor UI polish item for a future round, not urgent - real access is what matters and that's already correct. Logged here so it doesn't get lost: the fix would mean the subscription screen reading the user's own `subscription_expires_at` (when present, for a promo-granted trial) instead of the global `trial_days` figure to compute "days remaining," mirroring the same `subscription_expires_at`-first pattern `_trial_is_valid` now uses on the backend.
 
 `tsc`/backend compile clean, committed and pushed, live on production (backend-only change, no frontend touched this round).
+
+---
+
+## A37 — STRIPE_TEST_MODE flipped on for Jono's end-to-end payment test, 2026-08-25
+
+Jono asked to flip `STRIPE_TEST_MODE` on to safely test the full subscription flow with a real Stripe test card before cutting build 23. Flipped it (Railway env var), which immediately surfaced a real, previously-latent bug: `STRIPE_PRICE_IDS` always read the plain (live-mode) `STRIPE_PRICE_TEACHER_MONTHLY`/`STRIPE_PRICE_PARENT_MONTHLY` env vars regardless of `STRIPE_TEST_MODE`, unlike `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` which already correctly split test/live - so checkout creation failed outright in test mode (a live-mode price ID against a test-mode key, which Stripe correctly rejects).
+
+Did a **read-only** listing against the real Stripe test-mode account (no creation, no charge) and found the fix didn't need new Stripe objects at all: the two price IDs that were sitting in the plain env vars *before* yesterday's live-price fix (`price_1U5oDSGVgsNSHYytSC7Wr7jm` teacher, `price_1U5oENGVgsNSHYytxQePUM0X` parent) were never wrong - they're the genuine test-mode prices, correctly priced (€7.99/€4.99) and nicknamed, just never wired to a live/test-aware env var pair. Added two new Railway env vars (`STRIPE_PRICE_TEACHER_MONTHLY_TEST`, `STRIPE_PRICE_PARENT_MONTHLY_TEST`) holding them, and gave `STRIPE_PRICE_IDS` the same test/live split the secret key already has.
+
+Live-verified after redeploy: real checkout session creation for both plans now returns genuine `cs_test_...` sessions with valid `checkout.stripe.com` URLs. Both test sessions expired immediately after via the Stripe API, nothing left dangling.
+
+**Current state: `STRIPE_TEST_MODE` is ON in production right now** - confirmed safe for Jono to go through a real subscription attempt with a Stripe test card (4242 4242 4242 4242). This is a global toggle, not per-session - real customers attempting to subscribe during this window would also hit the test key. Needs to be flipped back to `false` once Jono's done testing, before cutting build 23.
