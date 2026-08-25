@@ -1222,4 +1222,6 @@ Jono asked about a promo/bypass code he remembered but had no record of from thi
 
 Not touched, flagged only: two admin/portal user-listing endpoints (`/school-admin/users`, `/admin/users`) still include the now-permanently-stale `promo_trial_ends_at` column in their SELECT list - harmless (nothing writes to it anymore, so it'll just read null), left alone since it's outside what was asked. Also flagged, not fixed: the subscription screen's frontend trial-days display (`trialDays`, from `/subscription/plans`) is a single global 14-day figure, not personalized - a promo-code user's "days remaining" banner text would still be off past day 14, even though the real backend access is now correct. Cosmetic only, doesn't gate anything.
 
+**Confirmed deferred by Jono**: this is a minor UI polish item for a future round, not urgent - real access is what matters and that's already correct. Logged here so it doesn't get lost: the fix would mean the subscription screen reading the user's own `subscription_expires_at` (when present, for a promo-granted trial) instead of the global `trial_days` figure to compute "days remaining," mirroring the same `subscription_expires_at`-first pattern `_trial_is_valid` now uses on the backend.
+
 `tsc`/backend compile clean, committed and pushed, live on production (backend-only change, no frontend touched this round).
