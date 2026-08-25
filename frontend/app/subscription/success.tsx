@@ -57,9 +57,14 @@ export default function SubscriptionSuccessScreen() {
             </Text>
             <TouchableOpacity
               style={styles.continueButton}
-              onPress={() => router.replace('/teacher/dashboard')}
+              onPress={() => router.replace('/settings')}
             >
-              <Text style={styles.continueButtonText}>{t('teacher_dashboard') || t('teacher_dashboard') || 'Continue to Dashboard'}</Text>
+              {/* Real bug fix Aug 25: hardcoded to /teacher/dashboard regardless of who
+                  actually paid - a parent subscribing landed on a screen meant for teachers.
+                  Settings is where the subscription status this payment just changed is
+                  actually shown, so that's the real "see what just happened" destination
+                  for anyone, not just teachers. */}
+              <Text style={styles.continueButtonText}>{t('back_to_settings') || 'Back to Settings'}</Text>
             </TouchableOpacity>
           </>
         )}

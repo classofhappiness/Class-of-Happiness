@@ -32,6 +32,20 @@ const GOOGLE_DISCOVERY = {
   tokenEndpoint: 'https://oauth2.googleapis.com/token',
 };
 
+// Real feature Aug 25 (item 2): "Parent Subscription Active" instead of the bare plan name -
+// subscription_plan is a lowercase machine key ("parent"/"teacher"/"school_starter") set by
+// the Stripe webhook via _get_plan_from_price, not display text on its own.
+function subscriptionStatusLabel(user: any): string {
+  const plan = (user?.subscription_plan || 'Subscriber') as string;
+  const label = plan.charAt(0).toUpperCase() + plan.slice(1).replace(/_/g, ' ');
+  return `${label} Subscription Active`;
+}
+
+function renewalCountdownLabel(expiresAtIso: string): string {
+  const daysLeft = Math.max(0, Math.ceil((new Date(expiresAtIso).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+  return daysLeft === 1 ? 'Renews in 1 day' : `Renews in ${daysLeft} days`;
+}
+
 export default function SettingsScreen() {
   const router = useRouter();
   const navigation = useNavigation();
@@ -404,9 +418,17 @@ export default function SettingsScreen() {
               <Text style={styles.settingLabel}>{t('stats') || t('stats') || 'Status'}</Text>
               <Text style={[styles.settingValue, { color: hasActiveSubscription ? '#4CAF50' : '#F44336' }]}>
                 {user?.subscription_status === 'trial' ? t('free_trial')||'Free Trial' :
-                 user?.subscription_status === 'active' ? `${user.subscription_plan || 'Active'}` :
+                 user?.subscription_status === 'active' ? subscriptionStatusLabel(user) :
                  'Inactive'}
               </Text>
+              {/* Real feature Aug 25 (item 2): "Parent"/"teacher" alone didn't say the account
+                  was actually active or when it renews. subscription_expires_at already holds
+                  the real Stripe current_period_end (set by the webhook, confirmed against
+                  real source - no new plumbing needed), so the renewal countdown here is real
+                  billing data, not a guess. */}
+              {user?.subscription_status === 'active' && user?.subscription_expires_at && (
+                <Text style={styles.settingSubValue}>{renewalCountdownLabel(user.subscription_expires_at)}</Text>
+              )}
             </View>
           </View>
           <MaterialIcons name="chevron-right" size={24} color="#CCC" />
@@ -984,6 +1006,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
+    marginTop: 2,
+  },
+  settingSubValue: {
+    fontSize: 12,
+    color: '#888',
     marginTop: 2,
   },
   langFlag: {
