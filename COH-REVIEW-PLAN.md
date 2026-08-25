@@ -1255,3 +1255,13 @@ Then proved it live rather than trusting the code read alone: real test account,
 **Verdict for Jono: safe to build.** The free-tier caps are genuine, permanent, DB-level lifetime totals with zero relationship to `subscription_status` - a subscribe → exceed-free-limits → cancel → resubscribe cycle cannot reset or bypass them by design, confirmed both by reading every code path that touches these tables and by reproducing the exact cycle live. Not built yet - this was investigation only, as asked.
 
 Items 1/2 committed, pushed, live. Item 3 was investigation-only, no code changes.
+
+---
+
+### FUTURE FEATURE (ready to build, not urgent) — cancel-to-free self-serve downgrade
+
+Risk question is fully answered (see A38 above) - safe to build whenever there's time, no rush. Logging the real scope now so it's not lost:
+
+- **What's missing today**: no self-serve "cancel subscription, keep account + progress" path exists at all. The only cancellation logic lives inside the full account-deletion flow (cancels the real Stripe subscription as a side effect of deleting the whole account) - a genuinely different, much bigger action than what this feature needs.
+- **What it needs, concretely**: a new endpoint (e.g. `POST /subscription/cancel`) that cancels the real Stripe subscription (`stripe_lib.Subscription.cancel` or `.modify(cancel_at_period_end=True)` - worth deciding whether it should downgrade immediately or let the current paid period run out first, matching standard SaaS practice) and sets `subscription_status` back to `none`/`free` without touching the account, students, creatures, or any other data. Frontend: a real "Cancel Subscription" action in Settings, probably behind a confirmation step explaining what they keep (all progress/creatures) vs. what changes (the free-tier caps apply going forward).
+- **Confirmed safe**: the free-tier caps (1 fully-evolved creature per colour, 2 total submissions) are genuine, permanent, DB-level lifetime totals with zero relationship to `subscription_status` - live-verified end to end that a subscribe → exceed-limits → cancel → resubscribe cycle cannot reset or bypass them.
