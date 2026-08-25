@@ -1316,3 +1316,25 @@ Jono reported someone logged into the Android APK with no password and no role s
 **Not independently live-verifiable**: dashboard role-gating is a client-side redirect with no API surface to test directly - confirmed via type-checking and careful manual trace (including catching the hooks-order bug above), but needs Jono's own device pass for final visual confirmation, same limitation as every other frontend-only change this engagement.
 
 All committed, pushed, deployed, and live on production. This was treated as fully blocking - no other work continued until this was complete.
+
+## A41 — Silent role auto-sync removed, strategies fallback bug fixed, 2026-08-26
+
+Follow-up from A40: investigating whether a real email/password signup flow exists (it doesn't - see A40 fix #3, auto-creation was the only path) surfaced a related, lower-severity but real design flaw - `PUT /auth/role` was being called automatically and silently on component mount in two places, meaning role was never a stable, deliberate choice.
+
+**Found (both confirmed via grep, no other call sites exist):**
+- `parent/dashboard.tsx` silently called `authApiExtended.updateRole('parent')` inside its data-load try block on every mount.
+- `teacher/resources.tsx` silently called `authApiExtended.updateRole('teacher')` in a mount-time `useEffect`.
+- Now that role is a real access boundary (A40's dashboard role-gating), silently re-deriving it from whichever screen was last opened is no longer just sloppy - it could silently undo a deliberate role choice just by visiting the other screen.
+
+**Fixed:**
+- Both silent calls removed outright, along with the now-unused `authApiExtended` imports in each file.
+- New explicit "Account Type" section added to `settings.tsx`: shows the account's current role, with a "Switch to Teacher/Parent account" button gated behind an `Alert.alert` confirmation dialog before calling `PUT /auth/role` and refreshing state via `checkAuth()`. This is now the only way role changes.
+- New translation keys (`account_type`, `switch_account_type_*`, `switch_to_teacher`/`switch_to_parent`) added with real translations to en/pt/es/fr/de/it (hi/zh remain part of the already-logged, not-yet-fixed i18n gap).
+
+**Live-verified against production** with a temporary test account (created and deleted via direct Supabase REST calls): confirmed `GET /auth/me` reflects `role: parent` initially, confirmed a deliberate `PUT /auth/role` call still correctly flips it to `teacher` and `GET /auth/me` reflects the change immediately afterward - i.e., the backend endpoint itself is untouched and still works correctly, only the frontend's silent auto-calls were removed.
+
+`npx tsc --noEmit` run after all changes: 24 errors, identical to the established pre-existing baseline - no new errors introduced.
+
+Also included in this same commit: the previously-queued `strategies.tsx` fallback-strategies bug fix (removed a stale, incomplete 4-of-6-item hardcoded English fallback list; added a real retry-once-then-honest-error-state with a working "Try Again" button instead).
+
+Committed and pushed (`3c48fc69`), no backend changes so no Railway deploy needed. This closes out tonight's urgent-tier queue.
