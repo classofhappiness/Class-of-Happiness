@@ -9130,7 +9130,16 @@ async def email_login(request: Request):
                 # owned. Real new teacher/parent onboarding otherwise happens via an invite
                 # code or a school-admin-created account, not a bare email typed at login.
                 raise HTTPException(status_code=404, detail="No account found with this email. If you're new here, use \"Sign in with Google\" or ask your school/teacher for an invite code.")
-                user = result.data[0] if result.data else new_user
+        except HTTPException:
+            # Real bug fix Aug 26, found live-verifying the 404 above: every HTTPException
+            # raised inside this try block (including the pre-existing 401 "Incorrect
+            # password", 403 "Admin PIN required", and 403 "scheduled for deletion" checks
+            # above) was being caught by the broad `except Exception` below and rewrapped
+            # into a 500 "Database error" - the real status code and message never actually
+            # reached the client. Confirmed live: the new 404 came back as a 500 before this
+            # fix. Real HTTPExceptions now propagate with their real status/detail; only a
+            # genuine unexpected error (e.g. an actual DB failure) still becomes a 500.
+            raise
         except Exception as e:
             logger.error(f"User lookup error: {e}")
             raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
