@@ -1237,3 +1237,21 @@ Did a **read-only** listing against the real Stripe test-mode account (no creati
 Live-verified after redeploy: real checkout session creation for both plans now returns genuine `cs_test_...` sessions with valid `checkout.stripe.com` URLs. Both test sessions expired immediately after via the Stripe API, nothing left dangling.
 
 **Current state: `STRIPE_TEST_MODE` is ON in production right now** - confirmed safe for Jono to go through a real subscription attempt with a Stripe test card (4242 4242 4242 4242). This is a global toggle, not per-session - real customers attempting to subscribe during this window would also hit the test key. Needs to be flipped back to `false` once Jono's done testing, before cutting build 23.
+
+---
+
+## A38 — post-payment UX fixes + cancel-to-free safety investigation, 2026-08-25
+
+Three items from Jono's live payment testing.
+
+**1. Navigation bug - fixed.** `subscription/success.tsx`'s "Continue" button was hardcoded to `/teacher/dashboard` regardless of who actually paid - a parent subscribing landed on a screen built for teachers. Now goes to `/settings`, where the subscription status this payment just changed is the actual thing worth seeing next.
+
+**2. Settings subscription display - fixed, confirmed no new plumbing needed.** The status text used to just be the bare plan key (`subscription_plan`, a lowercase machine value like `"parent"`/`"teacher"` set by the Stripe webhook via `_get_plan_from_price`) with no indication it was even active. Now reads "Parent Subscription Active" plus a real renewal countdown. Confirmed by reading the webhook handler directly: `subscription_expires_at` already holds the real Stripe `current_period_end` (set on every `customer.subscription.created`/`.updated` event) - no new field, no new Stripe API call needed, purely a display fix using data already being stored correctly.
+
+**3. Cancel-to-free investigation - the critical safety question, answered with both code proof and a live test.** Grepped every `UPDATE`/`DELETE` against `creature_submissions` and `creature_unlocks` in the whole file: every single one is either real progress tracking (`_progress_community_creature`), content moderation (approve/reject/superadmin hard-delete), or the account-deletion purge path - **nothing anywhere touches either table based on subscription status changing**. The Stripe `customer.subscription.deleted` webhook handler only ever updates `users.subscription_status`/`subscription_expires_at`, confirmed by reading it directly.
+
+Then proved it live rather than trusting the code read alone: real test account, free tier, submitted 2 creatures (hit the cap, 3rd correctly blocked) → simulated subscribing (`subscription_status: active`) → submitted a 3rd successfully, uncapped → simulated cancelling back to free (`subscription_status: none`) → confirmed the real DB count stayed at 3, not reset → attempted a 4th submission → correctly blocked again, cap still maxed at the same level from before "cancelling," not reset to 0. Also confirmed there's currently no self-serve "cancel subscription, keep account" endpoint at all today - the only existing cancellation logic lives inside the full account-deletion flow, which cancels the real Stripe subscription as a side effect of deleting the whole account, not as a standalone downgrade action.
+
+**Verdict for Jono: safe to build.** The free-tier caps are genuine, permanent, DB-level lifetime totals with zero relationship to `subscription_status` - a subscribe → exceed-free-limits → cancel → resubscribe cycle cannot reset or bypass them by design, confirmed both by reading every code path that touches these tables and by reproducing the exact cycle live. Not built yet - this was investigation only, as asked.
+
+Items 1/2 committed, pushed, live. Item 3 was investigation-only, no code changes.
