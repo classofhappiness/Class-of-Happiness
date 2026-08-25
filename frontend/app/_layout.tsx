@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Image, View, StyleSheet, Platform, TouchableOpacity, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,7 +36,9 @@ const HeaderWithBackAndLogo = ({ canGoBack }: { canGoBack?: boolean }) => {
 
 // Inner component that hides splash once app is ready
 function AppContent() {
-  const { isLoading } = useApp();
+  const { isLoading, isAuthenticated, user } = useApp();
+  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!isLoading) {
@@ -47,6 +49,24 @@ function AppContent() {
       return () => clearTimeout(timer);
     }
   }, [isLoading]);
+
+  // CRITICAL security fix Aug 26: force-password-on-next-login. ~98% of real accounts
+  // (confirmed live) have no password set, meaning the account can currently be logged into
+  // by anyone who types that email - see COH-REVIEW-PLAN.md for the full investigation. A
+  // hard block on login today would lock out nearly the entire real user base with no
+  // self-service recovery (the password-reset flow's own account-takeover bug was just
+  // fixed by disabling it, not replacing it with something that emails a real link - no
+  // email infrastructure exists yet). This is the agreed smaller-blast-radius fix instead:
+  // every authenticated session with has_password === false (from /auth/me's response, see
+  // _public_user() in the backend) is redirected here on every app open/navigation until
+  // they set a real password - closing the gap for each real account the moment they're
+  // next active, not leaving it open indefinitely, without an immediate mass lockout.
+  useEffect(() => {
+    if (isLoading || !isAuthenticated || !user) return;
+    if ((user as any).has_password === false && pathname !== '/auth/set-password-required') {
+      router.replace('/auth/set-password-required');
+    }
+  }, [isLoading, isAuthenticated, user, pathname]);
 
   return (
     <>
@@ -90,6 +110,14 @@ function AppContent() {
           options={{
             headerShown: false,
             title: 'Sign In',
+          }}
+        />
+        <Stack.Screen
+          name="auth/set-password-required"
+          options={{
+            headerShown: false,
+            title: 'Set Password',
+            gestureEnabled: false,
           }}
         />
         <Stack.Screen

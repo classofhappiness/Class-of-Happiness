@@ -2338,6 +2338,27 @@ async def get_current_user(request: Request) -> Optional[dict]:
         logger.error(f"Auth error: {e}")
         return None
 
+def _public_user(user: dict) -> dict:
+    """CRITICAL security fix Aug 26: /auth/me, /auth/email-login, and google_auth all used to
+    return the raw user row straight from the DB - including portal_password (a real bcrypt
+    hash) and reset_token, sent to every client on every session check. Never caught in
+    practice (bcrypt hashes aren't trivially reversible), but there's no reason to ever ship
+    a password hash to a client at all. Strips both, and adds has_password - a safe boolean
+    the frontend needs to force real password creation for the ~98% of real accounts that
+    don't have one yet (see COH-REVIEW-PLAN.md - the account-takeover investigation this
+    round). get_current_user() itself is untouched - many endpoints need the real
+    portal_password internally (login's own verify_password check) - this sanitizer is only
+    for the handful of endpoints that hand the user object back to the client."""
+    if not user:
+        return user
+    safe = dict(user)
+    has_password = bool(safe.get("portal_password"))
+    safe.pop("portal_password", None)
+    safe.pop("reset_token", None)
+    safe.pop("reset_token_expires", None)
+    safe["has_password"] = has_password
+    return safe
+
 def _trial_is_valid(user: dict) -> bool:
     """Real bug fix Aug 25: a promo code (POST /subscription/redeem-trial-code, e.g.
     HAPPYCLASS2026) can grant a real duration other than the standard TRIAL_DURATION_DAYS
@@ -2461,7 +2482,7 @@ async def google_auth(request: Request):
 
         response = Response(content=str({"user": user, "session_token": session_token}))
         response.set_cookie("session_token", session_token, httponly=True, max_age=30*24*3600, samesite="none", secure=True)
-        return {"user": user, "session_token": session_token}
+        return {"user": _public_user(user), "session_token": session_token}
 
     except HTTPException:
         raise
@@ -2474,7 +2495,7 @@ async def get_me(request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    return user
+    return _public_user(user)
 
 @api_router.post("/auth/logout")
 async def logout(request: Request):
@@ -9098,19 +9119,17 @@ async def email_login(request: Request):
                     if not password or not verify_password(password, user["portal_password"]):
                         raise HTTPException(status_code=401, detail="Incorrect password")
             else:
-                # New user — create as teacher
-                name = email.split("@")[0].replace(".", " ").title()
-                user_id = f"user_{uuid.uuid4().hex[:12]}"
-                new_user = {
-                    "user_id": user_id,
-                    "email": email,
-                    "name": name,
-                    "role": "teacher",
-                    "language": "en",
-                    "subscription_status": "none",
-                    "created_at": datetime.now(timezone.utc).isoformat()
-                }
-                result = supabase.table("users").insert(new_user).execute()
+                # CRITICAL security fix Aug 26 (item 2): this used to silently create a real
+                # teacher account for ANY unrecognized email, no confirmation, no verification
+                # of any kind - typing a made-up email was indistinguishable from a genuine
+                # signup. Combined with the password bypass (see the force-password-on-login
+                # fix and COH-REVIEW-PLAN.md), this was a second, compounding way into the
+                # app with zero real identity check. Plain email/password is no longer a
+                # signup path - Google sign-in (POST /auth/google) remains real
+                # account-creation, since Google itself verifies the email is genuinely
+                # owned. Real new teacher/parent onboarding otherwise happens via an invite
+                # code or a school-admin-created account, not a bare email typed at login.
+                raise HTTPException(status_code=404, detail="No account found with this email. If you're new here, use \"Sign in with Google\" or ask your school/teacher for an invite code.")
                 user = result.data[0] if result.data else new_user
         except Exception as e:
             logger.error(f"User lookup error: {e}")
@@ -9128,7 +9147,7 @@ async def email_login(request: Request):
         except Exception as e:
             logger.warning(f"user_sessions insert failed: {e} - using token only")
         
-        return {"user": user, "session_token": session_token}
+        return {"user": _public_user(user), "session_token": session_token}
     except HTTPException:
         raise
     except Exception as e:

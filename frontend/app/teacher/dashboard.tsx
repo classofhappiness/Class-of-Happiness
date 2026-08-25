@@ -99,6 +99,18 @@ export default function TeacherDashboardScreen() {
   const navigation = useNavigation() as any;
   const { user, students, classrooms, presetAvatars, refreshStudents, refreshClassrooms, t, hasActiveSubscription } = useApp();
 
+  // CRITICAL security fix Aug 26 (item 3): role-gating - confirmed live that ANY
+  // authenticated account could open either dashboard regardless of its real role, zero
+  // enforcement anywhere. Per Jono's explicit intended design: a parent-only account is
+  // locked out of the Teacher dashboard entirely; teacher/school_admin/superadmin can still
+  // reach it (many real teachers are also parents and may want both views; school_admin and
+  // superadmin already have broader access elsewhere in this app).
+  useEffect(() => {
+    if (user && user.role === 'parent') {
+      router.replace('/parent/dashboard');
+    }
+  }, [user?.role]);
+
   const [pendingCreatures, setPendingCreatures] = useState<any[]>([]);
   useEffect(() => {
     const token = user?.session_token || user?.authToken || '';
@@ -362,6 +374,11 @@ Students enter this when creating their profile to join your class automatically
       setClassCodeLoading(null);
     }
   };
+
+  // See the role-gate useEffect above - this is the actual early-return point, placed after
+  // every hook in the component per React's rules of hooks (an early return any earlier would
+  // skip hooks declared below it on some renders and not others).
+  if (user && user.role === 'parent') return null;
 
   return (
     <SafeAreaView style={st.container}>
