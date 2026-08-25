@@ -71,6 +71,11 @@ export default function SettingsScreen() {
   const [showNewPasswordText, setShowNewPasswordText] = useState(false);
   const [settingPassword, setSettingPassword] = useState(false);
 
+  // Account Type / role switch (Aug 25 fix: role used to be silently rewritten by
+  // PUT /auth/role every time parent/dashboard.tsx or teacher/resources.tsx mounted -
+  // now role is only ever changed here, deliberately, with confirmation.
+  const [switchingRole, setSwitchingRole] = useState(false);
+
   // Account deletion (soft-delete, 30-day grace period — see POST /account/delete-request)
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
@@ -386,6 +391,34 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleSwitchRole = () => {
+    if (!user || (user.role !== 'teacher' && user.role !== 'parent')) return;
+    const newRole: 'teacher' | 'parent' = user.role === 'teacher' ? 'parent' : 'teacher';
+    const newRoleLabel = newRole === 'teacher' ? (t('teacher') || 'Teacher') : (t('parent') || 'Parent / Family');
+    Alert.alert(
+      t('switch_account_type_title') || 'Switch account type?',
+      (t('switch_account_type_desc') || 'This changes which dashboard you can access.') + ` ${newRoleLabel}.`,
+      [
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
+        {
+          text: t('switch_account_type_confirm') || 'Switch',
+          onPress: async () => {
+            setSwitchingRole(true);
+            try {
+              await authApiExtended.updateRole(newRole);
+              await checkAuth();
+              Alert.alert('✅ ' + (t('success') || 'Success'), t('switch_account_type_success') || 'Your account type has been updated.');
+            } catch {
+              Alert.alert(t('error') || 'Error', t('switch_account_type_error') || 'Could not switch account type. Please try again.');
+            } finally {
+              setSwitchingRole(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
     <ScrollView 
@@ -558,6 +591,37 @@ export default function SettingsScreen() {
           </View>
         )}
       </View>
+
+      {/* Account Type (Aug 25 fix - see handleSwitchRole above) */}
+      {(user?.role === 'teacher' || user?.role === 'parent') && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('account_type') || 'Account Type'}</Text>
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <MaterialIcons name="swap-horiz" size={24} color="#5C6BC0" />
+              <View style={styles.settingText}>
+                <Text style={styles.settingLabel}>{t('current_account_type') || 'Current account type'}</Text>
+                <Text style={styles.settingValue}>
+                  {user!.role === 'teacher' ? (t('teacher') || 'Teacher') : (t('parent') || 'Parent / Family')}
+                </Text>
+              </View>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={[styles.switchRoleButton, switchingRole && styles.switchRoleButtonDisabled]}
+            onPress={handleSwitchRole}
+            disabled={switchingRole}
+          >
+            <Text style={styles.switchRoleButtonText}>
+              {switchingRole
+                ? (t('loading') || 'Switching...')
+                : user!.role === 'teacher'
+                  ? (t('switch_to_parent') || 'Switch to Parent account')
+                  : (t('switch_to_teacher') || 'Switch to Teacher account')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Language */}
       <View style={styles.section}>
@@ -1104,6 +1168,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFCC80',
   },
   redeemButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  switchRoleButton: {
+    backgroundColor: '#5C6BC0',
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+    marginTop: 8,
+    marginHorizontal: 4,
+  },
+  switchRoleButtonDisabled: {
+    backgroundColor: '#C5CAE9',
+  },
+  switchRoleButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '600',

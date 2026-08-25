@@ -34,6 +34,7 @@ export default function StrategiesScreen() {
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [helpRequested, setHelpRequested] = useState<Set<string>>(new Set()); // strategy ids
   const [shieldJustAwarded, setShieldJustAwarded] = useState(false);
@@ -76,19 +77,25 @@ export default function StrategiesScreen() {
     fetchStrategies();
   }, [zone, language]);
 
-  const fetchStrategies = async () => {
+  // Real bug fix Aug 26: this used to silently fall back to a hardcoded, English-only,
+  // 4-of-6-items list on ANY error - a network blip, a slow cold start, anything - with zero
+  // indication to the student/teacher that they were seeing different, wrong, untranslated
+  // content instead of their real helpers. Confirmed live that the real backend endpoint
+  // (which IS correctly translated per-language) works fine - this was a reliability bug, not
+  // a translation gap, and could hit an English-speaking user just as easily as anyone else.
+  // Now retries once (same pattern already used for Railway cold-starts elsewhere in this
+  // app) before showing an honest error state with a real retry button - never silently
+  // substitutes different content for what the student actually has.
+  const fetchStrategies = async (attempt = 1): Promise<void> => {
     if (!zone) return;
     setLoading(true);
+    setLoadError(false);
     try {
       // Fetch generic helpers
       const url = `${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=${language || 'en'}`;
       const response = await fetch(url);
-      let genericStrats: Strategy[] = [];
-      if (response.ok) {
-        genericStrats = await response.json();
-      } else {
-        genericStrats = getFallbackStrategies(zone);
-      }
+      if (!response.ok) throw new Error(`helpers fetch failed: ${response.status}`);
+      const genericStrats: Strategy[] = await response.json();
 
       // Fetch custom strategies (teacher-added) and shared family strategies
       let customStrats: Strategy[] = [];
@@ -142,42 +149,19 @@ export default function StrategiesScreen() {
       const genericNames = new Set(genericStrats.map((s: Strategy) => s.name.toLowerCase()));
       const uniqueCustom = customStrats.filter((s: any) => !genericNames.has(s.name.toLowerCase()));
       setStrategies([...genericStrats, ...uniqueCustom]);
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching strategies:', error);
-      setStrategies(getFallbackStrategies(zone));
-    } finally {
+      if (attempt === 1) {
+        // Real fix: keep the loading spinner up through the retry instead of flickering it
+        // off and back on - setLoading(false) only happens on success or final failure below.
+        setTimeout(() => fetchStrategies(2), 1500);
+        return;
+      }
+      setStrategies([]);
+      setLoadError(true);
       setLoading(false);
     }
-  };
-
-  const getFallbackStrategies = (zone: string): Strategy[] => {
-    const defaults: Record<string, Strategy[]> = {
-      blue: [
-        { id: 'b1', name: 'Gentle Stretch', description: 'Slowly stretch your arms and legs', icon: 'accessibility', zone: 'blue' },
-        { id: 'b2', name: 'Favourite Song', description: 'Listen to your favourite song', icon: 'music-note', zone: 'blue' },
-        { id: 'b3', name: 'Tell Someone', description: 'Tell a trusted person how you feel', icon: 'chat', zone: 'blue' },
-        { id: 'b4', name: 'Slow Breathing', description: 'Take 3 slow, deep breaths', icon: 'air', zone: 'blue' },
-      ],
-      green: [
-        { id: 'g1', name: 'Keep Going!', description: 'You are doing great - keep it up!', icon: 'star', zone: 'green' },
-        { id: 'g2', name: 'Help a Friend', description: 'Offer to help someone nearby', icon: 'people', zone: 'green' },
-        { id: 'g3', name: 'Set a Goal', description: 'Think of something you want to do today', icon: 'flag', zone: 'green' },
-        { id: 'g4', name: 'Gratitude', description: 'Think of one thing you are grateful for', icon: 'favorite', zone: 'green' },
-      ],
-      yellow: [
-        { id: 'y1', name: 'Bubble Breathing', description: 'Breathe in slowly, breathe out like blowing bubbles', icon: 'bubble-chart', zone: 'yellow' },
-        { id: 'y2', name: 'Count to 10', description: 'Count slowly from 1 to 10', icon: 'format-list-numbered', zone: 'yellow' },
-        { id: 'y3', name: '5 Senses', description: 'Name 5 things you can see around you', icon: 'visibility', zone: 'yellow' },
-        { id: 'y4', name: 'Talk About It', description: 'Tell a trusted adult how you are feeling', icon: 'record-voice-over', zone: 'yellow' },
-      ],
-      red: [
-        { id: 'r1', name: 'Freeze', description: 'Stop and freeze your body completely', icon: 'pause-circle-filled', zone: 'red' },
-        { id: 'r2', name: 'Big Breaths', description: 'Take 5 very slow, deep breaths', icon: 'air', zone: 'red' },
-        { id: 'r3', name: 'Safe Space', description: 'Go to your calm corner', icon: 'king-bed', zone: 'red' },
-        { id: 'r4', name: 'Ask for Help', description: 'Tell a trusted adult you need support', icon: 'support-agent', zone: 'red' },
-      ],
-    };
-    return defaults[zone] || [];
   };
 
   const toggleStrategy = (strategyId: string) => {
@@ -331,6 +315,17 @@ export default function StrategiesScreen() {
           {loading ? (
             <View style={styles.loadingContainer}>
               <Text style={styles.loadingText}>{t('loading_helpers') || 'Loading helpers...'}</Text>
+            </View>
+          ) : loadError ? (
+            <View style={styles.loadingContainer}>
+              <MaterialIcons name="wifi-off" size={32} color="#BBB" style={{ marginBottom: 8 }} />
+              <Text style={styles.loadingText}>{t('helpers_load_error') || "Couldn't load your helpers. Check your connection and try again."}</Text>
+              <TouchableOpacity
+                style={{ marginTop: 14, backgroundColor: zoneColor, borderRadius: 24, paddingVertical: 10, paddingHorizontal: 24 }}
+                onPress={() => fetchStrategies()}
+              >
+                <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>{t('try_again') || 'Try Again'}</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             strategies.map((strategy) => (

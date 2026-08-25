@@ -759,5 +759,15 @@
   "new_move_unlocked": "🎬 Nuova Mossa!",
   "new_outfit_unlocked": "👗 Nuovo Outfit!",
   "new_food_unlocked": "🍎 Nuovo Cibo!",
-  "new_home_unlocked": "🏠 Nuova Casa!"
+  "new_home_unlocked": "🏠 Nuova Casa!",
+  "helpers_load_error": "Impossibile caricare i tuoi aiutanti. Controlla la connessione e riprova.",
+  "account_type": "Tipo di Account",
+  "current_account_type": "Tipo di account attuale",
+  "switch_account_type_title": "Cambiare tipo di account?",
+  "switch_account_type_desc": "Questo cambia a quale dashboard puoi accedere. Nuovo tipo di account:",
+  "switch_account_type_confirm": "Cambia",
+  "switch_account_type_success": "Il tuo tipo di account è stato aggiornato.",
+  "switch_account_type_error": "Impossibile cambiare il tipo di account. Riprova.",
+  "switch_to_parent": "Passa a un account Genitore",
+  "switch_to_teacher": "Passa a un account Insegnante"
 }

@@ -736,5 +736,15 @@
   "new_move_unlocked": "🎬 ¡Nuevo Movimiento!",
   "new_outfit_unlocked": "👗 ¡Nuevo Look!",
   "new_food_unlocked": "🍎 ¡Nueva Comida!",
-  "new_home_unlocked": "🏠 ¡Nueva Casa!"
+  "new_home_unlocked": "🏠 ¡Nueva Casa!",
+  "helpers_load_error": "No se pudieron cargar tus ayudantes. Comprueba tu conexión e inténtalo de nuevo.",
+  "account_type": "Tipo de Cuenta",
+  "current_account_type": "Tipo de cuenta actual",
+  "switch_account_type_title": "¿Cambiar el tipo de cuenta?",
+  "switch_account_type_desc": "Esto cambia a qué panel puedes acceder. Nuevo tipo de cuenta:",
+  "switch_account_type_confirm": "Cambiar",
+  "switch_account_type_success": "Tu tipo de cuenta se ha actualizado.",
+  "switch_account_type_error": "No se pudo cambiar el tipo de cuenta. Inténtalo de nuevo.",
+  "switch_to_parent": "Cambiar a cuenta de Padre/Madre",
+  "switch_to_teacher": "Cambiar a cuenta de Profesor"
 }

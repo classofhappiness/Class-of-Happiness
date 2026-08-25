@@ -759,5 +759,15 @@
   "new_move_unlocked": "🎬 Neue Bewegung!",
   "new_outfit_unlocked": "👗 Neues Outfit!",
   "new_food_unlocked": "🍎 Neues Essen!",
-  "new_home_unlocked": "🏠 Neues Zuhause!"
+  "new_home_unlocked": "🏠 Neues Zuhause!",
+  "helpers_load_error": "Deine Helfer konnten nicht geladen werden. Überprüfe deine Verbindung und versuche es erneut.",
+  "account_type": "Kontotyp",
+  "current_account_type": "Aktueller Kontotyp",
+  "switch_account_type_title": "Kontotyp wechseln?",
+  "switch_account_type_desc": "Dadurch änderst du, auf welches Dashboard du zugreifen kannst. Neuer Kontotyp:",
+  "switch_account_type_confirm": "Wechseln",
+  "switch_account_type_success": "Dein Kontotyp wurde aktualisiert.",
+  "switch_account_type_error": "Kontotyp konnte nicht gewechselt werden. Bitte versuche es erneut.",
+  "switch_to_parent": "Zu Elternkonto wechseln",
+  "switch_to_teacher": "Zu Lehrerkonto wechseln"
 }

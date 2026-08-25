@@ -22,12 +22,11 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { useApp } from '../../src/context/AppContext';
-import { 
-  teacherResourcesApi, 
-  TeacherResource, 
+import {
+  teacherResourcesApi,
+  TeacherResource,
   TeacherResourceTopic,
   TeacherResourceRating,
-  authApiExtended
 } from '../../src/utils/api';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -79,17 +78,10 @@ export default function TeacherResourcesScreen() {
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewingResource, setViewingResource] = useState<TeacherResource | null>(null);
 
-  // Set teacher role on page load
-  useEffect(() => {
-    const setTeacherRole = async () => {
-      try {
-        await authApiExtended.updateRole('teacher');
-      } catch (error) {
-        // role update skipped
-      }
-    };
-    setTeacherRole();
-  }, []);
+  // Real fix Aug 26 (item 1, silent role auto-sync): removed - this silently overwrote the
+  // account's real role field to 'teacher' every time this screen mounted, no confirmation.
+  // See parent/dashboard.tsx for the full reasoning. Role now only changes via an explicit
+  // "Switch account type" action in Settings, with confirmation.
 
   const fetchResources = async () => {
     try {

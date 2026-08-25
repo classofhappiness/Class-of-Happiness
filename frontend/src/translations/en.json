@@ -221,5 +221,15 @@
   "new_move_unlocked": "🎬 New Move!",
   "new_outfit_unlocked": "👗 New Outfit!",
   "new_food_unlocked": "🍎 New Food!",
-  "new_home_unlocked": "🏠 New Home!"
+  "new_home_unlocked": "🏠 New Home!",
+  "helpers_load_error": "Couldn't load your helpers. Check your connection and try again.",
+  "account_type": "Account Type",
+  "current_account_type": "Current account type",
+  "switch_account_type_title": "Switch account type?",
+  "switch_account_type_desc": "This changes which dashboard you can access. New account type:",
+  "switch_account_type_confirm": "Switch",
+  "switch_account_type_success": "Your account type has been updated.",
+  "switch_account_type_error": "Could not switch account type. Please try again.",
+  "switch_to_parent": "Switch to Parent account",
+  "switch_to_teacher": "Switch to Teacher account"
 }

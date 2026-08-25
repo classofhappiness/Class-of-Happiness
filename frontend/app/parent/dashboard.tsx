@@ -25,7 +25,7 @@ import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import {
   parentApi, Student, zoneLogsApi, ZoneLog, analyticsApi,
-  familyApi, FamilyMember, FamilyZoneLog, authApiExtended, teacherApi, rewardsApi, linkedChildApi, creaturesApi
+  familyApi, FamilyMember, FamilyZoneLog, teacherApi, rewardsApi, linkedChildApi, creaturesApi
 } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 
@@ -502,13 +502,14 @@ export default function ParentDashboard() {
       setStrategyNames(nameMap);
     } catch {}
     try {
-      // First, ensure user role is set to parent
-      try {
-        await authApiExtended.updateRole('parent');
-      } catch (roleError) {
-        // role update skipped
-      }
-      
+      // Real fix Aug 26 (item 1, silent role auto-sync): this used to silently overwrite the
+      // account's real role field to 'parent' every single time this screen mounted, no
+      // confirmation, no visibility to the user - meaning role was never a stable, deliberate
+      // choice, just whatever screen was last opened. Now that role is a real access boundary
+      // (teacher/dashboard.tsx locks parent-role accounts out entirely, per the Aug 26 access-
+      // control fix), silently rewriting it on every visit is no longer safe. Role now only
+      // changes via an explicit "Switch account type" action in Settings, with confirmation.
+
       // Fetch linked children from school
       const children = await parentApi.getChildren();
       setLinkedChildren(children);
