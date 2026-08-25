@@ -2309,9 +2309,6 @@ class FamilyMemberCreate(BaseModel):
 class LinkChildRequest(BaseModel):
     link_code: str
 
-class PromoCodeRequest(BaseModel):
-    code: str
-
 # ================== AUTH HELPERS ==================
 async def get_current_user(request: Request) -> Optional[dict]:
     """Get current user from Supabase session token"""
@@ -2341,6 +2338,28 @@ async def get_current_user(request: Request) -> Optional[dict]:
         logger.error(f"Auth error: {e}")
         return None
 
+def _trial_is_valid(user: dict) -> bool:
+    """Real bug fix Aug 25: a promo code (POST /subscription/redeem-trial-code, e.g.
+    HAPPYCLASS2026) can grant a real duration other than the standard TRIAL_DURATION_DAYS
+    (30 days, not 14) - it writes that real expiry into subscription_expires_at. Every
+    trial-status expiry check in this file used to ignore that entirely and always compute
+    from trial_started_at + the standard 14-day TRIAL_DURATION_DAYS instead, so a promo-code
+    trial silently lost its real access after only 14 of its advertised 30 days - confirmed
+    across both check_subscription_active (general feature-gating) and
+    _is_genuinely_free_tier (the new creature caps). subscription_expires_at is checked first
+    when present (the promo-granted real value); falls back to the standard 14-day window,
+    computed from trial_started_at, for a regular trial (POST /subscription/start-trial),
+    which never sets subscription_expires_at at all."""
+    if user.get("subscription_status") != "trial":
+        return False
+    exp = user.get("subscription_expires_at")
+    if exp:
+        return datetime.fromisoformat(exp.replace("Z", "+00:00")) > datetime.now(timezone.utc)
+    start = user.get("trial_started_at")
+    if start:
+        return datetime.now(timezone.utc) < datetime.fromisoformat(start.replace("Z", "+00:00")) + timedelta(days=TRIAL_DURATION_DAYS)
+    return False
+
 def check_subscription_active(user: dict) -> bool:
     if not user:
         return False
@@ -2361,14 +2380,7 @@ def check_subscription_active(user: dict) -> bool:
             return exp_dt > datetime.now(timezone.utc)
         return True
     if sub_status == "trial":
-        trial_start = user.get("trial_started_at")
-        if trial_start:
-            start_dt = datetime.fromisoformat(trial_start.replace("Z", "+00:00"))
-            return datetime.now(timezone.utc) < start_dt + timedelta(days=TRIAL_DURATION_DAYS)
-    promo_end = user.get("promo_trial_ends_at")
-    if promo_end:
-        end_dt = datetime.fromisoformat(promo_end.replace("Z", "+00:00"))
-        return end_dt > datetime.now(timezone.utc)
+        return _trial_is_valid(user)
     return False
 
 # ================== HEALTH ==================
@@ -2485,32 +2497,15 @@ async def update_role(request: Request):
     supabase.table("users").update({"role": role}).eq("user_id", user["user_id"]).execute()
     return {"role": role}
 
-@api_router.post("/auth/promo-code")
-async def apply_promo_code(request: Request, body: PromoCodeRequest):
-    """Real fix Aug 20 (A6): this and two sibling endpoints (/auth/promote-admin,
-    /subscription/redeem-trial-code) used to also grant role="admin" via these same
-    promo codes with no other authorization check. /auth/fix-role (a hardcoded-secret
-    endpoint that could set any user_id's role, admin included) has been removed too.
-    All were live, self-serve privilege-escalation paths into a role that ~20 backend
-    endpoints treated as fully equal to superadmin (their own docstrings said
-    "superadmin only") while /admin/verify treated it as school_admin-tier - a real,
-    reachable gap, not just dead code. Zero live users ever had this role. See
-    COH-REVIEW-PLAN.md A6."""
-    user = await get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    code = body.code.upper().strip()
-    promo = PROMO_CODES.get(code)
-    if not promo:
-        raise HTTPException(status_code=400, detail="Invalid promo code")
-    days = promo.get("days", 30)
-    ends_at = datetime.now(timezone.utc) + timedelta(days=days)
-    supabase.table("users").update({
-        "subscription_status": "trial",
-        "promo_trial_ends_at": ends_at.isoformat(),
-        "trial_started_at": datetime.now(timezone.utc).isoformat()
-    }).eq("user_id", user["user_id"]).execute()
-    return {"message": f"Trial activated for {days} days!", "ends_at": ends_at.isoformat()}
+# Real fix Aug 25: removed the dead /auth/promo-code endpoint (apply_promo_code) and its
+# PromoCodeRequest model - confirmed via grep that nothing in the frontend ever called it
+# (the real, actually-reachable redemption path is POST /subscription/redeem-trial-code,
+# already fixed for its own Aug 20/A6 privilege-escalation issue - see that endpoint's own
+# docstring). This one wrote to promo_trial_ends_at, a field nothing else in the app ever
+# read for access decisions (check_subscription_active's old promo_trial_ends_at fallback
+# branch was unreachable dead code too - trial_started_at is always set alongside it, so the
+# earlier trial_started_at branch always returned first). Leftover from an earlier iteration,
+# not a currently functioning path - removed rather than left to cause confusion later.
 
 # ================== STUDENTS ==================
 @api_router.get("/students")
@@ -4036,17 +4031,19 @@ def _is_genuinely_free_tier(user: dict) -> bool:
     ones are flagged as a separate future fix, not silently copied here.
     Also respects the same school-coverage bypass every other free-tier check uses, so a
     teacher/parent whose school pays is never capped just because their own personal
-    subscription_status says otherwise."""
+    subscription_status says otherwise.
+    Real bug fix Aug 25: trial-status expiry now goes through the shared _trial_is_valid(),
+    which correctly honours a promo-code trial's real (e.g. 30-day) expiry via
+    subscription_expires_at instead of always assuming the standard 14-day window - see
+    _trial_is_valid's own docstring for the full story."""
     sub_status = user.get("subscription_status") or "none"
     now = datetime.now(timezone.utc)
     if sub_status == "active":
         exp = user.get("subscription_expires_at")
         if not exp or datetime.fromisoformat(exp.replace("Z", "+00:00")) > now:
             return False  # genuinely active, not free tier
-    elif sub_status == "trial":
-        start = user.get("trial_started_at")
-        if start and (now - datetime.fromisoformat(start.replace("Z", "+00:00"))) <= timedelta(days=TRIAL_DURATION_DAYS):
-            return False  # genuinely still in a valid trial, not free tier
+    elif sub_status == "trial" and _trial_is_valid(user):
+        return False  # genuinely still in a valid trial, not free tier
     role = user.get("role")
     if role == "teacher" and _teacher_is_school_covered(user):
         return False
