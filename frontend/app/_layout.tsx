@@ -1,16 +1,35 @@
 import React, { useEffect } from 'react';
 import { Stack, useRouter, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Image, View, StyleSheet, Platform, TouchableOpacity, Text } from 'react-native';
+import { Image, View, StyleSheet, Platform, TouchableOpacity, Text, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import * as SplashScreen from 'expo-splash-screen';
+import { useFonts } from 'expo-font';
 import { AppProvider, useApp } from '../src/context/AppContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 // Keep splash screen visible until app is ready
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Real feature Aug 26 (item 11): Nunito is the real, correctly-loaded brand font on the web
+// portal (portal100.html, Google Fonts CDN), but on mobile no font file was ever bundled and
+// no expo-font/useFonts call existed anywhere - the app has been running on the OS system
+// font (San Francisco/Roboto) this whole time, with exactly one screen (forgot-password.tsx)
+// setting fontFamily:'Nunito' against nothing actually registered under that name. Applied
+// globally via Text/TextInput defaultProps rather than editing every screen's styles - same
+// visual effect, without a multi-hundred-file diff for a font swap. Only a variable-weight
+// file ships for this font upstream (no separate static per-weight files exist in Google
+// Fonts' own repo) - real, deliberate choice, not a corner cut.
+function setDefaultFont(fontFamily: string) {
+  const TextAny = Text as any;
+  TextAny.defaultProps = TextAny.defaultProps || {};
+  TextAny.defaultProps.style = [{ fontFamily }, TextAny.defaultProps.style];
+  const TextInputAny = TextInput as any;
+  TextInputAny.defaultProps = TextInputAny.defaultProps || {};
+  TextInputAny.defaultProps.style = [{ fontFamily }, TextInputAny.defaultProps.style];
+}
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -406,6 +425,19 @@ function HomeToDashboard() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    Nunito: require('../assets/fonts/Nunito.ttf'),
+  });
+
+  useEffect(() => {
+    if (fontsLoaded) setDefaultFont('Nunito');
+  }, [fontsLoaded]);
+
+  // Splash screen (already held open by preventAutoHideAsync above) stays up until the font
+  // is actually ready - AppContent's own hideAsync call happens after isLoading too, so this
+  // just adds a second real condition rather than racing it.
+  if (!fontsLoaded) return null;
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AppProvider>
