@@ -13035,6 +13035,59 @@ async def set_password(request: Request):
     supabase.table("users").update({"portal_password": hashed}).eq("user_id", user["user_id"]).execute()
     return {"status": "password set successfully"}
 
+@api_router.post("/auth/signup")
+async def email_signup(request: Request):
+    """Real feature Aug 26 (item 2, follow-up to the A40 access-control fix): a genuine
+    email/password signup with an explicit role picker. Before this, plain email/password was
+    login-only - /auth/email-login's unrecognized-email path used to silently create an
+    account (the exact bug A40 closed), and after that fix there was briefly no email-based
+    way to create a real new account at all (Google sign-in remained the only real path). This
+    restores email-based signup as its own deliberate, explicit action: a real password is
+    required at creation (never optional, unlike the old silent-creation accounts which mostly
+    had none - see the force-password-on-login fix), and role is chosen explicitly here, never
+    silently derived later (see the A41 fix removing silent updateRole() calls)."""
+    body = await request.json()
+    email = body.get("email", "").strip().lower()
+    password = body.get("password", "")
+    name = body.get("name", "").strip()
+    role = body.get("role", "").strip().lower()
+
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Valid email required")
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if not name:
+        raise HTTPException(status_code=400, detail="Name required")
+    if role not in ("teacher", "parent"):
+        raise HTTPException(status_code=400, detail="Please choose whether you're a Teacher or Parent")
+
+    existing = supabase.table("users").select("user_id").eq("email", email).execute()
+    if existing.data:
+        raise HTTPException(status_code=409, detail="An account with this email already exists. Please sign in instead.")
+
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    new_user = {
+        "user_id": user_id,
+        "email": email,
+        "name": name,
+        "role": role,
+        "language": "en",
+        "subscription_status": "none",
+        "portal_password": hash_password(password),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    supabase.table("users").insert(new_user).execute()
+
+    session_token = str(uuid.uuid4())
+    supabase.table("user_sessions").insert({
+        "session_token": session_token,
+        "user_id": user_id,
+        "expires_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }).execute()
+
+    return {"user": _public_user(new_user), "session_token": session_token}
+
 @api_router.post("/auth/reset-password-request")
 async def reset_password_request(request: Request):
     """CRITICAL security fix Aug 26: this used to return the reset token directly in the API

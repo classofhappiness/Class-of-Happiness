@@ -113,6 +113,13 @@ function AppContent() {
           }}
         />
         <Stack.Screen
+          name="auth/signup"
+          options={{
+            headerShown: false,
+            title: 'Sign Up',
+          }}
+        />
+        <Stack.Screen
           name="auth/set-password-required"
           options={{
             headerShown: false,

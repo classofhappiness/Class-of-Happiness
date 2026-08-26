@@ -180,8 +180,12 @@ export default function LoginScreen() {
               <Text style={styles.googleButtonText}>Sign in with Google</Text>
             </TouchableOpacity>
 
+            <TouchableOpacity onPress={() => router.push('/auth/signup')}>
+              <Text style={styles.signupLink}>New here? Create an account</Text>
+            </TouchableOpacity>
+
             <Text style={styles.hint}>
-              New users are created automatically.{'\n'}Password is optional — you can set one anytime in Settings.
+              Already have a school invite or class link code?{'\n'}Sign in first, then enter it in Settings.
             </Text>
           </View>
 
@@ -228,7 +232,8 @@ const styles = StyleSheet.create({
     borderRadius: 14, padding: 14, marginTop: 12,
   },
   googleButtonText: { color: '#333', fontSize: 15, fontWeight: '600' },
-  hint: { fontSize: 12, color: '#AAA', textAlign: 'center', marginTop: 16, lineHeight: 18 },
+  signupLink: { color: '#5C6BC0', fontSize: 14, fontWeight: '600', textAlign: 'center', marginTop: 18 },
+  hint: { fontSize: 12, color: '#AAA', textAlign: 'center', marginTop: 12, lineHeight: 18 },
   trialBox: { backgroundColor: '#EEF2FF', borderRadius: 14, padding: 16, alignItems: 'center' },
   trialTitle: { fontSize: 15, fontWeight: '600', color: '#5C6BC0', marginBottom: 4 },
   trialText: { fontSize: 13, color: '#666', textAlign: 'center' },

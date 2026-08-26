@@ -42,6 +42,7 @@ interface AppContextType {
   login: () => void;
   loginWithEmail: (email: string, adminPin?: string, attempt?: number, password?: string) => Promise<void>;
   loginWithGoogle: (googleAccessToken: string) => Promise<void>;
+  signupWithEmail: (email: string, password: string, name: string, role: 'teacher' | 'parent') => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   
@@ -621,6 +622,36 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  // Real feature Aug 26 (item 2): genuine email/password signup with an explicit role picker -
+  // see POST /auth/signup. Unlike loginWithEmail/loginWithGoogle above, this deliberately
+  // re-throws on failure instead of swallowing it into an Alert.alert - the signup screen shows
+  // the real error inline next to the field it applies to (e.g. "email already exists" should
+  // point the user at Sign In, not just dismiss into nothing).
+  const signupWithEmail = async (email: string, password: string, name: string, role: 'teacher' | 'parent') => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('https://class-of-happiness-production.up.railway.app/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name, role }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = data?.detail || data?.message || `Server error (${response.status})`;
+        throw new Error(message);
+      }
+      const { user, session_token } = data;
+      await AsyncStorage.setItem('session_token', session_token);
+      await AsyncStorage.setItem('user_data', JSON.stringify(user));
+      await setSessionToken(session_token);
+      setUser(user);
+      setIsAuthenticated(true);
+      console.log('[Signup] Success:', user.email);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = async () => {
     try {
       await authApi.logout();
@@ -755,6 +786,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         login,
         loginWithEmail,
         loginWithGoogle,
+        signupWithEmail,
         logout,
         checkAuth,
         
