@@ -12411,8 +12411,17 @@ async def toggle_school_sharing(student_id: str, request: Request):
         raise HTTPException(status_code=404, detail="No parent linked to this student yet")
     current = links.data[0].get("school_sharing_enabled")
     new_value = not (current if current is not None else True)
-    for link in links.data:
-        supabase.table("parent_links").update({"school_sharing_enabled": new_value}).eq("id", link["id"]).execute()
+    try:
+        for link in links.data:
+            supabase.table("parent_links").update({"school_sharing_enabled": new_value}).eq("id", link["id"]).execute()
+    except Exception as e:
+        # Real, expected failure mode until the migration below has actually been run - the
+        # column genuinely doesn't exist yet, so writing to it can never succeed regardless of
+        # anything this endpoint does. Live-tested against the real, not-yet-migrated table:
+        # this used to surface as an opaque 500 "Internal Server Error" with the real reason
+        # only visible in Railway logs.
+        logger.warning(f"toggle_school_sharing: school_sharing_enabled column not available yet: {e}")
+        raise HTTPException(status_code=503, detail="This feature isn't available yet - it needs a database migration that hasn't been run. Contact Jono.")
     return {"school_sharing_enabled": new_value}
 
 
