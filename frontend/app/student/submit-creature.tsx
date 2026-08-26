@@ -266,7 +266,7 @@ export default function SubmitCreatureScreen() {
   if (step === 'details') return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
       <TranslatedHeader title={t('creature_details_title') || 'Your creature details'} showHome onBackPress={() => setStep('code')} />
-      <Text style={s.label}>{t('creature_name_label') || 'Creature name'}</Text>
+      <Text style={s.label}>{t('creature_name_label') || 'Creature Name'}</Text>
       <TextInput style={s.input} value={name} onChangeText={setName}
         placeholder={t('creature_name_placeholder') || 'Give it a name!'} maxLength={50} />
       <Text style={s.label}>{t('creature_emotion_question') || 'Which emotion does it represent?'}</Text>
@@ -343,7 +343,7 @@ export default function SubmitCreatureScreen() {
             <Text style={[s.label, { marginTop: 20 }]}>{t('creature_country_question') || 'Which country is this from?'}</Text>
             <TouchableOpacity style={s.countryPickerBtn} onPress={() => setCountryPickerOpen(true)}>
               <Text style={s.countryPickerTxt}>
-                {selectedCountry ? `${countryFlagEmoji(selectedCountry.code)}  ${selectedCountry.name}` : (t('select_country') || 'Select a country')}
+                {selectedCountry ? `${countryFlagEmoji(selectedCountry.code)}  ${selectedCountry.name}` : (t('select_country') || 'Select a Country')}
               </Text>
               <Text style={s.countryPickerChevron}>▾</Text>
             </TouchableOpacity>
@@ -357,7 +357,7 @@ export default function SubmitCreatureScreen() {
         <Modal visible={countryPickerOpen} transparent animationType="fade" onRequestClose={() => setCountryPickerOpen(false)}>
           <View style={s.countryModalOverlay}>
             <View style={s.countryModalCard}>
-              <Text style={s.countryModalTitle}>{t('select_country') || 'Select a country'}</Text>
+              <Text style={s.countryModalTitle}>{t('select_country') || 'Select a Country'}</Text>
               <TextInput style={s.countrySearchInput} value={countrySearch} onChangeText={setCountrySearch}
                 placeholder={t('search_countries_placeholder') || 'Search countries...'} autoCapitalize="words" />
               <ScrollView style={{ maxHeight: 360 }}>

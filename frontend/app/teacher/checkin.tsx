@@ -532,7 +532,7 @@ export default function TeacherCheckInScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
         {/* STEP 1: Colour Selection */}
-        <Text style={styles.sectionLabel}>{t('select_emotion') || 'Select your emotion'}</Text>
+        <Text style={styles.sectionLabel}>{t('select_emotion') || 'Select Your Emotion'}</Text>
         <View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginBottom:8}}>
           {ZONES.map(zone => (
             <TouchableOpacity
@@ -684,7 +684,7 @@ export default function TeacherCheckInScreen() {
             <TouchableOpacity onPress={() => setHistoryExpanded(e => !e)} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
               <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
                 <MaterialIcons name="history" size={17} color="#5C6BC0" />
-                <Text style={styles.weekTitle}>{t('your_recent_checkins') || 'Your recent check-ins'}</Text>
+                <Text style={styles.weekTitle}>{t('your_recent_checkins') || 'Your Recent Check-ins'}</Text>
               </View>
               <MaterialIcons name={historyExpanded ? 'expand-less' : 'expand-more'} size={22} color="#999" />
             </TouchableOpacity>
@@ -815,7 +815,7 @@ export default function TeacherCheckInScreen() {
             <Text style={styles.modalSubtitle}>
               Your principal, psychologist, or wellbeing lead will be notified privately and confidentially.
             </Text>
-            <Text style={styles.inputLabel}>{t('support_message_placeholder') || t('support_message_placeholder') || 'Your message'}</Text>
+            <Text style={styles.inputLabel}>{t('support_message_placeholder') || 'Your Message'}</Text>
             <TextInput
               style={styles.alertInput}
               placeholder="e.g. I'm struggling this week and would appreciate a check-in..."

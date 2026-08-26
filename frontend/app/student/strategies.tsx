@@ -372,7 +372,7 @@ export default function StrategiesScreen() {
             onPress={() => setParentMessageVisible(!parentMessageVisible)}
           >
             <Text style={{ fontSize: 16 }}>💌</Text>
-            <Text style={styles.parentMsgLabel}>{t('message_parent') || 'Send message to parent'}</Text>
+            <Text style={styles.parentMsgLabel}>{t('message_parent') || 'Send Message to Parent'}</Text>
             <TouchableOpacity
               style={[styles.helpBtn, parentMessageVisible && styles.helpBtnDone]}
               onPress={() => setParentMessageVisible(true)}

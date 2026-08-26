@@ -326,7 +326,7 @@ export default function ManageClassroomsScreen() {
 
             <ScrollView>
               {/* Current students */}
-              <Text style={styles.sectionLabel}>{t('students_in_class') || 'Students in this class'} ({classroomStudents.length})</Text>
+              <Text style={styles.sectionLabel}>{t('students_in_class') || 'Students in This Class'} ({classroomStudents.length})</Text>
               {classroomStudents.length === 0 && (
                 <Text style={styles.emptySubtext}>No students yet — add from below</Text>
               )}

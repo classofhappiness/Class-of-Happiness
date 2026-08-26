@@ -85,7 +85,7 @@ export default function TeacherWidgetScreen() {
       {/* Header */}
       <View style={st.header}>
         <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }}>
-          <MaterialIcons name="arrow-back" size={22} color="#333" />
+          <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={st.headerTitle}>😊 {t('classroom_widget') || 'Classroom Widget'}</Text>

@@ -258,7 +258,7 @@ export default function SubscriptionScreen() {
             <MaterialIcons name="card-giftcard" size={16} color="white" />
             <Text style={st.trialBadgeText}>{(t('trial_days_free_badge') || '{days} Days Free').replace('{days}', String(trialDays))}</Text>
           </View>
-          <Text style={st.trialTitle}>{t('try_everything_free') || 'Try everything free'}</Text>
+          <Text style={st.trialTitle}>{t('try_everything_free') || 'Try Everything Free'}</Text>
           <Text style={st.trialSub}>{t('trial_no_card_hint') || 'No credit card · No commitment · Cancel anytime'}</Text>
           <TouchableOpacity style={st.trialBtn} onPress={handleStartTrial} disabled={trialLoading}>
             {trialLoading ? <ActivityIndicator color="#5C6BC0" /> : <Text style={st.trialBtnText}>{t('start_free_trial_btn') || 'Start Free Trial'}</Text>}
@@ -312,7 +312,7 @@ export default function SubscriptionScreen() {
       ) : (
         <>
           {/* Plans */}
-          <Text style={st.sectionLabel}>{t('choose_your_plan') || 'Choose your plan'}</Text>
+          <Text style={st.sectionLabel}>{t('choose_your_plan') || 'Choose Your Plan'}</Text>
           {plans.map(plan => (
             <TouchableOpacity
               key={plan.id}

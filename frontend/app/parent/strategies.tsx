@@ -167,8 +167,8 @@ export default function ParentStrategiesScreen() {
         <View style={styles.header}>
           <View style={{flexDirection:'row',alignItems:'center',marginBottom:8}}>
             <TouchableOpacity onPress={() => router.back()} style={{flexDirection:'row',alignItems:'center',gap:4}}>
-              <MaterialIcons name="arrow-back" size={20} color="#5C6BC0" />
-              <Text style={{color:'#5C6BC0',fontSize:14,fontWeight:'500'}}>{t('back') || 'Back'}</Text>
+              <MaterialIcons name="arrow-back" size={24} color="#333" />
+              <Text style={{color:'#333',fontSize:14,fontWeight:'500'}}>{t('back') || 'Back'}</Text>
             </TouchableOpacity>
             <View style={{flex:1}} />
             <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={{padding:4}}>
@@ -333,7 +333,7 @@ export default function ParentStrategiesScreen() {
                     size={24}
                     color={newStrategy.is_shared ? '#4CAF50' : '#999'}
                   />
-                  <Text style={styles.shareLabel}>{t('share_with_teacher') || t('share_with_teacher') || 'Share with teacher'}</Text>
+                  <Text style={styles.shareLabel}>{t('share_with_teacher') || 'Share with Teacher'}</Text>
                 </TouchableOpacity>
                 <Text style={styles.shareHint}>
                   When shared, your child's teacher can also see and use this strategy

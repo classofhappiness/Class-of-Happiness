@@ -674,7 +674,7 @@ export default function SettingsScreen() {
             <View style={styles.settingLeft}>
               <MaterialIcons name="swap-horiz" size={24} color="#5C6BC0" />
               <View style={styles.settingText}>
-                <Text style={styles.settingLabel}>{t('current_account_type') || 'Current account type'}</Text>
+                <Text style={styles.settingLabel}>{t('current_account_type') || 'Current Account Type'}</Text>
                 <Text style={styles.settingValue}>
                   {user!.role === 'teacher' ? (t('teacher') || 'Teacher') : (t('parent') || 'Parent / Family')}
                 </Text>
@@ -907,7 +907,7 @@ export default function SettingsScreen() {
             <View style={styles.settingItem}>
               <View style={[styles.settingLeft, { flex: 1 }]}>
                 <View style={[styles.settingText, { flex: 1 }]}>
-                  <Text style={styles.settingLabel}>Share with my school admin</Text>
+                  <Text style={styles.settingLabel}>Share With My School Admin</Text>
                   <Text style={styles.settingValue}>
                     When on, your school admin can see your individual wellbeing check-ins. Off by default — you can turn this on or off any time.
                   </Text>
