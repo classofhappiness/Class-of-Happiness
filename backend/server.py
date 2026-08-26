@@ -2540,7 +2540,11 @@ async def get_students(request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
+    # Real fix Aug 26 (security audit): always self-scoped by user_id (never a data leak),
+    # but had no role check - any authenticated non-teacher account could hit this.
+    if user.get("role") not in ("teacher", "school_admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Teacher access required")
+
     # Get students via user_id AND via classrooms (for teachers assigned to classrooms)
     result = supabase.table("students").select("*").eq("user_id", user["user_id"]).execute()
     own_students = result.data or []
@@ -2616,6 +2620,11 @@ async def create_student(student: StudentCreate, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real fix Aug 26 (security audit): live-confirmed exploit - a parent-role test account
+    # with no role check at all was able to successfully create a student record via this
+    # endpoint (200, not 403).
+    if user.get("role") not in ("teacher", "school_admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Teacher access required")
     # Free tier: limit to 10 students (mirrors the same real pattern already used for classrooms)
     # Real fix Aug 26 (item 4): was `subscription_status in ("none","free",None)` plus a bare
     # `bool(school_admin_id)` - blind to real expiry (a lapsed trial/paid account dodged this
@@ -2672,6 +2681,11 @@ async def get_student(student_id: str, request: Request):
     result = supabase.table("students").select("*").eq("id", student_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Student not found")
+    # Real fix Aug 26 (security audit): had no authorization check at all - any authenticated
+    # user could read any student's full record by id. Uses _is_authorized_for_student (not a
+    # staff-only role check) since this is legitimately read by parent-facing screens too.
+    if not await _is_authorized_for_student(user, student_id, result.data[0]):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     return result.data[0]
 
 @api_router.put("/students/{student_id}")
@@ -2679,6 +2693,13 @@ async def update_student(student_id: str, update: StudentUpdate, request: Reques
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real fix Aug 26 (security audit): had no authorization check at all - any authenticated
+    # user could edit any student's record by id. Editing a student's core profile is staff
+    # functionality (unlike the read above, which parent-facing screens legitimately use too).
+    if user.get("role") not in ("teacher", "school_admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     update_data = {k: v for k, v in update.dict().items() if v is not None}
     supabase.table("students").update(update_data).eq("id", student_id).execute()
     result = supabase.table("students").select("*").eq("id", student_id).execute()
@@ -2689,6 +2710,13 @@ async def delete_student(student_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real fix Aug 26 (security audit): had no authorization check at all - any authenticated
+    # user could permanently delete any student system-wide (and their feeling_logs/rewards)
+    # by id.
+    if user.get("role") not in ("teacher", "school_admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     supabase.table("feeling_logs").delete().eq("student_id", student_id).execute()
     supabase.table("student_rewards").delete().eq("student_id", student_id).execute()
     supabase.table("students").delete().eq("id", student_id).execute()
@@ -2699,8 +2727,14 @@ async def generate_link_code(student_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    # Any authenticated user can generate link codes for their students
-    # (auth check above is sufficient)
+    # Real fix Aug 26 (security audit): the old comment here ("auth check above is
+    # sufficient") was false - nothing tied the student to the caller, so any authenticated
+    # user could mint a real link code for any student, which a parent could then use to
+    # link themselves to a child that isn't theirs.
+    if user.get("role") not in ("teacher", "school_admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     link_code = str(uuid.uuid4())[:6].upper()
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
     supabase.table("students").update({
@@ -2715,6 +2749,12 @@ async def get_classrooms(request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real fix Aug 26 (security audit): this only ever scoped results to the caller's own
+    # user_id (never a data leak), but had no role check at all - any authenticated account
+    # of any role could hit this and, more importantly, POST /classrooms below could CREATE
+    # classrooms as a non-teacher role. Teacher functionality now requires a teacher-tier role.
+    if user.get("role") not in ("teacher", "school_admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Teacher access required")
     result = supabase.table("classrooms").select("*").eq("user_id", user["user_id"]).execute()
     return result.data or []
 
@@ -2723,6 +2763,8 @@ async def create_classroom(classroom: ClassroomCreate, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    if user.get("role") not in ("teacher", "school_admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Teacher access required")
     # Free tier: limit to 1 classroom. Real fix Aug 26 (item 4): same expiry-blind /
     # school-coverage-blind pattern as /students above, fixed the same way.
     if _is_genuinely_free_tier(user):
@@ -2751,6 +2793,10 @@ async def delete_classroom(classroom_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real fix Aug 26 (security audit): had no ownership check at all - any authenticated
+    # user could delete any classroom system-wide by id.
+    if not await _is_authorized_for_classroom(user, classroom_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this classroom")
     supabase.table("classrooms").delete().eq("id", classroom_id).execute()
     return {"message": "Classroom deleted"}
 
@@ -2853,6 +2899,11 @@ async def get_zone_logs_all(
 
     # Specific student filter
     if student_id:
+        # Real fix Aug 26 (security audit): had no authorization check at all - any
+        # authenticated user could read any student's full check-in history by passing
+        # student_id, regardless of the classroom-scoping the rest of this endpoint applies.
+        if not await _is_authorized_for_student(user, student_id):
+            raise HTTPException(status_code=403, detail="Not authorized for this student")
         query = query.eq("student_id", student_id)
         result = query.execute()
         return result.data or []
@@ -3053,8 +3104,15 @@ async def create_custom_strategy_alias(request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    # Real fix Aug 26 (security audit): had no authorization check on the target student_id
+    # at all - any authenticated user could create a custom strategy attributed to any
+    # student. Placed before the try/except below since its bare `except Exception` would
+    # otherwise mask a raised HTTPException as a 500 instead of a real 403.
+    target_student_id = body.get("student_id")
+    if target_student_id and not await _is_authorized_for_student(user, target_student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     try:
-        body = await request.json()
         new_id = str(uuid.uuid4())
         strategy = {
             "id": new_id,
@@ -3078,6 +3136,16 @@ async def update_custom_strategy(strategy_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real fix Aug 26 (security audit): had no ownership check at all - any authenticated
+    # user could edit any custom strategy system-wide by id. Placed before the try/except
+    # below since its bare `except Exception` would otherwise mask a raised HTTPException
+    # as a 500 instead of a real 403/404.
+    existing = supabase.table("custom_helpers").select("user_id,student_id").eq("id", strategy_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    row = existing.data[0]
+    if row.get("user_id") != user["user_id"] and not await _is_authorized_for_student(user, row.get("student_id") or ""):
+        raise HTTPException(status_code=403, detail="Not authorized for this strategy")
     try:
         body = await request.json()
         update_data = {}
@@ -3099,6 +3167,14 @@ async def delete_custom_strategy(strategy_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real fix Aug 26 (security audit): the docstring already said "owner only" but the code
+    # never actually checked that - any authenticated user could delete any custom strategy
+    # system-wide by id.
+    existing = supabase.table("custom_helpers").select("user_id").eq("id", strategy_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    if existing.data[0].get("user_id") != user["user_id"] and user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Not authorized for this strategy")
     try:
         result = supabase.table("custom_helpers").delete().eq("id", strategy_id).execute()
         return {"deleted": True}
@@ -3111,10 +3187,19 @@ async def get_custom_strategies(request: Request, student_id: Optional[str] = No
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real fix Aug 26 (security audit): with no student_id, this had NO filter at all -
+    # returned every custom strategy for every student system-wide to any authenticated
+    # user. With a student_id, it had no authorization check on that student either. Now:
+    # no student_id -> scoped to strategies the caller themselves created; a student_id ->
+    # requires real authorization for that specific student.
+    if student_id and not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     try:
         query = supabase.table("custom_helpers").select("*")
         if student_id:
             query = query.eq("student_id", student_id)
+        else:
+            query = query.eq("user_id", user["user_id"])
         result = query.execute()
         # Normalise: add zone field from feeling_colour for frontend compatibility
         data = result.data or []
@@ -3457,6 +3542,10 @@ async def get_all_classrooms_analytics(request: Request, days: int = 7):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real fix Aug 26 (security audit): always self-scoped by user_id (never a data leak),
+    # but had no role check.
+    if user.get("role") not in ("teacher", "school_admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Teacher access required")
     try:
         start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         # Get all students via teacher's classrooms
@@ -3493,7 +3582,17 @@ async def get_all_classrooms_analytics(request: Request, days: int = 7):
         return {"zone_counts": {"blue":0,"green":0,"yellow":0,"red":0}, "total_logs": 0}
 
 @api_router.get("/analytics/classroom/{classroom_id}")
-async def get_classroom_analytics(classroom_id: str, days: int = 7):
+async def get_classroom_analytics(classroom_id: str, request: Request, days: int = 7):
+    # Real fix Aug 26 (security audit): this endpoint had no `request: Request` parameter at
+    # all, meaning it was IMPOSSIBLE to check auth - fully unauthenticated, returned any
+    # classroom's aggregate emotion-log data to anyone who knew (or guessed) an id. The
+    # frontend already sends a real Authorization header on this call (src/utils/api.ts),
+    # it was just never read.
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not await _is_authorized_for_classroom(user, classroom_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this classroom")
     students = supabase.table("students").select("*").eq("classroom_id", classroom_id).execute()
     students_data = students.data or []
     student_ids = [s["id"] for s in students_data]
@@ -3609,6 +3708,10 @@ async def get_family_members(request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real fix Aug 26 (security audit): always self-scoped by user_id (never a data leak),
+    # but had no role check.
+    if user.get("role") not in ("parent", "superadmin"):
+        raise HTTPException(status_code=403, detail="Parent access required")
     result = supabase.table("family_members").select("*").eq("user_id", user["user_id"]).execute()
     members = result.data or []
     # Real school link, path 1: the family_members.student_id row has a classroom_id
@@ -3656,6 +3759,8 @@ async def add_family_member(member: FamilyMemberCreate, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    if user.get("role") not in ("parent", "superadmin"):
+        raise HTTPException(status_code=403, detail="Parent access required")
     # Free tier: limit to 2 children (mirrors the same real pattern used for classrooms/students —
     # only counts relationship=="child", adult family members like partners aren't capped).
     # Real fix Aug 18: this never checked school-package coverage, only the parent's own
@@ -3730,6 +3835,10 @@ async def update_family_member(member_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real fix Aug 26 (security audit): the actual update below was already correctly
+    # scoped by user_id (not an IDOR), just had no role check.
+    if user.get("role") not in ("parent", "superadmin"):
+        raise HTTPException(status_code=403, detail="Parent access required")
     body = await request.json()
     allowed = ["name", "relationship", "avatar_type", "avatar_preset", "avatar_custom"]
     update_data = {k: v for k, v in body.items() if k in allowed and v is not None}
@@ -3753,6 +3862,14 @@ async def delete_family_member(member_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    if user.get("role") not in ("parent", "superadmin"):
+        raise HTTPException(status_code=403, detail="Parent access required")
+    # Real fix Aug 26 (security audit): had no ownership scoping at all (unlike the PUT
+    # right above, which was already correctly scoped) - any authenticated user could
+    # delete any family_members row system-wide by id.
+    existing = supabase.table("family_members").select("id").eq("id", member_id).eq("user_id", user["user_id"]).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Family member not found")
     # Only delete the family_member record — preserve student profile and rewards
     # Student records/rewards should persist even if removed from family dashboard
     supabase.table("family_members").delete().eq("id", member_id).execute()
@@ -3810,6 +3927,36 @@ async def _is_authorized_for_student(user: dict, student_id: str, student_data: 
             return True
     except Exception:
         pass
+    return False
+
+async def _is_authorized_for_classroom(user: dict, classroom_id: str, classroom_data: dict = None) -> bool:
+    """Real fix Aug 26 (security audit): shared authorization check for classroom-scoped
+    teacher endpoints (analytics, join code, delete) - same dual-match (school_admin_id OR
+    school_name) precedent as _is_authorized_for_student's classroom-ownership branch.
+    Several of these endpoints previously had NO check at all - any authenticated user could
+    read or delete any classroom by id."""
+    if classroom_data is None:
+        cls_r = supabase.table("classrooms").select("*").eq("id", classroom_id).execute()
+        if not cls_r.data:
+            return False
+        classroom_data = cls_r.data[0]
+    if user.get("role") == "superadmin":
+        return True
+    owner_id = classroom_data.get("user_id")
+    if owner_id == user["user_id"]:
+        return True
+    if user.get("role") == "school_admin" and owner_id:
+        try:
+            owner_r = supabase.table("users").select("school_admin_id,school_name").eq("user_id", owner_id).execute()
+            if owner_r.data:
+                owner = owner_r.data[0]
+                if owner.get("school_admin_id") == user["user_id"]:
+                    return True
+                school_name = user.get("school_name", "")
+                if school_name and owner.get("school_name") == school_name:
+                    return True
+        except Exception:
+            pass
     return False
 
 DEFAULT_CREATURE_IDS = {"aqua_buddy", "leaf_friend", "spark_pal", "blaze_heart"}
@@ -4228,6 +4375,11 @@ async def get_shared_strategies_for_student(student_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real fix Aug 26 (security audit): had no authorization check at all - any authenticated
+    # user could pull any student's full strategy list (teacher + all linked parents' custom
+    # strategies) by id.
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     try:
         data = []
         seen_ids = set()
@@ -4305,12 +4457,22 @@ async def toggle_strategy_sync(strategy_id: str, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        current = supabase.table("custom_helpers").select("is_shared").eq("id", strategy_id).execute()
+        current = supabase.table("custom_helpers").select("is_shared,user_id,student_id").eq("id", strategy_id).execute()
         if not current.data:
             raise HTTPException(status_code=404, detail="Strategy not found")
+        # Real fix Aug 26 (security audit): had no ownership check at all - any authenticated
+        # user could flip is_shared on any custom strategy system-wide by id.
+        row = current.data[0]
+        if row.get("user_id") != user["user_id"] and not await _is_authorized_for_student(user, row.get("student_id") or ""):
+            raise HTTPException(status_code=403, detail="Not authorized for this strategy")
         new_val = not current.data[0].get("is_shared", False)
         supabase.table("custom_helpers").update({"is_shared": new_val}).eq("id", strategy_id).execute()
         return {"is_shared": new_val}
+    except HTTPException:
+        # Real fix Aug 26 (security audit): this bare except used to swallow the 404/403
+        # above into a generic 500, masking both the pre-existing "not found" case and the
+        # new ownership check.
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -9721,6 +9883,13 @@ async def get_family_zone_logs(member_id: str, request: Request, days: int = 7):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real fix Aug 26 (security audit): had no ownership check at all, unlike its sibling
+    # endpoints (POST /family/zone-logs, GET /family/analytics/{member_id}) which both
+    # correctly scope by user_id - any authenticated user could read any family member's
+    # zone-log history by id.
+    member = supabase.table("family_members").select("id").eq("id", member_id).eq("user_id", user["user_id"]).execute()
+    if not member.data:
+        raise HTTPException(status_code=404, detail="Family member not found")
     start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     result = supabase.table("family_zone_logs").select("*").eq("family_member_id", member_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
     return result.data or []
@@ -10357,6 +10526,13 @@ async def flag_student_to_admin(student_id: str, request: Request):
     if not student_result.data:
         raise HTTPException(status_code=404, detail="Student not found")
     student = student_result.data[0]
+    # Real fix Aug 26 (security audit): had no authorization check at all - any authenticated
+    # user could raise a wellbeing-concern flag against any student to that student's school
+    # admin.
+    if user.get("role") not in ("teacher", "school_admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    if not await _is_authorized_for_student(user, student_id, student):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
 
     classroom_name = ""
     if student.get("classroom_id"):
@@ -11606,11 +11782,12 @@ async def get_family_member_checkins(member_id: str, request: Request, days: int
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     try:
-        # Get family member to check if linked to student
-        member_result = supabase.table("family_members").select("*").eq("id", member_id).execute()
+        # Real fix Aug 26 (security audit): had no ownership check at all - any authenticated
+        # user could pull any family member's check-in history by id.
+        member_result = supabase.table("family_members").select("*").eq("id", member_id).eq("user_id", user["user_id"]).execute()
         if not member_result.data:
             raise HTTPException(status_code=404, detail="Family member not found")
-        
+
         member = member_result.data[0]
         student_id = member.get("student_id")
         
@@ -11650,13 +11827,15 @@ async def family_member_checkin(member_id: str, request: Request):
     comment = body.get("comment", "")
     
     try:
-        member_result = supabase.table("family_members").select("*").eq("id", member_id).execute()
+        # Real fix Aug 26 (security audit): had no ownership check at all - any authenticated
+        # user could write a check-in against any family member/student by id.
+        member_result = supabase.table("family_members").select("*").eq("id", member_id).eq("user_id", user["user_id"]).execute()
         if not member_result.data:
             raise HTTPException(status_code=404, detail="Family member not found")
-        
+
         member = member_result.data[0]
         student_id = member.get("student_id")
-        
+
         if student_id:
             # Save to feeling_logs so teacher AND parent can see it
             log = {
@@ -11812,14 +11991,20 @@ async def link_family_member_to_student(member_id: str, request: Request):
         raise HTTPException(status_code=400, detail="student_id required")
     
     try:
+        # Real fix Aug 26 (security audit): had no ownership check on member_id at all - any
+        # authenticated user could re-point ANY family_members row (not just their own) to
+        # any student_id, a real write-side IDOR, not just a read leak.
+        owned_member = supabase.table("family_members").select("id").eq("id", member_id).eq("user_id", user["user_id"]).execute()
+        if not owned_member.data:
+            raise HTTPException(status_code=404, detail="Family member not found")
         # Verify student exists
         student = supabase.table("students").select("*").eq("id", student_id).execute()
         if not student.data:
             raise HTTPException(status_code=404, detail="Student not found")
-        
+
         # Update family member with student_id
         supabase.table("family_members").update({"student_id": student_id}).eq("id", member_id).execute()
-        
+
         return {"status": "linked", "student_id": student_id, "student_name": student.data[0].get("name")}
     except HTTPException:
         raise
@@ -12499,10 +12684,16 @@ async def get_student_home_data(student_id: str, request: Request, days: int = 3
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        # Verify teacher owns this student
+        # Real fix Aug 26 (security audit): the comment here said "Verify teacher owns this
+        # student" but the code below only ever checked the student EXISTS, never who was
+        # asking - any authenticated user could pull any student's home check-in history.
         student = supabase.table("students").select("*").eq("id", student_id).execute()
         if not student.data:
             raise HTTPException(status_code=404, detail="Student not found")
+        if user.get("role") not in ("teacher", "school_admin", "superadmin"):
+            raise HTTPException(status_code=403, detail="Teacher access required")
+        if not await _is_authorized_for_student(user, student_id, student.data[0]):
+            raise HTTPException(status_code=403, detail="Not authorized for this student")
 
         start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
@@ -12564,6 +12755,14 @@ async def get_student_combined_checkins(student_id: str, request: Request, days:
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real fix Aug 26 (security audit): had no authorization check at all - any authenticated
+    # user could pull any student's full combined school+home check-in history by id. Placed
+    # before the try/except below since its bare `except Exception` would otherwise swallow
+    # a raised HTTPException into a silent empty list instead of a real 403.
+    if user.get("role") not in ("teacher", "school_admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     try:
         start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         result = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
@@ -12618,6 +12817,14 @@ async def add_student_strategy(student_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real fix Aug 26 (security audit): had no authorization check on student_id at all -
+    # any authenticated user could attach a strategy to any student. Placed before the
+    # try/except below since its bare `except Exception` would otherwise mask a raised
+    # HTTPException as a 500.
+    if user.get("role") not in ("teacher", "school_admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     try:
         body = await request.json()
         new_strategy = {
@@ -12644,6 +12851,11 @@ async def delete_student_strategy(student_id: str, strategy_id: str, request: Re
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real fix Aug 26 (security audit): had no authorization check on student_id at all.
+    if user.get("role") not in ("teacher", "school_admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     try:
         supabase.table("custom_helpers").delete().eq("id", strategy_id).eq("student_id", student_id).execute()
         return {"status": "deleted"}
@@ -12657,6 +12869,11 @@ async def toggle_strategy_share_with_parent(student_id: str, strategy_id: str, r
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real fix Aug 26 (security audit): had no authorization check on student_id at all.
+    if user.get("role") not in ("teacher", "school_admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     try:
         current = supabase.table("custom_helpers").select("is_shared").eq("id", strategy_id).execute()
         if not current.data:
@@ -13083,6 +13300,12 @@ async def get_classroom_join_code(classroom_id: str, request: Request):
     if not result.data:
         raise HTTPException(status_code=404, detail="Classroom not found")
     classroom = result.data[0]
+    # Real fix Aug 26 (security audit): docstring already said "Teacher only" but the code
+    # never checked role or ownership - any authenticated user could read (and silently
+    # generate) any classroom's real join code, which anyone could then use to enrol a
+    # student into someone else's classroom.
+    if not await _is_authorized_for_classroom(user, classroom_id, classroom):
+        raise HTTPException(status_code=403, detail="Not authorized for this classroom")
 
     # Generate if missing
     if not classroom.get("join_code"):
