@@ -9,7 +9,7 @@ import { useApp } from '../../src/context/AppContext';
 
 export default function SignupScreen() {
   const router = useRouter();
-  const { signupWithEmail } = useApp();
+  const { signupWithEmail, t } = useApp();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,23 +23,23 @@ export default function SignupScreen() {
     const trimmedEmail = email.trim().toLowerCase();
 
     if (!trimmedName) {
-      setError('Please enter your name');
+      setError(t('enter_name_error') || 'Please enter your name');
       return;
     }
     if (!trimmedEmail || !trimmedEmail.includes('@')) {
-      setError('Please enter a valid email address');
+      setError(t('invalid_email_error') || 'Please enter a valid email address');
       return;
     }
     if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+      setError(t('password_too_short_error') || 'Password must be at least 8 characters');
       return;
     }
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('passwords_no_match_error') || 'Passwords do not match');
       return;
     }
     if (!role) {
-      setError('Please choose whether you\'re a Teacher or Parent');
+      setError(t('choose_role_error') || 'Please choose whether you\'re a Teacher or Parent');
       return;
     }
 
@@ -49,7 +49,7 @@ export default function SignupScreen() {
       await signupWithEmail(trimmedEmail, password, trimmedName, role);
       router.replace(role === 'teacher' ? '/teacher/dashboard' : '/parent/dashboard');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not create your account. Please try again.');
+      setError(e instanceof Error ? e.message : (t('signup_generic_error') || 'Could not create your account. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -74,11 +74,11 @@ export default function SignupScreen() {
               resizeMode="contain"
             />
             <Text style={styles.title} allowFontScaling={false}>Class of Happiness</Text>
-            <Text style={styles.subtitle}>Create your account</Text>
+            <Text style={styles.subtitle}>{t('signup_subtitle') || 'Create your account'}</Text>
           </View>
 
           <View style={styles.form}>
-            <Text style={styles.label}>I am a...</Text>
+            <Text style={styles.label}>{t('i_am_a') || 'I am a...'}</Text>
             <View style={styles.roleRow}>
               <TouchableOpacity
                 style={[styles.roleButton, role === 'teacher' && styles.roleButtonActive]}
@@ -86,7 +86,7 @@ export default function SignupScreen() {
                 activeOpacity={0.8}
               >
                 <MaterialIcons name="school" size={22} color={role === 'teacher' ? 'white' : '#5C6BC0'} />
-                <Text style={[styles.roleButtonText, role === 'teacher' && styles.roleButtonTextActive]}>Teacher</Text>
+                <Text style={[styles.roleButtonText, role === 'teacher' && styles.roleButtonTextActive]}>{t('teacher') || 'Teacher'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.roleButton, role === 'parent' && styles.roleButtonActive]}
@@ -94,14 +94,14 @@ export default function SignupScreen() {
                 activeOpacity={0.8}
               >
                 <MaterialIcons name="family-restroom" size={22} color={role === 'parent' ? 'white' : '#5C6BC0'} />
-                <Text style={[styles.roleButtonText, role === 'parent' && styles.roleButtonTextActive]}>Parent / Family</Text>
+                <Text style={[styles.roleButtonText, role === 'parent' && styles.roleButtonTextActive]}>{t('parent') || 'Parent / Family'}</Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.label}>Your Name</Text>
+            <Text style={styles.label}>{t('your_name_label') || 'Your Name'}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Jane Smith"
+              placeholder={t('name_placeholder') || 'Jane Smith'}
               placeholderTextColor="#BBB"
               value={name}
               onChangeText={setName}
@@ -109,7 +109,7 @@ export default function SignupScreen() {
               returnKeyType="next"
             />
 
-            <Text style={styles.label}>Email Address</Text>
+            <Text style={styles.label}>{t('email_address_label') || 'Email Address'}</Text>
             <TextInput
               style={styles.input}
               placeholder="your@email.com"
@@ -122,10 +122,10 @@ export default function SignupScreen() {
               returnKeyType="next"
             />
 
-            <Text style={styles.label}>Password</Text>
+            <Text style={styles.label}>{t('password') || 'Password'}</Text>
             <TextInput
               style={styles.input}
-              placeholder="At least 8 characters"
+              placeholder={t('password_min_chars_placeholder') || 'At least 8 characters'}
               placeholderTextColor="#BBB"
               value={password}
               onChangeText={setPassword}
@@ -135,10 +135,10 @@ export default function SignupScreen() {
               returnKeyType="next"
             />
 
-            <Text style={styles.label}>Confirm Password</Text>
+            <Text style={styles.label}>{t('confirm_password_label') || 'Confirm Password'}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Re-enter your password"
+              placeholder={t('confirm_password_placeholder') || 'Re-enter your password'}
               placeholderTextColor="#BBB"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
@@ -161,13 +161,13 @@ export default function SignupScreen() {
               ) : (
                 <>
                   <MaterialIcons name="person-add" size={20} color="white" />
-                  <Text style={styles.buttonText}>Create Account</Text>
+                  <Text style={styles.buttonText}>{t('create_account_btn') || 'Create Account'}</Text>
                 </>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => router.replace('/auth/login')}>
-              <Text style={styles.loginLink}>Already have an account? Sign In</Text>
+              <Text style={styles.loginLink}>{t('already_have_account_signin') || 'Already have an account? Sign In'}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

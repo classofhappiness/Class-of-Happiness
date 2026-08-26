@@ -55,7 +55,7 @@ export default function LoginScreen() {
           await loginWithGoogle(googleResponse.authentication!.accessToken);
           router.replace('/');
         } catch (e) {
-          setError('Google sign-in failed. Please try again.');
+          setError(t('google_signin_failed_error') || 'Google sign-in failed. Please try again.');
         }
       })();
     }
@@ -64,7 +64,7 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     const trimmed = email.trim().toLowerCase();
     if (!trimmed || !trimmed.includes('@')) {
-      setError('Please enter a valid email address');
+      setError(t('invalid_email_error') || 'Please enter a valid email address');
       return;
     }
     setError('');
@@ -73,7 +73,7 @@ export default function LoginScreen() {
       await loginWithEmail(trimmed, pin, 1, password);
       router.replace('/');
     } catch (e) {
-      setError('Sign in failed. Please try again.');
+      setError(t('signin_failed_error') || 'Sign in failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -99,11 +99,11 @@ export default function LoginScreen() {
               resizeMode="contain"
             />
             <Text style={styles.title} allowFontScaling={false}>Class of Happiness</Text>
-            <Text style={styles.subtitle}>Enter your email to sign in</Text>
+            <Text style={styles.subtitle}>{t('login_subtitle') || 'Enter your email to sign in'}</Text>
           </View>
 
           <View style={styles.form}>
-            <Text style={styles.label}>Email Address</Text>
+            <Text style={styles.label}>{t('email_address_label') || 'Email Address'}</Text>
             <TextInput
               style={styles.input}
               placeholder="your@email.com"
@@ -137,10 +137,10 @@ export default function LoginScreen() {
               </>
             )}
 
-            <Text style={styles.label}>Password (optional)</Text>
+            <Text style={styles.label}>{t('password_optional_label') || 'Password (optional)'}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Only if you've set one"
+              placeholder={t('password_optional_placeholder') || "Only if you've set one"}
               placeholderTextColor="#BBB"
               value={password}
               onChangeText={setPassword}
@@ -151,7 +151,7 @@ export default function LoginScreen() {
               returnKeyType="go"
             />
             <TouchableOpacity onPress={() => router.push('/auth/forgot-password')}>
-              <Text style={styles.forgotPasswordLink}>Forgot password?</Text>
+              <Text style={styles.forgotPasswordLink}>{t('forgot_password_link') || 'Forgot password?'}</Text>
             </TouchableOpacity>
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -166,7 +166,7 @@ export default function LoginScreen() {
               ) : (
                 <>
                   <MaterialIcons name="login" size={20} color="white" />
-                  <Text style={styles.buttonText}>Sign In</Text>
+                  <Text style={styles.buttonText}>{t('sign_in_btn') || 'Sign In'}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -177,21 +177,21 @@ export default function LoginScreen() {
               disabled={!googleRequest}
             >
               <MaterialIcons name="g-translate" size={18} color="#4285F4" />
-              <Text style={styles.googleButtonText}>Sign in with Google</Text>
+              <Text style={styles.googleButtonText}>{t('sign_in_google_btn') || 'Sign in with Google'}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => router.push('/auth/signup')}>
-              <Text style={styles.signupLink}>New here? Create an account</Text>
+              <Text style={styles.signupLink}>{t('new_here_create_account') || 'New here? Create an account'}</Text>
             </TouchableOpacity>
 
             <Text style={styles.hint}>
-              Already have a school invite or class link code?{'\n'}Sign in first, then enter it in Settings.
+              {t('login_hint_invite_code') || 'Already have a school invite or class link code?\nSign in first, then enter it in Settings.'}
             </Text>
           </View>
 
           <View style={styles.trialBox}>
-            <Text style={styles.trialTitle}>🎫 Have a trial code?</Text>
-            <Text style={styles.trialText}>Sign in first, then enter your code in Settings.</Text>
+            <Text style={styles.trialTitle}>🎫 {t('have_trial_code') || 'Have a Trial Code?'}</Text>
+            <Text style={styles.trialText}>{t('trial_code_signin_hint') || 'Sign in first, then enter your code in Settings.'}</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
