@@ -6,6 +6,7 @@ import {
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
+import { SecureField } from '../../src/components/SecureField';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 
@@ -122,13 +123,12 @@ export default function LoginScreen() {
             {needsPin && (
               <>
                 <Text style={styles.label}>{t('pin') || 'PIN'}</Text>
-                <TextInput
-                  style={styles.input}
+                <SecureField
+                  containerStyle={{ borderWidth: 2, marginBottom: 12 }}
                   placeholder={t('enter_pin') || 'Enter PIN'}
                   placeholderTextColor="#BBB"
                   value={pin}
                   onChangeText={setPin}
-                  secureTextEntry
                   autoCapitalize="characters"
                   autoCorrect={false}
                   onSubmitEditing={handleLogin}
@@ -138,13 +138,12 @@ export default function LoginScreen() {
             )}
 
             <Text style={styles.label}>{t('password_optional_label') || 'Password (optional)'}</Text>
-            <TextInput
-              style={styles.input}
+            <SecureField
+              containerStyle={{ borderWidth: 2, marginBottom: 12 }}
               placeholder={t('password_optional_placeholder') || "Only if you've set one"}
               placeholderTextColor="#BBB"
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
               onSubmitEditing={handleLogin}

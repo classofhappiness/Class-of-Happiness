@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../src/context/AppContext';
 import { translationsApi, subscriptionApi, authApiExtended } from '../src/utils/api';
 import { loadVoiceEnabled, setVoiceEnabled } from '../src/utils/voiceClips';
+import { SecureField } from '../src/components/SecureField';
 
 // hasVoice matches the backend's VOICE_CLIP_LANGUAGES (server.py) - real recordings exist
 // for these languages; the other 2 are UI-text-only for now.
@@ -70,11 +71,9 @@ export default function SettingsScreen() {
   const [showTrialCode, setShowTrialCode] = useState(false);
   const [trialCode, setTrialCode] = useState('');
   const [redeemingCode, setRedeemingCode] = useState(false);
-  const [showTrialCodeText, setShowTrialCodeText] = useState(false);
   const [showSetPassword, setShowSetPassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showNewPasswordText, setShowNewPasswordText] = useState(false);
   const [settingPassword, setSettingPassword] = useState(false);
 
   // Account Type / role switch (Aug 25 fix: role used to be silently rewritten by
@@ -591,28 +590,15 @@ export default function SettingsScreen() {
         
         {showTrialCode && (
           <View style={styles.trialCodeContainer}>
-            <View style={styles.codeInputWrapper}>
-              <TextInput
-                style={styles.trialCodeInputWithIcon}
-                placeholder={t('trial_code_placeholder') || 'Enter code'}
-                placeholderTextColor="#999"
-                value={trialCode}
-                onChangeText={setTrialCode}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                secureTextEntry={!showTrialCodeText}
-              />
-              <TouchableOpacity
-                style={styles.eyeIconButton}
-                onPress={() => setShowTrialCodeText(!showTrialCodeText)}
-              >
-                <MaterialIcons 
-                  name={showTrialCodeText ? "visibility" : "visibility-off"} 
-                  size={22} 
-                  color="#888" 
-                />
-              </TouchableOpacity>
-            </View>
+            <SecureField
+              variant="code"
+              placeholder={t('trial_code_placeholder') || 'Enter code'}
+              placeholderTextColor="#999"
+              value={trialCode}
+              onChangeText={setTrialCode}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
             <TouchableOpacity
               style={[styles.redeemButton, redeemingCode && styles.redeemButtonDisabled]}
               onPress={handleRedeemCode}
@@ -649,40 +635,27 @@ export default function SettingsScreen() {
 
         {showSetPassword && (
           <View style={styles.trialCodeContainer}>
-            <View style={styles.codeInputWrapper}>
-              <TextInput
-                style={styles.trialCodeInputWithIcon}
-                placeholder="New password (min 8 characters)"
-                placeholderTextColor="#999"
-                value={newPassword}
-                onChangeText={setNewPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-                secureTextEntry={!showNewPasswordText}
-              />
-              <TouchableOpacity
-                style={styles.eyeIconButton}
-                onPress={() => setShowNewPasswordText(!showNewPasswordText)}
-              >
-                <MaterialIcons
-                  name={showNewPasswordText ? "visibility" : "visibility-off"}
-                  size={22}
-                  color="#888"
-                />
-              </TouchableOpacity>
-            </View>
-            <View style={[styles.codeInputWrapper, { marginTop: 8 }]}>
-              <TextInput
-                style={styles.trialCodeInputWithIcon}
-                placeholder="Confirm password"
-                placeholderTextColor="#999"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-                secureTextEntry={!showNewPasswordText}
-              />
-            </View>
+            <SecureField
+              placeholder="New password (min 8 characters)"
+              placeholderTextColor="#999"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {/* Real fix Aug 26 (item 13): Confirm Password used to silently share New
+                Password's visibility toggle state instead of having its own - SecureField
+                manages visibility internally per-instance, fixed as a side effect of the
+                migration, not a separate change. */}
+            <SecureField
+              containerStyle={{ marginTop: 8 }}
+              placeholder="Confirm password"
+              placeholderTextColor="#999"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
             <TouchableOpacity
               style={[styles.redeemButton, settingPassword && styles.redeemButtonDisabled]}
               onPress={handleSetPassword}
@@ -1041,13 +1014,11 @@ export default function SettingsScreen() {
                   {user?.role === 'teacher' ? ' ' + (t('delete_account_warning_teacher') || 'Your classrooms and students will be reassigned to your school (requires a linked school account — contact support if you\'re not linked to one).') : ''}
                   {' '}{t('delete_account_warning_2') || 'Confirm with your password, or with Google if that\'s how you sign in.'}
                 </Text>
-                <TextInput
-                  style={styles.trialCodeInputWithIcon}
+                <SecureField
                   placeholder="Enter your password (if you have one)"
                   placeholderTextColor="#999"
                   value={deletePassword}
                   onChangeText={setDeletePassword}
-                  secureTextEntry
                 />
                 <TouchableOpacity
                   style={[styles.redeemButton, { backgroundColor: '#F44336', marginTop: 10 }, deletingAccount && styles.redeemButtonDisabled]}

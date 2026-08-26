@@ -6,6 +6,7 @@ import {
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
+import { SecureField } from '../../src/components/SecureField';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
@@ -159,24 +160,22 @@ export default function ForgotPasswordScreen() {
                 autoCorrect={false}
               />
               <Text style={styles.label}>{t('new_password_label') || 'New Password'}</Text>
-              <TextInput
-                style={styles.input}
+              <SecureField
+                containerStyle={{ marginBottom: 12 }}
                 placeholder={t('password_min_chars_placeholder') || 'At least 8 characters'}
                 placeholderTextColor="#BBB"
                 value={newPassword}
                 onChangeText={setNewPassword}
-                secureTextEntry
                 autoCapitalize="none"
                 autoCorrect={false}
               />
               <Text style={styles.label}>{t('confirm_password_label') || 'Confirm Password'}</Text>
-              <TextInput
-                style={styles.input}
+              <SecureField
+                containerStyle={{ marginBottom: 12 }}
                 placeholder={t('confirm_password_placeholder') || 'Re-enter your password'}
                 placeholderTextColor="#BBB"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
-                secureTextEntry
                 autoCapitalize="none"
                 autoCorrect={false}
                 onSubmitEditing={handleResetPassword}

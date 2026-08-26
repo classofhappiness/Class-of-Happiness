@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
+  View, Text, TouchableOpacity,
   StyleSheet, SafeAreaView, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
+import { SecureField } from '../../src/components/SecureField';
 
 // CRITICAL security fix Aug 26: force-password-on-next-login. Every account without a real
 // password could previously be logged into by anyone who typed that email - see
@@ -22,7 +23,6 @@ export default function SetPasswordRequiredScreen() {
   const { checkAuth, logout, user } = useApp();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -72,31 +72,29 @@ export default function SetPasswordRequiredScreen() {
           </Text>
 
           <Text style={styles.label}>New Password</Text>
-          <View style={styles.inputWrap}>
-            <TextInput
-              style={styles.input}
-              placeholder="At least 8 characters"
-              placeholderTextColor="#BBB"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoFocus
-            />
-            <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(!showPassword)}>
-              <MaterialIcons name={showPassword ? 'visibility' : 'visibility-off'} size={22} color="#888" />
-            </TouchableOpacity>
-          </View>
+          <SecureField
+            placeholder="At least 8 characters"
+            placeholderTextColor="#BBB"
+            value={password}
+            onChangeText={setPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoFocus
+          />
 
           <Text style={styles.label}>Confirm Password</Text>
-          <TextInput
-            style={styles.input}
+          {/* Real fix Aug 26 (item 13): this is the actual screen with the reported double-
+              border and oversized-field complaint - New Password was wrapped in inputWrap
+              (its own border) AROUND an input that also had its own border, and Confirm
+              Password had neither a wrapper nor an eye icon at all, which is what made it
+              read as a plain, oversized field next to New Password's icon+border treatment.
+              Both also shared one `showPassword` toggle state. SecureField fixes all three
+              as one component: single border, independent per-field toggle. */}
+          <SecureField
             placeholder="Re-enter password"
             placeholderTextColor="#BBB"
             value={confirmPassword}
             onChangeText={setConfirmPassword}
-            secureTextEntry={!showPassword}
             autoCapitalize="none"
             autoCorrect={false}
             onSubmitEditing={handleSetPassword}
@@ -130,12 +128,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '900', color: '#1A1A2E', textAlign: 'center', marginBottom: 8 },
   subtitle: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 28, lineHeight: 20 },
   label: { fontSize: 13, fontWeight: '700', color: '#333', marginBottom: 6, marginTop: 12 },
-  inputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', borderRadius: 12, borderWidth: 1, borderColor: '#E0E0E0' },
-  input: {
-    flex: 1, backgroundColor: 'white', borderRadius: 12, padding: 14, fontSize: 15,
-    borderWidth: 1, borderColor: '#E0E0E0', color: '#1A1A2E',
-  },
-  eyeButton: { position: 'absolute', right: 12 },
   error: { color: '#E53935', fontSize: 13, marginTop: 8 },
   button: {
     backgroundColor: '#5C6BC0', borderRadius: 14, padding: 16,

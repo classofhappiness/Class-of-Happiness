@@ -6,6 +6,7 @@ import {
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
+import { SecureField } from '../../src/components/SecureField';
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -123,26 +124,24 @@ export default function SignupScreen() {
             />
 
             <Text style={styles.label}>{t('password') || 'Password'}</Text>
-            <TextInput
-              style={styles.input}
+            <SecureField
+              containerStyle={{ borderWidth: 2, marginBottom: 12 }}
               placeholder={t('password_min_chars_placeholder') || 'At least 8 characters'}
               placeholderTextColor="#BBB"
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="next"
             />
 
             <Text style={styles.label}>{t('confirm_password_label') || 'Confirm Password'}</Text>
-            <TextInput
-              style={styles.input}
+            <SecureField
+              containerStyle={{ borderWidth: 2, marginBottom: 12 }}
               placeholder={t('confirm_password_placeholder') || 'Re-enter your password'}
               placeholderTextColor="#BBB"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
-              secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
               onSubmitEditing={handleSignup}

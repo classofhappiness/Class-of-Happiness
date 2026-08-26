@@ -10,6 +10,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useRouter } from 'expo-router';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
+import { SecureField } from '../../src/components/SecureField';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const INDIGO = '#5C6BC0';
@@ -1474,12 +1475,12 @@ export default function AdminDashboard() {
             <Text style={s.logoSub}>{isSuperAdmin ? 'Super Admin' : 'School Admin'}</Text>
           </View>
           <Text style={s.lockHint}>{t("unlock_admin") || "Enter your admin code to unlock"}</Text>
-          <TextInput
-            style={[s.input, { textAlign: 'center', letterSpacing: 4, fontSize: 18 }]}
+          <SecureField
+            variant="code"
+            containerStyle={{ marginBottom: 8 }}
             placeholder="••••••"
             value={adminCode}
             onChangeText={setAdminCode}
-            secureTextEntry
             autoCapitalize="characters"
             autoCorrect={false}
             maxLength={20}
