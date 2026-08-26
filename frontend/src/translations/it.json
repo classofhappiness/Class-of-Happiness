@@ -1046,5 +1046,15 @@
   "resume_subscription_error": "Impossibile riprendere il tuo abbonamento. Riprova.",
   "cancels_on_label": "Si annulla il {date}",
   "cancel_subscription": "Annulla Abbonamento",
-  "resume_subscription": "Riprendi Abbonamento"
+  "resume_subscription": "Riprendi Abbonamento",
+  "pause_school_sharing_title": "Mettere in pausa la condivisione con il genitore?",
+  "resume_school_sharing_title": "Riprendere la condivisione con il genitore?",
+  "pause_school_sharing_desc": "Il genitore collegato non potrà vedere i check-in scolastici né le strategie assegnate dall'insegnante, nuovi o esistenti, mentre è in pausa. Non viene eliminato nulla - riprendendo, la piena visibilità viene ripristinata all'istante.",
+  "resume_school_sharing_desc": "Il genitore collegato potrà tornare a vedere i check-in scolastici e le strategie assegnate dall'insegnante di questo studente.",
+  "pause_school_sharing_confirm": "Metti in Pausa",
+  "resume_school_sharing_confirm": "Riprendi Condivisione",
+  "toggle_school_sharing_error": "Impossibile aggiornare la condivisione. Riprova.",
+  "pause_sharing_with_parent": "Metti in pausa la condivisione con il genitore",
+  "resume_sharing_with_parent": "Riprendi la condivisione con il genitore",
+  "school_sharing_paused_notice": "L'insegnante di questo studente ha messo in pausa la condivisione dei dati scolastici con te. I dati di casa qui sotto non sono interessati."
 }

@@ -89,6 +89,11 @@ export default function LinkedChildDetailScreen() {
   const [homeCheckIns,   setHomeCheckIns]   = useState<any[]>([]);
   const [schoolCheckIns, setSchoolCheckIns] = useState<any[]>([]);
   const [schoolStrats,   setSchoolStrats]   = useState<any[]>([]);
+  // Real feature Aug 26 (item 3): the backend has returned sharing_disabled on this response
+  // since it was first scaffolded, but nothing here ever read it - an empty school section
+  // looked identical to "no school data yet" and "the teacher paused sharing". Now shown
+  // explicitly so it isn't mistaken for either of those.
+  const [schoolSharingPaused, setSchoolSharingPaused] = useState(false);
   const [familyStrats,   setFamilyStrats]   = useState<FamilyAssignedStrategy[]>([]);
   const [homeSharingEnabled, setHomeSharingEnabled] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<1 | 7 | 14 | 30>(7);
@@ -167,10 +172,12 @@ export default function LinkedChildDetailScreen() {
         setAllCheckIns(Array.isArray(allData) ? allData : []);
         setHomeCheckIns(Array.isArray(homeData) ? homeData : []);
         setSchoolCheckIns(Array.isArray(schoolData?.checkins) ? schoolData.checkins : []);
+        setSchoolSharingPaused(!!schoolData?.sharing_disabled);
         const [schoolStratData, familyStratData] = await Promise.all([
           linkedChildApi.getSchoolStrategies(id),
           linkedChildApi.getFamilyStrategies(id),
         ]);
+        if (schoolStratData?.sharing_disabled) setSchoolSharingPaused(true);
         const genericRes = await Promise.all(['blue','green','yellow','red'].map(zone =>
           fetch(`${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=en`).then(r => r.json()).catch(() => [])
         ));
@@ -367,6 +374,15 @@ export default function LinkedChildDetailScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {schoolSharingPaused && (
+          <View style={{ flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#FFF8E1', borderRadius:10, padding:12, marginBottom:12, borderWidth:1, borderColor:'#FFE082' }}>
+            <MaterialIcons name="pause-circle-filled" size={20} color="#F57C00" />
+            <Text style={{ flex:1, fontSize:12, color:'#7A5A00', lineHeight:17 }}>
+              {t('school_sharing_paused_notice') || "This student's teacher has paused sharing school data with you. Home data below is unaffected."}
+            </Text>
+          </View>
+        )}
 
         <View style={s.statsRow}>
           <View style={s.statCard}><Text style={s.statVal}>{totalCheckins}</Text><Text style={s.statLbl}>{t('wellbeing_total') || t('wellbeing_total') || 'Total'}</Text></View>

@@ -650,5 +650,15 @@
   "resume_subscription_error": "Could not resume your subscription. Please try again.",
   "cancels_on_label": "Cancels on {date}",
   "cancel_subscription": "Cancel Subscription",
-  "resume_subscription": "Resume Subscription"
+  "resume_subscription": "Resume Subscription",
+  "pause_school_sharing_title": "Pause sharing with parent?",
+  "resume_school_sharing_title": "Resume sharing with parent?",
+  "pause_school_sharing_desc": "The linked parent won't be able to see new or existing school check-ins or teacher-assigned strategies while paused. Nothing is deleted - resuming restores full visibility instantly.",
+  "resume_school_sharing_desc": "The linked parent will be able to see this student's school check-ins and teacher-assigned strategies again.",
+  "pause_school_sharing_confirm": "Pause Sharing",
+  "resume_school_sharing_confirm": "Resume Sharing",
+  "toggle_school_sharing_error": "Could not update sharing. Please try again.",
+  "pause_sharing_with_parent": "Pause sharing with parent",
+  "resume_sharing_with_parent": "Resume sharing with parent",
+  "school_sharing_paused_notice": "This student's teacher has paused sharing school data with you. Home data below is unaffected."
 }

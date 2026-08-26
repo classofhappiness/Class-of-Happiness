@@ -1031,5 +1031,15 @@
   "resume_subscription_error": "Não foi possível retomar a tua subscrição. Tenta novamente.",
   "cancels_on_label": "Cancela em {date}",
   "cancel_subscription": "Cancelar Subscrição",
-  "resume_subscription": "Retomar Subscrição"
+  "resume_subscription": "Retomar Subscrição",
+  "pause_school_sharing_title": "Pausar partilha com o pai/mãe?",
+  "resume_school_sharing_title": "Retomar partilha com o pai/mãe?",
+  "pause_school_sharing_desc": "O pai/mãe associado não vai conseguir ver os check-ins escolares nem as estratégias atribuídas pelo professor, novos ou existentes, enquanto estiver pausado. Nada é eliminado - ao retomar, a visibilidade total é restaurada de imediato.",
+  "resume_school_sharing_desc": "O pai/mãe associado vai voltar a poder ver os check-ins escolares e as estratégias atribuídas pelo professor deste aluno.",
+  "pause_school_sharing_confirm": "Pausar Partilha",
+  "resume_school_sharing_confirm": "Retomar Partilha",
+  "toggle_school_sharing_error": "Não foi possível atualizar a partilha. Tenta novamente.",
+  "pause_sharing_with_parent": "Pausar partilha com o pai/mãe",
+  "resume_sharing_with_parent": "Retomar partilha com o pai/mãe",
+  "school_sharing_paused_notice": "O professor deste aluno pausou a partilha de dados escolares contigo. Os dados de casa abaixo não são afetados."
 }

@@ -127,6 +127,7 @@ export default function StudentDetailScreen() {
   const [secHomeCheckins, setSecHomeCheckins] = useState(false);
   const [secFamilyStrats, setSecFamilyStrats] = useState(false);
   const [secHomeSharing, setSecHomeSharing] = useState(false);
+  const [togglingSchoolSharing, setTogglingSchoolSharing] = useState(false);
   const [downloadingMonth, setDownloadingMonth] = useState<string | null>(null);
 
   // Tooltip fade animation states
@@ -874,26 +875,56 @@ export default function StudentDetailScreen() {
                   ? t('data_shared_desc') || 'Student emotional wellbeing data is being shared between school and home.'
                   : t('sharing_paused_desc') || 'Parent has not enabled home sharing. Home check-in data is not visible.'}
               </Text>
-              {sharingStatus.home_sharing_enabled && (
-                <TouchableOpacity
-                  onPress={async () => {
-                    try {
-                      const token = await AsyncStorage.getItem('session_token');
-                      await fetch(`${BACKEND_URL}/api/parent-links/school-sharing`, {
-                        method: 'POST',
-                        headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}` },
-                        body: JSON.stringify({ student_id: studentId, school_sharing_enabled: !sharingStatus.school_sharing_enabled })
-                      });
-                      loadData();
-                    } catch {}
-                  }}
-                  style={{ flexDirection:'row', alignItems:'center', gap:8, marginTop:10, backgroundColor: sharingStatus.school_sharing_enabled ? '#FFEBEE' : '#E8F5E9', borderRadius:8, padding:10 }}>
-                  <MaterialIcons name={sharingStatus.school_sharing_enabled ? 'pause-circle-filled' : 'play-circle-filled'} size={18} color={sharingStatus.school_sharing_enabled ? '#F44336' : '#4CAF50'} />
-                  <Text style={{ fontSize:12, fontWeight:'600', color: sharingStatus.school_sharing_enabled ? '#F44336' : '#4CAF50' }}>
-                    {sharingStatus.school_sharing_enabled ? 'Pause sharing with parent' : 'Resume sharing with parent'}
-                  </Text>
-                </TouchableOpacity>
-              )}
+              {/* Real feature Aug 26 (item 3): was a UI stopgap - called a POST endpoint that
+                  never existed on the backend (silent 404), and was only ever shown when
+                  home_sharing_enabled happened to be true, an unrelated condition. Now calls
+                  the real toggle endpoint, confirms before pausing (this affects what a real
+                  parent can see), and isn't gated on the other toggle's state. */}
+              <TouchableOpacity
+                disabled={togglingSchoolSharing}
+                onPress={() => {
+                  const turningOff = sharingStatus.school_sharing_enabled;
+                  Alert.alert(
+                    turningOff ? (t('pause_school_sharing_title') || 'Pause sharing with parent?') : (t('resume_school_sharing_title') || 'Resume sharing with parent?'),
+                    turningOff
+                      ? (t('pause_school_sharing_desc') || "The linked parent won't be able to see new or existing school check-ins or teacher-assigned strategies while paused. Nothing is deleted - resuming restores full visibility instantly.")
+                      : (t('resume_school_sharing_desc') || 'The linked parent will be able to see this student\'s school check-ins and teacher-assigned strategies again.'),
+                    [
+                      { text: t('cancel') || 'Cancel', style: 'cancel' },
+                      {
+                        text: turningOff ? (t('pause_school_sharing_confirm') || 'Pause Sharing') : (t('resume_school_sharing_confirm') || 'Resume Sharing'),
+                        style: turningOff ? 'destructive' : 'default',
+                        onPress: async () => {
+                          setTogglingSchoolSharing(true);
+                          try {
+                            const token = await AsyncStorage.getItem('session_token');
+                            const res = await fetch(`${BACKEND_URL}/api/teacher/student/${studentId}/toggle-school-sharing`, {
+                              method: 'PUT',
+                              headers: { Authorization: `Bearer ${token}` },
+                            });
+                            if (res.ok) {
+                              const data = await res.json();
+                              setSharingStatus((prev: any) => prev ? { ...prev, school_sharing_enabled: data.school_sharing_enabled } : prev);
+                            } else {
+                              const data = await res.json().catch(() => ({}));
+                              Alert.alert(t('error') || 'Error', data.detail || (t('toggle_school_sharing_error') || 'Could not update sharing. Please try again.'));
+                            }
+                          } catch {
+                            Alert.alert(t('error') || 'Error', t('toggle_school_sharing_error') || 'Could not update sharing. Please try again.');
+                          } finally {
+                            setTogglingSchoolSharing(false);
+                          }
+                        },
+                      },
+                    ]
+                  );
+                }}
+                style={{ flexDirection:'row', alignItems:'center', gap:8, marginTop:10, backgroundColor: sharingStatus.school_sharing_enabled ? '#FFEBEE' : '#E8F5E9', borderRadius:8, padding:10, opacity: togglingSchoolSharing ? 0.6 : 1 }}>
+                <MaterialIcons name={sharingStatus.school_sharing_enabled ? 'pause-circle-filled' : 'play-circle-filled'} size={18} color={sharingStatus.school_sharing_enabled ? '#F44336' : '#4CAF50'} />
+                <Text style={{ fontSize:12, fontWeight:'600', color: sharingStatus.school_sharing_enabled ? '#F44336' : '#4CAF50' }}>
+                  {sharingStatus.school_sharing_enabled ? (t('pause_sharing_with_parent') || 'Pause sharing with parent') : (t('resume_sharing_with_parent') || 'Resume sharing with parent')}
+                </Text>
+              </TouchableOpacity>
             </View>
             
             {sharingStatus.home_sharing_enabled && homeData ? (

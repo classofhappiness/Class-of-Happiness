@@ -1031,5 +1031,15 @@
   "resume_subscription_error": "No se pudo reanudar tu suscripción. Inténtalo de nuevo.",
   "cancels_on_label": "Se cancela el {date}",
   "cancel_subscription": "Cancelar Suscripción",
-  "resume_subscription": "Reanudar Suscripción"
+  "resume_subscription": "Reanudar Suscripción",
+  "pause_school_sharing_title": "¿Pausar el compartir con el padre/madre?",
+  "resume_school_sharing_title": "¿Reanudar el compartir con el padre/madre?",
+  "pause_school_sharing_desc": "El padre/madre vinculado no podrá ver los check-ins escolares ni las estrategias asignadas por el profesor, nuevos o existentes, mientras esté pausado. No se elimina nada - al reanudar se restaura la visibilidad completa al instante.",
+  "resume_school_sharing_desc": "El padre/madre vinculado podrá volver a ver los check-ins escolares y las estrategias asignadas por el profesor de este alumno.",
+  "pause_school_sharing_confirm": "Pausar Compartir",
+  "resume_school_sharing_confirm": "Reanudar Compartir",
+  "toggle_school_sharing_error": "No se pudo actualizar el uso compartido. Inténtalo de nuevo.",
+  "pause_sharing_with_parent": "Pausar el compartir con el padre/madre",
+  "resume_sharing_with_parent": "Reanudar el compartir con el padre/madre",
+  "school_sharing_paused_notice": "El profesor de este alumno ha pausado el compartir datos escolares contigo. Los datos de casa a continuación no se ven afectados."
 }

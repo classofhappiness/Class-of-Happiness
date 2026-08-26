@@ -1046,5 +1046,15 @@
   "resume_subscription_error": "Impossible de reprendre ton abonnement. Réessaie.",
   "cancels_on_label": "S'annule le {date}",
   "cancel_subscription": "Annuler l'Abonnement",
-  "resume_subscription": "Reprendre l'Abonnement"
+  "resume_subscription": "Reprendre l'Abonnement",
+  "pause_school_sharing_title": "Suspendre le partage avec le parent ?",
+  "resume_school_sharing_title": "Reprendre le partage avec le parent ?",
+  "pause_school_sharing_desc": "Le parent lié ne pourra pas voir les check-ins scolaires ni les stratégies assignées par l'enseignant, nouveaux ou existants, tant que c'est suspendu. Rien n'est supprimé - la reprise restaure instantanément la visibilité complète.",
+  "resume_school_sharing_desc": "Le parent lié pourra à nouveau voir les check-ins scolaires et les stratégies assignées par l'enseignant de cet élève.",
+  "pause_school_sharing_confirm": "Suspendre le Partage",
+  "resume_school_sharing_confirm": "Reprendre le Partage",
+  "toggle_school_sharing_error": "Impossible de mettre à jour le partage. Réessaie.",
+  "pause_sharing_with_parent": "Suspendre le partage avec le parent",
+  "resume_sharing_with_parent": "Reprendre le partage avec le parent",
+  "school_sharing_paused_notice": "L'enseignant de cet élève a suspendu le partage des données scolaires avec toi. Les données à la maison ci-dessous ne sont pas affectées."
 }

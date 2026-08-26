@@ -1046,5 +1046,15 @@
   "resume_subscription_error": "Dein Abo konnte nicht fortgesetzt werden. Bitte versuche es erneut.",
   "cancels_on_label": "Endet am {date}",
   "cancel_subscription": "Abo Kündigen",
-  "resume_subscription": "Abo Fortsetzen"
+  "resume_subscription": "Abo Fortsetzen",
+  "pause_school_sharing_title": "Teilen mit Elternteil pausieren?",
+  "resume_school_sharing_title": "Teilen mit Elternteil fortsetzen?",
+  "pause_school_sharing_desc": "Das verknüpfte Elternteil kann während der Pause weder neue noch bestehende Schul-Check-ins oder vom Lehrer zugewiesene Strategien sehen. Es wird nichts gelöscht - beim Fortsetzen wird die volle Sichtbarkeit sofort wiederhergestellt.",
+  "resume_school_sharing_desc": "Das verknüpfte Elternteil kann die Schul-Check-ins und vom Lehrer zugewiesenen Strategien dieses Schülers wieder sehen.",
+  "pause_school_sharing_confirm": "Teilen Pausieren",
+  "resume_school_sharing_confirm": "Teilen Fortsetzen",
+  "toggle_school_sharing_error": "Teilen konnte nicht aktualisiert werden. Bitte versuche es erneut.",
+  "pause_sharing_with_parent": "Teilen mit Elternteil pausieren",
+  "resume_sharing_with_parent": "Teilen mit Elternteil fortsetzen",
+  "school_sharing_paused_notice": "Die Lehrkraft dieses Schülers hat das Teilen von Schuldaten mit dir pausiert. Die Daten von zuhause unten sind davon nicht betroffen."
 }
