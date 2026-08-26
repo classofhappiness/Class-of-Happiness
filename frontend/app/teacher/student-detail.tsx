@@ -7,7 +7,7 @@ import {
   ScrollView, 
   TouchableOpacity,
   Image,
-  Dimensions,
+  useWindowDimensions,
   RefreshControl,
   Alert,
   ActivityIndicator,
@@ -30,9 +30,6 @@ import { useApp } from '../../src/context/AppContext';
 import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy, reportsApi, teacherApi, teacherHomeDataApi } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
-
-const { width } = Dimensions.get('window');
-
 
 // Complete strategy name lookup - matches student/strategies.tsx fallback IDs
 const STRATEGY_NAME_MAP: Record<string, string> = {
@@ -74,6 +71,7 @@ const MONTH_NAMES = [
 ];
 
 export default function StudentDetailScreen() {
+  const { width } = useWindowDimensions();
   const router = useRouter();
   const [secEmoDistrib, setSecEmoDistrib] = React.useState(false);
   const [secEmoCompare, setSecEmoCompare] = React.useState(false);
@@ -1454,6 +1452,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   modalContent: {
     backgroundColor: 'white',
@@ -1461,6 +1460,8 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     maxHeight: '60%',
     paddingBottom: 40,
+    width: '100%',
+    maxWidth: 480,
   },
   modalHeader: {
     flexDirection: 'row',

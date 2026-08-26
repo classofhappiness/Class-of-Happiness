@@ -618,6 +618,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   modalContent: {
     backgroundColor: 'white',
@@ -625,6 +626,8 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: 20,
     maxHeight: '70%',
+    width: '100%',
+    maxWidth: 480,
   },
   modalHeader: {
     flexDirection: 'row',

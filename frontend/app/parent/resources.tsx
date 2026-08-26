@@ -550,10 +550,10 @@ const styles = StyleSheet.create({
     padding: 16, marginTop: 16, alignItems: 'center', gap: 12,
   },
   infoText: { flex: 1, fontSize: 13, color: '#5C6BC0', lineHeight: 18 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', alignItems: 'center' },
   modalContent: {
     backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    maxHeight: '90%', padding: 20,
+    maxHeight: '90%', padding: 20, width: '100%', maxWidth: 480,
   },
   modalHeader: {
     flexDirection: 'row', justifyContent: 'space-between',

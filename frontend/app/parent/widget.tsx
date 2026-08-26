@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, ActivityIndicator, RefreshControl, Dimensions
+  TouchableOpacity, ActivityIndicator, RefreshControl, useWindowDimensions
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -10,7 +10,6 @@ import { familyApi } from '../../src/utils/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 
-const { width } = Dimensions.get('window');
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const INDIGO = '#5C6BC0';
 const ZONE_COLORS: Record<string,string> = EMOTION_COLOURS;
@@ -21,6 +20,8 @@ const PRESET_EMOJI: Record<string,string> = {
 };
 
 export default function ParentWidgetScreen() {
+  const { width } = useWindowDimensions();
+  const CARD_W = (width - 56) / 3;
   const router = useRouter();
   const { t, language, presetAvatars } = useApp();
   const [loading, setLoading] = useState(true);
@@ -101,7 +102,7 @@ export default function ParentWidgetScreen() {
 
     return (
       <TouchableOpacity
-        style={[st.memberCard, zone && { borderColor: color, backgroundColor: color + '08' }]}
+        style={[st.memberCard, { width: CARD_W }, zone && { borderColor: color, backgroundColor: color + '08' }]}
         onPress={() => {
           if (member.relationship === 'child') {
             router.push({
@@ -256,8 +257,6 @@ export default function ParentWidgetScreen() {
   );
 }
 
-const CARD_W = (width - 56) / 3;
-
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
   header: { flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0', gap: 8 },
@@ -269,7 +268,7 @@ const st = StyleSheet.create({
   sectionTitle: { fontSize: 13, fontWeight: '700', color: '#333', marginBottom: 8 },
   distBar: { height: 12, borderRadius: 6, overflow: 'hidden', backgroundColor: '#F0F0F0', flexDirection: 'row' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
-  memberCard: { width: CARD_W, backgroundColor: 'white', borderRadius: 14, padding: 10, alignItems: 'center', gap: 4, borderWidth: 2, borderColor: '#E8E8E8', elevation: 1 },
+  memberCard: { backgroundColor: 'white', borderRadius: 14, padding: 10, alignItems: 'center', gap: 4, borderWidth: 2, borderColor: '#E8E8E8', elevation: 1 },
   alertDot: { position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, backgroundColor: '#F44336', alignItems: 'center', justifyContent: 'center' },
   avatarCircle: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
   memberName: { fontSize: 11, fontWeight: '700', color: '#333', textAlign: 'center' },

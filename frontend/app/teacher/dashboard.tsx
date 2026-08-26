@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
-  ScrollView, RefreshControl, Dimensions, Alert,
+  ScrollView, RefreshControl, useWindowDimensions, Alert,
 } from 'react-native';
 import { useRouter, useNavigation, useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -13,8 +13,6 @@ import { zoneLogsApi, ZoneLog } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { registerForPushNotifications } from '../../src/utils/notifications';
-
-const { width } = Dimensions.get('window');
 
 const COLOUR_TIPS_TEACHER: Record<string, {tip: string, action: string}[]> = {
   blue: [
@@ -95,6 +93,7 @@ const ZONE_EMOJI: Record<string,string> = { blue:'🔵', green:'🟢', yellow:'�
 type Period = 1|7|14|30;
 
 export default function TeacherDashboardScreen() {
+  const { width } = useWindowDimensions();
   const router = useRouter();
   const navigation = useNavigation() as any;
   const { user, students, classrooms, presetAvatars, refreshStudents, refreshClassrooms, t, hasActiveSubscription } = useApp();

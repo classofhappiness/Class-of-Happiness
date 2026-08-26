@@ -1646,6 +1646,6 @@ const s = StyleSheet.create({
   featureBtnText: { color: '#FFD93D', fontSize: 11, fontWeight: '700' },
   deleteBtn: { marginTop: 6, padding: 7, backgroundColor: '#8B0000', borderRadius: 8, alignItems: 'center' },
   deleteBtnText: { color: 'white', fontSize: 11, fontWeight: '700' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
-  modalCard: { backgroundColor: 'white', borderRadius: 16, padding: 20 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalCard: { backgroundColor: 'white', borderRadius: 16, padding: 20, width: '100%', maxWidth: 480 },
 });

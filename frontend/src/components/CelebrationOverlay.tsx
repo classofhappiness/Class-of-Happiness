@@ -1,10 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Image, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Animated, Image, useWindowDimensions } from 'react-native';
 import { Audio } from 'expo-av';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Avatar } from './Avatar';
-
-const { width, height } = Dimensions.get('window');
 
 interface CelebrationOverlayProps {
   visible: boolean;
@@ -30,6 +28,7 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
   onComplete,
   translations = {},
 }) => {
+  const { width } = useWindowDimensions();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
   const starAnim = useRef(new Animated.Value(0)).current;
@@ -151,7 +150,7 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
         </Animated.View>
 
         {/* Main content */}
-        <View style={styles.celebrationCard}>
+        <View style={[styles.celebrationCard, { width: width * 0.85 }]}>
           {/* Avatar */}
           <View style={styles.avatarContainer}>
             <Avatar
@@ -211,7 +210,6 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     padding: 30,
     alignItems: 'center',
-    width: width * 0.85,
     maxWidth: 350,
     elevation: 10,
     shadowColor: '#FFD700',

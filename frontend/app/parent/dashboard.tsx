@@ -11,7 +11,6 @@ import {
   TextInput,
   Alert,
   Share,
-  Dimensions,
   Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -73,10 +72,6 @@ const pickImageWithChoice = (
     ]
   );
 };
-
-
-
-const screenWidth = Dimensions.get('window').width;
 
 
 const STRATEGY_NAMES: Record<string, string> = {

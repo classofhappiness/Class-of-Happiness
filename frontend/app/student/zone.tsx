@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, TouchableOpacity, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useNavigation, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -8,8 +8,6 @@ import { Avatar } from '../../src/components/Avatar';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../../src/utils/sounds';
 import { loadVoiceEnabled, loadVoiceManifest, playVoiceClip } from '../../src/utils/voiceClips';
 import { VoiceToggleButton } from '../../src/components/VoiceToggleButton';
-
-const { width } = Dimensions.get('window');
 
 const getColourInfo = (t: (key: string) => string) => ({
   blue: {

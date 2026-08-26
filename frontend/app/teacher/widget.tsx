@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, ActivityIndicator, RefreshControl, Dimensions, Alert
+  TouchableOpacity, ActivityIndicator, RefreshControl, useWindowDimensions, Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -9,7 +9,6 @@ import { useApp } from '../../src/context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 
-const { width } = Dimensions.get('window');
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const INDIGO = '#5C6BC0';
 const ZONE_COLORS: Record<string,string> = EMOTION_COLOURS;
@@ -17,6 +16,8 @@ const ZONE_EMOJI: Record<string,string> = { blue:'😢', green:'😊', yellow:'�
 const ZONE_LABELS: Record<string,string> = { blue:'Blue', green:'Green', yellow:'Yellow', red:'Red' };
 
 export default function TeacherWidgetScreen() {
+  const { width } = useWindowDimensions();
+  const CARD_SIZE = (width - 48) / 4;
   const router = useRouter();
   const { t, user, students, classrooms } = useApp();
   const [loading, setLoading] = useState(true);
@@ -195,7 +196,7 @@ export default function TeacherWidgetScreen() {
                 return (
                   <TouchableOpacity
                     key={student.id}
-                    style={[st.studentCard, { borderColor: color }]}
+                    style={[st.studentCard, { width: CARD_SIZE }, { borderColor: color }]}
                     onPress={() => router.push({ pathname: '/teacher/student-detail', params: { studentId: student.id } })}>
                     {hasAlert && (
                       <View style={st.alertDot}>
@@ -243,8 +244,6 @@ export default function TeacherWidgetScreen() {
   );
 }
 
-const CARD_SIZE = (width - 48) / 4;
-
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
   header: { flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0', gap: 8 },
@@ -260,7 +259,7 @@ const st = StyleSheet.create({
   distTitle: { fontSize: 13, fontWeight: '700', color: '#333', marginBottom: 8 },
   distBar: { height: 12, borderRadius: 6, overflow: 'hidden', backgroundColor: '#F0F0F0', flexDirection: 'row' },
   studentGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
-  studentCard: { width: CARD_SIZE, backgroundColor: 'white', borderRadius: 12, padding: 8, alignItems: 'center', gap: 4, borderWidth: 2, elevation: 1 },
+  studentCard: { backgroundColor: 'white', borderRadius: 12, padding: 8, alignItems: 'center', gap: 4, borderWidth: 2, elevation: 1 },
   alertDot: { position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, backgroundColor: '#F44336', alignItems: 'center', justifyContent: 'center' },
   studentName: { fontSize: 11, fontWeight: '700', color: '#333', textAlign: 'center' },
   studentTime: { fontSize: 9, fontWeight: '600' },

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import {
   View, Image, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Modal, Alert, ActivityIndicator, RefreshControl, Switch, Dimensions, Linking,
+  Modal, Alert, ActivityIndicator, RefreshControl, Switch, useWindowDimensions, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -13,8 +13,6 @@ import { useApp } from '../../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../../src/constants/emotionColours';
 import { linkedChildApi, LinkedChild, FamilyAssignedStrategy } from '../../../src/utils/api';
 import { EmotionColourLoader } from '../../../src/components/EmotionColourLoader';
-
-const { width } = Dimensions.get('window');
 
 const ZONE_COLORS: Record<string, string> = EMOTION_COLOURS;
 const ZONE_CONFIG: Record<string, { color: string; emoji: string; label: string }> = {
@@ -74,6 +72,7 @@ const buildStrategyCounts = (checkins: any[]) => {
 type ChildType = 'school_linked' | 'family_member' | null;
 
 export default function LinkedChildDetailScreen() {
+  const { width } = useWindowDimensions();
   const router = useRouter();
   const navigation = useNavigation() as any;
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);

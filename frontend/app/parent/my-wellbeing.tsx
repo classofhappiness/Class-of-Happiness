@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
-  TextInput, Alert, KeyboardAvoidingView, Platform, Share, Linking, Dimensions,
+  TextInput, Alert, KeyboardAvoidingView, Platform, Share, Linking, useWindowDimensions,
 } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
 import { useNavigation } from '@react-navigation/native';
@@ -131,7 +131,7 @@ export default function MyWellbeingScreen() {
   const [secCalendar,   setSecCalendar]   = useState(false);
   const [secPdf,        setSecPdf]        = useState(false);
   const [downloading,   setDownloading]   = useState(false);
-  const { width } = Dimensions.get('window');
+  const { width } = useWindowDimensions();
 
   useEffect(() => {
     if (isSkipPin) {

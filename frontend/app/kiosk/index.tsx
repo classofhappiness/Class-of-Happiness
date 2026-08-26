@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
-  ScrollView, ActivityIndicator, Animated, Dimensions, Image
+  ScrollView, ActivityIndicator, Animated, useWindowDimensions, Image
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -10,7 +10,6 @@ import { Avatar } from '../../src/components/Avatar';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { useApp } from '../../src/context/AppContext';
 
-const { width } = Dimensions.get('window');
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const INDIGO = '#5C6BC0';
 const ZONE_COLORS: Record<string,string> = EMOTION_COLOURS;
@@ -18,6 +17,8 @@ const ZONE_EMOJI: Record<string,string> = { blue:'😢', green:'😊', yellow:'�
 const INACTIVITY_TIMEOUT = 60000; // 60 seconds
 
 export default function KioskScreen() {
+  const { width } = useWindowDimensions();
+  const CARD_W = (width - 48) / 3;
   const router = useRouter();
   const { t } = useApp();
   const [students, setStudents] = useState<any[]>([]);
@@ -279,7 +280,7 @@ export default function KioskScreen() {
             return (
               <TouchableOpacity
                 key={student.id}
-                style={[st.studentCard, checkedIn && { borderColor: cfg?.color || INDIGO, borderWidth: 3, backgroundColor: (cfg?.color || INDIGO) + '10' }]}
+                style={[st.studentCard, { width: CARD_W }, checkedIn && { borderColor: cfg?.color || INDIGO, borderWidth: 3, backgroundColor: (cfg?.color || INDIGO) + '10' }]}
                 onPress={() => handleStudentPress(student)}
                 activeOpacity={0.75}>
                 {checkedIn && (
@@ -317,8 +318,6 @@ export default function KioskScreen() {
   );
 }
 
-const CARD_W = (width - 48) / 3;
-
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
   // Setup
@@ -350,7 +349,7 @@ const st = StyleSheet.create({
   promptSub: { fontSize: 14, color: '#888', marginTop: 6 },
   // Grid
   grid: { padding: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'center' },
-  studentCard: { width: CARD_W, backgroundColor: 'white', borderRadius: 16, padding: 12, alignItems: 'center', gap: 6, borderWidth: 1.5, borderColor: '#E8E8E8', elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4 },
+  studentCard: { backgroundColor: 'white', borderRadius: 16, padding: 12, alignItems: 'center', gap: 6, borderWidth: 1.5, borderColor: '#E8E8E8', elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4 },
   checkedBadge: { position: 'absolute', top: -6, right: -6, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
   studentName: { fontSize: 13, fontWeight: '700', color: '#333', textAlign: 'center' },
   checkinTime: { fontSize: 10, fontWeight: '600' },
