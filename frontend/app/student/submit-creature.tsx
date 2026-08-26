@@ -14,21 +14,23 @@ import { COUNTRIES, countryFlagEmoji } from '../../src/constants/countries';
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 console.log('[SubmitCreature] API_URL is:', JSON.stringify(API_URL));
 
-const EMOTIONS = [
-  { key: 'green',  label: '😊 Green',  color: '#4CAF73', bg: '#E8F5E9' },
-  { key: 'blue',   label: '😔 Blue',   color: '#4A90D9', bg: '#E3F2FD' },
-  { key: 'yellow', label: '😬 Yellow', color: '#FFC107', bg: '#FFF8E1' },
-  { key: 'red',    label: '😤 Red',    color: '#E05252', bg: '#FFEBEE' },
+const EMOTION_KEYS = [
+  { key: 'green',  tKey: 'emotion_green',  fallback: '😊 Green',  color: '#4CAF73', bg: '#E8F5E9' },
+  { key: 'blue',   tKey: 'emotion_blue',   fallback: '😔 Blue',   color: '#4A90D9', bg: '#E3F2FD' },
+  { key: 'yellow', tKey: 'emotion_yellow', fallback: '😬 Yellow', color: '#FFC107', bg: '#FFF8E1' },
+  { key: 'red',    tKey: 'emotion_red',    fallback: '😤 Red',    color: '#E05252', bg: '#FFEBEE' },
 ];
 
-const STAGES = [
+const STAGE_KEYS = ['stage_1_label', 'stage_2_label', 'stage_3_label', 'stage_4_label'];
+const STAGE_FALLBACKS = [
   'Stage 1 — Egg or seed',
   'Stage 2 — Hatching or sprouting',
   'Stage 3 — Growing',
   'Stage 4 — Full creature',
 ];
 
-const TIPS = [
+const TIP_KEYS = ['creature_tip_1', 'creature_tip_2', 'creature_tip_3', 'creature_tip_4', 'creature_tip_5'];
+const TIP_FALLBACKS = [
   '✅ Use white paper or card as your background',
   '✅ Draw or craft with clear colours',
   '✅ Good lighting — near a window works great',
@@ -125,7 +127,7 @@ export default function SubmitCreatureScreen() {
     const perm = source === 'camera'
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (perm.status !== 'granted') { Alert.alert('Permission needed'); return; }
+    if (perm.status !== 'granted') { Alert.alert(t('permission_needed') || 'Permission needed'); return; }
     const result = source === 'camera'
       ? await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [1,1], quality: 0.7 })
       : await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, aspect: [1,1], quality: 0.7 });
@@ -172,18 +174,18 @@ export default function SubmitCreatureScreen() {
       if (data.valid) {
         setStep('details');
       } else {
-        Alert.alert('Code not valid', data.reason || 'Please check the code and try again.');
+        Alert.alert(t('code_not_valid_title') || 'Code not valid', data.reason || (t('code_not_valid_msg') || 'Please check the code and try again.'));
       }
     } catch (e: any) {
-      Alert.alert('Error', 'Could not check the code. Please try again.');
+      Alert.alert(t('error') || 'Error', t('could_not_check_code') || 'Could not check the code. Please try again.');
     } finally {
       setCheckingCode(false);
     }
   };
 
   const handleSubmit = async () => {
-    if (photos.some(p => !p)) { Alert.alert('Missing photos', 'Please add all 4 stage photos.'); return; }
-    if (!name.trim()) { Alert.alert('Name required', 'Give your creature a name!'); return; }
+    if (photos.some(p => !p)) { Alert.alert(t('missing_photos_title') || 'Missing photos', t('missing_photos_msg') || 'Please add all 4 stage photos.'); return; }
+    if (!name.trim()) { Alert.alert(t('name_required_title') || 'Name required', t('name_required_msg') || 'Give your creature a name!'); return; }
     setUploading(true);
     try {
       const token = await AsyncStorage.getItem('session_token') || '';
@@ -205,8 +207,8 @@ export default function SubmitCreatureScreen() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Submission failed');
-      Alert.alert('🎉 Submitted!', 'Your creature is waiting for approval from your teacher or parent!',
-        [{ text: 'OK', onPress: () => router.back() }]);
+      Alert.alert(t('creature_submitted_title') || '🎉 Submitted!', t('creature_submitted_msg') || 'Your creature is waiting for approval from your teacher or parent!',
+        [{ text: t('ok') || 'OK', onPress: () => router.back() }]);
     } catch (err: any) {
       // Real feature Aug 24 (item 2, free-tier submission cap): same free_tier_limit pattern
       // already used elsewhere (profiles/create.tsx, teacher/checkin.tsx, etc.) - a real
@@ -214,32 +216,32 @@ export default function SubmitCreatureScreen() {
       // not a bug.
       const msg = err.message || '';
       if (msg.startsWith('free_tier_limit|')) {
-        Alert.alert('Free Plan Limit Reached', msg.split('|')[1] || 'Upgrade for unlimited creature submissions.', [
-          { text: 'Not Now', style: 'cancel' },
-          { text: 'See Plans', onPress: () => router.push('/subscription') },
+        Alert.alert(t('free_plan_limit_title') || 'Free Plan Limit Reached', msg.split('|')[1] || (t('upgrade_unlimited_creatures') || 'Upgrade for unlimited creature submissions.'), [
+          { text: t('not_now') || 'Not Now', style: 'cancel' },
+          { text: t('see_plans') || 'See Plans', onPress: () => router.push('/subscription') },
         ]);
         return;
       }
-      Alert.alert('Error', `${err.message || 'Please try again.'}\n\nURL used: ${API_URL}/api/creatures/submit`);
+      Alert.alert(t('error') || 'Error', `${err.message || 'Please try again.'}\n\nURL used: ${API_URL}/api/creatures/submit`);
     } finally { setUploading(false); }
   };
 
   // TUTORIAL SCREEN
   if (step === 'tutorial') return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
-      <TranslatedHeader title="How to make your creature" showHome />
-      <Text style={s.subtitle}>Read these tips before you start!</Text>
-      {TIPS.map((tip, i) => (
+      <TranslatedHeader title={t('creature_tutorial_title') || 'How to make your creature'} showHome />
+      <Text style={s.subtitle}>{t('creature_submit_read_tips') || 'Read these tips before you start!'}</Text>
+      {TIP_KEYS.map((key, i) => (
         <View key={i} style={s.tipRow}>
-          <Text style={s.tipText}>{tip}</Text>
+          <Text style={s.tipText}>{t(key) || TIP_FALLBACKS[i]}</Text>
         </View>
       ))}
       <View style={s.exampleBox}>
-        <Text style={s.exampleTitle}>📸 The 4 stages</Text>
-        <Text style={s.exampleText}>{"Stage 1: Just an egg or blob shape\nStage 2: Starting to hatch or sprout\nStage 3: Half grown — details appearing\nStage 4: The full creature in all its glory!"}</Text>
+        <Text style={s.exampleTitle}>{t('creature_submit_4_stages_title') || '📸 The 4 stages'}</Text>
+        <Text style={s.exampleText}>{t('creature_submit_4_stages_desc') || "Stage 1: Just an egg or blob shape\nStage 2: Starting to hatch or sprout\nStage 3: Half grown — details appearing\nStage 4: The full creature in all its glory!"}</Text>
       </View>
       <TouchableOpacity style={s.btn} onPress={() => setStep('code')}>
-        <Text style={s.btnTxt}>I'm ready — let's go! →</Text>
+        <Text style={s.btnTxt}>{t('creature_submit_ready_btn') || "I'm ready — let's go! →"}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -247,15 +249,15 @@ export default function SubmitCreatureScreen() {
   // CODE SCREEN
   if (step === 'code') return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
-      <TranslatedHeader title="Enter your code" showHome onBackPress={() => setStep('tutorial')} />
-      <Text style={s.subtitle}>Get a code from your teacher or parent first.</Text>
+      <TranslatedHeader title={t('creature_code_screen_title') || 'Enter your code'} showHome onBackPress={() => setStep('tutorial')} />
+      <Text style={s.subtitle}>{t('creature_submit_get_code') || 'Get a code from your teacher or parent first.'}</Text>
       <TextInput style={s.codeInput} value={code} onChangeText={v => setCode(v.toUpperCase())}
-        placeholder="e.g. ABC12345" autoCapitalize="characters" maxLength={8} />
+        placeholder={t('creature_code_input_placeholder') || 'e.g. ABC12345'} autoCapitalize="characters" maxLength={8} />
       <TouchableOpacity style={[s.btn, (code.length < 8 || checkingCode) && s.btnOff]}
         disabled={code.length < 8 || checkingCode} onPress={handleContinueFromCode}>
         {checkingCode
           ? <ActivityIndicator color="white" />
-          : <Text style={s.btnTxt}>Continue →</Text>}
+          : <Text style={s.btnTxt}>{t('continue_arrow') || 'Continue →'}</Text>}
       </TouchableOpacity>
     </ScrollView>
   );
@@ -263,26 +265,26 @@ export default function SubmitCreatureScreen() {
   // DETAILS SCREEN
   if (step === 'details') return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
-      <TranslatedHeader title="Your creature details" showHome onBackPress={() => setStep('code')} />
-      <Text style={s.label}>Creature name</Text>
+      <TranslatedHeader title={t('creature_details_title') || 'Your creature details'} showHome onBackPress={() => setStep('code')} />
+      <Text style={s.label}>{t('creature_name_label') || 'Creature name'}</Text>
       <TextInput style={s.input} value={name} onChangeText={setName}
-        placeholder="Give it a name!" maxLength={50} />
-      <Text style={s.label}>Which emotion does it represent?</Text>
+        placeholder={t('creature_name_placeholder') || 'Give it a name!'} maxLength={50} />
+      <Text style={s.label}>{t('creature_emotion_question') || 'Which emotion does it represent?'}</Text>
       <View style={s.emotionRow}>
-        {EMOTIONS.map(e => (
+        {EMOTION_KEYS.map(e => (
           <TouchableOpacity key={e.key}
             style={[s.emotionBtn, { backgroundColor: emotion === e.key ? e.color : e.bg }]}
             onPress={() => setEmotion(e.key)}>
-            <Text style={[s.emotionLabel, { color: emotion === e.key ? 'white' : e.color }]}>{e.label}</Text>
+            <Text style={[s.emotionLabel, { color: emotion === e.key ? 'white' : e.color }]}>{t(e.tKey) || e.fallback}</Text>
           </TouchableOpacity>
         ))}
       </View>
-      <Text style={s.label}>Description (optional)</Text>
+      <Text style={s.label}>{t('creature_desc_optional_label') || 'Description (optional)'}</Text>
       <TextInput style={[s.input, { height: 80 }]} value={description}
-        onChangeText={setDescription} placeholder="Tell us about your creature..." maxLength={200} multiline />
+        onChangeText={setDescription} placeholder={t('creature_desc_placeholder') || 'Tell us about your creature...'} maxLength={200} multiline />
       {pickableStudents.length > 0 && (
         <>
-          <Text style={s.label}>Who made this? (optional)</Text>
+          <Text style={s.label}>{t('who_made_this_label') || 'Who made this? (optional)'}</Text>
           <View style={s.emotionRow}>
             {pickableStudents.map(p => (
               <TouchableOpacity key={p.id}
@@ -296,7 +298,7 @@ export default function SubmitCreatureScreen() {
       )}
       <TouchableOpacity style={[s.btn, (!emotion || !name) && s.btnOff]}
         disabled={!emotion || !name} onPress={() => setStep('scope')}>
-        <Text style={s.btnTxt}>Next →</Text>
+        <Text style={s.btnTxt}>{t('next_arrow') || 'Next →'}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -312,10 +314,10 @@ export default function SubmitCreatureScreen() {
     // uses, and the backend now genuinely supports it (see get_eligible_creatures).
     const scopeOptions: { key: 'classroom'|'school'|'global'; label: string; hint: string }[] = [
       submissionOptions?.has_classroom
-        ? { key: 'classroom', label: '👥 My Classroom', hint: 'Only your own classroom can see and unlock it' }
-        : { key: 'classroom', label: '👨‍👩‍👧 My Family', hint: 'Only your own family can see and unlock it' },
-      ...(submissionOptions?.has_school ? [{ key: 'school' as const, label: '🏫 My Whole School', hint: (submissionOptions?.school_name ? `Everyone at ${submissionOptions.school_name}` : 'Everyone at your school') }] : []),
-      { key: 'global', label: '🌍 Everyone, Everywhere', hint: 'Students at any school worldwide can see and unlock it' },
+        ? { key: 'classroom', label: t('scope_classroom_label') || '👥 My Classroom', hint: t('scope_classroom_hint') || 'Only your own classroom can see and unlock it' }
+        : { key: 'classroom', label: t('scope_family_label') || '👨‍👩‍👧 My Family', hint: t('scope_family_hint') || 'Only your own family can see and unlock it' },
+      ...(submissionOptions?.has_school ? [{ key: 'school' as const, label: t('scope_school_label') || '🏫 My Whole School', hint: (submissionOptions?.school_name ? (t('scope_school_hint') || 'Everyone at {school}').replace('{school}', submissionOptions.school_name) : (t('scope_school_hint_generic') || 'Everyone at your school')) }] : []),
+      { key: 'global', label: t('scope_global_label') || '🌍 Everyone, Everywhere', hint: t('scope_global_hint') || 'Students at any school worldwide can see and unlock it' },
     ];
     const selectedCountry = COUNTRIES.find(c => c.code === country);
     const filteredCountries = countrySearch.trim()
@@ -323,13 +325,13 @@ export default function SubmitCreatureScreen() {
       : COUNTRIES;
     return (
       <ScrollView style={s.container} contentContainerStyle={s.content}>
-        <TranslatedHeader title="Who can see it?" showHome onBackPress={() => setStep('details')} />
-        <Text style={s.subtitle}>A teacher or superadmin can still change this later when they review it.</Text>
+        <TranslatedHeader title={t('creature_scope_title') || 'Who can see it?'} showHome onBackPress={() => setStep('details')} />
+        <Text style={s.subtitle}>{t('creature_scope_disclaimer') || 'A teacher or superadmin can still change this later when they review it.'}</Text>
         {loadingOptions ? (
           <ActivityIndicator color="#1A1A2E" style={{ marginVertical: 30 }} />
         ) : (
           <>
-            <Text style={s.label}>Where should it be available?</Text>
+            <Text style={s.label}>{t('creature_scope_question') || 'Where should it be available?'}</Text>
             {scopeOptions.map(opt => (
               <TouchableOpacity key={opt.key} style={[s.scopeCard, visibilityScope === opt.key && s.scopeCardActive]}
                 onPress={() => setVisibilityScope(opt.key)}>
@@ -338,10 +340,10 @@ export default function SubmitCreatureScreen() {
               </TouchableOpacity>
             ))}
 
-            <Text style={[s.label, { marginTop: 20 }]}>Which country is this from?</Text>
+            <Text style={[s.label, { marginTop: 20 }]}>{t('creature_country_question') || 'Which country is this from?'}</Text>
             <TouchableOpacity style={s.countryPickerBtn} onPress={() => setCountryPickerOpen(true)}>
               <Text style={s.countryPickerTxt}>
-                {selectedCountry ? `${countryFlagEmoji(selectedCountry.code)}  ${selectedCountry.name}` : 'Select a country'}
+                {selectedCountry ? `${countryFlagEmoji(selectedCountry.code)}  ${selectedCountry.name}` : (t('select_country') || 'Select a country')}
               </Text>
               <Text style={s.countryPickerChevron}>▾</Text>
             </TouchableOpacity>
@@ -349,15 +351,15 @@ export default function SubmitCreatureScreen() {
         )}
         <TouchableOpacity style={[s.btn, (!visibilityScope || !country) && s.btnOff]}
           disabled={!visibilityScope || !country} onPress={() => setStep('photos')}>
-          <Text style={s.btnTxt}>Next: Add photos →</Text>
+          <Text style={s.btnTxt}>{t('next_add_photos') || 'Next: Add photos →'}</Text>
         </TouchableOpacity>
 
         <Modal visible={countryPickerOpen} transparent animationType="fade" onRequestClose={() => setCountryPickerOpen(false)}>
           <View style={s.countryModalOverlay}>
             <View style={s.countryModalCard}>
-              <Text style={s.countryModalTitle}>Select a country</Text>
+              <Text style={s.countryModalTitle}>{t('select_country') || 'Select a country'}</Text>
               <TextInput style={s.countrySearchInput} value={countrySearch} onChangeText={setCountrySearch}
-                placeholder="Search countries..." autoCapitalize="words" />
+                placeholder={t('search_countries_placeholder') || 'Search countries...'} autoCapitalize="words" />
               <ScrollView style={{ maxHeight: 360 }}>
                 {filteredCountries.map(c => (
                   <TouchableOpacity key={c.code} style={s.countryRow}
@@ -367,7 +369,7 @@ export default function SubmitCreatureScreen() {
                 ))}
               </ScrollView>
               <TouchableOpacity style={s.countryModalClose} onPress={() => { setCountryPickerOpen(false); setCountrySearch(''); }}>
-                <Text style={s.countryModalCloseTxt}>Cancel</Text>
+                <Text style={s.countryModalCloseTxt}>{t('cancel') || 'Cancel'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -379,51 +381,55 @@ export default function SubmitCreatureScreen() {
   // PHOTOS SCREEN
   if (step === 'photos') return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
-      <TranslatedHeader title="4 stage photos" showHome onBackPress={() => setStep('scope')} />
-      <Text style={s.subtitle}>White background · good lighting · clear outline</Text>
-      {STAGES.map((label, i) => (
+      <TranslatedHeader title={t('creature_photos_title') || '4 stage photos'} showHome onBackPress={() => setStep('scope')} />
+      <Text style={s.subtitle}>{t('creature_photos_subtitle') || 'White background · good lighting · clear outline'}</Text>
+      {STAGE_KEYS.map((key, i) => (
         <View key={i} style={s.photoCard}>
-          <Text style={s.stageLabel}>{label}</Text>
+          <Text style={s.stageLabel}>{t(key) || STAGE_FALLBACKS[i]}</Text>
           {photos[i]
             ? <Image source={{ uri: photos[i]! }} style={s.photoPreview} />
-            : <View style={s.photoEmpty}><Text style={s.photoEmptyTxt}>No photo yet</Text></View>}
+            : <View style={s.photoEmpty}><Text style={s.photoEmptyTxt}>{t('no_photo_yet') || 'No photo yet'}</Text></View>}
           <View style={s.photoRow}>
             <TouchableOpacity style={s.photoBtn} onPress={() => pickOrCamera(i,'camera')}>
-              <Text style={s.photoBtnTxt}>📷 Camera</Text>
+              <Text style={s.photoBtnTxt}>{t('camera_btn') || '📷 Camera'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.photoBtn} onPress={() => pickOrCamera(i,'library')}>
-              <Text style={s.photoBtnTxt}>🖼 Gallery</Text>
+              <Text style={s.photoBtnTxt}>{t('gallery_btn') || '🖼 Gallery'}</Text>
             </TouchableOpacity>
           </View>
         </View>
       ))}
       <TouchableOpacity style={[s.btn, photos.some(p=>!p) && s.btnOff]}
         disabled={photos.some(p=>!p)} onPress={() => setStep('review')}>
-        <Text style={s.btnTxt}>Review & Submit →</Text>
+        <Text style={s.btnTxt}>{t('review_submit_btn') || 'Review & Submit →'}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 
   // REVIEW SCREEN
+  const visibleToText = visibilityScope === 'classroom'
+    ? (submissionOptions?.has_classroom ? (t('scope_classroom_label') || '👥 My Classroom').replace('👥 ', '') : (t('scope_family_label') || '👨‍👩‍👧 My Family').replace('👨‍👩‍👧 ', ''))
+    : visibilityScope === 'school' ? (t('scope_school_label') || '🏫 My Whole School').replace('🏫 ', '')
+    : (t('scope_global_label') || '🌍 Everyone, Everywhere').replace('🌍 ', '');
   return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
-      <TranslatedHeader title="Review your submission" showHome onBackPress={() => setStep('photos')} />
+      <TranslatedHeader title={t('creature_review_title') || 'Review your submission'} showHome onBackPress={() => setStep('photos')} />
       <View style={s.card}>
-        <Text style={s.label}>Name: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{name}</Text></Text>
-        <Text style={s.label}>Emotion: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{emotion}</Text></Text>
-        <Text style={s.label}>Code: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{code}</Text></Text>
-        <Text style={s.label}>Visible to: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{visibilityScope === 'classroom' ? (submissionOptions?.has_classroom ? 'My Classroom' : 'My Family') : visibilityScope === 'school' ? 'My Whole School' : 'Everyone, Everywhere'}</Text></Text>
-        <Text style={s.label}>Country: <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{country ? `${countryFlagEmoji(country)} ${COUNTRIES.find(c => c.code === country)?.name || country}` : '—'}</Text></Text>
+        <Text style={s.label}>{t('review_name_label') || 'Name:'} <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{name}</Text></Text>
+        <Text style={s.label}>{t('review_emotion_label') || 'Emotion:'} <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{emotion}</Text></Text>
+        <Text style={s.label}>{t('review_code_label') || 'Code:'} <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{code}</Text></Text>
+        <Text style={s.label}>{t('review_visible_to_label') || 'Visible to:'} <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{visibleToText}</Text></Text>
+        <Text style={s.label}>{t('review_country_label') || 'Country:'} <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{country ? `${countryFlagEmoji(country)} ${COUNTRIES.find(c => c.code === country)?.name || country}` : '—'}</Text></Text>
         <View style={s.stageGrid}>
           {photos.map((p,i) => p && <Image key={i} source={{ uri:p }} style={s.reviewPhoto} />)}
         </View>
         {uploading
           ? <View style={s.uploadRow}>
               <EmotionColourLoader visible size={40} />
-              <Text style={s.uploadTxt}>Uploading your creature... please wait</Text>
+              <Text style={s.uploadTxt}>{t('uploading_creature_msg') || 'Uploading your creature... please wait'}</Text>
             </View>
           : <TouchableOpacity style={s.btn} onPress={handleSubmit}>
-              <Text style={s.btnTxt}>🚀 Submit for approval!</Text>
+              <Text style={s.btnTxt}>{t('submit_for_approval_btn') || '🚀 Submit for approval!'}</Text>
             </TouchableOpacity>}
       </View>
     </ScrollView>
