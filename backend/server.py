@@ -11888,6 +11888,12 @@ async def get_school_checkins(student_id: str, request: Request, days: int = 30)
         link = supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
         if not link.data:
             raise HTTPException(status_code=403, detail="Not linked to this student")
+        # Real fix Aug 26 (item 3): "respects sharing setting" was only ever a docstring
+        # promise - sharing_disabled was hardcoded False, nothing here ever actually checked
+        # it. See toggle_school_sharing for the full story.
+        school_sharing = link.data[0].get("school_sharing_enabled")
+        if school_sharing is False:
+            return {"checkins": [], "sharing_disabled": True}
         start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         # School check-ins = logged by teacher OR student (not parent)
         result = supabase.table("feeling_logs").select("*").eq("student_id", student_id).not_.eq("logged_by", "parent").gte("timestamp", start_date).order("timestamp", desc=True).execute()
@@ -12106,15 +12112,21 @@ async def get_all_checkins_for_linked_child(student_id: str, request: Request, d
         link = supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
         if not link.data:
             raise HTTPException(status_code=403, detail="Not linked to this student")
+        # Real fix Aug 26 (item 3): this returned home AND school check-ins unconditionally,
+        # no sharing gate of any kind - a paused school_sharing_enabled had zero effect here.
+        school_sharing = link.data[0].get("school_sharing_enabled")
         start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         result = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
         logs = result.data or []
-        return [{
+        combined = [{
             **log,
             "zone": log.get("feeling_colour", log.get("zone", "")),
             "strategies_selected": log.get("helpers_selected", log.get("strategies_selected", [])),
             "location": "home" if log.get("logged_by") == "parent" else "school",
         } for log in logs]
+        if school_sharing is False:
+            combined = [c for c in combined if c["location"] == "home"]
+        return combined
     except HTTPException:
         raise
     except Exception as e:
@@ -12132,16 +12144,23 @@ async def get_school_strategies_for_linked_child(student_id: str, request: Reque
         link = supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
         if not link.data:
             raise HTTPException(status_code=403, detail="Not linked to this student")
+        # Real fix Aug 26 (item 3): custom_strategies is teacher-assigned, school-side data -
+        # gated the same way as the two check-in endpoints above. global_strategies is
+        # generic app-wide content, not this student's private school data, so it stays
+        # visible either way - pausing sharing shouldn't hide content nobody chose to share.
+        school_sharing = link.data[0].get("school_sharing_enabled")
         # Get custom strategies for this student
-        try:
-            strats = supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute()
-            custom = strats.data or []
-            # Normalise zone field
-            for row in custom:
-                if not row.get("zone"):
-                    row["zone"] = row.get("feeling_colour", "green")
-        except Exception:
-            custom = []
+        custom = []
+        if school_sharing is not False:
+            try:
+                strats = supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute()
+                custom = strats.data or []
+                # Normalise zone field
+                for row in custom:
+                    if not row.get("zone"):
+                        row["zone"] = row.get("feeling_colour", "green")
+            except Exception:
+                custom = []
         # Get global strategies
         try:
             global_strats = supabase.table("strategies").select("*").execute()
@@ -12151,6 +12170,7 @@ async def get_school_strategies_for_linked_child(student_id: str, request: Reque
         return {
             "custom_strategies": custom,
             "global_strategies": global_list[:8],  # limit
+            "sharing_disabled": school_sharing is False,
         }
     except HTTPException:
         raise
@@ -12310,7 +12330,11 @@ async def get_teacher_checkins(request: Request, days: int = 7):
 
 @api_router.get("/teacher/student/{student_id}/sharing-status")
 async def get_student_sharing_status(student_id: str, request: Request):
-    """Check if a student is linked to a parent and sharing status."""
+    """Check if a student is linked to a parent and sharing status.
+    Real fix Aug 26 (item 3): school_sharing_enabled used to be hardcoded True - a UI
+    stopgap, not a real toggle (see toggle_school_sharing below for the full story). Now
+    reads the real column, defaulting to True (matches prior always-on behaviour) for any
+    row from before the migration landed."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -12319,13 +12343,14 @@ async def get_student_sharing_status(student_id: str, request: Request):
         links = supabase.table("parent_links").select("*").eq("student_id", student_id).execute()
         is_linked = len(links.data or []) > 0
         home_sharing = False
-        school_sharing = False
+        school_sharing = True
         parent_name = None
         if is_linked and links.data:
             link = links.data[0]
             home_sharing = link.get("home_sharing_enabled", False)
-            # School sharing - teacher can always see school data, parent sees school data if link exists
-            school_sharing = True  # school data visible to linked parent by default
+            school_sharing = link.get("school_sharing_enabled", True)
+            if school_sharing is None:
+                school_sharing = True
             # Get parent name
             try:
                 parent = supabase.table("users").select("name,email").eq("user_id", link["parent_user_id"]).execute()
@@ -12342,7 +12367,48 @@ async def get_student_sharing_status(student_id: str, request: Request):
         }
     except Exception as e:
         logger.error(f"get_student_sharing_status error: {e}")
-        return {"is_linked_to_parent": False, "home_sharing_enabled": False, "school_sharing_enabled": False, "parent_name": None}
+        return {"is_linked_to_parent": False, "home_sharing_enabled": False, "school_sharing_enabled": True, "parent_name": None}
+
+@api_router.put("/teacher/student/{student_id}/toggle-school-sharing")
+async def toggle_school_sharing(student_id: str, request: Request):
+    """Real feature Aug 26 (item 3): "Pause/Resume sharing with parent" was a UI stopgap -
+    the button in teacher/student-detail.tsx called a POST /parent-links/school-sharing
+    endpoint that never existed on the backend (a silent 404, swallowed by an empty catch),
+    and school_sharing_enabled was hardcoded True everywhere it was read - so pressing it
+    did nothing at all, ever. Built for real, with the same care as the other
+    permission-sensitive toggles tonight:
+    - WHO can toggle: the teacher who owns the student's classroom, their covering
+      school_admin, or superadmin - the same authorization tier that can already see this
+      student's data at all (_is_authorized_for_student), further restricted to staff roles
+      only. A linked parent is deliberately NOT allowed to toggle this themselves - this is
+      the teacher's/school's own consent for what THEY share outward, the mirror image of
+      home_sharing_enabled (which is the parent's own consent for what they share inward).
+    - WHAT HAPPENS to already-shared data when paused: nothing is deleted. Pausing only gates
+      future reads (see get_school_checkins/get_all_checkins_for_linked_child/
+      get_school_strategies_for_linked_child below) - resuming immediately restores full
+      visibility of the same untouched history, exactly like home_sharing_enabled already
+      works for the reverse direction.
+    - Applies to every parent linked to this student, not just the first - a student can
+      have more than one active parent_links row (e.g. two guardians)."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if user.get("role") not in ("teacher", "school_admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Only a teacher or school admin can control school-data sharing.")
+    student_r = supabase.table("students").select("*").eq("id", student_id).execute()
+    if not student_r.data:
+        raise HTTPException(status_code=404, detail="Student not found")
+    student_data = student_r.data[0]
+    if not await _is_authorized_for_student(user, student_id, student_data):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
+    links = supabase.table("parent_links").select("id,school_sharing_enabled").eq("student_id", student_id).execute()
+    if not links.data:
+        raise HTTPException(status_code=404, detail="No parent linked to this student yet")
+    current = links.data[0].get("school_sharing_enabled")
+    new_value = not (current if current is not None else True)
+    for link in links.data:
+        supabase.table("parent_links").update({"school_sharing_enabled": new_value}).eq("id", link["id"]).execute()
+    return {"school_sharing_enabled": new_value}
 
 
 @api_router.get("/teacher/student/{student_id}/home-data")
@@ -12706,14 +12772,21 @@ async def stripe_webhook(request: Request):
     if event_type in ("customer.subscription.created", "customer.subscription.updated"):
         customer_id = _sget(data_obj, "customer")
         status = _sget(data_obj, "status")
-        current_period_end = _sget(data_obj, "current_period_end")
+        items = _sget(_sget(data_obj, "items", {}), "data", [])
+        # Real bug fix Aug 26 (found live-testing item 1, cancel-to-free): Stripe's newer API
+        # versions moved current_period_end off the subscription object onto each item
+        # (items[0].current_period_end) - confirmed live, a real cancel_at_period_end update
+        # from this exact account came through with no top-level current_period_end at all.
+        # This used to write that missing value straight into subscription_expires_at as
+        # NULL on every single subscription.updated event (renewals, cancellations, plan
+        # changes) - silently wiping a perfectly good expiry date and breaking Settings'
+        # renewal/cancellation-date display. Falls back to the per-item field, and now never
+        # overwrites a real value with nothing just because this particular event didn't
+        # carry it either way.
+        current_period_end = _sget(data_obj, "current_period_end") or (_sget(items[0], "current_period_end") if items else None)
         user = _find_user(customer_id)
         if user:
             sub_status = "active" if status in ("active", "trialing") else ("past_due" if status == "past_due" else "none")
-            exp_dt = None
-            if current_period_end:
-                exp_dt = datetime.fromtimestamp(current_period_end, tz=timezone.utc).isoformat()
-            items = _sget(_sget(data_obj, "items", {}), "data", [])
             # Real fix Aug 18: this used to pass only price.id — Stripe auto-generates that
             # as a random string (price_1Abc...), which would never contain "teacher"/
             # "parent"/"school_starter" etc. no matter what Jono names the product. The
@@ -12723,10 +12796,10 @@ async def stripe_webhook(request: Request):
             price_obj = _sget(items[0], "price", {}) if items else {}
             price_key = " ".join(filter(None, [_sget(price_obj, "nickname"), _sget(price_obj, "lookup_key"), _sget(price_obj, "id")]))
             plan = _get_plan_from_price(price_key)
-            supabase.table("users").update({
-                "subscription_status": sub_status, "subscription_plan": plan,
-                "subscription_expires_at": exp_dt, "stripe_customer_id": customer_id,
-            }).eq("user_id", user["user_id"]).execute()
+            update = {"subscription_status": sub_status, "subscription_plan": plan, "stripe_customer_id": customer_id}
+            if current_period_end:
+                update["subscription_expires_at"] = datetime.fromtimestamp(current_period_end, tz=timezone.utc).isoformat()
+            supabase.table("users").update(update).eq("user_id", user["user_id"]).execute()
             print(f"[Stripe] {event_type}: {user['user_id']} -> {sub_status} ({plan})")
 
     elif event_type == "customer.subscription.deleted":
@@ -12740,8 +12813,13 @@ async def stripe_webhook(request: Request):
         if user:
             lines = _sget(_sget(data_obj, "lines", {}), "data", [])
             period_end = _sget(_sget(lines[0], "period", {}), "end") if lines else None
-            exp_dt = datetime.fromtimestamp(period_end, tz=timezone.utc).isoformat() if period_end else None
-            supabase.table("users").update({"subscription_status": "active", "subscription_expires_at": exp_dt}).eq("user_id", user["user_id"]).execute()
+            # Real fix Aug 26: same unconditional-null-write bug as the subscription.updated
+            # handler above - never overwrite a real subscription_expires_at with nothing
+            # just because this event didn't carry a period end.
+            update = {"subscription_status": "active"}
+            if period_end:
+                update["subscription_expires_at"] = datetime.fromtimestamp(period_end, tz=timezone.utc).isoformat()
+            supabase.table("users").update(update).eq("user_id", user["user_id"]).execute()
 
     elif event_type == "invoice.payment_failed":
         user = _find_user(_sget(data_obj, "customer"))
