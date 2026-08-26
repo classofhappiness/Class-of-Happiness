@@ -2611,10 +2611,13 @@ async def create_student(student: StudentCreate, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     # Free tier: limit to 10 students (mirrors the same real pattern already used for classrooms)
-    sub_status = user.get("subscription_status", "none")
-    school_admin_id = user.get("school_admin_id")
-    is_school_covered = bool(school_admin_id)
-    if sub_status in ("none", "free", None) and not is_school_covered:
+    # Real fix Aug 26 (item 4): was `subscription_status in ("none","free",None)` plus a bare
+    # `bool(school_admin_id)` - blind to real expiry (a lapsed trial/paid account dodged this
+    # cap forever, same root cause as the Aug 24/25 creature-cap bugs) AND to whether the
+    # linked school_admin's OWN subscription was still active (bool(school_admin_id) alone
+    # doesn't mean the school ever paid, or still does). _is_genuinely_free_tier() already
+    # fixes both - reused here instead of copying the same two bugs into yet another check.
+    if _is_genuinely_free_tier(user):
         existing = supabase.table("students").select("id", count="exact").eq("user_id", user["user_id"]).execute()
         student_count = existing.count or len(existing.data or [])
         if student_count >= 10:
@@ -2714,11 +2717,9 @@ async def create_classroom(classroom: ClassroomCreate, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    # Free tier: limit to 1 classroom
-    sub_status = user.get("subscription_status", "none")
-    school_admin_id = user.get("school_admin_id")
-    is_school_covered = bool(school_admin_id)
-    if sub_status in ("none", "free", None) and not is_school_covered:
+    # Free tier: limit to 1 classroom. Real fix Aug 26 (item 4): same expiry-blind /
+    # school-coverage-blind pattern as /students above, fixed the same way.
+    if _is_genuinely_free_tier(user):
         existing = supabase.table("classrooms").select("id", count="exact").eq("user_id", user["user_id"]).execute()
         classroom_count = existing.count or len(existing.data or [])
         if classroom_count >= 1:
@@ -3655,8 +3656,11 @@ async def add_family_member(member: FamilyMemberCreate, request: Request):
     # subscription_status — a parent free because their school pays could still incorrectly
     # hit this cap. See _parent_is_school_covered (defined near /parent/link-child).
     if member.relationship == "child":
-        sub_status = user.get("subscription_status", "none")
-        if sub_status in ("none", "free", None) and not _parent_is_school_covered(user):
+        # Real fix Aug 26 (item 4): the school-coverage side was already real
+        # (_parent_is_school_covered), but the parent's own subscription_status check was
+        # still expiry-blind - a lapsed trial/paid parent dodged this cap forever. Swapped
+        # to _is_genuinely_free_tier(), same fix pattern as the Aug 24/25 creature caps.
+        if _is_genuinely_free_tier(user):
             existing = supabase.table("family_members").select("id", count="exact").eq("user_id", user["user_id"]).eq("relationship", "child").execute()
             child_count = existing.count or len(existing.data or [])
             if child_count >= 2:
@@ -4108,8 +4112,14 @@ async def link_child(body: LinkChildRequest, request: Request):
     # the school_admin's own subscription_status == "active" (see _parent_is_school_covered
     # above), not just link presence — closes the "free forever via an unpaid school_admin"
     # loophole under the new parent pricing model.
-    parent_sub = user.get("subscription_status", "none")
-    parent_covered = parent_sub not in ("none", "free", None) or _parent_is_school_covered(user)
+    # Real fix Aug 26 (item 4): both sides of this check were expiry-blind - parent_covered
+    # and teacher_covered treated ANY non-none/free subscription_status as "covered" forever,
+    # same root cause as the Aug 24/25 creature-cap bugs (a lapsed trial/paid account, on
+    # either side, never lost this coverage). _is_genuinely_free_tier() already fixes real
+    # expiry + real school-coverage together - reused for the parent directly (it already has
+    # role/subscription_expires_at). The teacher record is fetched separately, so role and
+    # subscription_expires_at are pulled explicitly and role is set for the helper.
+    parent_covered = not _is_genuinely_free_tier(user)
     teacher_covered = False
     classroom_id = student.get("classroom_id")
     if classroom_id:
@@ -4117,19 +4127,10 @@ async def link_child(body: LinkChildRequest, request: Request):
             classroom_result = supabase.table("classrooms").select("user_id").eq("id", classroom_id).execute()
             if classroom_result.data:
                 teacher_id = classroom_result.data[0].get("user_id")
-                teacher_result = supabase.table("users").select("subscription_status,school_admin_id,school_name").eq("user_id", teacher_id).execute()
+                teacher_result = supabase.table("users").select("subscription_status,subscription_expires_at,school_admin_id,school_name").eq("user_id", teacher_id).execute()
                 if teacher_result.data:
-                    teacher = teacher_result.data[0]
-                    teacher_sub = teacher.get("subscription_status", "none")
-                    teacher_school_covered = False
-                    admin_id = teacher.get("school_admin_id")
-                    if admin_id:
-                        admin_r = supabase.table("users").select("subscription_status").eq("user_id", admin_id).execute()
-                        teacher_school_covered = bool(admin_r.data) and admin_r.data[0].get("subscription_status") == "active"
-                    if not teacher_school_covered and teacher.get("school_name"):
-                        admins = supabase.table("users").select("subscription_status").eq("role", "school_admin").eq("school_name", teacher["school_name"]).execute()
-                        teacher_school_covered = any(a.get("subscription_status") == "active" for a in (admins.data or []))
-                    teacher_covered = teacher_sub not in ("none", "free", None) or teacher_school_covered
+                    teacher = {**teacher_result.data[0], "role": "teacher"}
+                    teacher_covered = not _is_genuinely_free_tier(teacher)
         except Exception as e:
             logger.warning(f"link_child teacher status check failed: {e}")
     if not parent_covered and not teacher_covered:
@@ -4877,8 +4878,11 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
 
     # Free tier: 1 student PDF per month (separate from the teacher-wellbeing PDF counter,
     # per Jono's explicit design decision — checking own usage, own month/reset)
-    sub_status = user.get("subscription_status", "none")
-    if sub_status in ("none", "free", None):
+    # Real fix Aug 26 (item 4): was expiry-blind AND had no school-coverage check at all
+    # (unlike the students/classrooms/children caps, which at least checked bool(school_admin_id))
+    # - a lapsed trial/paid account, or a teacher/parent genuinely covered by their school,
+    # could still incorrectly hit this cap. _is_genuinely_free_tier() fixes both.
+    if _is_genuinely_free_tier(user):
         reset_at = user.get("pdf_downloads_month_reset_at")
         current_count = user.get("pdf_downloads_student_this_month", 0) or 0
         now = datetime.now(timezone.utc)
@@ -11951,8 +11955,10 @@ async def create_family_custom_strategy(request: Request):
 
     # Real fix Aug 18: same gap as /family/members and /resources — never checked
     # school-package coverage, only the parent's own subscription_status.
-    sub_status = user.get("subscription_status", "none")
-    if sub_status in ("none", "free", None) and not _parent_is_school_covered(user):
+    # Real fix Aug 26 (item 4): the school-coverage side was already real, but the parent's
+    # own subscription_status check was still expiry-blind - swapped to
+    # _is_genuinely_free_tier(), same fix pattern as the Aug 24/25 creature caps.
+    if _is_genuinely_free_tier(user):
         existing = supabase.table("custom_helpers").select("id", count="exact").eq("user_id", user["user_id"]).execute()
         existing_count = existing.count or len(existing.data or [])
         if existing_count >= 6:
