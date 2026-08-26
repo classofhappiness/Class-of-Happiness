@@ -560,7 +560,7 @@ export default function MyWellbeingScreen() {
                 isAnimated barBorderRadius={6} width={width-100}
               />
             </View>
-          ) : <Text style={[st.noData,{marginTop:10}]}>{t('no_data_period') || t('no_data_period') || 'No data for this period'}</Text>)}
+          ) : <Text style={[st.noData,{marginTop:10}]}>{t('no_data_period') || 'No data for this period'}</Text>)}
         </View>
 
         {/* MOST USED STRATEGIES */}
@@ -574,7 +574,7 @@ export default function MyWellbeingScreen() {
             entries.forEach(e => { ((e as any).strategies_selected||[]).forEach((s:string) => { stratCounts[s]=(stratCounts[s]||0)+1; }); });
             const sorted = Object.entries(stratCounts).sort(([,a],[,b])=>(b as number)-(a as number));
             return sorted.length === 0
-              ? <Text style={[st.noData,{marginTop:8}]}>{t('no_data_period') || t('no_data_period') || 'No strategies yet'}</Text>
+              ? <Text style={[st.noData,{marginTop:8}]}>{t('no_strategies_yet') || 'No strategies yet'}</Text>
               : sorted.map(([id,count]) => {
                   const zc = id.startsWith('blue')?EMOTION_COLOURS.blue:id.startsWith('green')?EMOTION_COLOURS.green:id.startsWith('yellow')?EMOTION_COLOURS.yellow:id.startsWith('red')?EMOTION_COLOURS.red:'#999';
                   const name = resolveName(id, strategyNames, t);

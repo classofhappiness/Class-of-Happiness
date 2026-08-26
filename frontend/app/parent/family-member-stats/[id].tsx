@@ -200,7 +200,7 @@ export default function FamilyMemberStatsScreen() {
         </TouchableOpacity>
         <View style={s.headerCenter}>
           <Image source={require('../../../assets/images/logo_coh.png')} style={s.headerLogo} resizeMode="contain" />
-          <Text style={s.headerTitle}>{decodeURIComponent(name||'')} — {t('stats')||'Statistics'}</Text>
+          <Text style={s.headerTitle}>{decodeURIComponent(name||'')} — {t('statistics_title')||'Statistics'}</Text>
         </View>
         <View style={{width:40}} />
       </View>
@@ -216,7 +216,7 @@ export default function FamilyMemberStatsScreen() {
         </TouchableOpacity>
         <View style={s.headerCenter}>
           <Image source={require('../../../assets/images/logo_coh.png')} style={s.headerLogo} resizeMode="contain" />
-          <Text style={s.headerTitle}>{decodeURIComponent(name||'')} — {t('stats')||'Statistics'}</Text>
+          <Text style={s.headerTitle}>{decodeURIComponent(name||'')} — {t('statistics_title')||'Statistics'}</Text>
         </View>
         <View style={{width:40}} />
       </View>
@@ -263,7 +263,7 @@ export default function FamilyMemberStatsScreen() {
             {secMostUsed && (
               <View style={{gap:8, marginTop:12}}>
                 {topStrategies.length === 0
-                  ? <Text style={s.emptyText}>{t('no_data_period')||t('no_data_period') || 'No strategies recorded yet'}</Text>
+                  ? <Text style={s.emptyText}>{t('no_strategies_yet') || 'No strategies recorded yet'}</Text>
                   : topStrategies.map(([strat, count]) => (
                     <View key={strat} style={{flexDirection:'row', alignItems:'center', gap:10, paddingVertical:4, borderBottomWidth:1, borderBottomColor:'#F5F5F5'}}>
                       <MaterialIcons name="lightbulb" size={16} color="#FF9800" />

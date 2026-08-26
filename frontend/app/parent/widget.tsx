@@ -74,7 +74,7 @@ export default function ParentWidgetScreen() {
     if (mins < 2) return t('just_now') || 'Just now';
     if (mins < 60) return `${mins}m ${t('minutes_ago') || 'ago'}`;
     if (mins < 1440) return `${Math.floor(mins/60)}h ${t('hours_ago') || 'ago'}`;
-    return `${Math.floor(mins/1440)}d ${t('days_ago') || 'ago'}`;
+    return `${Math.floor(mins/1440)}d ${t('ago_suffix') || 'ago'}`;
   };
 
   // Zone distribution
@@ -199,7 +199,7 @@ export default function ParentWidgetScreen() {
                 ) : null)}
                 {members.length - checkedInToday > 0 && (
                   <Text style={{ fontSize: 11, color: '#AAA', marginLeft: 'auto' as any }}>
-                    {members.length - checkedInToday} {t('no_checkin_yet') || 'not checked in'}
+                    {members.length - checkedInToday} {t('not_checked_in_count') || 'not checked in'}
                   </Text>
                 )}
               </View>

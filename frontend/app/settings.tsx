@@ -248,7 +248,7 @@ export default function SettingsScreen() {
   // Handle trial code redemption
   const handleRedeemCode = async () => {
     if (!trialCode.trim()) {
-      Alert.alert(t('error'), t('trial_code_placeholder') || 'Please enter a trial code');
+      Alert.alert(t('error'), t('trial_code_required') || 'Please enter a trial code');
       return;
     }
     
@@ -448,7 +448,7 @@ export default function SettingsScreen() {
           <View style={styles.settingLeft}>
             <MaterialIcons name="card-membership" size={24} color="#5C6BC0" />
             <View style={styles.settingText}>
-              <Text style={styles.settingLabel}>{t('stats') || t('stats') || 'Status'}</Text>
+              <Text style={styles.settingLabel}>{t('status_label') || 'Status'}</Text>
               <Text style={[styles.settingValue, { color: hasActiveSubscription ? '#4CAF50' : '#F44336' }]}>
                 {user?.subscription_status === 'trial' ? t('free_trial')||'Free Trial' :
                  user?.subscription_status === 'active' ? subscriptionStatusLabel(user) :

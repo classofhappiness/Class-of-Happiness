@@ -20,10 +20,10 @@ import { useApp } from '../../src/context/AppContext';
 import { familyApi, FamilyMember, strategiesApi, Strategy } from '../../src/utils/api';
 
 const getZones = (t: (key: string) => string) => [
-  { id: 'blue', name: t('blue_zone')||'Blue Zone', color: '#4A90D9', desc: t('blue_feeling')||'Quiet Energy — Sad, Tired, Bored', face: '😢', emoji: '😢' },
-  { id: 'green', name: t('green_zone')||'Green Zone', color: '#4CAF50', desc: t('green_feeling')||'Balanced Energy — Calm, Happy, Focused', face: '😊', emoji: '😊' },
-  { id: 'yellow', name: t('yellow_zone')||'Yellow Zone', color: '#FFC107', desc: t('yellow_feeling')||'Fizzing Energy — Worried, Silly, Frustrated', face: '😟', emoji: '😟' },
-  { id: 'red', name: t('red_zone')||'Red Zone', color: '#F44336', desc: t('red_feeling')||'Big Energy — Angry, Scared, Overwhelmed', face: '😣', emoji: '😣' },
+  { id: 'blue', name: t('blue_zone')||'Blue Zone', color: '#4A90D9', desc: t('blue_feeling_desc')||'Quiet Energy — Sad, Tired, Bored', face: '😢', emoji: '😢' },
+  { id: 'green', name: t('green_zone')||'Green Zone', color: '#4CAF50', desc: t('green_feeling_desc')||'Balanced Energy — Calm, Happy, Focused', face: '😊', emoji: '😊' },
+  { id: 'yellow', name: t('yellow_zone')||'Yellow Zone', color: '#FFC107', desc: t('yellow_feeling_desc')||'Fizzing Energy — Worried, Silly, Frustrated', face: '😟', emoji: '😟' },
+  { id: 'red', name: t('red_zone')||'Red Zone', color: '#F44336', desc: t('red_feeling_desc')||'Big Energy — Angry, Scared, Overwhelmed', face: '😣', emoji: '😣' },
 ];
 
 const MAX_COMMENT_LENGTH = 100;
@@ -356,10 +356,10 @@ export default function FamilyCheckInScreen() {
             <>
             <View style={{ flexDirection:'row', justifyContent:'center', gap:16, marginBottom:10, flexWrap:'wrap' }}>
               {[
-                { color:'#4A90D9', emoji:'😢', label: t('blue_feeling')||'Sad / Tired' },
-                { color:'#4CAF50', emoji:'😊', label: t('green_feeling')||'Happy / Calm' },
-                { color:'#FFC107', emoji:'😟', label: t('yellow_feeling')||'Worried / Silly' },
-                { color:'#F44336', emoji:'😣', label: t('red_feeling')||'Angry / Scared' },
+                { color:'#4A90D9', emoji:'😢', label: t('blue_feeling_short')||'Sad / Tired' },
+                { color:'#4CAF50', emoji:'😊', label: t('green_feeling_short')||'Happy / Calm' },
+                { color:'#FFC107', emoji:'😟', label: t('yellow_feeling_short')||'Worried / Silly' },
+                { color:'#F44336', emoji:'😣', label: t('red_feeling_short')||'Angry / Scared' },
               ].map(z => (
                 <View key={z.color} style={{ alignItems:'center', gap:2 }}>
                   <Text style={{ fontSize:18 }}>{z.emoji}</Text>

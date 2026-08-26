@@ -428,7 +428,7 @@ export default function TeacherResourcesScreen() {
               onPress={() => setShowUploadModal(true)}
             >
               <MaterialIcons name="cloud-upload" size={20} color="white" />
-              <Text style={styles.uploadButtonText}>{t('upload_photo') || t('upload_photo') || 'Upload'}</Text>
+              <Text style={styles.uploadButtonText}>{t('upload_label') || 'Upload'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -541,7 +541,7 @@ export default function TeacherResourcesScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('upload_photo') || 'Upload Resource'}</Text>
+              <Text style={styles.modalTitle}>{t('upload_resource_title') || 'Upload Resource'}</Text>
               <TouchableOpacity onPress={() => setShowUploadModal(false)}>
                 <MaterialIcons name="close" size={24} color="#666" />
               </TouchableOpacity>
@@ -566,7 +566,7 @@ export default function TeacherResourcesScreen() {
                 numberOfLines={3}
               />
 
-              <Text style={styles.inputLabel}>{t('select_pdf') || t('select_pdf') || 'PDF File'}</Text>
+              <Text style={styles.inputLabel}>{t('pdf_file_label') || 'PDF File'}</Text>
               <TouchableOpacity style={styles.filePickerButton} onPress={handlePickDocument}>
                 <MaterialIcons name="attach-file" size={24} color="#5C6BC0" />
                 <Text style={styles.filePickerText}>
@@ -575,7 +575,7 @@ export default function TeacherResourcesScreen() {
               </TouchableOpacity>
 
               {/* Audience Selector */}
-              <Text style={styles.inputLabel}>{t('share_with_teachers') || t('share_with_teachers') || 'Share'}</Text>
+              <Text style={styles.inputLabel}>{t('share_toggle_label') || 'Share'}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                 {[
                   { id: 'teachers', label: '👩‍🏫 Teachers' },
@@ -681,7 +681,7 @@ export default function TeacherResourcesScreen() {
               {/* Previous Ratings */}
               {ratings.length > 0 && (
                 <View style={styles.ratingsSection}>
-                  <Text style={styles.rateSectionTitle}>{t('teacher_resources') || 'Reviews'}</Text>
+                  <Text style={styles.rateSectionTitle}>{t('reviews_section_title') || 'Reviews'}</Text>
                   {ratings.map((rating) => (
                     <View key={rating.id} style={styles.ratingItem}>
                       <View style={styles.ratingHeader}>

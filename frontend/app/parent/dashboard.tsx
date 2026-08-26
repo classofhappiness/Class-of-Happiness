@@ -1115,7 +1115,7 @@ export default function ParentDashboard() {
                       <View style={{ width:40, height:40, borderRadius:20, backgroundColor:'#EDE7F6', justifyContent:'center', alignItems:'center' }}>
                         <MaterialIcons name="lock" size={20} color="#5C6BC0" />
                       </View>
-                      <Text style={{ fontSize:10, fontWeight:'700', color:'#5C6BC0', textAlign:'center' }}>{t('add_member')||'Add more'}</Text>
+                      <Text style={{ fontSize:10, fontWeight:'700', color:'#5C6BC0', textAlign:'center' }}>{t('add_more')||'Add more'}</Text>
                       <View style={{ backgroundColor:'#5C6BC0', borderRadius:8, paddingHorizontal:8, paddingVertical:3 }}>
                         <Text style={{ fontSize:9, color:'white', fontWeight:'700' }}>UPGRADE</Text>
                       </View>
@@ -1265,7 +1265,7 @@ export default function ParentDashboard() {
                   style={{ flex:1, paddingVertical:6, borderRadius:8, alignItems:'center',
                     backgroundColor: analyticsPeriod===p?'#5C6BC0':'#F0F0F0' }}>
                   <Text style={{ fontSize:11, fontWeight:'700', color: analyticsPeriod===p?'white':'#888' }}>
-                    {p===1?(t('today')||'Today'):p===7?(t('this_week')||'Week'):p===14?(t('days_14')||'Fortnight'):(t('month')||'Month')}
+                    {p===1?(t('today')||'Today'):p===7?(t('this_week')||'Week'):p===14?(t('period_fortnight')||'Fortnight'):(t('month')||'Month')}
                   </Text>
                 </TouchableOpacity>
               ))}
