@@ -20,7 +20,11 @@ const TEACHER_PLANS = [
   { id: 'teacher_monthly', name: 'Monthly', price: '€7.99', period: '/month', savings: '', popular: true },
 ];
 
-const PARENT_FEATURES = [
+const PARENT_FEATURE_KEYS = [
+  'parent_feature_1', 'parent_feature_2', 'parent_feature_3', 'parent_feature_4',
+  'parent_feature_5', 'parent_feature_6', 'parent_feature_7', 'parent_feature_8',
+];
+const PARENT_FEATURE_FALLBACKS = [
   'Unlimited family members',
   'Home check-ins for all family',
   'Family strategies & wellbeing',
@@ -31,7 +35,11 @@ const PARENT_FEATURES = [
   '6 languages supported',
 ];
 
-const TEACHER_FEATURES = [
+const TEACHER_FEATURE_KEYS = [
+  'teacher_feature_1', 'teacher_feature_2', 'teacher_feature_3', 'teacher_feature_4',
+  'teacher_feature_5', 'teacher_feature_6', 'teacher_feature_7', 'teacher_feature_8',
+];
+const TEACHER_FEATURE_FALLBACKS = [
   'Unlimited students per class',
   'Full analytics dashboard',
   'PDF reports per student',
@@ -85,7 +93,8 @@ export default function SubscriptionScreen() {
 
   const plans = selectedRole === 'parent' ? PARENT_PLANS : TEACHER_PLANS;
   // Teachers can also subscribe as parents — show note
-  const features = selectedRole === 'parent' ? PARENT_FEATURES : TEACHER_FEATURES;
+  const featureKeys = selectedRole === 'parent' ? PARENT_FEATURE_KEYS : TEACHER_FEATURE_KEYS;
+  const featureFallbacks = selectedRole === 'parent' ? PARENT_FEATURE_FALLBACKS : TEACHER_FEATURE_FALLBACKS;
   const isTrialUsed = user?.trial_started_at != null;
   // Real bug fix Aug 23 (CRITICAL, item 1): this used to trust subscription_status alone -
   // 'trial' or 'active' meant "hide the Subscribe button," permanently, with no expiry
@@ -117,11 +126,11 @@ export default function SubscriptionScreen() {
     try {
       await subscriptionApi.startTrial();
       await checkAuth();
-      Alert.alert('🎉 Trial Started!', `You have ${trialDays} days free to explore all features. No credit card needed.`, [
-        { text: 'Let\'s Go!', onPress: () => router.replace(selectedRole === 'teacher' ? '/teacher/dashboard' : '/parent/dashboard') }
+      Alert.alert(t('trial_started_title') || '🎉 Trial Started!', (t('trial_started_msg') || 'You have {days} days free to explore all features. No credit card needed.').replace('{days}', String(trialDays)), [
+        { text: t('lets_go_btn') || "Let's Go!", onPress: () => router.replace(selectedRole === 'teacher' ? '/teacher/dashboard' : '/parent/dashboard') }
       ]);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Could not start trial');
+      Alert.alert(t('error') || 'Error', e.message || (t('could_not_start_trial') || 'Could not start trial'));
     } finally { setTrialLoading(false); }
   };
 
@@ -147,7 +156,7 @@ export default function SubscriptionScreen() {
         else await Linking.openURL(url);
       }
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Could not create checkout');
+      Alert.alert(t('error') || 'Error', e.message || (t('could_not_create_checkout') || 'Could not create checkout'));
     } finally { setLoading(false); }
   };
 
@@ -156,7 +165,7 @@ export default function SubscriptionScreen() {
     const email = enquiryEmail.trim().toLowerCase();
     const message = enquiryMessage.trim();
     if (!name || !email || !email.includes('@') || !message) {
-      Alert.alert('Missing info', 'Please fill in your name, a valid email, and a message.');
+      Alert.alert(t('missing_info_title') || 'Missing info', t('missing_info_enquiry_msg') || 'Please fill in your name, a valid email, and a message.');
       return;
     }
     setEnquirySubmitting(true);
@@ -172,10 +181,10 @@ export default function SubscriptionScreen() {
       if (res.ok) {
         setEnquirySent(true);
       } else {
-        Alert.alert('Error', 'Could not send your enquiry. Please try again.');
+        Alert.alert(t('error') || 'Error', t('enquiry_send_failed') || 'Could not send your enquiry. Please try again.');
       }
     } catch (e) {
-      Alert.alert('Error', 'Could not send your enquiry. Please try again.');
+      Alert.alert(t('error') || 'Error', t('enquiry_send_failed') || 'Could not send your enquiry. Please try again.');
     } finally {
       setEnquirySubmitting(false);
     }
@@ -203,15 +212,15 @@ export default function SubscriptionScreen() {
       {/* Hero */}
       <View style={st.hero}>
         <Image source={require('../../assets/images/logo_coh.png')} style={{width:80, height:80, alignSelf:'center', marginBottom:8}} resizeMode="contain" />
-        <Text style={st.heroTitle}>Emotional Wellbeing{'\n'}for Every Child</Text>
-        <Text style={st.heroSub}>Evidence-based check-ins that connect{'\n'}home and school</Text>
+        <Text style={st.heroTitle}>{t('subscription_hero_title') || 'Emotional Wellbeing\nfor Every Child'}</Text>
+        <Text style={st.heroSub}>{t('subscription_hero_sub') || 'Evidence-based check-ins that connect\nhome and school'}</Text>
       </View>
 
       {/* Free tier */}
       <View style={st.freeCard}>
         <View style={st.freeRow}>
           <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
-          <Text style={st.freeText}><Text style={{ fontWeight: '700' }}>Free forever:</Text> 1 parent · 2 family members · basic check-ins · creature rewards</Text>
+          <Text style={st.freeText}><Text style={{ fontWeight: '700' }}>{t('free_forever_label') || 'Free forever:'}</Text> {t('free_forever_desc') || '1 parent · 2 family members · basic check-ins · creature rewards'}</Text>
         </View>
       </View>
 
@@ -221,22 +230,22 @@ export default function SubscriptionScreen() {
           <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
           <View>
             <Text style={[st.statusText, { color: '#2E7D32' }]}>
-              {user?.subscription_status === 'trial' 
-                ? `✨ ${t('trial_active')||'Free trial active'}` 
-                : user?.subscription_plan 
-                  ? `✅ ${user.subscription_plan} ${t('trial_active_desc')||'plan active'}` 
-                  : `✅ ${t('trial_active')||'Access active'}`}
+              {user?.subscription_status === 'trial'
+                ? `✨ ${t('trial_active_banner')||'Free trial active'}`
+                : user?.subscription_plan
+                  ? `✅ ${user.subscription_plan} ${t('plan_active_suffix')||'plan active'}`
+                  : `✅ ${t('access_active_banner')||'Access active'}`}
             </Text>
             {user?.subscription_status === 'trial' && user?.trial_started_at && (() => {
               const start = new Date(user.trial_started_at);
               const daysUsed = Math.floor((Date.now() - start.getTime()) / (1000*60*60*24));
               const daysLeft = Math.max(0, trialDays - daysUsed);
-              return <Text style={{fontSize:12, color:'#388E3C', marginTop:2}}>{daysLeft} days remaining</Text>;
+              return <Text style={{fontSize:12, color:'#388E3C', marginTop:2}}>{(t('trial_days_remaining') || '{days} days remaining').replace('{days}', String(daysLeft))}</Text>;
             })()}
             {user?.subscription_expires_at && user?.subscription_status !== 'trial' && (() => {
               const exp = new Date(user.subscription_expires_at);
               const daysLeft = Math.max(0, Math.floor((exp.getTime() - Date.now()) / (1000*60*60*24)));
-              return <Text style={{fontSize:12, color:'#388E3C', marginTop:2}}>Expires in {daysLeft} days</Text>;
+              return <Text style={{fontSize:12, color:'#388E3C', marginTop:2}}>{(t('subscription_expires_in') || 'Expires in {days} days').replace('{days}', String(daysLeft))}</Text>;
             })()}
           </View>
         </View>
@@ -247,32 +256,32 @@ export default function SubscriptionScreen() {
         <View style={st.trialCard}>
           <View style={st.trialBadge}>
             <MaterialIcons name="card-giftcard" size={16} color="white" />
-            <Text style={st.trialBadgeText}>{trialDays} Days Free</Text>
+            <Text style={st.trialBadgeText}>{(t('trial_days_free_badge') || '{days} Days Free').replace('{days}', String(trialDays))}</Text>
           </View>
-          <Text style={st.trialTitle}>Try everything free</Text>
-          <Text style={st.trialSub}>No credit card · No commitment · Cancel anytime</Text>
+          <Text style={st.trialTitle}>{t('try_everything_free') || 'Try everything free'}</Text>
+          <Text style={st.trialSub}>{t('trial_no_card_hint') || 'No credit card · No commitment · Cancel anytime'}</Text>
           <TouchableOpacity style={st.trialBtn} onPress={handleStartTrial} disabled={trialLoading}>
-            {trialLoading ? <ActivityIndicator color="#5C6BC0" /> : <Text style={st.trialBtnText}>Start Free Trial</Text>}
+            {trialLoading ? <ActivityIndicator color="#5C6BC0" /> : <Text style={st.trialBtnText}>{t('start_free_trial_btn') || 'Start Free Trial'}</Text>}
           </TouchableOpacity>
         </View>
       )}
 
       {/* Role Toggle */}
-      <Text style={st.sectionLabel}>I am a...</Text>
+      <Text style={st.sectionLabel}>{t('i_am_a') || 'I am a...'}</Text>
       <View style={st.roleRow}>
         <TouchableOpacity
           style={[st.roleBtn, selectedRole === 'parent' && st.roleBtnActive]}
           onPress={() => setSelectedRole('parent')}>
           <MaterialIcons name="family-restroom" size={22} color={selectedRole === 'parent' ? 'white' : '#5C6BC0'} />
-          <Text style={[st.roleBtnText, selectedRole === 'parent' && st.roleBtnTextActive]}>Parent / Family</Text>
-          <Text style={[st.rolePrice, selectedRole === 'parent' && { color: 'rgba(255,255,255,0.8)' }]}>from €4.99/mo</Text>
+          <Text style={[st.roleBtnText, selectedRole === 'parent' && st.roleBtnTextActive]}>{t('parent') || 'Parent / Family'}</Text>
+          <Text style={[st.rolePrice, selectedRole === 'parent' && { color: 'rgba(255,255,255,0.8)' }]}>{t('from_price_prefix') || 'from'} €4.99/mo</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[st.roleBtn, selectedRole === 'teacher' && st.roleBtnActive]}
           onPress={() => setSelectedRole('teacher')}>
           <MaterialIcons name="school" size={22} color={selectedRole === 'teacher' ? 'white' : '#5C6BC0'} />
-          <Text style={[st.roleBtnText, selectedRole === 'teacher' && st.roleBtnTextActive]}>Teacher / Educator</Text>
-          <Text style={[st.rolePrice, selectedRole === 'teacher' && { color: 'rgba(255,255,255,0.8)' }]}>from €7.99/mo</Text>
+          <Text style={[st.roleBtnText, selectedRole === 'teacher' && st.roleBtnTextActive]}>{t('teacher_educator_label') || 'Teacher / Educator'}</Text>
+          <Text style={[st.rolePrice, selectedRole === 'teacher' && { color: 'rgba(255,255,255,0.8)' }]}>{t('from_price_prefix') || 'from'} €7.99/mo</Text>
         </TouchableOpacity>
       </View>
 
@@ -282,7 +291,7 @@ export default function SubscriptionScreen() {
           onPress={() => Linking.openURL('mailto:hello@classofhappiness.com?subject=Parent and Teacher Plan')}
           style={{ backgroundColor:'#E8F5E9', borderRadius:10, padding:10, marginBottom:12, flexDirection:'row', alignItems:'center', gap:8 }}>
           <MaterialIcons name="info" size={16} color="#4CAF50" />
-          <Text style={{ fontSize:12, color:'#2E7D32', flex:1 }}>Need parent AND teacher access? Contact us for a combined plan.</Text>
+          <Text style={{ fontSize:12, color:'#2E7D32', flex:1 }}>{t('combined_plan_note') || 'Need parent AND teacher access? Contact us for a combined plan.'}</Text>
         </TouchableOpacity>
       )}
 
@@ -296,20 +305,20 @@ export default function SubscriptionScreen() {
         <View style={[st.statusCard, { backgroundColor: '#E8F5E9', alignItems: 'flex-start' }]}>
           <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
           <View style={{ flex: 1 }}>
-            <Text style={[st.statusText, { color: '#2E7D32' }]}>✅ Free — your child's school has a Class of Happiness package</Text>
-            <Text style={{ fontSize: 12, color: '#388E3C', marginTop: 4 }}>No subscription needed. All parent features are included.</Text>
+            <Text style={[st.statusText, { color: '#2E7D32' }]}>✅ {t('parent_school_covered_msg') || "Free — your child's school has a Class of Happiness package"}</Text>
+            <Text style={{ fontSize: 12, color: '#388E3C', marginTop: 4 }}>{t('parent_school_covered_desc') || 'No subscription needed. All parent features are included.'}</Text>
           </View>
         </View>
       ) : (
         <>
           {/* Plans */}
-          <Text style={st.sectionLabel}>Choose your plan</Text>
+          <Text style={st.sectionLabel}>{t('choose_your_plan') || 'Choose your plan'}</Text>
           {plans.map(plan => (
             <TouchableOpacity
               key={plan.id}
               style={[st.planCard, selectedPlan === plan.id && st.planCardActive, plan.popular && st.planCardPopular]}
               onPress={() => setSelectedPlan(plan.id)}>
-              {plan.popular && <View style={st.popularPill}><Text style={st.popularText}>Best Value</Text></View>}
+              {plan.popular && <View style={st.popularPill}><Text style={st.popularText}>{t('best_value_pill') || 'Best Value'}</Text></View>}
               <View style={st.planRow}>
                 <View style={[st.radio, selectedPlan === plan.id && st.radioActive]}>
                   {selectedPlan === plan.id && <View style={st.radioDot} />}
@@ -329,12 +338,12 @@ export default function SubscriptionScreen() {
           {/* Features */}
           <View style={st.featuresCard}>
             <Text style={st.featuresTitle}>
-              {selectedRole === 'parent' ? '👨‍👩‍👧 Parent Plan includes' : '🏫 Teacher Plan includes'}
+              {selectedRole === 'parent' ? (t('parent_plan_includes') || '👨‍👩‍👧 Parent Plan includes') : (t('teacher_plan_includes') || '🏫 Teacher Plan includes')}
             </Text>
-            {features.map((f, i) => (
+            {featureKeys.map((key, i) => (
               <View key={i} style={st.featureRow}>
                 <MaterialIcons name="check" size={16} color="#4CAF50" />
-                <Text style={st.featureText}>{f}</Text>
+                <Text style={st.featureText}>{t(key) || featureFallbacks[i]}</Text>
               </View>
             ))}
           </View>
@@ -344,27 +353,26 @@ export default function SubscriptionScreen() {
             <TouchableOpacity style={st.subscribeBtn} onPress={handleSubscribe} disabled={loading}>
               {loading
                 ? <ActivityIndicator color="white" />
-                : <Text style={st.subscribeBtnText}>Subscribe — {selectedPrice}</Text>}
+                : <Text style={st.subscribeBtnText}>{t('subscribe_btn_prefix') || 'Subscribe'} — {selectedPrice}</Text>}
             </TouchableOpacity>
           )}
         </>
       )}
 
       {/* School Package CTA */}
-      <Text style={[st.sectionLabel, { marginTop: 8 }]}>For schools & districts</Text>
+      <Text style={[st.sectionLabel, { marginTop: 8 }]}>{t('for_schools_districts') || 'For schools & districts'}</Text>
       <TouchableOpacity
         style={st.schoolCard}
         onPress={() => setShowSchoolEnquiry(true)}>
         <View style={{ flex: 1 }}>
-          <Text style={st.schoolTitle}>🏛️ School Package</Text>
-          <Text style={st.schoolSub}>From €499/year, based on teacher seats · Parents free when linked via your school's invite code · Admin dashboard · Analytics · GDPR docs</Text>
+          <Text style={st.schoolTitle}>🏛️ {t('school_package_title') || 'School Package'}</Text>
+          <Text style={st.schoolSub}>{t('school_package_desc') || "From €499/year, based on teacher seats · Parents free when linked via your school's invite code · Admin dashboard · Analytics · GDPR docs"}</Text>
         </View>
         <MaterialIcons name="chevron-right" size={24} color="#5C6BC0" />
       </TouchableOpacity>
 
       <Text style={st.legalText}>
-        Subscriptions renew automatically. Cancel anytime in Settings.{'\n'}
-        Prices in EUR.
+        {t('subscription_legal_text') || 'Subscriptions renew automatically. Cancel anytime in Settings.\nPrices in EUR.'}
       </Text>
 
       {/* School Package enquiry - real fix Aug 23 (item 2) */}
@@ -374,26 +382,26 @@ export default function SubscriptionScreen() {
             {enquirySent ? (
               <View style={{ alignItems: 'center', paddingVertical: 12 }}>
                 <MaterialIcons name="check-circle" size={48} color="#4CAF50" />
-                <Text style={st.enquirySuccessTitle}>Thanks! 🎉</Text>
-                <Text style={st.enquirySuccessSub}>We've got your enquiry and will be in touch soon.</Text>
+                <Text style={st.enquirySuccessTitle}>{t('enquiry_thanks_title') || 'Thanks! 🎉'}</Text>
+                <Text style={st.enquirySuccessSub}>{t('enquiry_thanks_msg') || "We've got your enquiry and will be in touch soon."}</Text>
                 <TouchableOpacity style={st.enquirySendBtn} onPress={closeSchoolEnquiry}>
-                  <Text style={st.enquirySendBtnText}>Done</Text>
+                  <Text style={st.enquirySendBtnText}>{t('done') || 'Done'}</Text>
                 </TouchableOpacity>
               </View>
             ) : (
               <>
-                <Text style={st.enquiryTitle}>🏛️ School Package Enquiry</Text>
-                <Text style={st.enquirySub}>Tell us a bit about your school and we'll be in touch.</Text>
+                <Text style={st.enquiryTitle}>🏛️ {t('school_package_enquiry_title') || 'School Package Enquiry'}</Text>
+                <Text style={st.enquirySub}>{t('school_enquiry_intro') || "Tell us a bit about your school and we'll be in touch."}</Text>
 
-                <Text style={st.enquiryLabel}>Name</Text>
+                <Text style={st.enquiryLabel}>{t('name') || 'Name'}</Text>
                 <TextInput
                   style={st.enquiryInput}
                   value={enquiryName}
                   onChangeText={setEnquiryName}
-                  placeholder="Your name"
+                  placeholder={t('your_name_field_placeholder') || 'Your name'}
                   editable={!enquirySubmitting}
                 />
-                <Text style={st.enquiryLabel}>Email</Text>
+                <Text style={st.enquiryLabel}>{t('email') || 'Email'}</Text>
                 <TextInput
                   style={st.enquiryInput}
                   value={enquiryEmail}
@@ -403,24 +411,24 @@ export default function SubscriptionScreen() {
                   autoCapitalize="none"
                   editable={!enquirySubmitting}
                 />
-                <Text style={st.enquiryLabel}>Message</Text>
+                <Text style={st.enquiryLabel}>{t('message_label') || 'Message'}</Text>
                 <TextInput
                   style={[st.enquiryInput, st.enquiryTextarea]}
                   value={enquiryMessage}
                   onChangeText={setEnquiryMessage}
-                  placeholder="Tell us about your school — number of teachers, timeline, questions..."
+                  placeholder={t('school_enquiry_message_placeholder') || 'Tell us about your school — number of teachers, timeline, questions...'}
                   multiline
                   editable={!enquirySubmitting}
                 />
 
                 <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
                   <TouchableOpacity style={st.enquiryCancelBtn} onPress={closeSchoolEnquiry} disabled={enquirySubmitting}>
-                    <Text style={st.enquiryCancelBtnText}>Cancel</Text>
+                    <Text style={st.enquiryCancelBtnText}>{t('cancel') || 'Cancel'}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[st.enquirySendBtn, { flex: 1 }]} onPress={handleSubmitSchoolEnquiry} disabled={enquirySubmitting}>
                     {enquirySubmitting
                       ? <ActivityIndicator color="white" />
-                      : <Text style={st.enquirySendBtnText}>Send Enquiry</Text>}
+                      : <Text style={st.enquirySendBtnText}>{t('send_enquiry_btn') || 'Send Enquiry'}</Text>}
                   </TouchableOpacity>
                 </View>
               </>

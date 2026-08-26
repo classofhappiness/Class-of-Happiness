@@ -19,22 +19,21 @@ export default function AboutScreen() {
       style={[styles.container, { paddingBottom: insets.bottom }]}
       contentContainerStyle={styles.content}
     >
-      <Text style={styles.title}>About Class of Happiness</Text>
-      
+      <Text style={styles.title}>{t('about_title') || 'About Class of Happiness'}</Text>
+
       <Text style={styles.description}>
-        Class of Happiness helps students, teachers, and families understand and manage emotions 
-        through awareness and helpful strategies.
+        {t('about_description') || 'Class of Happiness helps students, teachers, and families understand and manage emotions through awareness and helpful strategies.'}
       </Text>
 
       {/* Disclaimer Section */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.sectionHeader}
         onPress={() => toggleSection('disclaimer')}
         activeOpacity={0.7}
       >
         <View style={styles.sectionTitleRow}>
           <MaterialIcons name="info-outline" size={24} color="#5C6BC0" />
-          <Text style={styles.sectionTitle}>Disclaimer</Text>
+          <Text style={styles.sectionTitle}>{t('disclaimer_section_title') || 'Disclaimer'}</Text>
         </View>
         <MaterialIcons 
           name={expandedSection === 'disclaimer' ? 'expand-less' : 'expand-more'} 
@@ -75,7 +74,7 @@ export default function AboutScreen() {
       >
         <View style={styles.sectionTitleRow}>
           <MaterialIcons name="privacy-tip" size={24} color="#5C6BC0" />
-          <Text style={styles.sectionTitle}>Privacy Policy</Text>
+          <Text style={styles.sectionTitle}>{t('privacy_policy_section_title') || 'Privacy Policy'}</Text>
         </View>
         <MaterialIcons 
           name={expandedSection === 'privacy' ? 'expand-less' : 'expand-more'} 
@@ -156,7 +155,7 @@ export default function AboutScreen() {
       >
         <View style={styles.sectionTitleRow}>
           <MaterialIcons name="description" size={24} color="#5C6BC0" />
-          <Text style={styles.sectionTitle}>Terms of Use</Text>
+          <Text style={styles.sectionTitle}>{t('terms_section_title') || 'Terms of Use'}</Text>
         </View>
         <MaterialIcons 
           name={expandedSection === 'terms' ? 'expand-less' : 'expand-more'} 
@@ -179,7 +178,7 @@ export default function AboutScreen() {
       )}
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Version 1.0.6</Text>
+        <Text style={styles.footerText}>{(t('version') || 'Version')} 1.0.6</Text>
         <Text style={styles.footerText}>© 2026 Class of Happiness</Text>
       </View>
     </ScrollView>

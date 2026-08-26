@@ -8,6 +8,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Avatar } from '../../src/components/Avatar';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
+import { useApp } from '../../src/context/AppContext';
 
 const { width } = Dimensions.get('window');
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -18,6 +19,7 @@ const INACTIVITY_TIMEOUT = 60000; // 60 seconds
 
 export default function KioskScreen() {
   const router = useRouter();
+  const { t } = useApp();
   const [students, setStudents] = useState<any[]>([]);
   const [presetAvatars, setPresetAvatars] = useState<any[]>([]);
   const [recentLogs, setRecentLogs] = useState<Record<string,any>>({});
@@ -193,14 +195,13 @@ export default function KioskScreen() {
           <View style={st.brandBox}>
             <Text style={st.brandEmoji}>😊</Text>
             <Text style={st.brandTitle}>Class of Happiness</Text>
-            <Text style={st.brandTagline}>Emotional Wellbeing for Schools</Text>
+            <Text style={st.brandTagline}>{t('kiosk_tagline') || 'Emotional Wellbeing for Schools'}</Text>
           </View>
 
           <View style={st.setupCard}>
-            <Text style={st.setupTitle}>Set Up Classroom Kiosk</Text>
+            <Text style={st.setupTitle}>{t('kiosk_setup_title') || 'Set Up Classroom Kiosk'}</Text>
             <Text style={st.setupHint}>
-              Enter your teacher session token to link this device to your classroom.
-              Students can then check in without logging in.
+              {t('kiosk_setup_hint') || 'Enter your teacher session token to link this device to your classroom. Students can then check in without logging in.'}
             </Text>
             <View style={st.codeInput}>
               {setupCode.split('').map((c, i) => (
@@ -227,7 +228,7 @@ export default function KioskScreen() {
               ))}
             </View>
             <Text style={st.setupHint}>
-              Find your session token in Settings → Admin Code
+              {t('kiosk_setup_token_hint') || 'Find your session token in Settings → Admin Code'}
             </Text>
           </View>
 
@@ -255,8 +256,8 @@ export default function KioskScreen() {
 
       {/* Main prompt */}
       <Animated.View style={[st.promptBox, { transform: [{ scale: pulseAnim }] }]}>
-        <Text style={st.promptTitle}>How are you feeling today?</Text>
-        <Text style={st.promptSub}>Tap your name to check in 👇</Text>
+        <Text style={st.promptTitle}>{t('how_are_you_feeling') || 'How are you feeling today?'}</Text>
+        <Text style={st.promptSub}>{t('kiosk_tap_name_hint') || 'Tap your name to check in'} 👇</Text>
       </Animated.View>
 
       {/* Student grid */}
@@ -265,8 +266,8 @@ export default function KioskScreen() {
       ) : students.length === 0 ? (
         <View style={st.emptyBox}>
           <Text style={{ fontSize: 48 }}>🏫</Text>
-          <Text style={st.emptyText}>No students found</Text>
-          <Text style={st.emptyHint}>Ask your teacher to add students to the class</Text>
+          <Text style={st.emptyText}>{t('no_students_found') || 'No students found'}</Text>
+          <Text style={st.emptyHint}>{t('kiosk_no_students_hint') || 'Ask your teacher to add students to the class'}</Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={st.grid}>
@@ -297,7 +298,7 @@ export default function KioskScreen() {
                 {checkedIn ? (
                   <Text style={[st.checkinTime, { color: cfg?.color || INDIGO }]}>{timeAgo(log.timestamp)}</Text>
                 ) : (
-                  <Text style={st.notCheckedIn}>Tap to check in</Text>
+                  <Text style={st.notCheckedIn}>{t('tap_to_check_in') || 'Tap to check in'}</Text>
                 )}
               </TouchableOpacity>
             );

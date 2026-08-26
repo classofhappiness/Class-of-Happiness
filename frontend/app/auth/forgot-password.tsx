@@ -5,11 +5,13 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useApp } from '../../src/context/AppContext';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const { t } = useApp();
   const [step, setStep] = useState<'request' | 'reset'>('request');
   const [email, setEmail] = useState('');
   const [token, setToken] = useState('');
@@ -29,7 +31,7 @@ export default function ForgotPasswordScreen() {
   const handleRequestReset = async () => {
     const trimmed = email.trim().toLowerCase();
     if (!trimmed || !trimmed.includes('@')) {
-      setError('Please enter a valid email address');
+      setError(t('invalid_email_error') || 'Please enter a valid email address');
       return;
     }
     setError('');
@@ -43,7 +45,7 @@ export default function ForgotPasswordScreen() {
       const data = await res.json();
       setRequestMessage(data.status || "If this email exists, please contact jono@classofhappiness.com to reset your password for now.");
     } catch (e) {
-      setError('Could not request a reset. Please try again.');
+      setError(t('reset_request_failed') || 'Could not request a reset. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -51,15 +53,15 @@ export default function ForgotPasswordScreen() {
 
   const handleResetPassword = async () => {
     if (!token.trim()) {
-      setError('Reset token is required');
+      setError(t('reset_token_required') || 'Reset token is required');
       return;
     }
     if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters');
+      setError(t('password_too_short_error') || 'Password must be at least 8 characters');
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('passwords_no_match_error') || 'Passwords do not match');
       return;
     }
     setError('');
@@ -72,12 +74,12 @@ export default function ForgotPasswordScreen() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.detail || 'Could not reset password. Please try again.');
+        setError(data.detail || (t('reset_password_failed') || 'Could not reset password. Please try again.'));
         return;
       }
       setSuccess(true);
     } catch (e) {
-      setError('Could not reset password. Please try again.');
+      setError(t('reset_password_failed') || 'Could not reset password. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -88,10 +90,10 @@ export default function ForgotPasswordScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
           <MaterialIcons name="check-circle" size={64} color="#4CAF50" />
-          <Text style={styles.successTitle}>Password Reset!</Text>
-          <Text style={styles.successText}>You can now sign in with your new password.</Text>
+          <Text style={styles.successTitle}>{t('password_reset_success_title') || 'Password Reset!'}</Text>
+          <Text style={styles.successText}>{t('password_reset_success_msg') || 'You can now sign in with your new password.'}</Text>
           <TouchableOpacity style={styles.button} onPress={() => router.replace('/auth/login')}>
-            <Text style={styles.buttonText}>Back to Sign In</Text>
+            <Text style={styles.buttonText}>{t('back_to_signin') || 'Back to Sign In'}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -109,12 +111,12 @@ export default function ForgotPasswordScreen() {
             <MaterialIcons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
 
-          <Text style={styles.title}>Reset Password</Text>
+          <Text style={styles.title}>{t('reset_password_title') || 'Reset Password'}</Text>
 
           {step === 'request' ? (
             <>
-              <Text style={styles.subtitle}>Enter your email to reset your password.</Text>
-              <Text style={styles.label}>Email</Text>
+              <Text style={styles.subtitle}>{t('reset_password_email_prompt') || 'Enter your email to reset your password.'}</Text>
+              <Text style={styles.label}>{t('email') || 'Email'}</Text>
               <TextInput
                 style={styles.input}
                 placeholder="you@example.com"
@@ -135,31 +137,31 @@ export default function ForgotPasswordScreen() {
                 onPress={handleRequestReset}
                 disabled={loading}
               >
-                {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Continue</Text>}
+                {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>{t('continue_btn') || 'Continue'}</Text>}
               </TouchableOpacity>
               {/* Manual recovery path: Jono can verify identity out-of-band (phone/email) and
                   hand a real reset code to a real user - this just lets them enter it. */}
               <TouchableOpacity style={{ marginTop: 16, alignItems: 'center' }} onPress={() => setStep('reset')}>
-                <Text style={{ color: '#5C6BC0', fontSize: 13, fontWeight: '600' }}>I already have a reset code</Text>
+                <Text style={{ color: '#5C6BC0', fontSize: 13, fontWeight: '600' }}>{t('have_reset_code_link') || 'I already have a reset code'}</Text>
               </TouchableOpacity>
             </>
           ) : (
             <>
-              <Text style={styles.subtitle}>Enter your new password below.</Text>
-              <Text style={styles.label}>Reset Token</Text>
+              <Text style={styles.subtitle}>{t('enter_new_password_prompt') || 'Enter your new password below.'}</Text>
+              <Text style={styles.label}>{t('reset_token_label') || 'Reset Token'}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Reset token"
+                placeholder={t('reset_token_placeholder') || 'Reset token'}
                 placeholderTextColor="#BBB"
                 value={token}
                 onChangeText={setToken}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              <Text style={styles.label}>New Password</Text>
+              <Text style={styles.label}>{t('new_password_label') || 'New Password'}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="At least 8 characters"
+                placeholder={t('password_min_chars_placeholder') || 'At least 8 characters'}
                 placeholderTextColor="#BBB"
                 value={newPassword}
                 onChangeText={setNewPassword}
@@ -167,10 +169,10 @@ export default function ForgotPasswordScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              <Text style={styles.label}>Confirm Password</Text>
+              <Text style={styles.label}>{t('confirm_password_label') || 'Confirm Password'}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Re-enter password"
+                placeholder={t('confirm_password_placeholder') || 'Re-enter your password'}
                 placeholderTextColor="#BBB"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
@@ -186,7 +188,7 @@ export default function ForgotPasswordScreen() {
                 onPress={handleResetPassword}
                 disabled={loading}
               >
-                {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Reset Password</Text>}
+                {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>{t('reset_password_title') || 'Reset Password'}</Text>}
               </TouchableOpacity>
             </>
           )}
