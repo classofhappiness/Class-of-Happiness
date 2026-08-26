@@ -12401,7 +12401,12 @@ async def toggle_school_sharing(student_id: str, request: Request):
     student_data = student_r.data[0]
     if not await _is_authorized_for_student(user, student_id, student_data):
         raise HTTPException(status_code=403, detail="Not authorized for this student")
-    links = supabase.table("parent_links").select("id,school_sharing_enabled").eq("student_id", student_id).execute()
+    # select("*") deliberately, not naming school_sharing_enabled explicitly - PostgREST
+    # errors on a named column that doesn't exist yet (pre-migration), where select("*")
+    # degrades gracefully to whatever columns are actually there. Caught live-testing this
+    # exact endpoint against the real, not-yet-migrated table - it 500'd instead of the
+    # intended 404.
+    links = supabase.table("parent_links").select("*").eq("student_id", student_id).execute()
     if not links.data:
         raise HTTPException(status_code=404, detail="No parent linked to this student yet")
     current = links.data[0].get("school_sharing_enabled")
