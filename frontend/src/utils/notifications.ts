@@ -117,14 +117,25 @@ export async function getStudentShield(student_id: string): Promise<{
   count: number;
   label?: string;
 }> {
+  // Real fix Aug 26 (item 8): this raw fetch had no timeout, so a hung request here (this
+  // call sits in the same rewards.tsx loading sequence flagged as stuck with no indicator)
+  // would leave the caller waiting forever - a bare try/catch doesn't help, there's no
+  // exception to catch until something actually times out. This is one of several raw
+  // fetch() calls in this file with the same gap; fixed here since it's the one directly in
+  // the reported flow, others in this file left as a known, flagged gap for a future pass.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
   try {
     const token = await AsyncStorage.getItem('session_token');
     const res = await fetch(`${BACKEND_URL}/api/notifications/shield/${student_id}`, {
       headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
     });
     return await res.json();
   } catch {
     return { has_shield: false, level: null, count: 0 };
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

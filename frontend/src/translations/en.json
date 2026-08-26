@@ -695,5 +695,7 @@
   "school_subscriptions": "School subscriptions",
   "pricing_parent_line": "Parent €4.99/mo (monthly only)",
   "pricing_teacher_line": "Teacher €7.99/mo (monthly only)",
-  "pricing_school_line": "School from €299/yr"
+  "pricing_school_line": "School from €299/yr",
+  "managed_by_school": "Managed by your school",
+  "managed_by_school_desc": "Your school's plan covers your access - there's nothing to cancel here."
 }

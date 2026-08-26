@@ -7388,12 +7388,22 @@ async def get_subscription_status(request: Request):
     if user.get("subscription_status") == "active":
         active_subs = _active_stripe_subs(user.get("stripe_customer_id"))
         cancel_at_period_end = any(_sget(s, "cancel_at_period_end") for s in active_subs)
+    # Real fix Aug 26 (item 4): a school-covered teacher/parent's subscription_status is
+    # 'active' (correctly - they DO have access) but there's no personal Stripe subscription
+    # behind it, so POST /subscription/cancel is guaranteed to 400 for them. Settings uses
+    # this flag to show "Managed by your school" instead of a Cancel button that can't work,
+    # rather than a confusing error after the fact.
+    school_covered = (
+        (user.get("role") == "teacher" and _teacher_is_school_covered(user)) or
+        (user.get("role") == "parent" and _parent_is_school_covered(user))
+    )
     return {
         "is_active": is_active,
         "status": user.get("subscription_status", "none"),
         "expires_at": user.get("subscription_expires_at"),
         "trial_started_at": user.get("trial_started_at"),
         "cancel_at_period_end": cancel_at_period_end,
+        "school_covered": school_covered,
     }
 
 # Real fix Aug 18: the app's subscription screen has always called these two endpoints
@@ -7492,9 +7502,33 @@ async def cancel_subscription(request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
     if user.get("role") not in ("teacher", "parent"):
         raise HTTPException(status_code=403, detail="Only teacher and parent accounts can manage a subscription here.")
+    # Real fix Aug 26 (item 4): this used to give one flat "no active subscription found" for
+    # three genuinely different situations - live-confirmed the most common real one: a
+    # school-covered account whose own Settings screen correctly says "Active" (they DO have
+    # access, just via their school, not a personal Stripe subscription), so Cancel was
+    # guaranteed to fail with a confusing error every time. Settings now hides the Cancel
+    # button entirely for this case (see school_covered on GET /subscription/status) - this
+    # check stays as defense-in-depth for anyone who reaches the endpoint directly.
+    is_school_covered = (
+        (user.get("role") == "teacher" and _teacher_is_school_covered(user)) or
+        (user.get("role") == "parent" and _parent_is_school_covered(user))
+    )
+    if is_school_covered:
+        raise HTTPException(
+            status_code=400,
+            detail="Your account is covered by your school's plan - there's no personal subscription to cancel. Contact your school if you have questions about their plan."
+        )
+    if not user.get("stripe_customer_id"):
+        raise HTTPException(status_code=400, detail="No active subscription found to cancel.")
     active_subs = _active_stripe_subs(user.get("stripe_customer_id"))
     if not active_subs:
-        raise HTTPException(status_code=400, detail="No active subscription found to cancel.")
+        # Genuinely paying-in-theory (has a Stripe customer) but Stripe shows nothing active -
+        # a real desync (e.g. cancelled directly in Stripe, outside the app) rather than the
+        # "never had a personal subscription at all" case above.
+        raise HTTPException(
+            status_code=400,
+            detail="We couldn't find an active payment to cancel. If you're still being charged, please contact support."
+        )
     for sub in active_subs:
         stripe_lib.Subscription.modify(_sget(sub, "id"), cancel_at_period_end=True)
     return {"status": "cancel_scheduled", "access_until": user.get("subscription_expires_at")}

@@ -1076,5 +1076,7 @@
   "school_subscriptions": "Subscrições de escolas",
   "pricing_parent_line": "Pais €4,99/mês (apenas mensal)",
   "pricing_teacher_line": "Professores €7,99/mês (apenas mensal)",
-  "pricing_school_line": "Escolas a partir de €299/ano"
+  "pricing_school_line": "Escolas a partir de €299/ano",
+  "managed_by_school": "Gerido pela sua escola",
+  "managed_by_school_desc": "O plano da sua escola cobre o seu acesso — não há nada a cancelar aqui."
 }

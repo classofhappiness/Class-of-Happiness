@@ -62,10 +62,22 @@ export const loadVoiceManifest = async (language: string): Promise<Record<string
 // Plays the voice clip for a colour or helper id, if one exists for the current
 // manifest and voice is enabled. Silently no-ops for any other reason (missing
 // clip, unsupported language, playback error) - one code path for all of them.
-export const playVoiceClip = (rawKey: string) => {
+//
+// Real fix Aug 26 (item 6): manifestCache/manifestLanguage are shared module-level
+// singletons, and this used to read manifestCache directly with no check that it actually
+// matched the caller's current language. loadVoiceManifest(language) is fired
+// fire-and-forget on mount (zone.tsx/strategies.tsx useEffect) and never awaited before the
+// screen allows interaction - switch language, tap a colour before the fresh fetch
+// resolves, and this played whatever was still cached from the PREVIOUS language (usually
+// English), even though the correct Italian clips genuinely exist and were already
+// confirmed live. Now takes the caller's current language and awaits a fresh fetch itself
+// whenever the cache doesn't already match it, instead of trusting a background effect's
+// timing.
+export const playVoiceClip = async (rawKey: string, language: string) => {
   if (!voiceEnabled) return;
   const key = normalizeClipKey(rawKey);
-  const url = manifestCache[key];
+  const manifest = manifestLanguage === language ? manifestCache : await loadVoiceManifest(language);
+  const url = manifest[key];
   if (!url) return;
   setTimeout(async () => {
     try {

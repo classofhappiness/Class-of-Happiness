@@ -1091,5 +1091,7 @@
   "school_subscriptions": "Abonnements des écoles",
   "pricing_parent_line": "Parent 4,99 €/mois (mensuel uniquement)",
   "pricing_teacher_line": "Enseignant 7,99 €/mois (mensuel uniquement)",
-  "pricing_school_line": "École à partir de 299 €/an"
+  "pricing_school_line": "École à partir de 299 €/an",
+  "managed_by_school": "Géré par votre école",
+  "managed_by_school_desc": "Le forfait de votre école couvre votre accès — il n'y a rien à annuler ici."
 }

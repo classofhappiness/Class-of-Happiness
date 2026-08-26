@@ -85,7 +85,7 @@ export default function ColourSelectionScreen() {
 
   const handleZoneSelect = (zone: 'blue' | 'green' | 'yellow' | 'red') => {
     playSelectFeedback();
-    playVoiceClip(zone);
+    playVoiceClip(zone, language);
     router.push({ pathname: '/student/strategies', params: { zone, location: locationParam || '', fromFamily: fromFamily || '', returnTo: returnTo || '' } });
   };
 

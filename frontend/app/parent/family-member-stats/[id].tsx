@@ -60,6 +60,12 @@ export default function FamilyMemberStatsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [logs, setLogs] = useState<any[]>([]);
+  // Real fix Aug 26 (item 5): a non-linked child's card had no time-filter pills at all,
+  // unlike a linked child's (parent/linked-child/[id].tsx) - genuine inconsistency, not a
+  // legitimate difference, since this screen already fetches a full year of real history
+  // (?days=365 below) and just never exposed a way to filter it. Client-side filter, not a
+  // re-fetch - matches the period pills, data's already here.
+  const [selectedPeriod, setSelectedPeriod] = useState<1 | 7 | 14 | 30>(7);
   const [downloadingMonth, setDownloadingMonth] = useState<string|null>(null);
   const [strategyNames, setStrategyNames] = useState<Record<string,string>>({});
 
@@ -151,13 +157,26 @@ export default function FamilyMemberStatsScreen() {
     setDownloadingMonth(null);
   };
 
+  // Real fix Aug 26 (item 5): the period pills below filter this already-fetched (365-day)
+  // array client-side - same data, just scoped to the selected window.
+  const periodCutoff = Date.now() - selectedPeriod * 24 * 60 * 60 * 1000;
+  const filteredLogs = logs.filter(log => {
+    const t = new Date(log.timestamp).getTime();
+    return !isNaN(t) && t >= periodCutoff;
+  });
+
   // Aggregate
   const zoneCounts: Record<string,number> = { blue:0, green:0, yellow:0, red:0 };
   const strategyCounts: Record<string,number> = {};
   const monthsSet = new Set<string>();
   const calendarMap: Record<string, string[]> = {};
 
-  logs.forEach(log => {
+  // Real fix Aug 26 (item 5): zone/strategy counts scope to the selected period; the
+  // month/calendar browsing section below deliberately stays on the FULL year of logs
+  // (unfiltered) - a calendar/PDF-download list shouldn't shrink to "today" just because
+  // the stats period pill is set to Today, those are two different concerns sharing one
+  // fetch.
+  filteredLogs.forEach(log => {
     const z = log.zone || log.feeling_colour || '';
     if (z in zoneCounts) zoneCounts[z]++;
     const ZONE_KEYS = new Set(['green','yellow','blue','red']);
@@ -165,6 +184,10 @@ export default function FamilyMemberStatsScreen() {
       // Skip zone colour strings - only count real strategy IDs/names
       if (s && !ZONE_KEYS.has(s.toLowerCase())) strategyCounts[s] = (strategyCounts[s]||0)+1;
     });
+  });
+
+  logs.forEach(log => {
+    const z = log.zone || log.feeling_colour || '';
     try {
       const d = new Date(log.timestamp);
       const mk = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
@@ -172,11 +195,10 @@ export default function FamilyMemberStatsScreen() {
       monthsSet.add(mk);
       if (!calendarMap[dk]) calendarMap[dk] = [];
       if (!calendarMap[dk].includes(z)) calendarMap[dk].push(z);
-
     } catch {}
   });
 
-  const total = logs.length;
+  const total = filteredLogs.length;
   const topStrategies = Object.entries(strategyCounts)
     .filter(([s]) => !ZONE_KEYS_SET.has(s) && s.length > 1)
     .sort((a,b)=>b[1]-a[1]).slice(0,6);
@@ -221,6 +243,18 @@ export default function FamilyMemberStatsScreen() {
         <View style={{width:40}} />
       </View>
 
+      {/* Real fix Aug 26 (item 5): same period pills as a linked child's detail screen
+          (parent/linked-child/[id].tsx) - was missing here entirely, a real inconsistency. */}
+      <View style={s.periodRow}>
+        {([1, 7, 14, 30] as const).map(d => (
+          <TouchableOpacity key={d} style={[s.periodBtn, selectedPeriod === d && s.periodBtnActive]} onPress={() => setSelectedPeriod(d)}>
+            <Text style={[s.periodBtnText, selectedPeriod === d && s.periodBtnTextActive]}>
+              {d === 1 ? t('today') || 'Today' : d === 7 ? t('days_7') || '7 Days' : d === 14 ? '2 Weeks' : t('days_30') || '30 Days'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <ScrollView
         contentContainerStyle={{padding:16, paddingBottom:40}}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4CAF50" />}>
@@ -229,7 +263,7 @@ export default function FamilyMemberStatsScreen() {
         <View style={{flexDirection:'row', alignItems:'center', justifyContent:'center', gap:12, marginBottom:12}}>
           <Text style={{fontSize:13, color:'#888', textAlign:'center'}}>
             {total > 0
-              ? `${total} ${t('wellbeing_total')||'total check-ins'} · ${t('last_checkin')||'Last'}: ${(() => { const last = logs.sort((a:any,b:any)=>new Date(b.timestamp).getTime()-new Date(a.timestamp).getTime())[0]; if(!last) return '—'; const d = new Date(last.timestamp); const diff = Math.floor((Date.now()-d.getTime())/(1000*60*60*24)); return diff === 0 ? (t('just_now')||'Today') : diff === 1 ? (t('yesterday')||'Yesterday') : `${diff} ${t('days_ago')||'days ago'}`; })()}`
+              ? `${total} ${t('wellbeing_total')||'total check-ins'} · ${t('last_checkin')||'Last'}: ${(() => { const last = filteredLogs.slice().sort((a:any,b:any)=>new Date(b.timestamp).getTime()-new Date(a.timestamp).getTime())[0]; if(!last) return '—'; const d = new Date(last.timestamp); const diff = Math.floor((Date.now()-d.getTime())/(1000*60*60*24)); return diff === 0 ? (t('just_now')||'Today') : diff === 1 ? (t('yesterday')||'Yesterday') : `${diff} ${t('days_ago')||'days ago'}`; })()}`
               : t('no_checkin_yet')||'No check-ins yet — tap the card to start!'
             }
           </Text>
@@ -283,7 +317,7 @@ export default function FamilyMemberStatsScreen() {
             <SectionHeader label={t('recent_checkins')||'Recent Check-ins'} open={secRecentCheckins} onPress={()=>setSecRecentCheckins(v=>!v)} icon="history" />
             {secRecentCheckins && (
               <View style={{gap:10, marginTop:12}}>
-                {logs.slice(0,15).map((log, i) => {
+                {filteredLogs.slice(0,15).map((log, i) => {
                   const z = log.zone || log.feeling_colour || '';
                   const strats = (log.helpers_selected || log.strategies_selected || []);
                   return (
@@ -402,6 +436,12 @@ const s = StyleSheet.create({
   headerCenter: { flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8 },
   headerLogo: { width:28, height:28 },
   headerTitle: { fontSize:16, fontWeight:'700', color:'#333' },
+  // Period pills (item 5) - same styling as parent/linked-child/[id].tsx's periodRow
+  periodRow:           { flexDirection:'row', gap:6, paddingHorizontal:16, paddingBottom:8, paddingTop:8, backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0' },
+  periodBtn:           { flex:1, paddingVertical:7, borderRadius:8, alignItems:'center', backgroundColor:'#F0F0F0' },
+  periodBtnActive:     { backgroundColor:'#5C6BC0' },
+  periodBtnText:       { fontSize:12, color:'#666' },
+  periodBtnTextActive: { color:'#fff', fontWeight:'600' },
   card: { backgroundColor:'white', borderRadius:14, padding:14, marginBottom:12, elevation:1, shadowColor:'#000', shadowOpacity:0.04, shadowRadius:3, shadowOffset:{width:0,height:1} },
   secHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center' },
   secTitle: { fontSize:14, fontWeight:'700', color:'#333' },

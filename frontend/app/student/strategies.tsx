@@ -13,6 +13,7 @@ import { CelebrationOverlay } from '../../src/components/CelebrationOverlay';
 import { playButtonFeedback, playSelectFeedback, playSuccessSound, preloadSounds } from '../../src/utils/sounds';
 import { loadVoiceEnabled, loadVoiceManifest, playVoiceClip } from '../../src/utils/voiceClips';
 import { VoiceToggleButton } from '../../src/components/VoiceToggleButton';
+import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 
 const MAX_COMMENT_LENGTH = 100;
 
@@ -167,7 +168,7 @@ export default function StrategiesScreen() {
   const toggleStrategy = (strategyId: string) => {
     playSelectFeedback();
     const isSelecting = !selectedStrategies.includes(strategyId);
-    if (isSelecting) playVoiceClip(strategyId); // only on select, not deselect
+    if (isSelecting) playVoiceClip(strategyId, language); // only on select, not deselect
     setSelectedStrategies(prev =>
       prev.includes(strategyId) ? prev.filter(id => id !== strategyId) : [...prev, strategyId]
     );
@@ -314,6 +315,7 @@ export default function StrategiesScreen() {
           )}
           {loading ? (
             <View style={styles.loadingContainer}>
+              <EmotionColourLoader visible size={56} />
               <Text style={styles.loadingText}>{t('loading_helpers') || 'Loading helpers...'}</Text>
             </View>
           ) : loadError ? (
@@ -466,7 +468,7 @@ const styles = StyleSheet.create({
   zoneColorDot: { width: 18, height: 18, borderRadius: 9, marginRight: 10 },
   zoneLabel: { fontSize: 15, fontWeight: 'bold' },
   instruction: { fontSize: 11, color: '#666', marginBottom: 8, fontStyle: 'italic' },
-  loadingContainer: { padding: 40, alignItems: 'center' },
+  loadingContainer: { padding: 40, alignItems: 'center', gap: 12 },
   loadingText: { fontSize: 16, color: '#888' },
   commentSection: { marginTop: 14, backgroundColor: 'white', borderRadius: 12, overflow: 'hidden', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
   commentToggle: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 10 },

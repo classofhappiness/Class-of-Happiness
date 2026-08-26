@@ -10,15 +10,21 @@ import { useApp } from '../src/context/AppContext';
 import { translationsApi, subscriptionApi, authApiExtended } from '../src/utils/api';
 import { loadVoiceEnabled, setVoiceEnabled } from '../src/utils/voiceClips';
 
-// hasVoice matches the backend's VOICE_CLIP_LANGUAGES ("en","pt" only, as of Aug 21) -
-// real recordings exist only for these two; the other 4 languages are UI-text-only for now.
+// hasVoice matches the backend's VOICE_CLIP_LANGUAGES (server.py) - real recordings exist
+// for these languages; the other 2 are UI-text-only for now.
+// Real fix Aug 26 (item 7): this was stale for two languages, not just the one reported -
+// backend's VOICE_CLIP_LANGUAGES is actually ("en","pt","es","it") as of the Aug 25 full
+// Italian rollout, but this array still said Aug 21 ("en","pt" only) and had never been
+// updated for the Aug 23 Spanish rollout either. `es` is a partial rollout (colour names
+// only, no helpers yet) - marked true anyway, same as `pt`'s own existing partial rollout;
+// missing keys silently no-op in playback either way, same established precedent.
 const LANGUAGES = [
   { code: 'en', name: 'English', flag: '🇦🇺', hasVoice: true },
-  { code: 'es', name: 'Español', flag: '🇪🇸', hasVoice: false },
+  { code: 'es', name: 'Español', flag: '🇪🇸', hasVoice: true },
   { code: 'fr', name: 'Français', flag: '🇫🇷', hasVoice: false },
   { code: 'pt', name: 'Português', flag: '🇵🇹', hasVoice: true },
   { code: 'de', name: 'Deutsch', flag: '🇩🇪', hasVoice: false },
-  { code: 'it', name: 'Italiano', flag: '🇮🇹', hasVoice: false },
+  { code: 'it', name: 'Italiano', flag: '🇮🇹', hasVoice: true },
 ];
 
 // Same client IDs as auth/login.tsx, reused here for re-authentication before account deletion.
@@ -80,9 +86,17 @@ export default function SettingsScreen() {
   // `user` object from /auth/me - fetched separately here, only for active subscribers.
   const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false);
   const [cancelingSubscription, setCancelingSubscription] = useState(false);
+  // Real fix Aug 26 (item 4): a school-covered account's Cancel button was guaranteed to
+  // fail - they show "Active" correctly (their school pays), but there's no personal
+  // subscription to cancel. school_covered comes from the same GET /subscription/status
+  // call already made here, no extra request needed.
+  const [schoolCovered, setSchoolCovered] = useState(false);
   useEffect(() => {
     if (user?.subscription_status !== 'active') return;
-    subscriptionApi.getStatus().then(d => setCancelAtPeriodEnd(!!d.cancel_at_period_end)).catch(() => {});
+    subscriptionApi.getStatus().then(d => {
+      setCancelAtPeriodEnd(!!d.cancel_at_period_end);
+      setSchoolCovered(!!d.school_covered);
+    }).catch(() => {});
   }, [user?.subscription_status, user?.subscription_expires_at]);
 
   const handleCancelSubscription = () => {
@@ -519,8 +533,24 @@ export default function SettingsScreen() {
           <MaterialIcons name="chevron-right" size={24} color="#CCC" />
         </TouchableOpacity>
 
-        {/* Cancel-to-free (Aug 26, item 1) - only shown for a real active subscriber */}
-        {user?.subscription_status === 'active' && (
+        {/* Real fix Aug 26 (item 4): a school-covered account's Cancel button was guaranteed
+            to fail (they show "Active" correctly - their school pays - but there's no
+            personal subscription to cancel). Per Jono's explicit decision: no Cancel option
+            for these accounts at all, show what's actually true instead. */}
+        {user?.subscription_status === 'active' && schoolCovered && (
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <MaterialIcons name="school" size={24} color="#5C6BC0" />
+              <View style={styles.settingText}>
+                <Text style={styles.settingLabel}>{t('managed_by_school') || 'Managed by your school'}</Text>
+                <Text style={styles.settingSubValue}>{t('managed_by_school_desc') || "Your school's plan covers your access - there's nothing to cancel here."}</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Cancel-to-free (Aug 26, item 1) - only for a real, personally-paying active subscriber */}
+        {user?.subscription_status === 'active' && !schoolCovered && (
           <TouchableOpacity
             style={styles.settingItem}
             onPress={cancelAtPeriodEnd ? handleResumeSubscription : handleCancelSubscription}

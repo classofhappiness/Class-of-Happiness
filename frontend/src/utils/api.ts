@@ -143,16 +143,26 @@ export interface Translations {
   [key: string]: string;
 }
 
+// Real fix Aug 26 (item 8): this whole networking layer had NO request timeout anywhere -
+// confirmed via a full grep, zero AbortController/signal usage in this file before this fix.
+// Combined with Railway's real cold-start behaviour (empirically 20-60+ seconds during a
+// deploy, observed directly this session) and screens like rewards.tsx that chain up to 4
+// sequential awaited calls through this function, a slow/cold backend left `loading` stuck
+// with no way out - not specific to any one screen or language, a systemic gap. 30s balances
+// surviving a real cold start against eventually surfacing an honest error instead of
+// hanging forever.
+const REQUEST_TIMEOUT_MS = 30000;
+
 // API Helper
 async function apiRequest(endpoint: string, options: RequestInit = {}) {
   const url = `${API_URL}${endpoint}`;
-  
+
   // Build headers
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> || {}),
   };
-  
+
   // Add Authorization header with session token for ALL platforms
   // This ensures mobile clients always send the token
   const token = await getSessionToken();
@@ -162,19 +172,32 @@ async function apiRequest(endpoint: string, options: RequestInit = {}) {
   } else {
     console.log('[API] Request to', endpoint, '- No auth token available');
   }
-  
-  const response = await fetch(url, {
-    ...options,
-    // Include credentials for web (cookies), omit for mobile (we use Bearer token)
-    credentials: Platform.OS === 'web' ? 'include' : 'omit',
-    headers,
-  });
-  
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      // Include credentials for web (cookies), omit for mobile (we use Bearer token)
+      credentials: Platform.OS === 'web' ? 'include' : 'omit',
+      headers,
+      signal: controller.signal,
+    });
+  } catch (e: any) {
+    if (e?.name === 'AbortError') {
+      throw new Error('Request timed out. Check your connection and try again.');
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Request failed' }));
     throw new Error(error.detail || 'Request failed');
   }
-  
+
   return response.json();
 }
 
@@ -219,7 +242,7 @@ export const subscriptionApi = {
   getParentCoverage: (): Promise<{ covered: boolean }> =>
     apiRequest('/parent/coverage-status'),
 
-  getStatus: (): Promise<{ is_active: boolean; status: string; expires_at?: string; trial_started_at?: string; cancel_at_period_end: boolean }> =>
+  getStatus: (): Promise<{ is_active: boolean; status: string; expires_at?: string; trial_started_at?: string; cancel_at_period_end: boolean; school_covered: boolean }> =>
     apiRequest('/subscription/status'),
 
   cancelSubscription: (): Promise<{ status: string; access_until?: string }> =>

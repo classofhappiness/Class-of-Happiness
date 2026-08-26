@@ -22,6 +22,7 @@ import { EvolutionAnimation } from '../../src/components/EvolutionAnimation';
 import { BonusItemCelebration, CelebrationItem } from '../../src/components/BonusItemCelebration';
 import { playButtonFeedback, playRewardFeedback, playEvolutionSound, preloadSounds } from '../../src/utils/sounds';
 import { playRewardVoiceClip } from '../../src/utils/voiceClips';
+import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 
 
 // Zone-specific tips — research-backed, age appropriate (6-12), 3-4 words max
@@ -253,6 +254,7 @@ export default function RewardsScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingEmoji}>🥚</Text>
+          <EmotionColourLoader visible size={56} />
           <Text style={styles.loadingText}>{t('loading_creature')}</Text>
         </View>
       </SafeAreaView>
@@ -519,6 +521,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 12,
   },
   loadingEmoji: {
     fontSize: 80,

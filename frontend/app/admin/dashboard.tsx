@@ -1507,7 +1507,7 @@ export default function AdminDashboard() {
             <Text style={s.headerRole}>{isSuperAdmin ? '⭐ Super Admin' : '🏫 School Admin'}</Text>
           </View>
         </View>
-        <TouchableOpacity onPress={logout} style={s.logoutBtn}>
+        <TouchableOpacity onPress={async () => { await logout(); router.replace('/'); }} style={s.logoutBtn}>
           <MaterialIcons name="logout" size={18} color="#F44336" />
         </TouchableOpacity>
       </View>
