@@ -639,5 +639,16 @@
   "tap_helpers_other": "Tap to select helpers:",
   "write_sentence": "Write one sentence...",
   "try_again": "Try Again",
-  "help_request_hint": "Tap the hand icon on any helper to ask your teacher or parent for support."
+  "help_request_hint": "Tap the hand icon on any helper to ask your teacher or parent for support.",
+  "cancel_subscription_title": "Cancel subscription?",
+  "cancel_subscription_desc": "You'll keep full access until {date}, then your account moves to the free plan. All your existing progress, creatures and data stay exactly as they are.",
+  "keep_subscription": "Keep Subscription",
+  "cancel_subscription_confirm": "Cancel Subscription",
+  "cancel_subscription_success": "Your subscription is cancelled. You'll keep access until the end of your current billing period.",
+  "cancel_subscription_error": "Could not cancel your subscription. Please try again.",
+  "resume_subscription_success": "Your subscription will now renew as normal.",
+  "resume_subscription_error": "Could not resume your subscription. Please try again.",
+  "cancels_on_label": "Cancels on {date}",
+  "cancel_subscription": "Cancel Subscription",
+  "resume_subscription": "Resume Subscription"
 }

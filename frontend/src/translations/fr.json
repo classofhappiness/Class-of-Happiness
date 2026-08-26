@@ -1035,5 +1035,16 @@
   "teacher_feature_7": "Bibliothèque de stratégies",
   "teacher_feature_8": "6 langues disponibles",
   "try_again": "Réessayer",
-  "help_request_hint": "Touche l'icône de la main sur n'importe quelle aide pour demander du soutien à ton enseignant ou à un parent."
+  "help_request_hint": "Touche l'icône de la main sur n'importe quelle aide pour demander du soutien à ton enseignant ou à un parent.",
+  "cancel_subscription_title": "Annuler l'abonnement ?",
+  "cancel_subscription_desc": "Tu conserveras un accès complet jusqu'au {date}, puis ton compte passera au forfait gratuit. Toute ta progression, tes créatures et tes données existantes restent exactement telles quelles.",
+  "keep_subscription": "Garder l'Abonnement",
+  "cancel_subscription_confirm": "Annuler l'Abonnement",
+  "cancel_subscription_success": "Ton abonnement est annulé. Tu conserveras l'accès jusqu'à la fin de ta période de facturation actuelle.",
+  "cancel_subscription_error": "Impossible d'annuler ton abonnement. Réessaie.",
+  "resume_subscription_success": "Ton abonnement se renouvellera désormais normalement.",
+  "resume_subscription_error": "Impossible de reprendre ton abonnement. Réessaie.",
+  "cancels_on_label": "S'annule le {date}",
+  "cancel_subscription": "Annuler l'Abonnement",
+  "resume_subscription": "Reprendre l'Abonnement"
 }

@@ -7187,11 +7187,19 @@ async def get_subscription_status(request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     is_active = check_subscription_active(user)
+    # Real feature Aug 26 (item 1, cancel-to-free): cancel_at_period_end lives only on
+    # Stripe (see _active_stripe_subs's comment) - fetched live here so Settings can show
+    # "ends on X, won't renew" instead of "renews on X" once someone's cancelled.
+    cancel_at_period_end = False
+    if user.get("subscription_status") == "active":
+        active_subs = _active_stripe_subs(user.get("stripe_customer_id"))
+        cancel_at_period_end = any(_sget(s, "cancel_at_period_end") for s in active_subs)
     return {
         "is_active": is_active,
         "status": user.get("subscription_status", "none"),
         "expires_at": user.get("subscription_expires_at"),
-        "trial_started_at": user.get("trial_started_at")
+        "trial_started_at": user.get("trial_started_at"),
+        "cancel_at_period_end": cancel_at_period_end,
     }
 
 # Real fix Aug 18: the app's subscription screen has always called these two endpoints
@@ -7258,6 +7266,60 @@ async def get_checkout_session_status(session_id: str, request: Request):
         "expires_at": None,
     }
 
+# Real feature Aug 26 (item 1, cancel-to-free): standard SaaS cancel semantics - schedule
+# the cancellation on Stripe (cancel_at_period_end=True) rather than deleting the
+# subscription outright, so access continues until the period the user already paid for
+# actually ends. No separate "downgrade" data-migration step needed here - confirmed
+# against real source that _is_genuinely_free_tier() and check_subscription_active() both
+# already key off subscription_expires_at vs real time, not just subscription_status, so
+# the moment the current period genuinely ends (whether via this cancellation or a lapsed
+# renewal) the account already behaves as free-tier everywhere caps are enforced - nothing
+# in this codebase ever deletes creature/collection/check-in data on downgrade, only
+# account deletion does, and that's a fully separate, explicit, re-authenticated flow.
+# cancel_at_period_end is intentionally NOT stored in Supabase (would need a migration this
+# app can't run itself) - fetched live from Stripe on each read instead, which is also
+# more correct: Stripe is the actual source of truth for billing state.
+def _active_stripe_subs(stripe_customer_id: str):
+    if not stripe_customer_id or not STRIPE_SECRET_KEY:
+        return []
+    try:
+        subs = stripe_lib.Subscription.list(customer=stripe_customer_id, status="active")
+        return _sget(subs, "data", []) or []
+    except Exception as e:
+        logger.warning(f"Could not list Stripe subscriptions for {stripe_customer_id}: {e}")
+        return []
+
+@api_router.post("/subscription/cancel")
+async def cancel_subscription(request: Request):
+    """Schedules cancellation at the end of the current paid period - does not revoke
+    access immediately. See module comment above for why no data changes here."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if user.get("role") not in ("teacher", "parent"):
+        raise HTTPException(status_code=403, detail="Only teacher and parent accounts can manage a subscription here.")
+    active_subs = _active_stripe_subs(user.get("stripe_customer_id"))
+    if not active_subs:
+        raise HTTPException(status_code=400, detail="No active subscription found to cancel.")
+    for sub in active_subs:
+        stripe_lib.Subscription.modify(_sget(sub, "id"), cancel_at_period_end=True)
+    return {"status": "cancel_scheduled", "access_until": user.get("subscription_expires_at")}
+
+@api_router.post("/subscription/resume")
+async def resume_subscription(request: Request):
+    """Undoes a scheduled cancellation - lets someone who changed their mind keep their
+    subscription without having to re-checkout."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if user.get("role") not in ("teacher", "parent"):
+        raise HTTPException(status_code=403, detail="Only teacher and parent accounts can manage a subscription here.")
+    active_subs = _active_stripe_subs(user.get("stripe_customer_id"))
+    if not active_subs:
+        raise HTTPException(status_code=400, detail="No active subscription found to resume.")
+    for sub in active_subs:
+        stripe_lib.Subscription.modify(_sget(sub, "id"), cancel_at_period_end=False)
+    return {"status": "resumed"}
 
 
 # ═══════════════════════════════════════════════════

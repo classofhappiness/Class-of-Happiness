@@ -76,6 +76,54 @@ export default function SettingsScreen() {
   // now role is only ever changed here, deliberately, with confirmation.
   const [switchingRole, setSwitchingRole] = useState(false);
 
+  // Cancel-to-free (Aug 26, item 1): cancel_at_period_end lives only on Stripe, not in the
+  // `user` object from /auth/me - fetched separately here, only for active subscribers.
+  const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false);
+  const [cancelingSubscription, setCancelingSubscription] = useState(false);
+  useEffect(() => {
+    if (user?.subscription_status !== 'active') return;
+    subscriptionApi.getStatus().then(d => setCancelAtPeriodEnd(!!d.cancel_at_period_end)).catch(() => {});
+  }, [user?.subscription_status, user?.subscription_expires_at]);
+
+  const handleCancelSubscription = () => {
+    Alert.alert(
+      t('cancel_subscription_title') || 'Cancel subscription?',
+      (t('cancel_subscription_desc') || "You'll keep full access until {date}, then your account moves to the free plan. All your existing progress, creatures and data stay exactly as they are.").replace('{date}', user?.subscription_expires_at ? new Date(user.subscription_expires_at).toLocaleDateString() : ''),
+      [
+        { text: t('keep_subscription') || 'Keep Subscription', style: 'cancel' },
+        {
+          text: t('cancel_subscription_confirm') || 'Cancel Subscription',
+          style: 'destructive',
+          onPress: async () => {
+            setCancelingSubscription(true);
+            try {
+              await subscriptionApi.cancelSubscription();
+              setCancelAtPeriodEnd(true);
+              Alert.alert(t('success') || 'Success', t('cancel_subscription_success') || "Your subscription is cancelled. You'll keep access until the end of your current billing period.");
+            } catch (e: any) {
+              Alert.alert(t('error') || 'Error', e?.message || (t('cancel_subscription_error') || 'Could not cancel your subscription. Please try again.'));
+            } finally {
+              setCancelingSubscription(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleResumeSubscription = async () => {
+    setCancelingSubscription(true);
+    try {
+      await subscriptionApi.resumeSubscription();
+      setCancelAtPeriodEnd(false);
+      Alert.alert(t('success') || 'Success', t('resume_subscription_success') || 'Your subscription will now renew as normal.');
+    } catch (e: any) {
+      Alert.alert(t('error') || 'Error', e?.message || (t('resume_subscription_error') || 'Could not resume your subscription. Please try again.'));
+    } finally {
+      setCancelingSubscription(false);
+    }
+  };
+
   // Account deletion (soft-delete, 30-day grace period — see POST /account/delete-request)
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
@@ -460,13 +508,39 @@ export default function SettingsScreen() {
                   real source - no new plumbing needed), so the renewal countdown here is real
                   billing data, not a guess. */}
               {user?.subscription_status === 'active' && user?.subscription_expires_at && (
-                <Text style={styles.settingSubValue}>{renewalCountdownLabel(user.subscription_expires_at)}</Text>
+                <Text style={styles.settingSubValue}>
+                  {cancelAtPeriodEnd
+                    ? (t('cancels_on_label') || 'Cancels on {date}').replace('{date}', new Date(user.subscription_expires_at).toLocaleDateString())
+                    : renewalCountdownLabel(user.subscription_expires_at)}
+                </Text>
               )}
             </View>
           </View>
           <MaterialIcons name="chevron-right" size={24} color="#CCC" />
         </TouchableOpacity>
-        
+
+        {/* Cancel-to-free (Aug 26, item 1) - only shown for a real active subscriber */}
+        {user?.subscription_status === 'active' && (
+          <TouchableOpacity
+            style={styles.settingItem}
+            onPress={cancelAtPeriodEnd ? handleResumeSubscription : handleCancelSubscription}
+            disabled={cancelingSubscription}
+          >
+            <View style={styles.settingLeft}>
+              <MaterialIcons name={cancelAtPeriodEnd ? 'refresh' : 'cancel'} size={24} color={cancelAtPeriodEnd ? '#4CAF50' : '#F44336'} />
+              <View style={styles.settingText}>
+                <Text style={[styles.settingLabel, { color: cancelAtPeriodEnd ? '#4CAF50' : '#F44336' }]}>
+                  {cancelingSubscription
+                    ? (t('loading') || 'Loading...')
+                    : cancelAtPeriodEnd
+                      ? (t('resume_subscription') || 'Resume Subscription')
+                      : (t('cancel_subscription') || 'Cancel Subscription')}
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+        )}
+
         {/* Trial Code Section */}
         <TouchableOpacity
           style={styles.settingItem}

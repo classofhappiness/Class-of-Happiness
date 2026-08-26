@@ -1035,5 +1035,16 @@
   "teacher_feature_7": "Libreria di strategie",
   "teacher_feature_8": "6 lingue supportate",
   "try_again": "Riprova",
-  "help_request_hint": "Tocca l'icona della mano su un aiutante per chiedere supporto al tuo insegnante o a un genitore."
+  "help_request_hint": "Tocca l'icona della mano su un aiutante per chiedere supporto al tuo insegnante o a un genitore.",
+  "cancel_subscription_title": "Annullare l'abbonamento?",
+  "cancel_subscription_desc": "Manterrai l'accesso completo fino al {date}, poi il tuo account passerà al piano gratuito. Tutti i tuoi progressi, creature e dati esistenti rimangono esattamente come sono.",
+  "keep_subscription": "Mantieni Abbonamento",
+  "cancel_subscription_confirm": "Annulla Abbonamento",
+  "cancel_subscription_success": "Il tuo abbonamento è stato annullato. Manterrai l'accesso fino alla fine del tuo periodo di fatturazione attuale.",
+  "cancel_subscription_error": "Impossibile annullare il tuo abbonamento. Riprova.",
+  "resume_subscription_success": "Il tuo abbonamento ora si rinnoverà normalmente.",
+  "resume_subscription_error": "Impossibile riprendere il tuo abbonamento. Riprova.",
+  "cancels_on_label": "Si annulla il {date}",
+  "cancel_subscription": "Annulla Abbonamento",
+  "resume_subscription": "Riprendi Abbonamento"
 }

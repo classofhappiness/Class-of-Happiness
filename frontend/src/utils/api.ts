@@ -218,6 +218,15 @@ export const subscriptionApi = {
 
   getParentCoverage: (): Promise<{ covered: boolean }> =>
     apiRequest('/parent/coverage-status'),
+
+  getStatus: (): Promise<{ is_active: boolean; status: string; expires_at?: string; trial_started_at?: string; cancel_at_period_end: boolean }> =>
+    apiRequest('/subscription/status'),
+
+  cancelSubscription: (): Promise<{ status: string; access_until?: string }> =>
+    apiRequest('/subscription/cancel', { method: 'POST' }),
+
+  resumeSubscription: (): Promise<{ status: string }> =>
+    apiRequest('/subscription/resume', { method: 'POST' }),
 };
 
 // Translations API

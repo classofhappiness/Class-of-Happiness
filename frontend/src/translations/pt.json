@@ -1020,5 +1020,16 @@
   "teacher_feature_7": "Biblioteca de estratégias",
   "teacher_feature_8": "6 idiomas suportados",
   "try_again": "Tentar Novamente",
-  "help_request_hint": "Toca no ícone da mão em qualquer ajudante para pedir apoio ao teu professor ou pai/mãe."
+  "help_request_hint": "Toca no ícone da mão em qualquer ajudante para pedir apoio ao teu professor ou pai/mãe.",
+  "cancel_subscription_title": "Cancelar subscrição?",
+  "cancel_subscription_desc": "Vais manter acesso total até {date}, depois a tua conta passa para o plano gratuito. Todo o teu progresso, criaturas e dados existentes mantêm-se exatamente como estão.",
+  "keep_subscription": "Manter Subscrição",
+  "cancel_subscription_confirm": "Cancelar Subscrição",
+  "cancel_subscription_success": "A tua subscrição foi cancelada. Vais manter o acesso até ao fim do teu período de faturação atual.",
+  "cancel_subscription_error": "Não foi possível cancelar a tua subscrição. Tenta novamente.",
+  "resume_subscription_success": "A tua subscrição vai agora renovar-se normalmente.",
+  "resume_subscription_error": "Não foi possível retomar a tua subscrição. Tenta novamente.",
+  "cancels_on_label": "Cancela em {date}",
+  "cancel_subscription": "Cancelar Subscrição",
+  "resume_subscription": "Retomar Subscrição"
 }
