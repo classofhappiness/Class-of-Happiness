@@ -2515,6 +2515,12 @@ async def update_role(request: Request):
     role = body.get("role")
     if role not in ["teacher", "parent"]:
         raise HTTPException(status_code=400, detail="Invalid role")
+    # Real fix Aug 26 - see _can_switch_to_teacher's docstring for the full exploit this closes.
+    if role == "teacher" and not _can_switch_to_teacher(user):
+        raise HTTPException(
+            status_code=403,
+            detail="Switching to Teacher requires an active Teacher subscription. Subscribe to Teacher, or ask your school to link your account, then try again."
+        )
     supabase.table("users").update({"role": role}).eq("user_id", user["user_id"]).execute()
     return {"role": role}
 
@@ -4046,6 +4052,28 @@ def _parent_is_school_covered(user: dict) -> bool:
     except Exception as e:
         logger.warning(f"_parent_is_school_covered check failed for {user.get('user_id')}: {e}")
         return False
+
+def _can_switch_to_teacher(user: dict) -> bool:
+    """Real fix Aug 26: PUT /auth/role used to just flip the role column - live-confirmed
+    exploit, a paying PARENT account (subscription_plan='parent') could switch to teacher
+    and immediately get unlimited teacher-tier access (e.g. the free-tier 10-student cap
+    never enforced) for free, forever, since subscription_plan is never re-checked anywhere
+    else in this codebase. Requires genuine entitlement to teacher tier specifically - not
+    just "any active subscription" (that's exactly what a paying parent has) - via one of
+    three legitimate paths: (1) an actual teacher-tier Stripe subscription, (2) a valid
+    trial (grants full access regardless of role everywhere else in this file, so treated
+    the same way here), (3) the account's own school already covers it as a teacher.
+    Switching TO parent is deliberately NOT gated the same way elsewhere - parent is the
+    cheaper/free-available tier, so moving to it is never itself a bypass."""
+    if user.get("subscription_status") == "active" and user.get("subscription_plan") == "teacher":
+        exp = user.get("subscription_expires_at")
+        if not exp or datetime.fromisoformat(exp.replace("Z", "+00:00")) > datetime.now(timezone.utc):
+            return True
+    if _trial_is_valid(user):
+        return True
+    if _teacher_is_school_covered(user):
+        return True
+    return False
 
 def _is_genuinely_free_tier(user: dict) -> bool:
     """Real feature Aug 24 (creature free-tier caps): every existing free_tier_limit check in
