@@ -44,24 +44,16 @@ export default function AboutScreen() {
       {expandedSection === 'disclaimer' && (
         <View style={styles.sectionContent}>
           <Text style={styles.legalText}>
-            Class of Happiness is an independent application and is not affiliated with, associated, 
-            authorized, endorsed by, or in any way officially connected with Leah Kuypers, 
-            Think Social Publishing, Inc., or The Zones of Regulation®. The colour-based emotional 
-            awareness system used in this app was developed independently.
+            {t('disclaimer_para_1') || 'Class of Happiness is an independent application and is not affiliated with, associated, authorized, endorsed by, or in any way officially connected with Leah Kuypers, Think Social Publishing, Inc., or The Zones of Regulation®. The colour-based emotional awareness system used in this app was developed independently.'}
           </Text>
           <Text style={styles.legalText}>
-            All product and company names are trademarks™ or registered® trademarks of their respective 
-            holders. Use of them does not imply any affiliation with or endorsement by them.
+            {t('disclaimer_para_2') || 'All product and company names are trademarks™ or registered® trademarks of their respective holders. Use of them does not imply any affiliation with or endorsement by them.'}
           </Text>
           <Text style={styles.legalText}>
-            This app is designed for educational and emotional awareness purposes only. It is not a 
-            medical device, clinical tool, or substitute for professional mental health diagnosis, 
-            therapy, or intervention. Always consult a qualified professional for clinical concerns.
+            {t('disclaimer_para_3') || 'This app is designed for educational and emotional awareness purposes only. It is not a medical device, clinical tool, or substitute for professional mental health diagnosis, therapy, or intervention. Always consult a qualified professional for clinical concerns.'}
           </Text>
           <Text style={styles.legalText}>
-            Schools and teachers remain responsible for their own safeguarding, pastoral care, and 
-            data governance obligations. Class of Happiness is a support tool and does not replace 
-            any statutory duty of care.
+            {t('disclaimer_para_4') || 'Schools and teachers remain responsible for their own safeguarding, pastoral care, and data governance obligations. Class of Happiness is a support tool and does not replace any statutory duty of care.'}
           </Text>
         </View>
       )}
@@ -84,65 +76,47 @@ export default function AboutScreen() {
       </TouchableOpacity>
       {expandedSection === 'privacy' && (
         <View style={styles.sectionContent}>
-          <Text style={styles.privacyHeading}>Our Commitment to Privacy</Text>
+          <Text style={styles.privacyHeading}>{t('privacy_commitment_heading') || 'Our Commitment to Privacy'}</Text>
           <Text style={styles.legalText}>
-            Class of Happiness is committed to protecting the privacy of all users, especially 
-            children. We comply with GDPR (EU/UK) and follow COPPA principles for child safety. 
-            We never sell, rent, or share personal data with advertisers or third parties.
+            {t('privacy_commitment_text') || 'Class of Happiness is committed to protecting the privacy of all users, especially children. We comply with GDPR (EU/UK) and follow COPPA principles for child safety. We never sell, rent, or share personal data with advertisers or third parties.'}
           </Text>
 
-          <Text style={styles.privacyHeading}>Student Safety</Text>
+          <Text style={styles.privacyHeading}>{t('privacy_student_safety_heading') || 'Student Safety'}</Text>
           <Text style={styles.legalText}>
-            • We never advertise to students{'\n'}
-            • Students do not create independent accounts{'\n'}
-            • Student data is identified by first name and avatar only{'\n'}
-            • Student check-in data is visible only to their teacher and linked parent{'\n'}
-            • No location data, contacts, or device identifiers are collected from students
+            {t('privacy_student_safety_text') || "• We never advertise to students\n• Students do not create independent accounts\n• Student data is identified by first name and avatar only\n• Student check-in data is visible only to their teacher and linked parent\n• No location data, contacts, or device identifiers are collected from students"}
           </Text>
 
-          <Text style={styles.privacyHeading}>Data We Collect</Text>
+          <Text style={styles.privacyHeading}>{t('privacy_data_collect_heading') || 'Data We Collect'}</Text>
           <Text style={styles.legalText}>
-            • Teachers and Parents: Email address, name, app usage data{'\n'}
-            • Students: First name, avatar, emotion check-ins, strategy choices{'\n'}
-            • Technical: Session tokens, language preference, anonymised error logs{'\n'}
-            • We do NOT collect location data, contacts, or payment card details
+            {t('privacy_data_collect_text') || '• Teachers and Parents: Email address, name, app usage data\n• Students: First name, avatar, emotion check-ins, strategy choices\n• Technical: Session tokens, language preference, anonymised error logs\n• We do NOT collect location data, contacts, or payment card details'}
           </Text>
 
-          <Text style={styles.privacyHeading}>How We Use Your Data</Text>
+          <Text style={styles.privacyHeading}>{t('privacy_data_use_heading') || 'How We Use Your Data'}</Text>
           <Text style={styles.legalText}>
-            Data is used only to operate the app, supporting emotional awareness for students, 
-            teachers, and families. We use anonymised data to fix bugs and improve features. 
-            We never use data for advertising or sell it to any third party.
+            {t('privacy_data_use_text') || 'Data is used only to operate the app, supporting emotional awareness for students, teachers, and families. We use anonymised data to fix bugs and improve features. We never use data for advertising or sell it to any third party.'}
           </Text>
 
-          <Text style={styles.privacyHeading}>Third-Party Services</Text>
+          <Text style={styles.privacyHeading}>{t('privacy_third_party_heading') || 'Third-Party Services'}</Text>
           <Text style={styles.legalText}>
-            We use Supabase (database), Railway (hosting), Stripe (payments), and Expo 
-            (push notifications). All providers are contractually required to process data 
-            only as instructed and in compliance with data protection law.
+            {t('privacy_third_party_text') || 'We use Supabase (database), Railway (hosting), Stripe (payments), and Expo (push notifications). All providers are contractually required to process data only as instructed and in compliance with data protection law.'}
           </Text>
 
-          <Text style={styles.privacyHeading}>Your Rights (GDPR)</Text>
+          <Text style={styles.privacyHeading}>{t('privacy_rights_heading') || 'Your Rights (GDPR)'}</Text>
           <Text style={styles.legalText}>
-            You have the right to access, correct, delete, or export your data at any time. 
-            Parents may request review or deletion of their child's data. Contact us at 
-            jono@classofhappiness.com. We respond within 30 days.
+            {(t('privacy_rights_text') || 'You have the right to access, correct, delete, or export your data at any time. Parents may request review or deletion of their child\'s data. Contact us at {email}. We respond within 30 days.').replace('{email}', 'jono@classofhappiness.com')}
           </Text>
 
-          <Text style={styles.privacyHeading}>Data Retention and Security</Text>
+          <Text style={styles.privacyHeading}>{t('privacy_retention_heading') || 'Data Retention and Security'}</Text>
           <Text style={styles.legalText}>
-            Student check-in data is retained for up to 12 months. Account data is deleted 
-            within 30 days of account closure. All data is transmitted over encrypted HTTPS 
-            connections. Passwords are never stored in plain text.
+            {t('privacy_retention_text') || 'Student check-in data is retained for up to 12 months. Account data is deleted within 30 days of account closure. All data is transmitted over encrypted HTTPS connections. Passwords are never stored in plain text.'}
           </Text>
 
-          <Text style={styles.privacyHeading}>Full Privacy Policy</Text>
+          <Text style={styles.privacyHeading}>{t('privacy_full_policy_heading') || 'Full Privacy Policy'}</Text>
           <Text style={styles.legalText}>
-            Our full privacy policy is available at classofhappiness.com/privacy-policy.html
+            {t('privacy_full_policy_text') || 'Our full privacy policy is available at classofhappiness.com/privacy-policy.html'}
           </Text>
           <Text style={styles.legalText}>
-            We use industry-standard encryption and security measures to protect your data. 
-            All data is transmitted securely and stored on protected servers.
+            {t('privacy_security_text') || 'We use industry-standard encryption and security measures to protect your data. All data is transmitted securely and stored on protected servers.'}
           </Text>
         </View>
       )}
@@ -166,13 +140,10 @@ export default function AboutScreen() {
       {expandedSection === 'terms' && (
         <View style={styles.sectionContent}>
           <Text style={styles.legalText}>
-            By using Class of Happiness, you agree to use the app for its intended educational 
-            and informational purposes. The app is designed to support emotional awareness and 
-            is not a substitute for professional mental health services.
+            {t('terms_para_1') || 'By using Class of Happiness, you agree to use the app for its intended educational and informational purposes. The app is designed to support emotional awareness and is not a substitute for professional mental health services.'}
           </Text>
           <Text style={styles.legalText}>
-            Users are responsible for maintaining the confidentiality of their account credentials. 
-            Teachers and parents should supervise children's use of the app as appropriate.
+            {t('terms_para_2') || "Users are responsible for maintaining the confidentiality of their account credentials. Teachers and parents should supervise children's use of the app as appropriate."}
           </Text>
         </View>
       )}
