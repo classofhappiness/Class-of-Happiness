@@ -8773,11 +8773,50 @@ async def get_admin_stats(request: Request, days: int = 7):
             classroom_name_map = {c["id"]: c["name"] for c in (classrooms_r.data or [])}
         except: pass
 
+        # Real feature Aug 26 (item 10): the portal's "Subscriptions & Revenue" card has read
+        # active_parents/annual_parents/active_teachers/annual_teachers/active_schools from
+        # this endpoint since the day it was built, but none of the five were ever computed or
+        # returned — it's shown five dashes in production the entire time. Confirmed live before
+        # building this: there is no self-serve annual plan for parents/teachers at all
+        # (/subscription/checkout only accepts teacher_monthly/parent_monthly), and no field
+        # anywhere tracks billing interval — so annual_parents/annual_teachers are dropped
+        # rather than faked with a query that can only ever return 0. Only the real, trackable
+        # active counts are built. Platform-wide, so superadmin/admin only — a school_admin
+        # doesn't need (and shouldn't see) other schools' paying-subscriber counts.
+        active_parents = 0
+        active_teachers = 0
+        active_schools = 0
+        if user.get("role") != "school_admin":
+            try:
+                paying_r = supabase.table("users").select("role,subscription_status,subscription_expires_at").eq("subscription_status", "active").in_("role", ["parent", "teacher"]).execute()
+                for u in (paying_r.data or []):
+                    exp = u.get("subscription_expires_at")
+                    if exp:
+                        try:
+                            if datetime.fromisoformat(exp.replace("Z", "+00:00")) <= now:
+                                continue  # expired, not a real paying subscriber
+                        except (ValueError, TypeError):
+                            pass
+                    if u.get("role") == "parent":
+                        active_parents += 1
+                    elif u.get("role") == "teacher":
+                        active_teachers += 1
+            except Exception as sub_err:
+                logger.error(f"Subscriptions stat error: {sub_err}")
+            try:
+                schools_active_r = supabase.table("school_profiles").select("id", count="exact").eq("status", "active").execute()
+                active_schools = schools_active_r.count or 0
+            except Exception as sub_err:
+                logger.error(f"Active schools stat error: {sub_err}")
+
         return {
             "total_students": total_students,
             "total_teachers": total_teachers,
             "total_users": total_users,
             "total_schools": total_schools,
+            "active_parents": active_parents,
+            "active_teachers": active_teachers,
+            "active_schools": active_schools,
             "classroom_names": classroom_name_map,
             "total_checkins": len(logs),
             "checkins_today": checkins_today,

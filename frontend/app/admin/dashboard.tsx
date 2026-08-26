@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, Linking, Pressable, Image,
@@ -692,6 +692,7 @@ function CreatureApprovedCard({ c, onChangeScope, onFeature, onDelete, busy }: a
 }
 
 function CreatureModeration({ authToken }: { authToken: string|null }) {
+  const { t } = useApp();
   const [pending, setPending] = useState<any[]>([]);
   const [approved, setApproved] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -774,6 +775,20 @@ function CreatureModeration({ authToken }: { authToken: string|null }) {
     setBusyId(null);
   };
 
+  // World Creature Gallery (item 10) — real port of the portal's saWorldGallery. Reuses
+  // the `approved` array already fetched above (same /creatures/global response the portal
+  // reads) rather than a second fetch — pure aggregation, no new API call. Same 5-creature
+  // minimum threshold as the portal, so a single contributing country never gets singled out.
+  const countryGallery = useMemo(() => {
+    const counts: Record<string, number> = {};
+    approved.forEach(c => { if (c.country) counts[c.country] = (counts[c.country] || 0) + 1; });
+    const MIN_THRESHOLD = 5;
+    return Object.entries(counts)
+      .filter(([, n]) => n >= MIN_THRESHOLD)
+      .map(([country, count]) => ({ country, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [approved]);
+
   if (loading) return <View style={{ marginVertical: 20, alignItems: 'center' }}><EmotionColourLoader visible size={48} /></View>;
 
   return (
@@ -801,6 +816,21 @@ function CreatureModeration({ authToken }: { authToken: string|null }) {
                 ))}
               </View>
             </ScrollView>
+          )}
+      </SectionCard>
+
+      <SectionCard title={t("world_creature_gallery") || "World Creature Gallery"} subtitle={t("world_creature_gallery_subtitle") || "Aggregated by country — no student data shown"} icon="public" color="#4CAF50">
+        {countryGallery.length === 0
+          ? <Text style={s.hint}>{t("world_gallery_empty") || "No countries have reached the minimum contributor threshold yet."}</Text>
+          : (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {countryGallery.map(g => (
+                <View key={g.country} style={s.galleryPill}>
+                  <Text style={s.galleryPillCountry}>{g.country}</Text>
+                  <Text style={s.galleryPillCount}>{g.count} {t("creatures_lowercase") || "creatures"}</Text>
+                </View>
+              ))}
+            </View>
           )}
       </SectionCard>
 
@@ -912,17 +942,22 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
           <StatRow label="Linked families" value={stats?.linked_families} icon="family-restroom" color="#4CAF50" />
         </SectionCard>
 
-        {/* Subscriptions */}
-        <SectionCard title="Subscriptions & Revenue" subtitle="Active paying users" icon="attach-money" color="#4CAF50">
-          <StatRow label="Paying parents" value={stats?.active_parents} icon="family-restroom" color="#4CAF50" />
-          <StatRow label="Annual parent plans" value={stats?.annual_parents} icon="star" color="#4CAF50" />
-          <StatRow label="Paying teachers" value={stats?.active_teachers} icon="school" color="#FF9800" />
-          <StatRow label="Annual teacher plans" value={stats?.annual_teachers} icon="star" color="#FF9800" />
-          <StatRow label="School subscriptions" value={stats?.active_schools} icon="account-balance" color="#9C27B0" />
+        {/* Subscriptions — real feature Aug 26 (item 10): active_parents/active_teachers/
+            active_schools were never actually returned by /admin/stats until tonight, so
+            this card showed nothing but dashes since the day it was built. annual_parents/
+            annual_teachers dropped rather than shown as fake zeros — confirmed live there is
+            no self-serve annual plan for parents/teachers today (see /subscription/checkout),
+            so the data to populate them doesn't exist yet. Pricing footer still advertises
+            annual pricing with no purchase path — flagged to Jono separately, not silently
+            fixed here since it's his call whether to build annual billing or drop the copy. */}
+        <SectionCard title={t("subscriptions_revenue") || "Subscriptions & Revenue"} subtitle={t("active_paying_users") || "Active paying users"} icon="attach-money" color="#4CAF50">
+          <StatRow label={t("paying_parents") || "Paying parents"} value={stats?.active_parents} icon="family-restroom" color="#4CAF50" />
+          <StatRow label={t("paying_teachers") || "Paying teachers"} value={stats?.active_teachers} icon="school" color="#FF9800" />
+          <StatRow label={t("school_subscriptions") || "School subscriptions"} value={stats?.active_schools} icon="account-balance" color="#9C27B0" />
           <View style={s.pricingBox}>
-            <Text style={s.pricingText}>Parent $4.99/mo · $39.99/yr</Text>
-            <Text style={s.pricingText}>Teacher $7.99/mo · $59.99/yr</Text>
-            <Text style={s.pricingText}>School from $299/yr</Text>
+            <Text style={s.pricingText}>{t("pricing_parent_line") || "Parent €4.99/mo (monthly only)"}</Text>
+            <Text style={s.pricingText}>{t("pricing_teacher_line") || "Teacher €7.99/mo (monthly only)"}</Text>
+            <Text style={s.pricingText}>{t("pricing_school_line") || "School from €299/yr"}</Text>
           </View>
         </SectionCard>
 
@@ -1611,6 +1646,10 @@ const s = StyleSheet.create({
   schoolPillCity: { fontSize: 10, color: '#888', textAlign: 'center' },
   schoolCard: { backgroundColor: '#F8F9FA', borderRadius: 10, padding: 10, marginBottom: 8 },
   schoolName: { fontSize: 13, fontWeight: '700', color: '#333' },
+  // World Creature Gallery (item 10)
+  galleryPill: { backgroundColor: '#F8F9FA', borderRadius: 10, padding: 10, alignItems: 'center', minWidth: 100 },
+  galleryPillCountry: { fontSize: 13, fontWeight: '900', color: INDIGO },
+  galleryPillCount: { fontSize: 11, color: '#888', marginTop: 2 },
   // Misc
   hint: { fontSize: 12, color: '#888', lineHeight: 18 },
   sectionHint: { fontSize: 12, color: '#888', marginBottom: 12 },

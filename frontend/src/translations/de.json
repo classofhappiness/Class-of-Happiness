@@ -1079,5 +1079,17 @@
   "privacy_full_policy_text": "Unsere vollständige Datenschutzrichtlinie ist verfügbar unter classofhappiness.com/privacy-policy.html",
   "privacy_security_text": "Wir verwenden branchenübliche Verschlüsselung und Sicherheitsmaßnahmen, um deine Daten zu schützen. Alle Daten werden sicher übertragen und auf geschützten Servern gespeichert.",
   "terms_para_1": "Durch die Nutzung von Class of Happiness stimmst du zu, die App für ihre vorgesehenen Bildungs- und Informationszwecke zu verwenden. Die App dient der Unterstützung der emotionalen Bewusstseinsbildung und ersetzt keine professionellen Dienste im Bereich der psychischen Gesundheit.",
-  "terms_para_2": "Nutzer sind dafür verantwortlich, die Vertraulichkeit ihrer Kontodaten zu wahren. Lehrkräfte und Eltern sollten die Nutzung der App durch Kinder angemessen beaufsichtigen."
+  "terms_para_2": "Nutzer sind dafür verantwortlich, die Vertraulichkeit ihrer Kontodaten zu wahren. Lehrkräfte und Eltern sollten die Nutzung der App durch Kinder angemessen beaufsichtigen.",
+  "world_creature_gallery": "Weltweite Kreaturengalerie",
+  "world_creature_gallery_subtitle": "Nach Land gruppiert — keine Schülerdaten sichtbar",
+  "world_gallery_empty": "Noch kein Land hat die Mindestanzahl an Beitragenden erreicht.",
+  "creatures_lowercase": "Kreaturen",
+  "subscriptions_revenue": "Abonnements & Umsatz",
+  "active_paying_users": "Aktive zahlende Nutzer",
+  "paying_parents": "Zahlende Eltern",
+  "paying_teachers": "Zahlende Lehrkräfte",
+  "school_subscriptions": "Schulabonnements",
+  "pricing_parent_line": "Eltern 4,99 €/Monat (nur monatlich)",
+  "pricing_teacher_line": "Lehrkraft 7,99 €/Monat (nur monatlich)",
+  "pricing_school_line": "Schule ab 299 €/Jahr"
 }

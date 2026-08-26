@@ -1079,5 +1079,17 @@
   "privacy_full_policy_text": "La nostra informativa sulla privacy completa è disponibile su classofhappiness.com/privacy-policy.html",
   "privacy_security_text": "Utilizziamo crittografia e misure di sicurezza standard del settore per proteggere i tuoi dati. Tutti i dati vengono trasmessi in modo sicuro e archiviati su server protetti.",
   "terms_para_1": "Utilizzando Class of Happiness, accetti di utilizzare l'app per le sue finalità educative e informative previste. L'app è pensata per supportare la consapevolezza emotiva e non sostituisce servizi professionali di salute mentale.",
-  "terms_para_2": "Gli utenti sono responsabili di mantenere riservate le credenziali del proprio account. Insegnanti e genitori dovrebbero supervisionare in modo adeguato l'utilizzo dell'app da parte dei bambini."
+  "terms_para_2": "Gli utenti sono responsabili di mantenere riservate le credenziali del proprio account. Insegnanti e genitori dovrebbero supervisionare in modo adeguato l'utilizzo dell'app da parte dei bambini.",
+  "world_creature_gallery": "Galleria mondiale delle creature",
+  "world_creature_gallery_subtitle": "Raggruppato per paese — nessun dato sugli studenti mostrato",
+  "world_gallery_empty": "Nessun paese ha ancora raggiunto la soglia minima di contributori.",
+  "creatures_lowercase": "creature",
+  "subscriptions_revenue": "Abbonamenti e Ricavi",
+  "active_paying_users": "Utenti paganti attivi",
+  "paying_parents": "Genitori abbonati",
+  "paying_teachers": "Insegnanti abbonati",
+  "school_subscriptions": "Abbonamenti scuole",
+  "pricing_parent_line": "Genitore €4,99/mese (solo mensile)",
+  "pricing_teacher_line": "Insegnante €7,99/mese (solo mensile)",
+  "pricing_school_line": "Scuola da €299/anno"
 }
