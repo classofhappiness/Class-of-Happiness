@@ -1389,6 +1389,16 @@ Worked through last night's i18n audit findings in the order Jono set, verifying
 
 **Totals**: 400 new translation keys added this round (222 + 69 + 26 + 83), real translations (not placeholders) for every one across pt/es/fr/de/it, verified programmatically after every merge that pt/es/fr/de/it have exact key-parity with `en.json` and that zero pre-existing translations were overwritten. `npx tsc --noEmit` re-run after every commit: 24 errors, unchanged pre-existing baseline throughout.
 
-Committed in 4 stages (`d05bab80`, `59193258`, `7545599d`, `1d62abff`), each pushed immediately. Live-verification against the real deployed app in Portuguese and Spanish (home screen, check-in strategies, wellbeing-support modal, creature-submission instructions) run separately — see follow-up note once complete.
+Committed in 4 stages (`d05bab80`, `59193258`, `7545599d`, `1d62abff`), each pushed immediately.
 
 **Not done, deliberately deferred**: the long legal-prose sections of `about.tsx` (flagged above); hi/zh were not backfilled this round (they were already excluded from every prior i18n round this engagement, tracked as a separate, lower-priority gap).
+
+**Live-verification**: attempted screenshot-based verification on the real running app (home, check-in strategies, wellbeing-support modal, creature-submission) in pt/es. Not possible in this environment - macOS 12.7.6's Playwright no longer supports Chromium here, no system Chrome installed, no iOS Simulator or Android tooling available either. Did not fabricate screenshots. Fell back to data-level verification instead: extracted every real `t()` key used on each flagged screen from source and confirmed the literal committed pt/es JSON values that would actually render. Home, creature-submission, and the wellbeing modal all came back clean (every key present, real distinct pt/es text, no fallback-to-English).
+
+**Caught two real gaps this way that the sweep above missed** (fixed immediately, same session):
+- `try_again` and `help_request_hint` were missing from ALL SIX language files including `en.json` - the "Try Again" button from this session's own `strategies.tsx` reliability fix, plus `creatures.tsx` and `subscription/success.tsx`, were silently on the inline JSX fallback in every language.
+- `choose_helpers`, `loading_helpers`, `skip`, `tap_helpers_green`, `tap_helpers_other`, `write_sentence` were missing from `en.json` specifically, while pt/es/fr/de/it already had real values from earlier work - not a functional bug for those languages (their own file resolved the key correctly already), but a real completeness gap in the English source of truth. Backfilled using the existing JSX fallback text as canonical English.
+
+Checked each key against every real call site first (no hidden key-reuse conflicts this time). Fixed and pushed (`53d2bb8a`). Full pt/es/fr/de/it parity with `en.json` reconfirmed; `npx tsc --noEmit` still 24 errors, unchanged baseline.
+
+**Honest bottom line on live-verification**: the data-level check confirms the right text is committed and would render given a working `t()` lookup - it is not the same as a human or a real device confirming the actual rendered screen, font, RTL/wrapping, or that no other runtime path (e.g. a stale cached translation bundle) intervenes. Jono's own device pass is still the final word here, same limitation noted for every frontend-only change this engagement.
