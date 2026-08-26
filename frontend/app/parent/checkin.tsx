@@ -18,6 +18,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
 import { familyApi, FamilyMember, strategiesApi, Strategy } from '../../src/utils/api';
+import { useDataGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
 
 const getZones = (t: (key: string) => string) => [
   { id: 'blue', name: t('blue_zone')||'Blue Zone', color: '#4A90D9', desc: t('blue_feeling_desc')||'Quiet Energy — Sad, Tired, Bored', face: '😢', emoji: '😢' },
@@ -91,6 +92,7 @@ const PARENT_STRATEGIES: Record<string, Array<{id:string; name:string; descripti
 
 
 export default function FamilyCheckInScreen() {
+  const gridColumns = useDataGridColumns();
   const router = useRouter();
   const navigation = useNavigation() as any;
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
@@ -413,6 +415,7 @@ export default function FamilyCheckInScreen() {
                     key={strategy.id}
                     style={[
                       styles.strategyCard,
+                      { width: gridCardWidth(gridColumns) },
                       selectedStrategies.includes(strategy.id) && {
                         borderColor: zoneConfig?.color,
                         backgroundColor: zoneConfig?.color + '20',
@@ -626,7 +629,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   strategiesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
-  strategyCard: { width: '48%', backgroundColor: 'white', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 6, alignItems: 'center', borderWidth: 1.5, borderColor: '#E0E0E0', position: 'relative', flexDirection: 'row', gap: 4 },
+  strategyCard: { backgroundColor: 'white', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 6, alignItems: 'center', borderWidth: 1.5, borderColor: '#E0E0E0', position: 'relative', flexDirection: 'row', gap: 4 },
   strategyDesc: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
   strategyName: { fontSize: 11, fontWeight: '600', color: '#333', flex: 1, textAlign: 'left' },
   checkIcon: {

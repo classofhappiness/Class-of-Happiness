@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { COUNTRIES, countryFlagEmoji } from '../../src/constants/countries';
+import { useFixedGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 console.log('[SubmitCreature] API_URL is:', JSON.stringify(API_URL));
@@ -39,6 +40,7 @@ const TIP_FALLBACKS = [
 ];
 
 export default function SubmitCreatureScreen() {
+  const reviewPhotoWidth = gridCardWidth(useFixedGridColumns(4));
   const router = useRouter();
   const { t, user } = useApp();
   const [step, setStep] = useState<'tutorial'|'code'|'details'|'scope'|'photos'|'review'>('tutorial');
@@ -421,7 +423,7 @@ export default function SubmitCreatureScreen() {
         <Text style={s.label}>{t('review_visible_to_label') || 'Visible to:'} <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{visibleToText}</Text></Text>
         <Text style={s.label}>{t('review_country_label') || 'Country:'} <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{country ? `${countryFlagEmoji(country)} ${COUNTRIES.find(c => c.code === country)?.name || country}` : '—'}</Text></Text>
         <View style={s.stageGrid}>
-          {photos.map((p,i) => p && <Image key={i} source={{ uri:p }} style={s.reviewPhoto} />)}
+          {photos.map((p,i) => p && <Image key={i} source={{ uri:p }} style={[s.reviewPhoto, { width: reviewPhotoWidth }]} />)}
         </View>
         {uploading
           ? <View style={s.uploadRow}>
@@ -467,7 +469,7 @@ const s = StyleSheet.create({
   photoBtn: { flex:1, backgroundColor:'#F7F8FA', borderRadius:8, padding:10, alignItems:'center', borderWidth:1, borderColor:'rgba(0,0,0,.1)' },
   photoBtnTxt: { fontSize:13, fontWeight:'700', color:'#1A1A2E' },
   stageGrid: { flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:12, marginBottom:8 },
-  reviewPhoto: { width:'47%', aspectRatio:1, borderRadius:8 },
+  reviewPhoto: { aspectRatio:1, borderRadius:8 },
   uploadRow: { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:12, padding:16 },
   uploadTxt: { fontSize:14, color:'#4CAF73', fontWeight:'700' },
   scopeCard: { backgroundColor:'white', borderRadius:12, padding:14, marginBottom:10, borderWidth:2, borderColor:'rgba(0,0,0,.08)' },

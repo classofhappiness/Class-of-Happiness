@@ -5,6 +5,7 @@ import { Creature } from '../utils/api';
 import { useApp } from '../context/AppContext';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../utils/sounds';
 import { CreatureShowcase } from './CreatureShowcase';
+import { useDataGridColumns, gridCardWidth } from '../utils/globalStyles';
 
 interface CreatureCollectionProps {
   visible: boolean;
@@ -105,6 +106,7 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
   const { t: tContext } = useApp();
   const t = tProp || tContext;
   const router = useRouter();
+  const gridColumns = useDataGridColumns();
 
   const [activeTab, setActiveTab] = useState<'creatures' | 'items'>('creatures');
   const [selectedCreature, setSelectedCreature] = useState<any>(null);
@@ -263,7 +265,7 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
                     return (
                       <TouchableOpacity
                         key={creature.id}
-                        style={[styles.creatureCard, { borderColor: cColor }, isSelected && { borderWidth: 3, backgroundColor: cColor + '18' }]}
+                        style={[styles.creatureCard, { width: gridCardWidth(gridColumns), borderColor: cColor }, isSelected && { borderWidth: 3, backgroundColor: cColor + '18' }]}
                         onPress={() => {
                           playSelectFeedback();
                           setSelectedCreature(isSelected ? null : creature);
@@ -348,8 +350,8 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
 };
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' },
-  container: { backgroundColor: '#F8F9FA', borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '92%', minHeight: '75%' },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end', alignItems: 'center' },
+  container: { backgroundColor: '#F8F9FA', borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '92%', minHeight: '75%', width: '100%', maxWidth: 480 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderTopLeftRadius: 28, borderTopRightRadius: 28 },
   title: { fontSize: 19, fontWeight: 'bold', color: '#333' },
   closeBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(0,0,0,0.12)', justifyContent: 'center', alignItems: 'center' },
@@ -361,7 +363,7 @@ const styles = StyleSheet.create({
   scrollPad: { padding: 14, paddingBottom: 40 },
   sectionTitle: { fontSize: 17, fontWeight: 'bold', color: '#333', marginBottom: 12 },
   creatureGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16, justifyContent: 'space-between' },
-  creatureCard: { width: '47%', backgroundColor: 'white', borderRadius: 18, padding: 12, borderWidth: 2, alignItems: 'center' },
+  creatureCard: { backgroundColor: 'white', borderRadius: 18, padding: 12, borderWidth: 2, alignItems: 'center' },
   creatureEmojiBox: { width: 72, height: 72, borderRadius: 36, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
   creatureName: { fontSize: 13, fontWeight: 'bold', textAlign: 'center', marginBottom: 2 },
   stageLabel: { fontSize: 11, color: '#888', marginBottom: 6 },

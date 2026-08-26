@@ -9,6 +9,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
+import { useFixedGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
 
 type FeelingZone = 'blue' | 'green' | 'yellow' | 'red';
 
@@ -57,6 +58,7 @@ const ALL_STRATEGIES = Object.values(TEACHER_STRATEGIES).flat();
 const BACKEND_URL_CONST = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 export default function TeacherCheckInScreen() {
+  const zoneCardWidth = gridCardWidth(useFixedGridColumns(ZONES.length));
   const router = useRouter();
   const { user , t} = useApp();
   const navigation = useNavigation();
@@ -537,7 +539,7 @@ export default function TeacherCheckInScreen() {
           {ZONES.map(zone => (
             <TouchableOpacity
               key={zone.id}
-              style={[styles.zoneBtn, { backgroundColor: zone.color }, selectedZone === zone.id && styles.zoneBtnSelected]}
+              style={[styles.zoneBtn, { width: zoneCardWidth, backgroundColor: zone.color }, selectedZone === zone.id && styles.zoneBtnSelected]}
               onPress={() => { setSelectedZone(zone.id); setSelectedStrategies([]); }}
               activeOpacity={0.85}
             >
@@ -855,7 +857,7 @@ const styles = StyleSheet.create({
   scroll: { padding: 16, paddingBottom: 40 },
   sectionLabel: { fontSize: 15, fontWeight: '600', color: '#444', marginBottom: 10, marginTop: 8 },
   zonesStack: { gap: 8, marginBottom: 20 },
-  zoneBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 12, borderRadius: 14, gap: 8, width: '48%' },
+  zoneBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 12, borderRadius: 14, gap: 8 },
   zoneBtnSelected: { borderWidth: 3, borderColor: 'white' },
   zoneEmoji: { fontSize: 26 },
   zoneBtnLabel: { fontSize: 18, fontWeight: 'bold', color: 'white', flex: 1 },

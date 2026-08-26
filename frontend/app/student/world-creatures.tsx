@@ -2,8 +2,9 @@
 // 1) heading bug fixed (this screen never hid the default stack header, so the raw route
 //    name leaked through above the custom one - now uses TranslatedHeader like every other
 //    screen, which also gives it the missing COH logo + home button for free).
-// 2) 2x2-grid-per-page layout, horizontal paging when a colour has more than 4 creatures,
-//    instead of a single vertically-scrolling grid.
+// 2) N-columns x 2-rows-per-page layout (N reactive to screen width - 2 on phone, more on
+//    tablet, see Phase 3 iPad work), horizontal paging when a colour has more creatures
+//    than fit on one page, instead of a single vertically-scrolling grid.
 // 3) each card auto-cycles through its stage1-4 images as a preview (clearly labelled
 //    "Preview" and never touching the real progress dots below it, so a student can't mistake
 //    the cycling image for having actually obtained the fully-evolved creature).
@@ -19,6 +20,7 @@ import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { useZoneMovement } from '../../src/components/AnimatedCreatureVisual';
 import { countryFlagEmoji, COUNTRIES } from '../../src/constants/countries';
+import { useDataGridColumns } from '../../src/utils/globalStyles';
 
 const COUNTRY_NAME_BY_CODE: Record<string, string> = COUNTRIES.reduce((acc, c) => {
   acc[c.code] = c.name;
@@ -34,7 +36,6 @@ const EMOTION_EMOJI: Record<string, string> = {
 
 interface ActiveInfo { active_id: string; is_default: boolean; is_fully_evolved: boolean; }
 
-const PAGE_SIZE = 4;
 const PREVIEW_INTERVAL_MS = 1400;
 
 function formatExpiry(iso?: string | null): string | null {
@@ -146,6 +147,7 @@ export default function GlobalCreaturesScreen() {
   const { t, currentStudent } = useApp();
   const router = useRouter();
   const { width: screenWidth } = useWindowDimensions();
+  const gridColumns = useDataGridColumns();
   const [creatures, setCreatures] = useState<any[]>([]);
   const [active, setActive] = useState<Record<string, ActiveInfo>>({});
   const [loading, setLoading] = useState(true);
@@ -223,6 +225,11 @@ export default function GlobalCreaturesScreen() {
 
   const filtered = filter === 'all' ? creatures : creatures.filter(c => c.emotion_colour === filter);
 
+  // Real fix Aug 26 (Phase 3, iPad): page size was hardcoded to the phone's 2-column grid
+  // (PAGE_SIZE=4 = 2 rows x 2 cols). Kept the same "2 rows per page" design (see the Aug 22
+  // redesign note at the top of this file) but made the column count - and so the page
+  // size - reactive, so a tablet's 3rd/4th column doesn't leave an orphaned partial row.
+  const PAGE_SIZE = gridColumns * 2;
   const pages: any[][] = [];
   for (let i = 0; i < filtered.length; i += PAGE_SIZE) {
     pages.push(filtered.slice(i, i + PAGE_SIZE));
@@ -252,7 +259,7 @@ export default function GlobalCreaturesScreen() {
   };
 
   const gridWidth = screenWidth - 24; // matches horizontal page padding below
-  const cardWidth = (gridWidth - 12) / 2; // 2 columns, 12px gap
+  const cardWidth = (gridWidth - 12 * (gridColumns - 1)) / gridColumns; // N columns, 12px gaps between them
 
   const renderPage = ({ item: page }: { item: any[] }) => (
     <View style={{ width: screenWidth, paddingHorizontal: 12 }}>

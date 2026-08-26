@@ -24,6 +24,7 @@ import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { AnimatedCreatureVisual } from '../../src/components/AnimatedCreatureVisual';
 import { CreatureDetailModal, CreatureDetailEntry } from '../../src/components/CreatureDetailModal';
+import { useDataGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
 
 const EMOTION_COLORS: Record<string, string> = {
   green: '#4CAF73', blue: '#4A90D9', yellow: '#FFC107', red: '#E05252'
@@ -55,6 +56,7 @@ interface CreatureEntry {
 }
 
 export default function CreatureCollectionScreen() {
+  const gridColumns = useDataGridColumns();
   const [colours, setColours] = useState<Record<string, CreatureEntry[]>>({});
   const [totalCollected, setTotalCollected] = useState(0);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -95,7 +97,7 @@ export default function CreatureCollectionScreen() {
     return (
       <TouchableOpacity
         key={`${item.type}-${item.id}`}
-        style={[styles.card, { borderColor: EMOTION_COLORS[colour], borderWidth: item.is_active ? 2 : 1 }]}
+        style={[styles.card, { width: gridCardWidth(gridColumns), borderColor: EMOTION_COLORS[colour], borderWidth: item.is_active ? 2 : 1 }]}
         onPress={() => { setDetailColour(colour); setDetailEntry(item); }}
       >
         {/* Real fix Aug 23: the old CreatureCollection modal's grid used a per-colour tinted
@@ -249,7 +251,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   card: {
-    width: '47%',
     backgroundColor: '#FAFAFA',
     borderRadius: 14,
     padding: 12,

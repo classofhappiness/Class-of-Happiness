@@ -437,8 +437,8 @@ export default function FamilyStrategiesScreen() {
 
         {/* Add/Edit Modal */}
         <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-            <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', alignItems: 'center' }}>
+            <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, width: '100%', maxWidth: 480 }}>
               <Text style={{ fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 20 }}>
                 {editingStrategy ? (t('edit_family_strategy') || 'Edit Strategy') : (t('add_family_strategy') || 'Add Family Strategy')}
               </Text>

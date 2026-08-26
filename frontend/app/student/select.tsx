@@ -8,6 +8,7 @@ import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { rewardsApi, creaturesApi, StudentCollection, StudentRewards, Creature } from '../../src/utils/api';
+import { useDataGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../../src/utils/sounds';
 
 const COMMUNITY_ZONE_COLORS: Record<string, string> = {
@@ -22,6 +23,8 @@ interface StudentCreatureData {
 }
 
 export default function StudentSelectScreen() {
+  const gridColumns = useDataGridColumns();
+  const cardWidth = gridCardWidth(gridColumns);
   const router = useRouter();
   const navigation = useNavigation();
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
@@ -394,7 +397,8 @@ export default function StudentSelectScreen() {
             <Pressable
               key={student.id}
               style={({ pressed }) => [
-                styles.studentCard, 
+                styles.studentCard,
+                { width: cardWidth },
                 selectedStudentId === student.id && styles.studentCardSelected,
                 pressed && styles.studentCardPressed
               ]}
@@ -455,7 +459,7 @@ export default function StudentSelectScreen() {
           {/* Add profile — adults can create, students see ask adult message */}
           {isAdult ? (
             <TouchableOpacity
-              style={[styles.studentCard, { borderStyle:'dashed', borderColor:'#4CAF50', backgroundColor:'#F1F8F1', justifyContent:'center', alignItems:'center', gap:8 }]}
+              style={[styles.studentCard, { width: cardWidth, borderStyle:'dashed', borderColor:'#4CAF50', backgroundColor:'#F1F8F1', justifyContent:'center', alignItems:'center', gap:8 }]}
               onPress={handleCreateProfile} activeOpacity={0.7}>
               <MaterialIcons name="add-circle-outline" size={36} color="#4CAF50" />
               <Text style={{ fontSize:11, color:'#4CAF50', textAlign:'center', fontWeight:'700', lineHeight:16 }}>
@@ -463,7 +467,7 @@ export default function StudentSelectScreen() {
               </Text>
             </TouchableOpacity>
           ) : (
-            <View style={[styles.studentCard, { borderStyle:'dashed', borderColor:'#CCC', backgroundColor:'#FAFAFA', justifyContent:'center', alignItems:'center', gap:8, opacity:0.8 }]}>
+            <View style={[styles.studentCard, { width: cardWidth, borderStyle:'dashed', borderColor:'#CCC', backgroundColor:'#FAFAFA', justifyContent:'center', alignItems:'center', gap:8, opacity:0.8 }]}>
               <MaterialIcons name="supervisor-account" size={32} color="#BDBDBD" />
               <Text style={{ fontSize:11, color:'#999', textAlign:'center', fontWeight:'600', lineHeight:16 }}>
                 {'Ask your teacher\nor parent to\nadd a profile'}
@@ -519,7 +523,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 10,
     alignItems: 'center',
-    width: '48%',
     marginBottom: 12,
     elevation: 3,
     shadowColor: '#000',
