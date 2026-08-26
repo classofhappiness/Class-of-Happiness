@@ -631,5 +631,13 @@
   "teacher_feature_5": "Bulk check-ins",
   "teacher_feature_6": "Push alerts",
   "teacher_feature_7": "Strategy library",
-  "teacher_feature_8": "6 languages supported"
+  "teacher_feature_8": "6 languages supported",
+  "choose_helpers": "Choose Helpers",
+  "loading_helpers": "Loading helpers...",
+  "skip": "Skip",
+  "tap_helpers_green": "Tap helpers you would like to try:",
+  "tap_helpers_other": "Tap to select helpers:",
+  "write_sentence": "Write one sentence...",
+  "try_again": "Try Again",
+  "help_request_hint": "Tap the hand icon on any helper to ask your teacher or parent for support."
 }

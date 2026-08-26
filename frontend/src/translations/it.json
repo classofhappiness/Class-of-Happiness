@@ -1033,5 +1033,7 @@
   "teacher_feature_5": "Check-in di gruppo",
   "teacher_feature_6": "Notifiche push",
   "teacher_feature_7": "Libreria di strategie",
-  "teacher_feature_8": "6 lingue supportate"
+  "teacher_feature_8": "6 lingue supportate",
+  "try_again": "Riprova",
+  "help_request_hint": "Tocca l'icona della mano su un aiutante per chiedere supporto al tuo insegnante o a un genitore."
 }

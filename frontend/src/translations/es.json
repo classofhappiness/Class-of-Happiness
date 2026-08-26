@@ -1018,5 +1018,7 @@
   "teacher_feature_5": "Check-ins en grupo",
   "teacher_feature_6": "Alertas push",
   "teacher_feature_7": "Biblioteca de estrategias",
-  "teacher_feature_8": "6 idiomas disponibles"
+  "teacher_feature_8": "6 idiomas disponibles",
+  "try_again": "Intentar de Nuevo",
+  "help_request_hint": "Toca el icono de la mano en cualquier ayudante para pedir apoyo a tu profesor o a tu padre/madre."
 }

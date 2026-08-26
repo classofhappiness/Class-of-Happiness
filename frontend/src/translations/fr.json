@@ -1033,5 +1033,7 @@
   "teacher_feature_5": "Check-ins groupés",
   "teacher_feature_6": "Alertes push",
   "teacher_feature_7": "Bibliothèque de stratégies",
-  "teacher_feature_8": "6 langues disponibles"
+  "teacher_feature_8": "6 langues disponibles",
+  "try_again": "Réessayer",
+  "help_request_hint": "Touche l'icône de la main sur n'importe quelle aide pour demander du soutien à ton enseignant ou à un parent."
 }
