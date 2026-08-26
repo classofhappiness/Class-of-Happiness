@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, Linking, Pressable,
+  TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, Linking, Pressable, Image,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import DraggableFlatList, { NestableScrollContainer, NestableDraggableFlatList } from 'react-native-draggable-flatlist';
@@ -595,6 +595,238 @@ function WorldWall({ authToken }: { authToken: string|null }) {
   );
 }
 
+// ── Creature Moderation (item 7) ──────────────────────────────────────────────
+// Real feature Aug 26: the RN app has had zero creature-moderation UI anywhere - every
+// submission has only ever been reviewable from the web portal (portal100.html's
+// saCreatureQueue/saGlobalApprove/saGlobalReject/renderApprovedCreaturesInto). Built to
+// real parity against that live implementation, not reinvented: same two endpoints
+// (/creatures/awaiting-global-approval, /creatures/global-approve/{id}), same
+// classroom-vs-family-private relabeling rule the portal itself was fixed to use
+// (c.classroom_id truthy = a real classroom scope, falsy = a home-only family
+// submission - "classroom" is still the wire value either way, only the label differs -
+// see A44 item 5), same real hard-delete (DELETE /creatures/{id}) and feature action
+// (POST /creatures/feature/{id}). Two real, deliberate mobile-native adaptations rather
+// than a literal port: the portal uses the browser's own prompt()/confirm() for the
+// rejection-reason and delete-confirmation dialogs - neither exists in React Native, so
+// these are a real TextInput modal and a real Alert.alert respectively, not a shortcut.
+
+function scopeLabel(scope: string, hasClassroom: boolean) {
+  if (scope === 'classroom') return hasClassroom ? 'Classroom' : 'Family (private)';
+  if (scope === 'school') return 'School';
+  return 'Global';
+}
+
+function CreaturePendingCard({ c, onApprove, onReject, onDelete, busy }: any) {
+  const hasClassroom = !!c.classroom_id;
+  const stages = [c.stage1_url, c.stage2_url, c.stage3_url, c.stage4_url].filter(Boolean);
+  return (
+    <View style={s.creatureCard}>
+      <View style={s.creatureTopRow}>
+        <View style={[s.creatureDot, { backgroundColor: ZONE_COLORS[c.emotion_colour] || '#999' }]} />
+        <Text style={s.creatureName}>{c.creature_name || 'Unnamed'}</Text>
+      </View>
+      <Text style={s.creatureMeta}>
+        {c.real_student_name ? `👦 For: ${c.real_student_name} · ` : ''}{c.school_name || ''}{c.school_name && c.country ? ' · ' : ''}{c.country || ''}
+      </Text>
+      {c.description ? <Text style={s.creatureDesc}>{c.description}</Text> : null}
+      {stages.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+          {stages.map((url: string, i: number) => (
+            <Image key={i} source={{ uri: url }} style={s.stageThumb} />
+          ))}
+        </ScrollView>
+      )}
+      <Text style={s.creatureRequested}>📋 Requested: {scopeLabel('classroom', hasClassroom)}</Text>
+      <View style={s.creatureActionsRow}>
+        <TouchableOpacity disabled={busy} style={[s.creatureActionBtn, { backgroundColor: '#4CAF50' }]} onPress={() => onApprove(c.id, 'classroom')}>
+          <Text style={s.creatureActionBtnText}>✅ {hasClassroom ? 'Classroom only' : 'Family only (private)'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity disabled={busy} style={[s.creatureActionBtn, { backgroundColor: '#4A90D9' }]} onPress={() => onApprove(c.id, 'school')}>
+          <Text style={s.creatureActionBtnText}>✅ Whole school</Text>
+        </TouchableOpacity>
+        <TouchableOpacity disabled={busy} style={[s.creatureActionBtn, { backgroundColor: '#7C5CBF' }]} onPress={() => onApprove(c.id, 'global')}>
+          <Text style={s.creatureActionBtnText}>✅ Everyone (global)</Text>
+        </TouchableOpacity>
+        <TouchableOpacity disabled={busy} style={[s.creatureActionBtn, { backgroundColor: '#999' }]} onPress={() => onReject(c)}>
+          <Text style={s.creatureActionBtnText}>❌ Reject</Text>
+        </TouchableOpacity>
+        <TouchableOpacity disabled={busy} style={[s.creatureActionBtn, { backgroundColor: '#8B0000' }]} onPress={() => onDelete(c)}>
+          <Text style={s.creatureActionBtnText}>🗑️ Delete</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function CreatureApprovedCard({ c, onChangeScope, onFeature, onDelete, busy }: any) {
+  const stages = [c.stage1_url, c.stage2_url, c.stage3_url, c.stage4_url].filter(Boolean);
+  const currentScope = c.visibility_scope || 'school';
+  return (
+    <View style={[s.creatureCard, { width: 190 }]}>
+      {stages[0] ? <Image source={{ uri: stages[0] }} style={s.approvedThumb} /> : <View style={[s.approvedThumb, { backgroundColor: '#F0F0F0' }]} />}
+      <Text style={s.creatureName}>{c.creature_name || ''}</Text>
+      <Text style={s.creatureMeta}>{c.student_name || ''}{c.school_name ? ` · 🏫 ${c.school_name}` : ''}</Text>
+      <Text style={s.creatureStatsLine}>🌍 {c.global_uses || 0} uses</Text>
+      <View style={s.scopeRow}>
+        {['classroom', 'school', 'global'].map(opt => (
+          <TouchableOpacity
+            key={opt}
+            disabled={busy}
+            style={[s.scopeChip, currentScope === opt && s.scopeChipActive]}
+            onPress={() => onChangeScope(c.id, opt)}
+          >
+            <Text style={[s.scopeChipText, currentScope === opt && s.scopeChipTextActive]}>
+              {scopeLabel(opt, !!c.classroom_id)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <TouchableOpacity disabled={busy} style={s.featureBtn} onPress={() => onFeature(c.id)}>
+        <Text style={s.featureBtnText}>⭐ Feature</Text>
+      </TouchableOpacity>
+      <TouchableOpacity disabled={busy} style={s.deleteBtn} onPress={() => onDelete(c)}>
+        <Text style={s.deleteBtnText}>🗑️ Delete</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function CreatureModeration({ authToken }: { authToken: string|null }) {
+  const [pending, setPending] = useState<any[]>([]);
+  const [approved, setApproved] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<any | null>(null);
+  const [rejectReason, setRejectReason] = useState('Does not meet the Class of Happiness standards');
+
+  const load = useCallback(() => {
+    setLoading(true);
+    Promise.all([
+      apiCall('/creatures/awaiting-global-approval', authToken).catch(() => []),
+      apiCall('/creatures/global', authToken).catch(() => []),
+    ]).then(([p, a]) => {
+      setPending(Array.isArray(p) ? p : []);
+      setApproved(Array.isArray(a) ? a : []);
+    }).finally(() => setLoading(false));
+  }, [authToken]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleApprove = async (id: string, scope: string) => {
+    setBusyId(id);
+    try {
+      await apiCall(`/creatures/global-approve/${id}`, authToken, { method: 'POST', body: JSON.stringify({ action: 'approve', visibility_scope: scope }) });
+      setPending(prev => prev.filter(c => c.id !== id));
+      const fresh = await apiCall('/creatures/global', authToken).catch(() => null);
+      if (fresh) setApproved(Array.isArray(fresh) ? fresh : []);
+    } catch { Alert.alert('Error', 'Could not approve this creature.'); }
+    setBusyId(null);
+  };
+
+  const submitReject = async () => {
+    if (!rejectTarget) return;
+    const id = rejectTarget.id;
+    setRejectTarget(null);
+    setBusyId(id);
+    try {
+      await apiCall(`/creatures/global-approve/${id}`, authToken, { method: 'POST', body: JSON.stringify({ action: 'reject', reason: rejectReason }) });
+      setPending(prev => prev.filter(c => c.id !== id));
+    } catch { Alert.alert('Error', 'Could not reject this creature.'); }
+    setBusyId(null);
+  };
+
+  const handleDelete = (c: any) => {
+    Alert.alert(
+      'Delete creature?',
+      `Permanently delete "${c.creature_name || 'this creature'}"? This cannot be undone - the submission, any student progress on it, and any featured-creature entries will all be removed.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive', onPress: async () => {
+            setBusyId(c.id);
+            try {
+              await apiCall(`/creatures/${c.id}`, authToken, { method: 'DELETE' });
+              setPending(prev => prev.filter(x => x.id !== c.id));
+              setApproved(prev => prev.filter(x => x.id !== c.id));
+            } catch { Alert.alert('Error', 'Could not delete this creature.'); }
+            setBusyId(null);
+          },
+        },
+      ]
+    );
+  };
+
+  const handleChangeScope = async (id: string, scope: string) => {
+    setBusyId(id);
+    try {
+      await apiCall(`/creatures/global-approve/${id}`, authToken, { method: 'POST', body: JSON.stringify({ action: 'approve', visibility_scope: scope }) });
+      setApproved(prev => prev.map(c => c.id === id ? { ...c, visibility_scope: scope } : c));
+    } catch { Alert.alert('Error', 'Could not update scope.'); }
+    setBusyId(null);
+  };
+
+  const handleFeature = async (id: string) => {
+    setBusyId(id);
+    try {
+      await apiCall(`/creatures/feature/${id}`, authToken, { method: 'POST', body: JSON.stringify({}) });
+      Alert.alert('⭐ Featured', 'Creature featured for this month!');
+    } catch (e: any) { Alert.alert('Error', e?.message || 'Could not feature this creature.'); }
+    setBusyId(null);
+  };
+
+  if (loading) return <View style={{ marginVertical: 20, alignItems: 'center' }}><EmotionColourLoader visible size={48} /></View>;
+
+  return (
+    <View>
+      <SectionCard title="Awaiting Final Approval" subtitle="Already approved by a teacher or parent" icon="pending-actions" color="#FF9800" defaultOpen>
+        {pending.length === 0
+          ? <Text style={s.hint}>Nothing waiting for final approval right now.</Text>
+          : pending.map(c => (
+              <CreaturePendingCard key={c.id} c={c} busy={busyId === c.id}
+                onApprove={handleApprove}
+                onReject={(target: any) => { setRejectReason('Does not meet the Class of Happiness standards'); setRejectTarget(target); }}
+                onDelete={handleDelete} />
+            ))}
+      </SectionCard>
+
+      <SectionCard title="Approved Creatures" subtitle="System-wide — every school" icon="check-circle" color="#4CAF50" defaultOpen>
+        {approved.length === 0
+          ? <Text style={s.hint}>No approved creatures yet.</Text>
+          : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {approved.map(c => (
+                  <CreatureApprovedCard key={c.id} c={c} busy={busyId === c.id}
+                    onChangeScope={handleChangeScope} onFeature={handleFeature} onDelete={handleDelete} />
+                ))}
+              </View>
+            </ScrollView>
+          )}
+      </SectionCard>
+
+      {/* Reject-reason modal - React Native has no browser prompt(), unlike the portal's
+          saGlobalReject. Real input, not a shortcut. */}
+      <Modal visible={!!rejectTarget} transparent animationType="fade" onRequestClose={() => setRejectTarget(null)}>
+        <View style={s.modalOverlay}>
+          <View style={s.modalCard}>
+            <Text style={s.cardTitle}>Reason for rejecting</Text>
+            <Text style={[s.hint, { marginBottom: 8 }]}>The student will see this.</Text>
+            <TextInput style={s.input} value={rejectReason} onChangeText={setRejectReason} multiline />
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+              <TouchableOpacity style={[s.btn, { flex: 1, backgroundColor: '#EEE' }]} onPress={() => setRejectTarget(null)}>
+                <Text style={[s.btnText, { color: '#666' }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.btn, { flex: 1, backgroundColor: '#8B0000' }]} onPress={submitReject}>
+                <Text style={s.btnText}>Reject</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
 // ── Super Admin Dashboard ─────────────────────────────────────────────────────
 
 function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setStatsPeriod, loadStats }: any) {
@@ -1136,7 +1368,7 @@ export default function AdminDashboard() {
   const [adminCode, setAdminCode] = useState('');
   const [unlocked, setUnlocked] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [tab, setTab] = useState<'analytics'|'strategies'|'resources'|'schools'|'users'|'settings'>('analytics');
+  const [tab, setTab] = useState<'analytics'|'strategies'|'resources'|'creatures'|'schools'|'users'|'settings'>('analytics');
   const [stats, setStats] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsPeriod, setStatsPeriod] = useState<1|7|30|90|180|365|730|1095>(7);
@@ -1184,6 +1416,7 @@ export default function AdminDashboard() {
         { id: 'analytics', icon: 'bar-chart', label: 'Analytics' },
         { id: 'strategies', icon: 'lightbulb', label: 'Strategies' },
         { id: 'resources', icon: 'folder', label: 'Resources' },
+        { id: 'creatures', icon: 'pets', label: 'Creatures' },
         { id: 'schools', icon: 'business', label: 'Schools' },
         { id: 'users', icon: 'people', label: 'Users' },
         { id: 'settings', icon: 'settings', label: 'Settings' },
@@ -1271,6 +1504,10 @@ export default function AdminDashboard() {
 
         {tab === 'resources' && (
           <ResourceUpload authToken={authToken} />
+        )}
+
+        {tab === 'creatures' && isSuperAdmin && (
+          <CreatureModeration authToken={authToken} />
         )}
 
         {tab === 'schools' && (
@@ -1385,4 +1622,30 @@ const s = StyleSheet.create({
   privacyText: { fontSize: 11, color: '#888', flex: 1, lineHeight: 16 },
   flagBtn: { alignItems: 'center', padding: 8, borderRadius: 10, borderWidth: 1, borderColor: '#E8E8E8', minWidth: 60 },
   flagBtnActive: { borderColor: INDIGO, backgroundColor: '#EEF0FF' },
+
+  // Creature moderation (item 7)
+  creatureCard: { backgroundColor: '#F8F9FA', borderRadius: 12, padding: 12, marginBottom: 10 },
+  creatureTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  creatureDot: { width: 8, height: 8, borderRadius: 4 },
+  creatureName: { fontSize: 14, fontWeight: '800', color: '#333' },
+  creatureMeta: { fontSize: 11, color: '#888', marginTop: 3 },
+  creatureDesc: { fontSize: 12, color: '#555', marginTop: 6 },
+  stageThumb: { width: 64, height: 64, borderRadius: 8, marginRight: 6, backgroundColor: '#EEE' },
+  creatureRequested: { fontSize: 11, fontWeight: '700', color: INDIGO, marginTop: 8 },
+  creatureActionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  creatureActionBtn: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8 },
+  creatureActionBtnText: { color: 'white', fontSize: 11, fontWeight: '700' },
+  approvedThumb: { width: '100%', aspectRatio: 1, borderRadius: 8, marginBottom: 6 },
+  creatureStatsLine: { fontSize: 10, color: '#999', marginTop: 2 },
+  scopeRow: { flexDirection: 'row', gap: 4, marginTop: 8, flexWrap: 'wrap' },
+  scopeChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: '#EEE' },
+  scopeChipActive: { backgroundColor: INDIGO },
+  scopeChipText: { fontSize: 9, fontWeight: '700', color: '#666' },
+  scopeChipTextActive: { color: 'white' },
+  featureBtn: { marginTop: 6, padding: 7, backgroundColor: '#1A1A2E', borderRadius: 8, alignItems: 'center' },
+  featureBtnText: { color: '#FFD93D', fontSize: 11, fontWeight: '700' },
+  deleteBtn: { marginTop: 6, padding: 7, backgroundColor: '#8B0000', borderRadius: 8, alignItems: 'center' },
+  deleteBtnText: { color: 'white', fontSize: 11, fontWeight: '700' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
+  modalCard: { backgroundColor: 'white', borderRadius: 16, padding: 20 },
 });
