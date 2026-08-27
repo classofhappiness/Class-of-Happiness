@@ -454,7 +454,7 @@ export const creaturesApi = {
       body: JSON.stringify({ real_student_id: realStudentId }),
     }),
 
-  getActiveCreatures: (studentId: string): Promise<Record<string, { active_id: string; is_default: boolean; is_fully_evolved: boolean }>> =>
+  getActiveCreatures: (studentId: string): Promise<Record<string, { active_id: string; is_default: boolean; is_fully_evolved: boolean; progress_percent: number }>> =>
     apiRequest(`/students/${studentId}/active-creatures`),
 
   getMyCreatures: (studentId: string): Promise<{ colours: Record<string, any[]>; total_collected: number }> =>

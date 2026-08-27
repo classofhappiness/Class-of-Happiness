@@ -10,8 +10,9 @@
 //    the cycling image for having actually obtained the fully-evolved creature).
 // 4) expiry date and country-of-origin (global scope only, 5-contributor privacy threshold)
 //    now shown on the card, both newly returned by /creatures/eligible.
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, ActivityIndicator, RefreshControl, Alert, useWindowDimensions, Animated } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Pressable, ActivityIndicator, RefreshControl, Alert, useWindowDimensions, Animated } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { creaturesApi } from '../../src/utils/api';
@@ -34,7 +35,7 @@ const EMOTION_EMOJI: Record<string, string> = {
   green: '😊', blue: '😔', yellow: '😬', red: '😤'
 };
 
-interface ActiveInfo { active_id: string; is_default: boolean; is_fully_evolved: boolean; }
+interface ActiveInfo { active_id: string; is_default: boolean; is_fully_evolved: boolean; progress_percent?: number; }
 
 const PREVIEW_INTERVAL_MS = 1400;
 
@@ -45,15 +46,56 @@ function formatExpiry(iso?: string | null): string | null {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+// Real feature Aug 27 (item 12, "keep clicking" fix): press-and-hold reveal of % complete
+// toward a creature's next evolution, on the student's currently-active (in-progress)
+// creature - helps a child understand WHY the other cards in this grid are locked
+// ("Finish your {colour} creature first") instead of just repeatedly tapping them. The
+// % itself comes from the backend (/students/{id}/active-creatures' progress_percent,
+// see server.py's _creature_progress_percent) rather than being computed here, since the
+// two creature types on this screen (default vs community) use genuinely different
+// progress mechanics (points vs rolling 30-day check-in count) and that math belongs in
+// one place, not duplicated per-platform.
+function ProgressRing({ percent, size, colour }: { percent: number; size: number; colour: string }) {
+  const radius = (size - 10) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.max(0, Math.min(100, percent));
+  const offset = circumference * (1 - clamped / 100);
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={size} height={size} style={{ position: 'absolute' }}>
+        <Circle cx={size / 2} cy={size / 2} r={radius} stroke="rgba(255,255,255,0.35)" strokeWidth={7} fill="none" />
+        <Circle
+          cx={size / 2} cy={size / 2} r={radius}
+          stroke={colour} strokeWidth={7} fill="none"
+          strokeDasharray={`${circumference} ${circumference}`}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          rotation={-90}
+          origin={`${size / 2}, ${size / 2}`}
+        />
+      </Svg>
+      <Text style={{ fontSize: size * 0.22, fontWeight: '800', color: 'white' }}>{Math.round(clamped)}%</Text>
+    </View>
+  );
+}
+
 // One grid card - owns its own auto-cycling stage preview so each card animates
 // independently without affecting the real, separate progress-dot row.
 function CreatureCard({
-  item, isActive, canStart, starting, onStart, cardWidth,
+  item, isActive, canStart, starting, onStart, cardWidth, progressPercent,
 }: {
-  item: any; isActive: boolean; canStart: boolean; starting: boolean; onStart: () => void; cardWidth: number;
+  item: any; isActive: boolean; canStart: boolean; starting: boolean; onStart: () => void; cardWidth: number; progressPercent?: number;
 }) {
   const { t, currentStudent } = useApp();
   const [previewStage, setPreviewStage] = useState(1);
+  const holdAnim = useRef(new Animated.Value(0)).current;
+
+  const onHoldIn = () => {
+    Animated.timing(holdAnim, { toValue: 1, duration: 120, useNativeDriver: true }).start();
+  };
+  const onHoldOut = () => {
+    Animated.timing(holdAnim, { toValue: 0, duration: 250, useNativeDriver: true }).start();
+  };
   const fullyEvolved = (item.my_stages_unlocked || 0) >= 4;
   // Real feature Aug 22 (item 2): restored the old CreatureCollection modal's real per-zone
   // movement variety (sway/hop/shiver/bounce, CreatureCollection.tsx:40-72) - the first pass
@@ -91,18 +133,35 @@ function CreatureCard({
   return (
     <View style={[styles.card, { width: cardWidth, borderTopColor: EMOTION_COLORS[item.emotion_colour], borderTopWidth: 3 }, locked && styles.cardLocked]}>
       <TouchableOpacity activeOpacity={locked ? 0.8 : 1} onPress={locked ? showUpsell : undefined} disabled={!locked}>
-        <Animated.View style={[styles.imgWrap, { transform: bounceTransform }]}>
-          <Image source={{ uri: imgUrl }} style={[styles.creatureImg, locked && styles.creatureImgLocked]} />
-          {locked ? (
-            <View style={styles.lockOverlay}>
-              <MaterialIcons name="lock" size={28} color="white" />
-            </View>
-          ) : !fullyEvolved && (
-            <View style={styles.previewBadge}>
-              <Text style={styles.previewBadgeText}>👀 {t('preview') || 'Preview'}</Text>
-            </View>
-          )}
-        </Animated.View>
+        <Pressable
+          onPressIn={isActive && !fullyEvolved && !locked ? onHoldIn : undefined}
+          onPressOut={isActive && !fullyEvolved && !locked ? onHoldOut : undefined}
+        >
+          <Animated.View style={[styles.imgWrap, { transform: bounceTransform }]}>
+            <Image source={{ uri: imgUrl }} style={[styles.creatureImg, locked && styles.creatureImgLocked]} />
+            {locked ? (
+              <View style={styles.lockOverlay}>
+                <MaterialIcons name="lock" size={28} color="white" />
+              </View>
+            ) : !fullyEvolved && (
+              <View style={styles.previewBadge}>
+                <Text style={styles.previewBadgeText}>👀 {t('preview') || 'Preview'}</Text>
+              </View>
+            )}
+            {isActive && !fullyEvolved && !locked && (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  StyleSheet.absoluteFillObject,
+                  { backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', opacity: holdAnim },
+                ]}
+              >
+                <ProgressRing percent={progressPercent ?? 0} size={Math.min(cardWidth * 0.55, 90)} colour={EMOTION_COLORS[item.emotion_colour]} />
+                <Text style={{ color: 'white', fontSize: 10, fontWeight: '700', marginTop: 4 }}>to next stage</Text>
+              </Animated.View>
+            )}
+          </Animated.View>
+        </Pressable>
         <View style={styles.cardBody}>
           <Text style={[styles.creatureName, locked && styles.textLocked]} numberOfLines={1}>{item.creature_name}</Text>
           {locked ? (
@@ -122,7 +181,10 @@ function CreatureCard({
               {fullyEvolved ? (
                 <Text style={styles.fullyEvolved} numberOfLines={1}>🏆 {t('fully_evolved') || 'Fully evolved!'}</Text>
               ) : isActive ? (
-                <Text style={styles.activeHint} numberOfLines={1}>{t('active_checkin_hint') || '★ Active — check in to grow!'}</Text>
+                <>
+                  <Text style={styles.activeHint} numberOfLines={1}>{t('active_checkin_hint') || '★ Active — check in to grow!'}</Text>
+                  <Text style={{ fontSize: 9, color: '#AAA', marginTop: 1 }} numberOfLines={1}>👆 {t('hold_to_see_progress') || 'Hold the picture to see progress'}</Text>
+                </>
               ) : canStart ? (
                 <TouchableOpacity
                   disabled={starting}
@@ -275,6 +337,7 @@ export default function GlobalCreaturesScreen() {
               starting={startingId === item.id}
               onStart={() => handleSetActive(item)}
               cardWidth={cardWidth}
+              progressPercent={colourActive?.progress_percent}
             />
           );
         })}

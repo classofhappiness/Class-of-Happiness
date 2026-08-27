@@ -9,6 +9,8 @@ import os
 import logging
 import httpx
 import io
+import csv
+import json
 import calendar
 import base64
 from datetime import datetime, timedelta, timezone
@@ -2333,7 +2335,16 @@ async def get_current_user(request: Request) -> Optional[dict]:
         user_result = supabase.table("users").select("*").eq("user_id", session["user_id"]).execute()
         if not user_result.data:
             return None
-        return user_result.data[0]
+        found_user = user_result.data[0]
+        # Real feature Aug 27 (item 11, account suspend/reactivate): checked here, not just
+        # at login, so suspending an account kills an already-active session immediately
+        # rather than waiting for it to next log in. .get() is a no-op if the account_suspended
+        # column doesn't exist yet (migration pending, see POST /admin/users/{user_id}/suspend),
+        # so this is safe pre-migration - every caller already treats a None return as "not
+        # authenticated" with their own 401/403, same as an expired session.
+        if found_user.get("account_suspended"):
+            return None
+        return found_user
     except Exception as e:
         logger.error(f"Auth error: {e}")
         return None
@@ -3985,6 +3996,31 @@ def _is_creature_fully_evolved(student_data: dict, active_id: str, real_student_
         return (stages.get(active_id, 0) or 0) >= 3
     unlocks_r = _creature_unlocks_for(real_student_id, real_student_id, [active_id])
     return bool(unlocks_r.data) and (unlocks_r.data[0].get("stages_unlocked", 0) or 0) >= 4
+
+def _creature_progress_percent(active_id: str, real_student_id: str, emotion_colour: str = None) -> int:
+    """Real feature Aug 27 (item 12, press-and-hold progress ring): single source of truth
+    for "% complete" toward a creature's next evolution, computed with the exact same
+    thresholds _is_creature_fully_evolved/_progress_community_creature use to decide when a
+    creature actually evolves - kept here instead of duplicated in the frontend so the two
+    can never drift out of sync. Default creatures are points-based (0/25/60/120, the same
+    4 thresholds every default creature line uses); community creatures are a rolling
+    30-day check-in count against the same [5,10,15,20] thresholds
+    _progress_community_creature evolves on."""
+    if active_id in DEFAULT_CREATURE_IDS:
+        rewards_r = supabase.table("student_rewards").select("creature_points").eq("student_id", real_student_id).execute()
+        points = (rewards_r.data[0].get("creature_points") if rewards_r.data else None) or {}
+        current_points = points.get(active_id, 0) or 0
+        return max(0, min(100, round(current_points / 120 * 100)))
+    if not emotion_colour:
+        creature_r = supabase.table("creature_submissions").select("emotion_colour").eq("id", active_id).execute()
+        emotion_colour = creature_r.data[0].get("emotion_colour") if creature_r.data else None
+    if not emotion_colour:
+        return 0
+    checkins = supabase.table("feeling_logs").select("id").eq("student_id", real_student_id).eq(
+        "feeling_colour", emotion_colour
+    ).gte("timestamp", (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()).execute()
+    total_checkins = len(checkins.data) if checkins.data else 0
+    return max(0, min(100, round(total_checkins / 20 * 100)))
 
 def _progress_community_creature(real_student_id: str, submission_id: str):
     """Real bug fix Aug 21: extracted from unlock_creature_stage so both the direct endpoint
@@ -8525,6 +8561,9 @@ async def get_active_creatures_endpoint(student_id: str, request: Request):
             "active_id": active_id,
             "is_default": active_id in DEFAULT_CREATURE_IDS,
             "is_fully_evolved": _is_creature_fully_evolved(student_data, active_id, student_id),
+            # Real feature Aug 27 (item 12): drives the press-and-hold progress ring on
+            # world-creatures.tsx's active card. See _creature_progress_percent's docstring.
+            "progress_percent": _creature_progress_percent(active_id, student_id, colour),
         }
     return result
 
@@ -9375,28 +9414,145 @@ async def get_admin_schools(request: Request):
 
 
 @api_router.get("/admin/export")
-async def export_admin_data(request: Request, type: str = "checkins", format: str = "json"):
+async def export_admin_data(request: Request, type: str = "checkins", format: str = "json", date_from: str = None, date_to: str = None):
+    """Real fix Aug 27 (item 11): this was a completely unscoped full-table dump - any
+    school_admin calling it got every school's checkins/users/students platform-wide (same
+    IDOR family as tonight's other authorization fixes), no date filtering, no format but
+    raw JSON, and users rows included portal_password hashes and reset tokens. Now: (1)
+    school_admin is scoped to their own school via the same teacher_ids/classroom_owner_id
+    pattern already used by /school-admin/analytics and /school-admin/users - superadmin is
+    unrestricted, matching every other /admin/ endpoint's existing superadmin-sees-all
+    convention; (2) date_from/date_to (ISO dates) filter by each table's real timestamp
+    column; (3) format=csv streams a real CSV download instead of just labelling JSON as
+    "csv"; (4) users rows are redacted through the same _public_user() sanitizer already
+    used for /auth/me, dropping portal_password/reset_token before this ever leaves the
+    server. export_type used internally (not `type`) to avoid shadowing the builtin."""
+    export_type = type
     user = await get_current_user(request)
     if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="Admin only")
     table_map = {"checkins": "feeling_logs", "users": "users", "resources": "resources", "students": "students"}
-    table = table_map.get(type, "feeling_logs")
-    data = supabase.table(table).select("*").execute().data or []
-    return {"type": type, "format": format, "count": len(data), "data": data}
+    if export_type not in table_map:
+        raise HTTPException(status_code=400, detail=f"Unknown export type '{export_type}'. Choose one of: {', '.join(table_map)}")
+    table = table_map[export_type]
+    date_col = {"checkins": "timestamp", "users": "created_at", "students": "created_at", "resources": "created_at"}.get(export_type)
+
+    query = supabase.table(table).select("*")
+    if date_col and date_from:
+        query = query.gte(date_col, date_from)
+    if date_col and date_to:
+        query = query.lte(date_col, date_to)
+
+    is_superadmin = user.get("role") in ("admin", "superadmin")
+    if not is_superadmin and export_type in ("checkins", "users", "students"):
+        user_id = user["user_id"]
+        school_name = user.get("school_name", "")
+        teachers_by_id = supabase.table("users").select("user_id").eq("school_admin_id", user_id).execute()
+        teachers_by_name = (supabase.table("users").select("user_id").eq("school_name", school_name).eq("role", "teacher").execute()
+                             if school_name else None)
+        teacher_ids = list({t["user_id"] for t in (teachers_by_id.data or []) + ((teachers_by_name.data or []) if teachers_by_name else [])})
+        classroom_owner_ids = teacher_ids + [user_id]
+
+        if export_type == "users":
+            query = query.eq("school_admin_id", user_id)
+        else:
+            classrooms_r = supabase.table("classrooms").select("id").in_("user_id", classroom_owner_ids).execute()
+            classroom_ids = [c["id"] for c in (classrooms_r.data or [])]
+            if not classroom_ids:
+                return _format_export(export_type, format, [])
+            if export_type == "students":
+                query = query.in_("classroom_id", classroom_ids)
+            else:  # checkins
+                students_r = supabase.table("students").select("id").in_("classroom_id", classroom_ids).execute()
+                student_ids = [s["id"] for s in (students_r.data or [])]
+                if not student_ids:
+                    return _format_export(export_type, format, [])
+                query = query.in_("student_id", student_ids)
+
+    data = query.execute().data or []
+    if export_type == "users":
+        data = [_public_user(row) for row in data]
+    return _format_export(export_type, format, data)
+
+
+def _format_export(export_type: str, fmt: str, data: list):
+    if fmt != "csv":
+        return {"type": export_type, "format": "json", "count": len(data), "data": data}
+    if not data:
+        buf = io.StringIO()
+        buf.write("")
+        return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv",
+                                  headers={"Content-Disposition": f"attachment; filename={export_type}_export.csv"})
+    fieldnames = sorted({k for row in data for k in row.keys()})
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    for row in data:
+        writer.writerow({k: (json.dumps(v) if isinstance(v, (dict, list)) else v) for k, v in row.items()})
+    buf.seek(0)
+    return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv",
+                              headers={"Content-Disposition": f"attachment; filename={export_type}_export.csv"})
 
 
 @api_router.post("/subscription/redeem-trial-code")
 async def redeem_trial_code(request: Request):
+    """Real feature Aug 27 (item 11): promo codes now check the DB-backed promo_codes
+    table first (superadmin-manageable via /admin/promo-codes, no deploy needed to add
+    one), falling back to the hardcoded PROMO_CODES dict for the two original codes so
+    those keep working even before the migration below runs. Same defensive-fallback
+    pattern as everything else migration-dependent in this codebase - the table lookup is
+    wrapped so a missing table degrades to hardcoded-only, not a 500.
+
+    Migration (not run by me, see COH-REVIEW-PLAN.md):
+    CREATE TABLE promo_codes (
+      code text PRIMARY KEY,
+      type text DEFAULT 'trial',
+      days integer DEFAULT 30,
+      max_uses integer,
+      uses integer DEFAULT 0,
+      is_active boolean DEFAULT true,
+      expires_at timestamptz,
+      notes text,
+      created_by text,
+      created_at timestamptz DEFAULT now()
+    );
+    """
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     body = await request.json()
     code = body.get("code", "").upper().strip()
-    if code not in PROMO_CODES:
+
+    days = None
+    db_row = None
+    try:
+        db_r = supabase.table("promo_codes").select("*").eq("code", code).execute()
+        if db_r.data:
+            db_row = db_r.data[0]
+    except Exception:
+        db_row = None
+
+    if db_row:
+        if not db_row.get("is_active", True):
+            raise HTTPException(status_code=400, detail="This trial code is no longer active")
+        expires_at = db_row.get("expires_at")
+        if expires_at and datetime.fromisoformat(str(expires_at).replace("Z", "+00:00")) < datetime.now(timezone.utc):
+            raise HTTPException(status_code=400, detail="This trial code has expired")
+        max_uses = db_row.get("max_uses")
+        uses = db_row.get("uses", 0) or 0
+        if max_uses is not None and uses >= max_uses:
+            raise HTTPException(status_code=400, detail="This trial code has reached its usage limit")
+        days = db_row.get("days", 30)
+        try:
+            supabase.table("promo_codes").update({"uses": uses + 1}).eq("code", code).execute()
+        except Exception:
+            pass
+    elif code in PROMO_CODES:
+        days = PROMO_CODES[code].get("days", 30)
+    else:
         raise HTTPException(status_code=400, detail="Invalid trial code")
-    promo = PROMO_CODES[code]
+
     now = datetime.now(timezone.utc)
-    days = promo.get("days", 30)
     trial_ends = now + timedelta(days=days)
     supabase.table("users").update({
         "subscription_status": "trial",
@@ -9408,6 +9564,88 @@ async def redeem_trial_code(request: Request):
         "trial_days": days,
         "trial_ends_at": trial_ends.isoformat()
     }
+
+@api_router.get("/admin/promo-codes")
+async def list_promo_codes(request: Request):
+    """Superadmin-manageable promo/trial codes. See /subscription/redeem-trial-code's
+    docstring for the migration. Includes the two legacy hardcoded codes (marked
+    is_builtin, not deletable/editable here) alongside real DB rows, so superadmin sees
+    the full picture in one list."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    try:
+        db_r = supabase.table("promo_codes").select("*").order("created_at", desc=True).execute()
+        rows = db_r.data or []
+    except Exception:
+        rows = []
+    builtin = [{"code": k, "type": v.get("type", "trial"), "days": v.get("days", 30), "max_uses": None, "uses": None, "is_active": True, "is_builtin": True} for k, v in PROMO_CODES.items()]
+    return rows + builtin
+
+@api_router.post("/admin/promo-codes")
+async def create_promo_code(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    body = await request.json()
+    code = (body.get("code") or "").upper().strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="Code is required")
+    if code in PROMO_CODES:
+        raise HTTPException(status_code=400, detail="This code collides with a built-in code")
+    row = {
+        "code": code,
+        "type": "trial",
+        "days": int(body.get("days") or 30),
+        "max_uses": int(body["max_uses"]) if body.get("max_uses") not in (None, "") else None,
+        "uses": 0,
+        "is_active": True,
+        "expires_at": body.get("expires_at") or None,
+        "notes": (body.get("notes") or "").strip(),
+        "created_by": user["user_id"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        existing = supabase.table("promo_codes").select("code").eq("code", code).execute()
+        if existing.data:
+            raise HTTPException(status_code=400, detail="A code with this name already exists")
+        result = supabase.table("promo_codes").insert(row).execute()
+        return result.data[0] if result.data else row
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not create promo code — has the promo_codes migration run? ({str(e)[:150]})")
+
+@api_router.put("/admin/promo-codes/{code}")
+async def update_promo_code(code: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    code = code.upper().strip()
+    if code in PROMO_CODES:
+        raise HTTPException(status_code=400, detail="Built-in codes can't be edited")
+    body = await request.json()
+    allowed = ["days", "max_uses", "is_active", "expires_at", "notes"]
+    updates = {k: v for k, v in body.items() if k in allowed}
+    try:
+        result = supabase.table("promo_codes").update(updates).eq("code", code).execute()
+        return result.data[0] if result.data else updates
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not update promo code: {str(e)[:150]}")
+
+@api_router.delete("/admin/promo-codes/{code}")
+async def delete_promo_code(code: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    code = code.upper().strip()
+    if code in PROMO_CODES:
+        raise HTTPException(status_code=400, detail="Built-in codes can't be deleted")
+    try:
+        supabase.table("promo_codes").delete().eq("code", code).execute()
+        return {"status": "deleted", "code": code}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not delete promo code: {str(e)[:150]}")
 
 @api_router.post("/auth/email-login")
 async def email_login(request: Request):
@@ -9430,6 +9668,11 @@ async def email_login(request: Request):
                 # immediately on request, not just at the end of the 30-day grace period.
                 if user.get("deletion_requested_at"):
                     raise HTTPException(status_code=403, detail="This account is scheduled for deletion. Contact jono@classofhappiness.com if this wasn't you or you'd like to cancel.")
+                # Real feature Aug 27 (item 11): mirrors the deletion_requested_at check just
+                # above - a clear message at the actual login attempt, on top of the real-time
+                # get_current_user() gate that kills an already-active session immediately.
+                if user.get("account_suspended"):
+                    raise HTTPException(status_code=403, detail="This account has been suspended. Contact jono@classofhappiness.com for details.")
                 # PIN check for superadmin role (existing)
                 if user.get("role") == "superadmin":
                     required_pin = os.environ.get("ADMIN_PIN", "")
@@ -10162,31 +10405,46 @@ async def get_wellbeing_alerts(request: Request):
 
 @api_router.post("/admin/settings")
 async def update_admin_setting(request: Request):
-    """Admin updates a setting key/value pair"""
+    """Global platform settings key/value store (e.g. wellbeing_email, see
+    POST /wellbeing-alert). SECURITY fix Aug 27 (item 11): this used to accept any
+    role in [admin, superadmin, school_admin] with zero scoping on a fully free-form
+    `key` - the admin_settings table is shared with several OTHER, properly-scoped
+    conventions (school_admin_id+setting_key for notification prefs, school_admin_id+key
+    for /schools/my-school), so any school_admin could read or overwrite a global key
+    (including another admin's) via this one generic endpoint, and the old unscoped GET
+    below returned a corrupted merge of every convention's rows into one dict (rows using
+    setting_key/setting_value instead of key/value collapsed onto a `None` key). Genuinely
+    global config should only be superadmin's to touch - real per-school settings already
+    have their own scoped endpoints and don't belong here. No caller anywhere in
+    frontend/portal ever called this (confirmed via repo-wide grep), so tightening it
+    breaks nothing live."""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
-        raise HTTPException(status_code=403, detail="Admin access required")
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
     body = await request.json()
     key = body.get("key")
     value = body.get("value")
     if not key:
         raise HTTPException(status_code=400, detail="Key required")
-    existing = supabase.table("admin_settings").select("*").eq("key", key).execute()
+    existing = supabase.table("admin_settings").select("*").eq("key", key).is_("school_admin_id", "null").execute()
     if existing.data:
-        supabase.table("admin_settings").update({"value": value}).eq("key", key).execute()
+        supabase.table("admin_settings").update({"value": value}).eq("key", key).is_("school_admin_id", "null").execute()
     else:
         supabase.table("admin_settings").insert({"key": key, "value": value, "updated_at": datetime.now(timezone.utc).isoformat()}).execute()
     return {"key": key, "value": value}
 
 @api_router.get("/admin/settings")
 async def get_admin_settings(request: Request):
-    """Get all admin settings"""
+    """Get all GLOBAL admin settings. See POST /admin/settings docstring for the Aug 27
+    scoping fix - restricted to superadmin, and now excludes school_admin_id-scoped rows
+    (a different, already-correctly-scoped convention used by /schools/my-school and the
+    notification-preference endpoints) so this can no longer return other tenants' data."""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
-        raise HTTPException(status_code=403, detail="Admin access required")
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
     try:
-        result = supabase.table("admin_settings").select("*").execute()
-        return {row["key"]: row["value"] for row in (result.data or [])}
+        result = supabase.table("admin_settings").select("*").is_("school_admin_id", "null").execute()
+        return {row["key"]: row["value"] for row in (result.data or []) if row.get("key")}
     except Exception as e:
         logger.error(f"admin_settings table error: {e}")
         return {}
@@ -10847,14 +11105,139 @@ async def get_all_users(request: Request, limit: int = 100, offset: int = 0, rol
     user = await get_current_user(request)
     if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
-    query = supabase.table("users").select(
-        "user_id,email,name,role,subscription_status,subscription_expires_at,"
-        "school_name,school_admin_id,school_country,created_at,language,promo_trial_ends_at,trial_started_at"
-    )
-    if role:
-        query = query.eq("role", role)
-    result = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+    base_fields = ("user_id,email,name,role,subscription_status,subscription_expires_at,"
+                   "school_name,school_admin_id,school_country,created_at,language,promo_trial_ends_at,trial_started_at")
+    try:
+        query = supabase.table("users").select(base_fields + ",account_suspended")
+        if role:
+            query = query.eq("role", role)
+        result = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+    except Exception:
+        # account_suspended migration hasn't run yet - fall back to the base field set.
+        query = supabase.table("users").select(base_fields)
+        if role:
+            query = query.eq("role", role)
+        result = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
     return {"users": result.data or [], "total": len(result.data or [])}
+
+@api_router.post("/admin/users/{target_user_id}/suspend")
+async def suspend_user(target_user_id: str, request: Request):
+    """Real feature Aug 27 (item 11): account suspend/reactivate - previously there was no
+    lever at all short of full account deletion. Enforced in real time via
+    get_current_user()'s account_suspended check (kills an already-active session
+    immediately) and at /auth/email-login (clear message on the next login attempt).
+
+    Migration (not run by me, see COH-REVIEW-PLAN.md):
+    ALTER TABLE users ADD COLUMN account_suspended boolean DEFAULT false;
+    ALTER TABLE users ADD COLUMN suspended_at timestamptz;
+    ALTER TABLE users ADD COLUMN suspended_by text;
+    ALTER TABLE users ADD COLUMN suspension_reason text;
+    """
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    if target_user_id == user["user_id"]:
+        raise HTTPException(status_code=400, detail="You can't suspend your own account")
+    target_r = supabase.table("users").select("user_id,role").eq("user_id", target_user_id).execute()
+    if not target_r.data:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target_r.data[0].get("role") == "superadmin":
+        raise HTTPException(status_code=400, detail="Superadmin accounts can't be suspended here")
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    try:
+        supabase.table("users").update({
+            "account_suspended": True,
+            "suspended_at": datetime.now(timezone.utc).isoformat(),
+            "suspended_by": user["user_id"],
+            "suspension_reason": (body.get("reason") or "").strip() or None,
+        }).eq("user_id", target_user_id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not suspend — has the account_suspended migration run? ({str(e)[:150]})")
+    return {"status": "suspended", "user_id": target_user_id}
+
+@api_router.post("/admin/users/{target_user_id}/reactivate")
+async def reactivate_user(target_user_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    try:
+        supabase.table("users").update({
+            "account_suspended": False,
+            "suspended_at": None,
+            "suspended_by": None,
+            "suspension_reason": None,
+        }).eq("user_id", target_user_id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not reactivate — has the account_suspended migration run? ({str(e)[:150]})")
+    return {"status": "reactivated", "user_id": target_user_id}
+
+@api_router.get("/admin/users/checkin-frequency")
+async def get_users_checkin_frequency(request: Request):
+    """Real feature Aug 27 (item 10): bulk usage-frequency map for the superadmin Users
+    list — one call covering every user, not N+1 per card. 'Usage' means something
+    different per role, per Jono's call: a teacher's own self check-ins (teacher_checkins,
+    same table the Teacher Wellbeing card already uses) vs a parent's LINKED CHILD's
+    check-in activity (parent_links -> feeling_logs), since parents never check in
+    themselves. school_admin/superadmin/other roles have no defined usage concept here and
+    are simply absent from the returned map - the caller should treat a missing user_id as
+    "not applicable", not "zero"."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+
+    now = datetime.now(timezone.utc)
+    since_30d = (now - timedelta(days=30)).isoformat()
+    since_14d = (now - timedelta(days=14)).isoformat()
+    since_7d = (now - timedelta(days=7)).isoformat()
+
+    def bucket(timestamps: list) -> dict:
+        return {
+            "count_7d": sum(1 for t in timestamps if t >= since_7d),
+            "count_14d": sum(1 for t in timestamps if t >= since_14d),
+            "count_30d": sum(1 for t in timestamps if t >= since_30d),
+        }
+
+    result = {}
+
+    try:
+        tc = supabase.table("teacher_checkins").select("user_id,timestamp").gte("timestamp", since_30d).execute().data or []
+        by_teacher = {}
+        for row in tc:
+            uid = row.get("user_id")
+            if uid:
+                by_teacher.setdefault(uid, []).append(row.get("timestamp") or "")
+        for uid, timestamps in by_teacher.items():
+            result[uid] = {**bucket(timestamps), "source": "own_checkins"}
+    except Exception as e:
+        logger.error(f"checkin-frequency teacher_checkins error: {e}")
+
+    try:
+        links = supabase.table("parent_links").select("parent_user_id,student_id").execute().data or []
+        parent_to_students = {}
+        for l in links:
+            pid = l.get("parent_user_id")
+            sid = l.get("student_id")
+            if pid and sid:
+                parent_to_students.setdefault(pid, set()).add(sid)
+        all_student_ids = list({sid for sids in parent_to_students.values() for sid in sids})
+        student_logs = {}
+        if all_student_ids:
+            logs = supabase.table("feeling_logs").select("student_id,timestamp").in_("student_id", all_student_ids).gte("timestamp", since_30d).execute().data or []
+            for row in logs:
+                sid = row.get("student_id")
+                if sid:
+                    student_logs.setdefault(sid, []).append(row.get("timestamp") or "")
+        for pid, sids in parent_to_students.items():
+            timestamps = [t for sid in sids for t in student_logs.get(sid, [])]
+            result[pid] = {**bucket(timestamps), "source": "linked_child"}
+    except Exception as e:
+        logger.error(f"checkin-frequency parent_links error: {e}")
+
+    return result
 
 @api_router.get("/admin/dashboard-summary")
 async def get_dashboard_summary(request: Request):
@@ -11582,7 +11965,16 @@ async def register_school(request: Request):
         "registered_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    # Save to admin_settings
+    # Save to admin_settings — SECURITY fix Aug 27 (item 11): every query here was
+    # unscoped by school_admin_id, so any school_admin registering their school clobbered
+    # the SAME global "school_name"/"school_city"/etc rows every other school_admin's
+    # register call and GET /school/profile read from - real cross-tenant data leak/
+    # overwrite between schools. /schools/my-school (below) was already built as the
+    # scoped replacement per its own comment, but this original endpoint was left live
+    # and unfixed. Scoped to match that same pattern; no caller anywhere in frontend/
+    # portal calls this endpoint (confirmed via repo-wide grep) or the marketing site
+    # (checked live), so this closes a real, currently-exploitable bug with no
+    # behavior change for any real caller.
     settings_to_save = [
         {"key": "school_name", "value": profile["school_name"]},
         {"key": "school_country", "value": profile["country"]},
@@ -11599,9 +11991,9 @@ async def register_school(request: Request):
 
     for setting in settings_to_save:
         try:
-            existing = supabase.table("admin_settings").select("*").eq("key", setting["key"]).execute()
+            existing = supabase.table("admin_settings").select("*").eq("key", setting["key"]).eq("school_admin_id", user["user_id"]).execute()
             if existing.data:
-                supabase.table("admin_settings").update({"value": setting["value"]}).eq("key", setting["key"]).execute()
+                supabase.table("admin_settings").update({"value": setting["value"]}).eq("key", setting["key"]).eq("school_admin_id", user["user_id"]).execute()
             else:
                 supabase.table("admin_settings").insert({**setting, "school_admin_id": user["user_id"]}).execute()
         except:
@@ -11617,12 +12009,15 @@ async def register_school(request: Request):
 
 @api_router.get("/school/profile")
 async def get_school_profile(request: Request):
-    """Get school admin's own profile"""
+    """Get school admin's own profile. SECURITY fix Aug 27 (item 11): scoped to the
+    caller's own school_admin_id - see POST /school/register's comment for the full
+    cross-tenant bug this closes (this GET previously returned whichever school's data
+    happened to be in the unscoped admin_settings rows, for any caller)."""
     user = await get_current_user(request)
     if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
     try:
-        result = supabase.table("admin_settings").select("*").execute()
+        result = supabase.table("admin_settings").select("*").eq("school_admin_id", user["user_id"]).execute()
         settings = {row["key"]: row["value"] for row in (result.data or [])}
         return {
             "school_name": settings.get("school_name", user.get("school_name", "")),

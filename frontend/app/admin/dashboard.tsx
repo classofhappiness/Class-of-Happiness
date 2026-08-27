@@ -78,10 +78,104 @@ const PERIOD_LABELS: any = { 1: 'Today', 7: '7 Days', 30: '30 Days', 90: '3 Mont
 const ROLE_COLORS: any = { teacher: '#4CAF73', parent: '#4A90D9', school_admin: '#FFD93D', student: '#9C27B0', superadmin: '#E05252' };
 const ROLE_EMOJI: any = { teacher: '👩‍🏫', parent: '👨‍👩‍👧', school_admin: '🏫' };
 
+// Small "dropdown" filter — RN has no native <select>, so this opens a modal list.
+// Mirrors the portal's saUserSchoolFilter/saUserCountryFilter <select> pair (item 10).
+function FilterPickerButton({ label, value, options, onChange }: { label: string, value: string, options: string[], onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <TouchableOpacity
+        onPress={() => setOpen(true)}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: value ? '#5C6BC0' : '#F0F0F0' }}
+      >
+        <Text style={{ fontSize: 11, fontWeight: '700', color: value ? 'white' : '#666' }} numberOfLines={1}>{value || label}</Text>
+        <MaterialIcons name="arrow-drop-down" size={14} color={value ? 'white' : '#666'} />
+      </TouchableOpacity>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
+          <View style={[s.modalCard, { maxHeight: '70%' }]}>
+            <Text style={s.cardTitle}>{label}</Text>
+            <ScrollView style={{ marginTop: 8 }}>
+              <TouchableOpacity style={{ paddingVertical: 10 }} onPress={() => { onChange(''); setOpen(false); }}>
+                <Text style={{ fontSize: 13, fontWeight: value === '' ? '800' : '500', color: value === '' ? '#5C6BC0' : '#333' }}>All {label}</Text>
+              </TouchableOpacity>
+              {options.map(opt => (
+                <TouchableOpacity key={opt} style={{ paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#F0F0F0' }} onPress={() => { onChange(opt); setOpen(false); }}>
+                  <Text style={{ fontSize: 13, fontWeight: value === opt ? '800' : '500', color: value === opt ? '#5C6BC0' : '#333' }}>{opt}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </>
+  );
+}
+
+const SUB_BADGE_COLORS: Record<string, { bg: string, fg: string }> = {
+  free: { bg: '#F0F0F0', fg: '#666' },
+  trial: { bg: '#FFF8E1', fg: '#F57F17' },
+  school_covered: { bg: '#E3F2FD', fg: '#1565C0' },
+  school_covered_lapsed: { bg: '#FFF3E0', fg: '#E65100' },
+  teacher_sub: { bg: '#E8F5E9', fg: '#2E7D32' },
+  parent_sub: { bg: '#E8F5E9', fg: '#2E7D32' },
+  active: { bg: '#E8F5E9', fg: '#2E7D32' },
+  lapsed: { bg: '#FFEBEE', fg: '#C62828' },
+};
+
+// Real feature Aug 27 (item 10): per Jono's decision — "school-covered" badge uses the
+// LOOSE definition (school_admin_id is set at all), matching check_subscription_active
+// (server.py), which is what actually gates this user's access day-to-day. The stricter
+// "is the school's own subscription genuinely active" check only adds a secondary visual
+// flag (school_covered_lapsed) rather than replacing the primary badge, since Jono wants
+// both: what the user experiences AND a way to spot a school that's stopped paying.
+function getSubBadge(u: any, schoolAdminStatus: Record<string, string>): { key: string, label: string } | null {
+  if (u.role === 'school_admin') {
+    const st = u.subscription_status;
+    if (st === 'active') return { key: 'active', label: 'School Plan Active' };
+    if (st === 'trial') return { key: 'trial', label: 'Trial' };
+    return { key: 'lapsed', label: 'Lapsed' };
+  }
+  if (u.role === 'teacher' || u.role === 'parent') {
+    if (u.school_admin_id) {
+      const adminStatus = schoolAdminStatus[u.school_admin_id];
+      const lapsed = adminStatus && adminStatus !== 'active';
+      return lapsed
+        ? { key: 'school_covered_lapsed', label: 'School-Covered ⚠️' }
+        : { key: 'school_covered', label: 'School-Covered' };
+    }
+    if (u.subscription_status === 'active') return { key: u.role === 'teacher' ? 'teacher_sub' : 'parent_sub', label: u.role === 'teacher' ? 'Teacher-Sub' : 'Parent-Sub' };
+    if (u.subscription_status === 'trial') return { key: 'trial', label: 'Trial' };
+    return { key: 'free', label: 'Free' };
+  }
+  return null;
+}
+
+function getDaysLeftLabel(expiresAt?: string): { text: string, color: string } | null {
+  if (!expiresAt) return null;
+  const days = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000);
+  if (days < 0) return { text: `Expired ${Math.abs(days)}d ago`, color: '#C62828' };
+  if (days === 0) return { text: 'Expires today', color: '#C62828' };
+  return { text: `${days}d left`, color: days <= 7 ? '#E65100' : '#666' };
+}
+
+function getUsageLabel(freq: any, role: string): string | null {
+  if (!freq) return (role === 'teacher' || role === 'parent') ? 'No check-ins (30d)' : null;
+  if (freq.count_7d > 0) return `${freq.count_7d}/wk`;
+  if (freq.count_14d > 0) return `${freq.count_14d}/fortnight`;
+  if (freq.count_30d > 0) return `${freq.count_30d}/month`;
+  return 'No check-ins (30d)';
+}
+
 function UsersManager({ authToken, isSuperAdmin }: { authToken: string|null, isSuperAdmin: boolean }) {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState('');
+  const [schoolFilter, setSchoolFilter] = useState('');
+  const [countryFilter, setCountryFilter] = useState('');
+  const [checkinFreq, setCheckinFreq] = useState<Record<string, any>>({});
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [suspendBusyId, setSuspendBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     // Real fix Aug 21: this always called /admin/users, which is hardcoded superadmin-only
@@ -93,6 +187,14 @@ function UsersManager({ authToken, isSuperAdmin }: { authToken: string|null, isS
       .then((d: any) => setUsers(Array.isArray(d?.users) ? d.users : (Array.isArray(d) ? d : [])))
       .catch(() => setUsers([]))
       .finally(() => setLoading(false));
+    // Real feature Aug 27 (item 10): bulk usage-frequency map, superadmin-only endpoint —
+    // school_admin has no equivalent (their own users list is small enough to not need it
+    // yet, and the badge is a superadmin operational tool per the original ask).
+    if (isSuperAdmin) {
+      apiCall('/admin/users/checkin-frequency', authToken)
+        .then((d: any) => setCheckinFreq(d && typeof d === 'object' ? d : {}))
+        .catch(() => setCheckinFreq({}));
+    }
   }, [authToken, isSuperAdmin]);
 
   if (loading) {
@@ -104,11 +206,56 @@ function UsersManager({ authToken, isSuperAdmin }: { authToken: string|null, isS
   }
 
   const roles = Array.from(new Set(users.map((u: any) => u.role).filter(Boolean)));
-  const filtered = roleFilter ? users.filter((u: any) => u.role === roleFilter) : users;
+  const schools = Array.from(new Set(users.map((u: any) => u.school_name).filter(Boolean))).sort() as string[];
+  const countries = Array.from(new Set(users.map((u: any) => u.school_country).filter(Boolean))).sort() as string[];
+  const schoolAdminStatus: Record<string, string> = {};
+  users.forEach((u: any) => { if (u.role === 'school_admin') schoolAdminStatus[u.user_id] = u.subscription_status; });
+
+  const filtered = users.filter((u: any) =>
+    (!roleFilter || u.role === roleFilter) &&
+    (!schoolFilter || u.school_name === schoolFilter) &&
+    (!countryFilter || u.school_country === countryFilter)
+  );
+
+  const copyEmail = (u: any) => {
+    import('expo-clipboard').then(m => m.setStringAsync(u.email)).catch(() => {});
+    setCopiedId(u.user_id);
+    setTimeout(() => setCopiedId((id) => (id === u.user_id ? null : id)), 1500);
+  };
+
+  // Real feature Aug 27 (item 11, account management): lives here rather than in Settings
+  // since the user_id/name are already in memory from this list — a separate email-lookup
+  // tool in Settings would just duplicate this data for a worse UX.
+  const doSuspend = (u: any) => {
+    Alert.alert(
+      `Suspend ${u.name || u.email}?`,
+      'This immediately blocks login and kills any active session. It can be reversed at any time.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Suspend', style: 'destructive', onPress: async () => {
+          setSuspendBusyId(u.user_id);
+          try {
+            await apiCall(`/admin/users/${u.user_id}/suspend`, authToken, { method: 'POST', body: JSON.stringify({}) });
+            setUsers(prev => prev.map(x => x.user_id === u.user_id ? { ...x, account_suspended: true } : x));
+          } catch { Alert.alert('Error', 'Could not suspend this account.'); }
+          setSuspendBusyId(null);
+        }},
+      ]
+    );
+  };
+
+  const doReactivate = async (u: any) => {
+    setSuspendBusyId(u.user_id);
+    try {
+      await apiCall(`/admin/users/${u.user_id}/reactivate`, authToken, { method: 'POST', body: JSON.stringify({}) });
+      setUsers(prev => prev.map(x => x.user_id === u.user_id ? { ...x, account_suspended: false } : x));
+    } catch { Alert.alert('Error', 'Could not reactivate this account.'); }
+    setSuspendBusyId(null);
+  };
 
   return (
     <View style={{ padding: 12 }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
         <View style={{ flexDirection: 'row', gap: 6 }}>
           <TouchableOpacity
             style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: roleFilter === '' ? '#1A1A2E' : '#F0F0F0' }}
@@ -128,26 +275,77 @@ function UsersManager({ authToken, isSuperAdmin }: { authToken: string|null, isS
         </View>
       </ScrollView>
 
+      {isSuperAdmin && (schools.length > 0 || countries.length > 0) && (
+        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+          <FilterPickerButton label="Schools" value={schoolFilter} options={schools} onChange={setSchoolFilter} />
+          <FilterPickerButton label="Countries" value={countryFilter} options={countries} onChange={setCountryFilter} />
+        </View>
+      )}
+
       {filtered.length === 0 ? (
         <View style={{ padding: 24, alignItems: 'center' }}>
           <MaterialIcons name="people" size={40} color="#CCC" />
           <Text style={{ marginTop: 8, color: '#999', fontSize: 13 }}>No users found</Text>
         </View>
       ) : (
-        filtered.slice(0, 50).map((u: any, i: number) => (
-          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
-            <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: (ROLE_COLORS[u.role] || '#E0E0E0') + '22', alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontSize: 14 }}>{ROLE_EMOJI[u.role] || '👤'}</Text>
+        filtered.slice(0, 50).map((u: any, i: number) => {
+          const badge = isSuperAdmin ? getSubBadge(u, schoolAdminStatus) : null;
+          const badgeColors = badge ? (SUB_BADGE_COLORS[badge.key] || SUB_BADGE_COLORS.free) : null;
+          const daysLeft = isSuperAdmin && badge && (badge.key === 'active' || badge.key === 'teacher_sub' || badge.key === 'parent_sub' || badge.key === 'trial') ? getDaysLeftLabel(u.subscription_expires_at) : null;
+          const usage = isSuperAdmin ? getUsageLabel(checkinFreq[u.user_id], u.role) : null;
+          return (
+            <View key={i} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: (ROLE_COLORS[u.role] || '#E0E0E0') + '22', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 14 }}>{ROLE_EMOJI[u.role] || '👤'}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#1A1A2E' }} numberOfLines={1}>{u.name || u.email}</Text>
+                  <Text style={{ fontSize: 11, color: '#999' }} numberOfLines={1}>{u.school_name ? `${u.school_name} · ` : ''}{u.email}</Text>
+                </View>
+                <TouchableOpacity onPress={() => copyEmail(u)} hitSlop={8} style={{ padding: 4 }}>
+                  <MaterialIcons name={copiedId === u.user_id ? 'check' : 'content-copy'} size={15} color={copiedId === u.user_id ? '#2E7D32' : '#AAA'} />
+                </TouchableOpacity>
+                <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: (ROLE_COLORS[u.role] || '#E0E0E0') + '22' }}>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: ROLE_COLORS[u.role] || '#666' }}>{u.role}</Text>
+                </View>
+              </View>
+              {isSuperAdmin && (badge || usage || u.role !== 'superadmin') && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 5, marginTop: 6, marginLeft: 44 }}>
+                  {u.account_suspended && (
+                    <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 9, backgroundColor: '#FFEBEE' }}>
+                      <Text style={{ fontSize: 9, fontWeight: '800', color: '#C62828' }}>⛔ Suspended</Text>
+                    </View>
+                  )}
+                  {badge && badgeColors && (
+                    <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 9, backgroundColor: badgeColors.bg }}>
+                      <Text style={{ fontSize: 9, fontWeight: '800', color: badgeColors.fg }}>{badge.label}</Text>
+                    </View>
+                  )}
+                  {daysLeft && (
+                    <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 9, backgroundColor: '#F5F5F5' }}>
+                      <Text style={{ fontSize: 9, fontWeight: '800', color: daysLeft.color }}>{daysLeft.text}</Text>
+                    </View>
+                  )}
+                  {usage && (
+                    <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 9, backgroundColor: '#F5F5F5' }}>
+                      <Text style={{ fontSize: 9, fontWeight: '800', color: '#666' }}>📊 {usage}</Text>
+                    </View>
+                  )}
+                  {u.role !== 'superadmin' && (
+                    <TouchableOpacity
+                      disabled={suspendBusyId === u.user_id}
+                      onPress={() => u.account_suspended ? doReactivate(u) : doSuspend(u)}
+                      style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 9, backgroundColor: u.account_suspended ? '#E8F5E9' : '#F5F5F5', opacity: suspendBusyId === u.user_id ? 0.5 : 1 }}
+                    >
+                      <Text style={{ fontSize: 9, fontWeight: '800', color: u.account_suspended ? '#2E7D32' : '#999' }}>{u.account_suspended ? '✅ Reactivate' : 'Suspend'}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontWeight: '800', color: '#1A1A2E' }} numberOfLines={1}>{u.name || u.email}</Text>
-              <Text style={{ fontSize: 11, color: '#999' }} numberOfLines={1}>{u.school_name ? `${u.school_name} · ` : ''}{u.email}</Text>
-            </View>
-            <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: (ROLE_COLORS[u.role] || '#E0E0E0') + '22' }}>
-              <Text style={{ fontSize: 10, fontWeight: '800', color: ROLE_COLORS[u.role] || '#666' }}>{u.role}</Text>
-            </View>
-          </View>
-        ))
+          );
+        })
       )}
       {filtered.length > 50 && (
         <Text style={{ textAlign: 'center', fontSize: 11, color: '#999', marginTop: 10 }}>Showing first 50 of {filtered.length}</Text>
@@ -156,17 +354,98 @@ function UsersManager({ authToken, isSuperAdmin }: { authToken: string|null, isS
   );
 }
 
+const SCHOOL_STATUSES = ['active', 'trial', 'lapsed'] as const;
+const SCHOOL_STATUS_COLORS: Record<string, { bg: string, fg: string }> = {
+  active: { bg: '#E8F5E9', fg: '#2E7D32' },
+  trial: { bg: '#FFF8E1', fg: '#F57F17' },
+  lapsed: { bg: '#FFEBEE', fg: '#C62828' },
+};
+
+// App-side "Registered Schools" tab — mirrors the portal's schoolManagementHTML/
+// loadSASchools (portal100.html) as the source of truth. Real fix Aug 27 (item 9):
+// this previously listed schools_breakdown (check-in activity) as its primary source,
+// which meant a school added here with zero check-ins yet simply never appeared and
+// couldn't be edited — and there was no Edit at all, only Add. The portal deliberately
+// keeps "School Check-in Activity" and "Registered Schools" as two separate surfaces
+// (see portal100.html's own Aug 26 comment) — the app already has its own equivalent
+// check-in breakdown card (Analytics tab, "Schools Breakdown"), so this tab now sources
+// from /admin/school-profiles directly, same as the portal, and merges in check-in
+// counts as supplementary info rather than as the list itself.
 function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats: any, statsLoading: boolean, authToken: string|null, statsPeriod: number }) {
   const { t } = useApp();
-  const schools = stats?.schools_breakdown || [];
+  const breakdown = stats?.schools_breakdown || [];
   const [profiles, setProfiles] = useState<any[]>([]);
+  const [profilesLoading, setProfilesLoading] = useState(true);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<any>({ status: 'active' });
 
-  useEffect(() => {
-    apiCall('/admin/school-profiles', authToken).then((d: any[]) => setProfiles(Array.isArray(d) ? d : [])).catch(() => setProfiles([]));
+  const loadProfiles = useCallback(() => {
+    setProfilesLoading(true);
+    apiCall('/admin/school-profiles', authToken)
+      .then((d: any[]) => setProfiles(Array.isArray(d) ? d : []))
+      .catch(() => setProfiles([]))
+      .finally(() => setProfilesLoading(false));
   }, [authToken]);
 
-  if (statsLoading) {
+  useEffect(() => { loadProfiles(); }, [loadProfiles]);
+
+  const field = (key: string, opts: { keyboardType?: any } = {}) => (
+    <TextInput
+      style={{ backgroundColor: '#F5F5F5', borderRadius: 8, padding: 10, fontSize: 13, marginBottom: 8 }}
+      placeholder={key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+      value={form[key] != null ? String(form[key]) : ''}
+      onChangeText={v => setForm((f: any) => ({ ...f, [key]: v }))}
+      keyboardType={opts.keyboardType}
+    />
+  );
+
+  const openAddForm = () => {
+    setEditingId(null);
+    setForm({ status: 'active' });
+    setShowForm(true);
+  };
+
+  const openEditForm = (p: any) => {
+    setEditingId(p.id);
+    setForm({ ...p });
+    setShowForm(true);
+  };
+
+  const cancelForm = () => {
+    setShowForm(false);
+    setEditingId(null);
+    setForm({ status: 'active' });
+  };
+
+  const handleSaveSchool = async () => {
+    if (!form.school_name?.trim()) { Alert.alert('Error', 'School name is required'); return; }
+    setSaving(true);
+    const payload = {
+      ...form,
+      lat: form.lat ? parseFloat(form.lat) : null,
+      lng: form.lng ? parseFloat(form.lng) : null,
+      student_count_official: form.student_count_official ? parseInt(form.student_count_official, 10) : null,
+      subscription_seats: form.subscription_seats ? parseInt(form.subscription_seats, 10) : null,
+    };
+    try {
+      if (editingId) {
+        await apiCall(`/admin/school-profiles/${editingId}`, authToken, { method: 'PUT', body: JSON.stringify(payload) });
+      } else {
+        await apiCall('/admin/school-profiles', authToken, { method: 'POST', body: JSON.stringify(payload) });
+      }
+      cancelForm();
+      loadProfiles();
+      Alert.alert('✅ Success', editingId ? 'School updated.' : 'School added.');
+    } catch {
+      Alert.alert('Error', editingId ? 'Could not update school.' : 'Could not add school.');
+    }
+    setSaving(false);
+  };
+
+  if (statsLoading || profilesLoading) {
     return (
       <View style={{ padding: 40, alignItems: 'center' }}>
         <EmotionColourLoader visible size={56} />
@@ -174,62 +453,33 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
     );
   }
 
-  if (schools.length === 0) {
-    return (
-      <View style={{ padding: 24, alignItems: 'center' }}>
-        <MaterialIcons name="business" size={40} color="#CCC" />
-        <Text style={{ marginTop: 8, color: '#999', fontSize: 13 }}>No schools yet</Text>
-      </View>
-    );
-  }
-
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<any>({});
-  const field = (key: string) => (
-    <TextInput
-      style={{ backgroundColor: '#F5F5F5', borderRadius: 8, padding: 10, fontSize: 13, marginBottom: 8 }}
-      placeholder={key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-      value={form[key] || ''}
-      onChangeText={v => setForm((f: any) => ({ ...f, [key]: v }))}
-    />
-  );
-
-  const handleAddSchool = async () => {
-    if (!form.school_name?.trim()) { Alert.alert('Error', 'School name is required'); return; }
-    setSaving(true);
-    try {
-      await apiCall('/admin/school-profiles', authToken, { method: 'POST', body: JSON.stringify(form) });
-      setForm({});
-      setShowAddForm(false);
-      const fresh = await apiCall('/admin/school-profiles', authToken);
-      setProfiles(Array.isArray(fresh) ? fresh : []);
-      Alert.alert('✅ Success', 'School added.');
-    } catch {
-      Alert.alert('Error', 'Could not add school.');
-    }
-    setSaving(false);
-  };
-
   return (
     <View style={{ padding: 12 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <Text style={{ fontSize: 15, fontWeight: '800', color: '#1A1A2E' }}>🏫 Registered Schools</Text>
+        <View style={{ backgroundColor: '#E8F5E9', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 }}>
+          <Text style={{ fontSize: 11, fontWeight: '800', color: '#2E7D32' }}>{profiles.length} schools</Text>
+        </View>
+      </View>
+
       <TouchableOpacity
-        onPress={() => setShowAddForm(v => !v)}
+        onPress={() => (showForm ? cancelForm() : openAddForm())}
         style={{ backgroundColor: '#1A1A2E', borderRadius: 25, paddingVertical: 10, alignItems: 'center', marginBottom: 12 }}
       >
-        <Text style={{ color: '#FFD93D', fontWeight: '800', fontSize: 13 }}>{showAddForm ? '✕ Cancel' : '+ Add School'}</Text>
+        <Text style={{ color: '#FFD93D', fontWeight: '800', fontSize: 13 }}>{showForm ? '✕ Cancel' : '+ Add School'}</Text>
       </TouchableOpacity>
 
-      {showAddForm && (
+      {showForm && (
         <View style={{ backgroundColor: '#FAFAFA', borderRadius: 12, padding: 12, marginBottom: 14 }}>
+          <Text style={{ fontSize: 13, fontWeight: '800', color: '#1A1A2E', marginBottom: 8 }}>{editingId ? '✏️ Edit School' : '➕ Add School'}</Text>
           {field('school_name')}
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <View style={{ flex: 1 }}>{field('city')}</View>
             <View style={{ flex: 1 }}>{field('country')}</View>
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <View style={{ flex: 1 }}>{field('lat')}</View>
-            <View style={{ flex: 1 }}>{field('lng')}</View>
+            <View style={{ flex: 1 }}>{field('lat', { keyboardType: 'numeric' })}</View>
+            <View style={{ flex: 1 }}>{field('lng', { keyboardType: 'numeric' })}</View>
           </View>
           {field('website')}
           {field('phone')}
@@ -243,65 +493,315 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <View style={{ flex: 1 }}>{field('school_type')}</View>
-            <View style={{ flex: 1 }}>{field('student_count_official')}</View>
+            <View style={{ flex: 1 }}>{field('student_count_official', { keyboardType: 'numeric' })}</View>
           </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flex: 1 }}>{field('subscription_package')}</View>
+            <View style={{ flex: 1 }}>{field('subscription_seats', { keyboardType: 'numeric' })}</View>
+          </View>
+          {field('subscription_renewal_date', {})}
+          <Text style={{ fontSize: 11, fontWeight: '700', color: '#999', marginBottom: 4 }}>Status</Text>
+          <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+            {SCHOOL_STATUSES.map(st => (
+              <TouchableOpacity
+                key={st}
+                onPress={() => setForm((f: any) => ({ ...f, status: st }))}
+                style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: form.status === st ? SCHOOL_STATUS_COLORS[st].fg : '#F0F0F0' }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '700', color: form.status === st ? 'white' : '#666' }}>{st.charAt(0).toUpperCase() + st.slice(1)}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TextInput
+            style={{ backgroundColor: '#F5F5F5', borderRadius: 8, padding: 10, fontSize: 13, marginBottom: 8, minHeight: 50, textAlignVertical: 'top' }}
+            placeholder="Notes"
+            multiline
+            value={form.notes || ''}
+            onChangeText={v => setForm((f: any) => ({ ...f, notes: v }))}
+          />
           <TouchableOpacity
-            onPress={handleAddSchool}
+            onPress={handleSaveSchool}
             disabled={saving}
             style={{ backgroundColor: '#5C6BC0', borderRadius: 25, paddingVertical: 10, alignItems: 'center', marginTop: 4, opacity: saving ? 0.6 : 1 }}
           >
-            <Text style={{ color: 'white', fontWeight: '800', fontSize: 13 }}>{saving ? 'Saving...' : 'Save School'}</Text>
+            <Text style={{ color: 'white', fontWeight: '800', fontSize: 13 }}>{saving ? 'Saving...' : editingId ? 'Save Changes' : 'Save School'}</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      <Text style={{ fontSize: 11, color: '#999', marginBottom: 8, textAlign: 'center' }}>
-        Check-in counts for: {PERIOD_LABELS[statsPeriod] || `${statsPeriod} days`}
-      </Text>
-      {schools.map((school: any, i: number) => {
-        const zc = school.zone_counts || {};
-        const total = school.total_checkins || 0;
-        const profile = profiles.find((p: any) => (p.school_name || '').trim().toLowerCase() === (school.name || '').trim().toLowerCase());
-        const isOpen = !!expanded[school.name];
-        return (
-          <View key={i} style={{ backgroundColor: 'white', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#EEE' }}>
-            <TouchableOpacity onPress={() => setExpanded(e => ({ ...e, [school.name]: !e[school.name] }))} activeOpacity={0.7}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <MaterialIcons name="business" size={20} color="#5C6BC0" />
-                <Text style={{ fontSize: 15, fontWeight: '800', color: '#1A1A2E', flex: 1 }}>{school.name}</Text>
-                <MaterialIcons name={isOpen ? 'expand-less' : 'expand-more'} size={22} color="#999" />
-              </View>
-              {!!school.description && (
-                <Text style={{ fontSize: 12, color: '#888', marginTop: 4 }}>{school.description}</Text>
-              )}
-              <View style={{ flexDirection: 'row', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
-                <Text style={{ fontSize: 12, color: '#666' }}>Check-ins: <Text style={{ fontWeight: '700', color: '#1A1A2E' }}>{total}</Text></Text>
-                <Text style={{ fontSize: 12, color: EMOTION_COLOURS.green }}>🟢 {zc.green || 0}</Text>
-                <Text style={{ fontSize: 12, color: EMOTION_COLOURS.blue }}>🔵 {zc.blue || 0}</Text>
-                <Text style={{ fontSize: 12, color: EMOTION_COLOURS.yellow }}>🟡 {zc.yellow || 0}</Text>
-                <Text style={{ fontSize: 12, color: EMOTION_COLOURS.red }}>🔴 {zc.red || 0}</Text>
-              </View>
-            </TouchableOpacity>
-            {isOpen && (
-              <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F0F0F0' }}>
-                {profile ? (
-                  <>
-                    {!!profile.city && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>📍 {profile.city}{profile.country ? `, ${profile.country}` : ''}</Text>}
-                    {!!profile.website && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>🌐 {profile.website}</Text>}
-                    {!!profile.phone && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>📞 {profile.phone}</Text>}
-                    {!!profile.principal_name && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>👤 Principal: {profile.principal_name}{profile.principal_email ? ` (${profile.principal_email})` : ''}</Text>}
-                    {!!profile.wellbeing_lead_name && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>💚 Wellbeing Lead: {profile.wellbeing_lead_name}{profile.wellbeing_lead_email ? ` (${profile.wellbeing_lead_email})` : ''}</Text>}
-                    {!!profile.school_type && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>🏫 Type: {profile.school_type}</Text>}
-                    {!!profile.student_count_official && <Text style={{ fontSize: 12, color: '#666' }}>👥 Official student count: {profile.student_count_official}</Text>}
-                  </>
-                ) : (
-                  <Text style={{ fontSize: 12, color: '#AAA', fontStyle: 'italic' }}>No contact details added yet</Text>
+      {profiles.length === 0 ? (
+        <View style={{ padding: 24, alignItems: 'center' }}>
+          <MaterialIcons name="business" size={40} color="#CCC" />
+          <Text style={{ marginTop: 8, color: '#999', fontSize: 13 }}>No schools yet — tap "+ Add School" above.</Text>
+        </View>
+      ) : (
+        <>
+          <Text style={{ fontSize: 11, color: '#999', marginBottom: 8, textAlign: 'center' }}>
+            Check-in counts for: {PERIOD_LABELS[statsPeriod] || `${statsPeriod} days`}
+          </Text>
+          {profiles.map((profile: any) => {
+            const name = profile.school_name || 'Unnamed School';
+            const bd = breakdown.find((b: any) => (b.name || '').trim().toLowerCase() === name.trim().toLowerCase());
+            const zc = bd?.zone_counts || {};
+            const isOpen = !!expanded[profile.id];
+            const statusColors = SCHOOL_STATUS_COLORS[profile.status] || SCHOOL_STATUS_COLORS.active;
+            return (
+              <View key={profile.id} style={{ backgroundColor: 'white', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#EEE' }}>
+                <TouchableOpacity onPress={() => setExpanded(e => ({ ...e, [profile.id]: !e[profile.id] }))} activeOpacity={0.7}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <MaterialIcons name="business" size={20} color="#5C6BC0" />
+                    <Text style={{ fontSize: 15, fontWeight: '800', color: '#1A1A2E', flex: 1 }}>{name}</Text>
+                    <View style={{ backgroundColor: statusColors.bg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
+                      <Text style={{ fontSize: 9, fontWeight: '800', color: statusColors.fg }}>{(profile.status || 'active').toUpperCase()}</Text>
+                    </View>
+                    <MaterialIcons name={isOpen ? 'expand-less' : 'expand-more'} size={22} color="#999" />
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                    {!!(profile.city || profile.country) && (
+                      <Text style={{ fontSize: 12, color: '#666' }}>🌍 {[profile.city, profile.country].filter(Boolean).join(', ')}</Text>
+                    )}
+                    {!!profile.student_count_official && <Text style={{ fontSize: 12, color: '#666' }}>👥 {profile.student_count_official} students</Text>}
+                    {!!profile.subscription_package && <Text style={{ fontSize: 12, color: '#666' }}>💰 {profile.subscription_package}</Text>}
+                  </View>
+                  {bd && (
+                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
+                      <Text style={{ fontSize: 11, color: '#666' }}>Check-ins: <Text style={{ fontWeight: '700', color: '#1A1A2E' }}>{bd.total_checkins || 0}</Text></Text>
+                      <Text style={{ fontSize: 11, color: EMOTION_COLOURS.green }}>🟢 {zc.green || 0}</Text>
+                      <Text style={{ fontSize: 11, color: EMOTION_COLOURS.blue }}>🔵 {zc.blue || 0}</Text>
+                      <Text style={{ fontSize: 11, color: EMOTION_COLOURS.yellow }}>🟡 {zc.yellow || 0}</Text>
+                      <Text style={{ fontSize: 11, color: EMOTION_COLOURS.red }}>🔴 {zc.red || 0}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+                {isOpen && (
+                  <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F0F0F0' }}>
+                    {(profile.website || profile.phone || profile.principal_name || profile.principal_email || profile.wellbeing_lead_name || profile.wellbeing_lead_email || profile.school_type) ? (
+                      <>
+                        {!!profile.website && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>🌐 {profile.website}</Text>}
+                        {!!profile.phone && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>📞 {profile.phone}</Text>}
+                        {!!(profile.principal_name || profile.principal_email) && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>👤 Principal: {profile.principal_name}{profile.principal_email ? ` (${profile.principal_email})` : ''}</Text>}
+                        {!!(profile.wellbeing_lead_name || profile.wellbeing_lead_email) && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>💚 Wellbeing Lead: {profile.wellbeing_lead_name}{profile.wellbeing_lead_email ? ` (${profile.wellbeing_lead_email})` : ''}</Text>}
+                        {!!profile.school_type && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>🏫 Type: {profile.school_type}</Text>}
+                      </>
+                    ) : (
+                      <Text style={{ fontSize: 12, color: '#AAA', fontStyle: 'italic', marginBottom: 6 }}>No contact details added yet — tap Edit to add website, phone, principal or wellbeing lead.</Text>
+                    )}
+                    {!!profile.subscription_renewal_date && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>📅 Renewal: {profile.subscription_renewal_date}</Text>}
+                    {!!profile.notes && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>📝 {profile.notes}</Text>}
+                    <TouchableOpacity
+                      onPress={() => openEditForm(profile)}
+                      style={{ marginTop: 6, alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'white', borderWidth: 1.5, borderColor: '#EEE', borderRadius: 14, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                    >
+                      <MaterialIcons name="edit" size={13} color="#5C6BC0" />
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#5C6BC0' }}>Edit</Text>
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
-            )}
-          </View>
-        );
-      })}
+            );
+          })}
+        </>
+      )}
+    </View>
+  );
+}
+
+// Real feature Aug 27 (item 11): promo codes were hardcoded in a Python dict, needing a
+// code deploy to add or change one. This CRUD panel talks to /admin/promo-codes
+// (server.py) — DB-backed, superadmin-only. Built-in (hardcoded) codes are shown
+// read-only alongside real ones so superadmin sees the full picture in one place.
+function PromoCodesCard({ authToken }: { authToken: string|null }) {
+  const [codes, setCodes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<any>({ code: '', days: '30', max_uses: '', expires_at: '', notes: '' });
+
+  const load = useCallback(() => {
+    setLoading(true);
+    apiCall('/admin/promo-codes', authToken)
+      .then((d: any) => setCodes(Array.isArray(d) ? d : []))
+      .catch(() => setCodes([]))
+      .finally(() => setLoading(false));
+  }, [authToken]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const create = async () => {
+    const code = form.code.trim().toUpperCase();
+    if (!code) { Alert.alert('Error', 'Code is required'); return; }
+    setSaving(true);
+    try {
+      await apiCall('/admin/promo-codes', authToken, {
+        method: 'POST',
+        body: JSON.stringify({
+          code,
+          days: parseInt(form.days) || 30,
+          max_uses: form.max_uses ? parseInt(form.max_uses) : null,
+          expires_at: form.expires_at || null,
+          notes: form.notes,
+        }),
+      });
+      setForm({ code: '', days: '30', max_uses: '', expires_at: '', notes: '' });
+      setShowForm(false);
+      load();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message?.includes('already exists') ? 'A code with this name already exists.' : 'Could not create code.');
+    }
+    setSaving(false);
+  };
+
+  const toggleActive = async (c: any) => {
+    try {
+      await apiCall(`/admin/promo-codes/${c.code}`, authToken, { method: 'PUT', body: JSON.stringify({ is_active: !c.is_active }) });
+      setCodes(prev => prev.map(x => x.code === c.code ? { ...x, is_active: !c.is_active } : x));
+    } catch { Alert.alert('Error', 'Could not update code.'); }
+  };
+
+  const remove = (c: any) => {
+    Alert.alert('Delete code', `Delete "${c.code}"? This can't be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try {
+          await apiCall(`/admin/promo-codes/${c.code}`, authToken, { method: 'DELETE' });
+          setCodes(prev => prev.filter(x => x.code !== c.code));
+        } catch { Alert.alert('Error', 'Could not delete code.'); }
+      }},
+    ]);
+  };
+
+  return (
+    <SectionCard title="Promo / Trial Codes" subtitle="Manage trial-unlock codes without a deploy" icon="local-offer" color="#FF9800">
+      {loading ? <EmotionColourLoader visible size={36} /> : (
+        <>
+          {codes.map((c: any) => (
+            <View key={c.code} style={{ paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#1A1A2E', flex: 1 }}>{c.code}</Text>
+                {c.is_builtin && (
+                  <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: '#EDE7F6' }}>
+                    <Text style={{ fontSize: 8, fontWeight: '800', color: '#7C5CBF' }}>BUILT-IN</Text>
+                  </View>
+                )}
+                {!c.is_builtin && (
+                  <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: c.is_active ? '#E8F5E9' : '#F0F0F0' }}>
+                    <Text style={{ fontSize: 8, fontWeight: '800', color: c.is_active ? '#2E7D32' : '#999' }}>{c.is_active ? 'ACTIVE' : 'INACTIVE'}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                {c.days}d trial{c.max_uses != null ? ` · ${c.uses || 0}/${c.max_uses} uses` : (c.uses != null ? ` · ${c.uses} uses` : '')}{c.expires_at ? ` · expires ${String(c.expires_at).slice(0, 10)}` : ''}
+              </Text>
+              {!!c.notes && <Text style={{ fontSize: 11, color: '#AAA', marginTop: 1 }}>{c.notes}</Text>}
+              {!c.is_builtin && (
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+                  <TouchableOpacity onPress={() => toggleActive(c)}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: INDIGO }}>{c.is_active ? 'Deactivate' : 'Activate'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => remove(c)}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#F44336' }}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          ))}
+          {codes.length === 0 && <Text style={s.hint}>No promo codes yet.</Text>}
+
+          <TouchableOpacity onPress={() => setShowForm(v => !v)} style={{ marginTop: 10 }}>
+            <Text style={{ fontSize: 12, fontWeight: '800', color: INDIGO }}>{showForm ? '✕ Cancel' : '+ New Code'}</Text>
+          </TouchableOpacity>
+          {showForm && (
+            <View style={{ backgroundColor: '#FAFAFA', borderRadius: 10, padding: 10, marginTop: 8 }}>
+              <TextInput style={s.input} placeholder="CODE (e.g. SUMMER2026)" autoCapitalize="characters" value={form.code} onChangeText={v => setForm((f: any) => ({ ...f, code: v }))} />
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TextInput style={[s.input, { flex: 1 }]} placeholder="Trial days" keyboardType="numeric" value={form.days} onChangeText={v => setForm((f: any) => ({ ...f, days: v }))} />
+                <TextInput style={[s.input, { flex: 1 }]} placeholder="Max uses (optional)" keyboardType="numeric" value={form.max_uses} onChangeText={v => setForm((f: any) => ({ ...f, max_uses: v }))} />
+              </View>
+              <TextInput style={s.input} placeholder="Expires YYYY-MM-DD (optional)" value={form.expires_at} onChangeText={v => setForm((f: any) => ({ ...f, expires_at: v }))} />
+              <TextInput style={s.input} placeholder="Notes (optional)" value={form.notes} onChangeText={v => setForm((f: any) => ({ ...f, notes: v }))} />
+              <TouchableOpacity style={[s.btn, { opacity: saving ? 0.6 : 1 }]} disabled={saving} onPress={create}>
+                <Text style={s.btnText}>{saving ? 'Creating...' : 'Create Code'}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </>
+      )}
+    </SectionCard>
+  );
+}
+
+const EXPORT_TYPES = [
+  { key: 'checkins', label: 'Check-ins' },
+  { key: 'users', label: 'Users' },
+  { key: 'students', label: 'Students' },
+  { key: 'resources', label: 'Resources' },
+];
+
+// Real feature Aug 27 (item 11): the backend endpoint (GET /admin/export) already existed
+// but was a completely unscoped full-table JSON dump with no UI anywhere - see its
+// docstring for the real authorization/PII fixes made alongside this UI. Uses the same
+// token-as-query-param + Linking.openURL pattern already established for PDF downloads
+// elsewhere in this file (handleDownload above).
+function DataExportCard({ authToken }: { authToken: string|null }) {
+  const [exportType, setExportType] = useState('checkins');
+  const [format, setFormat] = useState<'json'|'csv'>('csv');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const doExport = async () => {
+    const params = new URLSearchParams({ type: exportType, format, token: authToken || '' });
+    if (dateFrom.trim()) params.set('date_from', dateFrom.trim());
+    if (dateTo.trim()) params.set('date_to', dateTo.trim());
+    const url = `${BACKEND_URL}/api/admin/export?${params.toString()}`;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Error', 'Could not start the export.');
+    }
+  };
+
+  return (
+    <SectionCard title="Data Export" subtitle="Scoped, redacted export — school_admin sees only their own school" icon="download" color="#4A90D9">
+      <Text style={{ fontSize: 11, fontWeight: '700', color: '#999', marginBottom: 4 }}>Data type</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+        {EXPORT_TYPES.map(t => (
+          <TouchableOpacity key={t.key} onPress={() => setExportType(t.key)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: exportType === t.key ? INDIGO : '#F0F0F0' }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: exportType === t.key ? 'white' : '#666' }}>{t.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <Text style={{ fontSize: 11, fontWeight: '700', color: '#999', marginBottom: 4 }}>Date range (optional)</Text>
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+        <TextInput style={[s.input, { flex: 1 }]} placeholder="From YYYY-MM-DD" value={dateFrom} onChangeText={setDateFrom} />
+        <TextInput style={[s.input, { flex: 1 }]} placeholder="To YYYY-MM-DD" value={dateTo} onChangeText={setDateTo} />
+      </View>
+      <Text style={{ fontSize: 11, fontWeight: '700', color: '#999', marginBottom: 4 }}>Format</Text>
+      <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
+        {(['csv', 'json'] as const).map(f => (
+          <TouchableOpacity key={f} onPress={() => setFormat(f)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: format === f ? INDIGO : '#F0F0F0' }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: format === f ? 'white' : '#666' }}>{f.toUpperCase()}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <TouchableOpacity style={s.btn} onPress={doExport}>
+        <MaterialIcons name="download" size={16} color="white" />
+        <Text style={s.btnText}>Export</Text>
+      </TouchableOpacity>
+      <Text style={[s.hint, { marginTop: 8 }]}>Password hashes and reset tokens are always stripped from user exports.</Text>
+    </SectionCard>
+  );
+}
+
+function SuperAdminSettings({ authToken, stats }: { authToken: string|null, stats: any }) {
+  return (
+    <View>
+      <Text style={s.sectionHint}>Super admin app controls and configuration.</Text>
+      <SectionCard title="Platform Version" subtitle="v2.1 — May 2026" icon="info" color={INDIGO} defaultOpen>
+        <StatRow label="Version" value="2.1" icon="info" color={INDIGO} />
+        <StatRow label="Total users" value={stats?.total_users} icon="people" color="#4CAF50" />
+      </SectionCard>
+      <PromoCodesCard authToken={authToken} />
+      <DataExportCard authToken={authToken} />
     </View>
   );
 }
@@ -1556,13 +2056,7 @@ export default function AdminDashboard() {
 
         {tab === 'settings' && (
           isSuperAdmin
-            ? <View>
-                <Text style={s.sectionHint}>Super admin app controls and configuration.</Text>
-                <SectionCard title="Platform Version" subtitle="v2.1 — May 2026" icon="info" color={INDIGO} defaultOpen>
-                  <StatRow label="Version" value="2.1" icon="info" color={INDIGO} />
-                  <StatRow label="Total users" value={stats?.total_users} icon="people" color="#4CAF50" />
-                </SectionCard>
-              </View>
+            ? <SuperAdminSettings authToken={authToken} stats={stats} />
             : <SchoolSettings authToken={authToken} user={user} />
         )}
 
