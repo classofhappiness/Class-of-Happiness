@@ -13967,21 +13967,69 @@ async def email_signup(request: Request):
 
     return {"user": _public_user(new_user), "session_token": session_token}
 
+import resend
+
+# Real feature Aug 27 (password-reset email delivery): the reset flow (below) generated and
+# stored a real token since Aug 26 but had no way to deliver it to the account owner - see
+# reset_password_request's docstring for the full history. Resend chosen over SendGrid for
+# this volume (password-reset emails only): a single pip install, ~5-line send call, and its
+# sandbox mode sends immediately without any domain setup (restricted to the account owner's
+# own signup email until a sending domain is verified) - good enough to build and verify
+# tonight, upgradeable to arbitrary real users later just by verifying a domain, no code
+# change needed. RESEND_FROM_EMAIL defaults to the sandbox sender so this works out of the
+# box; set it to a verified-domain address once one exists.
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "Class of Happiness <onboarding@resend.dev>")
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
+
+def _send_password_reset_email(email: str, token: str) -> tuple:
+    """Returns (sent: bool, detail: str). Never raises - a broken email provider must not
+    break the reset-request endpoint itself (same defensive-fallback standard as everything
+    else migration/config-dependent in this codebase)."""
+    if not RESEND_API_KEY:
+        return False, "RESEND_API_KEY not configured"
+    try:
+        result = resend.Emails.send({
+            "from": RESEND_FROM_EMAIL,
+            "to": [email],
+            "subject": "Reset your Class of Happiness password",
+            "html": f"""
+                <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+                  <h2 style="color:#1A1A2E">Reset your password</h2>
+                  <p style="color:#333;font-size:15px">
+                    Open the Class of Happiness app, tap <b>Forgot Password</b>, then
+                    <b>"I already have a reset code"</b>, and enter this code:
+                  </p>
+                  <div style="background:#F5F5F5;border-radius:10px;padding:16px;margin:16px 0;
+                              font-family:monospace;font-size:14px;word-break:break-all;color:#1A1A2E">
+                    {token}
+                  </div>
+                  <p style="color:#888;font-size:13px">
+                    This code expires in 1 hour. If you didn't request this, you can safely ignore this email.
+                  </p>
+                </div>
+            """,
+        })
+        email_id = result.get("id") if isinstance(result, dict) else getattr(result, "id", None)
+        return True, email_id or "sent"
+    except Exception as e:
+        logger.error(f"[SECURITY] Password reset email send failed for {email}: {e}")
+        return False, str(e)[:150]
+
 @api_router.post("/auth/reset-password-request")
 async def reset_password_request(request: Request):
-    """CRITICAL security fix Aug 26: this used to return the reset token directly in the API
-    response, and the frontend auto-filled it into the reset form (forgot-password.tsx) - so
-    "forgot password" required nothing but knowing the target's email. No identity
-    verification at all. This is a genuine account-takeover primitive - it worked even
-    against accounts that already had a real password set, since completing this flow
-    unconditionally overwrites portal_password. Confirmed there is no email-sending
-    infrastructure anywhere in this codebase (no SMTP/SendGrid/etc.) to send the token to the
-    real owner instead, so the only safe fix available today is to stop handing the token to
-    whoever asks. Self-service reset is temporarily unavailable until real email delivery is
-    built - the token is still generated and stored (server.py already had the storage/expiry
-    plumbing), just never returned to the caller, so a real email-reset flow can be wired in
-    later without another schema change. Real recovery in the meantime: contact
-    jono@classofhappiness.com, same pattern already used for the account-deletion block."""
+    """Real feature Aug 27: now sends a real email via Resend (see _send_password_reset_email
+    above) instead of only logging the token - closes the "self-service reset temporarily
+    unavailable" gap from Aug 26's security fix. Defensive fallback intact: if RESEND_API_KEY
+    isn't configured or the send fails, falls back to the exact Aug 26 behavior (log a
+    warning, generic "contact support" message) rather than erroring - this endpoint must
+    never break just because email delivery isn't set up yet.
+
+    Security invariant unchanged from Aug 26: the response is IDENTICAL whether or not the
+    email exists, and NEVER includes the token - both deliberate, don't leak account
+    existence, don't hand out the one secret this flow protects. The token only ever reaches
+    the account owner via the email itself now, never via any API response or log line."""
     body = await request.json()
     email = body.get("email", "").strip()
     existing = supabase.table("users").select("user_id,email").eq("email", email).execute()
@@ -13991,11 +14039,12 @@ async def reset_password_request(request: Request):
             "reset_token": reset_token,
             "reset_token_expires": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
         }).eq("email", email).execute()
-        logger.warning(f"[SECURITY] Password reset requested for {email} - token generated but not emailed (no email infra yet). Manual recovery: contact support.")
-    # Same response whether or not the email exists, and never includes the token - both
-    # deliberate: don't leak which emails are real accounts, and don't hand out the one
-    # secret this whole flow exists to protect.
-    return {"status": "If this email exists, please contact jono@classofhappiness.com to complete your password reset for now - self-service reset isn't available yet."}
+        sent, detail = _send_password_reset_email(email, reset_token)
+        if sent:
+            logger.info(f"Password reset email sent to {email} (resend id: {detail})")
+        else:
+            logger.warning(f"[SECURITY] Password reset requested for {email} - token generated but NOT emailed ({detail}). Manual recovery: contact support.")
+    return {"status": "If this email exists, we've sent password reset instructions to it. If you don't see it, contact jono@classofhappiness.com."}
 
 @api_router.post("/auth/reset-password")
 async def reset_password(request: Request):
