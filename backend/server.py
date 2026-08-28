@@ -117,6 +117,12 @@ ALWAYS_OPEN_PINS = {
     "schooladmindemo@classofhappiness.com": "COH2026DEMO",
     "jono@gmail.com": "COH2026PARENT",
     "jono+teacher@gmail.com": "COH2026TEACHER",
+    # Real fix Aug 28: Pembroke's demo account (subscription_status='trial', no trial dates
+    # ever set) was silently free-tier-clamped in PDFs/analytics same as any real lapsed
+    # trial - unlike schooladmindemo, it wasn't in this list, so it never got the same
+    # always-covered treatment the other 3 demo accounts already have. check_subscription_active()
+    # already treats every ALWAYS_OPEN_PINS email as always covered, matching Sunshine.
+    "kairos@classofhappiness.com": "COH2026KAIROS",
 }
 
 PROMO_CODES = {
