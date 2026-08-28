@@ -7035,7 +7035,10 @@ def _gather_school_pdf_stats(school_name: Optional[str], start_date: str, admin_
     classroom_ids = [c["id"] for c in (supabase.table("classrooms").select("id").in_("user_id", teacher_ids).execute().data or [])] if teacher_ids else []
     students = supabase.table("students").select("id").in_("classroom_id", classroom_ids).execute().data or [] if classroom_ids else []
     student_ids = [s["id"] for s in students]
-    logs = supabase.table("feeling_logs").select("*").in_("student_id", student_ids).gte("timestamp", start_date).execute().data or [] if student_ids else []
+    # Real bug fix Aug 28: same PostgREST 1000-row silent-cap issue found live-verifying
+    # demo-prep item 4 (see _fetch_all_paginated's docstring) - a school with >1000
+    # checkins in the requested window would have silently under-reported here too.
+    logs = _fetch_all_paginated("feeling_logs", "*", lambda q: q.in_("student_id", student_ids).gte("timestamp", start_date)) if student_ids else []
 
     zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
     strategy_counts = {}
@@ -11000,6 +11003,30 @@ async def flag_student_to_admin(student_id: str, request: Request):
         logger.error(f"flag_student_to_admin error: {e}")
         raise HTTPException(status_code=500, detail="Could not flag student to admin")
 
+def _fetch_all_paginated(table: str, select_fields: str, filters_fn, page_size: int = 1000) -> list:
+    """Real bug fix Aug 28: found live-verifying demo-prep item 4 - PostgREST silently caps
+    any unpaginated .execute() at 1000 rows (confirmed live: Sunshine's real 90-day
+    feeling_logs count is 1731 after tonight's seed data, but the endpoint reported exactly
+    1000 - the round number was the giveaway). This wasn't introduced tonight; it's been
+    true of every unpaginated feeling_logs query in this file, just never crossed 1000 rows
+    for any real school until now. Applied here and to the school-overview PDF's per-school
+    stats (both touched tonight); NOT swept across every other occurrence in this file
+    (/admin/stats, /creatures/analytics, etc.) - a real, separate cleanup pass, flagged not
+    fixed, to avoid scope creep beyond what tonight's work actually touches."""
+    all_rows = []
+    offset = 0
+    while True:
+        q = supabase.table(table).select(select_fields)
+        q = filters_fn(q)
+        q = q.range(offset, offset + page_size - 1)
+        page = q.execute().data or []
+        all_rows.extend(page)
+        if len(page) < page_size:
+            break
+        offset += page_size
+    return all_rows
+
+
 @api_router.get("/school-admin/analytics")
 async def get_school_admin_analytics(request: Request, period: int = 30):
     """Rich emotional wellbeing analytics for school admin — no individual student data."""
@@ -11048,8 +11075,7 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
     # Get feeling logs
     logs = []
     if student_ids:
-        logs_res = supabase.table("feeling_logs").select("*").in_("student_id", student_ids).gte("timestamp", start_date).execute()
-        logs = logs_res.data or []
+        logs = _fetch_all_paginated("feeling_logs", "*", lambda q: q.in_("student_id", student_ids).gte("timestamp", start_date))
 
     # Aggregate — no individual identifiers returned
     zone_dist = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
@@ -11070,7 +11096,11 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
                 hourly[hour] += 1
         except:
             pass
-        for s in (log.get("strategies_selected") or []):
+        # Real bug fix Aug 28 (found live-verifying demo-prep item 4): feeling_logs' real
+        # column is helpers_selected (see the /checkins insert), not strategies_selected -
+        # this loop has always silently counted zero strategies, so strategy_counts/
+        # top_strategy_name have never actually reflected real usage on this endpoint.
+        for s in (log.get("helpers_selected") or log.get("strategies_selected") or []):
             strategy_counts[s] = strategy_counts.get(s, 0) + 1
 
     # Classroom breakdown (aggregate only)
@@ -11157,8 +11187,7 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
     prev_start = (datetime.now(timezone.utc) - timedelta(days=days * 2)).isoformat()
     prev_logs = []
     if student_ids:
-        prev_logs_res = supabase.table("feeling_logs").select("student_id,feeling_colour").in_("student_id", student_ids).gte("timestamp", prev_start).lt("timestamp", start_date).execute()
-        prev_logs = prev_logs_res.data or []
+        prev_logs = _fetch_all_paginated("feeling_logs", "student_id,feeling_colour", lambda q: q.in_("student_id", student_ids).gte("timestamp", prev_start).lt("timestamp", start_date))
     prev_participating = len(set(l["student_id"] for l in prev_logs if l.get("student_id")))
     prev_participation_rate = round((prev_participating / len(students)) * 100) if students else 0
     prev_students_needing_support = len(set(l["student_id"] for l in prev_logs if (l.get("feeling_colour") or l.get("zone")) == "red" and l.get("student_id")))
