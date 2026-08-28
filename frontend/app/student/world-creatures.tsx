@@ -11,7 +11,7 @@
 // 4) expiry date and country-of-origin (global scope only, 5-contributor privacy threshold)
 //    now shown on the card, both newly returned by /creatures/eligible.
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Pressable, ActivityIndicator, RefreshControl, Alert, useWindowDimensions, Animated } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Pressable, ActivityIndicator, RefreshControl, Alert, useWindowDimensions, Animated, Easing } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -38,6 +38,16 @@ const EMOTION_EMOJI: Record<string, string> = {
 interface ActiveInfo { active_id: string; is_default: boolean; is_fully_evolved: boolean; progress_percent?: number; }
 
 const PREVIEW_INTERVAL_MS = 1400;
+// Real feature Aug 28: stronger visual cue for "this is your active creature", requested
+// after live testing - the only previous signal was text ("★ Active — check in to grow!"
+// vs a "Set as Active" button), too easy for a young kid to miss while scanning a grid.
+// Deliberately NOT red - red already means the Red Emotions zone elsewhere in the app, so
+// reusing it here would teach the wrong colour association. Uses the app's existing brand
+// indigo instead (same colour already used for the active-hint text and PDF headers), as a
+// distinct ring layered outside the existing zone-colour top border, not replacing it.
+const ACTIVE_RING_COLOUR = '#5C6BC0';
+const ACTIVE_RING_THICKNESS = 3;
+const ACTIVE_RING_GAP = 3;
 
 function formatExpiry(iso?: string | null): string | null {
   if (!iso) return null;
@@ -89,6 +99,7 @@ function CreatureCard({
   const { t, currentStudent } = useApp();
   const [previewStage, setPreviewStage] = useState(1);
   const holdAnim = useRef(new Animated.Value(0)).current;
+  const ringPulse = useRef(new Animated.Value(0.5)).current;
 
   const onHoldIn = () => {
     Animated.timing(holdAnim, { toValue: 1, duration: 120, useNativeDriver: true }).start();
@@ -130,8 +141,39 @@ function CreatureCard({
     );
   };
 
+  // Real feature Aug 28: gentle looping glow on the active-creature ring - kept slow and
+  // low-amplitude (0.5-1 opacity, ~1.2s per leg) on purpose. Motion draws a young kid's eye
+  // more reliably than a static colour ever will, but this is meant to be noticed, not to
+  // distract from the creature artwork itself.
+  const showActiveRing = isActive && !fullyEvolved && !locked;
+  useEffect(() => {
+    if (!showActiveRing) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(ringPulse, { toValue: 1, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(ringPulse, { toValue: 0.5, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [showActiveRing]);
+
   return (
-    <View style={[styles.card, { width: cardWidth, borderTopColor: EMOTION_COLORS[item.emotion_colour], borderTopWidth: 3 }, locked && styles.cardLocked]}>
+    <View style={{ width: cardWidth, marginBottom: 12 }}>
+      {/* Real feature Aug 28: the ring's border+padding space is always reserved (whether
+          active or not), and only its opacity animates (0 when inactive, pulsing when
+          active) - avoids any layout shift/jump if a card's active state changes while
+          visible, and sidesteps doing pixel arithmetic on cardWidth. */}
+      <Animated.View
+        style={{
+          borderRadius: 14 + ACTIVE_RING_GAP,
+          borderWidth: ACTIVE_RING_THICKNESS,
+          padding: ACTIVE_RING_GAP,
+          borderColor: ACTIVE_RING_COLOUR,
+          opacity: showActiveRing ? ringPulse : 0,
+        }}
+      >
+        <View style={[styles.card, { width: '100%', marginBottom: 0, borderTopColor: EMOTION_COLORS[item.emotion_colour], borderTopWidth: 3 }, locked && styles.cardLocked]}>
       <TouchableOpacity activeOpacity={locked ? 0.8 : 1} onPress={locked ? showUpsell : undefined} disabled={!locked}>
         <Pressable
           onPressIn={isActive && !fullyEvolved && !locked ? onHoldIn : undefined}
@@ -182,6 +224,13 @@ function CreatureCard({
                 <Text style={styles.fullyEvolved} numberOfLines={1}>🏆 {t('fully_evolved') || 'Fully evolved!'}</Text>
               ) : isActive ? (
                 <>
+                  {/* Real feature Aug 28: filled pill (colour + shape together), not just
+                      coloured text - redundant coding for kids who can't yet read fluently
+                      or may be colourblind. Full original translated sentence kept below
+                      unchanged, rather than inventing a new, un-translated shortened key. */}
+                  <View style={styles.activeBadgePill}>
+                    <Text style={styles.activeBadgePillText} numberOfLines={1}>{t('active_badge') || '★ Active'}</Text>
+                  </View>
                   <Text style={styles.activeHint} numberOfLines={1}>{t('active_checkin_hint') || '★ Active — check in to grow!'}</Text>
                   <Text style={{ fontSize: 9, color: '#AAA', marginTop: 1 }} numberOfLines={1}>👆 {t('hold_to_see_progress') || 'Hold the picture to see progress'}</Text>
                 </>
@@ -201,6 +250,8 @@ function CreatureCard({
           )}
         </View>
       </TouchableOpacity>
+      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -471,7 +522,17 @@ const styles = StyleSheet.create({
   progressRow: { flexDirection: 'row', gap: 3, marginTop: 2, marginBottom: 5 },
   progressDot: { width: 6, height: 6, borderRadius: 3 },
   fullyEvolved: { fontSize: 10, fontWeight: '800', color: '#4CAF73' },
-  activeHint: { fontSize: 9, fontWeight: '800', color: '#5C6BC0' },
+  activeHint: { fontSize: 9, fontWeight: '800', color: '#5C6BC0', marginTop: 2 },
+  activeBadgePill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: ACTIVE_RING_COLOUR,
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  activeBadgePillText: { fontSize: 10, fontWeight: '800', color: 'white' },
   lockedHint: { fontSize: 8, fontWeight: '700', color: '#AAA', fontStyle: 'italic' },
   unlockBtn: { paddingVertical: 6, borderRadius: 50, alignItems: 'center' },
   unlockBtnText: { color: 'white', fontWeight: '800', fontSize: 10 },

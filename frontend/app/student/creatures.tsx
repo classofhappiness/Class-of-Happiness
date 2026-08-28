@@ -8,13 +8,15 @@
 // expand. A real total-collected count up top, and a direct shortcut to browse/start a new
 // creature by scope (Family/School/Global) without having to check in first.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Animated,
+  Easing,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -36,6 +38,15 @@ const COLOUR_ORDER = ['blue', 'green', 'yellow', 'red'];
 const COLOUR_LABEL: Record<string, string> = {
   blue: 'Blue', green: 'Green', yellow: 'Yellow', red: 'Red',
 };
+// Real feature Aug 28: stronger visual cue for "this is your active creature", matching the
+// same design built the same day for world-creatures.tsx's card grid - same underlying
+// is_active concept, kept visually consistent across both screens rather than leaving one
+// with the old weak (border-width-only) signal. Deliberately not red - see that file's
+// comment for the full reasoning.
+const ACTIVE_RING_COLOUR = '#5C6BC0';
+const ACTIVE_RING_THICKNESS = 3;
+const ACTIVE_RING_GAP = 3;
+const CARD_RADIUS = 14;
 
 interface CreatureEntry {
   type: 'default' | 'community';
@@ -53,6 +64,83 @@ interface CreatureEntry {
   completed_at?: string | null;
   was_featured?: boolean;
   featured_until?: string | null;
+}
+
+// Own component (not an inline render function) so it can own its own pulse animation via
+// hooks - a plain per-item render function can't safely call hooks, since the number of
+// entries (and therefore call count) varies between renders.
+function CreatureGridCard({
+  item, colour, width, onPress, t,
+}: {
+  item: CreatureEntry; colour: string; width: number | string; onPress: () => void; t: (key: string) => string | undefined;
+}) {
+  const ringPulse = useRef(new Animated.Value(0.5)).current;
+  const expired = item.was_featured && item.featured_until && new Date(item.featured_until) < new Date();
+  const imgUrl = item.type === 'community' ? item.stage_image : null;
+
+  useEffect(() => {
+    if (!item.is_active) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(ringPulse, { toValue: 1, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(ringPulse, { toValue: 0.5, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [item.is_active]);
+
+  return (
+    <TouchableOpacity onPress={onPress} style={{ width: width as any }}>
+      {/* Real fix Aug 28: width here can be a percentage string (gridCardWidth), not a
+          pixel number - can't do pixel arithmetic on that to inset an inner card. Instead
+          the ring's border+padding space is always reserved (active or not, so toggling
+          active state never shifts layout) and only its opacity animates - 0 when inactive,
+          pulsing when active. */}
+      <Animated.View
+        style={{
+          borderRadius: CARD_RADIUS + ACTIVE_RING_GAP,
+          borderWidth: ACTIVE_RING_THICKNESS,
+          padding: ACTIVE_RING_GAP,
+          borderColor: ACTIVE_RING_COLOUR,
+          opacity: item.is_active ? ringPulse : 0,
+        }}
+      >
+        <View style={[styles.card, { width: '100%', borderColor: EMOTION_COLORS[colour], borderWidth: 1 }]}>
+          {/* Real fix Aug 23: the old CreatureCollection modal's grid used a per-colour tinted
+              circular background behind each creature (cColor + '25') - this was lost when
+              rebuilt as a flat grey box. Restored, alongside the movement animations already
+              brought back. */}
+          <View style={[styles.imgWrap, { backgroundColor: EMOTION_COLORS[colour] + '25' }]}>
+            <AnimatedCreatureVisual
+              zone={colour}
+              size={64}
+              unlocked={item.current_stage > 0 || item.is_complete}
+              emoji={item.type === 'default' ? item.emoji : undefined}
+              imageUrl={imgUrl || undefined}
+            />
+          </View>
+          <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+          {item.is_active ? (
+            <View style={styles.activeBadgePill}>
+              <Text style={styles.activeBadgePillText} numberOfLines={1}>{t('active_badge') || '★ Active'}</Text>
+            </View>
+          ) : null}
+          {item.was_featured ? (
+            <Text style={styles.limitedBadge}>{expired ? (t('limited_edition_expired') || '⭐ Limited Edition (expired)') : (t('limited_edition') || '⭐ Limited Edition')}</Text>
+          ) : null}
+          <View style={styles.progressRow}>
+            {Array.from({ length: item.max_stage }, (_, i) => i + 1).map(s => (
+              <View key={s} style={[styles.progressDot, { backgroundColor: item.current_stage >= s ? EMOTION_COLORS[colour] : '#E5E5E5' }]} />
+            ))}
+          </View>
+          <Text style={item.is_complete ? styles.fullyEvolved : styles.inProgress}>
+            {item.is_complete ? (t('fully_evolved') || '🏆 Fully evolved!') : `${t('stage') || 'Stage'} ${item.current_stage} / ${item.max_stage}`}
+          </Text>
+        </View>
+      </Animated.View>
+    </TouchableOpacity>
+  );
 }
 
 export default function CreatureCollectionScreen() {
@@ -91,44 +179,16 @@ export default function CreatureCollectionScreen() {
     setExpanded(prev => ({ ...prev, [colour]: !prev[colour] }));
   };
 
-  const renderEntry = (item: CreatureEntry, colour: string) => {
-    const expired = item.was_featured && item.featured_until && new Date(item.featured_until) < new Date();
-    const imgUrl = item.type === 'community' ? item.stage_image : null;
-    return (
-      <TouchableOpacity
-        key={`${item.type}-${item.id}`}
-        style={[styles.card, { width: gridCardWidth(gridColumns), borderColor: EMOTION_COLORS[colour], borderWidth: item.is_active ? 2 : 1 }]}
-        onPress={() => { setDetailColour(colour); setDetailEntry(item); }}
-      >
-        {/* Real fix Aug 23: the old CreatureCollection modal's grid used a per-colour tinted
-            circular background behind each creature (cColor + '25') - this was lost when
-            rebuilt as a flat grey box. Restored, alongside the movement animations already
-            brought back. */}
-        <View style={[styles.imgWrap, { backgroundColor: EMOTION_COLORS[colour] + '25' }]}>
-          <AnimatedCreatureVisual
-            zone={colour}
-            size={64}
-            unlocked={item.current_stage > 0 || item.is_complete}
-            emoji={item.type === 'default' ? item.emoji : undefined}
-            imageUrl={imgUrl || undefined}
-          />
-        </View>
-        <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-        {item.is_active ? <Text style={styles.activeBadge}>{t('active_badge') || '★ Active'}</Text> : null}
-        {item.was_featured ? (
-          <Text style={styles.limitedBadge}>{expired ? (t('limited_edition_expired') || '⭐ Limited Edition (expired)') : (t('limited_edition') || '⭐ Limited Edition')}</Text>
-        ) : null}
-        <View style={styles.progressRow}>
-          {Array.from({ length: item.max_stage }, (_, i) => i + 1).map(s => (
-            <View key={s} style={[styles.progressDot, { backgroundColor: item.current_stage >= s ? EMOTION_COLORS[colour] : '#E5E5E5' }]} />
-          ))}
-        </View>
-        <Text style={item.is_complete ? styles.fullyEvolved : styles.inProgress}>
-          {item.is_complete ? (t('fully_evolved') || '🏆 Fully evolved!') : `${t('stage') || 'Stage'} ${item.current_stage} / ${item.max_stage}`}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
+  const renderEntry = (item: CreatureEntry, colour: string) => (
+    <CreatureGridCard
+      key={`${item.type}-${item.id}`}
+      item={item}
+      colour={colour}
+      width={gridCardWidth(gridColumns)}
+      onPress={() => { setDetailColour(colour); setDetailEntry(item); }}
+      t={t}
+    />
+  );
 
   const goToWorld = () => router.push('/student/world-creatures');
   const goToSubmit = () => router.push('/student/submit-creature');
@@ -268,7 +328,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 4,
   },
-  activeBadge: { fontSize: 10, fontWeight: '800', color: '#5C6BC0', marginBottom: 4 },
+  activeBadgePill: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: ACTIVE_RING_COLOUR,
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginBottom: 4,
+  },
+  activeBadgePillText: { fontSize: 10, fontWeight: '800', color: 'white' },
   progressRow: { flexDirection: 'row', gap: 4, marginBottom: 6 },
   progressDot: { width: 8, height: 8, borderRadius: 4 },
   fullyEvolved: { fontSize: 11, fontWeight: '800', color: '#4CAF73', textAlign: 'center' },
