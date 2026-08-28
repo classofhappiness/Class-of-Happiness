@@ -22,7 +22,18 @@ async function apiCall(endpoint: string, token: string|null, options: any = {}) 
   const headers: any = { 'Content-Type':'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(`${BACKEND_URL}/api${endpoint}`, { headers, ...options });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  if (!res.ok) {
+    // Real bug fix Aug 28: this used to always throw a bare "API error: <status>", discarding
+    // the real backend error detail entirely - every failure in this dashboard (promo code
+    // creation, creature featuring, etc.) showed the same unhelpful generic message no matter
+    // what actually went wrong (a genuine duplicate, a validation error, a real 500...).
+    let detail = `API error: ${res.status}`;
+    try {
+      const body = await res.json();
+      if (body?.detail) detail = body.detail;
+    } catch {}
+    throw new Error(detail);
+  }
   return res.json();
 }
 
@@ -661,7 +672,7 @@ function PromoCodesCard({ authToken }: { authToken: string|null }) {
       setShowForm(false);
       load();
     } catch (e: any) {
-      Alert.alert('Error', e?.message?.includes('already exists') ? 'A code with this name already exists.' : 'Could not create code.');
+      Alert.alert('Error', e?.message || 'Could not create code.');
     }
     setSaving(false);
   };
