@@ -2415,6 +2415,28 @@ def check_subscription_active(user: dict) -> bool:
         return _trial_is_valid(user)
     return False
 
+def _personal_sub_is_active(user: dict) -> bool:
+    """Real bug fix Aug 28 (technical debt sweep): the old `subscription_status not in
+    ("none","free",None)` pattern, used at 3 historical-PDF-access gates (family-all,
+    teacher-wellbeing, classroom-overview) to mean "this account's OWN subscription is
+    genuinely active", treated ANY non-none/free status as active - including a trial or
+    paid plan that has genuinely expired (nothing ever flips subscription_status back once
+    set), same root cause as the free_tier_limit checks already fixed via
+    _is_genuinely_free_tier(). Deliberately NOT reusing check_subscription_active() here -
+    that function intentionally also returns True on a loose school_admin_id/invite_code
+    bypass, which would double up with (and isn't equivalent to) the strict
+    _teacher_is_school_covered/_parent_is_school_covered check each of those 3 call sites
+    already ORs in separately. This is just the real, expiry-aware personal-subscription
+    fact, same active/trial logic check_subscription_active/_is_genuinely_free_tier both
+    use internally."""
+    sub_status = user.get("subscription_status") or "none"
+    if sub_status == "active":
+        exp = user.get("subscription_expires_at")
+        return not exp or datetime.fromisoformat(exp.replace("Z", "+00:00")) > datetime.now(timezone.utc)
+    if sub_status == "trial":
+        return _trial_is_valid(user)
+    return False
+
 # ================== HEALTH ==================
 @api_router.get("/health")
 async def health():
@@ -3687,10 +3709,16 @@ async def get_resources(request: Request):
     # because their school pays could still see resources marked locked. Teacher gating is
     # unchanged (teacher pricing didn't change), so the coverage exemption only applies when
     # role == "parent".
-    sub_status = user.get("subscription_status", "none")
-    is_free_tier = sub_status in ("none", "free", None) and not (
-        user.get("role") == "parent" and _parent_is_school_covered(user)
-    )
+    # Real bug fix Aug 28 (technical debt sweep, same class as the Aug 24/25 creature caps):
+    # this treated any subscription_status other than 'none'/'free' as "not free tier",
+    # including a trial or paid plan that has genuinely expired (nothing ever flips
+    # subscription_status back once set) - a lapsed account would incorrectly see every
+    # program unlocked forever. _is_genuinely_free_tier() already covers this exact case
+    # (real active/trial expiry via _trial_is_valid(), same parent-school-coverage
+    # exemption this check already had, PLUS the teacher-coverage exemption this check was
+    # missing) - a strict superset of the old inline logic, not a behaviour change for any
+    # genuinely-covered user.
+    is_free_tier = _is_genuinely_free_tier(user)
     for r in items:
         if not is_free_tier:
             r["is_locked"] = False
@@ -5046,7 +5074,7 @@ async def generate_family_pdf_all(year: int, month: int, request: Request, lang:
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    parent_sub_active = user.get("subscription_status") not in ("none", "free", None)
+    parent_sub_active = _personal_sub_is_active(user)  # real fix Aug 28: was expiry-blind, see _personal_sub_is_active's docstring
     covered = parent_sub_active or _parent_is_school_covered(user)
     if not covered:
         _now = datetime.now(timezone.utc)
@@ -5826,7 +5854,7 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     # accounts, unlimited historical months for covered ones. A school-covered-but-personally-
     # unsubscribed teacher was incorrectly treated as free-tier and hit the count limit. Now
     # matches classroom-overview/school-overview exactly.
-    teacher_sub_active = teacher.get("subscription_status") not in ("none", "free", None)
+    teacher_sub_active = _personal_sub_is_active(teacher)  # real fix Aug 28: was expiry-blind, see _personal_sub_is_active's docstring
     covered = user.get("role") == "superadmin" or teacher_sub_active or _teacher_is_school_covered(teacher)
     if not covered:
         _now = datetime.now(timezone.utc)
@@ -7327,7 +7355,7 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
     n_months = {"1":1, "3":3, "6":6, "12":12}.get(str(period), 1)
     # Real feature Aug 19 (A8): free-tier access is current-month-only; full history unlocks
     # if EITHER the teacher's own subscription OR their school's package covers them.
-    teacher_sub_active = teacher.get("subscription_status") not in ("none", "free", None)
+    teacher_sub_active = _personal_sub_is_active(teacher)  # real fix Aug 28: was expiry-blind, see _personal_sub_is_active's docstring
     covered = user.get("role") == "superadmin" or teacher_sub_active or _teacher_is_school_covered(teacher)
     if not covered:
         _now = datetime.now(timezone.utc)
@@ -8965,16 +8993,19 @@ async def get_admin_stats(request: Request, days: int = 7):
         # /school-admin/analytics' 840 for Sunshine specifically. Chunked in batches of 50
         # (Supabase .in_() practical limit), not truncated to the first 50 like the
         # pre-existing schools_breakdown code further down does.
+        # Real bug fix Aug 28 (systematic sweep, same class as /school-admin/analytics):
+        # every unpaginated .execute() here silently truncates at PostgREST's default
+        # 1000-row cap. The superadmin branch is the highest-risk - days can be clamped up
+        # to 1100, so a real multi-month platform-wide query was silently capped with no
+        # error. Fixed with the same _fetch_all_paginated() helper.
         logs = []
         try:
             if user.get("role") == "school_admin":
                 for i in range(0, len(student_ids_for_school or []), 50):
                     chunk = student_ids_for_school[i:i + 50]
-                    r2 = supabase.table("feeling_logs").select("*").in_("student_id", chunk).gte("timestamp", week_ago).execute()
-                    logs.extend(r2.data or [])
+                    logs.extend(_fetch_all_paginated("feeling_logs", "*", lambda q, c=chunk: q.in_("student_id", c).gte("timestamp", week_ago)))
             else:
-                r2 = supabase.table("feeling_logs").select("*").gte("timestamp", week_ago).execute()
-                logs.extend(r2.data or [])
+                logs = _fetch_all_paginated("feeling_logs", "*", lambda q: q.gte("timestamp", week_ago))
         except: pass
 
         # Zone counts
@@ -9012,10 +9043,10 @@ async def get_admin_stats(request: Request, days: int = 7):
             # column (confirmed via /school-admin/analytics' identical query), same bug
             # class as the feeling_logs scoping above.
             if user.get("role") == "school_admin":
-                tc_r = supabase.table("teacher_checkins").select("*").in_("user_id", school_teacher_ids).gte("created_at", week_ago).execute() if school_teacher_ids else type('obj', (object,), {'data': []})()
+                tc_data = _fetch_all_paginated("teacher_checkins", "*", lambda q: q.in_("user_id", school_teacher_ids).gte("created_at", week_ago)) if school_teacher_ids else []
             else:
-                tc_r = supabase.table("teacher_checkins").select("*").gte("created_at", week_ago).execute()
-            for tc in (tc_r.data or []):
+                tc_data = _fetch_all_paginated("teacher_checkins", "*", lambda q: q.gte("created_at", week_ago))
+            for tc in tc_data:
                 tz = tc.get("zone") or tc.get("feeling_colour", "")
                 if tz in teacher_zone_counts:
                     teacher_zone_counts[tz] += 1
@@ -9032,8 +9063,7 @@ async def get_admin_stats(request: Request, days: int = 7):
         # entries with a null student_id genuinely can't be scoped to a school without a
         # schema change — left global for both roles, unlike the two blocks above.
         try:
-            teacher_logs_r = supabase.table("feeling_logs").select("*").is_("student_id", "null").gte("timestamp", week_ago).execute()
-            teacher_logs = teacher_logs_r.data or []
+            teacher_logs = _fetch_all_paginated("feeling_logs", "*", lambda q: q.is_("student_id", "null").gte("timestamp", week_ago))
             for tl in teacher_logs:
                 tz = tl.get("feeling_colour") or tl.get("zone", "")
                 if tz in teacher_zone_counts:
@@ -9069,11 +9099,9 @@ async def get_admin_stats(request: Request, days: int = 7):
             if user.get("role") == "school_admin":
                 for i in range(0, len(student_ids_for_school or []), 50):
                     chunk = student_ids_for_school[i:i + 50]
-                    r = supabase.table("feeling_logs").select("student_id,timestamp").in_("student_id", chunk).gte("timestamp", month_ago).execute()
-                    all_logs_data.extend(r.data or [])
+                    all_logs_data.extend(_fetch_all_paginated("feeling_logs", "student_id,timestamp", lambda q, c=chunk: q.in_("student_id", c).gte("timestamp", month_ago)))
             else:
-                all_logs_r = supabase.table("feeling_logs").select("student_id,timestamp").gte("timestamp", month_ago).execute()
-                all_logs_data = all_logs_r.data or []
+                all_logs_data = _fetch_all_paginated("feeling_logs", "student_id,timestamp", lambda q: q.gte("timestamp", month_ago))
             from collections import defaultdict
             student_dates = defaultdict(set)
             for l in all_logs_data:
@@ -9147,12 +9175,17 @@ async def get_admin_stats(request: Request, days: int = 7):
                         # how much real check-in data existed, because the query never
                         # actually succeeded even once. feeling_colour alone is correct and
                         # sufficient - it's the only field that's ever been real.
-                        school_logs = supabase.table("feeling_logs").select("feeling_colour").in_("student_id", student_ids[:50]).gte("timestamp", week_ago).execute()
-                        for log in (school_logs.data or []):
+                        # student_ids[:50] is a separate, pre-existing, still-open limitation
+                        # (only the first 50 students of a school are ever considered here) -
+                        # not fixed as part of this pass, flagged separately below. Row
+                        # pagination added for consistency with every other query in this
+                        # endpoint, in case that 50-student subset alone tops 1000 rows.
+                        school_logs_data = _fetch_all_paginated("feeling_logs", "feeling_colour", lambda q, sids=student_ids[:50]: q.in_("student_id", sids).gte("timestamp", week_ago))
+                        for log in school_logs_data:
                             z = log.get("feeling_colour") or ""
                             if z in school_zone_counts:
                                 school_zone_counts[z] += 1
-                        school_checkins = len(school_logs.data or [])
+                        school_checkins = len(school_logs_data)
                     except:
                         pass
 
@@ -9991,8 +10024,14 @@ async def get_teacher_resources(request: Request, topic: Optional[str] = None, a
 
     # Real freemium gating — same rule as /resources: Emotion Program always free, other
     # programs' week 1-2 (or no-week/general items) free, week 3+ locked for free tier.
-    sub_status = user.get("subscription_status", "none")
-    is_free_tier = sub_status in ("none", "free", None)
+    # Real bug fix Aug 28 (technical debt sweep, same class as the Aug 24/25 creature caps
+    # and /resources' identical bug fixed alongside this one): treated any subscription_status
+    # other than 'none'/'free' as "not free tier" - a genuinely expired trial or lapsed paid
+    # plan would incorrectly stay unlocked forever, and this check (unlike /resources) never
+    # even had a school-coverage exemption. _is_genuinely_free_tier() covers both real expiry
+    # and both teacher/parent school-coverage exemptions - strict superset, not a behaviour
+    # change for any genuinely-covered or genuinely-active user.
+    is_free_tier = _is_genuinely_free_tier(user)
     for r in all_resources:
         if not is_free_tier:
             r["is_locked"] = False
@@ -13197,8 +13236,11 @@ async def get_teacher_checkins(request: Request, days: int = 7):
     # Real freemium gate: free tier capped at 30 days of their own wellbeing check-in history
     # (the days parameter was previously fully caller-controlled with zero server-side limit —
     # anyone could bypass an intended UI-level restriction just by requesting a larger range).
-    sub_status = user.get("subscription_status", "none")
-    if sub_status in ("none", "free", None) and days > 30:
+    # Real bug fix Aug 28 (technical debt sweep): was `sub_status in ("none","free",None)` -
+    # expiry-blind (a lapsed trial/paid account would never hit the cap) and had no
+    # school-coverage exemption at all, unlike every other free-tier check in this file.
+    # _is_genuinely_free_tier() fixes both.
+    if _is_genuinely_free_tier(user) and days > 30:
         days = 30
     try:
         start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
@@ -14300,8 +14342,13 @@ async def get_creature_analytics(request: Request):
     ).eq("status", "approved").order("global_uses", desc=True).limit(10).execute()
     top_creatures = top_creatures_r.data or []
 
-    unlocks_r = supabase.table("creature_unlocks").select("student_id,creature_id,completed_at").eq("stages_unlocked", 4).execute()
-    unlocks = unlocks_r.data or []
+    # Real bug fix Aug 28 (systematic sweep, same class as /school-admin/analytics and
+    # /admin/stats): unlike featured_creatures (bounded to right-now) and creature_submissions
+    # (explicit .limit(10)), this query has no bound at all - every fully-evolved creature
+    # ever, platform-wide, for the platform's whole lifetime. Currently 0 rows (confirmed
+    # live), so no symptom yet, but it's the identical unpaginated pattern that will silently
+    # cap at 1000 the same way once real usage grows - fixed proactively.
+    unlocks = _fetch_all_paginated("creature_unlocks", "student_id,creature_id,completed_at", lambda q: q.eq("stages_unlocked", 4))
 
     user_counts = {}
     for u in unlocks:
@@ -14313,7 +14360,7 @@ async def get_creature_analytics(request: Request):
     # fully-completed creature - unbounded, scaling with total platform-wide unlocks rather
     # than the top 10 actually returned. Single batched query instead, same result shape.
     all_sids = list(user_counts.keys())
-    user_rows = supabase.table("users").select("user_id,name,school_name").in_("user_id", all_sids).execute().data if all_sids else []
+    user_rows = _fetch_all_paginated("users", "user_id,name,school_name", lambda q: q.in_("user_id", all_sids)) if all_sids else []
     user_school_cache = {r["user_id"]: (r.get("name", ""), r.get("school_name", "")) for r in (user_rows or [])}
 
     top_users = []
