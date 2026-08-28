@@ -7015,11 +7015,60 @@ def _month_buckets(end_year, end_month, n_months):
             y -= 1
     return list(reversed(buckets))
 
+def _gather_school_pdf_stats(school_name: Optional[str], start_date: str, admin_id: Optional[str] = None) -> dict:
+    """Real feature Aug 28 (item 6): extracted so the school-overview PDF can report on
+    multiple schools (a real comparison + per-school sections) instead of only ever
+    flattening every requested school into one combined total. admin_id is only passed for
+    a school_admin's own self-service export (dual-match against their own linked teachers,
+    same pattern used everywhere else in this file) - a superadmin/admin call always
+    resolves purely by school_name."""
+    if admin_id:
+        t1 = supabase.table("users").select("user_id").eq("school_admin_id", admin_id).execute()
+        t2 = supabase.table("users").select("user_id").eq("school_name", school_name).eq("role", "teacher").execute() if school_name else type("o", (object,), {"data": []})()
+        teacher_ids = list({t["user_id"] for t in (t1.data or []) + (t2.data or [])})
+    elif school_name:
+        t = supabase.table("users").select("user_id").eq("school_name", school_name).in_("role", ["teacher", "school_admin"]).execute()
+        teacher_ids = [u["user_id"] for u in (t.data or [])]
+    else:
+        teacher_ids = [u["user_id"] for u in (supabase.table("users").select("user_id").in_("role", ["teacher", "school_admin"]).execute().data or [])]
+
+    classroom_ids = [c["id"] for c in (supabase.table("classrooms").select("id").in_("user_id", teacher_ids).execute().data or [])] if teacher_ids else []
+    students = supabase.table("students").select("id").in_("classroom_id", classroom_ids).execute().data or [] if classroom_ids else []
+    student_ids = [s["id"] for s in students]
+    logs = supabase.table("feeling_logs").select("*").in_("student_id", student_ids).gte("timestamp", start_date).execute().data or [] if student_ids else []
+
+    zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+    strategy_counts = {}
+    for log in logs:
+        colour = log.get("feeling_colour") or log.get("zone", "")
+        if colour in zone_counts:
+            zone_counts[colour] += 1
+        for h in log.get("helpers_selected", log.get("strategies_selected", [])):
+            strategy_counts[h] = strategy_counts.get(h, 0) + 1
+    top_strategies = [(resolve_strategy_name(sid), count) for sid, count in sorted(strategy_counts.items(), key=lambda x: x[1], reverse=True)[:5]]
+
+    return {
+        "teacher_ids": teacher_ids,
+        "student_ids": student_ids,
+        "zone_counts": zone_counts,
+        "top_strategies": top_strategies,
+        "total_checkins": len(logs),
+    }
+
+
 @api_router.get("/reports/pdf/school-overview")
-async def school_overview_pdf(request: Request, days: int = 30, school_name: Optional[str] = None):
+async def school_overview_pdf(request: Request, days: int = 30, school_name: Optional[str] = None, school_names: Optional[str] = None):
     """Real new feature, built Aug 15: school-level aggregate PDF export for superadmin
     and school_admin, reusing the exact same real branding/colours already proven in the
-    per-student report (confirmed against a real downloaded PDF before building this)."""
+    per-student report (confirmed against a real downloaded PDF before building this).
+
+    Real feature Aug 28 (item 6): school_names (comma-separated) lets superadmin/admin pick
+    specific schools, or request every registered school - either way now renders a real
+    comparison table plus a full detail section per school, not one combined total. A
+    single resolved school (explicit school_name, a school_admin's own scope, or
+    school_names with exactly one entry) keeps the original single-school report format
+    unchanged - no regression for the common case. school_name (singular) is kept for
+    backward compatibility with any existing caller."""
     user = await get_current_user(request)
     if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
@@ -7037,41 +7086,38 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
         start_date = _now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
 
     if user.get("role") == "school_admin":
-        admin_id = user.get("user_id")
         real_school_name = school_name or user.get("school_name", "")
-        t1 = supabase.table("users").select("user_id").eq("school_admin_id", admin_id).execute()
-        t2 = supabase.table("users").select("user_id").eq("school_name", real_school_name).eq("role", "teacher").execute() if real_school_name else type("o",(object,),{"data":[]})()
-        teacher_ids = list({t["user_id"] for t in (t1.data or []) + (t2.data or [])})
-        display_name = real_school_name or "My School"
-    elif school_name:
-        # Real bug fix Aug 23 (item 4): superadmin/admin passing a specific school_name
-        # previously only changed the PDF's display_name (title) - teacher_ids stayed the
-        # ALL-teachers-system-wide list from the branch below, so a per-school export would
-        # have shown that one school's name as the title while every school's data fed the
-        # actual numbers. Nothing called this with school_name before this round's per-school
-        # export button existed, so the bug was real but never yet triggered.
-        t = supabase.table("users").select("user_id").eq("school_name", school_name).in_("role", ["teacher", "school_admin"]).execute()
-        teacher_ids = [u["user_id"] for u in (t.data or [])]
-        display_name = school_name
+        resolved_schools = [(real_school_name or "My School", _gather_school_pdf_stats(real_school_name, start_date, admin_id=user.get("user_id")))]
     else:
-        teacher_ids = [u["user_id"] for u in (supabase.table("users").select("user_id").in_("role", ["teacher","school_admin"]).execute().data or [])]
-        display_name = "All Schools"
+        if school_names:
+            requested = [s.strip() for s in school_names.split(",") if s.strip()]
+        elif school_name:
+            requested = [school_name]
+        else:
+            # No selection at all - real feature Aug 28: this used to mean "flatten
+            # literally everyone into one total". Now means every REAL registered school
+            # (school_profiles, the same authoritative list the Schools tab uses), each
+            # broken out - the actual fix for the original "all schools is too basic"
+            # complaint, not just a multi-select UI on top of the same flat total.
+            profiles = supabase.table("school_profiles").select("school_name").execute().data or []
+            requested = sorted({p["school_name"] for p in profiles if p.get("school_name")})
+        if not requested:
+            requested = ["All Schools"]
+            resolved_schools = [("All Schools", _gather_school_pdf_stats(None, start_date))]
+        else:
+            resolved_schools = [(name, _gather_school_pdf_stats(name, start_date)) for name in requested]
 
-    classroom_ids = [c["id"] for c in (supabase.table("classrooms").select("id").in_("user_id", teacher_ids).execute().data or [])] if teacher_ids else []
-    students = supabase.table("students").select("id").in_("classroom_id", classroom_ids).execute().data or [] if classroom_ids else []
-    student_ids = [s["id"] for s in students]
-    logs = supabase.table("feeling_logs").select("*").in_("student_id", student_ids).gte("timestamp", start_date).execute().data or [] if student_ids else []
+    is_multi_school = len(resolved_schools) > 1
+    display_name = resolved_schools[0][0] if not is_multi_school else f"{len(resolved_schools)} Schools"
 
-    zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
-    strategy_counts = {}
-    for log in logs:
-        colour = log.get("feeling_colour") or log.get("zone", "")
-        if colour in zone_counts:
-            zone_counts[colour] += 1
-        for h in log.get("helpers_selected", log.get("strategies_selected", [])):
-            strategy_counts[h] = strategy_counts.get(h, 0) + 1
-    top_strategies = [(resolve_strategy_name(sid), count) for sid, count in sorted(strategy_counts.items(), key=lambda x: x[1], reverse=True)[:5]]
-    total_checkins = len(logs)
+    # Single-school path keeps the exact original variable names/shape used below.
+    if not is_multi_school:
+        stats = resolved_schools[0][1]
+        teacher_ids = stats["teacher_ids"]
+        student_ids = stats["student_ids"]
+        zone_counts = stats["zone_counts"]
+        top_strategies = stats["top_strategies"]
+        total_checkins = stats["total_checkins"]
 
     import io, os
     from reportlab.lib.pagesizes import A4
@@ -7114,53 +7160,128 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
     elements.append(HRFlowable(width="100%", color=LIGHT_GREY))
     elements.append(Spacer(1, 0.3*cm))
 
-    elements.append(Paragraph("Overview", section_style))
-    overview_data = [
-        ["Total Check-ins", str(total_checkins)],
-        ["Students", str(len(student_ids))],
-        ["Teachers", str(len(teacher_ids))],
-    ]
-    overview_table = Table(overview_data, colWidths=[8*cm, 8*cm])
-    overview_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (0,-1), colors.HexColor('#F8F9FA')),
-        ('TEXTCOLOR', (0,0), (0,-1), GREY),
-        ('FONTNAME', (1,0), (1,-1), 'Helvetica-Bold'),
-        ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
-        ('PADDING', (0,0), (-1,-1), 8),
-    ]))
-    elements.append(overview_table)
-    elements.append(Spacer(1, 0.4*cm))
+    if not is_multi_school:
+        elements.append(Paragraph("Overview", section_style))
+        overview_data = [
+            ["Total Check-ins", str(total_checkins)],
+            ["Students", str(len(student_ids))],
+            ["Teachers", str(len(teacher_ids))],
+        ]
+        overview_table = Table(overview_data, colWidths=[8*cm, 8*cm])
+        overview_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (0,-1), colors.HexColor('#F8F9FA')),
+            ('TEXTCOLOR', (0,0), (0,-1), GREY),
+            ('FONTNAME', (1,0), (1,-1), 'Helvetica-Bold'),
+            ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
+            ('PADDING', (0,0), (-1,-1), 8),
+        ]))
+        elements.append(overview_table)
+        elements.append(Spacer(1, 0.4*cm))
 
-    elements.append(Paragraph("Emotion Zone Distribution", section_style))
-    zone_data = [["Zone", "Count", "%"]]
-    for z, label, c in [("blue","Blue Emotions",BLUE_C), ("green","Green Emotions",GREEN_C), ("yellow","Yellow Emotions",YELLOW_C), ("red","Red Emotions",RED_C)]:
-        pct = round(100*zone_counts[z]/total_checkins) if total_checkins else 0
-        zone_data.append([label, str(zone_counts[z]), f"{pct}%"])
-    zone_table = Table(zone_data, colWidths=[6*cm, 5*cm, 5*cm])
-    zone_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), INDIGO),
-        ('TEXTCOLOR', (0,0), (-1,0), WHITE),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
-        ('PADDING', (0,0), (-1,-1), 6),
-    ]))
-    elements.append(zone_table)
-    elements.append(Spacer(1, 0.4*cm))
-
-    elements.append(Paragraph("Top Strategies Used", section_style))
-    if top_strategies:
-        strat_data = [["Strategy", "Uses"]] + [[name, str(count)] for name, count in top_strategies]
-        strat_table = Table(strat_data, colWidths=[10*cm, 6*cm])
-        strat_table.setStyle(TableStyle([
+        elements.append(Paragraph("Emotion Zone Distribution", section_style))
+        zone_data = [["Zone", "Count", "%"]]
+        for z, label, c in [("blue","Blue Emotions",BLUE_C), ("green","Green Emotions",GREEN_C), ("yellow","Yellow Emotions",YELLOW_C), ("red","Red Emotions",RED_C)]:
+            pct = round(100*zone_counts[z]/total_checkins) if total_checkins else 0
+            zone_data.append([label, str(zone_counts[z]), f"{pct}%"])
+        zone_table = Table(zone_data, colWidths=[6*cm, 5*cm, 5*cm])
+        zone_table.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), INDIGO),
             ('TEXTCOLOR', (0,0), (-1,0), WHITE),
             ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
             ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
             ('PADDING', (0,0), (-1,-1), 6),
         ]))
-        elements.append(strat_table)
+        elements.append(zone_table)
+        elements.append(Spacer(1, 0.4*cm))
+
+        elements.append(Paragraph("Top Strategies Used", section_style))
+        if top_strategies:
+            strat_data = [["Strategy", "Uses"]] + [[name, str(count)] for name, count in top_strategies]
+            strat_table = Table(strat_data, colWidths=[10*cm, 6*cm])
+            strat_table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), INDIGO),
+                ('TEXTCOLOR', (0,0), (-1,0), WHITE),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
+                ('PADDING', (0,0), (-1,-1), 6),
+            ]))
+            elements.append(strat_table)
+        else:
+            elements.append(Paragraph("No strategy data for this period.", sub_style))
     else:
-        elements.append(Paragraph("No strategy data for this period.", sub_style))
+        # Real feature Aug 28 (item 6): multi-school comparison table + a full per-school
+        # detail section each - the actual fix for "all schools is too basic", not just a
+        # multi-select UI bolted onto the same flattened total.
+        elements.append(Paragraph("School Comparison", section_style))
+        comp_data = [["School", "Check-ins", "Students", "Teachers", "🟢", "🔵", "🟡", "🔴"]]
+        for name, stats in resolved_schools:
+            zc = stats["zone_counts"]
+            comp_data.append([
+                name, str(stats["total_checkins"]), str(len(stats["student_ids"])), str(len(stats["teacher_ids"])),
+                str(zc["green"]), str(zc["blue"]), str(zc["yellow"]), str(zc["red"]),
+            ])
+        comp_table = Table(comp_data, colWidths=[5.5*cm, 2*cm, 2*cm, 2*cm, 1.2*cm, 1.2*cm, 1.2*cm, 1.2*cm])
+        comp_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), INDIGO),
+            ('TEXTCOLOR', (0,0), (-1,0), WHITE),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
+            ('PADDING', (0,0), (-1,-1), 5),
+            ('FONTSIZE', (0,0), (-1,-1), 8),
+        ]))
+        elements.append(comp_table)
+        elements.append(Spacer(1, 0.5*cm))
+
+        for name, stats in resolved_schools:
+            elements.append(HRFlowable(width="100%", color=LIGHT_GREY))
+            elements.append(Paragraph(name, section_style))
+            zc, tc = stats["zone_counts"], stats["total_checkins"]
+            overview_data = [
+                ["Total Check-ins", str(tc)],
+                ["Students", str(len(stats["student_ids"]))],
+                ["Teachers", str(len(stats["teacher_ids"]))],
+            ]
+            overview_table = Table(overview_data, colWidths=[8*cm, 8*cm])
+            overview_table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (0,-1), colors.HexColor('#F8F9FA')),
+                ('TEXTCOLOR', (0,0), (0,-1), GREY),
+                ('FONTNAME', (1,0), (1,-1), 'Helvetica-Bold'),
+                ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
+                ('PADDING', (0,0), (-1,-1), 8),
+            ]))
+            elements.append(overview_table)
+            elements.append(Spacer(1, 0.3*cm))
+
+            zone_data = [["Zone", "Count", "%"]]
+            for z, label in [("blue","Blue Emotions"), ("green","Green Emotions"), ("yellow","Yellow Emotions"), ("red","Red Emotions")]:
+                pct = round(100*zc[z]/tc) if tc else 0
+                zone_data.append([label, str(zc[z]), f"{pct}%"])
+            zone_table = Table(zone_data, colWidths=[6*cm, 5*cm, 5*cm])
+            zone_table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), INDIGO),
+                ('TEXTCOLOR', (0,0), (-1,0), WHITE),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
+                ('PADDING', (0,0), (-1,-1), 6),
+            ]))
+            elements.append(zone_table)
+            elements.append(Spacer(1, 0.3*cm))
+
+            top_strats = stats["top_strategies"]
+            if top_strats:
+                strat_data = [["Strategy", "Uses"]] + [[sname, str(count)] for sname, count in top_strats]
+                strat_table = Table(strat_data, colWidths=[10*cm, 6*cm])
+                strat_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), INDIGO),
+                    ('TEXTCOLOR', (0,0), (-1,0), WHITE),
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
+                    ('PADDING', (0,0), (-1,-1), 6),
+                ]))
+                elements.append(strat_table)
+            else:
+                elements.append(Paragraph("No strategy data for this period.", sub_style))
+            elements.append(Spacer(1, 0.4*cm))
 
     doc.build(elements)
     buffer.seek(0)

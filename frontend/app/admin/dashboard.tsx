@@ -1399,17 +1399,45 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
   const tc = stats?.teacher_zone_counts || {};
   const ttc = Object.values(tc).reduce((a: any, b: any) => a + b, 0) as number;
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  // Real feature Aug 28 (item 6): multi-school PDF picker - the backend now genuinely
+  // breaks out a comparison + per-school sections instead of one flat total, so the app
+  // needs a real way to pick which schools to include, not just "one" or "literally all".
+  const [showSchoolPicker, setShowSchoolPicker] = useState(false);
+  const [pickerSchools, setPickerSchools] = useState<string[]>([]);
+  const [selectedSchools, setSelectedSchools] = useState<string[]>([]);
+
+  const openSchoolPicker = async () => {
+    try {
+      const token = await AsyncStorage.getItem('session_token');
+      const profiles = await apiCall('/admin/school-profiles', token);
+      const names = (Array.isArray(profiles) ? profiles : []).map((p: any) => p.school_name).filter(Boolean);
+      setPickerSchools(names);
+      setSelectedSchools(names); // default: all real schools pre-checked
+      setShowSchoolPicker(true);
+    } catch { Alert.alert('Error', 'Could not load the school list.'); }
+  };
+
+  const toggleSchoolPick = (name: string) => {
+    setSelectedSchools(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+  };
 
   // Real fix Aug 21: superadmin had NO PDF export UI anywhere (app or portal), despite the
   // backend already granting superadmin the fullest access of any role to this exact
   // endpoint - confirmed working since Aug 15 for school_admin, just never had a superadmin
   // trigger. No school_name param, so the backend correctly falls back to "All Schools".
+  // Real feature Aug 28 (item 6): now sends school_names (comma-separated) when the picker
+  // has a real subset selected - empty/all-selected still omits the param, so the backend's
+  // own "no selection = every real registered school" default stays the single source of
+  // truth for what "all schools" means, not duplicated here.
   const downloadAllSchoolsPDF = async () => {
     setDownloadingPdf(true);
+    setShowSchoolPicker(false);
     try {
       const token = await AsyncStorage.getItem('session_token');
       const lang = await AsyncStorage.getItem('app_language') || 'en';
-      const url = `${BACKEND_URL}/api/reports/pdf/school-overview?days=${statsPeriod}&token=${token}&lang=${lang}`;
+      const allSelected = selectedSchools.length === 0 || selectedSchools.length === pickerSchools.length;
+      const namesParam = allSelected ? '' : `&school_names=${encodeURIComponent(selectedSchools.join(','))}`;
+      const url = `${BACKEND_URL}/api/reports/pdf/school-overview?days=${statsPeriod}${namesParam}&token=${token}&lang=${lang}`;
       const checkRes = await fetch(url);
       if (!checkRes.ok) {
         Alert.alert('Error', 'Could not generate report right now.');
@@ -1434,12 +1462,41 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
 
       <TouchableOpacity
         style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: INDIGO, borderRadius: 10, paddingVertical: 10, marginBottom: 10 }}
-        onPress={downloadAllSchoolsPDF}
+        onPress={openSchoolPicker}
         disabled={downloadingPdf}
       >
         {downloadingPdf ? <ActivityIndicator color="white" size="small" /> : <MaterialIcons name="picture-as-pdf" size={16} color="white" />}
-        <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>{downloadingPdf ? 'Generating…' : 'Download All-Schools Report (PDF)'}</Text>
+        <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>{downloadingPdf ? 'Generating…' : 'Download Schools Report (PDF)'}</Text>
       </TouchableOpacity>
+
+      <Modal visible={showSchoolPicker} transparent animationType="fade" onRequestClose={() => setShowSchoolPicker(false)}>
+        <View style={s.modalOverlay}>
+          <View style={s.modalCard}>
+            <Text style={s.cardTitle}>Select Schools</Text>
+            <Text style={[s.hint, { marginBottom: 8 }]}>Pick which schools to include — a single school keeps the original report layout, 2+ adds a comparison table plus a section per school.</Text>
+            <ScrollView style={{ maxHeight: 260 }}>
+              {pickerSchools.map(name => {
+                const checked = selectedSchools.includes(name);
+                return (
+                  <TouchableOpacity key={name} onPress={() => toggleSchoolPick(name)} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
+                    <MaterialIcons name={checked ? 'check-box' : 'check-box-outline-blank'} size={20} color={checked ? INDIGO : '#CCC'} />
+                    <Text style={{ fontSize: 13, color: '#333' }}>{name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+              {pickerSchools.length === 0 && <Text style={s.hint}>No registered schools found.</Text>}
+            </ScrollView>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+              <TouchableOpacity style={[s.btn, { flex: 1, backgroundColor: '#EEE' }]} onPress={() => setShowSchoolPicker(false)}>
+                <Text style={[s.btnText, { color: '#666' }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.btn, { flex: 1 }]} onPress={downloadAllSchoolsPDF} disabled={selectedSchools.length === 0}>
+                <Text style={s.btnText}>{selectedSchools.length === pickerSchools.length ? 'Export All' : `Export ${selectedSchools.length} Selected`}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {false ? <ActivityIndicator color={INDIGO} style={{ marginTop: 20 }} /> : <>
         {statsLoading && (
