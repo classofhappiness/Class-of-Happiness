@@ -10330,30 +10330,27 @@ async def reorder_teacher_resources(request: Request):
             continue
         to_update.append((rid, new_order))
 
-    # Real fix Aug 28 (round 2, REVERTED - live-tested and rejected): tried bounded concurrent
-    # updates (8 at a time via run_in_executor) to cut the 39.8s sequential time further.
-    # Live-verified this was NOT safe: Supabase/PostgREST itself returned genuine HTTP 500s
-    # under concurrent writes to this table (confirmed in Railway logs - real
-    # "PATCH .../resources?id=eq.X 500 Internal Server Error" responses, not a bug in this
-    # code's logic), silently dropping 10 of 28 real updates (updated_ids only counted
-    # successes, no error surfaced to the caller). Correctness matters more than the extra
-    # speed here - reverted to sequential, which is 100% reliable (28/28 confirmed) at 39.8s,
-    # still a real ~40% improvement over the original one-request-per-resource design (66s) by
-    # eliminating the client-side round-trip multiplication. Real failures are now logged
-    # (previously would have been silently swallowed either way) rather than just dropped.
-    # Real fix Aug 28 (round 3): supabase-py's .execute() is a synchronous, blocking call -
-    # made directly inside this async handler (no thread offload), each one blocks FastAPI's
-    # entire single-threaded event loop for its own duration, not just this request. Live-
-    # observed: an unrelated GET /avatars health check timed out completely while THIS
-    # endpoint's sequential loop was still running for a single caller - the whole backend
-    # goes unresponsive for every other user while one admin reorders their resource list.
-    # This is very likely the same underlying mechanism behind several "everything seems
-    # down" symptoms investigated earlier tonight, not unique to this endpoint - but fixing
-    # it globally across the file is real, separate, much larger work, out of scope here.
-    # Scoped fix: keep updates genuinely sequential (no concurrency - that's what caused the
-    # real Supabase 500s above), but run each blocking call in a background thread via
-    # run_in_executor so it can't monopolize the event loop - other requests can still be
-    # served while this admin's reorder is still working through the list.
+    if not to_update:
+        return {"updated": 0, "requested": len(updates)}
+
+    # Real fix Aug 28 (round 4): every earlier version here - batched-sequential (A63),
+    # bounded-concurrent (A63, REVERTED - real Supabase 500s under concurrent writes silently
+    # dropped 10/28 updates), sequential+thread-offloaded (A64, fixed event-loop blocking but
+    # still ~48-85s for 28 real resources) - was fundamentally bounded by doing N separate
+    # UPDATE statements, however they were shaped or scheduled. The only way to a genuine
+    # step-change is ONE database round-trip regardless of list size: reorder_resources(), a
+    # Postgres function (see resources_reorder_rpc-2026-08-28.sql) that does the whole batch
+    # as a single UPDATE ... FROM jsonb_array_elements(...) statement. Falls back to the
+    # proven-reliable sequential+thread-offloaded path if the function doesn't exist yet
+    # (e.g. Jono hasn't run the migration yet) - never a broken deploy window either way.
+    try:
+        rpc_payload = [{"id": rid, "order_index": new_order} for rid, new_order in to_update]
+        result = supabase.rpc("reorder_resources", {"updates": rpc_payload}).execute()
+        updated_ids = [r["id"] for r in (result.data or [])]
+        return {"updated": len(updated_ids), "requested": len(updates)}
+    except Exception as e:
+        logger.warning(f"[reorder_teacher_resources] bulk RPC unavailable, falling back to sequential ({e})")
+
     import asyncio
     loop = asyncio.get_event_loop()
 
@@ -10366,7 +10363,7 @@ async def reorder_teacher_resources(request: Request):
             await loop.run_in_executor(None, _do_update, rid, new_order)
             updated_ids.append(rid)
         except Exception as e:
-            logger.error(f"[reorder_teacher_resources] failed to update {rid}: {e}")
+            logger.error(f"[reorder_teacher_resources] fallback failed to update {rid}: {e}")
     return {"updated": len(updated_ids), "requested": len(updates)}
 
 
