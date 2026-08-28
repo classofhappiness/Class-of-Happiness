@@ -6,7 +6,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../../src/utils/sounds';
-import { loadVoiceEnabled, loadVoiceManifest, playVoiceClip } from '../../src/utils/voiceClips';
+import { loadVoiceEnabled, loadVoiceManifest, playVoiceClip, playPhraseFromPool } from '../../src/utils/voiceClips';
 import { VoiceToggleButton } from '../../src/components/VoiceToggleButton';
 
 const getColourInfo = (t: (key: string) => string) => ({
@@ -75,6 +75,10 @@ export default function ColourSelectionScreen() {
     preloadSounds();
     loadVoiceEnabled();
     loadVoiceManifest(language);
+    // Real feature Aug 28 (item A): opening-greeting phrase, played once when this screen
+    // (the actual "how are you feeling" moment) is reached - not on every re-render, since
+    // this effect is gated on [language] same as the lines above it.
+    playPhraseFromPool('opening', language);
   }, [language]);
 
   useLayoutEffect(() => {

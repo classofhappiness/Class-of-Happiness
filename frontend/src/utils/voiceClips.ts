@@ -91,25 +91,46 @@ export const playVoiceClip = async (rawKey: string, language: string) => {
   }, 0);
 };
 
-// Real feature Aug 21: reward-screen ("Great Job!") voice clip - same mute toggle, same
-// play-once pattern as playVoiceClip, but a separate endpoint/cache since this clip lives
-// outside the 28-key manifest (GET /voice-clips/reward, not /voice-clips).
-let rewardClipLanguage: string | null = null;
-let rewardClipUrl: string | null = null;
+// Real feature Aug 21, extended Aug 28 (item A): "greeting/praise" phrase pools - same mute
+// toggle, same play-once pattern as playVoiceClip, but a separate endpoint/cache since
+// these clips live outside the 28-key manifest (GET /voice-clips/phrases, not /voice-clips).
+// Each moment ("opening"/"praise"/"farewell") has 2-4 near-synonymous real recordings -
+// cached per moment+language, one picked at random on every play so a kid hears variety
+// instead of the identical line every check-in. Was a single hardcoded Great_job-only call
+// (playRewardVoiceClip) before this - see server.py's VOICE_PHRASE_POOLS for the real
+// per-moment grouping this was confirmed against with Jono.
+const phrasePoolCache: Record<string, string[] | undefined> = {};
+const phrasePoolPromises: Record<string, Promise<string[]> | undefined> = {};
 
-export const playRewardVoiceClip = (language: string) => {
+export type VoicePhraseMoment = 'opening' | 'praise' | 'farewell';
+
+const loadPhrasePool = async (moment: VoicePhraseMoment, language: string): Promise<string[]> => {
+  const cacheKey = `${moment}:${language}`;
+  if (phrasePoolCache[cacheKey]) return phrasePoolCache[cacheKey];
+  if (phrasePoolPromises[cacheKey]) return phrasePoolPromises[cacheKey];
+  phrasePoolPromises[cacheKey] = (async () => {
+    let urls: string[] = [];
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/voice-clips/phrases?moment=${encodeURIComponent(moment)}&language=${encodeURIComponent(language)}`);
+      const data = res.ok ? await res.json() : {};
+      urls = Array.isArray(data?.urls) ? data.urls : [];
+    } catch {
+      urls = [];
+    }
+    phrasePoolCache[cacheKey] = urls;
+    delete phrasePoolPromises[cacheKey];
+    return urls;
+  })();
+  return phrasePoolPromises[cacheKey];
+};
+
+export const playPhraseFromPool = (moment: VoicePhraseMoment, language: string) => {
   if (!voiceEnabled) return;
   setTimeout(async () => {
     try {
-      let url = rewardClipLanguage === language ? rewardClipUrl : null;
-      if (url === null && rewardClipLanguage !== language) {
-        const res = await fetch(`${BACKEND_URL}/api/voice-clips/reward?language=${encodeURIComponent(language)}`);
-        const data = res.ok ? await res.json() : {};
-        url = data?.url || null;
-        rewardClipLanguage = language;
-        rewardClipUrl = url;
-      }
-      if (!url) return;
+      const urls = await loadPhrasePool(moment, language);
+      if (!urls.length) return;
+      const url = urls[Math.floor(Math.random() * urls.length)];
       const { sound } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: true, volume: 1.0 });
       sound.setOnPlaybackStatusUpdate((status) => {
         if (status.isLoaded && status.didJustFinish) {

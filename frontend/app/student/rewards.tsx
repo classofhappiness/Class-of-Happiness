@@ -21,7 +21,7 @@ import { CommunityCreatureDisplay } from '../../src/components/CommunityCreature
 import { EvolutionAnimation } from '../../src/components/EvolutionAnimation';
 import { BonusItemCelebration, CelebrationItem } from '../../src/components/BonusItemCelebration';
 import { playButtonFeedback, playRewardFeedback, playEvolutionSound, preloadSounds } from '../../src/utils/sounds';
-import { playRewardVoiceClip } from '../../src/utils/voiceClips';
+import { playPhraseFromPool } from '../../src/utils/voiceClips';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 
 
@@ -159,8 +159,9 @@ export default function RewardsScreen() {
       
       // Play reward sound
       playRewardFeedback();
-      // Real feature Aug 21: reward voice clip, same mute toggle as check-in voice clips
-      playRewardVoiceClip(language);
+      // Real feature Aug 21, extended Aug 28 (item A): praise-phrase pool (Great_job/
+      // Well_done/You_did_it/I_did_it), randomized so it's not the same line every check-in.
+      playPhraseFromPool('praise', language);
 
       // Check if evolved
       if (response.evolved && response.current_stage > previousStage) {
@@ -237,6 +238,10 @@ export default function RewardsScreen() {
 
   const handleContinue = () => {
     playButtonFeedback();
+    // Real feature Aug 28 (item A): farewell-phrase pool (See_you_tomorrow/
+    // Thank_you_for_checking_in), the genuine "leaving the check-in session" moment -
+    // fire-and-forget like every other voice clip in this app, plays over the navigation.
+    playPhraseFromPool('farewell', language);
     if (params.returnTo === 'family') {
       router.replace('/parent/dashboard');
     } else {

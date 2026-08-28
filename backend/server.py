@@ -3013,24 +3013,50 @@ async def get_voice_clips(language: str = "en"):
         for key in VOICE_CLIP_KEYS if key in existing
     }
 
-# Real feature Aug 21: reward-screen ("Great Job!") voice clip. Matilda/Mateus recorded a batch
-# of clips for future check-in start/completion moments that were left sitting in the
-# voice-recordings bucket ROOT (not the en/pt/ canonical structure the 28 clips above live in).
-# Great_job.m4a / Muito_bem.m4a are the closest match to this specific moment - picked by
-# filename only, NOT manually verified by listening (no audio playback in this environment).
-REWARD_VOICE_CLIP_FILES = {"en": "Great_job.m4a", "pt": "Muito_bem.m4a"}
+# Real feature Aug 21, extended Aug 28 (item A): Matilda/Mateus recorded a batch of 15
+# "greeting/praise" clips for check-in start/completion moments, left sitting in the
+# voice-recordings bucket ROOT (not the en/pt/ canonical structure the 28 zone/helper clips
+# above live in) - only Great_job/Muito_bem were ever wired (the original reward-screen
+# clip). Re-inventoried directly against live Storage (not the old handover notes) before
+# building: 8 English files, 7 Portuguese (I_did_it has no Portuguese recording - confirmed
+# still true). Grouped into 3 pools by real UI moment, confirmed with Jono before building:
+# "opening" (zone.tsx, the colour-picker screen), "praise" (rewards.tsx, replaces the old
+# single Great_job-only call), "farewell" (rewards.tsx's exit/Continue tap). Each pool is
+# randomized client-side on every play so a kid hears variety, not the same line every
+# check-in. No Italian recordings exist for any of these 15 clips (checked the `it/` folder
+# and every other Storage bucket directly) - `it` is simply absent from the language dict
+# below, same "missing key/language quietly returns nothing" convention as the 28-clip
+# manifest above, not a special case.
+VOICE_PHRASE_POOLS = {
+    "opening": {
+        "en": ["How_are_you_feeling_today.m4a", "Check_in_with_my_feelings.m4a"],
+        "pt": ["Como_te_sentes_hoje.m4a", "Regista_como_te_sentes.m4a"],
+    },
+    "praise": {
+        "en": ["Great_job.m4a", "Well_done.m4a", "You_did_it.m4a", "I_did_it.m4a"],
+        "pt": ["Muito_bem.m4a", "Boa.m4a", "Conseguiste.m4a"],
+    },
+    "farewell": {
+        "en": ["See_you_tomorrow.m4a", "Thank_you_for_checking_in.m4a"],
+        "pt": ["Ate_amanha.m4a", "Obrigada_por_te_registares.m4a"],
+    },
+}
 
-@api_router.get("/voice-clips/reward")
-async def get_reward_voice_clip(language: str = "en"):
-    filename = REWARD_VOICE_CLIP_FILES.get(language) or REWARD_VOICE_CLIP_FILES["en"]
+@api_router.get("/voice-clips/phrases")
+async def get_voice_phrase_pool(moment: str = "praise", language: str = "en"):
+    pool = VOICE_PHRASE_POOLS.get(moment, {}).get(language, [])
+    if not pool:
+        return {"urls": []}
     try:
         files = supabase.storage.from_("voice-recordings").list()
-        if not any(f["name"] == filename for f in (files or [])):
-            return {"url": None}
+        existing = {f["name"] for f in (files or [])}
     except Exception as e:
-        logger.error(f"reward voice-clip list error: {e}")
-        return {"url": None}
-    return {"url": supabase.storage.from_("voice-recordings").get_public_url(filename)}
+        logger.error(f"voice-clips/phrases list error: {e}")
+        return {"urls": []}
+    return {"urls": [
+        supabase.storage.from_("voice-recordings").get_public_url(filename)
+        for filename in pool if filename in existing
+    ]}
 
 # Keep old endpoint name for frontend compatibility
 @api_router.get("/strategies")
