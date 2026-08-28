@@ -6314,15 +6314,22 @@ async def get_notification_settings(request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Real bug fix Aug 28 (found investigating the school-profile save 500): setting_key/
+    # setting_value have never been real columns on admin_settings (confirmed live - the
+    # only real columns are key/value/updated_at/school_admin_id) - every query in this
+    # whole notification-settings section referencing them has always errored. This GET
+    # specifically was wrapped in a broad try/except, so it never crashed - it just always
+    # silently returned {} regardless of what a caller had actually saved, indistinguishable
+    # from "no preferences set yet".
     try:
-        result = supabase.table("admin_settings").select("*").eq("school_admin_id", user["user_id"]).like("setting_key", "notif_%").execute()
+        result = supabase.table("admin_settings").select("*").eq("school_admin_id", user["user_id"]).like("key", "notif_%").execute()
         settings = {}
         for row in (result.data or []):
             import json
             try:
-                settings[row["setting_key"]] = json.loads(row["setting_value"])
+                settings[row["key"]] = json.loads(row["value"])
             except:
-                settings[row["setting_key"]] = row["setting_value"]
+                settings[row["key"]] = row["value"]
         return settings
     except Exception as e:
         logger.error(f"Get notification settings error: {e}")
@@ -6340,15 +6347,17 @@ async def update_notification_settings(request: Request):
         for key, value in body.items():
             if not key.startswith("notif_"):
                 key = f"notif_{key}"
-            existing = supabase.table("admin_settings").select("id").eq("school_admin_id", user["user_id"]).eq("setting_key", key).execute()
+            # Real bug fix Aug 28: setting_key/setting_value/id are not real admin_settings
+            # columns (see get_notification_settings' docstring above) - this 500'd on
+            # every single save, always, since the day this endpoint was built.
+            existing = supabase.table("admin_settings").select("key").eq("school_admin_id", user["user_id"]).eq("key", key).execute()
             if existing.data:
-                supabase.table("admin_settings").update({"setting_value": json.dumps(value)}).eq("school_admin_id", user["user_id"]).eq("setting_key", key).execute()
+                supabase.table("admin_settings").update({"value": json.dumps(value)}).eq("school_admin_id", user["user_id"]).eq("key", key).execute()
             else:
                 supabase.table("admin_settings").insert({
-                    "id": str(uuid.uuid4()),
                     "school_admin_id": user["user_id"],
-                    "setting_key": key,
-                    "setting_value": json.dumps(value),
+                    "key": key,
+                    "value": json.dumps(value),
                 }).execute()
     except Exception as e:
         logger.error(f"Update notification settings error: {e}")
@@ -6363,11 +6372,11 @@ async def get_student_notification_settings(student_id: str, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        result = supabase.table("admin_settings").select("*").eq("school_admin_id", user["user_id"]).eq("setting_key", f"notif_student_{student_id}").execute()
+        result = supabase.table("admin_settings").select("*").eq("school_admin_id", user["user_id"]).eq("key", f"notif_student_{student_id}").execute()
         if result.data:
             import json
             try:
-                return json.loads(result.data[0]["setting_value"])
+                return json.loads(result.data[0]["value"])
             except:
                 return {}
         return {"help_request": False, "zone_alerts": [], "enabled": False}
@@ -6385,15 +6394,16 @@ async def update_student_notification_settings(student_id: str, request: Request
     import json
     key = f"notif_student_{student_id}"
     try:
-        existing = supabase.table("admin_settings").select("id").eq("school_admin_id", user["user_id"]).eq("setting_key", key).execute()
+        # Real bug fix Aug 28: same setting_key/setting_value/id-don't-exist bug as
+        # /notifications/settings above.
+        existing = supabase.table("admin_settings").select("key").eq("school_admin_id", user["user_id"]).eq("key", key).execute()
         if existing.data:
-            supabase.table("admin_settings").update({"setting_value": json.dumps(body)}).eq("school_admin_id", user["user_id"]).eq("setting_key", key).execute()
+            supabase.table("admin_settings").update({"value": json.dumps(body)}).eq("school_admin_id", user["user_id"]).eq("key", key).execute()
         else:
             supabase.table("admin_settings").insert({
-                "id": str(uuid.uuid4()),
                 "school_admin_id": user["user_id"],
-                "setting_key": key,
-                "setting_value": json.dumps(body),
+                "key": key,
+                "value": json.dumps(body),
             }).execute()
     except Exception as e:
         logger.error(f"Update student notif settings error: {e}")
@@ -6414,15 +6424,16 @@ async def update_classroom_notification_settings(classroom_id: str, request: Req
         for student in (students.data or []):
             sid = student["id"]
             key = f"notif_student_{sid}"
-            existing = supabase.table("admin_settings").select("id").eq("school_admin_id", user["user_id"]).eq("setting_key", key).execute()
+            # Real bug fix Aug 28: same setting_key/setting_value/id-don't-exist bug as the
+            # other notification-settings endpoints above.
+            existing = supabase.table("admin_settings").select("key").eq("school_admin_id", user["user_id"]).eq("key", key).execute()
             if existing.data:
-                supabase.table("admin_settings").update({"setting_value": json.dumps(body)}).eq("school_admin_id", user["user_id"]).eq("setting_key", key).execute()
+                supabase.table("admin_settings").update({"value": json.dumps(body)}).eq("school_admin_id", user["user_id"]).eq("key", key).execute()
             else:
                 supabase.table("admin_settings").insert({
-                    "id": str(uuid.uuid4()),
                     "school_admin_id": user["user_id"],
-                    "setting_key": key,
-                    "setting_value": json.dumps(body),
+                    "key": key,
+                    "value": json.dumps(body),
                 }).execute()
     except Exception as e:
         logger.error(f"Bulk classroom notif error: {e}")
@@ -6645,10 +6656,15 @@ async def send_zone_alert(request: Request):
                 if cr.data:
                     teacher_id = cr.data[0].get("user_id")
             if teacher_id:
-                setting_r = supabase.table("admin_settings").select("setting_value").eq("school_admin_id", teacher_id).eq("setting_key", f"notif_student_{student_id}").execute()
+                # Real bug fix Aug 28: setting_key/setting_value are not real admin_settings
+                # columns (see get_notification_settings' docstring) - this lookup has
+                # always errored, silently swallowed by this block's own try/except, meaning
+                # a teacher's zone-alert push notification has never actually fired for any
+                # student regardless of whether they enabled it.
+                setting_r = supabase.table("admin_settings").select("value").eq("school_admin_id", teacher_id).eq("key", f"notif_student_{student_id}").execute()
                 if setting_r.data:
                     import json as _json
-                    settings = _json.loads(setting_r.data[0]["setting_value"])
+                    settings = _json.loads(setting_r.data[0]["value"])
                     watched_zones = settings.get("zone_alerts", [])
                     if zone in watched_zones and settings.get("enabled", False):
                         teacher_token_r = supabase.table("users").select("push_token").eq("user_id", teacher_id).execute()
@@ -6663,10 +6679,13 @@ async def send_zone_alert(request: Request):
             parent_links = supabase.table("parent_links").select("parent_id").eq("student_id", student_id).execute()
             for link in (parent_links.data or []):
                 parent_id = link["parent_id"]
-                setting_r = supabase.table("admin_settings").select("setting_value").eq("school_admin_id", parent_id).eq("setting_key", f"notif_student_{student_id}").execute()
+                # Real bug fix Aug 28: same setting_key/setting_value bug as the teacher
+                # check above - a parent's zone-alert push notification has never actually
+                # fired either.
+                setting_r = supabase.table("admin_settings").select("value").eq("school_admin_id", parent_id).eq("key", f"notif_student_{student_id}").execute()
                 if setting_r.data:
                     import json as _json
-                    settings = _json.loads(setting_r.data[0]["setting_value"])
+                    settings = _json.loads(setting_r.data[0]["value"])
                     watched_zones = settings.get("zone_alerts", [])
                     if zone in watched_zones and settings.get("enabled", False):
                         parent_token_r = supabase.table("users").select("push_token").eq("user_id", parent_id).execute()
@@ -6988,7 +7007,9 @@ async def get_notification_stats(request: Request, days: int = 7):
         # Opt-in rate
         total_students_r = supabase.table("students").select("id", count="exact").execute()
         total_students = total_students_r.count or 1
-        enabled_settings_r = supabase.table("admin_settings").select("id", count="exact").like("setting_key", "notif_student_%").execute()
+        # Real bug fix Aug 28: same setting_key/id-don't-exist bug as the rest of this
+        # notification-settings section - this opt-in count has always been wrong/erroring.
+        enabled_settings_r = supabase.table("admin_settings").select("key", count="exact").like("key", "notif_student_%").execute()
         enabled_count = enabled_settings_r.count or 0
 
         return {
@@ -10598,11 +10619,14 @@ async def update_admin_setting(request: Request):
     POST /wellbeing-alert). SECURITY fix Aug 27 (item 11): this used to accept any
     role in [admin, superadmin, school_admin] with zero scoping on a fully free-form
     `key` - the admin_settings table is shared with several OTHER, properly-scoped
-    conventions (school_admin_id+setting_key for notification prefs, school_admin_id+key
-    for /schools/my-school), so any school_admin could read or overwrite a global key
-    (including another admin's) via this one generic endpoint, and the old unscoped GET
-    below returned a corrupted merge of every convention's rows into one dict (rows using
-    setting_key/setting_value instead of key/value collapsed onto a `None` key). Genuinely
+    conventions (school_admin_id+key for /schools/my-school and, as of Aug 28's fix, the
+    notification-preference endpoints too - they'd used a nonexistent setting_key/
+    setting_value column pair since the day they were built, silently 500ing or swallowing
+    every read/write, until that was found and fixed the same night), so any school_admin
+    could read or overwrite a global key (including another admin's) via this one generic
+    endpoint, and the old unscoped GET below returned a corrupted merge of every
+    convention's rows into one dict (rows missing a real `key` collapsed onto a `None`
+    key). Genuinely
     global config should only be superadmin's to touch - real per-school settings already
     have their own scoped endpoints and don't belong here. No caller anywhere in
     frontend/portal ever called this (confirmed via repo-wide grep), so tightening it
@@ -10845,12 +10869,16 @@ async def generate_school_invite_code(request: Request):
     except Exception as e:
         logger.error(f"Could not store invite code in invite_codes table: {e}")
         # Fallback: store in admin_settings as key-value so join still works
+        # Real bug fix Aug 28: setting_key/setting_value are not real admin_settings columns
+        # (see get_notification_settings' docstring) - this fallback has always silently
+        # failed too (rarely exercised, since the primary invite_codes insert normally
+        # succeeds, but genuinely broken if it's ever actually needed).
         try:
             import json
             supabase.table("admin_settings").insert({
                 "school_admin_id": user["user_id"],
-                "setting_key": f"invite_code_{code}",
-                "setting_value": json.dumps(invite_data),
+                "key": f"invite_code_{code}",
+                "value": json.dumps(invite_data),
             }).execute()
             stored = True
             logger.info(f"Invite code stored in admin_settings fallback")
@@ -10882,12 +10910,13 @@ async def join_school_with_invite(request: Request):
     try:
         result = supabase.table("invite_codes").select("*").eq("code", code).execute()
         # Fallback: check admin_settings if invite_codes table is empty/missing
+        # Real bug fix Aug 28: same setting_key/setting_value bug as the write side above.
         if not result.data:
             try:
                 import json
-                fb = supabase.table("admin_settings").select("*").eq("setting_key", f"invite_code_{code}").execute()
+                fb = supabase.table("admin_settings").select("*").eq("key", f"invite_code_{code}").execute()
                 if fb.data:
-                    result_data = json.loads(fb.data[0]["setting_value"])
+                    result_data = json.loads(fb.data[0]["value"])
                     result = type('R', (), {'data': [result_data]})()
             except Exception as fb_err:
                 logger.error(f"Fallback invite lookup failed: {fb_err}")
@@ -12328,7 +12357,12 @@ async def update_my_school(request: Request):
         if field not in body:
             continue
         value = str(body[field])
-        existing = supabase.table("admin_settings").select("id").eq("school_admin_id", user["user_id"]).eq("key", key).execute()
+        # Real bug fix Aug 28: admin_settings has no "id" column at all (confirmed live -
+        # real columns are key/value/updated_at/school_admin_id) - this 500'd on every
+        # single save, always, since the day this endpoint was built. The existence check
+        # only needs a real column; school_admin_id+key are already the actual filter used
+        # both here and by the update/insert branches below.
+        existing = supabase.table("admin_settings").select("key").eq("school_admin_id", user["user_id"]).eq("key", key).execute()
         if existing.data:
             supabase.table("admin_settings").update({"value": value}).eq("school_admin_id", user["user_id"]).eq("key", key).execute()
         else:
