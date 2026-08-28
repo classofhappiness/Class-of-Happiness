@@ -160,6 +160,23 @@ const COLOUR_TIPS_PARENT: Record<string, {tip: string, action: string}[]> = {
 export default function ParentDashboard() {
   const router = useRouter();
   const { user, presetAvatars, t, language, setCurrentStudent, hasActiveSubscription, students, refreshStudents } = useApp();
+
+  // Real bug fix Aug 28 (item 1): the mirror-image guard to teacher/dashboard.tsx's own
+  // role-gate (added Aug 26, item 3 - "a parent-only account is locked out of the Teacher
+  // dashboard entirely") never existed on this side. A non-parent role (found live: a
+  // teacher account) reaching this screen mounted it and called fetchData() unconditionally,
+  // which calls familyApi.getMembers() (GET /family/members) before any role check - the
+  // backend correctly rejects that for a teacher ("Parent access required"), but the call
+  // still fired and logged a real console error every time, non-fatal but genuinely
+  // unnecessary. Same pattern as the working teacher-side guard: redirect away, and render
+  // nothing while the redirect is in flight so there's no flash of content that's about to
+  // disappear.
+  useEffect(() => {
+    if (user && user.role !== 'parent') {
+      router.replace('/teacher/dashboard');
+    }
+  }, [user?.role]);
+
   const [strategyNames, setStrategyNames] = useState<Record<string,string>>({});
   
   // Linked children from school
@@ -841,6 +858,11 @@ export default function ParentDashboard() {
 
   const totalLogs = pieData.reduce((sum, item) => sum + item.value, 0);
   const totalFamilyCheckins = recentLogs.length;
+
+  // Real bug fix Aug 28 (item 1): mirrors teacher/dashboard.tsx's own render-guard - prevents
+  // a flash of family/parent content for a non-parent role while the redirect above is
+  // still in flight.
+  if (user && user.role !== 'parent') return null;
 
   return (
     <SafeAreaView style={styles.container}>

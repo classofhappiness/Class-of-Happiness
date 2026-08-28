@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +11,13 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isLoading, isAuthenticated, user, login, t, hasActiveSubscription } = useApp();
+
+  // Real bug fix Aug 28 (item 5): a parent account is genuinely on a lower-tier plan than
+  // teacher (confirmed in server.py's SUBSCRIPTION_PLANS: parent_monthly is priced below
+  // teacher_monthly) and has no real access to Teacher Dashboard - teacher/dashboard.tsx's
+  // own guard already correctly blocks it, this just makes that visible before the tap
+  // instead of after a confusing silent redirect.
+  const teacherLocked = isAuthenticated && user?.role === 'parent';
 
   if (isLoading) {
     return (
@@ -83,9 +90,23 @@ export default function HomeScreen() {
         {/* Teacher + Parent — smaller, side by side */}
         <View style={styles.roleRow}>
           <TouchableOpacity
-            style={[styles.roleButton, styles.teacherButton]}
+            style={[styles.roleButton, styles.teacherButton, teacherLocked && styles.roleButtonLocked]}
             onPress={() => {
               if (!isAuthenticated) { login(); return; }
+              // Real bug fix Aug 28 (item 5): a parent account tapping this previously
+              // navigated straight to /teacher/dashboard, which then silently redirected to
+              // /parent/dashboard (the guard was working correctly - see teacher/dashboard.tsx)
+              // - but from the user's side that just looks like the button did something
+              // confusing rather than clearly communicating "not available on your account".
+              // Now locked and explained up front instead, matching the existing
+              // not-logged-in lock treatment, extended to "logged in as the wrong role".
+              if (teacherLocked) {
+                Alert.alert(
+                  t('teacher_dashboard_locked_title') || 'Teacher Dashboard',
+                  t('teacher_dashboard_locked_desc') || "This is only available on a teacher account. You're logged in as a parent."
+                );
+                return;
+              }
               router.push('/teacher/dashboard');
             }}
             activeOpacity={0.85}
@@ -95,7 +116,7 @@ export default function HomeScreen() {
               <Text style={styles.roleButtonTitle}>{t('teacher') || 'Teacher'}</Text>
               <Text style={{fontSize:10, color:'#1A1A2E', fontStyle:'italic', fontWeight:'600', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}>{'Teachers Dashboard — support your students here'}</Text>
             </View>
-            {!isAuthenticated && <MaterialIcons name="lock" size={14} color="rgba(255,255,255,0.7)" />}
+            {(!isAuthenticated || teacherLocked) && <MaterialIcons name="lock" size={14} color="rgba(255,255,255,0.7)" />}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -169,6 +190,11 @@ const styles = StyleSheet.create({
   roleButton: { flex: 1, borderRadius: 18, paddingVertical: 16, alignItems: 'center', gap: 4 },
   teacherButton: { backgroundColor: '#FFC107', elevation: 0 },
   parentButton: { backgroundColor: '#4A90D9', elevation: 0 },
+  // Real feature Aug 28 (item 5): visually lighter/disabled treatment for a button that's
+  // genuinely unavailable on the current account, distinct from the normal not-yet-tapped
+  // state - opacity alone (rather than a colour swap) keeps it recognisably the same button,
+  // just clearly inactive.
+  roleButtonLocked: { opacity: 0.45 },
   roleButtonTitle: { fontSize: 17, fontWeight: '900', color: '#1A1A2E' },
 
   trialButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#E8F5E9', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, gap: 8, borderWidth: 1, borderColor: '#4CAF50', marginTop: 12, marginBottom: 0 },

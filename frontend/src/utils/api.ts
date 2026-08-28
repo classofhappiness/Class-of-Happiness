@@ -797,6 +797,11 @@ export interface TeacherResource {
   pdf_filename?: string;
   created_by: string;
   created_by_name?: string;
+  // Real bug fix Aug 28 (items 4/7): was already returned by the backend
+  // (_resource_to_teacher_resource) but never declared here - needed to distinguish
+  // COH-admin-uploaded content (is_global) from genuinely teacher-uploaded content when
+  // created_by_name is missing.
+  is_global?: boolean;
   average_rating: number;
   total_ratings: number;
   created_at: string;

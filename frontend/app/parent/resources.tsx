@@ -20,12 +20,22 @@ import { File, Directory, Paths } from 'expo-file-system/next';
 import * as Sharing from 'expo-sharing';
 import { resourcesApi, teacherResourcesApi, Resource, TeacherResource, TeacherResourceRating } from '../../src/utils/api';
 import { useApp } from '../../src/context/AppContext';
+import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 
+// Real bug fix Aug 28 (item 8): 'emotions' and 'emotions_program' were two separate, near-
+// identical-looking tabs - confirmed live (both here and on the portal) that literally every
+// real resource uses 'emotions_program'; 'emotions' has never had any content at all. Removed
+// the redundant entry rather than leaving a permanently-empty tab next to the real one.
+// Relabelled the remaining entry to "Emotions" to match what the teacher app already shows
+// (its label comes from a translation key that already resolves to "Emotions", not "Emotions
+// Program") - keeps the same wording consistent across every surface. Canonical id is
+// unchanged (still 'emotions_program') - that's also the exact string the backend's free-tier
+// gate checks for "this whole category is always free", so relabelling only the display text
+// carries zero backend/data risk.
 const TOPICS = [
   { id: 'all', name: 'All', icon: 'apps' as const },
   { id: 'general', name: 'General', icon: 'folder' as const },
-  { id: 'emotions_program', name: 'Emotions Program', icon: 'auto-stories' as const },
-  { id: 'emotions', name: 'Emotions', icon: 'mood' as const },
+  { id: 'emotions_program', name: 'Emotions', icon: 'auto-stories' as const },
   { id: 'healthy_relationships', name: 'Healthy Relationships', icon: 'people' as const },
   { id: 'leader_online', name: 'Leader Online', icon: 'computer' as const },
   { id: 'you_are_what_you_eat', name: 'You Are What You Eat', icon: 'restaurant' as const },
@@ -106,6 +116,23 @@ export default function ResourcesScreen() {
   const handleViewResource = async (resource: Resource | TeacherResource) => {
     setSelectedResource(resource);
 
+    // Real bug fix Aug 28: the list this "resource" came from (resourcesApi.getAll(), GET
+    // /resources) no longer includes content at all - fixed on the backend today, the same
+    // list response that was timing out because it used to carry every resource's full base64
+    // PDF inline. A text-type resource's body (rendered directly from resource.content, not
+    // downloaded) would now show blank instead. Only ~39 resources exist and all are
+    // currently PDFs (checked live), so this isn't visibly broken today, but re-fetching the
+    // single resource (which still correctly includes content) keeps text-type resources
+    // working whenever one is eventually added, rather than leaving a silent future gap.
+    if (!('topic' in resource) && resource.content_type === 'text') {
+      try {
+        const full = await resourcesApi.get(resource.id);
+        setSelectedResource(full);
+      } catch (error) {
+        console.error('Error loading full resource content:', error);
+      }
+    }
+
     if ('topic' in resource) {
       setLoadingRatings(true);
       try {
@@ -142,9 +169,22 @@ export default function ResourcesScreen() {
       if (Platform.OS === 'web') {
         Linking.openURL(downloadUrl);
       } else {
+        // Real bug fix Aug 28 (item 10): `timestamp` was already declared here but never
+        // actually used - downloadFileAsync was passed a bare Directory, which derives its
+        // own (consistently the SAME) filename from the URL, and the newer expo-file-system
+        // API refuses to overwrite an existing file rather than silently replacing it. Any
+        // earlier attempt for the SAME resource - including one that failed partway through
+        // (e.g. the /resources list timeout just fixed above, or a dropped connection) -
+        // left a stale file sitting at that exact path, so every retry hit "Destination
+        // already exists" instead of ever succeeding. teacher/resources.tsx's own download
+        // (confirmed working) already does exactly this - a timestamp-qualified unique
+        // filename per attempt - just via the older expo-file-system API; same fix, adapted
+        // to this file's newer File/Directory API.
         const timestamp = Date.now();
+        const safeName = ((resource as any).pdf_filename || `${resource.title}.pdf`).replace(/[^a-zA-Z0-9._-]/g, '_');
         const cacheDir = new Directory(Paths.cache);
-        const downloadedFile = await File.downloadFileAsync(downloadUrl, cacheDir, {
+        const destFile = new File(cacheDir, `${timestamp}_${safeName}`);
+        const downloadedFile = await File.downloadFileAsync(downloadUrl, destFile, {
           headers: { 'Authorization': `Bearer ${token2}` }
         });
 
@@ -278,7 +318,11 @@ export default function ResourcesScreen() {
 
         {/* Resources List — unified single list, real fix Aug 14 (see above) */}
         {loading ? (
+          // Real bug fix Aug 28 (item 6): this showed static text only, no visual loading
+          // indicator at all - confirmed EmotionColourLoader genuinely exists and is already
+          // used elsewhere in the app (e.g. student/creatures.tsx), just never wired in here.
           <View style={styles.loadingContainer}>
+            <EmotionColourLoader visible={loading} />
             <Text style={styles.loadingText}>{t('loading_resources') || 'Loading resources...'}</Text>
           </View>
         ) : filteredResources.length === 0 ? (

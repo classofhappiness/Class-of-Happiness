@@ -13,6 +13,7 @@ import {
   Alert,
   Platform,
   Linking,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -366,10 +367,21 @@ export default function TeacherResourcesScreen() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <SafeAreaView style={styles.container}>
       {/* Header with back button */}
+      {/* Real bug fix Aug 28 (item 3): this screen imported TranslatedHeader (which is where
+          the COH logo actually comes from - see its own logo Image) but never once rendered
+          it - it has always used this separate, custom-built top bar instead, which never had
+          a logo of its own. Added directly here rather than swapping in TranslatedHeader
+          wholesale, to avoid changing this bar's existing back/title/home layout - same real
+          asset and sizing TranslatedHeader itself uses, for visual consistency. */}
       <View style={styles.resourcesTopBar}>
         <TouchableOpacity onPress={() => router.back()} style={styles.resourcesBackBtn}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
+        <Image
+          source={require('../../assets/images/logo_coh.png')}
+          style={{ width: 24, height: 24, marginRight: 8 }}
+          resizeMode="contain"
+        />
         <Text style={styles.resourcesTopBarTitle}>{t('teacher_resources') || 'Teacher Resources'}</Text>
         <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ padding: 6, width: 40, alignItems: 'center' }}>
           <MaterialIcons name="home" size={22} color="#333" />
@@ -498,7 +510,15 @@ export default function TeacherResourcesScreen() {
                 </View>
                 )}
                 <Text style={styles.uploadedBy}>
-                  {t('by') || 'By'} {resource.created_by_name || (t('teacher') || 'Teacher')}
+                  {/* Real bug fix Aug 28 (items 4/7): fell back to the generic word "Teacher"
+                      whenever created_by_name was missing, regardless of who actually
+                      uploaded it - confirmed live this mislabels real COH-admin-curated
+                      content (Emotions Program, Healthy Relationships) as if a random
+                      teacher had made it. All real admin-curated resources are is_global
+                      (confirmed: superadmin uploads always set this), so that's the correct
+                      signal to distinguish "COH App Admin" from a genuinely
+                      teacher/school_admin-uploaded resource lacking a captured name. */}
+                  {t('by') || 'By'} {resource.created_by_name || (resource.is_global ? (t('coh_app_admin') || 'COH App Admin') : (t('teacher') || 'Teacher'))}
                   {resource.uploaded_by_me && (
                     <TouchableOpacity
                       onPress={async () => {

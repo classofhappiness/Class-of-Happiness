@@ -3726,8 +3726,20 @@ async def get_resources(request: Request):
     # all (confirmed via direct error — PostgREST couldn't find it, suggested "resources"
     # instead) — meaning this endpoint has been silently returning an empty list to EVERY
     # user, every time, with the real error swallowed by the except clause below.
+    # Real bug fix Aug 28 (app parent-resources timeout): select("*") pulled the full base64
+    # `content` field for every resource into this LIST response - the same class of bug
+    # already found and fixed on /teacher-resources and its own list endpoint tonight. Real
+    # content now totals well over 100MB across the table (confirmed live earlier tonight -
+    # a plain SELECT of every resource's content genuinely times out at the Postgres level).
+    # The app's parent/resources.tsx calls exactly this endpoint via resourcesApi.getAll() -
+    # this is the real, confirmed cause of its reported "Request timed out" error, not
+    # something intermittent. Content isn't needed for a list - the single-resource GET
+    # (/resources/{id}) still returns full content unchanged, for whatever genuinely needs it
+    # (e.g. viewing a text-type resource's body).
     try:
-        result = supabase.table("resources").select("*").eq("is_active", True).execute()
+        result = supabase.table("resources").select(
+            "id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,week_number"
+        ).eq("is_active", True).execute()
         items = result.data or []
     except Exception as e:
         logger.error(f"get_resources error: {e}")
