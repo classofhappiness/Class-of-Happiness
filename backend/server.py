@@ -10232,8 +10232,17 @@ async def create_teacher_resource(request: Request):
     content = body.get("content") or ""
     # Allow video URLs (stored as content, no size limit)
     _content_type = body.get("content_type", "text")
-    if _content_type != 'video' and len(content) > 13000000:
-        raise HTTPException(status_code=413, detail="File too large. Please use a PDF under 2MB.")
+    # Real fix Aug 28 (raised from 2MB to 10MB per Jono's request): content here is the
+    # base64-encoded file, which is checked directly - base64 inflates size by exactly 4/3
+    # (33% larger than the raw file), so the raw-file cap has to be converted to a
+    # base64-length cap. This also corrects a pre-existing, unrelated bug: the OLD threshold
+    # (13,000,000 base64 chars) actually allowed ~9.3MB raw files already, not the 2MB the
+    # error message claimed - the message was simply wrong/stale relative to the real
+    # enforced limit. RESOURCE_MAX_FILE_MB is the real, source-of-truth raw-file cap now.
+    RESOURCE_MAX_FILE_MB = 10
+    max_b64_chars = RESOURCE_MAX_FILE_MB * 1024 * 1024 * 4 // 3
+    if _content_type != 'video' and len(content) > max_b64_chars:
+        raise HTTPException(status_code=413, detail=f"File too large. Please use a PDF under {RESOURCE_MAX_FILE_MB}MB.")
     resource_data = {
         "id": str(uuid.uuid4()),
         "user_id": user["user_id"],
