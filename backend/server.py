@@ -10341,10 +10341,29 @@ async def reorder_teacher_resources(request: Request):
     # still a real ~40% improvement over the original one-request-per-resource design (66s) by
     # eliminating the client-side round-trip multiplication. Real failures are now logged
     # (previously would have been silently swallowed either way) rather than just dropped.
+    # Real fix Aug 28 (round 3): supabase-py's .execute() is a synchronous, blocking call -
+    # made directly inside this async handler (no thread offload), each one blocks FastAPI's
+    # entire single-threaded event loop for its own duration, not just this request. Live-
+    # observed: an unrelated GET /avatars health check timed out completely while THIS
+    # endpoint's sequential loop was still running for a single caller - the whole backend
+    # goes unresponsive for every other user while one admin reorders their resource list.
+    # This is very likely the same underlying mechanism behind several "everything seems
+    # down" symptoms investigated earlier tonight, not unique to this endpoint - but fixing
+    # it globally across the file is real, separate, much larger work, out of scope here.
+    # Scoped fix: keep updates genuinely sequential (no concurrency - that's what caused the
+    # real Supabase 500s above), but run each blocking call in a background thread via
+    # run_in_executor so it can't monopolize the event loop - other requests can still be
+    # served while this admin's reorder is still working through the list.
+    import asyncio
+    loop = asyncio.get_event_loop()
+
+    def _do_update(rid, new_order):
+        supabase.table("resources").update({"order_index": new_order}).eq("id", rid).execute()
+
     updated_ids = []
     for rid, new_order in to_update:
         try:
-            supabase.table("resources").update({"order_index": new_order}).eq("id", rid).execute()
+            await loop.run_in_executor(None, _do_update, rid, new_order)
             updated_ids.append(rid)
         except Exception as e:
             logger.error(f"[reorder_teacher_resources] failed to update {rid}: {e}")
