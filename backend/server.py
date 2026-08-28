@@ -10282,6 +10282,57 @@ async def create_teacher_resource(request: Request):
         raise HTTPException(status_code=500, detail=f"Failed to save resource: {error_msg[:100]}")
 
 
+@api_router.put("/teacher-resources/reorder")
+async def reorder_teacher_resources(request: Request):
+    """Real fix Aug 28: drag-and-drop reorder previously sent one PUT per resource - live-
+    measured against real production data (28 resources, 97MB total content, several PDFs
+    9-12MB) at 66s total, ~2.4s/item - the earlier concurrency fix (A61, parallel->sequential)
+    and the content-exclusion fix (A62) both helped but couldn't fix the fundamental problem:
+    N full authenticated round-trips (N session lookups, N lots of real network latency from
+    the admin's actual connection) for a single drag, scaling linearly with resource count.
+    One batch request instead - a single auth check, a single ownership-check query covering
+    every involved id at once (still never selecting content), then per-row order_index
+    updates server-to-Supabase (materially faster than client-to-Railway-to-Supabase). Route
+    registered BEFORE /teacher-resources/{resource_id} so "reorder" is never swallowed as a
+    literal resource_id by that route's path parameter.
+    """
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        body = await request.json()
+        updates = body.get("updates")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid request body")
+    if not isinstance(updates, list) or not updates:
+        raise HTTPException(status_code=400, detail="updates must be a non-empty list")
+    if len(updates) > 500:
+        raise HTTPException(status_code=400, detail="Too many items in one reorder request")
+    ids = [u.get("id") for u in updates if u.get("id")]
+    if not ids:
+        raise HTTPException(status_code=400, detail="No valid resource ids provided")
+    existing = supabase.table("resources").select("id,topic,created_by,user_id").in_("id", ids).execute()
+    existing_map = {r["id"]: r for r in (existing.data or [])}
+    is_admin = user.get("role") in ["admin", "superadmin", "school_admin"]
+    updated_ids = []
+    for u in updates:
+        rid = u.get("id")
+        new_order = u.get("order_index")
+        if rid is None or new_order is None:
+            continue
+        resource = existing_map.get(rid)
+        if not resource:
+            continue
+        if resource.get("topic") == "emotions_program" and user.get("role") != "superadmin":
+            continue
+        is_owner = (resource.get("created_by") == user.get("user_id") or resource.get("user_id") == user.get("user_id"))
+        if not is_owner and not is_admin:
+            continue
+        supabase.table("resources").update({"order_index": new_order}).eq("id", rid).execute()
+        updated_ids.append(rid)
+    return {"updated": len(updated_ids), "requested": len(updates)}
+
+
 @api_router.put("/teacher-resources/{resource_id}")
 async def update_teacher_resource(resource_id: str, request: Request):
     user = await get_current_user(request)
