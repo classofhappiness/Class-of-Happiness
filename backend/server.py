@@ -10330,29 +10330,24 @@ async def reorder_teacher_resources(request: Request):
             continue
         to_update.append((rid, new_order))
 
-    # Real fix Aug 28 (round 2): live-measured the sequential version above at 39.8s for 28
-    # real resources - eliminating the client-side round-trip multiplication (28 requests -> 1)
-    # helped, but each individual server-to-Supabase update still averaged ~1.4s (large TOASTed
-    # content on these rows, untouched by this update, still adds real per-row write cost).
-    # Bounded concurrency instead of one-at-a-time - genuinely parallel, but capped (unlike the
-    # original client-side bug, which had NO cap and came from the browser's own, much slower
-    # connection). supabase-py's .execute() is a blocking call, so real parallelism here needs
-    # a thread pool - run_in_executor (stdlib since 3.4, no version-compat risk) instead of
-    # asyncio.to_thread (3.9+, unverified on the deploy target).
-    import asyncio
-    semaphore = asyncio.Semaphore(8)
-    loop = asyncio.get_event_loop()
-
-    def _do_update(rid, new_order):
-        supabase.table("resources").update({"order_index": new_order}).eq("id", rid).execute()
-        return rid
-
-    async def _bounded_update(rid, new_order):
-        async with semaphore:
-            return await loop.run_in_executor(None, _do_update, rid, new_order)
-
-    results = await asyncio.gather(*[_bounded_update(rid, new_order) for rid, new_order in to_update], return_exceptions=True)
-    updated_ids = [r for r in results if not isinstance(r, Exception)]
+    # Real fix Aug 28 (round 2, REVERTED - live-tested and rejected): tried bounded concurrent
+    # updates (8 at a time via run_in_executor) to cut the 39.8s sequential time further.
+    # Live-verified this was NOT safe: Supabase/PostgREST itself returned genuine HTTP 500s
+    # under concurrent writes to this table (confirmed in Railway logs - real
+    # "PATCH .../resources?id=eq.X 500 Internal Server Error" responses, not a bug in this
+    # code's logic), silently dropping 10 of 28 real updates (updated_ids only counted
+    # successes, no error surfaced to the caller). Correctness matters more than the extra
+    # speed here - reverted to sequential, which is 100% reliable (28/28 confirmed) at 39.8s,
+    # still a real ~40% improvement over the original one-request-per-resource design (66s) by
+    # eliminating the client-side round-trip multiplication. Real failures are now logged
+    # (previously would have been silently swallowed either way) rather than just dropped.
+    updated_ids = []
+    for rid, new_order in to_update:
+        try:
+            supabase.table("resources").update({"order_index": new_order}).eq("id", rid).execute()
+            updated_ids.append(rid)
+        except Exception as e:
+            logger.error(f"[reorder_teacher_resources] failed to update {rid}: {e}")
     return {"updated": len(updated_ids), "requested": len(updates)}
 
 
