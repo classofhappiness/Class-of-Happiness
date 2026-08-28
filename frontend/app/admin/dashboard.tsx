@@ -217,8 +217,23 @@ function UsersManager({ authToken, isSuperAdmin }: { authToken: string|null, isS
     (!countryFilter || u.school_country === countryFilter)
   );
 
+  // Real fix Aug 28 (item 1): crash reported on real device. The bare `import('expo-clipboard')`
+  // call had no synchronous guard - if the native module isn't linked in the running build
+  // (e.g. added to package.json after the last native build/TestFlight upload), resolving it
+  // can throw before the promise chain's own .catch() ever attaches, bypassing normal JS error
+  // handling. Matches the already-proven-safe pattern used by settings.tsx's own copy-code
+  // button: try legacy RN Clipboard first (optional-chained, no-ops if absent), fall back to
+  // expo-clipboard, and wrap the whole thing in a real try/catch so nothing here can crash
+  // the screen regardless of which native modules are actually available.
   const copyEmail = (u: any) => {
-    import('expo-clipboard').then(m => m.setStringAsync(u.email)).catch(() => {});
+    try {
+      const { Clipboard } = require('react-native');
+      if (Clipboard?.setString) {
+        Clipboard.setString(u.email);
+      } else {
+        import('expo-clipboard').then(m => m.setStringAsync(u.email)).catch(() => {});
+      }
+    } catch {}
     setCopiedId(u.user_id);
     setTimeout(() => setCopiedId((id) => (id === u.user_id ? null : id)), 1500);
   };
