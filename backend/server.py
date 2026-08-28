@@ -11157,7 +11157,7 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
     prev_start = (datetime.now(timezone.utc) - timedelta(days=days * 2)).isoformat()
     prev_logs = []
     if student_ids:
-        prev_logs_res = supabase.table("feeling_logs").select("student_id,feeling_colour,zone").in_("student_id", student_ids).gte("timestamp", prev_start).lt("timestamp", start_date).execute()
+        prev_logs_res = supabase.table("feeling_logs").select("student_id,feeling_colour").in_("student_id", student_ids).gte("timestamp", prev_start).lt("timestamp", start_date).execute()
         prev_logs = prev_logs_res.data or []
     prev_participating = len(set(l["student_id"] for l in prev_logs if l.get("student_id")))
     prev_participation_rate = round((prev_participating / len(students)) * 100) if students else 0
