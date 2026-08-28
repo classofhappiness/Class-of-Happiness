@@ -1721,6 +1721,6 @@ Committed and pushed: `f4f3abcf`.
 
 **Live-verified the exact real-world sequence**: created a disposable resource with `week_number=2`, PUT it to `5` (simulating exactly the edit Jono described), then fetched it fresh via a completely separate `GET /teacher-resources` call (not just trusting the PUT response echo) - confirmed `week_number: 5` persisted correctly. Test resource deleted and removal confirmed afterward.
 
-**Not yet done, flagged for Jono rather than done unprompted**: the real "Wk 4" Emotions Program resource (`COH Emotions Program Wk 4 - Controlling my emotions at school...`) still has `week_number` unset in the database - now fixable through the corrected admin form. Since the UI now genuinely works, left this for Jono to set himself rather than writing it directly; happy to set it directly on request instead.
+**Update**: Jono asked for this to be set directly rather than redone through the form. Set `week_number=4` on the real "Wk 4" resource (`4de17503-29b2-4e0f-9a72-07a61caaff8c`) via a real `PUT /teacher-resources` call against production (exercising the actual fix, not a raw DB write) - confirmed via three independent checks: the PUT response, a separate direct database query, and the same `GET /teacher-resources` the portal itself calls. All three show `week_number: 4`.
 
 Committed and pushed: `bbfab0f8` (backend). Portal fix is in `portal100-UPLOAD-2026-08-28.html` locally - not yet uploaded, same batch as everything else pending cPanel upload.
