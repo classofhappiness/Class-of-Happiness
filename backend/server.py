@@ -10287,7 +10287,19 @@ async def update_teacher_resource(resource_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    existing = supabase.table("resources").select("*").eq("id", resource_id).execute()
+    # Real bug fix Aug 28 (found live: reorder still felt frozen even after the earlier
+    # concurrency fix reduced parallel requests to sequential): both selects below used
+    # select("*"), fetching the full row - including the potentially multi-MB base64 `content`
+    # field - purely to check ownership/return confirmation for an update that never touches
+    # content at all. For a 2MB PDF that's ~2.7MB of base64 fetched TWICE per call, entirely
+    # wasted. Neither real caller (rmUpload's rename path, rmDd's reorder loop) ever reads the
+    # response body - confirmed via grep, only one caller anywhere sends PUT and both just
+    # await it for success/failure. Trimmed to the same lightweight field list the list
+    # endpoint already uses - cuts real per-call payload size dramatically, which directly
+    # matters now that reorder saves are sequential (A61) rather than parallel - each call's
+    # cost previously overlapped, now it adds up linearly across every resource in the list.
+    _RESOURCE_LIGHT_FIELDS = "id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,week_number"
+    existing = supabase.table("resources").select(_RESOURCE_LIGHT_FIELDS).eq("id", resource_id).execute()
     if not existing.data:
         raise HTTPException(status_code=404, detail="Resource not found")
     resource = existing.data[0]
@@ -10310,7 +10322,7 @@ async def update_teacher_resource(resource_id: str, request: Request):
             updates[field] = body[field]
     if updates:
         supabase.table("resources").update(updates).eq("id", resource_id).execute()
-    updated = supabase.table("resources").select("*").eq("id", resource_id).execute()
+    updated = supabase.table("resources").select(_RESOURCE_LIGHT_FIELDS).eq("id", resource_id).execute()
     return updated.data[0] if updated.data else resource
 
 @api_router.delete("/teacher-resources/{resource_id}")
