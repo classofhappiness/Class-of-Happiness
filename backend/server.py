@@ -4241,11 +4241,45 @@ def _resolve_student_classroom_school(student_data: dict):
 def _admin_is_active(admin_id: str) -> bool:
     """True if this school_admin user_id has an ACTIVE paid plan. Shared by
     _parent_is_school_covered and _teacher_is_school_covered — extracted Aug 19
-    (A8) from what used to be a private closure inside the parent version only."""
+    (A8) from what used to be a private closure inside the parent version only.
+    Real bug fix Aug 28 (technical debt sweep, item 3): only ever checked the raw
+    subscription_status=="active" string, never subscription_expires_at - same expiry-blind
+    class already fixed elsewhere via check_subscription_active()/_is_genuinely_free_tier(),
+    just missed here since this is the ONE school-wide gate (waives free-tier caps for every
+    teacher/parent at the school at once), not a per-user gate, so it wasn't caught by the
+    earlier per-endpoint sweep. A lapsed school plan whose subscription_status string hadn't
+    yet been separately flipped would otherwise leave every teacher/parent at that school
+    uncapped indefinitely. Same active-branch pattern as check_subscription_active()."""
     if not admin_id:
         return False
-    r = supabase.table("users").select("subscription_status").eq("user_id", admin_id).execute()
-    return bool(r.data) and r.data[0].get("subscription_status") == "active"
+    r = supabase.table("users").select("subscription_status,subscription_expires_at").eq("user_id", admin_id).execute()
+    if not r.data:
+        return False
+    admin = r.data[0]
+    if admin.get("subscription_status") != "active":
+        return False
+    exp = admin.get("subscription_expires_at")
+    if exp:
+        return datetime.fromisoformat(exp.replace("Z", "+00:00")) > datetime.now(timezone.utc)
+    return True
+
+def _any_school_admin_active_by_name(school_name: str) -> bool:
+    """Same expiry-aware check as _admin_is_active, for the school_name dual-match fallback
+    used by _teacher_is_school_covered/_parent_is_school_covered when a teacher/parent's
+    school_admin_id was never backfilled. Real bug fix Aug 28: this fallback path had the
+    exact same expiry-blind subscription_status=="active" check _admin_is_active just had -
+    fixed the same way, shared here instead of duplicating the expiry logic a third time."""
+    if not school_name:
+        return False
+    admins = supabase.table("users").select("subscription_status,subscription_expires_at").eq("role", "school_admin").eq("school_name", school_name).execute()
+    now = datetime.now(timezone.utc)
+    for a in (admins.data or []):
+        if a.get("subscription_status") != "active":
+            continue
+        exp = a.get("subscription_expires_at")
+        if not exp or datetime.fromisoformat(exp.replace("Z", "+00:00")) > now:
+            return True
+    return False
 
 def _school_admin_can_view_teacher_wellbeing(admin_user: dict, target_teacher: dict) -> bool:
     """Real feature Aug 21: teacher-consent mechanism for individual wellbeing visibility -
@@ -4274,12 +4308,7 @@ def _teacher_is_school_covered(user: dict) -> bool:
     school_admin_id/school_name directly, no parent_links walk needed."""
     if _admin_is_active(user.get("school_admin_id")):
         return True
-    school_name = user.get("school_name")
-    if school_name:
-        admins = supabase.table("users").select("subscription_status").eq("role", "school_admin").eq("school_name", school_name).execute()
-        if any(a.get("subscription_status") == "active" for a in (admins.data or [])):
-            return True
-    return False
+    return _any_school_admin_active_by_name(user.get("school_name"))
 
 def _parent_is_school_covered(user: dict) -> bool:
     """True if any of this parent's linked children attend a school whose own school_admin
@@ -4313,11 +4342,8 @@ def _parent_is_school_covered(user: dict) -> bool:
             # Dual-match fallback, same principle as the L4 school-identity fix: a teacher's
             # own school_admin_id can be unbackfilled even when their school_name correctly
             # matches an active school's admin.
-            school_name = t.get("school_name")
-            if school_name:
-                admins = supabase.table("users").select("subscription_status").eq("role", "school_admin").eq("school_name", school_name).execute()
-                if any(a.get("subscription_status") == "active" for a in (admins.data or [])):
-                    return True
+            if _any_school_admin_active_by_name(t.get("school_name")):
+                return True
         return False
     except Exception as e:
         logger.warning(f"_parent_is_school_covered check failed for {user.get('user_id')}: {e}")
