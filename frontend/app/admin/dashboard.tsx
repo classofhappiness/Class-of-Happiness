@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { SecureField } from '../../src/components/SecureField';
+import { orderPrimaryTopicsFirst, PRIMARY_RESOURCE_TOPIC_ORDER } from '../../src/constants/resourceTopics';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const INDIGO = '#5C6BC0';
@@ -1846,7 +1847,9 @@ function SchoolSettings({ authToken, user }: any) {
 
 // ── Resource Upload ───────────────────────────────────────────────────────────
 
-const ADMIN_RESOURCE_TOPICS = [
+// Real feature Aug 28: fixed order for the 4 primary categories, confirmed with Jono before
+// building — see resourceTopics.ts for the shared ordering logic used across every screen.
+const ADMIN_RESOURCE_TOPICS = orderPrimaryTopicsFirst([
   { id: 'general', name: 'General' },
   { id: 'emotions_program', name: 'Emotions Program' },
   { id: 'healthy_relationships', name: 'Healthy Relationships' },
@@ -1855,7 +1858,7 @@ const ADMIN_RESOURCE_TOPICS = [
   { id: 'special_needs_education', name: 'Special Needs' },
   { id: 'teacher_hub', name: 'Teacher Hub' },
   { id: 'parent_hub', name: 'Parent Hub' },
-];
+]);
 
 function ResourceUpload({ authToken }: { authToken: string|null }) {
   const { t } = useApp();
@@ -1948,6 +1951,22 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
           category pre-expanded — per Jono's design-sync principle. */}
       {ADMIN_RESOURCE_TOPICS.map(tp => {
         const items = resources.filter((r: any) => (r.topic || r.category || 'general') === tp.id);
+        // Real feature Aug 28: "Coming soon" for a primary category with zero real resources —
+        // driven entirely by items.length, so it disappears the moment one is uploaded here.
+        if (items.length === 0 && PRIMARY_RESOURCE_TOPIC_ORDER.includes(tp.id)) {
+          return (
+            <SectionCard key={tp.id} title={tp.name} subtitle="0 resources" icon="folder" color="#FF9800" defaultOpen>
+              <View style={{ alignItems: 'center', padding: 20, gap: 8 }}>
+                <Image
+                  source={require('../../assets/images/logo_coh.png')}
+                  style={{ width: 40, height: 40, opacity: 0.5 }}
+                  resizeMode="contain"
+                />
+                <Text style={{ fontStyle: 'italic', color: '#999', fontSize: 14 }}>Coming soon</Text>
+              </View>
+            </SectionCard>
+          );
+        }
         if (items.length === 0) return null;
         return (
           <SectionCard key={tp.id} title={tp.name} subtitle={`${items.length} resource${items.length === 1 ? '' : 's'}`} icon="folder" color="#FF9800" defaultOpen>

@@ -1831,3 +1831,20 @@ Jono ran both migration steps successfully (`reorder_resources()` function, then
 - Ran three consecutive reorders back-to-back to directly address the earlier "1st fast/2nd slow" investigation: 1.408s / 1.508s / 1.036s - completely consistent, no degradation pattern, 43/43 correct every time.
 
 This closes out the reorder-performance investigation. Combined with the week_number auto-sort feature (also this session), manual dragging should now rarely be needed at all for the two real content categories, and when it is used (same-week fine-ordering, or any future non-week category), it's fast and reliable rather than the original 66s-to-several-minutes range.
+
+## A67 — Leader Online + fixed 4-slot topic order + data-driven "Coming soon" placeholder, across every surface, 2026-08-28
+
+**New feature request**: `leader_online` needed to become a real, selectable topic (confirmed already true everywhere - 28 real resources already exist under it), a fixed display order for the 4 primary categories (Emotions, Healthy Relationships, Leader Online, then a 4th slot), and a real, data-driven "Coming soon" placeholder for whichever of the 4 currently has zero resources - not a manual flag. Jono confirmed via AskUserQuestion that the 4th slot is "You Are What You Eat" (genuinely 0 real resources - confirmed live).
+
+**Investigated first, per Jono's explicit instruction.** Topics are hardcoded independently in 5+ places (portal `RM_TOPICS`, and three separate app screens' own arrays, plus a differently-shaped backend `GET /teacher-resources/topics`) - a genuinely admin-editable topics system was investigated earlier this session and deliberately deferred as separate, larger future work. Rather than duplicate the same 4-item fixed order a third and fourth time, built one shared source of truth for it: `frontend/src/constants/resourceTopics.ts` - `PRIMARY_RESOURCE_TOPIC_ORDER` + `orderPrimaryTopicsFirst()`, which reorders any topic list without changing which topics exist or are selectable.
+
+**Built consistently across all 6 real surfaces:**
+- `teacher/resources.tsx` / `parent/resources.tsx` / `admin/dashboard.tsx` (app): `TOPICS`/`ADMIN_RESOURCE_TOPICS` reordered via `orderPrimaryTopicsFirst()`; each screen's empty-state branch now checks `PRIMARY_RESOURCE_TOPIC_ORDER.includes(selectedTopic)` and, when true and the real resource count for that topic is 0, renders an italic "Coming soon" with the real COH logo instead of the generic empty state - driven entirely by `resources.length`, no flag.
+- Portal `RM_TOPICS` (Manage & Reorder): reordered to match; `rmRenderList()` now renders the same "Coming soon" treatment (portal's own existing 😊 brand-mark convention, matching its established no-image-asset style - the app screens use the real bundled logo file, the portal has never had one) for a primary category with 0 items when "All topics" is selected.
+- Portal `pResources` (parent-facing card): was previously a flat, ungrouped list of the first 8 resources with no topic structure at all - restructured into the same fixed-order, topic-grouped view as everywhere else, with the same real "Coming soon" placeholder.
+
+**Live-verified the core data-driven claim directly against production**, per Jono's explicit instruction to test with a real empty-then-added category: confirmed `you_are_what_you_eat` genuinely has 0 real resources right now (0/71 active resources); inserted one disposable test resource into that category, confirmed the live count flipped 0 → 1 (exactly the condition every surface's "Coming soon" branch checks), then deleted it, confirming it correctly flips back to 0 - proving the auto-hide/auto-show behavior is genuinely driven by real data end to end, not simulated.
+
+Typecheck clean (only the 2 pre-existing baseline errors in `admin/dashboard.tsx`/`parent/resources.tsx`, unrelated to this change, unaffected in count). Portal JS syntax verified via `node --check`.
+
+Portal changes are in `portal100-UPLOAD-2026-08-28.html` locally - **not yet uploaded to cPanel**, needs a fresh upload from Jono to go live.

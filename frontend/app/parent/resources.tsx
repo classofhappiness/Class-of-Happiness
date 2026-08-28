@@ -13,6 +13,7 @@ import {
   TextInput,
   Alert,
   Platform,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -21,6 +22,7 @@ import * as Sharing from 'expo-sharing';
 import { resourcesApi, teacherResourcesApi, Resource, TeacherResource, TeacherResourceRating } from '../../src/utils/api';
 import { useApp } from '../../src/context/AppContext';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
+import { orderPrimaryTopicsFirst, PRIMARY_RESOURCE_TOPIC_ORDER } from '../../src/constants/resourceTopics';
 
 // Real bug fix Aug 28 (item 8): 'emotions' and 'emotions_program' were two separate, near-
 // identical-looking tabs - confirmed live (both here and on the portal) that literally every
@@ -32,15 +34,21 @@ import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 // unchanged (still 'emotions_program') - that's also the exact string the backend's free-tier
 // gate checks for "this whole category is always free", so relabelling only the display text
 // carries zero backend/data risk.
+// Real feature Aug 28: 'all' stays pinned first (it's the "show everything" filter, not a
+// real category), then the 4 primary categories follow in the fixed order confirmed with
+// Jono (Emotions, Healthy Relationships, Leader Online, You Are What You Eat), then every
+// other existing topic unchanged - see resourceTopics.ts for the shared ordering logic.
 const TOPICS = [
   { id: 'all', name: 'All', icon: 'apps' as const },
-  { id: 'general', name: 'General', icon: 'folder' as const },
-  { id: 'emotions_program', name: 'Emotions', icon: 'auto-stories' as const },
-  { id: 'healthy_relationships', name: 'Healthy Relationships', icon: 'people' as const },
-  { id: 'leader_online', name: 'Leader Online', icon: 'computer' as const },
-  { id: 'you_are_what_you_eat', name: 'You Are What You Eat', icon: 'restaurant' as const },
-  { id: 'special_needs', name: 'Special Needs', icon: 'accessibility' as const },
-  { id: 'parent_hub', name: 'Parent Hub', icon: 'family-restroom' as const },
+  ...orderPrimaryTopicsFirst([
+    { id: 'general', name: 'General', icon: 'folder' as const },
+    { id: 'emotions_program', name: 'Emotions', icon: 'auto-stories' as const },
+    { id: 'healthy_relationships', name: 'Healthy Relationships', icon: 'people' as const },
+    { id: 'leader_online', name: 'Leader Online', icon: 'computer' as const },
+    { id: 'you_are_what_you_eat', name: 'You Are What You Eat', icon: 'restaurant' as const },
+    { id: 'special_needs', name: 'Special Needs', icon: 'accessibility' as const },
+    { id: 'parent_hub', name: 'Parent Hub', icon: 'family-restroom' as const },
+  ]),
 ];
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -324,6 +332,20 @@ export default function ResourcesScreen() {
           <View style={styles.loadingContainer}>
             <EmotionColourLoader visible={loading} />
             <Text style={styles.loadingText}>{t('loading_resources') || 'Loading resources...'}</Text>
+          </View>
+        ) : filteredResources.length === 0 && PRIMARY_RESOURCE_TOPIC_ORDER.includes(selectedTopic) ? (
+          // Real feature Aug 28: "Coming soon" is driven entirely by real data (this primary
+          // topic currently has 0 resources) - disappears automatically the moment a resource
+          // is uploaded into it. Only shown for a specific primary-topic tab, not "All".
+          <View style={styles.emptyState}>
+            <Image
+              source={require('../../assets/images/logo_coh.png')}
+              style={{ width: 64, height: 64, opacity: 0.5 }}
+              resizeMode="contain"
+            />
+            <Text style={[styles.emptyStateText, { fontStyle: 'italic' }]}>
+              {t('coming_soon') || 'Coming soon'}
+            </Text>
           </View>
         ) : filteredResources.length === 0 ? (
           <View style={styles.emptyState}>

@@ -29,6 +29,7 @@ import {
   TeacherResourceTopic,
   TeacherResourceRating,
 } from '../../src/utils/api';
+import { orderPrimaryTopicsFirst, PRIMARY_RESOURCE_TOPIC_ORDER } from '../../src/constants/resourceTopics';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
@@ -38,7 +39,12 @@ export default function TeacherResourcesScreen() {
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { user, t } = useApp();
   
-  const TOPICS = [
+  // Real feature Aug 28: fixed order for the 4 primary categories (Emotions, Healthy
+  // Relationships, Leader Online, You Are What You Eat), confirmed with Jono before building
+  // - reordered here rather than hand-listing them first, so the portal and every app screen
+  // stay in sync from one shared source of truth. Every other existing topic still follows,
+  // unchanged - this only changes ORDER, not which topics exist or are selectable.
+  const TOPICS = orderPrimaryTopicsFirst([
     { id: 'general', name: t('general_topic') || 'General', icon: 'apps' },
     { id: 'emotions_program', name: t('emotions_topic') || 'Emotions Program', icon: 'mood' },
     { id: 'healthy_relationships', name: t('healthy_relationships') || 'Healthy Relationships', icon: 'favorite' },
@@ -47,7 +53,7 @@ export default function TeacherResourcesScreen() {
     { id: 'special_needs_education', name: t('special_needs_education') || 'Special Needs', icon: 'accessibility' },
     { id: 'teacher_hub', name: t('teacher_hub') || 'Teacher Hub', icon: 'groups' },
     { id: 'parent_hub', name: t('parent_hub') || 'Parent Hub', icon: 'family-restroom' },
-  ];
+  ]);
   
   const [selectedTopic, setSelectedTopic] = useState(TOPICS[0].id);
   const [bannerDismissed, setBannerDismissed] = useState(false);
@@ -462,6 +468,21 @@ export default function TeacherResourcesScreen() {
         {loading ? (
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>Loading resources...</Text>
+          </View>
+        ) : resources.length === 0 && PRIMARY_RESOURCE_TOPIC_ORDER.includes(selectedTopic) ? (
+          // Real feature Aug 28: "Coming soon" is driven entirely by real data (this primary
+          // topic currently has 0 resources) - the moment even one resource is uploaded into
+          // it, resources.length stops being 0 and this branch stops rendering automatically.
+          // No manual flag to remember to toggle.
+          <View style={styles.emptyState}>
+            <Image
+              source={require('../../assets/images/logo_coh.png')}
+              style={{ width: 64, height: 64, opacity: 0.5 }}
+              resizeMode="contain"
+            />
+            <Text style={[styles.emptyStateText, { fontStyle: 'italic' }]}>
+              {t('coming_soon') || 'Coming soon'}
+            </Text>
           </View>
         ) : resources.length === 0 ? (
           <View style={styles.emptyState}>
