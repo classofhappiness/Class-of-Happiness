@@ -11145,6 +11145,29 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
             logger.warning(f"[school-admin/analytics] teacher_checkins query failed: {e}")
     teacher_checkin_rate = round((teachers_checked_in / len(teacher_ids)) * 100) if teacher_ids else 0
 
+    # Real feature Aug 28 (demo-prep item 4): the 7-card dashboard stack needed two things
+    # this endpoint didn't compute yet - real participation rate (distinct students who
+    # actually checked in, not raw check-in count) and a trend vs the immediately-preceding
+    # period of equal length, so the app can show a real up/down arrow instead of inventing
+    # one. Same student_ids/window length already resolved above - just re-queried one
+    # period earlier.
+    participating_students = len(set(l["student_id"] for l in logs if l.get("student_id")))
+    participation_rate = round((participating_students / len(students)) * 100) if students else 0
+
+    prev_start = (datetime.now(timezone.utc) - timedelta(days=days * 2)).isoformat()
+    prev_logs = []
+    if student_ids:
+        prev_logs_res = supabase.table("feeling_logs").select("student_id,feeling_colour,zone").in_("student_id", student_ids).gte("timestamp", prev_start).lt("timestamp", start_date).execute()
+        prev_logs = prev_logs_res.data or []
+    prev_participating = len(set(l["student_id"] for l in prev_logs if l.get("student_id")))
+    prev_participation_rate = round((prev_participating / len(students)) * 100) if students else 0
+    prev_students_needing_support = len(set(l["student_id"] for l in prev_logs if (l.get("feeling_colour") or l.get("zone")) == "red" and l.get("student_id")))
+
+    top_strategy_name = None
+    if strategy_counts:
+        top_id = max(strategy_counts, key=strategy_counts.get)
+        top_strategy_name = resolve_strategy_name(top_id)
+
     return {
         "school_name": user.get("school_name", "My School"),
         "total_teachers": len(teacher_ids),
@@ -11166,7 +11189,10 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
         "teacher_checkin_rate": teacher_checkin_rate,
         "teachers_checked_in": teachers_checked_in,
         "students_needing_support": students_needing_support,
-        "students_needing_support": students_needing_support,
+        "participation_rate": participation_rate,
+        "participation_rate_prev": prev_participation_rate,
+        "students_needing_support_prev": prev_students_needing_support,
+        "top_strategy_name": top_strategy_name,
     }
 
 @api_router.get("/school-admin/users")
