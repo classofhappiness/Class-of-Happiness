@@ -1093,5 +1093,7 @@
   "pricing_teacher_line": "Insegnante €7,99/mese (solo mensile)",
   "pricing_school_line": "Scuola da €299/anno",
   "managed_by_school": "Gestito dalla tua scuola",
-  "managed_by_school_desc": "Il piano della tua scuola copre il tuo accesso: non c'è nulla da annullare qui."
+  "managed_by_school_desc": "Il piano della tua scuola copre il tuo accesso: non c'è nulla da annullare qui.",
+  "covered_by_school": "Coperto dalla tua scuola",
+  "enrolled_in_school_label": "Sei iscritto a"
 }

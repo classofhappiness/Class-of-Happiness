@@ -1093,5 +1093,7 @@
   "pricing_teacher_line": "Enseignant 7,99 €/mois (mensuel uniquement)",
   "pricing_school_line": "École à partir de 299 €/an",
   "managed_by_school": "Géré par votre école",
-  "managed_by_school_desc": "Le forfait de votre école couvre votre accès — il n'y a rien à annuler ici."
+  "managed_by_school_desc": "Le forfait de votre école couvre votre accès — il n'y a rien à annuler ici.",
+  "covered_by_school": "Couvert par votre école",
+  "enrolled_in_school_label": "Vous êtes inscrit à"
 }

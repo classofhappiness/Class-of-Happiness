@@ -90,13 +90,23 @@ export default function SettingsScreen() {
   // subscription to cancel. school_covered comes from the same GET /subscription/status
   // call already made here, no extra request needed.
   const [schoolCovered, setSchoolCovered] = useState(false);
+  // Real fix Aug 28 (settings polish item 1): this only ever fetched school_covered when
+  // subscription_status was ALREADY 'active' - but a real school-covered teacher/parent
+  // typically has subscription_status left as whatever it was before joining (usually
+  // 'none' - /school/join and the invite-code paths never touch it), so this never even ran
+  // for the common case. school_covered/is_active are both computed server-side by
+  // GET /subscription/status independent of the caller's own subscription_status (see
+  // _teacher_is_school_covered/_parent_is_school_covered and check_subscription_active in
+  // server.py), so this can safely run for any teacher/parent regardless of their own status.
+  const [serverIsActive, setServerIsActive] = useState<boolean | null>(null);
   useEffect(() => {
-    if (user?.subscription_status !== 'active') return;
+    if (user?.role !== 'teacher' && user?.role !== 'parent') return;
     subscriptionApi.getStatus().then(d => {
       setCancelAtPeriodEnd(!!d.cancel_at_period_end);
       setSchoolCovered(!!d.school_covered);
+      setServerIsActive(!!d.is_active);
     }).catch(() => {});
-  }, [user?.subscription_status, user?.subscription_expires_at]);
+  }, [user?.role, user?.subscription_status, user?.subscription_expires_at, (user as any)?.school_admin_id]);
 
   const handleCancelSubscription = () => {
     Alert.alert(
@@ -510,8 +520,15 @@ export default function SettingsScreen() {
             <MaterialIcons name="card-membership" size={24} color="#5C6BC0" />
             <View style={styles.settingText}>
               <Text style={styles.settingLabel}>{t('status_label') || 'Status'}</Text>
-              <Text style={[styles.settingValue, { color: hasActiveSubscription ? '#4CAF50' : '#F44336' }]}>
-                {user?.subscription_status === 'trial' ? t('free_trial')||'Free Trial' :
+              {/* Real fix Aug 28 (settings polish item 1): this only ever checked the
+                  account's own subscription_status - a school-covered teacher/parent whose
+                  own status is 'none' (the common case; joining a school never touches this
+                  field) showed a red "Inactive", even though they have full real access via
+                  their school's plan. schoolCovered/serverIsActive are both real server-
+                  computed signals (see the useEffect above), not client-side guesses. */}
+              <Text style={[styles.settingValue, { color: (serverIsActive ?? hasActiveSubscription) ? '#4CAF50' : '#F44336' }]}>
+                {schoolCovered ? (t('covered_by_school') || 'Covered by your school') :
+                 user?.subscription_status === 'trial' ? t('free_trial')||'Free Trial' :
                  user?.subscription_status === 'active' ? subscriptionStatusLabel(user) :
                  'Inactive'}
               </Text>
@@ -535,8 +552,11 @@ export default function SettingsScreen() {
         {/* Real fix Aug 26 (item 4): a school-covered account's Cancel button was guaranteed
             to fail (they show "Active" correctly - their school pays - but there's no
             personal subscription to cancel). Per Jono's explicit decision: no Cancel option
-            for these accounts at all, show what's actually true instead. */}
-        {user?.subscription_status === 'active' && schoolCovered && (
+            for these accounts at all, show what's actually true instead. Real fix Aug 28:
+            was gated on subscription_status === 'active' too, which excluded the common case
+            (a school-covered account's own status is usually 'none', not 'active' - see the
+            useEffect above) - schoolCovered alone is the real, complete signal. */}
+        {schoolCovered && (
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
               <MaterialIcons name="school" size={24} color="#5C6BC0" />
@@ -549,7 +569,7 @@ export default function SettingsScreen() {
         )}
 
         {/* Cancel-to-free (Aug 26, item 1) - only for a real, personally-paying active subscriber */}
-        {user?.subscription_status === 'active' && !schoolCovered && (
+        {user?.subscription_status === 'active' && !schoolCovered && !!user?.subscription_expires_at && (
           <TouchableOpacity
             style={styles.settingItem}
             onPress={cancelAtPeriodEnd ? handleResumeSubscription : handleCancelSubscription}
@@ -894,6 +914,23 @@ export default function SettingsScreen() {
                   {joiningSchool ? (t('joining') || 'Joining...') : (t('join_school_btn') || '🏫 Join School')}
                 </Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Real fix Aug 28 (settings polish item 1): once a teacher joined, the "Join Your
+            School" card above just disappeared - nothing replaced it with confirmation of
+            WHICH school they're actually in. Same gating condition as "Join Your School"
+            (its exact complement) and Share My Wellbeing below, so this fills the real gap
+            between the two without duplicating either. */}
+        {isAuthenticated && user?.role === 'teacher' && !!(user as any)?.school_name && (
+          <View style={styles.section}>
+            <View style={[styles.settingItem, { flexDirection: 'row', alignItems: 'center' }]}>
+              <MaterialIcons name="check-circle" size={24} color="#4CAF50" />
+              <View style={[styles.settingText, { marginLeft: 12 }]}>
+                <Text style={styles.settingLabel}>{t('enrolled_in_school_label') || "You're enrolled in"}</Text>
+                <Text style={[styles.settingValue, { fontWeight: '700' }]}>{(user as any).school_name}</Text>
+              </View>
             </View>
           </View>
         )}

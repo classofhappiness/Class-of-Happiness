@@ -1093,5 +1093,7 @@
   "pricing_teacher_line": "Lehrkraft 7,99 €/Monat (nur monatlich)",
   "pricing_school_line": "Schule ab 299 €/Jahr",
   "managed_by_school": "Von deiner Schule verwaltet",
-  "managed_by_school_desc": "Der Plan deiner Schule deckt deinen Zugang ab — hier gibt es nichts zu kündigen."
+  "managed_by_school_desc": "Der Plan deiner Schule deckt deinen Zugang ab — hier gibt es nichts zu kündigen.",
+  "covered_by_school": "Von deiner Schule abgedeckt",
+  "enrolled_in_school_label": "Du bist angemeldet bei"
 }

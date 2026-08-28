@@ -1078,5 +1078,7 @@
   "pricing_teacher_line": "Profesores €7,99/mes (solo mensual)",
   "pricing_school_line": "Escuelas desde €299/año",
   "managed_by_school": "Gestionado por tu escuela",
-  "managed_by_school_desc": "El plan de tu escuela cubre tu acceso — no hay nada que cancelar aquí."
+  "managed_by_school_desc": "El plan de tu escuela cubre tu acceso — no hay nada que cancelar aquí.",
+  "covered_by_school": "Cubierto por tu escuela",
+  "enrolled_in_school_label": "Estás inscrito en"
 }
