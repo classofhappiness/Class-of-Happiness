@@ -1513,7 +1513,7 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
       {false ? <ActivityIndicator color={INDIGO} style={{ marginTop: 20 }} /> : <>
         {statsLoading && (
           <View style={{ paddingVertical: 6, alignItems: 'center' }}>
-            <ActivityIndicator color={INDIGO} size="small" />
+            <EmotionColourLoader visible size={28} />
           </View>
         )}
 
@@ -1674,7 +1674,7 @@ function SchoolAdminDashboard({ authToken, stats, statsLoading, statsPeriod, set
       {false ? <ActivityIndicator color={INDIGO} style={{ marginTop: 20 }} /> : <>
         {statsLoading && (
           <View style={{ paddingVertical: 6, alignItems: 'center' }}>
-            <ActivityIndicator color={INDIGO} size="small" />
+            <EmotionColourLoader visible size={28} />
           </View>
         )}
 

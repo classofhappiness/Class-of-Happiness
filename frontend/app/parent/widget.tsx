@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, ActivityIndicator, RefreshControl, useWindowDimensions
+  TouchableOpacity, RefreshControl, useWindowDimensions
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { familyApi } from '../../src/utils/api';
+import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 
@@ -168,7 +169,7 @@ export default function ParentWidgetScreen() {
         contentContainerStyle={{ paddingBottom: 40 }}>
 
         {loading ? (
-          <ActivityIndicator size="large" color={INDIGO} style={{ marginTop: 60 }} />
+          <View style={{ marginTop: 60 }}><EmotionColourLoader visible size={56} /></View>
         ) : members.length === 0 ? (
           <View style={st.emptyBox}>
             <Text style={{ fontSize: 48 }}>👨‍👩‍👧</Text>

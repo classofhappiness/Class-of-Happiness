@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, ActivityIndicator, RefreshControl, useWindowDimensions, Alert
+  TouchableOpacity, RefreshControl, useWindowDimensions, Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -182,7 +183,7 @@ export default function TeacherWidgetScreen() {
 
         {/* Student grid */}
         {loading ? (
-          <ActivityIndicator color={INDIGO} size="large" style={{ marginTop: 40 }} />
+          <View style={{ marginTop: 40 }}><EmotionColourLoader visible size={56} /></View>
         ) : (
           <View style={{ padding: 16 }}>
             <Text style={st.distTitle}>{t('students_in_class') || 'Students'}</Text>

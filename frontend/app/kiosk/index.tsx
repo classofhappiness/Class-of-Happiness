@@ -4,6 +4,7 @@ import {
   ScrollView, ActivityIndicator, Animated, useWindowDimensions, Image
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Avatar } from '../../src/components/Avatar';
@@ -263,7 +264,7 @@ export default function KioskScreen() {
 
       {/* Student grid */}
       {loading ? (
-        <ActivityIndicator size="large" color={INDIGO} style={{ marginTop: 60 }} />
+        <View style={{ marginTop: 60 }}><EmotionColourLoader visible size={56} /></View>
       ) : students.length === 0 ? (
         <View style={st.emptyBox}>
           <Text style={{ fontSize: 48 }}>🏫</Text>

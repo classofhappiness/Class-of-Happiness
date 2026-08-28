@@ -410,7 +410,7 @@ export default function GlobalCreaturesScreen() {
       {countryBoardOpen && (
         <View style={styles.countryBoard}>
           {countryBoardLoading ? (
-            <ActivityIndicator size="small" color="#7C5CBF" style={{ marginVertical: 10 }} />
+            <View style={{ marginVertical: 10 }}><EmotionColourLoader visible size={32} /></View>
           ) : !countryBoard || countryBoard.length === 0 ? (
             <Text style={styles.countryBoardEmpty}>No country data yet.</Text>
           ) : (

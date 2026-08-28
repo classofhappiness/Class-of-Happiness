@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { teacherApi, parentApi, creaturesApi } from '../utils/api';
+import { EmotionColourLoader } from './EmotionColourLoader';
 import { useApp } from '../context/AppContext';
 import { EMOTION_COLOURS } from '../constants/emotionColours';
 
@@ -155,7 +156,7 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
           <Text style={s.cardTitle}>Pending Creatures</Text>
         </View>
         {loadingPending ? (
-          <ActivityIndicator color="#9C27B0" style={{ marginVertical: 20 }} />
+          <View style={{ marginVertical: 20 }}><EmotionColourLoader visible size={40} /></View>
         ) : pending.length === 0 ? (
           <Text style={s.emptyText}>No creatures waiting for review right now.</Text>
         ) : (
@@ -210,7 +211,7 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
           <Text style={s.cardTitle}>{role === 'teacher' ? "My Classroom's Submissions" : 'My Submissions'}</Text>
         </View>
         {loadingMySubmissions ? (
-          <ActivityIndicator color="#9C27B0" style={{ marginVertical: 20 }} />
+          <View style={{ marginVertical: 20 }}><EmotionColourLoader visible size={40} /></View>
         ) : mySubmissions.length === 0 ? (
           <Text style={s.emptyText}>No creatures submitted yet.</Text>
         ) : (

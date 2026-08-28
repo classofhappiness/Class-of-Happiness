@@ -330,7 +330,7 @@ export default function SubmitCreatureScreen() {
         <TranslatedHeader title={t('creature_scope_title') || 'Who can see it?'} showHome onBackPress={() => setStep('details')} />
         <Text style={s.subtitle}>{t('creature_scope_disclaimer') || 'A teacher or superadmin can still change this later when they review it.'}</Text>
         {loadingOptions ? (
-          <ActivityIndicator color="#1A1A2E" style={{ marginVertical: 30 }} />
+          <View style={{ marginVertical: 30 }}><EmotionColourLoader visible size={48} /></View>
         ) : (
           <>
             <Text style={s.label}>{t('creature_scope_question') || 'Where should it be available?'}</Text>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { AnimatedCreatureVisual } from './AnimatedCreatureVisual';
+import { EmotionColourLoader } from './EmotionColourLoader';
 import { BonusItemCelebration, CelebrationItem } from './BonusItemCelebration';
 import { BonusItemCategory } from '../utils/sounds';
 import { rewardsApi } from '../utils/api';
@@ -175,7 +176,7 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
               <>
                 <Text style={[s.sectionTitle, { marginTop: 18 }]}>🎁 {t('bonus_items') || 'Bonus Items'}</Text>
                 {loadingBonus ? (
-                  <ActivityIndicator color={color} style={{ marginVertical: 20 }} />
+                  <View style={{ marginVertical: 20 }}><EmotionColourLoader visible size={40} /></View>
                 ) : bonusItems ? (
                   <>
                     {renderItemGrid(bonusItems.moves, bonusItems.unlockedMoves, t('moves') || 'Moves', '🎬', 'moves')}
