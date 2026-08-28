@@ -10257,6 +10257,17 @@ async def create_teacher_resource(request: Request):
         "is_global": bool(body.get("is_global", False)),
         "is_active": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
+        # Real bug fix Aug 28: week_number (the field that actually gates free-tier access -
+        # see get_teacher_resources - and the field a real "which week is this" edit should
+        # affect) was never accepted here at all. The portal's admin editor's "Week" input was
+        # instead mistakenly wired to order_index, which is a pure drag-and-drop sort position
+        # (see rmDd - every resource gets a unique, sequential value, never grouped by week) -
+        # completely unrelated to week grouping. Confirmed live: 12 of 15 real Emotions
+        # Program resources already had week_number correctly set (1/1/1/1/1, 2/2/2/2, 3/3,
+        # matching their titles exactly) from original seeding, but the "Wk 4" resource's
+        # week_number was never set at all - meaning that paywalled week was silently treated
+        # as free-tier-unlocked (week_number is None -> is_locked=False).
+        "week_number": body.get("week_number"),
     }
     try:
         result = supabase.table("resources").insert(resource_data).execute()
@@ -10291,7 +10302,10 @@ async def update_teacher_resource(resource_id: str, request: Request):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid request body")
     updates = {}
-    for field in ("title", "description", "order_index", "target_audience"):
+    # Real bug fix Aug 28: week_number added - see create_teacher_resource's comment for the
+    # full story. This was the actual reason "editing the week" appeared to silently revert -
+    # the admin form edited order_index (drag-and-drop sort position) instead.
+    for field in ("title", "description", "order_index", "target_audience", "week_number"):
         if field in body:
             updates[field] = body[field]
     if updates:
