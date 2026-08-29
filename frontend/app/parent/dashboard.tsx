@@ -1311,7 +1311,7 @@ export default function ParentDashboard() {
                 filtered.forEach((l:any) => { const z = (l as any).zone || (l as any).feeling_colour; if (z in counts) counts[z]++; });
                 const total = Object.values(counts).reduce((a,b)=>a+b,0);
                 const ZONE_LABELS: Record<string,string> = {
-                  green: (t('steady') || 'Green Emotions') + ' 😊',
+                  green: (t('zone_green') || 'Green Emotions') + ' 😊',
                   blue: (t('zone_blue') || 'Blue Emotions') + ' 😢',
                   yellow: (t('zone_yellow') || 'Yellow Emotions') + ' 😰',
                   red: (t('zone_red') || 'Red Emotions') + ' 😠'
