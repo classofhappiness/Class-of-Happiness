@@ -7343,13 +7343,24 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
         # Real feature Aug 28 (item 6): multi-school comparison table + a full per-school
         # detail section each - the actual fix for "all schools is too basic", not just a
         # multi-select UI bolted onto the same flattened total.
+        # Real bug fix Aug 29: these 4 header cells were raw emoji characters (🟢🔵🟡🔴) with
+        # no text at all - ReportLab's PDF renderer (Helvetica) has no glyph for emoji
+        # codepoints, so they rendered as blank squares, not colour swatches. Also switched
+        # from raw counts to percentages (per Jono's explicit call): schools have very
+        # different total check-in volumes, so raw counts made a bigger school look "worse"
+        # in every zone purely from having more overall activity - percentage of that
+        # school's own check-ins is the actual apples-to-apples comparison, and matches the
+        # same % calculation already used in each school's own detail table below.
         elements.append(Paragraph("School Comparison", section_style))
-        comp_data = [["School", "Check-ins", "Students", "Teachers", "🟢", "🔵", "🟡", "🔴"]]
+        comp_data = [["School", "Check-ins", "Students", "Teachers", "Blue %", "Green %", "Yellow %", "Red %"]]
         for name, stats in resolved_schools:
             zc = stats["zone_counts"]
+            tc = stats["total_checkins"]
+            def _pct(z):
+                return f"{round(100*zc[z]/tc)}%" if tc else "—"
             comp_data.append([
-                name, str(stats["total_checkins"]), str(len(stats["student_ids"])), str(len(stats["teacher_ids"])),
-                str(zc["green"]), str(zc["blue"]), str(zc["yellow"]), str(zc["red"]),
+                name, str(tc), str(len(stats["student_ids"])), str(len(stats["teacher_ids"])),
+                _pct("blue"), _pct("green"), _pct("yellow"), _pct("red"),
             ])
         comp_table = Table(comp_data, colWidths=[5.5*cm, 2*cm, 2*cm, 2*cm, 1.2*cm, 1.2*cm, 1.2*cm, 1.2*cm])
         comp_table.setStyle(TableStyle([
@@ -7361,6 +7372,7 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
             ('FONTSIZE', (0,0), (-1,-1), 8),
         ]))
         elements.append(comp_table)
+        elements.append(Paragraph("Percentage of each school's own check-ins by emotional zone.", sub_style))
         elements.append(Spacer(1, 0.5*cm))
 
         for name, stats in resolved_schools:
