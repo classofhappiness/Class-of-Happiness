@@ -11,7 +11,7 @@ import { useRouter } from 'expo-router';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { SecureField } from '../../src/components/SecureField';
-import { orderPrimaryTopicsFirst, PRIMARY_RESOURCE_TOPIC_ORDER } from '../../src/constants/resourceTopics';
+import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const INDIGO = '#5C6BC0';
@@ -1951,9 +1951,11 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
           category pre-expanded — per Jono's design-sync principle. */}
       {ADMIN_RESOURCE_TOPICS.map(tp => {
         const items = resources.filter((r: any) => (r.topic || r.category || 'general') === tp.id);
-        // Real feature Aug 28: "Coming soon" for a primary category with zero real resources —
-        // driven entirely by items.length, so it disappears the moment one is uploaded here.
-        if (items.length === 0 && PRIMARY_RESOURCE_TOPIC_ORDER.includes(tp.id)) {
+        // Real feature Aug 28, broadened Aug 29 (item 4): originally gated to only the 4
+        // primary categories — Jono explicitly confirmed this should apply to ANY category
+        // with zero real resources, not just those 4. Driven entirely by items.length, so it
+        // disappears the moment one is uploaded here.
+        if (items.length === 0) {
           return (
             <SectionCard key={tp.id} title={tp.name} subtitle="0 resources" icon="folder" color="#FF9800" defaultOpen>
               <View style={{ alignItems: 'center', padding: 20, gap: 8 }}>
@@ -1967,7 +1969,6 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
             </SectionCard>
           );
         }
-        if (items.length === 0) return null;
         return (
           <SectionCard key={tp.id} title={tp.name} subtitle={`${items.length} resource${items.length === 1 ? '' : 's'}`} icon="folder" color="#FF9800" defaultOpen>
             {items.map((r: any, i: number) => (

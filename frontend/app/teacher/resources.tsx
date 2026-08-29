@@ -29,7 +29,7 @@ import {
   TeacherResourceTopic,
   TeacherResourceRating,
 } from '../../src/utils/api';
-import { orderPrimaryTopicsFirst, PRIMARY_RESOURCE_TOPIC_ORDER } from '../../src/constants/resourceTopics';
+import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
@@ -469,11 +469,11 @@ export default function TeacherResourcesScreen() {
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>Loading resources...</Text>
           </View>
-        ) : resources.length === 0 && PRIMARY_RESOURCE_TOPIC_ORDER.includes(selectedTopic) ? (
-          // Real feature Aug 28: "Coming soon" is driven entirely by real data (this primary
-          // topic currently has 0 resources) - the moment even one resource is uploaded into
-          // it, resources.length stops being 0 and this branch stops rendering automatically.
-          // No manual flag to remember to toggle.
+        ) : resources.length === 0 ? (
+          // Real feature Aug 28, broadened Aug 29 (item 4): originally gated to only the 4
+          // primary topics - Jono explicitly confirmed this should apply to ANY topic with
+          // zero real resources. Driven entirely by real data (this topic currently has 0
+          // resources) - disappears automatically the moment one is uploaded.
           <View style={styles.emptyState}>
             <Image
               source={require('../../assets/images/logo_coh.png')}
@@ -482,14 +482,6 @@ export default function TeacherResourcesScreen() {
             />
             <Text style={[styles.emptyStateText, { fontStyle: 'italic' }]}>
               {t('coming_soon') || 'Coming soon'}
-            </Text>
-          </View>
-        ) : resources.length === 0 ? (
-          <View style={styles.emptyState}>
-            <MaterialIcons name="folder-open" size={64} color="#CCC" />
-            <Text style={styles.emptyStateText}>{t('no_resources_yet') || t('no_resources_yet') || 'No resources yet'}</Text>
-            <Text style={styles.emptyStateSubtext}>
-              Be the first to upload a resource for this topic!
             </Text>
           </View>
         ) : (

@@ -22,7 +22,7 @@ import * as Sharing from 'expo-sharing';
 import { resourcesApi, teacherResourcesApi, Resource, TeacherResource, TeacherResourceRating } from '../../src/utils/api';
 import { useApp } from '../../src/context/AppContext';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
-import { orderPrimaryTopicsFirst, PRIMARY_RESOURCE_TOPIC_ORDER } from '../../src/constants/resourceTopics';
+import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
 
 // Real bug fix Aug 28 (item 8): 'emotions' and 'emotions_program' were two separate, near-
 // identical-looking tabs - confirmed live (both here and on the portal) that literally every
@@ -263,12 +263,40 @@ export default function ResourcesScreen() {
     const teacherBase = selectedTopic === 'all'
       ? parentTeacherResources
       : parentTeacherResources.filter(r => r.topic === selectedTopic);
-    const combined: any[] = [
-      ...generalBase.map((r: any) => ({ ...r, _fromTeacher: false })),
-      ...teacherBase.map((r: any) => ({ ...r, _fromTeacher: true })),
-    ];
-    if (selectedTopic === 'emotions_program') {
-      return combined.sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+
+    // Real bug fix Aug 29 (items 1-3, live-testing batch): generalBase (GET /resources, no
+    // audience filter - returns every active resource) and teacherBase (GET /parent/resources,
+    // filtered to target_audience in [parents, both, null, ""]) return the SAME underlying rows
+    // for any resource with an overlapping audience - currently every real resource - so
+    // concatenating them duplicated every single one. Confirmed via direct simulation against
+    // real production data this affected all 3 real categories equally (Emotions Program
+    // included, 20/20 duplicated) - it wasn't visually obvious there because its own sort
+    // (below) happens to land duplicate pairs adjacent to each other. Deduped by id here -
+    // generalBase's copy wins on overlap since /resources' select list includes week_number/
+    // created_by/is_locked that /parent/resources' doesn't.
+    const byId = new Map<string, any>();
+    for (const r of teacherBase as any[]) byId.set(r.id, r);
+    for (const r of generalBase as any[]) byId.set(r.id, r);
+    let combined: any[] = Array.from(byId.values());
+
+    // Real bug fix Aug 29 (item 2): previously ONLY emotions_program was sorted at all - every
+    // other category (including Healthy Relationships/Leader Online) showed raw, unsorted
+    // fetch order, which is why it didn't match the portal's real display order. Matches the
+    // portal's own real-data sort (rmRenderList) instead: any topic where at least one resource
+    // carries a real week_number sorts by week ascending (999 sentinel for null/0, order_index
+    // as tiebreak) - confirmed live that Healthy Relationships (21/23) and Leader Online
+    // (23/28) both carry real week data too, not just Emotions Program (17/20). Topics with no
+    // real week data fall back to a plain order_index sort.
+    const weekSortable = combined.some(r => r.week_number != null && r.week_number > 0);
+    if (weekSortable) {
+      combined = combined.slice().sort((a, b) => {
+        const wa = (a.week_number != null && a.week_number > 0) ? a.week_number : 999;
+        const wb = (b.week_number != null && b.week_number > 0) ? b.week_number : 999;
+        if (wa !== wb) return wa - wb;
+        return (a.order_index || 0) - (b.order_index || 0);
+      });
+    } else {
+      combined = combined.slice().sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
     }
     return combined;
   })();
@@ -333,10 +361,12 @@ export default function ResourcesScreen() {
             <EmotionColourLoader visible={loading} />
             <Text style={styles.loadingText}>{t('loading_resources') || 'Loading resources...'}</Text>
           </View>
-        ) : filteredResources.length === 0 && PRIMARY_RESOURCE_TOPIC_ORDER.includes(selectedTopic) ? (
-          // Real feature Aug 28: "Coming soon" is driven entirely by real data (this primary
-          // topic currently has 0 resources) - disappears automatically the moment a resource
-          // is uploaded into it. Only shown for a specific primary-topic tab, not "All".
+        ) : filteredResources.length === 0 && selectedTopic !== 'all' ? (
+          // Real feature Aug 28, broadened Aug 29 (item 4): originally gated to only the 4
+          // primary topics - Jono explicitly confirmed this should apply to ANY topic with
+          // zero real resources, not just those 4. Driven entirely by real data (this topic
+          // currently has 0 resources) - disappears automatically the moment one is uploaded.
+          // "All" excluded - it's an aggregate filter, not a real category.
           <View style={styles.emptyState}>
             <Image
               source={require('../../assets/images/logo_coh.png')}
@@ -373,20 +403,26 @@ export default function ResourcesScreen() {
                 handleViewResource(resource);
               }}
             >
-              <View style={[styles.resourceIcon, resource._fromTeacher && { backgroundColor: '#E8F5E9' }]}>
+              {/* Real bug fix Aug 29 (item 3): attribution used to be driven by _fromTeacher -
+                  which of the two merged fetches a copy happened to come from - completely
+                  disconnected from whether the resource is actually admin-uploaded. Now uses
+                  the same real signal (is_global) teacher/resources.tsx already uses, so it's
+                  correct regardless of category and shows consistently everywhere, not just
+                  when a duplicate happened to survive from the old merge. */}
+              <View style={[styles.resourceIcon, !resource.is_global && { backgroundColor: '#E8F5E9' }]}>
                 <MaterialIcons
                   name={resource.is_locked ? 'lock' : (resource.content_type === 'pdf' ? 'picture-as-pdf' : 'article')}
                   size={32}
-                  color={resource.is_locked ? '#AAA' : (resource.content_type === 'pdf' ? '#F44336' : (resource._fromTeacher ? '#4CAF50' : '#5C6BC0'))}
+                  color={resource.is_locked ? '#AAA' : (resource.content_type === 'pdf' ? '#F44336' : (!resource.is_global ? '#4CAF50' : '#5C6BC0'))}
                 />
               </View>
               <View style={styles.resourceContent}>
-                {resource._fromTeacher && (
-                  <View style={styles.teacherBadge}>
-                    <MaterialIcons name="verified" size={14} color="#4CAF50" />
-                    <Text style={styles.teacherBadgeText}>{t('from_teacher') || 'From Teacher'}</Text>
-                  </View>
-                )}
+                <View style={styles.teacherBadge}>
+                  <MaterialIcons name="verified" size={14} color={resource.is_global ? '#5C6BC0' : '#4CAF50'} />
+                  <Text style={[styles.teacherBadgeText, resource.is_global && { color: '#5C6BC0' }]}>
+                    {resource.is_global ? (t('from_coh_admin') || 'From COH App Admin') : (t('from_teacher') || 'From Teacher')}
+                  </Text>
+                </View>
                 <Text style={styles.resourceTitle}>{resource.title}</Text>
                 <Text style={styles.resourceDescription} numberOfLines={2}>{resource.description}</Text>
                 <View style={styles.resourceMeta}>

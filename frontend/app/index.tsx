@@ -100,10 +100,20 @@ export default function HomeScreen() {
               // confusing rather than clearly communicating "not available on your account".
               // Now locked and explained up front instead, matching the existing
               // not-logged-in lock treatment, extended to "logged in as the wrong role".
+              // Real feature Aug 29 (item 7, product decision): the lock itself stays exactly
+              // as-is - a parent must still never functionally reach Teacher Dashboard,
+              // including on a shared device where a child could tap it. Only the messaging
+              // changed, from a flat "this isn't available" dead end to a real upgrade
+              // invitation with an actual next step - same "Not Now"/"See Plans" pattern
+              // already used for locked resources (resources.tsx's own Subscribe alert).
               if (teacherLocked) {
                 Alert.alert(
                   t('teacher_dashboard_locked_title') || 'Teacher Dashboard',
-                  t('teacher_dashboard_locked_desc') || "This is only available on a teacher account. You're logged in as a parent."
+                  t('teacher_dashboard_locked_desc') || 'Teacher features require a Teacher subscription — tap to learn more.',
+                  [
+                    { text: t('not_now') || 'Not Now', style: 'cancel' },
+                    { text: t('see_plans') || 'See Plans', onPress: () => router.push('/subscription') },
+                  ]
                 );
                 return;
               }
