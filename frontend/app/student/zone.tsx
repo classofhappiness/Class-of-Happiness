@@ -138,7 +138,14 @@ export default function ColourSelectionScreen() {
 
                 {/* Centre: title + feeling words */}
                 <View style={styles.zoneCenter}>
-                  <Text style={styles.zoneTitle}>{info.title}</Text>
+                  <Text
+                    style={styles.zoneTitle}
+                    numberOfLines={2}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    {info.title}
+                  </Text>
                   <Text style={styles.zoneWords}>
                     {info.words.map(w => w.label).join('  ·  ')}
                   </Text>

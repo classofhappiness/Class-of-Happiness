@@ -44,7 +44,14 @@ export const StrategyCard: React.FC<StrategyCardProps> = ({
         )}
       </View>
       <View style={styles.textContainer}>
-        <Text style={styles.name}>{name}</Text>
+        <Text
+          style={styles.name}
+          numberOfLines={2}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
+        >
+          {name}
+        </Text>
         <Text style={styles.description}>{description}</Text>
       </View>
       {selected && (
