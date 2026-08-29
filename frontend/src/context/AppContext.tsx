@@ -699,9 +699,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.log('[AppContext] Session token initialized');
         
         // Step 1: Load language from storage (fast local operation)
+        // Real bug fix Aug 30 (items 1-2, Italian device testing): this raced AsyncStorage
+        // against a bare 2000ms timer - on a real physical Android device, competing with
+        // heavy launch-time I/O, a cold-start AsyncStorage read can genuinely take longer
+        // than that. When it did, the race "won" on the timeout, savedLang silently resolved
+        // to null, and the app rendered its very first screens (Select Your Profile, the
+        // colour check-in screen) in the English default before any later, secondary
+        // language load could correct it - matching exactly what was reported (only the
+        // earliest-rendered screens were wrong, everything reached later was fine). Bumped to
+        // 6000ms, matching the more generous timeout this same file already uses elsewhere
+        // for the identical AsyncStorage read (loadSavedLanguage, the legacy path) - the
+        // underlying data was never missing, just lost to too tight a race on real hardware.
         console.log('[AppContext] Loading saved language...');
         try {
-          const savedLang = await getStorageWithTimeout('app_language', 2000);
+          const savedLang = await getStorageWithTimeout('app_language', 6000);
           if (savedLang && savedLang !== 'en') {
             setLanguageState(savedLang);
             // FIX: fetch translations immediately on startup so UI renders
