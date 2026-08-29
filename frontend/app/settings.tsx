@@ -35,7 +35,7 @@ const LANGUAGES = [
   { code: 'de', name: 'Deutsch', flag: '🇩🇪', hasVoice: false },
   { code: 'it', name: 'Italiano', flag: '🇮🇹', hasVoice: true },
   { code: 'hi', name: 'हिन्दी', flag: '🇮🇳', hasVoice: true },
-  { code: 'zh', name: '中文', flag: '🇨🇳', hasVoice: false },
+  { code: 'zh', name: '中文', flag: '🇨🇳', hasVoice: true },
   { code: 'ar', name: 'العربية', flag: '🇸🇦', hasVoice: false },
   { code: 'ru', name: 'Русский', flag: '🇷🇺', hasVoice: false },
 ];

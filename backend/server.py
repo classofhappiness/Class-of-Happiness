@@ -3050,7 +3050,7 @@ async def get_helpers(feeling_colour: Optional[str] = None, student_id: Optional
 VOICE_CLIP_KEYS = ["blue", "green", "yellow", "red"] + [
     f"{zone}_{n}" for zone in ("blue", "green", "yellow", "red") for n in range(1, 7)
 ]
-VOICE_CLIP_LANGUAGES = ("en", "pt", "es", "it", "fr", "hi")  # Real feature Aug 25: it - full
+VOICE_CLIP_LANGUAGES = ("en", "pt", "es", "it", "fr", "hi", "zh")  # Real feature Aug 25: it - full
 # rollout, all 28 canonical clips (4 colours + 24 helpers) uploaded and live-verified, real
 # converted .m4a files (confirmed by content, not extension - the originals were .opus,
 # genuinely converted before upload this time). es partial rollout Aug 23, completed to full
@@ -3099,18 +3099,21 @@ VOICE_PHRASE_POOLS = {
         # es added Aug 29: real Matilda recordings, same rollout as the es 24-helper manifest.
         "es": ["Como_te_sientes_hoy.m4a", "Registra_como_te_sientes.m4a"],
         "hi": ["Aaj_Tum_Kaisa_Mehsoos_Kar_Rahe_Ho.m4a", "Apni_Bhavnayein_Darj_Karo.m4a"],
+        "zh": ["Ni_Jintian_Ganjue_Zenmeyang.m4a", "Jilu_Wo_De_Xinqing.m4a"],
     },
     "praise": {
         "en": ["Great_job.m4a", "Well_done.m4a", "You_did_it.m4a", "I_did_it.m4a"],
         "pt": ["Muito_bem.m4a", "Boa.m4a", "Conseguiste.m4a"],
         "es": ["Buen_trabajo.m4a", "Bien_hecho.m4a", "Lo_lograste.m4a", "Lo_logre.m4a"],
         "hi": ["Shabaash.m4a", "Bahut_Badhiya.m4a", "Tumne_Kar_Dikhaya.m4a", "Maine_Kar_Dikhaya.m4a"],
+        "zh": ["Tai_Bang_Le.m4a", "Zuo_De_Hao.m4a", "Ni_Zuodao_Le.m4a", "Wo_Zuodao_Le.m4a"],
     },
     "farewell": {
         "en": ["See_you_tomorrow.m4a", "Thank_you_for_checking_in.m4a"],
         "pt": ["Ate_amanha.m4a", "Obrigada_por_te_registares.m4a"],
         "es": ["Hasta_manana.m4a", "Gracias_por_registrarte.m4a"],
         "hi": ["Kal_Milte_Hain.m4a", "Dhanyavaad_Check_In_Karne_ke_Liye.m4a"],
+        "zh": ["Mingtian_Jian.m4a", "Xiexie_Ni_De_Jilu.m4a"],
     },
 }
 
