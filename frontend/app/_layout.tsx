@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Stack, useRouter, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Image, View, StyleSheet, Platform, TouchableOpacity, Text, TextInput } from 'react-native';
@@ -9,6 +9,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { AppProvider, useApp } from '../src/context/AppContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SplashAnimation } from '../src/components/SplashAnimation';
 
 // Keep splash screen visible until app is ready
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -58,16 +59,11 @@ function AppContent() {
   const { isLoading, isAuthenticated, user } = useApp();
   const router = useRouter();
   const pathname = usePathname();
-
-  useEffect(() => {
-    if (!isLoading) {
-      // Small delay so the first screen renders before splash hides
-      const timer = setTimeout(() => {
-        SplashScreen.hideAsync().catch(() => {});
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [isLoading]);
+  // Real feature Aug 30: replaced the old flat-300ms-then-hide timer - SplashAnimation now
+  // owns hiding the native splash itself (the instant it's ready to render its own matching
+  // first frame), then runs the real fade-in/colour-cycle/fade-out sequence as a fixed-
+  // duration overlay on top of the app, which keeps loading underneath in true parallel.
+  const [showSplashAnim, setShowSplashAnim] = useState(true);
 
   // CRITICAL security fix Aug 26: force-password-on-next-login. ~98% of real accounts
   // (confirmed live) have no password set, meaning the account can currently be logged into
@@ -376,6 +372,7 @@ function AppContent() {
           }}
         />
       </Stack>
+      {showSplashAnim && <SplashAnimation onFinish={() => setShowSplashAnim(false)} />}
     </>
   );
 }

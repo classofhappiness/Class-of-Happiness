@@ -49,8 +49,8 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/logo_coh.png",
-          "imageWidth": 250,
+          "image": "./assets/images/splash_green.png",
+          "imageWidth": 300,
           "resizeMode": "contain",
           "backgroundColor": "#FFFFFF"
         }
