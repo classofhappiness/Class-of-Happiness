@@ -9979,12 +9979,16 @@ async def email_login(request: Request):
                 # of any kind - typing a made-up email was indistinguishable from a genuine
                 # signup. Combined with the password bypass (see the force-password-on-login
                 # fix and COH-REVIEW-PLAN.md), this was a second, compounding way into the
-                # app with zero real identity check. Plain email/password is no longer a
-                # signup path - Google sign-in (POST /auth/google) remains real
-                # account-creation, since Google itself verifies the email is genuinely
-                # owned. Real new teacher/parent onboarding otherwise happens via an invite
-                # code or a school-admin-created account, not a bare email typed at login.
-                raise HTTPException(status_code=404, detail="No account found with this email. If you're new here, use \"Sign in with Google\" or ask your school/teacher for an invite code.")
+                # app with zero real identity check. Plain email/password at LOGIN is no
+                # longer a signup path - real email/password signup now exists as its own
+                # deliberate, explicit action (POST /auth/signup, added Aug 26 the morning
+                # after this fix - see its own docstring), with a real password required and
+                # role chosen explicitly. Google sign-in (POST /auth/google) remains real
+                # account-creation too, since Google itself verifies the email is genuinely
+                # owned. Message updated Aug 29 to mention /auth/signup - build 24 is the
+                # first app build whose login screen actually has the "Create an account"
+                # link wired to it; builds 22/23 predate it and only had Google/invite-code.
+                raise HTTPException(status_code=404, detail="No account found with this email. If you're new here, tap \"Create an account\" below, use \"Sign in with Google\", or ask your school/teacher for an invite code.")
         except HTTPException:
             # Real bug fix Aug 26, found live-verifying the 404 above: every HTTPException
             # raised inside this try block (including the pre-existing 401 "Incorrect
