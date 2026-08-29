@@ -8357,36 +8357,69 @@ async def get_global_creatures_by_country(request: Request):
 
     Deliberately NOT capped at 50 / not ordered by global_uses like /creatures/global is -
     that endpoint's cap only makes sense for its own "top creatures" purpose; this needs every
-    real approved creature to aggregate country counts correctly."""
+    real approved creature to aggregate country counts correctly.
+
+    Extended Aug 29 for the interactive World Creature Gallery map (A68): each country entry
+    now also carries a real, per-creature `creatures` list (name, stage art, usage counts) and
+    a `top_creature` (the country's own most-adopted one, for the map pin's icon) - still never
+    anything but creature_name/stage art/usage numbers, the same threshold gate as before still
+    applies at the country level, and the underlying real_student_id used for that gate is
+    computed here and never included in any returned object."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
         rows = supabase.table("creature_submissions").select(
-            "country,real_student_id,superadmin_approved_at"
+            "id,country,real_student_id,superadmin_approved_at,creature_name,emotion_colour,"
+            "stage1_url,stage2_url,stage3_url,stage4_url,global_uses"
         ).eq("status", "approved").execute()
         has_approval_gate = True
     except Exception:
         rows = type("R", (), {"data": []})()
         has_approval_gate = False
     creatures = [c for c in (rows.data or []) if has_approval_gate and c.get("superadmin_approved_at")]
+    creature_ids = [c["id"] for c in creatures]
+
+    # Same "times fully evolved by other students" pattern as /creatures/global.
+    evolved_counts = {}
+    if creature_ids:
+        unlocks_r = supabase.table("creature_unlocks").select("creature_id").eq("stages_unlocked", 4).in_("creature_id", creature_ids).execute()
+        for u in (unlocks_r.data or []):
+            cid = u.get("creature_id")
+            if cid:
+                evolved_counts[cid] = evolved_counts.get(cid, 0) + 1
 
     by_country = {}
     for c in creatures:
         country = c.get("country")
         if not country:
             continue
-        entry = by_country.setdefault(country, {"creature_count": 0, "contributors": set()})
+        entry = by_country.setdefault(country, {"creature_count": 0, "contributors": set(), "creatures": []})
         entry["creature_count"] += 1
         if c.get("real_student_id"):
             entry["contributors"].add(c["real_student_id"])
+        entry["creatures"].append({
+            "id": c["id"],
+            "creature_name": c.get("creature_name") or "Unnamed",
+            "emotion_colour": c.get("emotion_colour"),
+            "stage1_url": c.get("stage1_url"), "stage2_url": c.get("stage2_url"),
+            "stage3_url": c.get("stage3_url"), "stage4_url": c.get("stage4_url"),
+            "global_uses": c.get("global_uses") or 0,
+            "times_fully_evolved": evolved_counts.get(c["id"], 0),
+        })
 
     MIN_DISTINCT_CONTRIBUTORS = 5
-    result = [
-        {"country": country, "creature_count": entry["creature_count"]}
-        for country, entry in by_country.items()
-        if len(entry["contributors"]) >= MIN_DISTINCT_CONTRIBUTORS
-    ]
+    result = []
+    for country, entry in by_country.items():
+        if len(entry["contributors"]) < MIN_DISTINCT_CONTRIBUTORS:
+            continue
+        creatures_sorted = sorted(entry["creatures"], key=lambda x: -x["global_uses"])
+        result.append({
+            "country": country,
+            "creature_count": entry["creature_count"],
+            "top_creature": creatures_sorted[0] if creatures_sorted else None,
+            "creatures": creatures_sorted,
+        })
     result.sort(key=lambda r: -r["creature_count"])
     return result
 
