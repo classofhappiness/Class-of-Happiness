@@ -3141,12 +3141,14 @@ async def get_helpers(feeling_colour: Optional[str] = None, student_id: Optional
 VOICE_CLIP_KEYS = ["blue", "green", "yellow", "red"] + [
     f"{zone}_{n}" for zone in ("blue", "green", "yellow", "red") for n in range(1, 7)
 ]
-VOICE_CLIP_LANGUAGES = ("en", "pt", "es", "it")  # Real feature Aug 25: it - full rollout,
-# all 28 canonical clips (4 colours + 24 helpers) uploaded and live-verified, real converted
-# .m4a files (confirmed by content, not extension - the originals were .opus, genuinely
-# converted before upload this time). es partial rollout Aug 23: only the 4 colour
+VOICE_CLIP_LANGUAGES = ("en", "pt", "es", "it", "fr")  # Real feature Aug 25: it - full
+# rollout, all 28 canonical clips (4 colours + 24 helpers) uploaded and live-verified, real
+# converted .m4a files (confirmed by content, not extension - the originals were .opus,
+# genuinely converted before upload this time). es partial rollout Aug 23: only the 4 colour
 # names (blue/green/yellow/red) have real recordings so far - the 24 helpers and other
-# clips don't exist yet. Safe by design: get_voice_clips only ever returns keys that
+# clips don't exist yet. fr full rollout Aug 29: same as it - all 28 canonical clips (Matilda
+# + Mateus's real recordings), trimmed/normalised to ~-16dB mean/-1dB peak ceiling, converted,
+# uploaded and live-verified. Safe by design: get_voice_clips only ever returns keys that
 # genuinely have a file in Storage, and the frontend already no-ops silently for any
 # missing key (same code path as pt's own partial rollout), so this doesn't need special
 # handling - it's the same mechanism already proven for pt.
