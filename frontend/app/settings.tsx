@@ -12,13 +12,21 @@ import { loadVoiceEnabled, setVoiceEnabled } from '../src/utils/voiceClips';
 import { SecureField } from '../src/components/SecureField';
 
 // hasVoice matches the backend's VOICE_CLIP_LANGUAGES (server.py) - real recordings exist
-// for these languages; the other 2 are UI-text-only for now.
+// for these languages; the rest are UI-text-only for now.
 // Real fix Aug 26 (item 7): this was stale for two languages, not just the one reported -
 // backend's VOICE_CLIP_LANGUAGES is actually ("en","pt","es","it") as of the Aug 25 full
 // Italian rollout, but this array still said Aug 21 ("en","pt" only) and had never been
 // updated for the Aug 23 Spanish rollout either. `es` is a partial rollout (colour names
 // only, no helpers yet) - marked true anyway, same as `pt`'s own existing partial rollout;
 // missing keys silently no-op in playback either way, same established precedent.
+// Real feature Aug 30: hi/zh/ar/ru added as real, selectable languages - text-only review
+// drafts for Jono to show native speakers, per his explicit decision not to wait for
+// audio/full review. hasVoice: false for all 4 (deliberately NOT added to the backend's
+// VOICE_CLIP_LANGUAGES either) - playVoiceClip already no-ops gracefully when a manifest
+// has no entry for the current language, so this needed no new gating logic, only leaving
+// the existing one alone. Arabic is TEXT ONLY - no RTL layout support yet (a genuinely
+// separate, larger project - see COH-REVIEW-PLAN.md), renders LTR like every other language
+// for now.
 const LANGUAGES = [
   { code: 'en', name: 'English', flag: '🇦🇺', hasVoice: true },
   { code: 'es', name: 'Español', flag: '🇪🇸', hasVoice: true },
@@ -26,6 +34,10 @@ const LANGUAGES = [
   { code: 'pt', name: 'Português', flag: '🇵🇹', hasVoice: true },
   { code: 'de', name: 'Deutsch', flag: '🇩🇪', hasVoice: false },
   { code: 'it', name: 'Italiano', flag: '🇮🇹', hasVoice: true },
+  { code: 'hi', name: 'हिन्दी', flag: '🇮🇳', hasVoice: false },
+  { code: 'zh', name: '中文', flag: '🇨🇳', hasVoice: false },
+  { code: 'ar', name: 'العربية', flag: '🇸🇦', hasVoice: false },
+  { code: 'ru', name: 'Русский', flag: '🇷🇺', hasVoice: false },
 ];
 
 // Same client IDs as auth/login.tsx, reused here for re-authentication before account deletion.
@@ -757,7 +769,10 @@ export default function SettingsScreen() {
                 {!lang.hasVoice && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F0F0', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginRight: 6 }}>
                     <MaterialIcons name="volume-off" size={11} color="#999" />
-                    <Text style={{ fontSize: 9, color: '#999', fontWeight: '700', marginLeft: 2 }}>Audio coming soon</Text>
+                    {/* Real feature Aug 30: unified to "No audio yet" (was "Audio coming soon")
+                        so fr/de/hi/zh/ar/ru all read consistently in the same picker, rather
+                        than two different phrases for the same real state. */}
+                    <Text style={{ fontSize: 9, color: '#999', fontWeight: '700', marginLeft: 2 }}>No audio yet</Text>
                   </View>
                 )}
                 {language === lang.code && (
