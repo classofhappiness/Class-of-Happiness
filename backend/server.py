@@ -667,6 +667,153 @@ HELPERS_IT = {
     ],
 }
 
+# Real feature Aug 30: Hindi/Mandarin/Arabic/Russian helper cards - same real icon/emoji
+# choices as HELPERS_IT (kept identical across every translated language for visual
+# consistency), only name/description translated. This is a SEPARATE surface from the main
+# src/translations/*.json files (those cover general UI text; these 24-per-language entries
+# are the "Choose your helpers" strategy card labels, served directly by GET /helpers - no
+# frontend fallback file exists for these, so a language missing from LANG_HELPERS below
+# would silently show English cards here even with a fully-translated UI everywhere else).
+HELPERS_HI = {
+    "blue": [
+        {"id":"b1","name":"हल्की स्ट्रेचिंग","description":"अपनी बाहों और पैरों को धीरे-धीरे स्ट्रेच करें। यह तब मदद करता है जब आप थका हुआ या उदास महसूस करते हैं।","feeling_colour":"blue","icon":"self-improvement","emoji":"🧘"},
+        {"id":"b2","name":"पानी पिएं","description":"गर्म पानी पिएं। यह आपको अंदर से गर्माहट देगा।","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b3","name":"पसंदीदा गाना","description":"अपना पसंदीदा गाना सुनें या गाएं। संगीत हमें बेहतर महसूस करा सकता है।","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
+        {"id":"b4","name":"आरामदायक जगह","description":"एक आरामदायक जगह ढूंढें और कुछ मिनट बैठें या लेटें।","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
+        {"id":"b5","name":"किसी को बताएं","description":"किसी भरोसेमंद व्यक्ति को बताएं कि आप कैसा महसूस कर रहे हैं।","feeling_colour":"blue","icon":"chat","emoji":"💬"},
+        {"id":"b6","name":"धीमी सांस","description":"नाक से धीरे-धीरे सांस लें और मुंह से छोड़ें। 5 बार दोहराएं।","feeling_colour":"blue","icon":"air","emoji":"💨"},
+    ],
+    "green": [
+        {"id":"g1","name":"आगे बढ़ते रहो!","description":"आप बहुत अच्छा कर रहे हैं! ऐसे ही करते रहें।","feeling_colour":"green","icon":"star","emoji":"⭐"},
+        {"id":"g2","name":"दोस्त की मदद करें","description":"किसी को अपनी मदद की पेशकश करें। दूसरों की मदद करने से हमें अच्छा महसूस होता है।","feeling_colour":"green","icon":"favorite","emoji":"❤️"},
+        {"id":"g3","name":"कुछ नया आज़माएं","description":"आज एक नई गतिविधि या विचार आज़माएं।","feeling_colour":"green","icon":"explore","emoji":"🌟"},
+        {"id":"g4","name":"अपनी मुस्कान बांटें","description":"किसी को देखकर मुस्कुराएं। मुस्कान संक्रामक होती है!","feeling_colour":"green","icon":"mood","emoji":"😊"},
+        {"id":"g5","name":"एक लक्ष्य बनाएं","description":"आज के लिए एक छोटा लक्ष्य सोचें। आप क्या हासिल करना चाहते हैं?","feeling_colour":"green","icon":"flag","emoji":"🎯"},
+        {"id":"g6","name":"कृतज्ञता","description":"3 चीज़ों के बारे में सोचें जिनके लिए आप आभारी हैं। यह हमें खुश महसूस करने में मदद करता है।","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
+    ],
+    "yellow": [
+        {"id":"y1","name":"बुलबुला सांस","description":"साबुन के बुलबुले उड़ाने की कल्पना करें। गहरी सांस लें और धीरे-धीरे छोड़ें।","feeling_colour":"yellow","icon":"bubble-chart","emoji":"🫧"},
+        {"id":"y2","name":"शरीर हिलाना","description":"तनाव दूर करने के लिए 30 सेकंड तक अपने हाथ और शरीर हिलाएं।","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
+        {"id":"y3","name":"10 तक गिनें","description":"धीरे-धीरे 1 से 10 तक गिनें। यह आपके दिमाग को शांत करने में मदद करता है।","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
+        {"id":"y4","name":"5 इंद्रियां","description":"5 चीज़ें बताएं जो आप देखते हैं, 4 जो छूते हैं, 3 जो सुनते हैं, 2 जो सूंघते हैं, 1 जो चखते हैं।","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
+        {"id":"y5","name":"दबाएं और छोड़ें","description":"अपनी मुट्ठियों को कसकर दबाएं फिर छोड़ दें। 5 बार दोहराएं।","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
+        {"id":"y6","name":"इसके बारे में बात करें","description":"किसी भरोसेमंद वयस्क को बताएं कि आपको क्या परेशान कर रहा है।","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
+    ],
+    "red": [
+        {"id":"r1","name":"रुक जाओ","description":"रुकें और एक पल के लिए बिल्कुल स्थिर रहें। अभी कुछ न करें।","feeling_colour":"red","icon":"stop","emoji":"✋"},
+        {"id":"r2","name":"गहरी सांसें","description":"5 बहुत धीमी, गहरी सांसें लें। नाक से सांस लें, मुंह से छोड़ें।","feeling_colour":"red","icon":"air","emoji":"🌬️"},
+        {"id":"r3","name":"उल्टी गिनती करें","description":"धीरे-धीरे 10 से 1 तक गिनें। यह आपके दिमाग को शांत करता है।","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
+        {"id":"r4","name":"सुरक्षित जगह","description":"एक शांत जगह जाएं जहां आप सुरक्षित महसूस करते हैं।","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
+        {"id":"r5","name":"मदद मांगें","description":"किसी भरोसेमंद वयस्क को बताएं कि आपको अभी मदद चाहिए।","feeling_colour":"red","icon":"support-agent","emoji":"🆘"},
+        {"id":"r6","name":"खुद को गले लगाएं","description":"खुद को गले लगाएं। अपनी बाहों को क्रॉस करें और धीरे से दबाएं।","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
+    ],
+}
+
+HELPERS_ZH = {
+    "blue": [
+        {"id":"b1","name":"轻柔伸展","description":"慢慢伸展你的手臂和腿。当你感到疲倦或难过时，这会有帮助。","feeling_colour":"blue","icon":"self-improvement","emoji":"🧘"},
+        {"id":"b2","name":"喝水","description":"喝一杯温水，让自己从内而外地暖和起来。","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b3","name":"最喜欢的歌","description":"听或唱你最喜欢的歌。音乐能让我们感觉更好。","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
+        {"id":"b4","name":"舒适角落","description":"找一个舒适的地方坐下或躺一会儿。","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
+        {"id":"b5","name":"告诉别人","description":"告诉一个你信任的人你的感受。","feeling_colour":"blue","icon":"chat","emoji":"💬"},
+        {"id":"b6","name":"缓慢呼吸","description":"用鼻子慢慢吸气，用嘴巴呼气。重复5次。","feeling_colour":"blue","icon":"air","emoji":"💨"},
+    ],
+    "green": [
+        {"id":"g1","name":"继续加油！","description":"你做得很棒！继续保持！","feeling_colour":"green","icon":"star","emoji":"⭐"},
+        {"id":"g2","name":"帮助朋友","description":"主动帮助身边的人。帮助别人会让我们感觉很好。","feeling_colour":"green","icon":"favorite","emoji":"❤️"},
+        {"id":"g3","name":"尝试新事物","description":"今天是学习新东西的好时机。","feeling_colour":"green","icon":"explore","emoji":"🌟"},
+        {"id":"g4","name":"分享你的微笑","description":"对周围的人微笑。微笑是会传染的！","feeling_colour":"green","icon":"mood","emoji":"😊"},
+        {"id":"g5","name":"设定目标","description":"想一想今天你想做的一件事。","feeling_colour":"green","icon":"flag","emoji":"🎯"},
+        {"id":"g6","name":"心怀感恩","description":"想一想一件你感激的事情。这能帮助我们感到快乐。","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
+    ],
+    "yellow": [
+        {"id":"y1","name":"泡泡呼吸","description":"想象自己在吹肥皂泡。慢慢吸气，像吹泡泡一样慢慢呼气。","feeling_colour":"yellow","icon":"bubble-chart","emoji":"🫧"},
+        {"id":"y2","name":"抖动身体","description":"摇晃你的手和身体30秒，释放紧张感。","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
+        {"id":"y3","name":"数到10","description":"慢慢从1数到10。这能帮助你的大脑平静下来。","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
+        {"id":"y4","name":"五种感官","description":"说出你看到的5样东西、摸到的4样、听到的3样、闻到的2样、尝到的1样。","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
+        {"id":"y5","name":"握紧放松","description":"用力握紧拳头，然后松开。重复5次。","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
+        {"id":"y6","name":"说出来","description":"告诉一个你信任的成年人你担心的事情。","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
+    ],
+    "red": [
+        {"id":"r1","name":"静止不动","description":"停下来，完全静止一会儿。先不要做任何事。","feeling_colour":"red","icon":"stop","emoji":"✋"},
+        {"id":"r2","name":"深呼吸","description":"做5次非常缓慢的深呼吸。用鼻子吸气，用嘴巴呼气。","feeling_colour":"red","icon":"air","emoji":"🌬️"},
+        {"id":"r3","name":"倒数","description":"慢慢从10数到1。这能让你的大脑平静下来。","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
+        {"id":"r4","name":"安全角落","description":"去一个让你感到安全的安静地方。","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
+        {"id":"r5","name":"寻求帮助","description":"告诉一个你信任的成年人你现在需要支持。","feeling_colour":"red","icon":"support-agent","emoji":"🆘"},
+        {"id":"r6","name":"拥抱自己","description":"给自己一个大大的、温暖的拥抱。","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
+    ],
+}
+
+HELPERS_AR = {
+    "blue": [
+        {"id":"b1","name":"تمدد خفيف","description":"مدّ ذراعيك وساقيك ببطء. هذا يساعد عندما تشعر بالتعب أو الحزن.","feeling_colour":"blue","icon":"self-improvement","emoji":"🧘"},
+        {"id":"b2","name":"اشرب الماء","description":"اشرب مشروبًا دافئًا. سيساعدك ذلك على الشعور بالدفء من الداخل.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b3","name":"أغنيتك المفضلة","description":"استمع إلى أغنيتك المفضلة أو غنّها. الموسيقى يمكن أن تجعلنا نشعر بتحسن.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
+        {"id":"b4","name":"مكان مريح","description":"ابحث عن مكان مريح واجلس أو استلقِ فيه لبضع دقائق.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
+        {"id":"b5","name":"أخبر شخصًا ما","description":"أخبر شخصًا تثق به بما تشعر به.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
+        {"id":"b6","name":"تنفس ببطء","description":"استنشق ببطء من أنفك وازفر من فمك. كرر ذلك 5 مرات.","feeling_colour":"blue","icon":"air","emoji":"💨"},
+    ],
+    "green": [
+        {"id":"g1","name":"واصل التقدم!","description":"أنت تقوم بعمل رائع! استمر على هذا المنوال.","feeling_colour":"green","icon":"star","emoji":"⭐"},
+        {"id":"g2","name":"ساعد صديقًا","description":"اعرض المساعدة على شخص قريب منك. مساعدة الآخرين تجعلنا نشعر بالرضا.","feeling_colour":"green","icon":"favorite","emoji":"❤️"},
+        {"id":"g3","name":"جرّب شيئًا جديدًا","description":"هذا وقت رائع لتجربة أو تعلّم شيء جديد.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
+        {"id":"g4","name":"شارك ابتسامتك","description":"ابتسم لشخص من حولك. الابتسامة معدية!","feeling_colour":"green","icon":"mood","emoji":"😊"},
+        {"id":"g5","name":"ضع هدفًا","description":"فكّر في شيء تريد تحقيقه اليوم.","feeling_colour":"green","icon":"flag","emoji":"🎯"},
+        {"id":"g6","name":"الامتنان","description":"فكّر في شيء واحد أنت ممتن له. هذا يساعدنا على الشعور بالسعادة.","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
+    ],
+    "yellow": [
+        {"id":"y1","name":"تنفس الفقاعات","description":"تخيّل أنك تنفخ فقاعات الصابون. استنشق ببطء وازفر ببطء كأنك تنفخ فقاعة.","feeling_colour":"yellow","icon":"bubble-chart","emoji":"🫧"},
+        {"id":"y2","name":"هز الجسم","description":"هزّ يديك وجسمك لمدة 30 ثانية للتخلص من التوتر.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
+        {"id":"y3","name":"العد إلى 10","description":"عدّ ببطء من 1 إلى 10. هذا يساعد عقلك على الهدوء.","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
+        {"id":"y4","name":"الحواس الخمس","description":"سمّ 5 أشياء تراها، و4 تلمسها، و3 تسمعها، و2 تشمّهما، و1 تتذوقه.","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
+        {"id":"y5","name":"اضغط وحرر","description":"اضغط بقبضتيك بقوة ثم أرخِهما. كرر ذلك 5 مرات.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
+        {"id":"y6","name":"تحدث عن الأمر","description":"أخبر شخصًا بالغًا تثق به بما يقلقك.","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
+    ],
+    "red": [
+        {"id":"r1","name":"توقف تمامًا","description":"توقف وابقَ ثابتًا تمامًا للحظة. لا تفعل شيئًا الآن.","feeling_colour":"red","icon":"stop","emoji":"✋"},
+        {"id":"r2","name":"أنفاس عميقة","description":"خذ 5 أنفاس عميقة وبطيئة جدًا. استنشق من أنفك وازفر من فمك.","feeling_colour":"red","icon":"air","emoji":"🌬️"},
+        {"id":"r3","name":"العد التنازلي","description":"عدّ ببطء من 10 إلى 1. هذا يهدئ عقلك.","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
+        {"id":"r4","name":"مكان آمن","description":"اذهب إلى مكان هادئ تشعر فيه بالأمان.","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
+        {"id":"r5","name":"اطلب المساعدة","description":"أخبر شخصًا بالغًا تثق به أنك بحاجة إلى الدعم الآن.","feeling_colour":"red","icon":"support-agent","emoji":"🆘"},
+        {"id":"r6","name":"عانق نفسك","description":"احتضن نفسك بقوة ودفء. اعبر ذراعيك واضغط برفق.","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
+    ],
+}
+
+HELPERS_RU = {
+    "blue": [
+        {"id":"b1","name":"Лёгкая растяжка","description":"Медленно потяни руки и ноги. Это помогает, когда ты устал или грустишь.","feeling_colour":"blue","icon":"self-improvement","emoji":"🧘"},
+        {"id":"b2","name":"Выпей воды","description":"Выпей тёплый напиток. Это согреет тебя изнутри.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b3","name":"Любимая песня","description":"Послушай или спой свою любимую песню. Музыка может поднять настроение.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
+        {"id":"b4","name":"Уютное место","description":"Найди удобное, уютное место и посиди или полежи немного.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
+        {"id":"b5","name":"Расскажи кому-нибудь","description":"Расскажи человеку, которому доверяешь, что ты чувствуешь.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
+        {"id":"b6","name":"Медленное дыхание","description":"Медленно вдохни через нос и выдохни через рот. Повтори 5 раз.","feeling_colour":"blue","icon":"air","emoji":"💨"},
+    ],
+    "green": [
+        {"id":"g1","name":"Продолжай в том же духе!","description":"У тебя отлично получается! Так держать!","feeling_colour":"green","icon":"star","emoji":"⭐"},
+        {"id":"g2","name":"Помоги другу","description":"Предложи помощь кому-то рядом. Помогать другим — приятно.","feeling_colour":"green","icon":"favorite","emoji":"❤️"},
+        {"id":"g3","name":"Попробуй что-то новое","description":"Сейчас отличное время, чтобы попробовать или узнать что-то новое.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
+        {"id":"g4","name":"Поделись улыбкой","description":"Улыбнись кому-нибудь рядом. Улыбка заразительна!","feeling_colour":"green","icon":"mood","emoji":"😊"},
+        {"id":"g5","name":"Поставь цель","description":"Подумай, что ты хочешь сделать сегодня.","feeling_colour":"green","icon":"flag","emoji":"🎯"},
+        {"id":"g6","name":"Благодарность","description":"Подумай об одной вещи, за которую ты благодарен. Это помогает чувствовать себя счастливым.","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
+    ],
+    "yellow": [
+        {"id":"y1","name":"Дыхание пузырьками","description":"Представь, что выдуваешь мыльные пузыри. Вдохни медленно, выдохни так, будто дуешь на пузырь.","feeling_colour":"yellow","icon":"bubble-chart","emoji":"🫧"},
+        {"id":"y2","name":"Встряхнуть тело","description":"Потряси руками и телом 30 секунд, чтобы снять напряжение.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
+        {"id":"y3","name":"Считай до 10","description":"Медленно посчитай от 1 до 10. Это помогает мозгу успокоиться.","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
+        {"id":"y4","name":"5 органов чувств","description":"Назови 5 вещей, которые видишь, 4 — которые трогаешь, 3 — которые слышишь, 2 — которые нюхаешь, 1 — которую пробуешь на вкус.","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
+        {"id":"y5","name":"Сожми и отпусти","description":"Крепко сожми кулаки, затем отпусти. Повтори 5 раз.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
+        {"id":"y6","name":"Поговори об этом","description":"Расскажи взрослому, которому доверяешь, что тебя беспокоит.","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
+    ],
+    "red": [
+        {"id":"r1","name":"Замри","description":"Остановись и замри на месте на мгновение. Пока ничего не делай.","feeling_colour":"red","icon":"stop","emoji":"✋"},
+        {"id":"r2","name":"Глубокие вдохи","description":"Сделай 5 очень медленных, глубоких вдохов. Вдыхай через нос, выдыхай через рот.","feeling_colour":"red","icon":"air","emoji":"🌬️"},
+        {"id":"r3","name":"Считай в обратном порядке","description":"Медленно посчитай от 10 до 1. Это успокаивает мозг.","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
+        {"id":"r4","name":"Безопасное место","description":"Иди в тихое место, где чувствуешь себя в безопасности.","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
+        {"id":"r5","name":"Попроси о помощи","description":"Скажи взрослому, которому доверяешь, что тебе сейчас нужна поддержка.","feeling_colour":"red","icon":"support-agent","emoji":"🆘"},
+        {"id":"r6","name":"Обними себя","description":"Крепко и тепло обними себя. Скрести руки и мягко сожми.","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
+    ],
+}
+
 TRANSLATED_HELPERS = {
     "es": {
         "app_name": "Clase de Felicidad",
@@ -2994,6 +3141,7 @@ async def get_helpers(feeling_colour: Optional[str] = None, student_id: Optional
     LANG_HELPERS = {
         "pt": HELPERS_PT, "es": HELPERS_ES, "fr": HELPERS_FR,
         "de": HELPERS_DE, "it": HELPERS_IT,
+        "hi": HELPERS_HI, "zh": HELPERS_ZH, "ar": HELPERS_AR, "ru": HELPERS_RU,
     }
     lang_helpers = LANG_HELPERS.get(lang, DEFAULT_HELPERS)
     for colour in colours:
