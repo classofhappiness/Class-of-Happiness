@@ -3156,14 +3156,18 @@ VOICE_PHRASE_POOLS = {
     "opening": {
         "en": ["How_are_you_feeling_today.m4a", "Check_in_with_my_feelings.m4a"],
         "pt": ["Como_te_sentes_hoje.m4a", "Regista_como_te_sentes.m4a"],
+        # es added Aug 29: real Matilda recordings, same rollout as the es 24-helper manifest.
+        "es": ["Como_te_sientes_hoy.m4a", "Registra_como_te_sientes.m4a"],
     },
     "praise": {
         "en": ["Great_job.m4a", "Well_done.m4a", "You_did_it.m4a", "I_did_it.m4a"],
         "pt": ["Muito_bem.m4a", "Boa.m4a", "Conseguiste.m4a"],
+        "es": ["Buen_trabajo.m4a", "Bien_hecho.m4a", "Lo_lograste.m4a", "Lo_logre.m4a"],
     },
     "farewell": {
         "en": ["See_you_tomorrow.m4a", "Thank_you_for_checking_in.m4a"],
         "pt": ["Ate_amanha.m4a", "Obrigada_por_te_registares.m4a"],
+        "es": ["Hasta_manana.m4a", "Gracias_por_registrarte.m4a"],
     },
 }
 
