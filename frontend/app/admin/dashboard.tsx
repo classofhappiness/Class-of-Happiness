@@ -1507,7 +1507,10 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
         </View>
       </Modal>
 
-      {false ? <ActivityIndicator color={INDIGO} style={{ marginTop: 20 }} /> : <>
+      {/* Real bug fix Aug 30: removed a dead, always-false ternary (`{false ? <ActivityIndicator .../> : <>...`)
+          found during the loader-consistency work - the ActivityIndicator branch could never render, and
+          statsLoading's own real loading state (right below) already uses EmotionColourLoader correctly. */}
+      <>
         {statsLoading && (
           <View style={{ paddingVertical: 6, alignItems: 'center' }}>
             <EmotionColourLoader visible size={28} />
@@ -1613,7 +1616,7 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
           </TouchableOpacity>
         </SectionCard>
 
-      </>}
+      </>
     </>
   );
 }
@@ -1668,7 +1671,10 @@ function SchoolAdminDashboard({ authToken, stats, statsLoading, statsPeriod, set
         <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>{downloadingPdf ? 'Generating…' : 'Download School Report (PDF)'}</Text>
       </TouchableOpacity>
 
-      {false ? <ActivityIndicator color={INDIGO} style={{ marginTop: 20 }} /> : <>
+      {/* Real bug fix Aug 30: removed a dead, always-false ternary (`{false ? <ActivityIndicator .../> : <>...`)
+          found during the loader-consistency work - the ActivityIndicator branch could never render, and
+          statsLoading's own real loading state (right below) already uses EmotionColourLoader correctly. */}
+      <>
         {statsLoading && (
           <View style={{ paddingVertical: 6, alignItems: 'center' }}>
             <EmotionColourLoader visible size={28} />
@@ -1708,7 +1714,7 @@ function SchoolAdminDashboard({ authToken, stats, statsLoading, statsPeriod, set
           <StatRow label="Total creatures collected" value={stats?.total_creatures} icon="pets" color="#9C27B0" />
         </SectionCard>
 
-      </>}
+      </>
     </>
   );
 }

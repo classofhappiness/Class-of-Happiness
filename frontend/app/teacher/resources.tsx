@@ -103,7 +103,25 @@ export default function TeacherResourcesScreen() {
       ]);
       // Merge, dedup by id
       const seen = new Set(data.map((r: any) => r.id));
-      const merged = [...data, ...(Array.isArray(myUploads) ? myUploads.filter((r: any) => !seen.has(r.id)) : [])];
+      let merged: any[] = [...data, ...(Array.isArray(myUploads) ? myUploads.filter((r: any) => !seen.has(r.id)) : [])];
+      // Real bug fix Aug 30: this screen never sorted resources at all - raw, unspecified
+      // fetch order, same architectural gap found and fixed in parent/resources.tsx (item 2,
+      // Aug 29). Teacher's own fetch already deduped correctly (the "seen" Set above), so
+      // only the missing sort applies here. Matches the portal's own real-data sort: any
+      // topic where at least one resource carries a real week_number sorts by week ascending
+      // (999 sentinel for null/0, order_index as tiebreak); everything else falls back to a
+      // plain order_index sort.
+      const weekSortable = merged.some((r: any) => r.week_number != null && r.week_number > 0);
+      if (weekSortable) {
+        merged = merged.slice().sort((a: any, b: any) => {
+          const wa = (a.week_number != null && a.week_number > 0) ? a.week_number : 999;
+          const wb = (b.week_number != null && b.week_number > 0) ? b.week_number : 999;
+          if (wa !== wb) return wa - wb;
+          return (a.order_index || 0) - (b.order_index || 0);
+        });
+      } else {
+        merged = merged.slice().sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0));
+      }
       const userId = user?.user_id || '';
       // Real bug fixed Aug 14: this previously computed "merged" (data + my-uploads fallback)
       // above but then only ever used "data" here, silently discarding the fallback that was
