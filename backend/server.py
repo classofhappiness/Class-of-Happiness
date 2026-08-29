@@ -380,40 +380,10 @@ HELPERS_PT = {
 # code, never executed, but it carried the exact same scrambled-order bug, so removed rather
 # than left as a confusing, also-wrong copy for a future edit to accidentally touch.
 
-HELPERS_DE = {
-    "blue": [
-        {"id":"b1","name":"Sanfte Dehnung","description":"Strecke deinen Körper langsam. Das hilft, wenn du dich müde oder traurig fühlst.","feeling_colour":"blue","icon":"self-improvement","emoji":"🧘"},
-        {"id":"b2","name":"Lieblingslied","description":"Hör dir dein Lieblingslied an oder singe es. Musik kann uns besser fühlen lassen.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
-        {"id":"b3","name":"Jemandem Sagen","description":"Sprich mit jemandem, dem du vertraust, über deine Gefühle.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
-        {"id":"b4","name":"Langsames Atmen","description":"Atme langsam durch die Nase ein und durch den Mund aus. Wiederhole 5 mal.","feeling_colour":"blue","icon":"air","emoji":"💨"},
-        {"id":"b5","name":"Trink Wasser","description":"Trink etwas Warmes und Tröstliches. Lass dich von innen erwärmen.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
-        {"id":"b6","name":"Gemütliche Ecke","description":"Finde einen bequemen Platz und sitz oder leg dich ein paar Minuten hin.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
-    ],
-    "green": [
-        {"id":"g1","name":"Weitermachen!","description":"Du machst das sehr gut! Mach weiter, was du tust.","feeling_colour":"green","icon":"star","emoji":"⭐"},
-        {"id":"g2","name":"Einem Freund Helfen","description":"Biete jemandem deine Hilfe an. Anderen zu helfen macht uns glücklich.","feeling_colour":"green","icon":"favorite","emoji":"❤️"},
-        {"id":"g3","name":"Ein Ziel Setzen","description":"Denke an ein kleines Ziel für heute. Was möchtest du erreichen?","feeling_colour":"green","icon":"flag","emoji":"🎯"},
-        {"id":"g4","name":"Dankbarkeit","description":"Denke an 3 Dinge, für die du dankbar bist. Das hilft uns, glücklich zu sein.","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
-        {"id":"g5","name":"Etwas Neues Ausprobieren","description":"Probiere heute eine neue Aktivität oder Idee aus.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
-        {"id":"g6","name":"Dein Lächeln Teilen","description":"Lächle jemanden an. Lächeln sind ansteckend!","feeling_colour":"green","icon":"mood","emoji":"😊"},
-    ],
-    "yellow": [
-        {"id":"y1","name":"Blasen-Atmung","description":"Stell dir vor, du pustest Seifenblasen. Tief einatmen und langsam ausatmen.","feeling_colour":"yellow","icon":"bubble-chart","emoji":"🫧"},
-        {"id":"y2","name":"Bis 10 Zählen","description":"Zähle langsam bis 10. Das hilft deinem Gehirn, sich zu beruhigen.","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
-        {"id":"y3","name":"5 Sinne","description":"Nenne 5 Dinge die du siehst, 4 die du anfasst, 3 die du hörst, 2 die du riechst, 1 die du fühlst.","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
-        {"id":"y4","name":"Darüber Sprechen","description":"Sprich mit jemandem über das, was dich besorgt.","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
-        {"id":"y5","name":"Körper Schütteln","description":"Schüttle deine Hände und deinen Körper 30 Sekunden lang, um Anspannung loszulassen.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
-        {"id":"y6","name":"Drücken und Loslassen","description":"Drücke deine Fäuste fest zusammen und lass dann los. Wiederhole 5 mal.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
-    ],
-    "red": [
-        {"id":"r1","name":"Stopp","description":"Halte an und bleibe einen Moment still. Tu noch nichts.","feeling_colour":"red","icon":"stop","emoji":"✋"},
-        {"id":"r2","name":"Tiefe Atemzüge","description":"Mache 5 tiefe Atemzüge. Einatmen durch die Nase, ausatmen durch den Mund.","feeling_colour":"red","icon":"air","emoji":"🌬️"},
-        {"id":"r3","name":"Rückwärts Zählen","description":"Zähle langsam von 10 bis 1. Das beruhigt dein Gehirn.","feeling_colour":"red","icon":"timer","emoji":"⏱️"},
-        {"id":"r4","name":"Sicherer Ort","description":"Geh an einen ruhigen Ort, wo du dich sicher fühlst.","feeling_colour":"red","icon":"shield","emoji":"🛡️"},
-        {"id":"r5","name":"Hilfe Holen","description":"Sag einem vertrauenswürdigen Erwachsenen, dass du jetzt Hilfe brauchst.","feeling_colour":"red","icon":"support-agent","emoji":"🆘"},
-        {"id":"r6","name":"Sich Selbst Umarmen","description":"Umarme dich selbst. Verschränke die Arme und drücke sanft.","feeling_colour":"red","icon":"favorite","emoji":"🤗"},
-    ],
-}
+# Real bug fix Aug 29: a genuine duplicate HELPERS_DE dict used to live here, silently
+# overwritten by the real one below (Python keeps the later module-level assignment) - dead
+# code, never executed, but it carried the exact same scrambled-order bug, so removed rather
+# than left as a confusing, also-wrong copy for a future edit to accidentally touch.
 
 # Real bug fix Aug 30: a genuine duplicate HELPERS_IT dict used to live here, silently
 # overwritten by the real one below (Python keeps the later module-level assignment) - dead
@@ -529,27 +499,27 @@ HELPERS_FR = {
 HELPERS_DE = {
     "blue": [
         {"id":"b1","name":"Sanfte Dehnung","description":"Strecke deinen Körper langsam. Das hilft, wenn du dich müde oder traurig fühlst.","feeling_colour":"blue","icon":"self-improvement","emoji":"🧘"},
-        {"id":"b2","name":"Lieblingslied","description":"Hör dir dein Lieblingslied an oder singe es. Musik kann uns besser fühlen lassen.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
-        {"id":"b3","name":"Jemandem Sagen","description":"Sprich mit jemandem, dem du vertraust, über deine Gefühle.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
-        {"id":"b4","name":"Langsames Atmen","description":"Atme langsam durch die Nase ein und durch den Mund aus. Wiederhole 5 mal.","feeling_colour":"blue","icon":"air","emoji":"💨"},
-        {"id":"b5","name":"Trink Wasser","description":"Trink etwas Warmes und Tröstliches. Lass dich von innen erwärmen.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
-        {"id":"b6","name":"Gemütliche Ecke","description":"Finde einen bequemen Platz und sitz oder leg dich ein paar Minuten hin.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
+        {"id":"b2","name":"Trink Wasser","description":"Trink etwas Warmes und Tröstliches. Lass dich von innen erwärmen.","feeling_colour":"blue","icon":"local-cafe","emoji":"☕"},
+        {"id":"b3","name":"Lieblingslied","description":"Hör dir dein Lieblingslied an oder singe es. Musik kann uns besser fühlen lassen.","feeling_colour":"blue","icon":"music-note","emoji":"🎵"},
+        {"id":"b4","name":"Gemütliche Ecke","description":"Finde einen bequemen Platz und sitz oder leg dich ein paar Minuten hin.","feeling_colour":"blue","icon":"home","emoji":"🛋️"},
+        {"id":"b5","name":"Jemandem Sagen","description":"Sprich mit jemandem, dem du vertraust, über deine Gefühle.","feeling_colour":"blue","icon":"chat","emoji":"💬"},
+        {"id":"b6","name":"Langsames Atmen","description":"Atme langsam durch die Nase ein und durch den Mund aus. Wiederhole 5 mal.","feeling_colour":"blue","icon":"air","emoji":"💨"},
     ],
     "green": [
         {"id":"g1","name":"Weitermachen!","description":"Du machst das sehr gut! Mach weiter, was du tust.","feeling_colour":"green","icon":"star","emoji":"⭐"},
         {"id":"g2","name":"Einem Freund Helfen","description":"Biete jemandem deine Hilfe an. Anderen zu helfen macht uns glücklich.","feeling_colour":"green","icon":"favorite","emoji":"❤️"},
-        {"id":"g3","name":"Ein Ziel Setzen","description":"Denke an ein kleines Ziel für heute. Was möchtest du erreichen?","feeling_colour":"green","icon":"flag","emoji":"🎯"},
-        {"id":"g4","name":"Dankbarkeit","description":"Denke an 3 Dinge, für die du dankbar bist. Das hilft uns, glücklich zu sein.","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
-        {"id":"g5","name":"Etwas Neues Ausprobieren","description":"Probiere heute eine neue Aktivität oder Idee aus.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
-        {"id":"g6","name":"Dein Lächeln Teilen","description":"Lächle jemanden an. Lächeln sind ansteckend!","feeling_colour":"green","icon":"mood","emoji":"😊"},
+        {"id":"g3","name":"Etwas Neues Ausprobieren","description":"Probiere heute eine neue Aktivität oder Idee aus.","feeling_colour":"green","icon":"explore","emoji":"🌟"},
+        {"id":"g4","name":"Dein Lächeln Teilen","description":"Lächle jemanden an. Lächeln sind ansteckend!","feeling_colour":"green","icon":"mood","emoji":"😊"},
+        {"id":"g5","name":"Ein Ziel Setzen","description":"Denke an ein kleines Ziel für heute. Was möchtest du erreichen?","feeling_colour":"green","icon":"flag","emoji":"🎯"},
+        {"id":"g6","name":"Dankbarkeit","description":"Denke an 3 Dinge, für die du dankbar bist. Das hilft uns, glücklich zu sein.","feeling_colour":"green","icon":"sentiment-satisfied","emoji":"🙏"},
     ],
     "yellow": [
         {"id":"y1","name":"Blasen-Atmung","description":"Stell dir vor, du pustest Seifenblasen. Tief einatmen und langsam ausatmen.","feeling_colour":"yellow","icon":"bubble-chart","emoji":"🫧"},
-        {"id":"y2","name":"Bis 10 Zählen","description":"Zähle langsam bis 10. Das hilft deinem Gehirn, sich zu beruhigen.","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
-        {"id":"y3","name":"5 Sinne","description":"Nenne 5 Dinge die du siehst, 4 die du anfasst, 3 die du hörst, 2 die du riechst, 1 die du fühlst.","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
-        {"id":"y4","name":"Darüber Sprechen","description":"Sprich mit jemandem über das, was dich besorgt.","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
-        {"id":"y5","name":"Körper Schütteln","description":"Schüttle deine Hände und deinen Körper 30 Sekunden lang, um Anspannung loszulassen.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
-        {"id":"y6","name":"Drücken und Loslassen","description":"Drücke deine Fäuste fest zusammen und lass dann los. Wiederhole 5 mal.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
+        {"id":"y2","name":"Körper Schütteln","description":"Schüttle deine Hände und deinen Körper 30 Sekunden lang, um Anspannung loszulassen.","feeling_colour":"yellow","icon":"directions-run","emoji":"🕺"},
+        {"id":"y3","name":"Bis 10 Zählen","description":"Zähle langsam bis 10. Das hilft deinem Gehirn, sich zu beruhigen.","feeling_colour":"yellow","icon":"format-list-numbered","emoji":"🔢"},
+        {"id":"y4","name":"5 Sinne","description":"Nenne 5 Dinge die du siehst, 4 die du anfasst, 3 die du hörst, 2 die du riechst, 1 die du fühlst.","feeling_colour":"yellow","icon":"visibility","emoji":"👁️"},
+        {"id":"y5","name":"Drücken und Loslassen","description":"Drücke deine Fäuste fest zusammen und lass dann los. Wiederhole 5 mal.","feeling_colour":"yellow","icon":"pan-tool","emoji":"✊"},
+        {"id":"y6","name":"Darüber Sprechen","description":"Sprich mit jemandem über das, was dich besorgt.","feeling_colour":"yellow","icon":"forum","emoji":"🗣️"},
     ],
     "red": [
         {"id":"r1","name":"Stopp","description":"Halte an und bleibe einen Moment still. Tu noch nichts.","feeling_colour":"red","icon":"stop","emoji":"✋"},
