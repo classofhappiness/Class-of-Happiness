@@ -754,7 +754,7 @@
   "yellow_feeling_short": "قلِق / مرِح بلا تركيز",
   "yellow_feelings": "المشاعر الصفراء",
   "yellow_label": "متوتر",
-  "yellow_short": "المشاعر الصفراء",
+  "yellow_short": "😟 أصفر",
   "yellow_short_label": "أصفر",
   "yellow_zone": "المنطقة الصفراء",
   "yellow_zone_desc": "قلِق، محبَط، يفقد السيطرة تدريجيًا",
@@ -768,5 +768,6 @@
   "zone_all": "الكل",
   "zone_blue": "المشاعر الزرقاء",
   "zone_comparison": "مقارنة المشاعر",
-  "zone_red": "المشاعر الحمراء"
+  "zone_red": "المشاعر الحمراء",
+  "zone_yellow": "المشاعر الصفراء"
 }

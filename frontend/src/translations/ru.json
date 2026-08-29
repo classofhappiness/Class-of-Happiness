@@ -754,7 +754,7 @@
   "yellow_feeling_short": "Тревожно / смешно",
   "yellow_feelings": "Жёлтые эмоции",
   "yellow_label": "Напряжение",
-  "yellow_short": "Жёлтые эмоции",
+  "yellow_short": "😟 Жёлтый",
   "yellow_short_label": "Жёлтый",
   "yellow_zone": "Жёлтая зона",
   "yellow_zone_desc": "Тревога, раздражение, потеря контроля",
@@ -768,5 +768,6 @@
   "zone_all": "Все",
   "zone_blue": "Синие эмоции",
   "zone_comparison": "Сравнение эмоций",
-  "zone_red": "Красные эмоции"
+  "zone_red": "Красные эмоции",
+  "zone_yellow": "Жёлтые эмоции"
 }

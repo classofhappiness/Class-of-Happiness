@@ -754,7 +754,7 @@
   "yellow_feeling_short": "चिंतित / मज़ाकिया",
   "yellow_feelings": "पीली भावनाएं",
   "yellow_label": "तनावग्रस्त",
-  "yellow_short": "पीली भावनाएं",
+  "yellow_short": "😟 पीला",
   "yellow_short_label": "पीला",
   "yellow_zone": "पीला ज़ोन",
   "yellow_zone_desc": "चिंतित, निराश, नियंत्रण खोता हुआ",
@@ -768,5 +768,6 @@
   "zone_all": "सभी",
   "zone_blue": "नीली भावनाएं",
   "zone_comparison": "भावना तुलना",
-  "zone_red": "लाल भावनाएं"
+  "zone_red": "लाल भावनाएं",
+  "zone_yellow": "पीली भावनाएं"
 }

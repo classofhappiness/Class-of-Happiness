@@ -1313,7 +1313,7 @@ export default function ParentDashboard() {
                 const ZONE_LABELS: Record<string,string> = {
                   green: (t('steady') || 'Green Emotions') + ' 😊',
                   blue: (t('zone_blue') || 'Blue Emotions') + ' 😢',
-                  yellow: (t('yellow_short') || 'Yellow Emotions') + ' 😰',
+                  yellow: (t('zone_yellow') || 'Yellow Emotions') + ' 😰',
                   red: (t('zone_red') || 'Red Emotions') + ' 😠'
                 };
                 if (total === 0) return <Text style={{ color:'#999', fontSize:13, textAlign:'center', paddingVertical:16 }}>No check-ins for this period</Text>;

@@ -213,8 +213,15 @@ export default function FamilyStrategiesScreen() {
                 backgroundColor: activeTab === tab.id ? 'white' : 'transparent' }}
               onPress={() => setActiveTab(tab.id)}
             >
-              <Text style={{ fontSize: 11, fontWeight: activeTab === tab.id ? '700' : '400',
-                color: activeTab === tab.id ? '#333' : '#888' }}>{tab.label}</Text>
+              <Text
+                style={{ fontSize: 11, fontWeight: activeTab === tab.id ? '700' : '400',
+                  color: activeTab === tab.id ? '#333' : '#888', textAlign: 'center' }}
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+              >
+                {tab.label}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>

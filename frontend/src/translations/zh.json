@@ -754,7 +754,7 @@
   "yellow_feeling_short": "担心 / 调皮",
   "yellow_feelings": "黄色情绪",
   "yellow_label": "有压力",
-  "yellow_short": "黄色情绪",
+  "yellow_short": "😟 黄色",
   "yellow_short_label": "黄色",
   "yellow_zone": "黄色区域",
   "yellow_zone_desc": "担心、沮丧、快要失去控制",
@@ -768,5 +768,6 @@
   "zone_all": "全部",
   "zone_blue": "蓝色情绪",
   "zone_comparison": "情绪对比",
-  "zone_red": "红色情绪"
+  "zone_red": "红色情绪",
+  "zone_yellow": "黄色情绪"
 }
