@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, Linking, Pressable, Image,
@@ -1223,6 +1223,7 @@ function CreatureModeration({ authToken }: { authToken: string|null }) {
   const { t } = useApp();
   const [pending, setPending] = useState<any[]>([]);
   const [approved, setApproved] = useState<any[]>([]);
+  const [countryGallery, setCountryGallery] = useState<{ country: string; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<any | null>(null);
@@ -1233,9 +1234,19 @@ function CreatureModeration({ authToken }: { authToken: string|null }) {
     Promise.all([
       apiCall('/creatures/awaiting-global-approval', authToken).catch(() => []),
       apiCall('/creatures/global', authToken).catch(() => []),
-    ]).then(([p, a]) => {
+      apiCall('/creatures/global/by-country', authToken).catch(() => []),
+    ]).then(([p, a, gallery]) => {
       setPending(Array.isArray(p) ? p : []);
       setApproved(Array.isArray(a) ? a : []);
+      // Real bug fix Aug 29: this used to reuse the `approved` array (the same
+      // /creatures/global response that genuinely includes student_name/real_student_id,
+      // needed by the Approved Creatures card above) and aggregate it client-side - the
+      // names/IDs never rendered here, but were still sitting in this component's memory for
+      // a feature that explicitly promises no student data. Now a real, separate fetch to a
+      // dedicated endpoint that aggregates server-side and never returns a name or ID, and
+      // correctly counts distinct contributing students against the threshold, not raw
+      // creature count.
+      setCountryGallery(Array.isArray(gallery) ? gallery.map((g: any) => ({ country: g.country, count: g.creature_count })) : []);
     }).finally(() => setLoading(false));
   }, [authToken]);
 
@@ -1302,20 +1313,6 @@ function CreatureModeration({ authToken }: { authToken: string|null }) {
     } catch (e: any) { Alert.alert('Error', e?.message || 'Could not feature this creature.'); }
     setBusyId(null);
   };
-
-  // World Creature Gallery (item 10) — real port of the portal's saWorldGallery. Reuses
-  // the `approved` array already fetched above (same /creatures/global response the portal
-  // reads) rather than a second fetch — pure aggregation, no new API call. Same 5-creature
-  // minimum threshold as the portal, so a single contributing country never gets singled out.
-  const countryGallery = useMemo(() => {
-    const counts: Record<string, number> = {};
-    approved.forEach(c => { if (c.country) counts[c.country] = (counts[c.country] || 0) + 1; });
-    const MIN_THRESHOLD = 5;
-    return Object.entries(counts)
-      .filter(([, n]) => n >= MIN_THRESHOLD)
-      .map(([country, count]) => ({ country, count }))
-      .sort((a, b) => b.count - a.count);
-  }, [approved]);
 
   if (loading) return <View style={{ marginVertical: 20, alignItems: 'center' }}><EmotionColourLoader visible size={48} /></View>;
 
