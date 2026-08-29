@@ -23,14 +23,28 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 // visual effect, without a multi-hundred-file diff for a font swap. Only a variable-weight
 // file ships for this font upstream (no separate static per-weight files exist in Google
 // Fonts' own repo) - real, deliberate choice, not a corner cut.
-function setDefaultFont(fontFamily: string) {
+//
+// Real fix Aug 29 (build-25 font-coverage item): rewritten to RESET from a fixed base style
+// on every call rather than prepending - the original only ever ran once (on font load), so
+// prepending was harmless, but it's now called again on every language change (see AppContent
+// below), and repeated prepends would have grown the style array forever. fontFamily
+// undefined means "don't force one" - Android then falls back to its own system font for
+// hi/zh/ar/ru, which actually cover Devanagari/CJK/Arabic/Cyrillic glyphs (Nunito doesn't,
+// and unlike iOS's CoreText, Android's fallback for a custom-loaded Typeface isn't reliably
+// automatic - confirmed no bundled fallback font exists for these scripts either).
+const BASE_TEXT_STYLE = {};
+function setDefaultFont(fontFamily: string | undefined) {
+  const style = fontFamily ? { fontFamily } : BASE_TEXT_STYLE;
   const TextAny = Text as any;
   TextAny.defaultProps = TextAny.defaultProps || {};
-  TextAny.defaultProps.style = [{ fontFamily }, TextAny.defaultProps.style];
+  TextAny.defaultProps.style = style;
   const TextInputAny = TextInput as any;
   TextInputAny.defaultProps = TextInputAny.defaultProps || {};
-  TextInputAny.defaultProps.style = [{ fontFamily }, TextInputAny.defaultProps.style];
+  TextInputAny.defaultProps.style = style;
 }
+
+// Scripts Nunito doesn't cover - see COH-REVIEW-PLAN.md build-25 font-coverage audit.
+const NON_LATIN_LANGS = ['hi', 'zh', 'ar', 'ru'];
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -56,9 +70,26 @@ const HeaderWithBackAndLogo = ({ canGoBack }: { canGoBack?: boolean }) => {
 
 // Inner component that hides splash once app is ready
 function AppContent() {
-  const { isLoading, isAuthenticated, user } = useApp();
+  const { isLoading, isAuthenticated, user, language } = useApp();
   const router = useRouter();
   const pathname = usePathname();
+
+  // Real fix Aug 29 (build-25): AppContent is inside AppProvider, so it's the first place
+  // with real access to `language` - RootLayout below (where fonts first load) sits outside
+  // the provider and only ever sees the font-ready signal, not the language. This re-runs on
+  // every language change (not just once at startup) because `language` is in the effect's
+  // dependency array - confirmed AppContext.Provider's value object is rebuilt every render
+  // and includes both `language` and `translations`, so every screen calling useApp() (42/45
+  // screens directly; the other 2 are thin wrappers around a component that itself calls
+  // useApp()) re-renders and picks up the current defaultProps the moment language changes -
+  // no separate "force remount" step needed.
+  useEffect(() => {
+    if (Platform.OS === 'android' && NON_LATIN_LANGS.includes(language)) {
+      setDefaultFont(undefined);
+    } else {
+      setDefaultFont('Nunito');
+    }
+  }, [language]);
   // Real feature Aug 30: replaced the old flat-300ms-then-hide timer - SplashAnimation now
   // owns hiding the native splash itself (the instant it's ready to render its own matching
   // first frame), then runs the real fade-in/colour-cycle/fade-out sequence as a fixed-
