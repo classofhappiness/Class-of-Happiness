@@ -1930,3 +1930,19 @@ Dispatched 4 parallel forks (one per language, for internal terminology consiste
 **Scope estimate given, not assumed complete**: per Jono's own framing, this covers the existing, already-catalogued translation-key system (now genuinely thorough - 770 keys, including the dynamic-lookup gaps found on a second pass). Finding every remaining hardcoded string across the whole app that never went through `t()` at all is real, separate, open-ended work - the original i18n rollout needed a 222-key/9-screen pass then a separate 400-key/4-stage pass to get the existing 6 languages this far; a thorough sweep of the same shape for the whole app (~80-100+ files) is realistically its own future multi-round effort, not something achieved as a side effect of tonight's build-25 prep.
 
 Committed and pushed: `466304b0` (sort fix + dead code), `2f8b8f4f` (backend helper translations), `ef90e8a7` (main 741-key translations x4 + Settings/index.ts wiring), `cd5e84a8` (29-key dynamic-lookup gap fix).
+
+## A73 — HELPERS_FR scramble fix + full French voice-clip rollout, 2026-08-29
+
+**Same scramble bug found in `HELPERS_FR` as `HELPERS_IT` had (flagged as a side-effect discovery in the prior session, unaddressed until now)**: content sat at the wrong id - b1/g1/g2 correct, everything else in blue/green/yellow shifted, red already 6/6 correct. Also found the identical dead-duplicate-dict issue `HELPERS_IT` had: a second, unused `HELPERS_FR = {...}` earlier in the file, byte-identical to the live one, silently overwritten by Python's later module-level assignment - removed rather than left as a confusing also-wrong copy. Fixed by reordering blue/green/yellow to canonical positions (red untouched), matching Jono's own `fr-recording-script.pdf` ("verified against the real app source"). Live-verified all 24 ids against canonical order post-deploy: 24/24 correct.
+
+**40 raw recordings from `/Users/jono/Desktop/frenchaudio`** (Matilda's colours + encouragement, Mateus's 24 helpers + longer phrases) mapped to canonical keys - 7 filenames were truncated mid-word (filesystem export limit) and resolved unambiguously by cross-referencing the recording-script PDF's exact phrasing against each truncated prefix, not guessed. No ffmpeg was installed and no Homebrew existed in this environment - used `pip3 install imageio-ffmpeg` (a real official-build ffmpeg binary via PyPI) instead of installing Homebrew from scratch.
+
+**Processing**: silence-trimmed both ends (`silenceremove` + reverse trick), normalised toward the app's ~-16dB mean standard - capped with a -1dB peak ceiling per file after an initial pass produced two files clipping at 0.0dB (loud takes with a high peak-to-mean ratio), re-run with the cap and reverified zero clipping across all 40. Converted to real m4a/AAC throughout.
+
+**28 canonical clips** (4 colours + 24 helpers) uploaded to `fr/{key}.m4a`, `"fr"` added to `VOICE_CLIP_LANGUAGES`. Live-verified: `GET /voice-clips?language=fr` returns 28/28, and cross-checked every helper id's live `HELPERS_FR` label against the actual source filename uploaded at that key - all 28 align.
+
+**8 encouragement phrases**: checked the actual frontend code rather than assume - `opening`/`praise`/`farewell` phrase pools (`VOICE_PHRASE_POOLS`) are all three genuinely wired to real UI moments (`zone.tsx`, `rewards.tsx`), just missing an `"fr"` language entry, same gap `it` also still has. Processed and mapped to pools (2 opening / 4 praise / 2 farewell) but deliberately left un-uploaded/unwired pending Jono's confirmation, since adding them wasn't explicitly asked for this round.
+
+**4 longer phrases**: no code path exists anywhere (not even for `it`) - processed and normalised only, not uploaded, per explicit instruction not to invent a slot.
+
+Committed and pushed: `673006bf` (HELPERS_FR fix + dead-duplicate removal), `8f58f7ed` (fr voice-clip manifest rollout).

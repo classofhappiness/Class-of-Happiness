@@ -3050,7 +3050,7 @@ async def get_helpers(feeling_colour: Optional[str] = None, student_id: Optional
 VOICE_CLIP_KEYS = ["blue", "green", "yellow", "red"] + [
     f"{zone}_{n}" for zone in ("blue", "green", "yellow", "red") for n in range(1, 7)
 ]
-VOICE_CLIP_LANGUAGES = ("en", "pt", "es", "it", "fr", "hi", "zh")  # Real feature Aug 25: it - full
+VOICE_CLIP_LANGUAGES = ("en", "pt", "es", "it", "fr", "hi", "zh", "de", "ru")  # Real feature Aug 25: it - full
 # rollout, all 28 canonical clips (4 colours + 24 helpers) uploaded and live-verified, real
 # converted .m4a files (confirmed by content, not extension - the originals were .opus,
 # genuinely converted before upload this time). es partial rollout Aug 23, completed to full
@@ -3100,6 +3100,8 @@ VOICE_PHRASE_POOLS = {
         "es": ["Como_te_sientes_hoy.m4a", "Registra_como_te_sientes.m4a"],
         "hi": ["Aaj_Tum_Kaisa_Mehsoos_Kar_Rahe_Ho.m4a", "Apni_Bhavnayein_Darj_Karo.m4a"],
         "zh": ["Ni_Jintian_Ganjue_Zenmeyang.m4a", "Jilu_Wo_De_Xinqing.m4a"],
+        "de": ["Wie_fuehlst_du_dich_heute.m4a", "Trage_ein_wie_du_dich_fuehlst.m4a"],
+        "ru": ["Kak_Ty_Sebya_Chuvstvuesh_Segodnya.m4a", "Otmet_Svoi_Chuvstva.m4a"],
     },
     "praise": {
         "en": ["Great_job.m4a", "Well_done.m4a", "You_did_it.m4a", "I_did_it.m4a"],
@@ -3107,6 +3109,8 @@ VOICE_PHRASE_POOLS = {
         "es": ["Buen_trabajo.m4a", "Bien_hecho.m4a", "Lo_lograste.m4a", "Lo_logre.m4a"],
         "hi": ["Shabaash.m4a", "Bahut_Badhiya.m4a", "Tumne_Kar_Dikhaya.m4a", "Maine_Kar_Dikhaya.m4a"],
         "zh": ["Tai_Bang_Le.m4a", "Zuo_De_Hao.m4a", "Ni_Zuodao_Le.m4a", "Wo_Zuodao_Le.m4a"],
+        "de": ["Toll_gemacht.m4a", "Gut_gemacht.m4a", "Du_hast_es_geschafft.m4a", "Ich_habe_es_geschafft.m4a"],
+        "ru": ["Otlichno.m4a", "Molodets.m4a", "U_Tebya_Poluchilos.m4a", "U_Menya_Poluchilos.m4a"],
     },
     "farewell": {
         "en": ["See_you_tomorrow.m4a", "Thank_you_for_checking_in.m4a"],
@@ -3114,6 +3118,8 @@ VOICE_PHRASE_POOLS = {
         "es": ["Hasta_manana.m4a", "Gracias_por_registrarte.m4a"],
         "hi": ["Kal_Milte_Hain.m4a", "Dhanyavaad_Check_In_Karne_ke_Liye.m4a"],
         "zh": ["Mingtian_Jian.m4a", "Xiexie_Ni_De_Jilu.m4a"],
+        "de": ["Bis_morgen.m4a", "Danke_dass_du_dich_eingetragen_hast.m4a"],
+        "ru": ["Do_Zavtra.m4a", "Spasibo_Za_Tvoy_Otvet.m4a"],
     },
 }
 

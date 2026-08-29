@@ -25,19 +25,23 @@ import { SecureField } from '../src/components/SecureField';
 // larger project - see COH-REVIEW-PLAN.md), renders LTR like every other language for now.
 // Real fix Aug 29: fr was stale here too (said false since Aug 25, but got its own full
 // 28-clip rollout tonight) - same "this array drifts from VOICE_CLIP_LANGUAGES" bug as item
-// 7 above, found again rather than trusted. hi flipped true tonight (first-ever Hindi
-// audio, full 28-clip rollout). zh/ar/ru stay false - no recordings yet for any of them.
+// 7 above, found again rather than trusted. de/hi/ru/zh all flipped true across this same
+// session as each got its own full 28-clip rollout - only `ar` has no recordings at all.
+// isBeta: hi/zh/ar/ru are unreviewed beyond the voiced strings themselves (no native-speaker
+// pass on the full UI text yet, unlike es/fr/de/it/pt which were already-established
+// translations before tonight) - shown as a small badge so families know what they're
+// choosing into, not a claim about audio/text completeness specifically.
 const LANGUAGES = [
-  { code: 'en', name: 'English', flag: '🇦🇺', hasVoice: true },
-  { code: 'es', name: 'Español', flag: '🇪🇸', hasVoice: true },
-  { code: 'fr', name: 'Français', flag: '🇫🇷', hasVoice: true },
-  { code: 'pt', name: 'Português', flag: '🇵🇹', hasVoice: true },
-  { code: 'de', name: 'Deutsch', flag: '🇩🇪', hasVoice: false },
-  { code: 'it', name: 'Italiano', flag: '🇮🇹', hasVoice: true },
-  { code: 'hi', name: 'हिन्दी', flag: '🇮🇳', hasVoice: true },
-  { code: 'zh', name: '中文', flag: '🇨🇳', hasVoice: true },
-  { code: 'ar', name: 'العربية', flag: '🇸🇦', hasVoice: false },
-  { code: 'ru', name: 'Русский', flag: '🇷🇺', hasVoice: false },
+  { code: 'en', name: 'English', flag: '🇦🇺', hasVoice: true, isBeta: false },
+  { code: 'es', name: 'Español', flag: '🇪🇸', hasVoice: true, isBeta: false },
+  { code: 'fr', name: 'Français', flag: '🇫🇷', hasVoice: true, isBeta: false },
+  { code: 'pt', name: 'Português', flag: '🇵🇹', hasVoice: true, isBeta: false },
+  { code: 'de', name: 'Deutsch', flag: '🇩🇪', hasVoice: true, isBeta: false },
+  { code: 'it', name: 'Italiano', flag: '🇮🇹', hasVoice: true, isBeta: false },
+  { code: 'hi', name: 'हिन्दी', flag: '🇮🇳', hasVoice: true, isBeta: true },
+  { code: 'zh', name: '中文', flag: '🇨🇳', hasVoice: true, isBeta: true },
+  { code: 'ar', name: 'العربية', flag: '🇸🇦', hasVoice: false, isBeta: true },
+  { code: 'ru', name: 'Русский', flag: '🇷🇺', hasVoice: true, isBeta: true },
 ];
 
 // Same client IDs as auth/login.tsx, reused here for re-authentication before account deletion.
@@ -766,6 +770,11 @@ export default function SettingsScreen() {
               >
                 <Text style={styles.langFlag}>{lang.flag}</Text>
                 <Text style={styles.langName}>{lang.name}</Text>
+                {lang.isBeta && (
+                  <View style={{ backgroundColor: '#5C6BC0', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginRight: 6 }}>
+                    <Text style={{ fontSize: 9, color: '#FFF', fontWeight: '700' }}>Beta</Text>
+                  </View>
+                )}
                 {!lang.hasVoice && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F0F0', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginRight: 6 }}>
                     <MaterialIcons name="volume-off" size={11} color="#999" />
