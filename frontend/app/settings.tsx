@@ -21,20 +21,20 @@ import { SecureField } from '../src/components/SecureField';
 // missing keys silently no-op in playback either way, same established precedent.
 // Real feature Aug 30: hi/zh/ar/ru added as real, selectable languages - text-only review
 // drafts for Jono to show native speakers, per his explicit decision not to wait for
-// audio/full review. hasVoice: false for all 4 (deliberately NOT added to the backend's
-// VOICE_CLIP_LANGUAGES either) - playVoiceClip already no-ops gracefully when a manifest
-// has no entry for the current language, so this needed no new gating logic, only leaving
-// the existing one alone. Arabic is TEXT ONLY - no RTL layout support yet (a genuinely
-// separate, larger project - see COH-REVIEW-PLAN.md), renders LTR like every other language
-// for now.
+// audio/full review. Arabic is TEXT ONLY - no RTL layout support yet (a genuinely separate,
+// larger project - see COH-REVIEW-PLAN.md), renders LTR like every other language for now.
+// Real fix Aug 29: fr was stale here too (said false since Aug 25, but got its own full
+// 28-clip rollout tonight) - same "this array drifts from VOICE_CLIP_LANGUAGES" bug as item
+// 7 above, found again rather than trusted. hi flipped true tonight (first-ever Hindi
+// audio, full 28-clip rollout). zh/ar/ru stay false - no recordings yet for any of them.
 const LANGUAGES = [
   { code: 'en', name: 'English', flag: '🇦🇺', hasVoice: true },
   { code: 'es', name: 'Español', flag: '🇪🇸', hasVoice: true },
-  { code: 'fr', name: 'Français', flag: '🇫🇷', hasVoice: false },
+  { code: 'fr', name: 'Français', flag: '🇫🇷', hasVoice: true },
   { code: 'pt', name: 'Português', flag: '🇵🇹', hasVoice: true },
   { code: 'de', name: 'Deutsch', flag: '🇩🇪', hasVoice: false },
   { code: 'it', name: 'Italiano', flag: '🇮🇹', hasVoice: true },
-  { code: 'hi', name: 'हिन्दी', flag: '🇮🇳', hasVoice: false },
+  { code: 'hi', name: 'हिन्दी', flag: '🇮🇳', hasVoice: true },
   { code: 'zh', name: '中文', flag: '🇨🇳', hasVoice: false },
   { code: 'ar', name: 'العربية', flag: '🇸🇦', hasVoice: false },
   { code: 'ru', name: 'Русский', flag: '🇷🇺', hasVoice: false },

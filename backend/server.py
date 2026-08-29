@@ -3050,17 +3050,18 @@ async def get_helpers(feeling_colour: Optional[str] = None, student_id: Optional
 VOICE_CLIP_KEYS = ["blue", "green", "yellow", "red"] + [
     f"{zone}_{n}" for zone in ("blue", "green", "yellow", "red") for n in range(1, 7)
 ]
-VOICE_CLIP_LANGUAGES = ("en", "pt", "es", "it", "fr")  # Real feature Aug 25: it - full
+VOICE_CLIP_LANGUAGES = ("en", "pt", "es", "it", "fr", "hi")  # Real feature Aug 25: it - full
 # rollout, all 28 canonical clips (4 colours + 24 helpers) uploaded and live-verified, real
 # converted .m4a files (confirmed by content, not extension - the originals were .opus,
-# genuinely converted before upload this time). es partial rollout Aug 23: only the 4 colour
-# names (blue/green/yellow/red) have real recordings so far - the 24 helpers and other
-# clips don't exist yet. fr full rollout Aug 29: same as it - all 28 canonical clips (Matilda
-# + Mateus's real recordings), trimmed/normalised to ~-16dB mean/-1dB peak ceiling, converted,
-# uploaded and live-verified. Safe by design: get_voice_clips only ever returns keys that
-# genuinely have a file in Storage, and the frontend already no-ops silently for any
-# missing key (same code path as pt's own partial rollout), so this doesn't need special
-# handling - it's the same mechanism already proven for pt.
+# genuinely converted before upload this time). es partial rollout Aug 23, completed to full
+# 28 Aug 29 (24 helpers added). fr full rollout Aug 29: same as it - all 28 canonical clips
+# (Matilda + Mateus's real recordings), trimmed/normalised to ~-16dB mean/true-peak limited,
+# converted, uploaded and live-verified. hi full rollout Aug 29: first-ever Hindi content in
+# the app (text was draft-only before this) - the recordings are the source of truth, and
+# HELPERS_HI/hi.json were corrected to match the actual informal register recorded, not the
+# other way around. Safe by design: get_voice_clips only ever returns keys that genuinely
+# have a file in Storage, and the frontend already no-ops silently for any missing key (same
+# code path as pt's own earlier partial rollout), so this doesn't need special handling.
 
 @api_router.get("/voice-clips")
 async def get_voice_clips(language: str = "en"):
@@ -3097,16 +3098,19 @@ VOICE_PHRASE_POOLS = {
         "pt": ["Como_te_sentes_hoje.m4a", "Regista_como_te_sentes.m4a"],
         # es added Aug 29: real Matilda recordings, same rollout as the es 24-helper manifest.
         "es": ["Como_te_sientes_hoy.m4a", "Registra_como_te_sientes.m4a"],
+        "hi": ["Aaj_Tum_Kaisa_Mehsoos_Kar_Rahe_Ho.m4a", "Apni_Bhavnayein_Darj_Karo.m4a"],
     },
     "praise": {
         "en": ["Great_job.m4a", "Well_done.m4a", "You_did_it.m4a", "I_did_it.m4a"],
         "pt": ["Muito_bem.m4a", "Boa.m4a", "Conseguiste.m4a"],
         "es": ["Buen_trabajo.m4a", "Bien_hecho.m4a", "Lo_lograste.m4a", "Lo_logre.m4a"],
+        "hi": ["Shabaash.m4a", "Bahut_Badhiya.m4a", "Tumne_Kar_Dikhaya.m4a", "Maine_Kar_Dikhaya.m4a"],
     },
     "farewell": {
         "en": ["See_you_tomorrow.m4a", "Thank_you_for_checking_in.m4a"],
         "pt": ["Ate_amanha.m4a", "Obrigada_por_te_registares.m4a"],
         "es": ["Hasta_manana.m4a", "Gracias_por_registrarte.m4a"],
+        "hi": ["Kal_Milte_Hain.m4a", "Dhanyavaad_Check_In_Karne_ke_Liye.m4a"],
     },
 }
 
