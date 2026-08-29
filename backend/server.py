@@ -8337,6 +8337,59 @@ async def get_global_creatures(request: Request):
 
     return creatures
 
+@api_router.get("/creatures/global/by-country")
+async def get_global_creatures_by_country(request: Request):
+    """Real bug fix Aug 29: the World Creature Gallery ("Aggregated, anonymised, no student
+    data shown") was actually implemented by fetching the full /creatures/global response -
+    which genuinely includes student_name and real_student_id, needed by the legitimate
+    Approved Creatures moderation view that also uses that endpoint - into the browser, and
+    only using the country field client-side (portal's saWorldGallery, app's countryGallery).
+    The names/IDs never rendered, but they were still sitting in the actual network response
+    and browser memory, for a feature that explicitly promises no student data. This endpoint
+    aggregates server-side instead - never returns anything but country name and creature
+    count, for anyone, ever.
+
+    Also fixes a second, real bug found in the same investigation: the "5-contributor
+    threshold" was actually a 5-CREATURE-COUNT threshold - a single unusually active student
+    submitting 5+ creatures from a small country could pass it alone, with zero real
+    contributor anonymity. Now counts distinct real_student_id per country, matching what the
+    threshold was always supposed to mean.
+
+    Deliberately NOT capped at 50 / not ordered by global_uses like /creatures/global is -
+    that endpoint's cap only makes sense for its own "top creatures" purpose; this needs every
+    real approved creature to aggregate country counts correctly."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        rows = supabase.table("creature_submissions").select(
+            "country,real_student_id,superadmin_approved_at"
+        ).eq("status", "approved").execute()
+        has_approval_gate = True
+    except Exception:
+        rows = type("R", (), {"data": []})()
+        has_approval_gate = False
+    creatures = [c for c in (rows.data or []) if has_approval_gate and c.get("superadmin_approved_at")]
+
+    by_country = {}
+    for c in creatures:
+        country = c.get("country")
+        if not country:
+            continue
+        entry = by_country.setdefault(country, {"creature_count": 0, "contributors": set()})
+        entry["creature_count"] += 1
+        if c.get("real_student_id"):
+            entry["contributors"].add(c["real_student_id"])
+
+    MIN_DISTINCT_CONTRIBUTORS = 5
+    result = [
+        {"country": country, "creature_count": entry["creature_count"]}
+        for country, entry in by_country.items()
+        if len(entry["contributors"]) >= MIN_DISTINCT_CONTRIBUTORS
+    ]
+    result.sort(key=lambda r: -r["creature_count"])
+    return result
+
 @api_router.get("/creatures/eligible")
 async def get_eligible_creatures(request: Request, student_id: Optional[str] = None):
     """Real feature Aug 21: the actual student-facing feed — approved creatures this
