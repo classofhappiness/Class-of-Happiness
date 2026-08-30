@@ -32,7 +32,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const PIN_REQUIRED_EMAILS = ['jono@classofhappiness.com','schooladmindemo@classofhappiness.com','jono@gmail.com','jono+teacher@gmail.com'];
+  const PIN_REQUIRED_EMAILS = ['jono@classofhappiness.com','schooladmindemo@classofhappiness.com','jono@gmail.com','jono+teacher@gmail.com','pembrokeadmin@classofhappiness.com'];
   const needsPin = PIN_REQUIRED_EMAILS.includes(email.trim().toLowerCase());
 
   const [googleRequest, googleResponse, promptGoogleAsync] = AuthSession.useAuthRequest(

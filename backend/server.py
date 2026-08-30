@@ -134,7 +134,7 @@ ALWAYS_OPEN_PINS = {
     # trial - unlike schooladmindemo, it wasn't in this list, so it never got the same
     # always-covered treatment the other 3 demo accounts already have. check_subscription_active()
     # already treats every ALWAYS_OPEN_PINS email as always covered, matching Sunshine.
-    "kairos@classofhappiness.com": "COH2026KAIROS",
+    "pembrokeadmin@classofhappiness.com": "COH2026PEMBROKE",
 }
 
 PROMO_CODES = {
