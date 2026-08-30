@@ -21,7 +21,7 @@ export default function KioskScreen() {
   const { width } = useWindowDimensions();
   const CARD_W = (width - 48) / 3;
   const router = useRouter();
-  const { t } = useApp();
+  const { t, setCurrentStudent } = useApp();
   const [students, setStudents] = useState<any[]>([]);
   const [presetAvatars, setPresetAvatars] = useState<any[]>([]);
   const [recentLogs, setRecentLogs] = useState<Record<string,any>>({});
@@ -169,23 +169,28 @@ export default function KioskScreen() {
 
   const handleStudentPress = (student: any) => {
     setLastActivity(Date.now());
-    router.push({
-      pathname: '/student/zone',
-      params: {
-        studentId: student.id,
-        studentName: student.name,
-        fromKiosk: 'true',
-        returnTo: 'kiosk'
-      }
-    });
+    // Real fix Aug 30 (build-26, kiosk restore): zone.tsx (and every screen after it) reads
+    // the checking-in student from AppContext's currentStudent, not from URL params - the
+    // studentId/studentName/fromKiosk params this used to pass were silently ignored, so
+    // tapping a student here always landed on zone.tsx's "no student selected" state. Matches
+    // the exact pattern student/select.tsx's handleSelectStudent uses for the same handoff.
+    const enriched = {
+      ...student,
+      is_family_member: !!(student as any).is_family_member,
+      family_member_id: (student as any).family_member_id || null,
+    };
+    setCurrentStudent(enriched as any);
+    router.push({ pathname: '/student/zone', params: { returnTo: 'kiosk' } });
   };
 
   const timeAgo = (iso: string) => {
     const diff = Date.now() - new Date(iso).getTime();
     const mins = Math.floor(diff / 60000);
-    if (mins < 2) return 'Just now';
-    if (mins < 60) return `${mins}m ago`;
-    return `${Math.floor(mins/60)}h ago`;
+    // Real fix Aug 30 (build-26, kiosk restore): matches the exact pattern already used in
+    // parent/widget.tsx and teacher/widget.tsx - unit letters stay literal, only "ago" is t().
+    if (mins < 2) return t('just_now') || 'Just now';
+    if (mins < 60) return `${mins}m ${t('minutes_ago') || 'ago'}`;
+    return `${Math.floor(mins/60)}h ${t('hours_ago') || 'ago'}`;
   };
 
   // Setup screen

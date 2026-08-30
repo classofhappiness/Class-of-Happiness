@@ -244,6 +244,11 @@ export default function RewardsScreen() {
     playPhraseFromPool('farewell', language);
     if (params.returnTo === 'family') {
       router.replace('/parent/dashboard');
+    } else if (params.returnTo === 'kiosk') {
+      // Real fix Aug 30 (build-26, kiosk restore): a kiosk device only ever has
+      // kiosk_token in storage, never session_token - falling through to the default
+      // /student/select below (which reads session_token) was a dead end.
+      router.replace('/kiosk');
     } else {
       router.replace('/student/select');
     }
@@ -298,7 +303,13 @@ export default function RewardsScreen() {
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <View style={{ flex: 1 }} />
-        <TouchableOpacity onPress={() => router.replace('/student/select')} style={{ padding: 6 }}>
+        <TouchableOpacity onPress={() => {
+          // Real fix Aug 30 (build-26, kiosk restore): same returnTo-aware destination as
+          // handleContinue below - this header shortcut was bypassing it entirely.
+          if (params.returnTo === 'family') router.replace('/parent/dashboard');
+          else if (params.returnTo === 'kiosk') router.replace('/kiosk');
+          else router.replace('/student/select');
+        }} style={{ padding: 6 }}>
           <MaterialIcons name="home" size={24} color="#333" />
         </TouchableOpacity>
       </View>

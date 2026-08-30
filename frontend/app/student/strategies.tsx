@@ -270,7 +270,10 @@ export default function StrategiesScreen() {
         await zoneLogsApi.create({ student_id: currentStudent.id, zone, strategies_selected: [], location: checkInLocation });
       }
     } catch (e) {}
-    router.replace({ pathname: '/student/rewards', params: { strategiesUsed: '0', hasComment: 'false', zone, fromFamily: fromFamily || '' } });
+    // Real fix Aug 30 (build-26, kiosk restore): this skip path was the only one of the
+    // three exits from this screen that dropped returnTo, breaking the return trip for
+    // anything relying on it (kiosk, family) if a student skipped helper selection.
+    router.replace({ pathname: '/student/rewards', params: { strategiesUsed: '0', hasComment: 'false', zone, fromFamily: fromFamily || '', returnTo: returnTo || '' } });
   };
 
   return (

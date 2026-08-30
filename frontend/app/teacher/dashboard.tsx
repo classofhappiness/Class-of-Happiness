@@ -346,7 +346,22 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
     { label: t('resources')||'Resources', icon: 'library-books', color: '#5C6BC0', route: '/teacher/resources', count: null },
     { label: t('alerts')||'Alerts', icon: 'notifications', color: '#F44336', route: '/teacher/alerts', count: alertCount > 0 ? alertCount : null },
     { label: t('creatures_manage')||'Creatures', icon: 'pets', color: '#9C27B0', route: '/teacher/creature-code', count: null },
+    { label: t('class_checkin_nav')||'Class\nCheck-In', icon: 'tablet-mac', color: '#FF9800', route: '/kiosk', count: null },
   ];
+
+  // Real feature Aug 30 (build-26, kiosk restore): kiosk/index.tsx expects its own
+  // kiosk_token in storage (set via a separate, currently-broken device-setup flow -
+  // /api/auth/kiosk-setup doesn't exist backend-side). Launching from an already-logged-in
+  // teacher sidesteps that entirely - bridge this session's own real token into kiosk_token
+  // before navigating, so the student grid loads directly with no setup step.
+  const launchKiosk = async () => {
+    const token = await AsyncStorage.getItem('session_token');
+    if (token) {
+      await AsyncStorage.setItem('kiosk_token', token);
+      await AsyncStorage.setItem('kiosk_teacher_name', user?.name || '');
+    }
+    router.push('/kiosk' as any);
+  };
 
   const handleShowClassCode = async (classroomId: string, classroomName: string) => {
     setClassCodeLoading(classroomId);
@@ -390,7 +405,7 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
       {/* Nav buttons — top, large icons */}
       <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:16, paddingVertical:10, width:'100%'}}>
         {NAV_BUTTONS.map((btn) => (
-          <TouchableOpacity key={btn.route} style={{alignItems:'center', gap:4, flex:1}} onPress={() => router.push(btn.route as any)}>
+          <TouchableOpacity key={btn.route} style={{alignItems:'center', gap:4, flex:1}} onPress={() => btn.route === '/kiosk' ? launchKiosk() : router.push(btn.route as any)}>
             <View style={{width:52, height:52, borderRadius:16, backgroundColor: btn.color + '15', alignItems:'center', justifyContent:'center', position:'relative'}}>
               <MaterialIcons name={btn.icon as any} size={28} color={btn.color}/>
               {btn.count != null && btn.count > 0 && (

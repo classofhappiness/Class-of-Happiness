@@ -119,6 +119,7 @@
   "class_code_optional": "Спроси код класса у учителя (необязательно)",
   "class_mood_graph": "График настроения класса",
   "class_mood_snapshot": "Сводка настроения класса",
+  "class_checkin_nav": "Отметка класса",
   "classroom": "Класс",
   "classroom_name": "Название класса",
   "classroom_name_placeholder": "напр. Класс 3А",

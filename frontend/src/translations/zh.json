@@ -119,6 +119,7 @@
   "class_code_optional": "向老师索取班级代码（可选）",
   "class_mood_graph": "班级情绪图表",
   "class_mood_snapshot": "班级情绪速览",
+  "class_checkin_nav": "班级打卡",
   "classroom": "班级",
   "classroom_name": "班级名称",
   "classroom_name_placeholder": "例如 3A 班",
