@@ -99,7 +99,12 @@ function CreatureCard({
   const { t, currentStudent } = useApp();
   const [previewStage, setPreviewStage] = useState(1);
   const holdAnim = useRef(new Animated.Value(0)).current;
-  const ringPulse = useRef(new Animated.Value(0.5)).current;
+  // Real fix Aug 30 (build-26 candidate): initial value was 0.5, so any card whose pulse
+  // loop hadn't visibly started its first animation frame yet (an Android-specific
+  // useNativeDriver timing gap) rendered permanently faded on first paint. Starting at 1.0
+  // means "not yet animating" reads as fully visible/normal, matching every other card,
+  // until the loop below actually kicks in.
+  const ringPulse = useRef(new Animated.Value(1)).current;
 
   const onHoldIn = () => {
     Animated.timing(holdAnim, { toValue: 1, duration: 120, useNativeDriver: true }).start();
@@ -159,20 +164,25 @@ function CreatureCard({
   }, [showActiveRing]);
 
   return (
-    <View style={{ width: cardWidth, marginBottom: 12 }}>
-      {/* Real feature Aug 28: the ring's border+padding space is always reserved (whether
-          active or not), and only its opacity animates (0 when inactive, pulsing when
-          active) - avoids any layout shift/jump if a card's active state changes while
-          visible, and sidesteps doing pixel arithmetic on cardWidth. */}
+    <View style={{ width: cardWidth, marginBottom: 12, position: 'relative', padding: ACTIVE_RING_GAP + ACTIVE_RING_THICKNESS }}>
+      {/* Real fix Aug 30 (build-26 candidate): the ring used to WRAP the card, so its
+          opacity (0 when inactive, pulsing when active) controlled the entire card's
+          visibility, not just a decorative border - fully-evolved active creatures
+          (showActiveRing always false) rendered fully invisible. Now a purely decorative,
+          absolutely-positioned sibling that never touches the real content's opacity. The
+          reserved padding on the outer View keeps the same layout/spacing as before
+          regardless of active state, so nothing shifts when a card's active state changes. */}
       <Animated.View
+        pointerEvents="none"
         style={{
+          position: 'absolute',
+          top: 0, left: 0, right: 0, bottom: 0,
           borderRadius: 14 + ACTIVE_RING_GAP,
           borderWidth: ACTIVE_RING_THICKNESS,
-          padding: ACTIVE_RING_GAP,
           borderColor: ACTIVE_RING_COLOUR,
           opacity: showActiveRing ? ringPulse : 0,
         }}
-      >
+      />
         <View style={[styles.card, { width: '100%', marginBottom: 0, borderTopColor: EMOTION_COLORS[item.emotion_colour], borderTopWidth: 3 }, locked && styles.cardLocked]}>
       <TouchableOpacity activeOpacity={locked ? 0.8 : 1} onPress={locked ? showUpsell : undefined} disabled={!locked}>
         <Pressable
@@ -251,7 +261,6 @@ function CreatureCard({
         </View>
       </TouchableOpacity>
       </View>
-      </Animated.View>
     </View>
   );
 }

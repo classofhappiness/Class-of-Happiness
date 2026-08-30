@@ -495,8 +495,14 @@ export default function SettingsScreen() {
               await authApiExtended.updateRole(newRole);
               await checkAuth();
               Alert.alert('✅ ' + (t('success') || 'Success'), t('switch_account_type_success') || 'Your account type has been updated.');
-            } catch {
-              Alert.alert(t('error') || 'Error', t('switch_account_type_error') || 'Could not switch account type. Please try again.');
+            } catch (e: any) {
+              // Real fix Aug 30 (build-26 candidate): bare catch discarded the backend's
+              // real rejection reason (e.g. "requires an active Teacher subscription") and
+              // showed a generic "try again" - a tester reading that as "nothing happened,
+              // why?" is exactly what this looked like from build 24 onward, even though the
+              // role never actually changed. Falls back to the generic text only if the
+              // error truly has no message.
+              Alert.alert(t('error') || 'Error', e?.message || t('switch_account_type_error') || 'Could not switch account type. Please try again.');
             } finally {
               setSwitchingRole(false);
             }
