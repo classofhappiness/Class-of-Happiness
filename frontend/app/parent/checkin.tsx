@@ -190,15 +190,15 @@ export default function FamilyCheckInScreen() {
 
   const handleAddPhoto = () => {
     Alert.alert(
-      'Add a Photo',
-      'Attach a photo to this check-in (optional)',
+      t('add_a_photo_title') || 'Add a Photo',
+      t('attach_photo_optional') || 'Attach a photo to this check-in (optional)',
       [
         {
-          text: '📷 Take Photo',
+          text: `📷 ${t('take_photo') || 'Take Photo'}`,
           onPress: async () => {
             const perm = await ImagePicker.requestCameraPermissionsAsync();
             if (!perm.granted) {
-              Alert.alert('Permission needed', 'Please allow camera access in Settings.');
+              Alert.alert(t('permission_needed') || 'Permission needed', t('allow_camera_access_settings') || 'Please allow camera access in Settings.');
               return;
             }
             const result = await ImagePicker.launchCameraAsync({
@@ -213,11 +213,11 @@ export default function FamilyCheckInScreen() {
           },
         },
         {
-          text: '🖼️ Choose from Library',
+          text: `🖼️ ${t('choose_from_library') || 'Choose from Library'}`,
           onPress: async () => {
             const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (!perm.granted) {
-              Alert.alert('Permission needed', 'Please allow photo library access in Settings.');
+              Alert.alert(t('permission_needed') || 'Permission needed', t('allow_library_access_settings') || 'Please allow photo library access in Settings.');
               return;
             }
             const result = await ImagePicker.launchImageLibraryAsync({
@@ -231,7 +231,7 @@ export default function FamilyCheckInScreen() {
             }
           },
         },
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
       ]
     );
   };
@@ -246,11 +246,11 @@ export default function FamilyCheckInScreen() {
 
   const handleSubmit = async () => {
     if (!selectedZone) {
-      Alert.alert('Oops', 'Please select a colour first');
+      Alert.alert(t('oops') || 'Oops', t('select_colour_first') || 'Please select a colour first');
       return;
     }
     if (!memberId) {
-      Alert.alert('Error', 'Family member not found. Please go back and try again.');
+      Alert.alert(t('error') || 'Error', t('family_member_not_found') || 'Family member not found. Please go back and try again.');
       return;
     }
     
@@ -271,22 +271,22 @@ export default function FamilyCheckInScreen() {
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || 'Could not save check-in');
+        throw new Error(errData.detail || t('could_not_save_checkin') || 'Could not save check-in');
       }
-      
+
       // Family/adult check-ins: show success state with wellbeing button
       setCheckedIn(true);
     } catch (error: any) {
-      const errorMessage = error.message || 'Failed to save check-in';
+      const errorMessage = error.message || t('failed_save_checkin') || 'Failed to save check-in';
       // Give a friendlier message if family member not found
       if (errorMessage.toLowerCase().includes('not found')) {
         Alert.alert(
-          'Error',
-          'This family member could not be found. Please go back and try again.',
-          [{ text: 'OK' }]
+          t('error') || 'Error',
+          t('family_member_not_found_retry') || 'This family member could not be found. Please go back and try again.',
+          [{ text: t('ok') || 'OK' }]
         );
       } else {
-        Alert.alert('Error', errorMessage);
+        Alert.alert(t('error') || 'Error', errorMessage);
       }
     } finally {
       setLoading(false);
@@ -391,7 +391,7 @@ export default function FamilyCheckInScreen() {
             </View>
             <View style={{ marginTop: 8, padding: 12, backgroundColor: '#F8F9FA', borderRadius: 12 }}>
               <Text style={{ fontSize: 11, color: '#666', lineHeight: 16, textAlign: 'center' }}>
-                Research shows that naming our emotional state helps regulate it. Blue = low energy, Green = regulated, Yellow = heightened, Red = dysregulated.
+                {t('naming_emotions_research') || 'Research shows that naming our emotional state helps regulate it. Blue = low energy, Green = regulated, Yellow = heightened, Red = dysregulated.'}
               </Text>
             </View>
             </>
@@ -492,7 +492,7 @@ export default function FamilyCheckInScreen() {
                   color={photoUri ? zoneConfig?.color : '#999'}
                 />
                 <Text style={[styles.photoButtonText, photoUri && { color: zoneConfig?.color }]}>
-                  {photoUri ? '📷 Photo added — tap to change' : '📷 Add a photo (optional)'}
+                  {photoUri ? `📷 ${t('photo_added_tap_change') || 'Photo added — tap to change'}` : `📷 ${t('add_photo_optional_label') || 'Add a photo (optional)'}`}
                 </Text>
                 {photoUri && (
                   <TouchableOpacity onPress={() => setPhotoUri(null)} hitSlop={{top:10,bottom:10,left:10,right:10}}>

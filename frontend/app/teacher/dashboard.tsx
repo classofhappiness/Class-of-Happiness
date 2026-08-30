@@ -13,33 +13,48 @@ import { zoneLogsApi, ZoneLog } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { registerForPushNotifications } from '../../src/utils/notifications';
+import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
 
-const COLOUR_TIPS_TEACHER: Record<string, {tip: string, action: string}[]> = {
+// Real English fallback text, translated at render time via t(tipKey)/t(actionKey) below —
+// this raw dictionary only supplies the English fallback + stable tip/action keys.
+const COLOUR_TIPS_TEACHER: Record<string, {tip: string, action: string, tipKey: string, actionKey: string}[]> = {
   blue: [
-    { tip: 'Quiet energy in the room', action: 'Try a gentle stretch or warm-up activity' },
-    { tip: 'Some students need warmth', action: 'Check in one-to-one with quiet students' },
-    { tip: 'Low energy is okay', action: 'Offer calm, creative or independent tasks' },
+    { tip: 'Quiet energy in the room', action: 'Try a gentle stretch or warm-up activity', tipKey: 'tip_teacher_blue_1', actionKey: 'tip_teacher_blue_1_action' },
+    { tip: 'Some students need warmth', action: 'Check in one-to-one with quiet students', tipKey: 'tip_teacher_blue_2', actionKey: 'tip_teacher_blue_2_action' },
+    { tip: 'Low energy is okay', action: 'Offer calm, creative or independent tasks', tipKey: 'tip_teacher_blue_3', actionKey: 'tip_teacher_blue_3_action' },
   ],
   green: [
-    { tip: 'Class is ready to learn', action: 'Great day to introduce something new' },
-    { tip: 'Positive energy today', action: 'Celebrate effort and celebrate readiness' },
-    { tip: 'Strong focus available', action: 'Harness this energy for challenge tasks' },
+    { tip: 'Class is ready to learn', action: 'Great day to introduce something new', tipKey: 'tip_teacher_green_1', actionKey: 'tip_teacher_green_1_action' },
+    { tip: 'Positive energy today', action: 'Celebrate effort and celebrate readiness', tipKey: 'tip_teacher_green_2', actionKey: 'tip_teacher_green_2_action' },
+    { tip: 'Strong focus available', action: 'Harness this energy for challenge tasks', tipKey: 'tip_teacher_green_3', actionKey: 'tip_teacher_green_3_action' },
   ],
   yellow: [
-    { tip: 'Some students feel wobbly', action: 'Predictable routines help settle the class' },
-    { tip: 'Fizzing energy present', action: 'Movement break before focused work' },
-    { tip: 'Anxiety may be present', action: 'Lower stimulation, offer quiet corners' },
+    { tip: 'Some students feel wobbly', action: 'Predictable routines help settle the class', tipKey: 'tip_teacher_yellow_1', actionKey: 'tip_teacher_yellow_1_action' },
+    { tip: 'Fizzing energy present', action: 'Movement break before focused work', tipKey: 'tip_teacher_yellow_2', actionKey: 'tip_teacher_yellow_2_action' },
+    { tip: 'Anxiety may be present', action: 'Lower stimulation, offer quiet corners', tipKey: 'tip_teacher_yellow_3', actionKey: 'tip_teacher_yellow_3_action' },
   ],
   red: [
-    { tip: 'Big feelings in the room', action: 'Stay calm — your calm regulates theirs' },
-    { tip: 'Students need safety first', action: 'Reconnect before you redirect behaviour' },
-    { tip: 'High emotion detected', action: 'Give space, stay close, avoid confrontation' },
+    { tip: 'Big feelings in the room', action: 'Stay calm — your calm regulates theirs', tipKey: 'tip_teacher_red_1', actionKey: 'tip_teacher_red_1_action' },
+    { tip: 'Students need safety first', action: 'Reconnect before you redirect behaviour', tipKey: 'tip_teacher_red_2', actionKey: 'tip_teacher_red_2_action' },
+    { tip: 'High emotion detected', action: 'Give space, stay close, avoid confrontation', tipKey: 'tip_teacher_red_3', actionKey: 'tip_teacher_red_3_action' },
   ],
 };
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const ZONE_COLORS: Record<string,string> = EMOTION_COLOURS;
 
+// Legacy fallback dictionary — kept only as a safety net for resolveStrategyName()
+// (see src/utils/resolveStrategyName.ts) so nothing that used to resolve correctly can
+// start showing blank/undefined. Real names now come from t() via that shared resolver.
+// Note: this screen's own p_b1-p_b4/p_g1-p_g2/p_y1/p_y3/p_r3 entries below disagree with
+// the content the 5 OTHER screens that define parent-strategy codes use for the exact
+// same ids (eg p_b1 here is 'Slow Breathing', elsewhere it's 'Side-by-Side Presence').
+// Investigated: this screen shows a *student's own* check-in history, and p_* ids are
+// only ever produced by a parent's own check-in (logged via my-wellbeing/family screens),
+// so these specific entries should never actually be reached with real data — they exist
+// here only as defensive fallback. Per the 5-screen majority, the shared resolver's alias
+// table intentionally routes those 9 ids to the shared, correct translation, which also
+// corrects this file's own (never-hit-in-practice) display for them if it ever were hit.
 const STRATEGY_NAMES: Record<string, string> = {
   // Parent strategies
   p_b1:'Slow Breathing', p_b2:'Quiet Time', p_b3:'Gentle Walk', p_b4:'Rest Together', p_b5:'Safe Space',
@@ -75,19 +90,8 @@ const STRATEGY_NAMES: Record<string, string> = {
   gratitude:'Gratitude', help_friend:'Help a Friend', keep_going:'Keep Going',
   set_goal:'Set a Goal', five_senses:'5 Senses', squeeze_release:'Squeeze & Release',
 };
-const resolveStrategy = (id: string, t?: (key: string) => string): string => {
-  if (!id) return '';
-  if (['blue','green','yellow','red','Blue','Green','Yellow','Red'].includes(id.trim())) return '';
-  // Real translation checked first - matches the same strat_blue_1..strat_red_6 keys added to
-  // all 6 language files, and to the backend /strategies endpoint for the live check-in screen.
-  if (t) { const translated = t('strat_' + id); if (translated) return translated; }
-  if (STRATEGY_NAMES[id]) return STRATEGY_NAMES[id];
-  const clean = id.trim().toLowerCase().replace(/^(helper_|strategy_)/, '');
-  if (STRATEGY_NAMES[clean]) return STRATEGY_NAMES[clean];
-  const stripped = id.replace(/^[rgybRGYB]\d+$/, '').replace(/^[pbs]_[rgby]\d+_?/, '').replace(/_/g, ' ').trim();
-  if (!stripped || ['blue','green','yellow','red'].includes(stripped.toLowerCase())) return '';
-  return stripped.replace(/\b\w/g, (c:string) => c.toUpperCase());
-};
+const resolveStrategy = (id: string, t?: (key: string) => string): string =>
+  resolveStrategyName(id, t || (() => ''), STRATEGY_NAMES);
 
 const ZONE_EMOJI: Record<string,string> = { blue:'🔵', green:'🟢', yellow:'🟡', red:'🔴' };
 type Period = 1|7|14|30;
@@ -258,18 +262,18 @@ export default function TeacherDashboardScreen() {
         const data = await res.json();
         Alert.alert(
           `${classroomName}`,
-          `Share this code with your students:
+          `${t('share_code_with_students') || 'Share this code with your students:'}
 
 ${data.join_code}
 
-Students enter this when creating their profile to join your class automatically.`,
-          [{ text: 'OK' }]
+${t('students_enter_code_join_class') || 'Students enter this when creating their profile to join your class automatically.'}`,
+          [{ text: t('ok') || 'OK' }]
         );
       } else {
-        Alert.alert('Error', 'Could not get class code. Please try again.');
+        Alert.alert(t('error') || 'Error', t('could_not_get_class_code_retry') || 'Could not get class code. Please try again.');
       }
     } catch (e) {
-      Alert.alert('Error', 'Could not get class code.');
+      Alert.alert(t('error') || 'Error', t('could_not_get_class_code') || 'Could not get class code.');
     } finally {
       setClassCodeLoading(null);
     }
@@ -294,18 +298,18 @@ Students enter this when creating their profile to join your class automatically
         const data = await res.json();
         Alert.alert(
           `${classroomName}`,
-          `Share this code with your students:
+          `${t('share_code_with_students') || 'Share this code with your students:'}
 
 ${data.join_code}
 
-Students enter this when creating their profile to join your class automatically.`,
-          [{ text: 'OK' }]
+${t('students_enter_code_join_class') || 'Students enter this when creating their profile to join your class automatically.'}`,
+          [{ text: t('ok') || 'OK' }]
         );
       } else {
-        Alert.alert('Error', 'Could not get class code. Please try again.');
+        Alert.alert(t('error') || 'Error', t('could_not_get_class_code_retry') || 'Could not get class code. Please try again.');
       }
     } catch (e) {
-      Alert.alert('Error', 'Could not get class code.');
+      Alert.alert(t('error') || 'Error', t('could_not_get_class_code') || 'Could not get class code.');
     } finally {
       setClassCodeLoading(null);
     }
@@ -357,18 +361,18 @@ Students enter this when creating their profile to join your class automatically
         const data = await res.json();
         Alert.alert(
           `${classroomName}`,
-          `Share this code with your students:
+          `${t('share_code_with_students') || 'Share this code with your students:'}
 
 ${data.join_code}
 
-Students enter this when creating their profile to join your class automatically.`,
-          [{ text: 'OK' }]
+${t('students_enter_code_join_class') || 'Students enter this when creating their profile to join your class automatically.'}`,
+          [{ text: t('ok') || 'OK' }]
         );
       } else {
-        Alert.alert('Error', 'Could not get class code. Please try again.');
+        Alert.alert(t('error') || 'Error', t('could_not_get_class_code_retry') || 'Could not get class code. Please try again.');
       }
     } catch (e) {
-      Alert.alert('Error', 'Could not get class code.');
+      Alert.alert(t('error') || 'Error', t('could_not_get_class_code') || 'Could not get class code.');
     } finally {
       setClassCodeLoading(null);
     }
@@ -451,7 +455,7 @@ Students enter this when creating their profile to join your class automatically
               borderRadius:8, padding:10 }}>
             <MaterialIcons name="notifications-active" size={18} color="#F44336" />
             <Text style={{ flex:1, fontSize:13, fontWeight:'600', color:'#C62828' }}>
-              {alertCount} {alertCount === 1 ? 'student needs' : 'students need'} support today
+              {alertCount} {alertCount === 1 ? (t('student_needs') || 'student needs') : (t('students_need') || 'students need')} {t('support_today') || 'support today'}
             </Text>
             <MaterialIcons name="chevron-right" size={18} color="#F44336" />
           </TouchableOpacity>
@@ -478,18 +482,18 @@ Students enter this when creating their profile to join your class automatically
         const data = await res.json();
         Alert.alert(
           `${classroomName}`,
-          `Share this code with your students:
+          `${t('share_code_with_students') || 'Share this code with your students:'}
 
 ${data.join_code}
 
-Students enter this when creating their profile to join your class automatically.`,
-          [{ text: 'OK' }]
+${t('students_enter_code_join_class') || 'Students enter this when creating their profile to join your class automatically.'}`,
+          [{ text: t('ok') || 'OK' }]
         );
       } else {
-        Alert.alert('Error', 'Could not get class code. Please try again.');
+        Alert.alert(t('error') || 'Error', t('could_not_get_class_code_retry') || 'Could not get class code. Please try again.');
       }
     } catch (e) {
-      Alert.alert('Error', 'Could not get class code.');
+      Alert.alert(t('error') || 'Error', t('could_not_get_class_code') || 'Could not get class code.');
     } finally {
       setClassCodeLoading(null);
     }
@@ -500,8 +504,8 @@ Students enter this when creating their profile to join your class automatically
               backgroundColor: bgs[dominant], borderLeftWidth:4, borderLeftColor: clrs[dominant],
               flexDirection:'row', alignItems:'flex-start' }}>
               <View style={{ flex:1 }}>
-                <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:3 }}>{tip.tip}</Text>
-                <Text style={{ fontSize:12, color:'#555', lineHeight:17 }}>{tip.action}</Text>
+                <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:3 }}>{t(tip.tipKey) || tip.tip}</Text>
+                <Text style={{ fontSize:12, color:'#555', lineHeight:17 }}>{t(tip.actionKey) || tip.action}</Text>
               </View>
               <TouchableOpacity onPress={() => setTipDismissed(true)} style={{ padding:4, marginLeft:8 }}>
                 <MaterialIcons name="close" size={16} color="#AAA" />
@@ -520,8 +524,8 @@ Students enter this when creating their profile to join your class automatically
             borderWidth:1, borderColor:'#FFE082' }}>
           <Text style={{ fontSize:20 }}>🎁</Text>
           <View style={{ flex:1 }}>
-            <Text style={{ fontSize:13, fontWeight:'700', color:'#333' }}>Start your free trial</Text>
-            <Text style={{ fontSize:11, color:'#666' }}>Go to Settings → enter code HAPPYCLASS2026 for 30 days free</Text>
+            <Text style={{ fontSize:13, fontWeight:'700', color:'#333' }}>{t('start_free_trial_banner') || 'Start your free trial'}</Text>
+            <Text style={{ fontSize:11, color:'#666' }}>{t('go_to_settings_enter_code') || 'Go to Settings'} → {t('enter_code_30_days_free') || 'enter code HAPPYCLASS2026 for 30 days free'}</Text>
           </View>
           <MaterialIcons name="chevron-right" size={20} color="#FFC107" />
         </TouchableOpacity>
@@ -568,18 +572,18 @@ Students enter this when creating their profile to join your class automatically
         const data = await res.json();
         Alert.alert(
           `${classroomName}`,
-          `Share this code with your students:
+          `${t('share_code_with_students') || 'Share this code with your students:'}
 
 ${data.join_code}
 
-Students enter this when creating their profile to join your class automatically.`,
-          [{ text: 'OK' }]
+${t('students_enter_code_join_class') || 'Students enter this when creating their profile to join your class automatically.'}`,
+          [{ text: t('ok') || 'OK' }]
         );
       } else {
-        Alert.alert('Error', 'Could not get class code. Please try again.');
+        Alert.alert(t('error') || 'Error', t('could_not_get_class_code_retry') || 'Could not get class code. Please try again.');
       }
     } catch (e) {
-      Alert.alert('Error', 'Could not get class code.');
+      Alert.alert(t('error') || 'Error', t('could_not_get_class_code') || 'Could not get class code.');
     } finally {
       setClassCodeLoading(null);
     }
@@ -688,7 +692,7 @@ Students enter this when creating their profile to join your class automatically
               <View style={{alignItems:'center',paddingVertical:32,gap:8}}>
                 <MaterialIcons name="bar-chart" size={48} color="#E0E0E0"/>
                 <Text style={[st.emptyTxt,{textAlign:'center'}]}>{t('no_data_yet')||'No data for this period'}</Text>
-                <Text style={{fontSize:11,color:'#CCC',textAlign:'center'}}>Check-ins will appear here once students check in</Text>
+                <Text style={{fontSize:11,color:'#CCC',textAlign:'center'}}>{t('checkins_appear_once_students_checkin') || 'Check-ins will appear here once students check in'}</Text>
               </View>
             )}
           </View>

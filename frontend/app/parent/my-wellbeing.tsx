@@ -10,6 +10,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
+import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const ZONE_COLORS: Record<string, string> = EMOTION_COLOURS;
@@ -32,25 +33,10 @@ const STRATEGY_NAMES: Record<string, string> = {
   p_r1:'Stay Calm Yourself', p_r2:'Safe Space Together', p_r3:'Cold Water Reset', p_r4:'No Teaching Now', p_r5:'Reconnect with Warmth',
 };
 const resolveName = (id: string, customNames?: Record<string,string>, t?: (key: string) => string) => {
-  if (!id) return '';
-  // Real translation checked first — matches the strat_blue_1..strat_red_6 keys added to all 6
-  // language files and the backend /strategies endpoint.
-  if (t) { const translated = t('strat_' + id); if (translated) return translated; }
-  // Real custom strategies checked next — these get real database UUIDs as their identifier
-  // (not short codes like p_y1), which is exactly what the old code below could never resolve,
-  // causing raw UUIDs to show up in "Most Used Strategies" instead of real names.
-  if (customNames && customNames[id]) return customNames[id];
-  // Direct name lookup
-  if (STRATEGY_NAMES[id]) return STRATEGY_NAMES[id];
-  // Strip zone prefix codes like R6, G5, Y5, B3 etc
-  const clean = id
-    .replace(/^[rgybRGYB]\d+$/, '') // pure codes like R6
-    .replace(/^[pbs]_[rgby]\d+_?/, '') // prefix like p_y2_ 
-    .replace(/^[pbs]_[rgby]\d+$/, '') // prefix like p_y2
-    .replace(/_/g, ' ')
-    .trim();
-  if (!clean) return id; // fallback to raw id
-  return clean.replace(/\b\w/g, (c: string) => c.toUpperCase());
+  // Delegates to the shared resolver (src/utils/resolveStrategyName.ts) — same
+  // t()-first / customNames / legacy-dict / prettify order this function used to
+  // implement inline, now shared with the other 8 screens that show strategy names.
+  return resolveStrategyName(id, t || ((k: string) => ''), STRATEGY_NAMES, customNames);
 };
 
 type Entry = {
@@ -397,7 +383,7 @@ export default function MyWellbeingScreen() {
         const journal = journals[e.id] ? `
     📝 ${journals[e.id]}` : '';
         const strats = (e as any).strategies_selected?.length ? `
-    🎯 ${((e as any).strategies_selected).slice(0,3).map((id: string) => resolveName(id)).join(', ')}` : '';
+    🎯 ${((e as any).strategies_selected).slice(0,3).map((id: string) => resolveName(id, strategyNames, t)).join(', ')}` : '';
         return `${zoneEmoji[e.zone]||'•'} ${d} ${time} — ${zoneLabel[e.zone]||e.zone}${note}${strats}${journal}`;
       }),
       '',
@@ -604,7 +590,7 @@ export default function MyWellbeingScreen() {
               const d = new Date(entry.timestamp);
               const dateStr = d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
               const timeStr = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-              const strats = ((entry as any).strategies_selected || []).map((id: string) => resolveName(id)).join(', ');
+              const strats = ((entry as any).strategies_selected || []).map((id: string) => resolveName(id, strategyNames, t)).join(', ');
               const j = journals[entry.id] || '';
               return (
                 <View key={entry.id} style={st.entryRow}>

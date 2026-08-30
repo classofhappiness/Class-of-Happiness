@@ -13,6 +13,7 @@ import { useApp } from '../../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../../src/constants/emotionColours';
 import { linkedChildApi, LinkedChild, FamilyAssignedStrategy } from '../../../src/utils/api';
 import { EmotionColourLoader } from '../../../src/components/EmotionColourLoader';
+import { resolveStrategyName } from '../../../src/utils/resolveStrategyName';
 
 const ZONE_COLORS: Record<string, string> = EMOTION_COLOURS;
 const ZONE_CONFIG: Record<string, { color: string; emoji: string; label: string }> = {
@@ -28,7 +29,10 @@ const STRATEGY_ICONS = [
   { id: 'nature', name: 'nature' }, { id: 'book', name: 'book' },
 ];
 
-// Full strategy name map — current backend IDs (blue_1 format) + legacy short IDs
+// Full strategy name map — current backend IDs (blue_1 format) + legacy short IDs.
+// Kept only as a safety-net fallback for resolveStrategyName() (see
+// src/utils/resolveStrategyName.ts) so nothing that used to resolve correctly can start
+// showing blank/undefined. Real names now come from t() via that shared resolver.
 const STRATEGY_NAMES: Record<string, string> = {
   blue_1:'Gentle Stretch',   blue_2:'Drink Water',        blue_3:'Favourite Song',
   blue_4:'Cosy Spot',        blue_5:'Tell Someone',        blue_6:'Slow Breathing',
@@ -52,8 +56,6 @@ const STRATEGY_NAMES: Record<string, string> = {
   p_r4:'No Teaching Now',       p_r5:'Reconnect with Warmth',
 };
 
-const resolveName = (id: string) =>
-  STRATEGY_NAMES[id] || id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
 const buildZoneCounts = (checkins: any[]) => {
   const c: Record<string, number> = { blue: 0, green: 0, yellow: 0, red: 0 };
@@ -467,7 +469,7 @@ export default function LinkedChildDetailScreen() {
                 return (
                   <View key={stratId} style={s.stratRow}>
                     <View style={[s.stratDot,{backgroundColor:zc}]} />
-                    <Text style={s.stratName}>{resolveName(stratId)}</Text>
+                    <Text style={s.stratName}>{resolveStrategyName(stratId, t, STRATEGY_NAMES)}</Text>
                     <View style={s.stratCount}><Text style={s.stratCountText}>{count as number}x</Text></View>
                   </View>
                 );
@@ -521,7 +523,7 @@ export default function LinkedChildDetailScreen() {
                         <View style={{flex:1,marginLeft:10}}>
                           <Text style={s.ciZone}>{ZONE_CONFIG[zone]?.label||zone}</Text>
                           <Text style={s.ciTime}>{formatDate(ci.timestamp||ci.created_at)}</Text>
-                          {(ci.strategies_selected?.length>0 || ci.helpers_selected?.length>0) && <Text style={s.ciStrats}>{(ci.strategies_selected || ci.helpers_selected || []).map(resolveName).join(', ')}</Text>}
+                          {(ci.strategies_selected?.length>0 || ci.helpers_selected?.length>0) && <Text style={s.ciStrats}>{(ci.strategies_selected || ci.helpers_selected || []).map((sid: string) => resolveStrategyName(sid, t, STRATEGY_NAMES)).join(', ')}</Text>}
                           {ci.comment && <Text style={s.ciComment}>"{ci.comment}"</Text>}
                         </View>
                         {!isFamilyChild && (
@@ -607,7 +609,7 @@ export default function LinkedChildDetailScreen() {
                 <View key={st.id||i} style={s.stratCard}>
                   <MaterialIcons name={(st.icon||'star') as any} size={20} color="#5C6BC0" />
                   <View style={{flex:1,marginLeft:10}}>
-                    <Text style={s.stratName}>{st.name||resolveName(st.id||'')}</Text>
+                    <Text style={s.stratName}>{st.name||resolveStrategyName(st.id||'', t, STRATEGY_NAMES)}</Text>
                     {st.description?<Text style={s.stratDesc}>{st.description}</Text>:null}
                   </View>
                   {st.feeling_colour && <View style={[s.zonePill,{backgroundColor:ZONE_COLORS[st.feeling_colour]+'25'}]}>

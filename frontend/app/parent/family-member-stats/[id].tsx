@@ -33,20 +33,13 @@ const STRATEGY_NAMES_LOCAL: Record<string,string> = {
   cosy_spot:'Cosy Spot',warm_drink:'Drink Water',favourite_song:'Favourite Song',
 };
 const ZONE_KEYS_SET = new Set(['blue','green','yellow','red','Blue','Green','Yellow','Red']);
-const resolveStratName = (id: string, nameMap: Record<string,string>): string => {
+const resolveStratName = (id: string, nameMap: Record<string,string>, t: (key: string) => string): string => {
   if (!id || ZONE_KEYS_SET.has(id)) return '';
-  if (nameMap[id]) return nameMap[id];
-  if (STRATEGY_NAMES_LOCAL[id]) return STRATEGY_NAMES_LOCAL[id];
-  // Try stripping prefix
-  const clean = id.replace(/^(helper_|strategy_|strat_)/,'');
-  if (STRATEGY_NAMES_LOCAL[clean]) return STRATEGY_NAMES_LOCAL[clean];
-  if (nameMap[clean]) return nameMap[clean];
-  // Format raw codes like R6, G5 etc
-  if (/^[rgybRGYB]\d+$/.test(id)) return '';
-  return id.replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase());
+  return resolveStrategyName(id, t, STRATEGY_NAMES_LOCAL, nameMap);
 };
 import { useApp } from '../../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../../src/constants/emotionColours';
+import { resolveStrategyName } from '../../../src/utils/resolveStrategyName';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const ZONE_COLORS: Record<string,string> = EMOTION_COLOURS;
@@ -301,7 +294,7 @@ export default function FamilyMemberStatsScreen() {
                   : topStrategies.map(([strat, count]) => (
                     <View key={strat} style={{flexDirection:'row', alignItems:'center', gap:10, paddingVertical:4, borderBottomWidth:1, borderBottomColor:'#F5F5F5'}}>
                       <MaterialIcons name="lightbulb" size={16} color="#FF9800" />
-                      <Text style={{flex:1, fontSize:13, color:'#333'}}>{(resolveStratName(strat, strategyNames))}</Text>
+                      <Text style={{flex:1, fontSize:13, color:'#333'}}>{(resolveStratName(strat, strategyNames, t))}</Text>
                       <View style={{backgroundColor:'#FFF8E1', borderRadius:8, paddingHorizontal:8, paddingVertical:3}}>
                         <Text style={{fontSize:12, color:'#FF9800', fontWeight:'600'}}>{count}×</Text>
                       </View>
@@ -332,7 +325,7 @@ export default function FamilyMemberStatsScreen() {
                         </Text>
                         {strats.length > 0 && (
                           <Text style={{fontSize:11, color:'#5C6BC0', marginTop:2}}>
-                            💡 {strats.slice(0,3).map((s:string)=>resolveStratName(s,strategyNames)).filter(Boolean).join(', ')}
+                            💡 {strats.slice(0,3).map((s:string)=>resolveStratName(s,strategyNames,t)).filter(Boolean).join(', ')}
                           </Text>
                         )}
                         {log.comment && <Text style={{fontSize:11, color:'#888', marginTop:2, fontStyle:'italic'}}>"{log.comment}"</Text>}

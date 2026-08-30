@@ -27,37 +27,39 @@ import {
   familyApi, FamilyMember, FamilyZoneLog, teacherApi, rewardsApi, linkedChildApi, creaturesApi
 } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
+import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
 
 
 // Pick image with camera or library choice
 const pickImageWithChoice = (
-  onSelect: (base64: string) => void
+  onSelect: (base64: string) => void,
+  t: (key: string) => string = () => '',
 ) => {
   Alert.alert(
-    'Add Photo',
-    'Choose how to add a photo',
+    t('add_photo_title') || 'Add Photo',
+    t('choose_how_add_photo') || 'Choose how to add a photo',
     [
       {
-        text: '📷 Take Photo',
+        text: `📷 ${t('take_photo') || 'Take Photo'}`,
         onPress: async () => {
           try {
             const perm = await ImagePicker.requestCameraPermissionsAsync();
-            if (!perm.granted) { Alert.alert('Permission needed', 'Allow camera access in Settings.'); return; }
+            if (!perm.granted) { Alert.alert(t('permission_needed') || 'Permission needed', t('allow_camera_access_settings_short') || 'Allow camera access in Settings.'); return; }
             const result = await ImagePicker.launchCameraAsync({
               allowsEditing: true, aspect: [1,1], quality: 0.4, base64: true,
             });
             if (!result.canceled && result.assets?.[0]?.base64) {
               onSelect(`data:image/jpeg;base64,${result.assets[0].base64}`);
             }
-          } catch (e) { console.error('Camera error:', e); Alert.alert('Error', 'Could not open camera'); }
+          } catch (e) { console.error('Camera error:', e); Alert.alert(t('error') || 'Error', t('could_not_open_camera') || 'Could not open camera'); }
         },
       },
       {
-        text: '🖼️ Choose from Library',
+        text: `🖼️ ${t('choose_from_library') || 'Choose from Library'}`,
         onPress: async () => {
           try {
             const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-            if (!perm.granted) { Alert.alert('Permission needed', 'Allow photo library access in Settings.'); return; }
+            if (!perm.granted) { Alert.alert(t('permission_needed') || 'Permission needed', t('allow_library_access_settings_short') || 'Allow photo library access in Settings.'); return; }
             const result = await ImagePicker.launchImageLibraryAsync({
               allowsEditing: true, aspect: [1,1], quality: 0.4, base64: true,
               mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -65,15 +67,18 @@ const pickImageWithChoice = (
             if (!result.canceled && result.assets?.[0]?.base64) {
               onSelect(`data:image/jpeg;base64,${result.assets[0].base64}`);
             }
-          } catch (e) { console.error('Library error:', e); Alert.alert('Error', 'Could not open photo library'); }
+          } catch (e) { console.error('Library error:', e); Alert.alert(t('error') || 'Error', t('could_not_open_library') || 'Could not open photo library'); }
         },
       },
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('cancel') || 'Cancel', style: 'cancel' },
     ]
   );
 };
 
 
+// Legacy fallback dictionary — kept only as a safety net for resolveStrategyName()
+// (see src/utils/resolveStrategyName.ts) so nothing that used to resolve correctly
+// can start showing blank/undefined. Real names now come from t() via that shared resolver.
 const STRATEGY_NAMES: Record<string, string> = {
   // Short codes b/g/y/r + number (all 6)
   b1:'Gentle Stretch', b2:'Drink Water', b3:'Favourite Song', b4:'Cosy Spot', b5:'Tell Someone', b6:'Slow Breathing',
@@ -97,17 +102,6 @@ const STRATEGY_NAMES: Record<string, string> = {
   ask_for_help:'Ask for Help', self_hug:'Self Hug', big_breaths:'Big Breaths',
   cosy_spot:'Cosy Spot', warm_drink:'Drink Water', favourite_song:'Favourite Song',
   squeeze_release:'Squeeze & Release', body_shake:'Body Shake', count_backwards:'Count Backwards',
-};
-const resolveStrategy = (id: string): string => {
-  if (!id) return '';
-  // Skip bare zone colour strings
-  if (['blue','green','yellow','red','Blue','Green','Yellow','Red'].includes(id.trim())) return '';
-  if (STRATEGY_NAMES[id]) return STRATEGY_NAMES[id];
-  const clean = id.trim().toLowerCase().replace(/^(helper_|strategy_)/, '');
-  if (STRATEGY_NAMES[clean]) return STRATEGY_NAMES[clean];
-  const stripped = id.replace(/^[rgybRGYB]\d+$/, '').replace(/^[pbs]_[rgby]\d+_?/, '').replace(/_/g, ' ').trim();
-  if (!stripped || ['blue','green','yellow','red'].includes(stripped.toLowerCase())) return '';
-  return stripped.replace(/\b\w/g, (c:string) => c.toUpperCase());
 };
 
 const ZONE_COLORS: Record<string, string> = EMOTION_COLOURS;
@@ -134,26 +128,28 @@ const getRelationshipColor = (relationship: string) => {
 };
 
 
-const COLOUR_TIPS_PARENT: Record<string, {tip: string, action: string}[]> = {
+// Real English fallback text, translated at render time via getColourTipsParent(t) below —
+// this raw dictionary only supplies the English fallback + stable tip/action keys.
+const COLOUR_TIPS_PARENT: Record<string, {tip: string, action: string, tipKey: string, actionKey: string}[]> = {
   blue: [
-    { tip: 'Your child needs warmth', action: 'A hug and quiet time together goes a long way' },
-    { tip: 'Low energy at home', action: 'Let them rest — avoid pressure or demands' },
-    { tip: 'Sadness or tiredness showing', action: 'Listen without trying to fix — presence helps' },
+    { tip: 'Your child needs warmth', action: 'A hug and quiet time together goes a long way', tipKey: 'tip_parent_blue_1', actionKey: 'tip_parent_blue_1_action' },
+    { tip: 'Low energy at home', action: 'Let them rest — avoid pressure or demands', tipKey: 'tip_parent_blue_2', actionKey: 'tip_parent_blue_2_action' },
+    { tip: 'Sadness or tiredness showing', action: 'Listen without trying to fix — presence helps', tipKey: 'tip_parent_blue_3', actionKey: 'tip_parent_blue_3_action' },
   ],
   green: [
-    { tip: 'Your child is thriving', action: "Celebrate with them — name what's going well" },
-    { tip: 'Great emotional balance', action: 'Build connection through play or shared activity' },
-    { tip: 'Strong and settled today', action: 'Perfect time for family conversations' },
+    { tip: 'Your child is thriving', action: "Celebrate with them — name what's going well", tipKey: 'tip_parent_green_1', actionKey: 'tip_parent_green_1_action' },
+    { tip: 'Great emotional balance', action: 'Build connection through play or shared activity', tipKey: 'tip_parent_green_2', actionKey: 'tip_parent_green_2_action' },
+    { tip: 'Strong and settled today', action: 'Perfect time for family conversations', tipKey: 'tip_parent_green_3', actionKey: 'tip_parent_green_3_action' },
   ],
   yellow: [
-    { tip: 'Feeling a little wobbly', action: 'Slow down routines and avoid overstimulation' },
-    { tip: 'Some anxiety present', action: 'Validate feelings before offering solutions' },
-    { tip: 'Energy feels scattered', action: 'Outdoor movement or creative play can help' },
+    { tip: 'Feeling a little wobbly', action: 'Slow down routines and avoid overstimulation', tipKey: 'tip_parent_yellow_1', actionKey: 'tip_parent_yellow_1_action' },
+    { tip: 'Some anxiety present', action: 'Validate feelings before offering solutions', tipKey: 'tip_parent_yellow_2', actionKey: 'tip_parent_yellow_2_action' },
+    { tip: 'Energy feels scattered', action: 'Outdoor movement or creative play can help', tipKey: 'tip_parent_yellow_3', actionKey: 'tip_parent_yellow_3_action' },
   ],
   red: [
-    { tip: 'Big feelings at home', action: 'Stay regulated yourself — your calm is contagious' },
-    { tip: 'Your child needs safety', action: 'Reconnect with warmth before setting limits' },
-    { tip: 'High emotion showing', action: 'Give space, then gently check in with them' },
+    { tip: 'Big feelings at home', action: 'Stay regulated yourself — your calm is contagious', tipKey: 'tip_parent_red_1', actionKey: 'tip_parent_red_1_action' },
+    { tip: 'Your child needs safety', action: 'Reconnect with warmth before setting limits', tipKey: 'tip_parent_red_2', actionKey: 'tip_parent_red_2_action' },
+    { tip: 'High emotion showing', action: 'Give space, then gently check in with them', tipKey: 'tip_parent_red_3', actionKey: 'tip_parent_red_3_action' },
   ],
 };
 
@@ -321,7 +317,7 @@ export default function ParentDashboard() {
         avatar_type: 'custom',
         avatar_custom: base64,
       });
-    });
+    }, t);
   };
 
   // Delete family member
@@ -401,7 +397,7 @@ export default function ParentDashboard() {
         avatar_type: 'custom',
         avatar_custom: base64,
       }));
-    });
+    }, t);
   };
 
   const handleMemberCheckin = (member: any) => {
@@ -591,7 +587,7 @@ export default function ParentDashboard() {
             color: def.color,
             points: 0,
             stage: 0,
-            name: 'Start checking in!',
+            name: t('start_checking_in_creature') || 'Start checking in!',
             hasRealCreature: false,
           };
         }
@@ -768,23 +764,23 @@ export default function ParentDashboard() {
     setLinking(true);
     try {
       const result = await parentApi.linkChild(linkCode.trim());
-      const childName = result.student_name || 'Child';
+      const childName = result.student_name || t('child') || 'Child';
       setShowLinkModal(false);
       setLinkCode('');
       fetchData();
       // Show sharing consent after linking
       setTimeout(() => {
         Alert.alert(
-          `✅ ${childName} Linked!`,
-          `${childName} is now connected between home and school.\n\n📋 SHARING:\n\n🏫→🏠 You can already see school check-ins here.\n\n🏠→🏫 You can choose to share home check-ins with the teacher.\n\nHome sharing is OFF by default for privacy.`,
+          `✅ ${childName} ${t('linked_exclaim') || 'Linked!'}`,
+          `${childName} ${t('connected_home_school_desc') || 'is now connected between home and school.'}\n\n📋 ${t('sharing_label') || 'SHARING:'}\n\n🏫→🏠 ${t('already_see_school_checkins') || 'You can already see school check-ins here.'}\n\n🏠→🏫 ${t('choose_share_home_checkins') || 'You can choose to share home check-ins with the teacher.'}\n\n${t('home_sharing_off_default') || 'Home sharing is OFF by default for privacy.'}`,
           [
-            { text: '🔒 Keep Private', style: 'cancel' },
+            { text: t('keep_private') || '🔒 Keep Private', style: 'cancel' },
             {
-              text: '📤 Share with Teacher',
+              text: `📤 ${t('share_with_teacher') || 'Share with Teacher'}`,
               onPress: async () => {
                 try {
                   await linkedChildApi.toggleHomeSharing(result.student_id);
-                  Alert.alert('✅ Sharing On', 'Teacher can now see home check-ins. Turn off anytime in the linked student section.');
+                  Alert.alert(`✅ ${t('sharing_on') || 'Sharing On'}`, t('teacher_sees_home_checkins_desc') || 'Teacher can now see home check-ins. Turn off anytime in the linked student section.');
                 } catch (e) { console.log('Sharing toggle error:', e); }
               }
             }
@@ -792,7 +788,7 @@ export default function ParentDashboard() {
         );
       }, 500);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Invalid or expired code');
+      Alert.alert(t('error') || 'Error', error.message || (t('invalid_or_expired_code') || 'Invalid or expired code'));
     } finally {
       setLinking(false);
     }
@@ -800,7 +796,7 @@ export default function ParentDashboard() {
 
   const handleAddFamilyMember = async () => {
     if (!newMember.name.trim()) {
-      Alert.alert('Error', 'Please enter a name');
+      Alert.alert(t('error') || 'Error', t('please_enter_name') || 'Please enter a name');
       return;
     }
     setSavingMember(true);
@@ -812,14 +808,14 @@ export default function ParentDashboard() {
         avatar_preset: newMember.avatar_preset,
         avatar_custom: newMember.avatar_type === 'custom' ? newMember.avatar_custom : undefined,
       });
-      Alert.alert('Success', `${newMember.name} has been added to your family!`);
+      Alert.alert(t('success') || 'Success', `${newMember.name} ${t('added_to_family_exclaim') || 'has been added to your family!'}`);
       setShowAddFamilyModal(false);
       setNewMember({ name: '', relationship: 'child', avatar_type: 'preset', avatar_preset: 'star', avatar_custom: '' });
       fetchData();
       refreshStudents();
     } catch (error: any) {
       console.error('Error adding family member:', error);
-      Alert.alert('Error', error.message || 'Failed to add family member. Please make sure you are logged in as a parent.');
+      Alert.alert(t('error') || 'Error', error.message || (t('failed_add_family_member_login') || 'Failed to add family member. Please make sure you are logged in as a parent.'));
     } finally {
       setSavingMember(false);
     }
@@ -830,7 +826,7 @@ export default function ParentDashboard() {
       const result = await familyApi.generateTeacherCode(studentId);
       setGeneratedCode(result.link_code);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to generate code');
+      Alert.alert(t('error') || 'Error', error.message || (t('failed_generate_code') || 'Failed to generate code'));
     }
   };
 
@@ -906,8 +902,8 @@ export default function ParentDashboard() {
               backgroundColor: bgs[colour] || '#EAFAF1', borderLeftWidth:4, borderLeftColor: clrs[colour] || EMOTION_COLOURS.green,
               flexDirection:'row', alignItems:'flex-start' }}>
               <View style={{ flex:1 }}>
-                <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:3 }}>{tip.tip}</Text>
-                <Text style={{ fontSize:12, color:'#555', lineHeight:17 }}>{tip.action}</Text>
+                <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:3 }}>{t(tip.tipKey) || tip.tip}</Text>
+                <Text style={{ fontSize:12, color:'#555', lineHeight:17 }}>{t(tip.actionKey) || tip.action}</Text>
               </View>
               <TouchableOpacity onPress={() => setTipDismissed(true)} style={{ padding:4, marginLeft:8 }}>
                 <MaterialIcons name="close" size={16} color="#AAA" />
@@ -926,8 +922,8 @@ export default function ParentDashboard() {
             borderWidth:1, borderColor:'#FFE082' }}>
           <Text style={{ fontSize:20 }}>🎁</Text>
           <View style={{ flex:1 }}>
-            <Text style={{ fontSize:13, fontWeight:'700', color:'#333' }}>Start your free trial</Text>
-            <Text style={{ fontSize:11, color:'#666' }}>Go to Settings → enter code HAPPYCLASS2026 for 30 days free</Text>
+            <Text style={{ fontSize:13, fontWeight:'700', color:'#333' }}>{t('start_free_trial_banner') || 'Start your free trial'}</Text>
+            <Text style={{ fontSize:11, color:'#666' }}>{t('go_to_settings_enter_code') || 'Go to Settings'} → {t('enter_code_30_days_free') || 'enter code HAPPYCLASS2026 for 30 days free'}</Text>
           </View>
           <MaterialIcons name="chevron-right" size={20} color="#FFC107" />
         </TouchableOpacity>
@@ -1134,7 +1130,7 @@ export default function ParentDashboard() {
                       </View>
                       <Text style={{ fontSize:10, fontWeight:'700', color:'#5C6BC0', textAlign:'center' }}>{t('add_more')||'Add more'}</Text>
                       <View style={{ backgroundColor:'#5C6BC0', borderRadius:8, paddingHorizontal:8, paddingVertical:3 }}>
-                        <Text style={{ fontSize:9, color:'white', fontWeight:'700' }}>UPGRADE</Text>
+                        <Text style={{ fontSize:9, color:'white', fontWeight:'700' }}>{t('upgrade') || 'UPGRADE'}</Text>
                       </View>
                     </TouchableOpacity>
                   )}
@@ -1154,8 +1150,8 @@ export default function ParentDashboard() {
             style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF8E1', borderRadius: 12, marginHorizontal: 16, marginBottom: 8, padding: 12, gap: 10, borderWidth: 1, borderColor: '#FFE082' }}>
             <Text style={{ fontSize: 20 }}>⭐</Text>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#333' }}>Loving the app?</Text>
-              <Text style={{ fontSize: 11, color: '#666' }}>Unlock PDF reports, unlimited family & school linking</Text>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#333' }}>{t('loving_the_app') || 'Loving the app?'}</Text>
+              <Text style={{ fontSize: 11, color: '#666' }}>{t('unlock_pdf_unlimited_linking') || 'Unlock PDF reports, unlimited family & school linking'}</Text>
             </View>
             <View style={{ backgroundColor: '#FF9800', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
               <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>{t('trial') || t('trial') || 'Upgrade'}</Text>
@@ -1316,13 +1312,13 @@ export default function ParentDashboard() {
                   yellow: (t('zone_yellow') || 'Yellow Emotions') + ' 😰',
                   red: (t('zone_red') || 'Red Emotions') + ' 😠'
                 };
-                if (total === 0) return <Text style={{ color:'#999', fontSize:13, textAlign:'center', paddingVertical:16 }}>No check-ins for this period</Text>;
+                if (total === 0) return <Text style={{ color:'#999', fontSize:13, textAlign:'center', paddingVertical:16 }}>{t('no_checkins_for_period') || 'No check-ins for this period'}</Text>;
                 return (
                   <View style={{ gap:10, marginTop:12 }}>
                     {/* Summary pill */}
                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, marginBottom:4 }}>
                       <Text style={{ fontSize:22, fontWeight:'800', color:'#333' }}>{total}</Text>
-                      <Text style={{ fontSize:13, color:'#888' }}>check-ins total</Text>
+                      <Text style={{ fontSize:13, color:'#888' }}>{t('checkins_total') || 'check-ins total'}</Text>
                     </View>
                     {(['green','blue','yellow','red'] as const).map(zone => {
                       const pct = total > 0 ? Math.round((counts[zone]/total)*100) : 0;
@@ -1431,12 +1427,12 @@ export default function ParentDashboard() {
                       </View>
                       <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                         <Text style={styles.logTime}>{new Date((log as any).timestamp||(log as any).created_at).toLocaleDateString(undefined,{month:'short',day:'numeric'})} · {formatTime((log as any).timestamp||(log as any).created_at)}</Text>
-                        {(log as any).logged_by === 'parent' && <Text style={{ fontSize: 9, color: '#4CAF50', fontWeight: '700' }}>HOME</Text>}
+                        {(log as any).logged_by === 'parent' && <Text style={{ fontSize: 9, color: '#4CAF50', fontWeight: '700' }}>{t('home') || 'HOME'}</Text>}
                         {(log as any).logged_by === 'student' && <Text style={{ fontSize: 9, color: '#5C6BC0', fontWeight: '700' }}>{t('school') || t('school') || 'SCHOOL'}</Text>}
                       </View>
                       {(log as any).strategies_selected?.length > 0 && (
                         <Text style={[styles.logTime, { color: '#AAA', fontSize: 10 }]} numberOfLines={1}>
-                          {(log as any).strategies_selected.slice(0,2).map((s:string)=>strategyNames[s]||resolveStrategy(s)).join(', ')}
+                          {(log as any).strategies_selected.slice(0,2).map((s:string)=>strategyNames[s]||resolveStrategyName(s, t, STRATEGY_NAMES)).join(', ')}
                           {(log as any).strategies_selected.length > 2 ? ` +${(log as any).strategies_selected.length-2}` : ''}
                         </Text>
                       )}
@@ -1515,7 +1511,7 @@ export default function ParentDashboard() {
                 return availableToAdd.length > 0 ? (
               <View style={{marginBottom:12, paddingHorizontal:4}}>
                 <Text style={{fontSize:12,fontWeight:'700',color:'#5C6BC0',marginBottom:6}}>
-                  👧 Add your child to your family dashboard
+                  👧 {t('add_child_to_family_dashboard') || 'Add your child to your family dashboard'}
                 </Text>
                 <ScrollView style={{maxHeight:140}} nestedScrollEnabled showsVerticalScrollIndicator={true}>
                   {availableToAdd.map((s:any) => (
@@ -1523,8 +1519,8 @@ export default function ParentDashboard() {
                       style={{flexDirection:'row',alignItems:'center',gap:8,paddingVertical:8,paddingHorizontal:10,backgroundColor:'#F0F4FF',borderRadius:8,marginBottom:4,borderWidth:1,borderColor:'#C5CAE9'}}
                       onPress={() => {
                         Alert.alert(
-                          `Add ${s.name} to family?`,
-                          `${s.name} will appear on your family dashboard and you can track their home wellbeing.`,
+                          `${t('add') || 'Add'} ${s.name} ${t('to_family_question') || 'to family?'}`,
+                          `${s.name} ${t('appear_on_dashboard_track_wellbeing') || 'will appear on your family dashboard and you can track their home wellbeing.'}`,
                           [
                             { text: t('cancel')||'Cancel', style: 'cancel' },
                             { text: t('add_member')||'Add', onPress: async () => {
@@ -1541,21 +1537,21 @@ export default function ParentDashboard() {
                                   setShowAddFamilyModal(false);
                                   fetchData();
                                   refreshStudents();
-                                  Alert.alert('✅ Added!', `${s.name} has been added to your family dashboard.`);
+                                  Alert.alert(`✅ ${t('added_exclaim') || 'Added!'}`, `${s.name} ${t('added_to_family_dashboard_desc') || 'has been added to your family dashboard.'}`);
                                 } else {
                                   let detail = resText;
                                   try { detail = JSON.parse(resText)?.detail || resText; } catch {}
                                   if (typeof detail === 'string' && detail.startsWith('free_tier_limit|')) {
-                                    Alert.alert('Free Plan Limit Reached', detail.split('|')[1] || 'Upgrade to add more children.', [
-                                      { text: 'Not Now', style: 'cancel' },
-                                      { text: 'See Plans', onPress: () => router.push('/subscription') },
+                                    Alert.alert(t('free_plan_limit_title') || 'Free Plan Limit Reached', detail.split('|')[1] || (t('upgrade_add_more_children') || 'Upgrade to add more children.'), [
+                                      { text: t('not_now') || 'Not Now', style: 'cancel' },
+                                      { text: t('see_plans') || 'See Plans', onPress: () => router.push('/subscription') },
                                     ]);
                                   } else {
-                                    Alert.alert('Error', detail || 'Could not add. Please try again.');
+                                    Alert.alert(t('error') || 'Error', detail || (t('could_not_add_try_again') || 'Could not add. Please try again.'));
                                   }
                                 }
                               } catch(e: any) {
-                                Alert.alert('Error', e?.message || 'Something went wrong.');
+                                Alert.alert(t('error') || 'Error', e?.message || (t('something_went_wrong') || 'Something went wrong.'));
                               }
                             }}
                           ]

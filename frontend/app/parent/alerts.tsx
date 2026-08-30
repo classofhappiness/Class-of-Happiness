@@ -9,9 +9,13 @@ import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
+import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
 
 const ZONE_COLOR: Record<string,string> = EMOTION_COLOURS;
 const ZONE_LABEL: Record<string,string> = { blue:'Blue Emotions', green:'Green Emotions', yellow:'Yellow Emotions', red:'Red Emotions' };
+// Legacy fallback dictionary — kept only as a safety net for resolveStrategyName()
+// (see src/utils/resolveStrategyName.ts) so nothing that used to resolve correctly
+// can start showing blank/undefined. Real names now come from t() via that shared resolver.
 const STRAT: Record<string,string> = {
   b1:'Gentle Stretch',b2:'Drink Water',b3:'Favourite Song',b4:'Cosy Spot',b5:'Tell Someone',b6:'Slow Breathing',
   g1:'Keep Going!',g2:'Help a Friend',g3:'Try Something New',g4:'Share Your Smile',g5:'Set a Goal',g6:'Gratitude',
@@ -22,13 +26,6 @@ const STRAT: Record<string,string> = {
   yellow_1:'Bubble Breathing',yellow_2:'Body Shake',yellow_3:'Count to 10',yellow_4:'5 Senses',yellow_5:'Squeeze & Release',yellow_6:'Talk About It',
   red_1:'Freeze',red_2:'Big Breaths',red_3:'Count Backwards',red_4:'Safe Space',red_5:'Ask for Help',red_6:'Self Hug',
 };
-const resolveName = (id: string) => {
-  if (!id) return '';
-  if (STRAT[id]) return STRAT[id];
-  const c = id.replace(/^(helper_|strategy_)/,'');
-  return STRAT[c] || id.replace(/_/g,' ').replace(/\b\w/g,(x:string)=>x.toUpperCase());
-};
-
 const Pill = ({ label, active, onPress, color='#5C6BC0' }: { label:string, active:boolean, onPress:()=>void, color?:string }) => (
   <TouchableOpacity onPress={onPress} style={{
     paddingHorizontal:12, paddingVertical:6, borderRadius:16, marginRight:8,
@@ -40,9 +37,10 @@ const Pill = ({ label, active, onPress, color='#5C6BC0' }: { label:string, activ
 );
 
 const AlertCard = ({ alert, onResolve, selected, selectMode, onLongPress, onPress }: any) => {
+  const { t } = useApp();
   const zc = ZONE_COLOR[alert.zone] || '#5C6BC0';
-  const typeLabel = alert.alert_type === 'help_request' ? 'Help Request' :
-                   alert.alert_type === 'zone_alert' ? 'Check-in Alert' : 'Message';
+  const typeLabel = alert.alert_type === 'help_request' ? (t('help_request') || 'Help Request') :
+                   alert.alert_type === 'zone_alert' ? (t('check_in_alert') || 'Check-in Alert') : (t('message_label') || 'Message');
   const typeBg = alert.alert_type === 'help_request' ? '#FFF3E0' :
                  alert.alert_type === 'parent_message' ? '#EEF2FF' : '#E8F5E9';
   const typeColor = alert.alert_type === 'help_request' ? '#E65100' :
@@ -59,7 +57,7 @@ const AlertCard = ({ alert, onResolve, selected, selectMode, onLongPress, onPres
               {selectMode && <MaterialIcons name={selected?'check-box':'check-box-outline-blank'} size={20} color={selected?'#4CAF50':'#CCC'} />}
               <View style={{ width:12, height:12, borderRadius:6, backgroundColor:zc }} />
               <Text style={{ fontSize:15, fontWeight:'700', color:'#222' }}>
-                {alert.student_name || 'Child'}
+                {alert.student_name || t('child') || 'Child'}
               </Text>
               <View style={{ backgroundColor:typeBg, borderRadius:10, paddingHorizontal:8, paddingVertical:3 }}>
                 <Text style={{ fontSize:11, fontWeight:'700', color:typeColor }}>{typeLabel}</Text>
@@ -70,13 +68,13 @@ const AlertCard = ({ alert, onResolve, selected, selectMode, onLongPress, onPres
             </Text>
             {alert.strategy_name ? (
               <Text style={{ fontSize:13, color:'#555', marginBottom:6 }}>
-                🎯 {resolveName(alert.strategy_name)}
+                🎯 {resolveStrategyName(alert.strategy_name, t, STRAT)}
               </Text>
             ) : null}
             {alert.message ? (
               <View style={{ backgroundColor:'#EEF2FF', borderRadius:10, padding:10, marginBottom:4,
                 borderLeftWidth:4, borderLeftColor:'#5C6BC0' }}>
-                <Text style={{ fontSize:11, color:'#5C6BC0', fontWeight:'700', marginBottom:3 }}>💬 Message</Text>
+                <Text style={{ fontSize:11, color:'#5C6BC0', fontWeight:'700', marginBottom:3 }}>💬 {t('message_label') || 'Message'}</Text>
                 <Text style={{ fontSize:14, color:'#111', fontWeight:'600', lineHeight:20 }}>{alert.message}</Text>
               </View>
             ) : null}
@@ -120,9 +118,9 @@ export default function ParentAlertsScreen() {
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
   const handleResolve = (id: string) => {
-    Alert.alert('Mark Resolved?', 'Has this been addressed?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Resolve', onPress: async () => {
+    Alert.alert(t('mark_resolved_title') || 'Mark Resolved?', t('has_been_addressed') || 'Has this been addressed?', [
+      { text: t('cancel') || 'Cancel', style: 'cancel' },
+      { text: t('resolve') || 'Resolve', onPress: async () => {
         await resolveAlert(id, token);
         setAlerts(prev => prev.map(a => a.id === id ? {...a, resolved:true} : a));
         await load();
@@ -132,9 +130,9 @@ export default function ParentAlertsScreen() {
 
   const handleBulkResolve = () => {
     if (selected.size === 0) return;
-    Alert.alert(`Resolve ${selected.size} alerts?`, 'Mark all as addressed.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Resolve All', onPress: async () => {
+    Alert.alert(`${t('resolve') || 'Resolve'} ${selected.size} ${t('alerts_lowercase') || 'alerts'}?`, t('mark_all_addressed') || 'Mark all as addressed.', [
+      { text: t('cancel') || 'Cancel', style: 'cancel' },
+      { text: t('resolve_all') || 'Resolve All', onPress: async () => {
         await Promise.all([...selected].map(id => resolveAlert(id, token)));
         setAlerts(prev => prev.map(a => selected.has(a.id) ? {...a, resolved:true} : a));
         setSelected(new Set()); setSelectMode(false); await load();
@@ -174,7 +172,7 @@ export default function ParentAlertsScreen() {
             <TouchableOpacity key={p} onPress={() => setPeriod(p)} style={{ flex:1, paddingVertical:7,
               borderRadius:8, alignItems:'center', backgroundColor: period===p ? '#4CAF50' : '#F0F0F0' }}>
               <Text style={{ fontSize:12, fontWeight:'700', color: period===p ? 'white' : '#888' }}>
-                {p==='today'?'Today':p==='7'?'Week':p==='14'?'Fortnight':'Month'}
+                {p==='today'?(t('today')||'Today'):p==='7'?(t('week')||'Week'):p==='14'?(t('fortnight')||'Fortnight'):(t('month')||'Month')}
               </Text>
             </TouchableOpacity>
           ))}
@@ -182,30 +180,30 @@ export default function ParentAlertsScreen() {
         {childNames.length > 1 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal:12, paddingBottom:8, flexDirection:'row' }}>
-            <Pill label="All" active={childFilter===null} onPress={() => setChildFilter(null)} color="#4CAF50" />
+            <Pill label={t('all') || 'All'} active={childFilter===null} onPress={() => setChildFilter(null)} color="#4CAF50" />
             {childNames.map(n => <Pill key={n} label={n} active={childFilter===n} onPress={() => setChildFilter(childFilter===n?null:n)} color="#4CAF50" />)}
           </ScrollView>
         )}
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal:12, paddingBottom:8, flexDirection:'row' }}>
-          <Pill label="All" active={alertType===null} onPress={() => setAlertType(null)} color="#4CAF50" />
-          <Pill label="Help Request" active={alertType==='help_request'} onPress={() => setAlertType('help_request')} color="#E65100" />
-          <Pill label="Check-in" active={alertType==='zone_alert'} onPress={() => setAlertType('zone_alert')} color="#2E7D32" />
-          <Pill label="Message" active={alertType==='parent_message'} onPress={() => setAlertType('parent_message')} color="#5C6BC0" />
+          <Pill label={t('all') || 'All'} active={alertType===null} onPress={() => setAlertType(null)} color="#4CAF50" />
+          <Pill label={t('help_request') || 'Help Request'} active={alertType==='help_request'} onPress={() => setAlertType('help_request')} color="#E65100" />
+          <Pill label={t('check_in_short') || 'Check-in'} active={alertType==='zone_alert'} onPress={() => setAlertType('zone_alert')} color="#2E7D32" />
+          <Pill label={t('message_label') || 'Message'} active={alertType==='parent_message'} onPress={() => setAlertType('parent_message')} color="#5C6BC0" />
         </ScrollView>
         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:14, paddingBottom:8 }}>
-          <Text style={{ fontSize:12, color:'#999', fontWeight:'600' }}>{filtered.length} pending</Text>
+          <Text style={{ fontSize:12, color:'#999', fontWeight:'600' }}>{filtered.length} {t('pending') || 'pending'}</Text>
           <View style={{ flexDirection:'row', gap:8 }}>
             {selectMode && selected.size > 0 && (
               <TouchableOpacity onPress={handleBulkResolve}
                 style={{ backgroundColor:'#4CAF50', paddingHorizontal:12, paddingVertical:5, borderRadius:8, flexDirection:'row', alignItems:'center', gap:4 }}>
                 <MaterialIcons name="check" size={14} color="white" />
-                <Text style={{ fontSize:12, color:'white', fontWeight:'700' }}>Resolve {selected.size}</Text>
+                <Text style={{ fontSize:12, color:'white', fontWeight:'700' }}>{t('resolve') || 'Resolve'} {selected.size}</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity onPress={() => { setSelectMode(!selectMode); setSelected(new Set()); }}
               style={{ backgroundColor: selectMode ? '#F44336' : '#EEE', paddingHorizontal:12, paddingVertical:5, borderRadius:8 }}>
-              <Text style={{ fontSize:12, color: selectMode ? 'white' : '#666', fontWeight:'700' }}>{selectMode ? 'Cancel' : 'Select'}</Text>
+              <Text style={{ fontSize:12, color: selectMode ? 'white' : '#666', fontWeight:'700' }}>{selectMode ? (t('cancel') || 'Cancel') : (t('select') || 'Select')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -220,7 +218,7 @@ export default function ParentAlertsScreen() {
           </View>
         )}
         {Object.entries(
-          filtered.reduce((g:any, a:any) => { const k=a.student_name||'Child'; if(!g[k])g[k]=[]; g[k].push(a); return g; }, {})
+          filtered.reduce((g:any, a:any) => { const k=a.student_name||(t('child') || 'Child'); if(!g[k])g[k]=[]; g[k].push(a); return g; }, {})
         ).map(([name, items]:any) => (
           <View key={name} style={{ backgroundColor:'white', borderRadius:14, marginBottom:10,
             shadowColor:'#000', shadowOpacity:0.07, shadowRadius:6, elevation:3, overflow:'hidden' }}>
@@ -252,7 +250,7 @@ export default function ParentAlertsScreen() {
             <TouchableOpacity onPress={() => setShowResolved(v => !v)}
               style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center',
                 paddingVertical:12, paddingHorizontal:4 }}>
-              <Text style={{ fontSize:14, color:'#999', fontWeight:'600' }}>Resolved ({resolvedAlerts.length})</Text>
+              <Text style={{ fontSize:14, color:'#999', fontWeight:'600' }}>{t('resolved') || 'Resolved'} ({resolvedAlerts.length})</Text>
               <MaterialIcons name={showResolved ? 'expand-less' : 'expand-more'} size={22} color="#CCC" />
             </TouchableOpacity>
             {showResolved ? resolvedAlerts.slice(0,10).map((a:any) => (
@@ -262,8 +260,8 @@ export default function ParentAlertsScreen() {
                 <View style={{ width:10, height:10, borderRadius:5, marginRight:10,
                   backgroundColor: ZONE_COLOR[a.zone] || '#CCC' }} />
                 <Text style={{ flex:1, fontSize:13, color:'#666' }}>
-                  {a.student_name} · {a.alert_type === 'help_request' ? 'Help Request' :
-                  a.alert_type === 'zone_alert' ? 'Check-in' : 'Message'}
+                  {a.student_name} · {a.alert_type === 'help_request' ? (t('help_request') || 'Help Request') :
+                  a.alert_type === 'zone_alert' ? (t('check_in_short') || 'Check-in') : (t('message_label') || 'Message')}
                 </Text>
                 <MaterialIcons name="check-circle" size={18} color="#4CAF50" />
               </View>

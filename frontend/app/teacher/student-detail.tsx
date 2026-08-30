@@ -30,8 +30,12 @@ import { useApp } from '../../src/context/AppContext';
 import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy, reportsApi, teacherApi, teacherHomeDataApi } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
+import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
 
-// Complete strategy name lookup - matches student/strategies.tsx fallback IDs
+// Complete strategy name lookup - matches student/strategies.tsx fallback IDs.
+// Kept only as a safety-net fallback for resolveStrategyName() (see
+// src/utils/resolveStrategyName.ts) so nothing that used to resolve correctly can start
+// showing blank/undefined. Real names now come from t() via that shared resolver.
 const STRATEGY_NAME_MAP: Record<string, string> = {
   // Blue zone
   b1: 'Gentle Stretch', b2: 'Favourite Song', b3: 'Tell Someone', b4: 'Slow Breathing',
@@ -253,9 +257,8 @@ export default function StudentDetailScreen() {
 
   const getStrategyName = (strategyId: string) => {
     if (!strategyId) return '';
-    // Check the complete name map first
-    if (STRATEGY_NAME_MAP[strategyId]) return STRATEGY_NAME_MAP[strategyId];
-    // Check loaded strategies
+    // Check loaded strategies (real DB-authored strategies, keyed by their real id/UUID —
+    // takes priority since these are the actual name the teacher/school/family chose)
     const strategy = strategies.find((s: any) => s.id === strategyId || s.name === strategyId);
     if (strategy?.name) return strategy.name;
     // Check allStrategies
@@ -263,6 +266,9 @@ export default function StudentDetailScreen() {
     if (schoolStrat?.name) return schoolStrat.name;
     const familyStrat = allStrategies.family.find((s: any) => s.id === strategyId);
     if (familyStrat?.name || familyStrat?.strategy_name) return familyStrat.name || familyStrat.strategy_name;
+    // Translated / legacy-code lookup (see src/utils/resolveStrategyName.ts)
+    const resolved = resolveStrategyName(strategyId, t, STRATEGY_NAME_MAP);
+    if (resolved) return resolved;
     // If it looks like a readable name already, return it
     if (strategyId.length > 5 && !strategyId.match(/^[a-z]_?\d+$/)) return strategyId;
     // Last resort cleanup

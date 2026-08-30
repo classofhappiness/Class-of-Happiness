@@ -10,6 +10,7 @@ import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { useFixedGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
+import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
 
 type FeelingZone = 'blue' | 'green' | 'yellow' | 'red';
 
@@ -135,6 +136,9 @@ export default function TeacherCheckInScreen() {
     } catch (e) { console.log("[silent]", e); }
   };
 
+  // Legacy fallback dictionary — kept only as a safety net for resolveStrategyName()
+  // (see src/utils/resolveStrategyName.ts) so nothing that used to resolve correctly
+  // can start showing blank/undefined. Real names now come from t() via that shared resolver.
   const STRATEGY_NAMES_LOCAL: Record<string,string> = {
     blue_1:'Gentle Stretch', blue_2:'Drink Water', blue_3:'Favourite Song', blue_4:'Cosy Spot', blue_5:'Tell Someone', blue_6:'Slow Breathing',
     green_1:'Keep Going!', green_2:'Help a Friend', green_3:'Try Something New', green_4:'Share Your Smile', green_5:'Set a Goal', green_6:'Gratitude',
@@ -146,13 +150,15 @@ export default function TeacherCheckInScreen() {
   // strategy IDs here are teacher strategy IDs, NOT student ones. STRATEGY_NAMES_LOCAL uses the
   // exact same id scheme (blue_1, blue_2...) for a completely different, student-facing list,
   // which was the real bug: teacher strategies were being resolved against student names.
+  // TEACHER_STRATEGY_LOOKUP must stay checked FIRST, ahead of the shared resolver below —
+  // it is deliberately NOT part of this localisation pass (out of scope).
   const TEACHER_STRATEGY_LOOKUP: Record<string,string> = {};
   (Object.keys(TEACHER_STRATEGIES) as FeelingZone[]).forEach((zone) => {
     TEACHER_STRATEGIES[zone].forEach((s) => { TEACHER_STRATEGY_LOOKUP[s.id] = s.name; });
   });
   const resolveStratName = (id: string) => {
     if (!id || ['blue','green','yellow','red'].includes(id.toLowerCase())) return null;
-    return TEACHER_STRATEGY_LOOKUP[id] || STRATEGY_NAMES_LOCAL[id] || id.replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase());
+    return TEACHER_STRATEGY_LOOKUP[id] || resolveStrategyName(id, t, STRATEGY_NAMES_LOCAL);
   };
 
   const loadData = async () => {
@@ -225,7 +231,7 @@ export default function TeacherCheckInScreen() {
     setNewStrategyName('');
     setNewStrategyDesc('');
     setShowAddStrategy(false);
-    Alert.alert('✅ Added', 'Your personal strategy has been saved.');
+    Alert.alert(`✅ ${t('added') || 'Added'}`, t('personal_strategy_saved') || 'Your personal strategy has been saved.');
   };
 
   const strategiesForZone = useMemo(() => {
@@ -249,7 +255,7 @@ export default function TeacherCheckInScreen() {
 
   const saveCheckIn = async () => {
     if (!selectedZone || !user?.user_id) {
-      Alert.alert('Select a colour', 'Please choose an emotion colour before saving.');
+      Alert.alert(t('select_a_colour') || 'Select a colour', t('choose_emotion_before_saving') || 'Please choose an emotion colour before saving.');
       return;
     }
     setSaving(true);
@@ -314,7 +320,7 @@ export default function TeacherCheckInScreen() {
       setShareWithWellbeing(false);
       Alert.alert(t('checkin_saved') || '✅ Saved', shareWithWellbeing ? (t('checkin_saved_shared') || 'Check-in saved and shared with your wellbeing support team.') : (t('checkin_saved_private') || 'Your check-in has been recorded privately.'));
     } catch {
-      Alert.alert('Error', 'Could not save check-in right now.');
+      Alert.alert(t('error') || 'Error', t('could_not_save_checkin_now') || 'Could not save check-in right now.');
     } finally {
       setSaving(false);
     }
@@ -322,7 +328,7 @@ export default function TeacherCheckInScreen() {
 
   const sendWellbeingAlert = async () => {
     if (!alertMessage.trim()) {
-      Alert.alert('Add a message', 'Please write a brief message before sending.');
+      Alert.alert(t('add_a_message') || 'Add a message', t('write_brief_message_before_sending') || 'Please write a brief message before sending.');
       return;
     }
     setSendingAlert(true);
@@ -349,7 +355,8 @@ export default function TeacherCheckInScreen() {
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
-    return `${DAYS[d.getDay()]} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    const day = DAYS[d.getDay()];
+    return `${t('day_' + day.toLowerCase()) || day} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
   };
 
   const downloadTeacherPDF = async (monthStr: string) => {
@@ -363,17 +370,17 @@ export default function TeacherCheckInScreen() {
         let detail = '';
         try { detail = (await checkRes.json())?.detail || ''; } catch {}
         if (detail.startsWith('free_tier_limit|')) {
-          Alert.alert('Free Plan Limit Reached', detail.split('|')[1] || 'Upgrade for unlimited reports.', [
-            { text: 'Not Now', style: 'cancel' },
-            { text: 'See Plans', onPress: () => router.push('/subscription') },
+          Alert.alert(t('free_plan_limit_title') || 'Free Plan Limit Reached', detail.split('|')[1] || t('upgrade_unlimited_reports') || 'Upgrade for unlimited reports.', [
+            { text: t('not_now') || 'Not Now', style: 'cancel' },
+            { text: t('see_plans') || 'See Plans', onPress: () => router.push('/subscription') },
           ]);
         } else {
-          Alert.alert('Error', 'No data for this month yet');
+          Alert.alert(t('error') || 'Error', t('no_data_this_month') || 'No data for this month yet');
         }
         return;
       }
       await Linking.openURL(url);
-    } catch { Alert.alert('Error', 'No data for this month yet'); }
+    } catch { Alert.alert(t('error') || 'Error', t('no_data_this_month') || 'No data for this month yet'); }
   };
 
   const handlePinDigit = (d: string) => {
@@ -392,7 +399,7 @@ export default function TeacherCheckInScreen() {
             AsyncStorage.setItem(PIN_KEY, pinInput);
             setPinUnlocked(true);
           } else {
-            Alert.alert('PINs do not match');
+            Alert.alert(t('pins_do_not_match') || 'PINs do not match');
             setPinInput(''); setPinConfirm(''); setPinStep('setup');
           }
         }
@@ -404,7 +411,7 @@ export default function TeacherCheckInScreen() {
         if (next.length === 4) {
           AsyncStorage.getItem(PIN_KEY).then(stored => {
             if (next === stored) { setPinUnlocked(true); }
-            else { Alert.alert('Incorrect PIN'); setPinInput(''); }
+            else { Alert.alert(t('incorrect_pin') || 'Incorrect PIN'); setPinInput(''); }
           });
         }
       }
@@ -417,9 +424,9 @@ export default function TeacherCheckInScreen() {
   };
 
   const handleResetPin = () => {
-    Alert.alert('Reset PIN', 'Are you sure? You will need to create a new PIN.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Reset', style: 'destructive', onPress: async () => {
+    Alert.alert(t('wellbeing_pin_reset') || 'Reset PIN', t('reset_pin_confirm_desc') || 'Are you sure? You will need to create a new PIN.', [
+      { text: t('cancel') || 'Cancel', style: 'cancel' },
+      { text: t('reset') || 'Reset', style: 'destructive', onPress: async () => {
         await AsyncStorage.removeItem(PIN_KEY);
         setPinInput(''); setPinConfirm(''); setPinStep('setup');
       }},
@@ -451,11 +458,11 @@ export default function TeacherCheckInScreen() {
         </TouchableOpacity>
         <View style={{flex:1,alignItems:'center',justifyContent:'center',paddingHorizontal:32}}>
           <Text style={{fontSize:40,marginBottom:8}}>🔒</Text>
-          <Text style={{fontSize:20,fontWeight:'700',color:'#333',marginBottom:4}}>Teacher Check-in</Text>
+          <Text style={{fontSize:20,fontWeight:'700',color:'#333',marginBottom:4}}>{t('teacher_checkin') || 'Teacher Check-in'}</Text>
           <Text style={{fontSize:14,color:'#666',marginBottom:24,textAlign:'center'}}>
-            {pinStep === 'setup' ? 'Create a private PIN to protect your wellbeing data'
-            : pinStep === 'confirm' ? 'Confirm your PIN'
-            : 'Enter your PIN'}
+            {pinStep === 'setup' ? (t('create_private_pin_desc') || 'Create a private PIN to protect your wellbeing data')
+            : pinStep === 'confirm' ? (t('confirm_your_pin') || 'Confirm your PIN')
+            : (t('wellbeing_pin_enter') || 'Enter your PIN')}
           </Text>
           <View style={{flexDirection:'row',gap:12,marginBottom:32}}>
             {[0,1,2,3].map(i => (
@@ -474,7 +481,7 @@ export default function TeacherCheckInScreen() {
           </View>
           {pinStep === 'enter' && (
             <TouchableOpacity onPress={handleResetPin} style={{marginTop:24}}>
-              <Text style={{color:'#5C6BC0',fontSize:14}}>Forgot PIN?</Text>
+              <Text style={{color:'#5C6BC0',fontSize:14}}>{t('wellbeing_pin_forgot') || 'Forgot PIN?'}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -511,11 +518,11 @@ export default function TeacherCheckInScreen() {
               onChangeText={setNameInput}
               style={{flex:1,fontSize:13,color:'#333',borderBottomWidth:1,borderBottomColor:'#5C6BC0',paddingVertical:2}}
               autoFocus
-              placeholder="Your display name..."
+              placeholder={t('your_display_name_ph') || 'Your display name...'}
               placeholderTextColor="#AAA"
             />
             <TouchableOpacity onPress={saveName} style={{marginLeft:8,backgroundColor:'#5C6BC0',borderRadius:6,paddingHorizontal:10,paddingVertical:4}}>
-              <Text style={{color:'white',fontSize:12,fontWeight:'600'}}>Save</Text>
+              <Text style={{color:'white',fontSize:12,fontWeight:'600'}}>{t('save') || 'Save'}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setEditingName(false)} style={{marginLeft:6}}>
               <MaterialIcons name="close" size={18} color="#999" />
@@ -523,7 +530,7 @@ export default function TeacherCheckInScreen() {
           </>
         ) : (
           <>
-            <Text style={{flex:1,fontSize:13,color:'#555'}}>{displayName || 'Tap to add your name'}</Text>
+            <Text style={{flex:1,fontSize:13,color:'#555'}}>{displayName || (t('tap_to_add_name') || 'Tap to add your name')}</Text>
             <TouchableOpacity onPress={() => setEditingName(true)}>
               <MaterialIcons name="edit" size={16} color="#5C6BC0" />
             </TouchableOpacity>
@@ -553,7 +560,7 @@ export default function TeacherCheckInScreen() {
         {/* STEP 2: Strategies (only after colour selected) */}
         {selectedZone && (
           <>
-            <Text style={styles.sectionLabel}>Helpful strategies — tap to select</Text>
+            <Text style={styles.sectionLabel}>{t('helpful_strategies_tap_select') || 'Helpful strategies — tap to select'}</Text>
             {strategiesForZone.map(s => (
               <TouchableOpacity
                 key={s.id}
@@ -599,8 +606,8 @@ export default function TeacherCheckInScreen() {
             </TouchableOpacity>
             {showAddStrategy && (
               <View style={styles.addStrategyForm}>
-                <TextInput style={styles.addStrategyInput} placeholder="Strategy name..." value={newStrategyName} onChangeText={setNewStrategyName} placeholderTextColor="#AAA" />
-                <TextInput style={styles.addStrategyInput} placeholder="Description (optional)..." value={newStrategyDesc} onChangeText={setNewStrategyDesc} placeholderTextColor="#AAA" />
+                <TextInput style={styles.addStrategyInput} placeholder={t('strategy_name_input_ph') || 'Strategy name...'} value={newStrategyName} onChangeText={setNewStrategyName} placeholderTextColor="#AAA" />
+                <TextInput style={styles.addStrategyInput} placeholder={t('description_optional_ph') || 'Description (optional)...'} value={newStrategyDesc} onChangeText={setNewStrategyDesc} placeholderTextColor="#AAA" />
                 <TouchableOpacity style={styles.addStrategySubmit} onPress={saveCustomStrategy}>
                   <Text style={styles.addStrategySubmitText}>{t('add_strategy') || t('add_strategy') || 'Save Strategy'}</Text>
                 </TouchableOpacity>
@@ -608,10 +615,10 @@ export default function TeacherCheckInScreen() {
             )}
 
             {/* Notes */}
-            <Text style={styles.sectionLabel}>Add a note (optional)</Text>
+            <Text style={styles.sectionLabel}>{t('add_note_optional') || 'Add a note (optional)'}</Text>
             <TextInput
               style={styles.notesInput}
-              placeholder="e.g. Difficult parent meeting today..."
+              placeholder={t('difficult_meeting_note_ph') || 'e.g. Difficult parent meeting today...'}
               value={notes}
               onChangeText={setNotes}
               multiline
@@ -635,8 +642,8 @@ export default function TeacherCheckInScreen() {
                 </Text>
                 <Text style={styles.shareToggleDesc}>
                   {shareWithWellbeing
-                    ? 'Your principal/psychologist will be notified of this check-in'
-                    : 'Only you can see this check-in'}
+                    ? (t('principal_notified_desc') || 'Your principal/psychologist will be notified of this check-in')
+                    : (t('only_you_see_checkin') || 'Only you can see this check-in')}
                 </Text>
               </View>
               <View style={[styles.toggleSwitch, shareWithWellbeing && styles.toggleSwitchOn]}>
@@ -667,7 +674,7 @@ export default function TeacherCheckInScreen() {
               const entries = weekData[day] || [];
               return (
                 <View key={day} style={styles.dayCol}>
-                  <Text style={styles.dayLabel}>{day}</Text>
+                  <Text style={styles.dayLabel}>{t('day_' + day.toLowerCase()) || day}</Text>
                   {entries.length > 0 ? entries.slice(0, 2).map((e, i) => (
                     <View key={i} style={styles.dayEntry}>
                       <View style={[styles.dayDot, { backgroundColor: ZONE_COLORS[e.zone] }]} />
@@ -722,7 +729,7 @@ export default function TeacherCheckInScreen() {
           <TouchableOpacity onPress={() => setSecDistrib(e => !e)} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
             <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
               <MaterialIcons name="donut-large" size={17} color="#5C6BC0" />
-              <Text style={styles.weekTitle}>Emotion Distribution</Text>
+              <Text style={styles.weekTitle}>{t('emotion_distribution') || 'Emotion Distribution'}</Text>
             </View>
             <MaterialIcons name={secDistrib ? 'expand-less' : 'expand-more'} size={22} color="#999" />
           </TouchableOpacity>
@@ -752,14 +759,14 @@ export default function TeacherCheckInScreen() {
           <TouchableOpacity onPress={() => setSecStrategies(e => !e)} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
             <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
               <MaterialIcons name="star" size={17} color="#FFC107" />
-              <Text style={styles.weekTitle}>Most Used Strategies</Text>
+              <Text style={styles.weekTitle}>{t('most_used_strategies') || 'Most Used Strategies'}</Text>
             </View>
             <MaterialIcons name={secStrategies ? 'expand-less' : 'expand-more'} size={22} color="#999" />
           </TouchableOpacity>
           {secStrategies && (() => {
             const sorted = Object.entries(stratCounts).sort(([,a],[,b])=>(b as number)-(a as number)).slice(0,8);
             return sorted.length === 0
-              ? <Text style={{color:'#999',fontSize:13,marginTop:8}}>No strategies yet</Text>
+              ? <Text style={{color:'#999',fontSize:13,marginTop:8}}>{t('no_strategies_yet') || 'No strategies yet'}</Text>
               : sorted.map(([name,count]) => (
                 <View key={name} style={{flexDirection:'row',alignItems:'center',paddingVertical:8,borderBottomWidth:1,borderBottomColor:'#F0F0F0'}}>
                   <View style={{width:8,height:8,borderRadius:4,backgroundColor:'#5C6BC0',marginRight:8}} />
@@ -775,10 +782,10 @@ export default function TeacherCheckInScreen() {
         {/* PDF Download Section */}
         <View style={[styles.weekCard, {marginTop:8}]}>
           <TouchableOpacity onPress={() => setPdfExpanded(e => !e)} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
-            <Text style={styles.weekTitle}>📄 Monthly Wellbeing Reports</Text>
+            <Text style={styles.weekTitle}>📄 {t('monthly_wellbeing_reports') || 'Monthly Wellbeing Reports'}</Text>
             <MaterialIcons name={pdfExpanded ? 'expand-less' : 'expand-more'} size={22} color="#999" />
           </TouchableOpacity>
-          {pdfExpanded && <Text style={{fontSize:11,color:'#888',marginBottom:8,marginTop:4}}>Download your check-in history as a PDF</Text>}
+          {pdfExpanded && <Text style={{fontSize:11,color:'#888',marginBottom:8,marginTop:4}}>{t('download_checkin_history_pdf') || 'Download your check-in history as a PDF'}</Text>}
           {pdfExpanded && (() => {
             const months: string[] = [];
             const now = new Date();
@@ -815,12 +822,12 @@ export default function TeacherCheckInScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.modalSubtitle}>
-              Your principal, psychologist, or wellbeing lead will be notified privately and confidentially.
+              {t('principal_notified_confidentially') || 'Your principal, psychologist, or wellbeing lead will be notified privately and confidentially.'}
             </Text>
             <Text style={styles.inputLabel}>{t('support_message_placeholder') || 'Your Message'}</Text>
             <TextInput
               style={styles.alertInput}
-              placeholder="e.g. I'm struggling this week and would appreciate a check-in..."
+              placeholder={t('struggling_week_note_ph') || "e.g. I'm struggling this week and would appreciate a check-in..."}
               value={alertMessage}
               onChangeText={setAlertMessage}
               multiline
@@ -834,7 +841,7 @@ export default function TeacherCheckInScreen() {
               disabled={sendingAlert}
             >
               <MaterialIcons name="send" size={20} color="white" />
-              <Text style={styles.sendAlertText}>{sendingAlert ? 'Sending...' : 'Send to Wellbeing Team'}</Text>
+              <Text style={styles.sendAlertText}>{sendingAlert ? (t('sending_ellipsis') || 'Sending...') : (t('send_to_wellbeing_team') || 'Send to Wellbeing Team')}</Text>
             </TouchableOpacity>
             <Text style={styles.modalNote}>
               {t('private_message_note') || '🔒 This message is private. Only your designated wellbeing support staff will see it.'}
