@@ -144,16 +144,16 @@ export default function FamilyStrategiesScreen() {
       setEditingStrategy(null);
       setNewStrat({ name: '', description: '', zone: 'green', share_with_teacher: false, assigned_to: 'all' });
       loadCustomStrategies();
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: any) { Alert.alert(t('error') || 'Error', e.message); }
     finally { setSaving(false); }
   };
 
   const deleteStrategy = (s: any) => {
-    Alert.alert(t('delete_btn') || 'Delete', `Delete "${((s as any).nameKey && t((s as any).nameKey)) || s.name}"?`, [
-      { text: t('go_back') || t('go_back') || 'Cancel', style: 'cancel' },
+    Alert.alert(t('delete_btn') || 'Delete', (t('delete_strategy_confirm') || 'Delete "{name}"?').replace('{name}', ((s as any).nameKey && t((s as any).nameKey)) || s.name), [
+      { text: t('cancel') || 'Cancel', style: 'cancel' },
       { text: t('delete_btn') || 'Delete', style: 'destructive', onPress: async () => {
         try { await familyStratApi(`/custom-strategies/${s.id}`, 'DELETE'); loadCustomStrategies(); }
-        catch { Alert.alert('Error', 'Could not delete'); }
+        catch { Alert.alert(t('error') || 'Error', t('could_not_delete') || 'Could not delete'); }
       }},
     ]);
   };
@@ -168,15 +168,18 @@ export default function FamilyStrategiesScreen() {
 
   const deleteSelected = () => {
     if (selectedIds.size === 0) return;
-    Alert.alert(t('delete_btn') || 'Delete', `Delete ${selectedIds.size} strategy${selectedIds.size > 1 ? 'ies' : 'y'}?`, [
-      { text: t('go_back') || t('go_back') || 'Cancel', style: 'cancel' },
+    const deleteConfirmMsg = selectedIds.size === 1
+      ? (t('delete_strategy_confirm_count_one') || 'Delete 1 strategy?')
+      : (t('delete_strategy_confirm_count_other') || 'Delete {count} strategies?').replace('{count}', String(selectedIds.size));
+    Alert.alert(t('delete_btn') || 'Delete', deleteConfirmMsg, [
+      { text: t('cancel') || 'Cancel', style: 'cancel' },
       { text: t('delete_btn') || 'Delete All', style: 'destructive', onPress: async () => {
         try {
           await Promise.all([...selectedIds].map(id => familyStratApi(`/custom-strategies/${id}`, 'DELETE')));
           setSelectedIds(new Set());
           setSelectMode(false);
           loadCustomStrategies();
-        } catch { Alert.alert('Error', 'Could not delete some strategies'); }
+        } catch { Alert.alert(t('error') || 'Error', t('could_not_delete_some') || 'Could not delete some strategies'); }
       }},
     ]);
   };
@@ -230,7 +233,7 @@ export default function FamilyStrategiesScreen() {
           <>
         <Text style={styles.subtitle}>
           {activeTab === 'parent'
-            ? 'Evidence-based co-regulation strategies for parents. Tap any card to read more.'
+            ? (t('parent_strategies_subtitle') || 'Evidence-based co-regulation strategies for parents. Tap any card to read more.')
             : (t('emotion_strategies_children') || 'Emotion strategies for children — the same ones used at school.')}
         </Text>
         <View style={styles.infoNote}>
@@ -279,12 +282,12 @@ export default function FamilyStrategiesScreen() {
         {(!selectedZone ? zones : [selectedZone]).map(zone => {
           const strats = activeTab === 'child'
             ? [
-                {zone, name:'Gentle Stretch', description:'Move your body slowly and gently', icon:'fitness-center'},
-                {zone, name:'Bubble Breathing', description:'Breathe out slowly like blowing a bubble', icon:'air'},
-                {zone, name:'Count to 10', description:'Count slowly from 1 to 10', icon:'filter-9-plus'},
-                {zone, name:'5 Senses', description:'Name 5 things you can see, hear, feel', icon:'visibility'},
-                {zone, name:'Talk About It', description:'Find a safe person to share feelings', icon:'chat'},
-                {zone, name:'Ask for Help', description:'Tell a trusted adult you need support', icon:'support-agent'},
+                {zone, nameKey:'child_strat_gentle_stretch_name', descKey:'child_strat_gentle_stretch_desc', name:'Gentle Stretch', description:'Move your body slowly and gently', icon:'fitness-center'},
+                {zone, nameKey:'child_strat_bubble_breathing_name', descKey:'child_strat_bubble_breathing_desc', name:'Bubble Breathing', description:'Breathe out slowly like blowing a bubble', icon:'air'},
+                {zone, nameKey:'child_strat_count_to_10_name', descKey:'child_strat_count_to_10_desc', name:'Count to 10', description:'Count slowly from 1 to 10', icon:'filter-9-plus'},
+                {zone, nameKey:'child_strat_5_senses_name', descKey:'child_strat_5_senses_desc', name:'5 Senses', description:'Name 5 things you can see, hear, feel', icon:'visibility'},
+                {zone, nameKey:'child_strat_talk_about_it_name', descKey:'child_strat_talk_about_it_desc', name:'Talk About It', description:'Find a safe person to share feelings', icon:'chat'},
+                {zone, nameKey:'child_strat_ask_for_help_name', descKey:'child_strat_ask_for_help_desc', name:'Ask for Help', description:'Tell a trusted adult you need support', icon:'support-agent'},
               ].filter(s => {
                 if (zone === 'blue') return ['Gentle Stretch','Talk About It','Ask for Help'].includes(s.name);
                 if (zone === 'green') return ['Count to 10','5 Senses'].includes(s.name) === false;
@@ -365,7 +368,7 @@ export default function FamilyStrategiesScreen() {
                     }}
                   >
                     <MaterialIcons name={selectedIds.size === customStrategies.length ? 'check-box' : 'check-box-outline-blank'} size={16} color="#5C6BC0" />
-                    <Text style={{ fontSize: 12, color: '#5C6BC0' }}>All</Text>
+                    <Text style={{ fontSize: 12, color: '#5C6BC0' }}>{t('all') || 'All'}</Text>
                   </TouchableOpacity>
                   {selectedIds.size > 0 && (
                     <TouchableOpacity
@@ -373,14 +376,14 @@ export default function FamilyStrategiesScreen() {
                       onPress={deleteSelected}
                     >
                       <MaterialIcons name="delete" size={16} color="white" />
-                      <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>Delete ({selectedIds.size})</Text>
+                      <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>{(t('delete_count') || 'Delete ({count})').replace('{count}', String(selectedIds.size))}</Text>
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity
                     style={{ paddingHorizontal: 10, paddingVertical: 7, borderRadius: 20, backgroundColor: '#F0F0F0' }}
                     onPress={() => { setSelectMode(false); setSelectedIds(new Set()); }}
                   >
-                    <Text style={{ fontSize: 12, color: '#666' }}>Done</Text>
+                    <Text style={{ fontSize: 12, color: '#666' }}>{t('done') || 'Done'}</Text>
                   </TouchableOpacity>
                 </>
               ) : (
@@ -396,7 +399,7 @@ export default function FamilyStrategiesScreen() {
                     onPress={() => { setEditingStrategy(null); setNewStrat({ name: '', description: '', zone: 'green', share_with_teacher: false, assigned_to: 'all' }); setShowAddModal(true); }}
                   >
                     <MaterialIcons name="add" size={16} color="white" />
-                    <Text style={{ color: 'white', fontSize: 13, fontWeight: '600' }}>Add</Text>
+                    <Text style={{ color: 'white', fontSize: 13, fontWeight: '600' }}>{t('add') || 'Add'}</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -404,7 +407,7 @@ export default function FamilyStrategiesScreen() {
           </View>
           {customStrategies.length === 0 ? (
             <Text style={{ fontSize: 13, color: '#AAA', textAlign: 'center', paddingVertical: 16 }}>
-              No custom strategies yet. Tap Add to create one for your family.
+              {t('no_custom_strategies_yet') || 'No custom strategies yet. Tap Add to create one for your family.'}
             </Text>
           ) : (
             customStrategies.map((s) => (
@@ -449,19 +452,19 @@ export default function FamilyStrategiesScreen() {
               <Text style={{ fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 20 }}>
                 {editingStrategy ? (t('edit_family_strategy') || 'Edit Strategy') : (t('add_family_strategy') || 'Add Family Strategy')}
               </Text>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 6 }}>Name *</Text>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 6 }}>{t('name_label_required') || 'Name *'}</Text>
               <TextInput
                 style={{ borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 10, padding: 12, fontSize: 15, marginBottom: 14 }}
                 value={newStrat.name}
                 onChangeText={v => setNewStrat(p => ({ ...p, name: v }))}
-                placeholder="e.g. Breathing together"
+                placeholder={t('strategy_name_placeholder') || 'e.g. Breathing together'}
               />
               <Text style={{ fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 6 }}>{t('description_label') || t('description_label') || 'Description'}</Text>
               <TextInput
                 style={{ borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 10, padding: 12, fontSize: 15, marginBottom: 14, height: 70, textAlignVertical: 'top' }}
                 value={newStrat.description}
                 onChangeText={v => setNewStrat(p => ({ ...p, description: v }))}
-                placeholder="What does this strategy involve?"
+                placeholder={t('strategy_desc_placeholder') || 'What does this strategy involve?'}
                 multiline
               />
               <Text style={{ fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 8 }}>{t('emotion_colour') || 'Emotion colour'}</Text>
@@ -471,7 +474,9 @@ export default function FamilyStrategiesScreen() {
                     style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: newStrat.zone === z ? ZONE_COLORS[z] : '#F5F5F5', borderWidth: 2, borderColor: newStrat.zone === z ? ZONE_COLORS[z] : '#E0E0E0' }}
                     onPress={() => setNewStrat(p => ({ ...p, zone: z }))}
                   >
-                    <Text style={{ fontSize: 11, fontWeight: '600', color: newStrat.zone === z ? 'white' : '#666' }}>{z.charAt(0).toUpperCase() + z.slice(1)}</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: newStrat.zone === z ? 'white' : '#666' }}>
+                      {z === 'blue' ? (t('blue_label') || 'Blue') : z === 'green' ? (t('green_label') || 'Green') : z === 'yellow' ? (t('yellow_label') || 'Yellow') : (t('red_label') || 'Red')}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -500,7 +505,7 @@ export default function FamilyStrategiesScreen() {
               </View>
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: '#F5F5F5' }} onPress={() => setShowAddModal(false)}>
-                  <Text style={{ fontSize: 15, color: '#666' }}>{t('go_back') || t('go_back') || 'Cancel'}</Text>
+                  <Text style={{ fontSize: 15, color: '#666' }}>{t('cancel') || 'Cancel'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: '#5C6BC0', opacity: saving ? 0.6 : 1 }} onPress={saveStrategy} disabled={saving}>
                   <Text style={{ fontSize: 15, fontWeight: '600', color: 'white' }}>{saving ? (t('saving') || 'Saving...') : (t('save_changes') || 'Save')}</Text>
@@ -540,7 +545,7 @@ export default function FamilyStrategiesScreen() {
               {t('disclaimer_3') || "Class of Happiness is not liable for any outcomes resulting from the application of strategies found in this app. All strategies should be applied with parental judgement and in accordance with your child's individual needs."}
             </Text>
             <Text style={[styles.disclaimerText, { marginTop: 6 }]}>
-              © Class of Happiness. All rights reserved.
+              {t('copyright_notice') || '© Class of Happiness. All rights reserved.'}
             </Text>
           </View>
         </View>}

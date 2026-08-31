@@ -229,9 +229,9 @@ export default function SettingsScreen() {
       const data = await res.json();
       if (res.ok) {
         Alert.alert(
-          'Account scheduled for deletion',
-          'Your account has been deactivated and will be permanently deleted in 30 days. Contact jono@classofhappiness.com if you change your mind.',
-          [{ text: 'OK', onPress: async () => { await logout(); router.replace('/'); } }]
+          t('account_scheduled_deletion_title') || 'Account scheduled for deletion',
+          t('account_scheduled_deletion_desc') || 'Your account has been deactivated and will be permanently deleted in 30 days. Contact jono@classofhappiness.com if you change your mind.',
+          [{ text: t('done') || 'OK', onPress: async () => { await logout(); router.replace('/'); } }]
         );
       } else {
         Alert.alert(t('error') || 'Error', data.detail || 'Could not process your request.');
@@ -251,12 +251,12 @@ export default function SettingsScreen() {
 
   const handleDeleteAccountConfirm = () => {
     Alert.alert(
-      'Delete your account?',
-      'This deactivates your account immediately and permanently deletes your data in 30 days. This cannot be undone after that. Are you sure?',
+      t('delete_account_confirm_title') || 'Delete your account?',
+      t('delete_account_confirm_desc') || 'This deactivates your account immediately and permanently deletes your data in 30 days. This cannot be undone after that. Are you sure?',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Delete My Account',
+          text: t('delete_account_btn') || 'Delete My Account',
           style: 'destructive',
           onPress: () => {
             if (deletePassword.trim()) {
@@ -380,7 +380,7 @@ export default function SettingsScreen() {
 
   const handleJoinSchool = async () => {
     if (!schoolInviteCode.trim()) {
-      Alert.alert('Enter invite code', 'Please enter the invite code from your school admin.');
+      Alert.alert(t('enter_invite_code_title') || 'Enter invite code', t('enter_invite_code_body') || 'Please enter the invite code from your school admin.');
       return;
     }
     setJoiningSchool(true);
@@ -394,14 +394,14 @@ export default function SettingsScreen() {
       });
       const data = await res.json();
       if (res.ok) {
-        Alert.alert('Welcome! 🎉', data.message || 'You have joined your school!');
+        Alert.alert('🎉 ' + (t('welcome') || 'Welcome!'), data.message || (t('joined_school_success') || 'You have joined your school!'));
         setSchoolInviteCode('');
         await checkAuth();
       } else {
-        Alert.alert('Error', data.detail || 'Invalid invite code');
+        Alert.alert(t('error') || 'Error', data.detail || (t('invalid_invite_code') || 'Invalid invite code'));
       }
     } catch {
-      Alert.alert('Error', 'Could not join school. Please try again.');
+      Alert.alert(t('error') || 'Error', t('join_school_error') || 'Could not join school. Please try again.');
     } finally {
       setJoiningSchool(false);
     }
@@ -423,11 +423,11 @@ export default function SettingsScreen() {
       const data = await res.json();
       if (res.ok) {
         setGeneratedCode(data.code);
-        Alert.alert('Invite Code Generated! 🎉',
-          `Share this code with your teachers:\n\n${data.code}\n\nValid for 90 days.`);
+        Alert.alert('🎉 ' + (t('invite_code_generated_title') || 'Invite Code Generated!'),
+          (t('invite_code_generated_body') || 'Share this code with your teachers:\n\n{code}\n\nValid for 90 days.').replace('{code}', data.code));
       }
     } catch {
-      Alert.alert('Error', 'Could not generate code.');
+      Alert.alert(t('error') || 'Error', t('generate_code_error') || 'Could not generate code.');
     } finally {
       setGeneratingCode(false);
     }
@@ -448,13 +448,13 @@ export default function SettingsScreen() {
       });
       const data = await res.json();
       if (res.ok) {
-        Alert.alert('Trial Started! 🌟', data.message);
+        Alert.alert('🌟 ' + (t('trial_started_title') || 'Trial Started!'), data.message);
         await checkAuth();
       } else {
-        Alert.alert('Error', data.detail || 'Could not start trial.');
+        Alert.alert(t('error') || 'Error', data.detail || (t('start_trial_error') || 'Could not start trial.'));
       }
     } catch {
-      Alert.alert('Error', 'Could not start trial.');
+      Alert.alert(t('error') || 'Error', t('start_trial_error') || 'Could not start trial.');
     } finally {
       setStartingTrial(false);
     }
@@ -462,11 +462,11 @@ export default function SettingsScreen() {
 
   const handleSetPassword = async () => {
     if (newPassword.length < 8) {
-      Alert.alert(t('error') || 'Error', 'Password must be at least 8 characters');
+      Alert.alert(t('error') || 'Error', t('password_min_length') || 'Password must be at least 8 characters');
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert(t('error') || 'Error', 'Passwords do not match');
+      Alert.alert(t('error') || 'Error', t('passwords_dont_match') || 'Passwords do not match');
       return;
     }
     setSettingPassword(true);
@@ -480,15 +480,15 @@ export default function SettingsScreen() {
       });
       const data = await res.json();
       if (res.ok) {
-        Alert.alert('✅ ' + (t('success') || 'Success'), 'Your password has been set. You can now sign in with your email and password.');
+        Alert.alert('✅ ' + (t('success') || 'Success'), t('set_password_success') || 'Your password has been set. You can now sign in with your email and password.');
         setNewPassword('');
         setConfirmPassword('');
         setShowSetPassword(false);
       } else {
-        Alert.alert(t('error') || 'Error', data.detail || 'Could not set password.');
+        Alert.alert(t('error') || 'Error', data.detail || (t('set_password_error') || 'Could not set password.'));
       }
     } catch {
-      Alert.alert(t('error') || 'Error', 'Could not set password. Please try again.');
+      Alert.alert(t('error') || 'Error', t('set_password_retry_error') || 'Could not set password. Please try again.');
     } finally {
       setSettingPassword(false);
     }
@@ -694,7 +694,7 @@ export default function SettingsScreen() {
         {showSetPassword && (
           <View style={styles.trialCodeContainer}>
             <SecureField
-              placeholder="New password (min 8 characters)"
+              placeholder={t('new_password_placeholder') || 'New password (min 8 characters)'}
               placeholderTextColor="#999"
               value={newPassword}
               onChangeText={setNewPassword}
@@ -707,7 +707,7 @@ export default function SettingsScreen() {
                 migration, not a separate change. */}
             <SecureField
               containerStyle={{ marginTop: 8 }}
-              placeholder="Confirm password"
+              placeholder={t('confirm_password_placeholder') || 'Confirm password'}
               placeholderTextColor="#999"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
@@ -794,7 +794,7 @@ export default function SettingsScreen() {
                 <Text style={styles.langName}>{lang.name}</Text>
                 {lang.isBeta && (
                   <View style={{ backgroundColor: '#5C6BC0', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginRight: 6 }}>
-                    <Text style={{ fontSize: 9, color: '#FFF', fontWeight: '700' }}>Beta</Text>
+                    <Text style={{ fontSize: 9, color: '#FFF', fontWeight: '700' }}>{t('beta_badge') || 'Beta'}</Text>
                   </View>
                 )}
                 {!lang.hasVoice && (
@@ -803,7 +803,7 @@ export default function SettingsScreen() {
                     {/* Real feature Aug 30: unified to "No audio yet" (was "Audio coming soon")
                         so fr/de/hi/zh/ar/ru all read consistently in the same picker, rather
                         than two different phrases for the same real state. */}
-                    <Text style={{ fontSize: 9, color: '#999', fontWeight: '700', marginLeft: 2 }}>No audio yet</Text>
+                    <Text style={{ fontSize: 9, color: '#999', fontWeight: '700', marginLeft: 2 }}>{t('no_audio_yet') || 'No audio yet'}</Text>
                   </View>
                 )}
                 {language === lang.code && (
@@ -988,14 +988,14 @@ export default function SettingsScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="favorite-border" size={20} color="#5C6BC0" />
-              <Text style={styles.sectionTitle}>Share My Wellbeing</Text>
+              <Text style={styles.sectionTitle}>{t('share_my_wellbeing') || 'Share My Wellbeing'}</Text>
             </View>
             <View style={styles.settingItem}>
               <View style={[styles.settingLeft, { flex: 1 }]}>
                 <View style={[styles.settingText, { flex: 1 }]}>
-                  <Text style={styles.settingLabel}>Share With My School Admin</Text>
+                  <Text style={styles.settingLabel}>{t('share_with_school_admin') || 'Share With My School Admin'}</Text>
                   <Text style={styles.settingValue}>
-                    When on, your school admin can see your individual wellbeing check-ins. Off by default — you can turn this on or off any time.
+                    {t('share_wellbeing_desc') || 'When on, your school admin can see your individual wellbeing check-ins. Off by default — you can turn this on or off any time.'}
                   </Text>
                 </View>
               </View>
@@ -1033,22 +1033,22 @@ export default function SettingsScreen() {
                           import('expo-clipboard').then(m => m.setStringAsync(generatedCode)).catch(() => {});
                         }
                         const { Alert } = require('react-native');
-                        Alert.alert('Copied!', 'Invite code copied to clipboard.');
+                        Alert.alert(t('copied_title') || 'Copied!', t('invite_code_copied') || 'Invite code copied to clipboard.');
                       }}
                     >
-                      <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>📋 Copy</Text>
+                      <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>📋 {t('copy') || 'Copy'}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={{ backgroundColor: '#4CAF50', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8 }}
                       onPress={async () => {
                         const { Share } = require('react-native');
                         await Share.share({
-                          message: `Join my Class of Happiness school! Use this invite code: ${generatedCode}`,
-                          title: 'Class of Happiness Invite Code',
+                          message: (t('invite_code_share_message') || 'Join my Class of Happiness school! Use this invite code: {code}').replace('{code}', generatedCode),
+                          title: t('invite_code_share_title') || 'Class of Happiness Invite Code',
                         });
                       }}
                     >
-                      <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>📤 Share</Text>
+                      <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>📤 {t('share') || 'Share'}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1098,7 +1098,7 @@ export default function SettingsScreen() {
                   {' '}{t('delete_account_warning_2') || 'Confirm with your password, or with Google if that\'s how you sign in.'}
                 </Text>
                 <SecureField
-                  placeholder="Enter your password (if you have one)"
+                  placeholder={t('delete_account_password_placeholder') || 'Enter your password (if you have one)'}
                   placeholderTextColor="#999"
                   value={deletePassword}
                   onChangeText={setDeletePassword}

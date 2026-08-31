@@ -183,32 +183,32 @@ export default function TeacherResourcesScreen() {
         }
 
         if (!base64) {
-          Alert.alert('Error', 'Could not read PDF file. Please try again.');
+          Alert.alert(t('error') || 'Error', t('pdf_read_error') || 'Could not read PDF file. Please try again.');
           return;
         }
-        
+
         setUploadData({
           ...uploadData,
           content: base64,
           pdf_filename: file.name,
           title: uploadData.title || file.name.replace('.pdf', ''),
         });
-        
-        Alert.alert('✅ Selected', `Ready to upload: ${file.name}`);
+
+        Alert.alert('✅ ' + (t('selected_title') || 'Selected'), (t('ready_to_upload') || 'Ready to upload: {name}').replace('{name}', file.name));
       }
     } catch (error) {
       console.error('Error picking document:', error);
-      Alert.alert('Error', 'Failed to pick document');
+      Alert.alert(t('error') || 'Error', t('pick_document_error') || 'Failed to pick document');
     }
   };
 
   const handleUpload = async () => {
     if (!uploadData.title.trim()) {
-      Alert.alert('Error', 'Please enter a title');
+      Alert.alert(t('error') || 'Error', t('enter_title_prompt') || 'Please enter a title');
       return;
     }
     if (!uploadData.description.trim()) {
-      Alert.alert('Error', 'Please enter a description');
+      Alert.alert(t('error') || 'Error', t('enter_description_prompt') || 'Please enter a description');
       return;
     }
 
@@ -227,7 +227,7 @@ export default function TeacherResourcesScreen() {
       if (uploadData.content && uploadData.pdf_filename) {
         // Limit PDF size to 1.5MB base64 (~1MB file)
         if (uploadData.content.length > 2000000) {
-          Alert.alert('File Too Large', 'Please use a PDF under 1MB. Tip: compress it at smallpdf.com first.');
+          Alert.alert(t('file_too_large_title') || 'File Too Large', t('pdf_too_large_desc') || 'Please use a PDF under 1MB. Tip: compress it at smallpdf.com first.');
           setUploading(false);
           return;
         }
@@ -240,18 +240,18 @@ export default function TeacherResourcesScreen() {
       }
 
       await teacherResourcesApi.create(payload);
-      Alert.alert('✅ Success', 'Resource uploaded successfully!');
+      Alert.alert('✅ ' + (t('success') || 'Success'), t('resource_uploaded_success') || 'Resource uploaded successfully!');
       setLoading(true);
       await fetchResources();
       setShowUploadModal(false);
       setUploadData({ title: '', description: '', content: '', pdf_filename: '', audience: 'teachers' });
       fetchResources();
     } catch (error: any) {
-      const msg = error.message || 'Failed to upload resource';
+      const msg = error.message || (t('upload_resource_error') || 'Failed to upload resource');
       if (msg.includes('too large') || msg.includes('413')) {
-        Alert.alert('File Too Large', 'Please compress your PDF first at smallpdf.com');
+        Alert.alert(t('file_too_large_title') || 'File Too Large', t('compress_pdf_desc') || 'Please compress your PDF first at smallpdf.com');
       } else {
-        Alert.alert('Upload Failed', msg);
+        Alert.alert(t('upload_failed_title') || 'Upload Failed', msg);
       }
     } finally {
       setUploading(false);
@@ -279,7 +279,7 @@ export default function TeacherResourcesScreen() {
 
   const handleDownloadPdf = async (resource: TeacherResource) => {
     if (!resource.pdf_filename && !resource.id) {
-      Alert.alert('Error', 'No PDF available for download');
+      Alert.alert(t('error') || 'Error', t('no_pdf_available') || 'No PDF available for download');
       return;
     }
 
@@ -322,14 +322,14 @@ export default function TeacherResourcesScreen() {
             UTI: 'com.adobe.pdf',
           });
         } else {
-          Alert.alert('Success', 'PDF downloaded successfully to your device');
+          Alert.alert(t('success') || 'Success', t('pdf_downloaded_success') || 'PDF downloaded successfully to your device');
         }
       }
     } catch (error: any) {
       console.error('Download error:', error);
       Alert.alert(
-        'Download Error', 
-        `Failed to download PDF: ${error.message || 'Unknown error'}. Please check your internet connection.`
+        t('download_error') || 'Download Error',
+        (t('pdf_download_error_detail') || 'Failed to download PDF: {error}. Please check your internet connection.').replace('{error}', error.message || (t('unknown_error') || 'Unknown error'))
       );
     } finally {
       setDownloading(false);
@@ -338,20 +338,20 @@ export default function TeacherResourcesScreen() {
 
   const handleSubmitRating = async () => {
     if (userRating === 0) {
-      Alert.alert('Error', 'Please select a star rating');
+      Alert.alert(t('error') || 'Error', t('select_star_rating') || 'Please select a star rating');
       return;
     }
-    
+
     if (!selectedResource) return;
-    
+
     setSubmittingRating(true);
     try {
       await teacherResourcesApi.rate(selectedResource.id, userRating, userComment.trim() || undefined);
-      Alert.alert('Success', 'Rating submitted!');
+      Alert.alert(t('success') || 'Success', t('rating_submitted_excl') || 'Rating submitted!');
       setShowRatingModal(false);
       fetchResources();
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to submit rating');
+      Alert.alert(t('error') || 'Error', error.message || (t('rating_submit_error') || 'Failed to submit rating'));
     } finally {
       setSubmittingRating(false);
     }
@@ -456,7 +456,9 @@ export default function TeacherResourcesScreen() {
             <View>
               <Text style={styles.headerTitle}>{currentTopic?.name}</Text>
               <Text style={styles.headerSubtitle}>
-                {resources.length} resource{resources.length !== 1 ? 's' : ''} available
+                {resources.length === 1
+                  ? (t('resources_available_count_one') || '1 resource available')
+                  : (t('resources_available_count_other') || '{count} resources available').replace('{count}', String(resources.length))}
               </Text>
             </View>
             <TouchableOpacity
@@ -474,7 +476,7 @@ export default function TeacherResourcesScreen() {
           <View style={{ backgroundColor: '#FFF8E1', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#FFE082', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <MaterialIcons name="info" size={20} color="#F9A825" />
             <Text style={{ flex: 1, fontSize: 12, color: '#5D4037', lineHeight: 17 }}>
-              The Emotion Program is completely free! Every other program's first 2 weeks are free too — subscribe to unlock everything.
+              {t('freemium_banner_desc') || "The Emotion Program is completely free! Every other program's first 2 weeks are free too — subscribe to unlock everything."}
             </Text>
             <TouchableOpacity onPress={() => setBannerDismissed(true)} style={{ padding: 4 }}>
               <MaterialIcons name="close" size={18} color="#8D6E63" />
@@ -485,7 +487,7 @@ export default function TeacherResourcesScreen() {
         {/* Resources List */}
         {loading ? (
           <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading resources...</Text>
+            <Text style={styles.loadingText}>{t('loading_resources') || 'Loading resources...'}</Text>
           </View>
         ) : resources.length === 0 ? (
           // Real feature Aug 28, broadened Aug 29 (item 4): originally gated to only the 4
@@ -510,11 +512,11 @@ export default function TeacherResourcesScreen() {
               onPress={() => {
                 if ((resource as any).is_locked) {
                   Alert.alert(
-                    '🔒 Subscribe to Unlock',
-                    'The Emotion Program is completely free! Every other program has its first 2 weeks free — subscribe to unlock everything.',
+                    '🔒 ' + (t('subscribe_to_unlock_title') || 'Subscribe to Unlock'),
+                    t('freemium_banner_desc') || "The Emotion Program is completely free! Every other program's first 2 weeks are free too — subscribe to unlock everything.",
                     [
-                      { text: 'Not Now', style: 'cancel' },
-                      { text: 'See Plans', onPress: () => router.push('/subscription') },
+                      { text: t('not_now') || 'Not Now', style: 'cancel' },
+                      { text: t('see_plans') || 'See Plans', onPress: () => router.push('/subscription') },
                     ]
                   );
                   return;
@@ -531,7 +533,7 @@ export default function TeacherResourcesScreen() {
                   {resource.description}
                 </Text>
                 {(resource as any).is_locked ? (
-                  <Text style={{ fontSize: 12, color: '#999', fontWeight: '600', marginTop: 2 }}>🔒 Subscribe to unlock</Text>
+                  <Text style={{ fontSize: 12, color: '#999', fontWeight: '600', marginTop: 2 }}>🔒 {t('subscribe_to_unlock') || 'Subscribe to unlock'}</Text>
                 ) : (
                 <View style={styles.resourceMeta}>
                   {renderStars(resource.average_rating)}
@@ -563,7 +565,7 @@ export default function TeacherResourcesScreen() {
                                 await teacherResourcesApi.delete(resource.id);
                                 await fetchResources();
                               } catch (e) {
-                                Alert.alert(t('error') || 'Error', 'Could not delete resource');
+                                Alert.alert(t('error') || 'Error', t('could_not_delete_resource') || 'Could not delete resource');
                               }
                             }}
                           ]
@@ -599,12 +601,12 @@ export default function TeacherResourcesScreen() {
             </View>
 
             <ScrollView style={styles.modalBody}>
-              <Text style={styles.inputLabel}>{t('name') || t('name') || 'Title'}</Text>
+              <Text style={styles.inputLabel}>{t('title_label') || 'Title'}</Text>
               <TextInput
                 style={styles.textInput}
                 value={uploadData.title}
                 onChangeText={(text) => setUploadData({ ...uploadData, title: text })}
-                placeholder="Resource title"
+                placeholder={t('resource_title_placeholder') || 'Resource title'}
               />
 
               <Text style={styles.inputLabel}>{t('description_label') || 'Description'}</Text>
@@ -612,7 +614,7 @@ export default function TeacherResourcesScreen() {
                 style={[styles.textInput, styles.textArea]}
                 value={uploadData.description}
                 onChangeText={(text) => setUploadData({ ...uploadData, description: text })}
-                placeholder="Brief description of this resource..."
+                placeholder={t('resource_desc_placeholder') || 'Brief description of this resource...'}
                 multiline
                 numberOfLines={3}
               />
@@ -629,10 +631,10 @@ export default function TeacherResourcesScreen() {
               <Text style={styles.inputLabel}>{t('share_toggle_label') || 'Share'}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                 {[
-                  { id: 'teachers', label: '👩‍🏫 Teachers' },
-                  { id: 'parents', label: '👨‍👩‍👧 Parents' },
-                  { id: 'both', label: '🌐 Both' },
-                  { id: 'admin', label: '🔐 Admin Review' },
+                  { id: 'teachers', label: '👩‍🏫 ' + (t('audience_teachers') || 'Teachers') },
+                  { id: 'parents', label: '👨‍👩‍👧 ' + (t('audience_parents') || 'Parents') },
+                  { id: 'both', label: '🌐 ' + (t('audience_both') || 'Both') },
+                  { id: 'admin', label: '🔐 ' + (t('audience_admin_review') || 'Admin Review') },
                 ].map(opt => (
                   <TouchableOpacity
                     key={opt.id}
@@ -652,7 +654,7 @@ export default function TeacherResourcesScreen() {
 
 
               <Text style={styles.topicLabel}>
-                Topic: <Text style={styles.topicValue}>{currentTopic?.name}</Text>
+                {t('topic_label') || 'Topic:'} <Text style={styles.topicValue}>{currentTopic?.name}</Text>
               </Text>
 
               <TouchableOpacity
@@ -661,7 +663,7 @@ export default function TeacherResourcesScreen() {
                 disabled={uploading}
               >
                 <Text style={styles.submitButtonText}>
-                  {uploading ? 'Uploading...' : 'Upload Resource'}
+                  {uploading ? (t('uploading') || 'Uploading...') : (t('upload_resource_btn') || 'Upload Resource')}
                 </Text>
               </TouchableOpacity>
             </ScrollView>
@@ -708,12 +710,12 @@ export default function TeacherResourcesScreen() {
                   {renderStars(userRating, 40, true)}
                 </View>
                 
-                <Text style={styles.inputLabel}>Comment (optional, max 100 chars)</Text>
+                <Text style={styles.inputLabel}>{t('comment_optional_max_chars') || 'Comment (optional, max 100 chars)'}</Text>
                 <TextInput
                   style={styles.textInput}
                   value={userComment}
                   onChangeText={(text) => setUserComment(text.slice(0, 100))}
-                  placeholder="Share your feedback..."
+                  placeholder={t('share_feedback_placeholder') || 'Share your feedback...'}
                   maxLength={100}
                 />
                 <Text style={styles.charCounter}>{userComment.length}/100</Text>
@@ -724,7 +726,7 @@ export default function TeacherResourcesScreen() {
                   disabled={submittingRating}
                 >
                   <Text style={styles.submitButtonText}>
-                    {submittingRating ? 'Submitting...' : 'Submit Rating'}
+                    {submittingRating ? (t('submitting') || 'Submitting...') : (t('submit_rating_btn') || 'Submit Rating')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -736,7 +738,7 @@ export default function TeacherResourcesScreen() {
                   {ratings.map((rating) => (
                     <View key={rating.id} style={styles.ratingItem}>
                       <View style={styles.ratingHeader}>
-                        <Text style={styles.ratingUser}>{rating.user_name || 'Teacher'}</Text>
+                        <Text style={styles.ratingUser}>{rating.user_name || (t('teacher') || 'Teacher')}</Text>
                         {renderStars(rating.rating, 14)}
                       </View>
                       {rating.comment && (
@@ -797,23 +799,21 @@ export default function TeacherResourcesScreen() {
                       color="white" 
                     />
                     <Text style={styles.downloadButtonText}>
-                      {downloading ? 'Preparing...' : 'Download & Share PDF'}
+                      {downloading ? (t('preparing') || 'Preparing...') : (t('download_report') || 'Download & Share PDF')}
                     </Text>
                   </TouchableOpacity>
-                  
+
                   {/* Sharing options info */}
                   <View style={styles.sharingInfo}>
                     <MaterialIcons name="share" size={16} color="#666" />
                     <Text style={styles.sharingInfoText}>
-                      Save to phone, email, Google Drive, WhatsApp & more
+                      {t('sharing_info_text') || 'Save to phone, email, Google Drive, WhatsApp & more'}
                     </Text>
                   </View>
-                  
+
                   {/* IP Disclaimer */}
                   <Text style={styles.ipDisclaimer}>
-                    © {new Date().getFullYear()} Class of Happiness. All rights reserved. 
-                    This material is protected intellectual property. Unauthorized reproduction, 
-                    distribution, or commercial use is strictly prohibited.
+                    {(t('ip_disclaimer_extended') || '© {year} Class of Happiness. All rights reserved. This material is protected intellectual property. Unauthorized reproduction, distribution, or commercial use is strictly prohibited.').replace('{year}', String(new Date().getFullYear()))}
                   </Text>
                 </View>
               )}

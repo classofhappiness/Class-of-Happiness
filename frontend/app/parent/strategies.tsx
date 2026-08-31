@@ -46,31 +46,32 @@ export default function ParentStrategiesScreen() {
   });
   const [saving, setSaving] = useState(false);
 
-  // Generic family strategies shown when no student linked
-  const GENERIC_STRATEGIES: Record<string, Array<{name:string; description:string; icon:string}>> = {
+  // Generic family strategies shown when no student linked. nameKey/descKey follow the same
+  // pattern as family-strategies.tsx's FAMILY_STRATEGIES table (i18n sweep).
+  const GENERIC_STRATEGIES: Record<string, Array<{name:string; description:string; icon:string; nameKey:string; descKey:string}>> = {
     blue: [
-      {name:'Comfort Corner', description:'Find a quiet cosy spot together and sit side by side.', icon:'home'},
-      {name:'Warm Drink Together', description:'Make a hot chocolate and chat gently.', icon:'local-cafe'},
-      {name:'Gentle Hug', description:'Offer a long warm hug without words.', icon:'favorite'},
-      {name:'Nature Walk', description:'Go outside for a slow quiet walk.', icon:'directions-walk'},
+      {name:'Comfort Corner', description:'Find a quiet cosy spot together and sit side by side.', icon:'home', nameKey:'generic_strat_comfort_corner_name', descKey:'generic_strat_comfort_corner_desc'},
+      {name:'Warm Drink Together', description:'Make a hot chocolate and chat gently.', icon:'local-cafe', nameKey:'generic_strat_warm_drink_name', descKey:'generic_strat_warm_drink_desc'},
+      {name:'Gentle Hug', description:'Offer a long warm hug without words.', icon:'favorite', nameKey:'generic_strat_gentle_hug_name', descKey:'generic_strat_gentle_hug_desc'},
+      {name:'Nature Walk', description:'Go outside for a slow quiet walk.', icon:'directions-walk', nameKey:'generic_strat_nature_walk_name', descKey:'generic_strat_nature_walk_desc'},
     ],
     green: [
-      {name:'Gratitude Share', description:'Each person shares one thing they are grateful for today.', icon:'favorite'},
-      {name:'Family Dance', description:'Put on an upbeat song and dance together spontaneously.', icon:'music-note'},
-      {name:'Cook Together', description:'Prepare a simple meal or snack as a team.', icon:'restaurant'},
-      {name:'Play a Game', description:'A card game or board game everyone enjoys.', icon:'sports-esports'},
+      {name:'Gratitude Share', description:'Each person shares one thing they are grateful for today.', icon:'favorite', nameKey:'generic_strat_gratitude_share_name', descKey:'generic_strat_gratitude_share_desc'},
+      {name:'Family Dance', description:'Put on an upbeat song and dance together spontaneously.', icon:'music-note', nameKey:'generic_strat_family_dance_name', descKey:'generic_strat_family_dance_desc'},
+      {name:'Cook Together', description:'Prepare a simple meal or snack as a team.', icon:'restaurant', nameKey:'generic_strat_cook_together_name', descKey:'generic_strat_cook_together_desc'},
+      {name:'Play a Game', description:'A card game or board game everyone enjoys.', icon:'sports-esports', nameKey:'generic_strat_play_a_game_name', descKey:'generic_strat_play_a_game_desc'},
     ],
     yellow: [
-      {name:'Box Breathing', description:'Breathe in 4, hold 4, out 4, hold 4. Do together.', icon:'air'},
-      {name:'Feelings Check-in', description:'Rate how you feel 1-10 and why, as a family.', icon:'chat'},
-      {name:'Shake It Out', description:'Stand and shake your whole body for 30 seconds!', icon:'accessibility'},
-      {name:'Count to 10', description:'Count to 10 slowly as a family before responding to stress.', icon:'format-list-numbered'},
+      {name:'Box Breathing', description:'Breathe in 4, hold 4, out 4, hold 4. Do together.', icon:'air', nameKey:'generic_strat_box_breathing_name', descKey:'generic_strat_box_breathing_desc'},
+      {name:'Feelings Check-in', description:'Rate how you feel 1-10 and why, as a family.', icon:'chat', nameKey:'generic_strat_feelings_checkin_name', descKey:'generic_strat_feelings_checkin_desc'},
+      {name:'Shake It Out', description:'Stand and shake your whole body for 30 seconds!', icon:'accessibility', nameKey:'generic_strat_shake_it_out_name', descKey:'generic_strat_shake_it_out_desc'},
+      {name:'Count to 10', description:'Count to 10 slowly as a family before responding to stress.', icon:'format-list-numbered', nameKey:'generic_strat_count_to_10_name', descKey:'generic_strat_count_to_10_desc'},
     ],
     red: [
-      {name:'Space & Calm', description:'Give each person a few minutes of quiet space.', icon:'self-improvement'},
-      {name:'Cold Water', description:'Drink cold water or hold a cold pack to reset.', icon:'water'},
-      {name:'Safe Word', description:'Agree on a family calm-down word everyone respects.', icon:'record-voice-over'},
-      {name:'Pause & Reconnect', description:'Take a break then come back together with kindness.', icon:'pause-circle-filled'},
+      {name:'Space & Calm', description:'Give each person a few minutes of quiet space.', icon:'self-improvement', nameKey:'generic_strat_space_calm_name', descKey:'generic_strat_space_calm_desc'},
+      {name:'Cold Water', description:'Drink cold water or hold a cold pack to reset.', icon:'water', nameKey:'generic_strat_cold_water_name', descKey:'generic_strat_cold_water_desc'},
+      {name:'Safe Word', description:'Agree on a family calm-down word everyone respects.', icon:'record-voice-over', nameKey:'generic_strat_safe_word_name', descKey:'generic_strat_safe_word_desc'},
+      {name:'Pause & Reconnect', description:'Take a break then come back together with kindness.', icon:'pause-circle-filled', nameKey:'generic_strat_pause_reconnect_name', descKey:'generic_strat_pause_reconnect_desc'},
     ],
   };
 
@@ -105,10 +106,10 @@ export default function ParentStrategiesScreen() {
 
   const handleAddStrategy = async () => {
     if (!newStrategy.name.trim() || !newStrategy.description.trim()) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert(t('error') || 'Error', t('fill_all_fields') || 'Please fill in all fields');
       return;
     }
-    
+
     setSaving(true);
     try {
       await customStrategiesApi.create({
@@ -121,9 +122,9 @@ export default function ParentStrategiesScreen() {
       setShowAddModal(false);
       setNewStrategy({ name: '', description: '', zone: selectedZone, is_shared: true });
       fetchStrategies();
-      Alert.alert('Success', 'Strategy added successfully');
+      Alert.alert(t('success') || 'Success', t('strategy_added_success') || 'Strategy added successfully');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to add strategy');
+      Alert.alert(t('error') || 'Error', error.message || (t('add_strategy_error') || 'Failed to add strategy'));
     } finally {
       setSaving(false);
     }
@@ -141,13 +142,13 @@ export default function ParentStrategiesScreen() {
   };
 
   const handleDeleteStrategy = async (strategy: CustomStrategy) => {
-    Alert.alert('Delete Strategy', `Delete "${strategy.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
+    Alert.alert(t('delete_strategy_title') || 'Delete Strategy', (t('delete_strategy_confirm') || 'Delete "{name}"?').replace('{name}', strategy.name), [
+      { text: t('cancel') || 'Cancel', style: 'cancel' },
+      { text: t('delete_btn') || 'Delete', style: 'destructive', onPress: async () => {
         try {
           await customStrategiesApi.delete(strategy.id);
           fetchStrategies();
-        } catch { Alert.alert('Error', 'Could not delete strategy'); }
+        } catch { Alert.alert(t('error') || 'Error', t('could_not_delete_strategy') || 'Could not delete strategy'); }
       }}
     ]);
   };
@@ -176,12 +177,12 @@ export default function ParentStrategiesScreen() {
             </TouchableOpacity>
           </View>
           <Text style={styles.headerTitle}>
-            {student ? `${student.name}'s Strategies` : t('family_strategies') || 'Family Strategies'}
+            {student ? (t('students_strategies_title') || "{name}'s Strategies").replace('{name}', student.name) : t('family_strategies') || 'Family Strategies'}
           </Text>
           <Text style={styles.headerSubtitle}>
             {student
-              ? 'Strategies to support your child at home'
-              : 'Research-backed strategies for your whole family across all emotion zones'}
+              ? (t('strategies_support_child_home') || 'Strategies to support your child at home')
+              : (t('strategies_family_subtitle') || 'Research-backed strategies for your whole family across all emotion zones')}
           </Text>
         </View>
 
@@ -243,11 +244,11 @@ export default function ParentStrategiesScreen() {
                       styles.shareText,
                       strategy.is_shared && styles.shareTextActive,
                     ]}>
-                      {strategy.is_shared ? 'Shared with teacher' : 'Not shared'}
+                      {strategy.is_shared ? (t('shared_with_teacher_label') || 'Shared with teacher') : (t('not_shared') || 'Not shared')}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => handleDeleteStrategy(strategy)} style={{padding:4,marginTop:2,alignSelf:'flex-start'}}>
-                    <Text style={{fontSize:11,color:'#F44336',fontWeight:'600'}}>🗑 Delete</Text>
+                    <Text style={{fontSize:11,color:'#F44336',fontWeight:'600'}}>🗑 {t('delete_btn') || 'Delete'}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -262,8 +263,8 @@ export default function ParentStrategiesScreen() {
               <MaterialIcons name={strategy.icon as any} size={22} color={zoneConfig.color} />
             </View>
             <View style={styles.strategyContent}>
-              <Text style={styles.strategyName}>{strategy.name}</Text>
-              <Text style={styles.strategyDesc}>{strategy.description}</Text>
+              <Text style={styles.strategyName}>{t(strategy.nameKey) || strategy.name}</Text>
+              <Text style={styles.strategyDesc}>{t(strategy.descKey) || strategy.description}</Text>
             </View>
           </View>
         ))}
@@ -310,7 +311,7 @@ export default function ParentStrategiesScreen() {
                 style={styles.input}
                 value={newStrategy.name}
                 onChangeText={(text) => setNewStrategy({ ...newStrategy, name: text })}
-                placeholder="e.g., Count backwards"
+                placeholder={t('strategy_name_example_placeholder') || 'e.g., Count backwards'}
               />
 
               <Text style={styles.inputLabel}>{t('description_label') || 'Description'}</Text>
@@ -318,7 +319,7 @@ export default function ParentStrategiesScreen() {
                 style={[styles.input, styles.textArea]}
                 value={newStrategy.description}
                 onChangeText={(text) => setNewStrategy({ ...newStrategy, description: text })}
-                placeholder="Describe what the child should do..."
+                placeholder={t('strategy_child_desc_placeholder') || 'Describe what the child should do...'}
                 multiline
                 numberOfLines={3}
               />
@@ -336,7 +337,7 @@ export default function ParentStrategiesScreen() {
                   <Text style={styles.shareLabel}>{t('share_with_teacher') || 'Share with Teacher'}</Text>
                 </TouchableOpacity>
                 <Text style={styles.shareHint}>
-                  When shared, your child's teacher can also see and use this strategy
+                  {t('share_with_teacher_hint') || "When shared, your child's teacher can also see and use this strategy"}
                 </Text>
               </View>
 
@@ -346,7 +347,7 @@ export default function ParentStrategiesScreen() {
                 disabled={saving}
               >
                 <Text style={styles.saveButtonText}>
-                  {saving ? 'Saving...' : 'Add Strategy'}
+                  {saving ? (t('saving') || 'Saving...') : (t('add_strategy_btn') || 'Add Strategy')}
                 </Text>
               </TouchableOpacity>
             </ScrollView>
