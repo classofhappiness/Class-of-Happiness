@@ -1988,3 +1988,34 @@ Also found and fixed a real i18n gap: `timeAgo()`'s "Just now"/"m ago"/"h ago" w
 **Wired in:** a 7th `NAV_BUTTONS` entry on the teacher dashboard ("Class Check-In", `tablet-mac` icon, amber `#FF9800`, unused by the other 6) - same array-driven pattern as the existing 6, no new visual treatment. New key `class_checkin_nav` added to all 10 languages, matching each language's already-established "check-in" terminology (e.g. German "Klassen-Check-in" mirrors the existing "Lehrer Check-in" for `teacher_checkin`, not a fresh translation choice).
 
 **Live-verified the complete cycle end-to-end** on Expo web against real seeded data (Jeffrey, Pembroke): tapped the new dashboard button → kiosk loaded the real student grid directly, no setup screen → tapped Jeffrey → real "Hi, Jeffrey! 👋 How are you feeling today?" colour screen (not the old placeholder) → Blue Feelings → Skip → landed back on `/kiosk`'s student grid, confirming the full round trip. URL params were clean and correct at every hop (`?returnTo=kiosk` threaded through, no dead `studentId`/`fromKiosk` params left over). `tsc --noEmit` unchanged at 23 pre-existing errors throughout. Committed `84c84dcf`.
+
+## A78 — Standalone kiosk-device pairing, designed then built, build-26, 2026-08-31
+
+Jono asked for a real fix to the gap A76 found and deliberately left alone: `/api/auth/kiosk-setup` never existed, so the standalone kiosk numpad screen could never actually pair a device. Design (endpoint shape, code lifetime, revocation) presented before building, per explicit request - one open decision surfaced (keep the existing instant-launch dashboard bridge alongside a new paired flow, or replace it) - Jono chose to keep both.
+
+**Real design flaw caught before shipping it, not after.** The first draft gave the kiosk's synthetic identity `user_id = teacher_id`, on the reasoning that `_is_authorized_for_classroom`/`_is_authorized_for_student` checks would then "just work." Tracing those functions found the opposite: dozens of endpoints across this file authorize purely on `owner_id == user["user_id"]`, with no role check at all in some cases. A kiosk identity carrying the real teacher's `user_id` would have silently inherited the teacher's *entire* account on every one of them - alerts, resources, classroom deletion, the join-code endpoint, all of it - defeating the entire point of a "scoped to one class" credential. Fixed before writing the rest of the code: the kiosk identity's `user_id` is a synthetic string (`kiosk_session_{token}`) that can never equality-match a real `users`/`classrooms` row. Only the two endpoints kiosk actually needs (`/students`, `/zone-logs`) know how to read `kiosk_classroom_id` at all; everywhere else, a kiosk identity matches nothing and is denied by construction, not by a role blocklist that could be forgotten on some future endpoint.
+
+**Built:**
+- `POST /kiosk/generate-code` (teacher-authenticated) - mints a `secrets`-based 6-digit code (numpad-friendly, unlike the dead UUID-token idea the old broken screen implied), 10-minute expiry, scoped to one `classroom_id` (auto-picked if the account owns exactly one, required as a param otherwise - the first place this codebase has ever actually distinguished a multi-classroom teacher's classrooms from each other for an authorization decision; `/students` never has).
+- `POST /auth/kiosk-setup` (unauthenticated - the device has no session yet) - exchanges a live code for a `kiosk_token`, burns the code immediately on redemption (not just at the 10-minute window's close, so it can't be reused by a second device that saw the same screen).
+- `POST /kiosk/revoke` (teacher-authenticated) - manual revoke ahead of the 24h self-expiry every `kiosk_session` already has regardless.
+- `get_current_user()` gained a `kiosk_sessions` fallback branch when a bearer token isn't a real `session_token`.
+- `/students` and `/zone-logs` force-scope to the paired `classroom_id` for a kiosk identity, regardless of any `classroom_id` query param sent - server-side, not trusted from the client.
+
+**Kept both kiosk paths, per Jono's call.** `launchKiosk()` (the existing instant dashboard-bridge, unchanged) stays for the teacher's own device - zero friction, real working feature, no reason to regress it. Long-press on the same "Class Check-In" button now calls `handlePairKioskDevice()`, reusing the exact fetch-and-`Alert.alert` pattern `handleShowClassCode` already established for classroom join codes, rather than adding new UI chrome. Known limitation, flagged honestly rather than glossed over: long-press has no visual affordance hinting it exists - discoverable only if someone tells you, or you already know the pattern from the join-code button. Acceptable for a v1 given the primary path (instant launch) needs no discovery at all; a future pass could add a small hint.
+
+**Also fixed while wiring the setup screen:** `kiosk/index.tsx`'s `setupKiosk()` used to treat ANY failed or garbage code as a literal working session token, on both the non-2xx and the network-error paths - meaning a mistyped or expired code looked like a successful setup (empty student list, no visible error) instead of a real, understandable failure. Now surfaces the actual error (`res.status` detail, or a network-error message) and clears the input for retry. Also capped code entry at 6 digits (previously unbounded) and updated the setup screen's copy to describe the real 6-digit teacher-generated code instead of the old, never-true "enter your session token" instructions.
+
+**Migration required before this is live** (not run yet - for Jono to run):
+```sql
+CREATE TABLE kiosk_pairing_codes (
+  code text PRIMARY KEY, classroom_id text NOT NULL, teacher_id text NOT NULL,
+  created_at timestamptz DEFAULT now(), expires_at timestamptz NOT NULL, used_at timestamptz
+);
+CREATE TABLE kiosk_sessions (
+  kiosk_token text PRIMARY KEY, classroom_id text NOT NULL, teacher_id text NOT NULL,
+  created_at timestamptz DEFAULT now(), expires_at timestamptz NOT NULL, revoked_at timestamptz
+);
+```
+
+14 new/changed translation keys (`kiosk_setup_hint`/`kiosk_setup_token_hint` rewritten to describe the real flow, `kiosk_setup_error`, `kiosk_setup_network_error`, `pair_kiosk_device`, `pair_kiosk_device_hint`, `pair_kiosk_device_expiry`, `could_not_generate_kiosk_code`) across all 10 languages, key-parity and non-empty verified against `en.json`. `tsc --noEmit` unchanged at 23 pre-existing errors; `python3 -m ast` confirmed `server.py` parses clean. Committed `a8066f8b`. **Not yet live-tested** - blocked on the migration above running first; Jono to run it, then this can be verified end-to-end the same way A76's flow was.
