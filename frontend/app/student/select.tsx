@@ -536,7 +536,7 @@ const styles = StyleSheet.create({
   linkedIndicator: {
     position: 'absolute',
     top: 6,
-    right: 6,
+    end: 6,
     width: 18,
     height: 18,
     borderRadius: 9,

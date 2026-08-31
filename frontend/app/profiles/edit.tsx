@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
   checkBadge: {
     position: 'absolute',
     top: 8,
-    right: 8,
+    end: 8,
     backgroundColor: '#4CAF50',
     borderRadius: 12,
     width: 24,

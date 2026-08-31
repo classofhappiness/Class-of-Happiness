@@ -1940,8 +1940,8 @@ const styles = StyleSheet.create({
   cardActionButtons: {
     position: 'absolute',
     top: 4,
-    left: 4,
-    right: 4,
+    start: 4,
+    end: 4,
     flexDirection: 'row',
     justifyContent: 'space-between',
     zIndex: 1,
@@ -1998,13 +1998,13 @@ const styles = StyleSheet.create({
   shareToTeacherButton: {
     position: 'absolute',
     top: 4,
-    right: 4,
+    end: 4,
     padding: 4,
   },
   checkinButton: {
     position: 'absolute',
     bottom: 4,
-    right: 4,
+    end: 4,
     padding: 4,
   },
   emptyMembers: {

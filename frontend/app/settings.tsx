@@ -10,6 +10,7 @@ import { useApp } from '../src/context/AppContext';
 import { translationsApi, subscriptionApi, authApiExtended } from '../src/utils/api';
 import { loadVoiceEnabled, setVoiceEnabled } from '../src/utils/voiceClips';
 import { SecureField } from '../src/components/SecureField';
+import { RTL_RESTART_FLOW_READY, needsRtlRestart, applyRtlAndRestart } from '../src/utils/rtl';
 
 // hasVoice matches the backend's VOICE_CLIP_LANGUAGES (server.py) - real recordings exist
 // for these languages; the rest are UI-text-only for now.
@@ -319,6 +320,21 @@ export default function SettingsScreen() {
           onPress: async () => {
             await setLanguage(langCode);
             setPendingLanguage(null);
+            // RTL restart-to-apply path (phase 1, build 26): only reachable at all once
+            // RTL_RESTART_FLOW_READY flips true - see src/utils/rtl.ts for why it's still
+            // false. Until then this always falls through to the normal confirmation below,
+            // same as every other language today.
+            if (RTL_RESTART_FLOW_READY && Platform.OS !== 'web' && needsRtlRestart(langCode)) {
+              Alert.alert(
+                t('restart_required') || 'Restart Required',
+                t('restart_required_rtl') || `${selectedLang.name} needs the app to restart to switch its layout direction. Restart now?`,
+                [
+                  { text: t('cancel'), style: 'cancel' },
+                  { text: t('restart') || 'Restart', onPress: () => applyRtlAndRestart(langCode) },
+                ]
+              );
+              return;
+            }
             Alert.alert(
               '✓ ' + (t('language_changed') || 'Language Changed'),
               `${selectedLang.name} ${t('is_now_default') || 'is now your default language. The app will remember this choice.'}`,

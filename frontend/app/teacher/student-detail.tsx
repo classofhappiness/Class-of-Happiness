@@ -1877,8 +1877,8 @@ const styles = StyleSheet.create({
     borderTopColor: '#333',
   },
   tooltipArrowRight: {
-    left: 'auto',
-    right: 15,
-    marginLeft: 0,
+    start: 'auto',
+    end: 15,
+    marginStart: 0,
   },
 });
