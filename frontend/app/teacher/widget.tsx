@@ -161,21 +161,25 @@ export default function TeacherWidgetScreen() {
         {/* Alerts section */}
         {alerts.length > 0 && (
           <View style={[st.distCard, { borderLeftWidth: 4, borderLeftColor: '#F44336' }]}>
+            {/* Real fix (i18n sweep): `t('no_alerts') ? '' : 'Support Request'` always evaluated
+                to '' - t('no_alerts') resolves to a real, non-empty string ("No pending alerts")
+                whenever the key exists, so the ternary's true branch always fired and "Support
+                Request(s)" never rendered at all. */}
             <Text style={[st.distTitle, { color: '#F44336' }]}>
-              🚨 {alerts.length} {t('no_alerts') ? '' : 'Support Request'}{alerts.length > 1 ? 's' : ''}
+              🚨 {alerts.length} {alerts.length > 1 ? (t('support_requests_plural') || 'Support Requests') : (t('request_support') || 'Support Request')}
             </Text>
             {alerts.slice(0, 3).map((alert, i) => (
               <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
                 <MaterialIcons name="notifications-active" size={16} color="#F44336" />
                 <Text style={{ fontSize: 12, color: '#333', flex: 1 }}>
-                  {students.find(s => s.id === alert.student_id)?.name || 'Student'} needs support
+                  {(t('student_needs_support') || '{name} needs support').replace('{name}', students.find(s => s.id === alert.student_id)?.name || (t('student') || 'Student'))}
                 </Text>
                 <Text style={{ fontSize: 11, color: '#AAA' }}>{timeAgo(alert.created_at)}</Text>
               </View>
             ))}
             <TouchableOpacity onPress={() => router.push('/teacher/alerts')} style={{ marginTop: 10 }}>
               <Text style={{ fontSize: 12, color: '#F44336', fontWeight: '700' }}>
-                {t('view_my_wellbeing') || 'View all alerts'} →
+                {t('view_all_alerts') || 'View all alerts'} →
               </Text>
             </TouchableOpacity>
           </View>
@@ -221,8 +225,8 @@ export default function TeacherWidgetScreen() {
         {/* Kiosk launcher */}
         <View style={st.kioskCard}>
           <View style={{ flex: 1 }}>
-            <Text style={st.kioskTitle}>📱 Classroom Kiosk</Text>
-            <Text style={st.kioskHint}>Let students check in from this shared device</Text>
+            <Text style={st.kioskTitle}>📱 {t('classroom_kiosk_title') || 'Classroom Kiosk'}</Text>
+            <Text style={st.kioskHint}>{t('classroom_kiosk_hint') || 'Let students check in from this shared device'}</Text>
           </View>
           <TouchableOpacity style={st.kioskBtn} onPress={() => router.push('/kiosk')}>
             <Text style={st.kioskBtnText}>{t('checkin_btn') || 'Launch'}</Text>
@@ -238,7 +242,7 @@ export default function TeacherWidgetScreen() {
         </TouchableOpacity>
 
         {/* COH branding footer */}
-        <Text style={st.copyright}>😊 Class of Happiness · classofhappiness.com · © {new Date().getFullYear()}</Text>
+        <Text style={st.copyright}>😊 {(t('widget_copyright') || 'Class of Happiness · classofhappiness.com · © {year}').replace('{year}', String(new Date().getFullYear()))}</Text>
 
       </ScrollView>
     </SafeAreaView>

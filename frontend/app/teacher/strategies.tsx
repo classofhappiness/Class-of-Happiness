@@ -23,20 +23,28 @@ const AVAILABLE_ICONS = [
   'emoji-emotions', 'lightbulb', 'star', 'pets', 'nature'
 ];
 
-// Translation lookup for default strategy names
+// Translation lookup for default strategy names. Real fix (i18n sweep): every key here
+// (strat_gentle_stretch, strat_bubble_breathing, etc.) was a phantom reference - none of
+// these keys were ever created in any locale file, so every t() call below silently
+// returned '' and fell through to the raw English `strategy.name`/`.description` for every
+// non-English user, despite the code looking fully translated. The canonical
+// strat_<zone>_<n> keys already exist with the exact matching English text (six languages
+// already translated) - reused those for names instead of inventing duplicates. Description
+// keys (strat_<zone>_<n>_desc) didn't exist for these either (the canonical set only ever
+// covered names) - added as new keys, same naming convention.
 const STRATEGY_KEYS: Record<string, [string, string]> = {
-  'Gentle Stretch': ['strat_gentle_stretch', 'strat_gentle_stretch_desc'],
-  'Favourite Song': ['strat_favourite_song', 'strat_favourite_song_desc'],
-  'Tell Someone': ['strat_tell_someone', 'strat_tell_someone_desc'],
-  'Slow Breathing': ['strat_slow_breathing', 'strat_slow_breathing_desc'],
-  'Keep Going!': ['strat_keep_going', 'strat_keep_going_desc'],
-  'Help a Friend': ['strat_help_friend', 'strat_help_friend_desc'],
-  'Set a Goal': ['strat_set_goal', 'strat_set_goal_desc'],
-  'Gratitude': ['strat_gratitude', 'strat_gratitude_desc'],
-  'Bubble Breathing': ['strat_bubble_breathing', 'strat_bubble_breathing_desc'],
-  'Count to 10': ['strat_count_to_10', 'strat_count_to_10_desc'],
-  '5 Senses': ['strat_5_senses', 'strat_5_senses_desc'],
-  'Talk About It': ['strat_talk_about_it', 'strat_talk_about_it_desc'],
+  'Gentle Stretch': ['strat_blue_1', 'strat_blue_1_desc'],
+  'Favourite Song': ['strat_blue_3', 'strat_blue_3_desc'],
+  'Tell Someone': ['strat_blue_5', 'strat_blue_5_desc'],
+  'Slow Breathing': ['strat_blue_6', 'strat_blue_6_desc'],
+  'Keep Going!': ['strat_green_1', 'strat_green_1_desc'],
+  'Help a Friend': ['strat_green_2', 'strat_green_2_desc'],
+  'Set a Goal': ['strat_green_5', 'strat_green_5_desc'],
+  'Gratitude': ['strat_green_6', 'strat_green_6_desc'],
+  'Bubble Breathing': ['strat_yellow_1', 'strat_yellow_1_desc'],
+  'Count to 10': ['strat_yellow_3', 'strat_yellow_3_desc'],
+  '5 Senses': ['strat_yellow_4', 'strat_yellow_4_desc'],
+  'Talk About It': ['strat_yellow_6', 'strat_yellow_6_desc'],
 };
 
 export default function ManageStrategiesScreen() {
@@ -79,7 +87,7 @@ export default function ManageStrategiesScreen() {
   const saveSupportMessage = async () => {
     if (!studentId) return;
     await AsyncStorage.setItem(`support_message_${studentId}`, supportMessage.trim());
-    Alert.alert('✅ Saved', 'Support message saved for ' + student?.name);
+    Alert.alert('✅ ' + (t('saved_title') || 'Saved'), (t('support_message_saved_for') || 'Support message saved for {name}').replace('{name}', student?.name || ''));
   };
 
   useEffect(() => {
@@ -175,7 +183,7 @@ export default function ManageStrategiesScreen() {
   const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
-      Alert.alert('Permission needed', 'Please allow access to your photos.');
+      Alert.alert(t('permission_needed_title') || 'Permission needed', t('photo_permission_desc') || 'Please allow access to your photos.');
       return;
     }
 
@@ -195,7 +203,7 @@ export default function ManageStrategiesScreen() {
 
   const handleSave = async () => {
     if (!strategyName.trim()) {
-      Alert.alert('Error', 'Please enter a strategy name');
+      Alert.alert(t('error') || 'Error', t('enter_strategy_name_prompt') || 'Please enter a strategy name');
       return;
     }
 
@@ -223,9 +231,9 @@ export default function ManageStrategiesScreen() {
 
       setModalVisible(false);
       await fetchStrategies();
-      Alert.alert('Success', editingStrategy ? 'Strategy updated!' : 'Strategy added!');
+      Alert.alert(t('success') || 'Success', editingStrategy ? (t('strategy_updated_excl') || 'Strategy updated!') : (t('strategy_added_excl') || 'Strategy added!'));
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to save strategy');
+      Alert.alert(t('error') || 'Error', error.message || (t('save_strategy_error') || 'Failed to save strategy'));
     } finally {
       setSaving(false);
     }
@@ -233,19 +241,19 @@ export default function ManageStrategiesScreen() {
 
   const handleDelete = (strategy: CustomStrategy) => {
     Alert.alert(
-      'Delete Strategy',
+      t('delete_strategy_title') || 'Delete Strategy',
       `${t('are_you_sure_delete_strategy') || 'Are you sure you want to delete'} "${STRATEGY_KEYS[strategy.name] ? (t(STRATEGY_KEYS[strategy.name][0]) || strategy.name) : strategy.name}"?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('delete_btn') || 'Delete',
           style: 'destructive',
           onPress: async () => {
             try {
               await customStrategiesApi.delete(strategy.id);
               await fetchStrategies();
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete strategy');
+              Alert.alert(t('error') || 'Error', t('delete_strategy_error') || 'Failed to delete strategy');
             }
           },
         },
@@ -537,7 +545,7 @@ export default function ManageStrategiesScreen() {
               disabled={saving}
             >
               <Text style={styles.saveButtonText}>
-                {saving ? 'Saving...' : (editingStrategy ? 'Update Strategy' : 'Add Strategy')}
+                {saving ? (t('saving') || 'Saving...') : (editingStrategy ? (t('update_strategy_btn') || 'Update Strategy') : (t('add_strategy_btn') || 'Add Strategy'))}
               </Text>
             </TouchableOpacity>
           </View>

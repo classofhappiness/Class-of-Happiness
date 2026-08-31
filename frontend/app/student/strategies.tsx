@@ -64,7 +64,7 @@ export default function StrategiesScreen() {
       yellow: t('yellow_feelings') || 'Yellow Feelings',
       red: t('red_feelings') || 'Red Feelings',
     };
-    return zone ? (labels[zone] || zone) : 'Feelings';
+    return zone ? (labels[zone] || zone) : (t('feelings') || 'Feelings');
   };
 
   useLayoutEffect(() => {
@@ -290,9 +290,9 @@ export default function StrategiesScreen() {
           well_done: t('well_done') || t('well_done')||'Well Done',
           support_message: customSupportMessage || (() => {
             const GENERIC_MESSAGES = [
-              'Well done for owning your emotions! 🌟',
-              'Excellent — you are a leader in your life! 👑',
-              'Always tell an adult or a trusted friend 💙',
+              t('generic_support_1') || 'Well done for owning your emotions! 🌟',
+              t('generic_support_2') || 'Excellent — you are a leader in your life! 👑',
+              t('generic_support_3') || 'Always tell an adult or a trusted friend 💙',
             ];
             return GENERIC_MESSAGES[Math.floor(Date.now() / 1000) % 3];
           })()
@@ -313,7 +313,7 @@ export default function StrategiesScreen() {
           {shieldJustAwarded && (
             <View style={{ backgroundColor: '#FFF8E1', borderRadius: 12, padding: 10, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={{ fontSize: 20 }}>🛡️</Text>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#F57F17' }}>Brave Shield earned! You asked for help.</Text>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#F57F17' }}>{t('brave_shield_earned') || 'Brave Shield earned! You asked for help.'}</Text>
             </View>
           )}
           {loading ? (
@@ -424,7 +424,7 @@ export default function StrategiesScreen() {
                     } else {
                       setShowCommentInput(true);
                     }
-                    handleHelpRequest('comment_support', 'Personal Support Request');
+                    handleHelpRequest('comment_support', t('personal_support_request') || 'Personal Support Request');
                   }}
                 >
                   <MaterialIcons name="front-hand" size={18}

@@ -216,7 +216,7 @@ export default function ParentWidgetScreen() {
               </Text>
               <TouchableOpacity onPress={() => router.push('/parent/alerts')} style={{ marginTop: 6 }}>
                 <Text style={{ fontSize: 12, color: '#F44336', fontWeight: '700' }}>
-                  {t('view_my_wellbeing') || 'View alerts'} →
+                  {t('view_alerts') || 'View alerts'} →
                 </Text>
               </TouchableOpacity>
             </View>
@@ -235,7 +235,7 @@ export default function ParentWidgetScreen() {
           {/* Adults */}
           {adults.length > 0 && (
             <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
-              <Text style={st.sectionTitle}>😊 {t('my_strategies') || 'Adults'}</Text>
+              <Text style={st.sectionTitle}>😊 {t('adults_label') || 'Adults'}</Text>
               <View style={st.grid}>
                 {adults.map(m => <MemberCard key={m.id} member={m} />)}
               </View>
@@ -250,7 +250,7 @@ export default function ParentWidgetScreen() {
           </TouchableOpacity>
 
           {/* COH branding */}
-          <Text style={st.copyright}>😊 Class of Happiness · classofhappiness.com · © {new Date().getFullYear()}</Text>
+          <Text style={st.copyright}>😊 {(t('widget_copyright') || 'Class of Happiness · classofhappiness.com · © {year}').replace('{year}', String(new Date().getFullYear()))}</Text>
 
         </>)}
       </ScrollView>

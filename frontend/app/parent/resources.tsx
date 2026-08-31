@@ -38,16 +38,19 @@ import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
 // real category), then the 4 primary categories follow in the fixed order confirmed with
 // Jono (Emotions, Healthy Relationships, Leader Online, You Are What You Eat), then every
 // other existing topic unchanged - see resourceTopics.ts for the shared ordering logic.
-const TOPICS = [
-  { id: 'all', name: 'All', icon: 'apps' as const },
+// Real fix (i18n sweep): this list was the one place these topic names weren't wired to
+// t() - teacher/resources.tsx's identical list already was. Kept as a plain function (not a
+// module-level const) since it needs the t() closure; called once per render below.
+const getTopics = (t: (key: string) => string) => [
+  { id: 'all', name: t('all') || 'All', icon: 'apps' as const },
   ...orderPrimaryTopicsFirst([
-    { id: 'general', name: 'General', icon: 'folder' as const },
-    { id: 'emotions_program', name: 'Emotions', icon: 'auto-stories' as const },
-    { id: 'healthy_relationships', name: 'Healthy Relationships', icon: 'people' as const },
-    { id: 'leader_online', name: 'Leader Online', icon: 'computer' as const },
-    { id: 'you_are_what_you_eat', name: 'You Are What You Eat', icon: 'restaurant' as const },
-    { id: 'special_needs', name: 'Special Needs', icon: 'accessibility' as const },
-    { id: 'parent_hub', name: 'Parent Hub', icon: 'family-restroom' as const },
+    { id: 'general', name: t('general_topic') || 'General', icon: 'folder' as const },
+    { id: 'emotions_program', name: t('emotions') || 'Emotions', icon: 'auto-stories' as const },
+    { id: 'healthy_relationships', name: t('healthy_relationships') || 'Healthy Relationships', icon: 'people' as const },
+    { id: 'leader_online', name: t('leader_online') || 'Leader Online', icon: 'computer' as const },
+    { id: 'you_are_what_you_eat', name: t('you_are_what_you_eat') || 'You Are What You Eat', icon: 'restaurant' as const },
+    { id: 'special_needs', name: t('special_needs_education') || 'Special Needs', icon: 'accessibility' as const },
+    { id: 'parent_hub', name: t('parent_hub') || 'Parent Hub', icon: 'family-restroom' as const },
   ]),
 ];
 
@@ -58,6 +61,7 @@ export default function ResourcesScreen() {
   const navigation = useNavigation() as any;
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { t, isAuthenticated, user } = useApp();
+  const TOPICS = getTopics(t);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [resources, setResources] = useState<Resource[]>([]);
   // Parent-targeted teacher resources (audience=parents or both)
@@ -159,7 +163,7 @@ export default function ResourcesScreen() {
     const isGeneralResource = 'content_type' in resource && (resource as Resource).content_type === 'pdf';
 
     if (!isTeacherResource && !isGeneralResource) {
-      Alert.alert('Error', 'No PDF available for download');
+      Alert.alert(t('error') || 'Error', t('no_pdf_available') || 'No PDF available for download');
       return;
     }
 
@@ -208,7 +212,7 @@ export default function ResourcesScreen() {
             UTI: 'com.adobe.pdf',
           });
         } else {
-          Alert.alert('Success', `PDF saved to: ${downloadedFile.uri}`);
+          Alert.alert(t('success') || 'Success', (t('pdf_saved_to') || 'PDF saved to: {path}').replace('{path}', downloadedFile.uri));
         }
       }
     } catch (error: any) {
@@ -227,7 +231,7 @@ export default function ResourcesScreen() {
 
   const handleSubmitRating = async () => {
     if (!selectedResource || selectedRating === 0) {
-      Alert.alert('Error', 'Please select a rating');
+      Alert.alert(t('error') || 'Error', t('select_rating_prompt') || 'Please select a rating');
       return;
     }
 
@@ -237,9 +241,9 @@ export default function ResourcesScreen() {
       const newRatings = await teacherResourcesApi.getRatings(selectedResource.id);
       setRatings(newRatings);
       setShowRatingModal(false);
-      Alert.alert('Thank you!', 'Your rating has been submitted.');
+      Alert.alert(t('thank_you') || 'Thank you!', t('rating_submitted') || 'Your rating has been submitted.');
     } catch (error) {
-      Alert.alert('Error', 'Failed to submit rating. Please try again.');
+      Alert.alert(t('error') || 'Error', t('rating_submit_error') || 'Failed to submit rating. Please try again.');
     } finally {
       setSubmittingRating(false);
     }
@@ -344,7 +348,7 @@ export default function ResourcesScreen() {
           <View style={{ backgroundColor: '#FFF8E1', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#FFE082', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <MaterialIcons name="info" size={20} color="#F9A825" />
             <Text style={{ flex: 1, fontSize: 12, color: '#5D4037', lineHeight: 17 }}>
-              The Emotion Program is completely free! Every other program's first 2 weeks are free too — subscribe to unlock everything.
+              {t('freemium_banner_desc') || "The Emotion Program is completely free! Every other program's first 2 weeks are free too — subscribe to unlock everything."}
             </Text>
             <TouchableOpacity onPress={() => setBannerDismissed(true)} style={{ padding: 4 }}>
               <MaterialIcons name="close" size={18} color="#8D6E63" />
@@ -391,11 +395,11 @@ export default function ResourcesScreen() {
               onPress={() => {
                 if (resource.is_locked) {
                   Alert.alert(
-                    '🔒 Subscribe to Unlock',
-                    'The Emotion Program is completely free! Every other program has its first 2 weeks free — subscribe to unlock everything.',
+                    '🔒 ' + (t('subscribe_to_unlock_title') || 'Subscribe to Unlock'),
+                    t('freemium_banner_desc') || "The Emotion Program is completely free! Every other program's first 2 weeks are free too — subscribe to unlock everything.",
                     [
-                      { text: 'Not Now', style: 'cancel' },
-                      { text: 'See Plans', onPress: () => router.push('/subscription') },
+                      { text: t('not_now') || 'Not Now', style: 'cancel' },
+                      { text: t('see_plans') || 'See Plans', onPress: () => router.push('/subscription') },
                     ]
                   );
                   return;
@@ -427,12 +431,12 @@ export default function ResourcesScreen() {
                 <Text style={styles.resourceDescription} numberOfLines={2}>{resource.description}</Text>
                 <View style={styles.resourceMeta}>
                   <Text style={styles.resourceType}>
-                    {resource.content_type === 'pdf' ? 'PDF Document' : 'Article'}
+                    {resource.content_type === 'pdf' ? (t('pdf_document') || 'PDF Document') : (t('article') || 'Article')}
                   </Text>
                   {resource.is_locked ? (
                     <View style={[styles.downloadBadge, { backgroundColor: '#F5F5F5' }]}>
                       <MaterialIcons name="lock" size={12} color="#999" />
-                      <Text style={[styles.downloadBadgeText, { color: '#999' }]}>Subscribe to unlock</Text>
+                      <Text style={[styles.downloadBadgeText, { color: '#999' }]}>{t('subscribe_to_unlock') || 'Subscribe to unlock'}</Text>
                     </View>
                   ) : resource.content_type === 'pdf' && (
                     <View style={styles.downloadBadge}>
@@ -450,7 +454,7 @@ export default function ResourcesScreen() {
         <View style={styles.infoCard}>
           <MaterialIcons name="info" size={24} color="#5C6BC0" />
           <Text style={styles.infoText}>
-            These resources are provided to help you support your child's emotional development at home.
+            {t('resources_info_card') || "These resources are provided to help you support your child's emotional development at home."}
           </Text>
         </View>
       </ScrollView>
@@ -474,7 +478,7 @@ export default function ResourcesScreen() {
                 <View style={styles.pdfSection}>
                   <View style={styles.pdfNotice}>
                     <MaterialIcons name="picture-as-pdf" size={48} color="#F44336" />
-                    <Text style={styles.pdfNoticeText}>{selectedResource.pdf_filename || 'document.pdf'}</Text>
+                    <Text style={styles.pdfNoticeText}>{selectedResource.pdf_filename || (t('default_pdf_filename') || 'document.pdf')}</Text>
                   </View>
                   <TouchableOpacity
                     style={styles.downloadButton}
@@ -482,27 +486,26 @@ export default function ResourcesScreen() {
                     disabled={downloading}
                   >
                     <MaterialIcons name={downloading ? 'hourglass-empty' : 'file-download'} size={24} color="white" />
-                    <Text style={styles.downloadButtonText}>{downloading ? t('saving') || 'Preparing...' : t('download_report') || 'Download & Share PDF'}</Text>
+                    <Text style={styles.downloadButtonText}>{downloading ? (t('preparing') || 'Preparing...') : (t('download_report') || 'Download & Share PDF')}</Text>
                   </TouchableOpacity>
                   <View style={styles.sharingInfo}>
                     <MaterialIcons name="share" size={16} color="#666" />
-                    <Text style={styles.sharingInfoText}>Save to phone, email, Google Drive, WhatsApp & more</Text>
+                    <Text style={styles.sharingInfoText}>{t('sharing_info_text') || 'Save to phone, email, Google Drive, WhatsApp & more'}</Text>
                   </View>
                   <Text style={styles.ipDisclaimer}>
-                    © {new Date().getFullYear()} Class of Happiness. All rights reserved.
-                    This material is protected intellectual property.
+                    {(t('ip_disclaimer') || '© {year} Class of Happiness. All rights reserved. This material is protected intellectual property.').replace('{year}', String(new Date().getFullYear()))}
                   </Text>
                 </View>
               )}
               {isTeacherResource(selectedResource) && (
                 <View style={styles.ratingsSection}>
                   <View style={styles.ratingsSummary}>
-                    <Text style={styles.ratingsTitle}>Ratings & Reviews</Text>
+                    <Text style={styles.ratingsTitle}>{t('ratings_and_reviews') || 'Ratings & Reviews'}</Text>
                     {ratings.length > 0 ? (
                       <View style={styles.averageRating}>
                         <MaterialIcons name="star" size={24} color="#FFB300" />
                         <Text style={styles.averageRatingText}>{getAverageRating()}</Text>
-                        <Text style={styles.ratingsCount}>({ratings.length} reviews)</Text>
+                        <Text style={styles.ratingsCount}>({(t('reviews_count') || '{count} reviews').replace('{count}', String(ratings.length))})</Text>
                       </View>
                     ) : (
                       <Text style={styles.noRatingsText}>{t('no_data_yet') || t('no_data_yet') || 'No ratings yet'}</Text>
@@ -552,7 +555,7 @@ export default function ResourcesScreen() {
             </View>
             <TextInput
               style={styles.ratingInput}
-              placeholder="Add a comment (optional)"
+              placeholder={t('add_comment_optional') || 'Add a comment (optional)'}
               placeholderTextColor="#999"
               value={ratingComment}
               onChangeText={setRatingComment}
@@ -568,7 +571,7 @@ export default function ResourcesScreen() {
                 onPress={handleSubmitRating}
                 disabled={selectedRating === 0 || submittingRating}
               >
-                <Text style={styles.submitButtonText}>{submittingRating ? 'Submitting...' : 'Submit'}</Text>
+                <Text style={styles.submitButtonText}>{submittingRating ? (t('submitting') || 'Submitting...') : (t('submit') || 'Submit')}</Text>
               </TouchableOpacity>
             </View>
           </View>
