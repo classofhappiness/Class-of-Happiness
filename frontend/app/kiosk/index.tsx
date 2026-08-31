@@ -139,6 +139,21 @@ export default function KioskScreen() {
         await AsyncStorage.setItem('kiosk_token', data.token);
         await AsyncStorage.setItem('kiosk_teacher_name', data.teacher_name || '');
         await AsyncStorage.setItem('kiosk_classroom_name', data.classroom_name || '');
+        // Real fix Aug 31 (build-26, live-verification): the actual check-in submission
+        // (zoneLogsApi.create() in strategies.tsx, reached after tapping a student here) goes
+        // through src/utils/api.ts's shared apiRequest(), which only ever reads 'session_token'
+        // - never 'kiosk_token'. A genuinely standalone paired device (no prior teacher login on
+        // it) would load this student grid fine, since loadStudents() below fetches with
+        // kiosk_token directly, then 401 the instant a student actually tried to check in.
+        // get_current_user() resolves either storage key identically via its kiosk_sessions
+        // fallback, so it's safe to also store it as session_token - but only if this device
+        // doesn't already have a REAL one, since the teacher's own bridged device (launchKiosk()
+        // in teacher/dashboard.tsx) must keep its real session, not have it overwritten here.
+        const existingSessionToken = await AsyncStorage.getItem('session_token');
+        if (!existingSessionToken) {
+          await AsyncStorage.setItem('session_token', data.token);
+          await AsyncStorage.setItem('kiosk_owns_session_token', 'true');
+        }
         setKioskToken(data.token);
         setTeacherName(data.teacher_name || '');
         setClassroomName(data.classroom_name || '');
@@ -156,6 +171,13 @@ export default function KioskScreen() {
   };
 
   const resetKiosk = async () => {
+    // Only clear session_token if THIS screen set it (see setupKiosk's kiosk_owns_session_token
+    // flag) - never on the teacher's own bridged device, where session_token is their real login.
+    const kioskOwnsSessionToken = await AsyncStorage.getItem('kiosk_owns_session_token');
+    if (kioskOwnsSessionToken === 'true') {
+      await AsyncStorage.removeItem('session_token');
+      await AsyncStorage.removeItem('kiosk_owns_session_token');
+    }
     await AsyncStorage.removeItem('kiosk_token');
     await AsyncStorage.removeItem('kiosk_teacher_name');
     await AsyncStorage.removeItem('kiosk_classroom_name');
