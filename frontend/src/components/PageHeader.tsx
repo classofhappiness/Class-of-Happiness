@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 4,
-    marginRight: 4,
+    marginEnd: 4,
   },
   logo: {
     width: 32,
@@ -99,6 +99,6 @@ const cornerStyles = StyleSheet.create({
   logo: {
     width: 28,
     height: 28,
-    marginRight: 8,
+    marginEnd: 8,
   },
 });

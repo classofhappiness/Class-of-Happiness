@@ -631,11 +631,11 @@ const styles = StyleSheet.create({
   strategiesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
   strategyCard: { backgroundColor: 'white', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 6, alignItems: 'center', borderWidth: 1.5, borderColor: '#E0E0E0', position: 'relative', flexDirection: 'row', gap: 4 },
   strategyDesc: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-  strategyName: { fontSize: 11, fontWeight: '600', color: '#333', flex: 1, textAlign: 'left' },
+  strategyName: { fontSize: 11, fontWeight: '600', color: '#333', flex: 1, textAlign: 'auto' },
   checkIcon: {
     position: 'absolute',
     top: 8,
-    right: 8,
+    end: 8,
   },
   commentToggle: {
     flexDirection: 'row',

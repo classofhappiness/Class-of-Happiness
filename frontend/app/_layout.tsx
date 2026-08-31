@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Stack, useRouter, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Image, View, StyleSheet, Platform, TouchableOpacity, Text, TextInput } from 'react-native';
+import { Image, View, StyleSheet, Platform, TouchableOpacity, Text, TextInput, I18nManager } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
@@ -134,7 +134,10 @@ function AppContent() {
           headerLeft: ({ canGoBack }) => <HeaderWithBackAndLogo canGoBack={canGoBack} />,
           headerBackVisible: false,
           // ✅ iOS fix: consistent animation
-          animation: Platform.OS === 'ios' ? 'slide_from_right' : 'default',
+          // RTL: a new screen should still slide in from the reading-start edge -
+          // when I18nManager.isRTL is true (Arabic, once phase 2 activates it),
+          // that's the right edge, so the transition flips too.
+          animation: Platform.OS === 'ios' ? (I18nManager.isRTL ? 'slide_from_left' : 'slide_from_right') : 'default',
         }}
       >
         <Stack.Screen
