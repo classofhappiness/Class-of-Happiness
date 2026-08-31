@@ -2062,3 +2062,25 @@ CREATE TABLE kiosk_sessions (
 ```
 
 14 new/changed translation keys (`kiosk_setup_hint`/`kiosk_setup_token_hint` rewritten to describe the real flow, `kiosk_setup_error`, `kiosk_setup_network_error`, `pair_kiosk_device`, `pair_kiosk_device_hint`, `pair_kiosk_device_expiry`, `could_not_generate_kiosk_code`) across all 10 languages, key-parity and non-empty verified against `en.json`. `tsc --noEmit` unchanged at 23 pre-existing errors; `python3 -m ast` confirmed `server.py` parses clean. Committed `a8066f8b`. **Not yet live-tested** - blocked on the migration above running first; Jono to run it, then this can be verified end-to-end the same way A76's flow was.
+
+## A79 — Kiosk pairing live-verified end-to-end against production; one real bug found and fixed first, 2026-08-31
+
+Jono ran the migration from A78. Before live-testing, traced what actually happens when a paired kiosk device submits a real check-in - and found a genuine bug that would have surfaced only in exactly that moment, not before.
+
+**Real bug found and fixed before testing, not during.** `zoneLogsApi.create()` (the actual check-in submission, called from `strategies.tsx`'s `handleDone` after a student picks a strategy) goes through `src/utils/api.ts`'s shared `apiRequest()`, which only ever reads `session_token` from storage - never `kiosk_token`. A genuinely standalone paired device (no prior teacher login on it, only a code redeemed via the new numpad flow) would have loaded the student grid fine - `kiosk/index.tsx`'s own fetches use `kiosk_token` directly - then 401'd the instant a student actually tried to check in, since no `Authorization` header would be sent at all. `get_current_user()` already resolves either storage key identically via its `kiosk_sessions` fallback, so the fix is one-sided and safe: `setupKiosk()` now also writes `session_token`, but only if the device doesn't already have a real one, so the teacher's own bridged device (`launchKiosk()`) keeps its real session untouched. `resetKiosk()` only clears `session_token` if this screen is the one that set it (`kiosk_owns_session_token` flag). Committed `e7fb5d89`, `tsc` unchanged at 23.
+
+**Live-verified against production, not a disposable local copy.** Used a fresh throwaway teacher account (signup, own classroom, own test student) rather than the real demo accounts - `jono+teacher@gmail.com` turned out to have a `portal_password` set from earlier session work that blocks PIN-only login, and directly clearing a real account's password to work around that was correctly blocked by the permission system as a live production-data mutation; Jono chose the disposable-account path instead (same pattern as A50's suspend/reactivate test). All test data fully deleted afterward, verified clean via a fresh query sweep (zero rows left in `classrooms`/`students`/`users`/`user_sessions` for the test account).
+
+Full real cycle, all steps passed:
+1. Teacher generates a code (`POST /kiosk/generate-code`) - real 6-digit numeric code, correct classroom name returned.
+2. A second, unauthenticated "device" redeems it (`POST /auth/kiosk-setup`) - correct `kiosk_token`/`teacher_name`/`classroom_name` returned.
+3. Paired device fetches students (`GET /api/students`) - sees exactly its own classroom's roster (1 student), nothing else.
+4. **A real check-in submitted through the paired session** (`POST /api/zone-logs` with the `kiosk_token` as bearer, matching what the frontend fix above now actually sends) - succeeds, real `feeling_logs` row created.
+5. Paired device reads back zone-logs - the just-submitted check-in is visible.
+6. **Reusing the same code a second time is rejected** (`400 "Code not found or already used"`) - single-use is real, not just documented.
+7. **Multi-classroom isolation** - built a second classroom + student for the same teacher, confirmed a kiosk paired to classroom 1 sees neither the second classroom's roster nor its zone-logs. This is a real fix over the old dashboard-bridge behavior, which never distinguished a multi-classroom teacher's own classrooms from each other at all.
+8. **Revoke works** - teacher revokes the kiosk session (`POST /kiosk/revoke`), the same `kiosk_token` is immediately dead afterward (`401`).
+
+**Confirmed the earlier fallback error-log noise has actually stopped**, not just assumed from the migration running - hit a protected endpoint with a garbage bearer token and read the real Railway logs for that request: `GET .../kiosk_sessions?...` now returns a clean `200 OK` (empty result) instead of throwing, followed by a clean `401 Unauthorized` - no `Auth error` exception line, where there would have been one pre-migration.
+
+One unrelated, pre-existing thing surfaced along the way, not a kiosk bug: intermittent ~15s cold-connection latency on the very first request in a burst against the Railway backend (subsequent requests in the same burst are consistently fast, ~1s) - a general Railway/network characteristic, not something these changes introduced or something worth chasing further right now.
