@@ -965,8 +965,10 @@
   "already_have_account_signin": "Hai già un account? Accedi",
   "kiosk_tagline": "Benessere Emotivo per le Scuole",
   "kiosk_setup_title": "Configura Chiosco di Classe",
-  "kiosk_setup_hint": "Inserisci il token di sessione del tuo insegnante per collegare questo dispositivo alla tua classe. Gli studenti potranno poi fare il check-in senza accedere.",
-  "kiosk_setup_token_hint": "Trova il tuo token di sessione in Impostazioni → Codice Amministratore",
+  "kiosk_setup_hint": "Chiedi al tuo insegnante un codice a 6 cifre dalla schermata di Check-in della Classe e inseriscilo qui sotto per collegare questo dispositivo alla tua classe.",
+  "kiosk_setup_token_hint": "I codici scadono dopo 10 minuti - se il tuo ha smesso di funzionare, chiedi al tuo insegnante di generarne uno nuovo.",
+  "kiosk_setup_error": "Questo codice non è valido o è scaduto. Chiedi al tuo insegnante un nuovo codice.",
+  "kiosk_setup_network_error": "Impossibile contattare il server. Controlla la connessione e riprova.",
   "kiosk_tap_name_hint": "Tocca il tuo nome per fare il check-in",
   "kiosk_no_students_hint": "Chiedi al tuo insegnante di aggiungere studenti alla classe",
   "about_title": "Informazioni su Class of Happiness",
@@ -1247,5 +1249,9 @@
   "tip_teacher_red_3": "Rilevata emozione intensa",
   "tip_teacher_red_3_action": "Dai spazio, resta vicino, evita lo scontro",
   "start_free_trial_banner": "Inizia la tua prova gratuita",
-  "strategy_name_input_ph": "Nome della strategia..."
+  "strategy_name_input_ph": "Nome della strategia...",
+  "pair_kiosk_device": "Abbina un Dispositivo Kiosk",
+  "pair_kiosk_device_hint": "Inserisci questo codice sull'altro dispositivo per collegarlo a",
+  "pair_kiosk_device_expiry": "Questo codice scade tra 10 minuti.",
+  "could_not_generate_kiosk_code": "Impossibile generare un codice. Riprova."
 }

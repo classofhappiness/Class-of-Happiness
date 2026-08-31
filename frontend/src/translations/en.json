@@ -316,9 +316,11 @@
   "keep_private": "Keep Private",
   "keep_subscription": "Keep Subscription",
   "kiosk_no_students_hint": "Ask your teacher to add students to the class",
-  "kiosk_setup_hint": "Enter your teacher session token to link this device to your classroom. Students can then check in without logging in.",
+  "kiosk_setup_hint": "Ask your teacher for a 6-digit code from their Class Check-In screen, and enter it below to link this device to your classroom.",
   "kiosk_setup_title": "Set Up Classroom Kiosk",
-  "kiosk_setup_token_hint": "Find your session token in Settings → Admin Code",
+  "kiosk_setup_token_hint": "Codes expire after 10 minutes - if yours stopped working, ask your teacher to generate a new one.",
+  "kiosk_setup_error": "That code is invalid or expired. Ask your teacher for a new one.",
+  "kiosk_setup_network_error": "Could not reach the server. Check the connection and try again.",
   "kiosk_tagline": "Emotional Wellbeing for Schools",
   "kiosk_tap_name_hint": "Tap your name to check in",
   "language": "Language",
@@ -861,5 +863,9 @@
   "zone_comparison": "Emotion Comparison",
   "zone_green": "Green Emotions",
   "zone_red": "Red Emotions",
-  "zone_yellow": "Yellow Emotions"
+  "zone_yellow": "Yellow Emotions",
+  "pair_kiosk_device": "Pair a Kiosk Device",
+  "pair_kiosk_device_hint": "Enter this code on the other device to link it to",
+  "pair_kiosk_device_expiry": "This code expires in 10 minutes.",
+  "could_not_generate_kiosk_code": "Could not generate a code. Please try again."
 }

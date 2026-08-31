@@ -965,8 +965,10 @@
   "already_have_account_signin": "Bereits ein Konto? Anmelden",
   "kiosk_tagline": "Emotionales Wohlbefinden für Schulen",
   "kiosk_setup_title": "Klassenzimmer-Kiosk Einrichten",
-  "kiosk_setup_hint": "Gib das Sitzungs-Token deiner Lehrkraft ein, um dieses Gerät mit deiner Klasse zu verknüpfen. Schüler können sich dann einchecken, ohne sich anzumelden.",
-  "kiosk_setup_token_hint": "Finde dein Sitzungs-Token unter Einstellungen → Admin-Code",
+  "kiosk_setup_hint": "Bitte deine Lehrkraft um einen 6-stelligen Code vom Klassen-Check-in-Bildschirm und gib ihn unten ein, um dieses Gerät mit deiner Klasse zu verknüpfen.",
+  "kiosk_setup_token_hint": "Codes laufen nach 10 Minuten ab - falls deiner nicht mehr funktioniert, bitte deine Lehrkraft um einen neuen.",
+  "kiosk_setup_error": "Dieser Code ist ungültig oder abgelaufen. Bitte deine Lehrkraft um einen neuen Code.",
+  "kiosk_setup_network_error": "Der Server konnte nicht erreicht werden. Verbindung prüfen und erneut versuchen.",
   "kiosk_tap_name_hint": "Tippe auf deinen Namen, um dich einzuchecken",
   "kiosk_no_students_hint": "Bitte deine Lehrkraft, Schüler zur Klasse hinzuzufügen",
   "about_title": "Über Class of Happiness",
@@ -1247,5 +1249,9 @@
   "tip_teacher_red_3": "Starke Emotionen erkannt",
   "tip_teacher_red_3_action": "Gib Raum, bleib nah, vermeide Konfrontation",
   "start_free_trial_banner": "Starte deine kostenlose Testphase",
-  "strategy_name_input_ph": "Strategiename..."
+  "strategy_name_input_ph": "Strategiename...",
+  "pair_kiosk_device": "Kiosk-Gerät koppeln",
+  "pair_kiosk_device_hint": "Gib diesen Code auf dem anderen Gerät ein, um es zu verknüpfen mit",
+  "pair_kiosk_device_expiry": "Dieser Code läuft in 10 Minuten ab.",
+  "could_not_generate_kiosk_code": "Code konnte nicht erstellt werden. Bitte erneut versuchen."
 }

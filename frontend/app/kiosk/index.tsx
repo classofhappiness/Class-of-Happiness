@@ -32,6 +32,7 @@ export default function KioskScreen() {
   const [setupCode, setSetupCode] = useState('');
   const [setupMode, setSetupMode] = useState(false);
   const [setupLoading, setSetupLoading] = useState(false);
+  const [setupError, setSetupError] = useState<string | null>(null);
   const [lastActivity, setLastActivity] = useState(Date.now());
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const inactivityTimer = useRef<any>(null);
@@ -123,15 +124,18 @@ export default function KioskScreen() {
   const setupKiosk = async () => {
     if (!setupCode.trim()) return;
     setSetupLoading(true);
+    // Real fix Aug 31 (build-26, kiosk pairing): this used to silently treat ANY failed/garbage
+    // code as a literal working session token on both the non-ok and network-error paths -
+    // meaning a mistyped or expired code looked like a successful setup (empty student list,
+    // no error shown) instead of a real, understandable failure. Now surfaces the real error.
     try {
-      // Try to login with teacher code
       const res = await fetch(`${BACKEND_URL}/api/auth/kiosk-setup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: setupCode.trim() })
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const data = await res.json();
         await AsyncStorage.setItem('kiosk_token', data.token);
         await AsyncStorage.setItem('kiosk_teacher_name', data.teacher_name || '');
         await AsyncStorage.setItem('kiosk_classroom_name', data.classroom_name || '');
@@ -139,20 +143,14 @@ export default function KioskScreen() {
         setTeacherName(data.teacher_name || '');
         setClassroomName(data.classroom_name || '');
         setSetupMode(false);
+        setSetupCode('');
         await loadStudents(data.token);
       } else {
-        // Fallback: use as session token directly
-        await AsyncStorage.setItem('kiosk_token', setupCode.trim());
-        setKioskToken(setupCode.trim());
-        setSetupMode(false);
-        await loadStudents(setupCode.trim());
+        setSetupError(data.detail || t('kiosk_setup_error') || 'That code is invalid or expired. Ask your teacher for a new one.');
+        setSetupCode('');
       }
-    } catch {
-      // Fallback
-      await AsyncStorage.setItem('kiosk_token', setupCode.trim());
-      setKioskToken(setupCode.trim());
-      setSetupMode(false);
-      await loadStudents(setupCode.trim());
+    } catch (e: any) {
+      setSetupError(t('kiosk_setup_network_error') || 'Could not reach the server. Check the connection and try again.');
     }
     setSetupLoading(false);
   };
@@ -208,24 +206,28 @@ export default function KioskScreen() {
           <View style={st.setupCard}>
             <Text style={st.setupTitle}>{t('kiosk_setup_title') || 'Set Up Classroom Kiosk'}</Text>
             <Text style={st.setupHint}>
-              {t('kiosk_setup_hint') || 'Enter your teacher session token to link this device to your classroom. Students can then check in without logging in.'}
+              {t('kiosk_setup_hint') || "Ask your teacher for a 6-digit code from their Class Check-In screen, and enter it below to link this device to your classroom."}
             </Text>
             <View style={st.codeInput}>
               {setupCode.split('').map((c, i) => (
                 <View key={i} style={st.codeDot}><Text style={st.codeDotText}>{c}</Text></View>
               ))}
-              {Array.from({length: Math.max(0, 8 - setupCode.length)}).map((_, i) => (
+              {Array.from({length: Math.max(0, 6 - setupCode.length)}).map((_, i) => (
                 <View key={`e${i}`} style={[st.codeDot, {opacity:0.3}]}><Text style={st.codeDotText}>·</Text></View>
               ))}
             </View>
+            {setupError && (
+              <Text style={st.setupErrorText}>{setupError}</Text>
+            )}
             {/* Number pad */}
             <View style={st.numPad}>
               {['1','2','3','4','5','6','7','8','9','←','0','✓'].map(k => (
                 <TouchableOpacity key={k} style={[st.numKey, k==='✓' && {backgroundColor:INDIGO}]}
                   onPress={() => {
+                    setSetupError(null);
                     if (k === '←') setSetupCode(c => c.slice(0,-1));
                     else if (k === '✓') setupKiosk();
-                    else setSetupCode(c => c + k);
+                    else setSetupCode(c => (c.length < 6 ? c + k : c));
                   }}>
                   {setupLoading && k === '✓'
                     ? <ActivityIndicator color="white" size="small"/>
@@ -235,7 +237,7 @@ export default function KioskScreen() {
               ))}
             </View>
             <Text style={st.setupHint}>
-              {t('kiosk_setup_token_hint') || 'Find your session token in Settings → Admin Code'}
+              {t('kiosk_setup_token_hint') || 'Codes expire after 10 minutes - if yours stopped working, ask your teacher to generate a new one.'}
             </Text>
           </View>
 
@@ -335,6 +337,7 @@ const st = StyleSheet.create({
   setupCard: { width: '100%', backgroundColor: 'white', borderRadius: 20, padding: 24, gap: 16, elevation: 4, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
   setupTitle: { fontSize: 18, fontWeight: '700', color: '#333', textAlign: 'center' },
   setupHint: { fontSize: 12, color: '#888', textAlign: 'center', lineHeight: 18 },
+  setupErrorText: { fontSize: 13, color: '#E74C3C', textAlign: 'center', fontWeight: '600' },
   codeInput: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginVertical: 8 },
   codeDot: { width: 36, height: 44, backgroundColor: '#F0F0F0', borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   codeDotText: { fontSize: 18, fontWeight: '700', color: INDIGO },

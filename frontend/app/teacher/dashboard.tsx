@@ -363,6 +363,36 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
     router.push('/kiosk' as any);
   };
 
+  // Real feature Aug 31 (build-26): standalone kiosk-device pairing. launchKiosk() above
+  // bridges THIS device's own session - fine for the teacher's own phone, but a second,
+  // standalone device (a classroom tablet) has no session to bridge. Long-press generates a
+  // short-lived 6-digit code (POST /kiosk/generate-code) to type into that other device's
+  // numpad instead - reuses the same fetch-and-Alert.alert pattern as handleShowClassCode
+  // above rather than adding new UI chrome.
+  const handlePairKioskDevice = async () => {
+    try {
+      const token = await AsyncStorage.getItem('session_token');
+      const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const res = await fetch(`${BURL}/api/kiosk/generate-code`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        Alert.alert(
+          t('pair_kiosk_device') || 'Pair a Kiosk Device',
+          `${t('pair_kiosk_device_hint') || 'Enter this code on the other device to link it to'} ${data.classroom_name || ''}:\n\n${data.code}\n\n${t('pair_kiosk_device_expiry') || 'This code expires in 10 minutes.'}`,
+          [{ text: t('ok') || 'OK' }]
+        );
+      } else {
+        Alert.alert(t('error') || 'Error', data.detail || t('could_not_generate_kiosk_code') || 'Could not generate a code. Please try again.');
+      }
+    } catch (e) {
+      Alert.alert(t('error') || 'Error', t('could_not_generate_kiosk_code') || 'Could not generate a code.');
+    }
+  };
+
   const handleShowClassCode = async (classroomId: string, classroomName: string) => {
     setClassCodeLoading(classroomId);
     try {
@@ -405,7 +435,12 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
       {/* Nav buttons — top, large icons */}
       <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:16, paddingVertical:10, width:'100%'}}>
         {NAV_BUTTONS.map((btn) => (
-          <TouchableOpacity key={btn.route} style={{alignItems:'center', gap:4, flex:1}} onPress={() => btn.route === '/kiosk' ? launchKiosk() : router.push(btn.route as any)}>
+          <TouchableOpacity
+            key={btn.route}
+            style={{alignItems:'center', gap:4, flex:1}}
+            onPress={() => btn.route === '/kiosk' ? launchKiosk() : router.push(btn.route as any)}
+            onLongPress={btn.route === '/kiosk' ? handlePairKioskDevice : undefined}
+          >
             <View style={{width:52, height:52, borderRadius:16, backgroundColor: btn.color + '15', alignItems:'center', justifyContent:'center', position:'relative'}}>
               <MaterialIcons name={btn.icon as any} size={28} color={btn.color}/>
               {btn.count != null && btn.count > 0 && (

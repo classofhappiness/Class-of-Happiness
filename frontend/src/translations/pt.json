@@ -950,8 +950,10 @@
   "already_have_account_signin": "Já tens uma conta? Iniciar Sessão",
   "kiosk_tagline": "Bem-Estar Emocional para Escolas",
   "kiosk_setup_title": "Configurar Quiosque da Turma",
-  "kiosk_setup_hint": "Introduz o token de sessão do professor para ligar este dispositivo à tua turma. Os alunos podem depois fazer check-in sem iniciar sessão.",
-  "kiosk_setup_token_hint": "Encontra o teu token de sessão em Definições → Código de Administrador",
+  "kiosk_setup_hint": "Pede ao teu professor um código de 6 dígitos no ecrã de Check-in da Turma e introduz o código abaixo para ligar este dispositivo à tua turma.",
+  "kiosk_setup_token_hint": "Os códigos expiram ao fim de 10 minutos - se o teu deixou de funcionar, pede ao professor para gerar um novo.",
+  "kiosk_setup_error": "Esse código é inválido ou expirou. Pede ao professor um código novo.",
+  "kiosk_setup_network_error": "Não foi possível contactar o servidor. Verifica a ligação e tenta novamente.",
   "kiosk_tap_name_hint": "Toca no teu nome para fazer check-in",
   "kiosk_no_students_hint": "Pede ao teu professor para adicionar alunos à turma",
   "about_title": "Sobre a Class of Happiness",
@@ -1235,5 +1237,9 @@
   "tip_teacher_red_3": "Emoção intensa detetada",
   "tip_teacher_red_3_action": "Dá espaço, fica por perto, evita confrontos",
   "start_free_trial_banner": "Inicia o teu período experimental gratuito",
-  "strategy_name_input_ph": "Nome da estratégia..."
+  "strategy_name_input_ph": "Nome da estratégia...",
+  "pair_kiosk_device": "Emparelhar um Dispositivo Kiosk",
+  "pair_kiosk_device_hint": "Introduz este código no outro dispositivo para o ligar a",
+  "pair_kiosk_device_expiry": "Este código expira dentro de 10 minutos.",
+  "could_not_generate_kiosk_code": "Não foi possível gerar um código. Tenta novamente."
 }
