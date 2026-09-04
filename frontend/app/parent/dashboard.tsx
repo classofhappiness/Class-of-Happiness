@@ -854,10 +854,14 @@ export default function ParentDashboard() {
   const totalLogs = pieData.reduce((sum, item) => sum + item.value, 0);
   const totalFamilyCheckins = recentLogs.length;
 
-  // Real bug fix Aug 28 (item 1): mirrors teacher/dashboard.tsx's own render-guard - prevents
-  // a flash of family/parent content for a non-parent role while the redirect above is
-  // still in flight.
-  if (user && user.role !== 'parent') return null;
+  // Real bug fix Sep 4: this mirrored render-guard was missed when the useEffect redirect
+  // above was widened to let teacher/superadmin stay on this screen - it still unconditionally
+  // returned null for any non-parent role, which discarded the entire render (including a
+  // successfully-fetched family list) for a teacher account. The fetch itself was never the
+  // problem - confirmed live via Railway logs that GET /family/members returned 200 with real
+  // data - this line alone is what threw the result away before it could render. Now matches
+  // the useEffect's widened role list exactly.
+  if (user && user.role !== 'parent' && user.role !== 'teacher' && user.role !== 'superadmin') return null;
 
   return (
     <SafeAreaView style={styles.container}>
