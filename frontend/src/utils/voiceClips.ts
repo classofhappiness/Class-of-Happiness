@@ -10,6 +10,26 @@ let manifestLanguage: string | null = null;
 let manifestCache: Record<string, string> = {};
 let manifestPromise: Promise<Record<string, string>> | null = null;
 
+// Real bug fix Sep 4 (Android build 25, live device): playVoiceClip/playPhraseFromPool each
+// fired an independent Audio.Sound with no shared reference and no way to cancel it - tap a
+// colour, tap a helper before the first clip loads, and both eventually played on top of each
+// other, out of sync. currentSound + playToken turn this into a single-flight player: starting
+// a new clip always stops/unloads whatever's currently playing first, and a token captured
+// before the (possibly slow) createAsync call lets a load that's been superseded while it was
+// still in flight - by another play call, including one from a screen navigated to in the
+// meantime - discard itself instead of playing late.
+let currentSound: Audio.Sound | null = null;
+let playToken = 0;
+
+const stopCurrentClip = async (): Promise<void> => {
+  playToken++;
+  const s = currentSound;
+  currentSound = null;
+  if (!s) return;
+  try { await s.stopAsync(); } catch {}
+  try { await s.unloadAsync(); } catch {}
+};
+
 // Frontend fallback strategy IDs (b1..r6) don't match the backend's real IDs
 // (blue_1..red_6) - normalize both to the canonical clip_key so playback works
 // regardless of which source the strategy card came from.
@@ -79,16 +99,24 @@ export const playVoiceClip = async (rawKey: string, language: string) => {
   const manifest = manifestLanguage === language ? manifestCache : await loadVoiceManifest(language);
   const url = manifest[key];
   if (!url) return;
-  setTimeout(async () => {
-    try {
-      const { sound } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: true, volume: 1.0 });
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          sound.unloadAsync().catch(() => {});
-        }
-      });
-    } catch {}
-  }, 0);
+  await stopCurrentClip();
+  const myToken = playToken;
+  try {
+    const { sound } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: false, volume: 1.0 });
+    if (myToken !== playToken) {
+      // Superseded by a newer play/stop call while this was still loading - don't play late.
+      sound.unloadAsync().catch(() => {});
+      return;
+    }
+    currentSound = sound;
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (status.isLoaded && status.didJustFinish) {
+        if (currentSound === sound) currentSound = null;
+        sound.unloadAsync().catch(() => {});
+      }
+    });
+    await sound.playAsync();
+  } catch {}
 };
 
 // Real feature Aug 21, extended Aug 28 (item A): "greeting/praise" phrase pools - same mute
@@ -124,19 +152,26 @@ const loadPhrasePool = async (moment: VoicePhraseMoment, language: string): Prom
   return phrasePoolPromises[cacheKey];
 };
 
-export const playPhraseFromPool = (moment: VoicePhraseMoment, language: string) => {
+export const playPhraseFromPool = async (moment: VoicePhraseMoment, language: string) => {
   if (!voiceEnabled) return;
-  setTimeout(async () => {
-    try {
-      const urls = await loadPhrasePool(moment, language);
-      if (!urls.length) return;
-      const url = urls[Math.floor(Math.random() * urls.length)];
-      const { sound } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: true, volume: 1.0 });
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          sound.unloadAsync().catch(() => {});
-        }
-      });
-    } catch {}
-  }, 0);
+  try {
+    const urls = await loadPhrasePool(moment, language);
+    if (!urls.length) return;
+    const url = urls[Math.floor(Math.random() * urls.length)];
+    await stopCurrentClip();
+    const myToken = playToken;
+    const { sound } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: false, volume: 1.0 });
+    if (myToken !== playToken) {
+      sound.unloadAsync().catch(() => {});
+      return;
+    }
+    currentSound = sound;
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (status.isLoaded && status.didJustFinish) {
+        if (currentSound === sound) currentSound = null;
+        sound.unloadAsync().catch(() => {});
+      }
+    });
+    await sound.playAsync();
+  } catch {}
 };
