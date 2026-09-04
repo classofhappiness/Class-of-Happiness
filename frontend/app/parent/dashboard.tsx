@@ -157,18 +157,17 @@ export default function ParentDashboard() {
   const router = useRouter();
   const { user, presetAvatars, t, language, setCurrentStudent, hasActiveSubscription, students, refreshStudents } = useApp();
 
-  // Real bug fix Aug 28 (item 1): the mirror-image guard to teacher/dashboard.tsx's own
-  // role-gate (added Aug 26, item 3 - "a parent-only account is locked out of the Teacher
-  // dashboard entirely") never existed on this side. A non-parent role (found live: a
-  // teacher account) reaching this screen mounted it and called fetchData() unconditionally,
-  // which calls familyApi.getMembers() (GET /family/members) before any role check - the
-  // backend correctly rejects that for a teacher ("Parent access required"), but the call
-  // still fired and logged a real console error every time, non-fatal but genuinely
-  // unnecessary. Same pattern as the working teacher-side guard: redirect away, and render
-  // nothing while the redirect is in flight so there's no flash of content that's about to
-  // disappear.
+  // Real bug fix Sep 4: the Aug 28 guard here was unconditional on role !== 'parent',
+  // which - combined with role being a single mutable field last set by whichever way the
+  // Settings role-switcher was flipped - meant a genuine teacher account tapping "Parent" on
+  // the entry screen got bounced straight back to /teacher/dashboard, and a teacher could
+  // never reach their own parent dashboard even with linked children. Per the new model,
+  // teacher and superadmin accounts now stay on this screen (GET/POST/PUT/DELETE
+  // /family/members already widened server-side to allow both - see server.py Sep 4 fix,
+  // same pattern already in place for superadmin). Only a role with no legitimate parent-data
+  // access at all (school_admin, admin, kiosk) still gets redirected away.
   useEffect(() => {
-    if (user && user.role !== 'parent') {
+    if (user && user.role !== 'parent' && user.role !== 'teacher' && user.role !== 'superadmin') {
       router.replace('/teacher/dashboard');
     }
   }, [user?.role]);

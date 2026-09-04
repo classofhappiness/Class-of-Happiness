@@ -3884,7 +3884,13 @@ async def get_family_members(request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
     # Real fix Aug 26 (security audit): always self-scoped by user_id (never a data leak),
     # but had no role check.
-    if user.get("role") not in ("parent", "superadmin"):
+    # Real fix Sep 4 (parent/teacher dual-access): a teacher account viewing their OWN parent
+    # dashboard (linked children) used to 403 here even after the frontend redirect that
+    # forced them away from /parent/dashboard was removed - this gate is what actually
+    # enforced the old "one role at a time" model server-side. Already self-scoped by
+    # user_id below, so widening this to teacher is not a data-exposure change, only an
+    # access-category one.
+    if user.get("role") not in ("parent", "teacher", "superadmin"):
         raise HTTPException(status_code=403, detail="Parent access required")
     result = supabase.table("family_members").select("*").eq("user_id", user["user_id"]).execute()
     members = result.data or []
@@ -3933,7 +3939,13 @@ async def add_family_member(member: FamilyMemberCreate, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    if user.get("role") not in ("parent", "superadmin"):
+    # Real fix Sep 4 (parent/teacher dual-access): a teacher account viewing their OWN parent
+    # dashboard (linked children) used to 403 here even after the frontend redirect that
+    # forced them away from /parent/dashboard was removed - this gate is what actually
+    # enforced the old "one role at a time" model server-side. Already self-scoped by
+    # user_id below, so widening this to teacher is not a data-exposure change, only an
+    # access-category one.
+    if user.get("role") not in ("parent", "teacher", "superadmin"):
         raise HTTPException(status_code=403, detail="Parent access required")
     # Free tier: limit to 2 children (mirrors the same real pattern used for classrooms/students —
     # only counts relationship=="child", adult family members like partners aren't capped).
@@ -4011,7 +4023,13 @@ async def update_family_member(member_id: str, request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
     # Real fix Aug 26 (security audit): the actual update below was already correctly
     # scoped by user_id (not an IDOR), just had no role check.
-    if user.get("role") not in ("parent", "superadmin"):
+    # Real fix Sep 4 (parent/teacher dual-access): a teacher account viewing their OWN parent
+    # dashboard (linked children) used to 403 here even after the frontend redirect that
+    # forced them away from /parent/dashboard was removed - this gate is what actually
+    # enforced the old "one role at a time" model server-side. Already self-scoped by
+    # user_id below, so widening this to teacher is not a data-exposure change, only an
+    # access-category one.
+    if user.get("role") not in ("parent", "teacher", "superadmin"):
         raise HTTPException(status_code=403, detail="Parent access required")
     body = await request.json()
     allowed = ["name", "relationship", "avatar_type", "avatar_preset", "avatar_custom"]
@@ -4036,7 +4054,13 @@ async def delete_family_member(member_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    if user.get("role") not in ("parent", "superadmin"):
+    # Real fix Sep 4 (parent/teacher dual-access): a teacher account viewing their OWN parent
+    # dashboard (linked children) used to 403 here even after the frontend redirect that
+    # forced them away from /parent/dashboard was removed - this gate is what actually
+    # enforced the old "one role at a time" model server-side. Already self-scoped by
+    # user_id below, so widening this to teacher is not a data-exposure change, only an
+    # access-category one.
+    if user.get("role") not in ("parent", "teacher", "superadmin"):
         raise HTTPException(status_code=403, detail="Parent access required")
     # Real fix Aug 26 (security audit): had no ownership scoping at all (unlike the PUT
     # right above, which was already correctly scoped) - any authenticated user could

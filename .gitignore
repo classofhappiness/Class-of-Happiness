@@ -18,3 +18,4 @@ frontend/.metro-cache/
 !frontend/assets/**/*.jpg
 *.swp
 COH-HANDOVER.md
+.DS_Store
