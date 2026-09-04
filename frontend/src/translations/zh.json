@@ -1373,5 +1373,9 @@
   "year_1": "1年",
   "years_2": "2年",
   "years_3": "3年",
-  "zero_resources_subtitle": "0 项资源"
+  "zero_resources_subtitle": "0 项资源",
+  "kiosk_footer_link": "信息亭设置",
+  "kiosk_scan_hint": "将摄像头对准老师展示的代码",
+  "kiosk_scan_manual_link": "改为手动输入代码",
+  "kiosk_scan_permission_denied": "摄像头访问已关闭 — 您仍可以手动输入代码"
 }

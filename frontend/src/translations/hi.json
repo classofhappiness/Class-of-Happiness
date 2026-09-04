@@ -1373,5 +1373,9 @@
   "year_1": "1 वर्ष",
   "years_2": "2 वर्ष",
   "years_3": "3 वर्ष",
-  "zero_resources_subtitle": "0 संसाधन"
+  "zero_resources_subtitle": "0 संसाधन",
+  "kiosk_footer_link": "कियोस्क सेटअप",
+  "kiosk_scan_hint": "अपने शिक्षक द्वारा दिखाए गए कोड पर कैमरा फोकस करें",
+  "kiosk_scan_manual_link": "इसके बजाय कोड मैन्वल रूप से दर्ज करें",
+  "kiosk_scan_permission_denied": "कैमरा एक्सेस बंद है — आप फिर भी कोड मैन्वल रूप से दर्ज कर सकते हैं"
 }

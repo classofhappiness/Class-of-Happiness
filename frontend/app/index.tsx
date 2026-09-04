@@ -157,10 +157,23 @@ export default function HomeScreen() {
         {/* Footer */}
         <View style={styles.footerSection}>
           <Text style={styles.copyrightText}>© 2026 Class of Happiness</Text>
-          <TouchableOpacity style={styles.aboutButton} onPress={() => router.push('/about' as any)}>
-            <MaterialIcons name="info-outline" size={14} color="#CCC" />
-            <Text style={styles.aboutButtonText}>About & Privacy</Text>
-          </TouchableOpacity>
+          <View style={styles.footerLinkRow}>
+            <TouchableOpacity style={styles.aboutButton} onPress={() => router.push('/about' as any)}>
+              <MaterialIcons name="info-outline" size={14} color="#CCC" />
+              <Text style={styles.aboutButtonText}>About & Privacy</Text>
+            </TouchableOpacity>
+            <Text style={styles.footerDivider}>·</Text>
+            {/* New feature Sep 4 (build-26, kiosk discoverability): the only genuinely
+                discoverable, tappable entry point for a classroom device to reach the kiosk
+                pairing flow - everything else requires an already-authenticated teacher
+                session (see COH-REVIEW-PLAN.md A81's "orphaned door" finding). Deliberately
+                styled at the same low-emphasis weight as About & Privacy - findable by a
+                teacher setting up a device, not something a browsing student's eye lands on. */}
+            <TouchableOpacity style={styles.aboutButton} onPress={() => router.push('/kiosk/scan' as any)}>
+              <MaterialIcons name="qr-code-scanner" size={14} color="#CCC" />
+              <Text style={styles.aboutButtonText}>{t('kiosk_footer_link') || 'Kiosk Setup'}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -212,6 +225,8 @@ const styles = StyleSheet.create({
 
   footerSection: { alignItems: 'center', paddingTop: 24, marginTop: 'auto' },
   copyrightText: { fontSize: 11, color: '#CCC' },
+  footerLinkRow: { flexDirection: 'row', alignItems: 'center' },
+  footerDivider: { fontSize: 12, color: '#DDD' },
   aboutButton: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8 },
   aboutButtonText: { fontSize: 12, color: '#CCC' },
 });

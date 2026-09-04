@@ -1373,5 +1373,9 @@
   "year_1": "سنة واحدة",
   "years_2": "سنتان",
   "years_3": "3 سنوات",
-  "zero_resources_subtitle": "0 مورد"
+  "zero_resources_subtitle": "0 مورد",
+  "kiosk_footer_link": "إعداد الكشك",
+  "kiosk_scan_hint": "وجّه الكاميرا نحو الرمز الذي يعرضه معلمك",
+  "kiosk_scan_manual_link": "أدخل الرمز يدوياً بدلاً من ذلك",
+  "kiosk_scan_permission_denied": "الوصول إلى الكاميرا موقوف — يمكنك إدخال الرمز يدوياً"
 }

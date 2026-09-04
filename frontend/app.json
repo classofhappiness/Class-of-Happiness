@@ -70,6 +70,12 @@
           "defaultChannel": "default",
           "sounds": []
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to scan a pairing code to set up this device as a classroom kiosk."
+        }
       ]
     ],
     "experiments": {

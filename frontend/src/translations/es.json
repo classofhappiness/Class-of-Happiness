@@ -1639,5 +1639,9 @@
   "year_1": "1 Año",
   "years_2": "2 Años",
   "years_3": "3 Años",
-  "zero_resources_subtitle": "0 recursos"
+  "zero_resources_subtitle": "0 recursos",
+  "kiosk_footer_link": "Configurar Kiosco",
+  "kiosk_scan_hint": "Apunta la cámara al código que te muestra tu profesor",
+  "kiosk_scan_manual_link": "Introducir el código manualmente",
+  "kiosk_scan_permission_denied": "El acceso a la cámara está desactivado — aún puedes introducir el código manualmente"
 }

@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
   ScrollView, ActivityIndicator, Animated, useWindowDimensions, Image
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,6 +21,7 @@ export default function KioskScreen() {
   const { width } = useWindowDimensions();
   const CARD_W = (width - 48) / 3;
   const router = useRouter();
+  const { autoCode } = useLocalSearchParams<{ autoCode?: string }>();
   const { t, setCurrentStudent } = useApp();
   const [students, setStudents] = useState<any[]>([]);
   const [presetAvatars, setPresetAvatars] = useState<any[]>([]);
@@ -75,8 +76,19 @@ export default function KioskScreen() {
     } else {
       setSetupMode(true);
       setLoading(false);
+      // New feature Sep 4 (build-26, kiosk scan entry point): a code scanned on kiosk/scan.tsx
+      // arrives here as ?autoCode=NNNNNN instead of typed digit-by-digit. Submit it straight
+      // through the real setupKiosk() flow below - same validation, same error/expiry
+      // handling, same token storage - rather than forking any of that logic. Passed as an
+      // explicit override, not via setSetupCode+setupKiosk(), since setSetupCode's update
+      // wouldn't be visible yet to a setupKiosk() call made in this same tick.
+      const scanned = typeof autoCode === 'string' && /^\d{6}$/.test(autoCode) ? autoCode : null;
+      if (scanned) {
+        setSetupCode(scanned);
+        await setupKiosk(scanned);
+      }
     }
-  }, []);
+  }, [autoCode]);
 
   useEffect(() => { loadKioskData(); }, [loadKioskData]);
 
@@ -121,8 +133,9 @@ export default function KioskScreen() {
     } catch {}
   };
 
-  const setupKiosk = async () => {
-    if (!setupCode.trim()) return;
+  const setupKiosk = async (codeOverride?: string) => {
+    const code = (codeOverride ?? setupCode).trim();
+    if (!code) return;
     setSetupLoading(true);
     // Real fix Aug 31 (build-26, kiosk pairing): this used to silently treat ANY failed/garbage
     // code as a literal working session token on both the non-ok and network-error paths -
@@ -132,7 +145,7 @@ export default function KioskScreen() {
       const res = await fetch(`${BACKEND_URL}/api/auth/kiosk-setup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: setupCode.trim() })
+        body: JSON.stringify({ code })
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {

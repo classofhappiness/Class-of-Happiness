@@ -405,6 +405,13 @@ function AppContent() {
             title: 'Quick Class Check-in',
           }}
         />
+        <Stack.Screen
+          name="kiosk/scan"
+          options={{
+            headerShown: false,
+            title: 'Scan Pairing Code',
+          }}
+        />
       </Stack>
       {showSplashAnim && <SplashAnimation onFinish={() => setShowSplashAnim(false)} />}
     </>

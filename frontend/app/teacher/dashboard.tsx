@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
-  ScrollView, RefreshControl, useWindowDimensions, Alert,
+  ScrollView, RefreshControl, useWindowDimensions, Alert, Modal,
 } from 'react-native';
 import { useRouter, useNavigation, useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import QRCode from 'react-native-qrcode-svg';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
@@ -129,6 +130,9 @@ export default function TeacherDashboardScreen() {
   const [analytics, setAnalytics] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [classCodeLoading, setClassCodeLoading] = useState<string|null>(null);
+  const [pairModalVisible, setPairModalVisible] = useState(false);
+  const [pairCode, setPairCode] = useState('');
+  const [pairClassroomName, setPairClassroomName] = useState('');
   const [todaySnap, setTodaySnap] = useState({ blue:0, green:0, yellow:0, red:0, total:0 });
   const [barData, setBarData] = useState<{value:number,label:string,frontColor:string}[]>([]);
   const [selectedClassroom, setSelectedClassroom] = useState<string|null>(null);
@@ -367,8 +371,14 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
   // bridges THIS device's own session - fine for the teacher's own phone, but a second,
   // standalone device (a classroom tablet) has no session to bridge. Long-press generates a
   // short-lived 6-digit code (POST /kiosk/generate-code) to type into that other device's
-  // numpad instead - reuses the same fetch-and-Alert.alert pattern as handleShowClassCode
-  // above rather than adding new UI chrome.
+  // numpad instead.
+  //
+  // New feature Sep 4 (build-26, kiosk discoverability): the success path used to be a plain
+  // Alert.alert - readable, but Alert can't embed an image, and the receiving device still had
+  // no discoverable way to reach /kiosk in the first place (COH-REVIEW-PLAN.md A81). Swapped
+  // for a real Modal so the same code can also render as a QR (kiosk/scan.tsx scans it, or any
+  // device's own camera app can open the classofhappiness://kiosk deep link directly) - the
+  // 6-digit code itself is unchanged and still shown for manual typing. Error path untouched.
   const handlePairKioskDevice = async () => {
     try {
       const token = await AsyncStorage.getItem('session_token');
@@ -380,11 +390,9 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        Alert.alert(
-          t('pair_kiosk_device') || 'Pair a Kiosk Device',
-          `${t('pair_kiosk_device_hint') || 'Enter this code on the other device to link it to'} ${data.classroom_name || ''}:\n\n${data.code}\n\n${t('pair_kiosk_device_expiry') || 'This code expires in 10 minutes.'}`,
-          [{ text: t('ok') || 'OK' }]
-        );
+        setPairCode(data.code || '');
+        setPairClassroomName(data.classroom_name || '');
+        setPairModalVisible(true);
       } else {
         Alert.alert(t('error') || 'Error', data.detail || t('could_not_generate_kiosk_code') || 'Could not generate a code. Please try again.');
       }
@@ -755,6 +763,34 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
             native widget is actually built. */}
 
       </ScrollView>
+
+      <Modal
+        visible={pairModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPairModalVisible(false)}
+      >
+        <View style={st.pairBackdrop}>
+          <View style={st.pairCard}>
+            <TouchableOpacity style={st.pairCloseBtn} onPress={() => setPairModalVisible(false)}>
+              <MaterialIcons name="close" size={22} color="#999" />
+            </TouchableOpacity>
+            <Text style={st.pairTitle}>{t('pair_kiosk_device') || 'Pair a Kiosk Device'}</Text>
+            {!!pairClassroomName && <Text style={st.pairClassroom}>{pairClassroomName}</Text>}
+            {!!pairCode && (
+              <View style={st.pairQrBox}>
+                <QRCode value={`classofhappiness://kiosk?code=${pairCode}`} size={180} />
+              </View>
+            )}
+            <Text style={st.pairHint}>{t('pair_kiosk_device_hint') || 'Scan this on the classroom device, or enter the code below:'}</Text>
+            <Text style={st.pairCodeText}>{pairCode}</Text>
+            <Text style={st.pairExpiry}>{t('pair_kiosk_device_expiry') || 'This code expires in 10 minutes.'}</Text>
+            <TouchableOpacity style={st.pairDoneBtn} onPress={() => setPairModalVisible(false)}>
+              <Text style={st.pairDoneBtnText}>{t('ok') || 'OK'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -797,4 +833,16 @@ const st = StyleSheet.create({
   emptyTxt: { fontSize:13, color:'#CCC' },
   widgetBtn: { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, paddingVertical:12, marginTop:8, backgroundColor:'white', borderRadius:12, borderWidth:1, borderColor:'#E8D5F5' },
   widgetTxt: { fontSize:13, color:'#9C27B0', fontWeight:'600' },
+
+  pairBackdrop: { flex:1, backgroundColor:'rgba(0,0,0,0.5)', alignItems:'center', justifyContent:'center', padding:24 },
+  pairCard: { backgroundColor:'white', borderRadius:20, padding:24, width:'100%', maxWidth:340, alignItems:'center' },
+  pairCloseBtn: { position:'absolute', top:12, right:12, padding:6 },
+  pairTitle: { fontSize:18, fontWeight:'800', color:'#1A1A2E', textAlign:'center', marginBottom:2 },
+  pairClassroom: { fontSize:13, color:'#5C6BC0', fontWeight:'600', marginBottom:14 },
+  pairQrBox: { backgroundColor:'white', padding:12, borderRadius:14, borderWidth:1, borderColor:'#EEE', marginBottom:14 },
+  pairHint: { fontSize:12, color:'#888', textAlign:'center', marginBottom:8 },
+  pairCodeText: { fontSize:32, fontWeight:'900', color:'#1A1A2E', letterSpacing:4, marginBottom:8 },
+  pairExpiry: { fontSize:11, color:'#AAA', textAlign:'center', marginBottom:16 },
+  pairDoneBtn: { backgroundColor:'#5C6BC0', borderRadius:12, paddingVertical:10, paddingHorizontal:32 },
+  pairDoneBtnText: { color:'white', fontWeight:'700', fontSize:14 },
 });

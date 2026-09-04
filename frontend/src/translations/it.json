@@ -1650,5 +1650,9 @@
   "year_1": "1 Anno",
   "years_2": "2 Anni",
   "years_3": "3 Anni",
-  "zero_resources_subtitle": "0 risorse"
+  "zero_resources_subtitle": "0 risorse",
+  "kiosk_footer_link": "Configura Chiosco",
+  "kiosk_scan_hint": "Inquadra con la fotocamera il codice mostrato dal tuo insegnante",
+  "kiosk_scan_manual_link": "Inserisci il codice manualmente",
+  "kiosk_scan_permission_denied": "L'accesso alla fotocamera è disattivato — puoi comunque inserire il codice manualmente"
 }
