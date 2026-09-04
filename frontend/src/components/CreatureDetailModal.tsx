@@ -181,7 +181,7 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
                   <>
                     {renderItemGrid(bonusItems.moves, bonusItems.unlockedMoves, t('moves') || 'Moves', '🎬', 'moves')}
                     {renderItemGrid(bonusItems.outfits, bonusItems.unlockedOutfits, t('outfits') || 'Outfits', '👗', 'outfits')}
-                    {renderItemGrid(bonusItems.foods, bonusItems.unlockedFoods, t('foods') || 'Foods', '🍎', 'foods')}
+                    {renderItemGrid(bonusItems.foods, bonusItems.unlockedFoods, t('foods') || 'Food', '🍎', 'foods')}
                     {renderItemGrid(bonusItems.homes, bonusItems.unlockedHomes, t('homes') || 'Homes', '🏠', 'homes')}
                   </>
                 ) : (
