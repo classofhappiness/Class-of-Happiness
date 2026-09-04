@@ -370,6 +370,7 @@
   "keep_private": "🔒 保持私密",
   "keep_subscription": "保留订阅",
   "kiosk_no_students_hint": "请让老师将学生添加到班级中",
+  "kiosk_screen_title": "班级打卡自助终端",
   "kiosk_setup_hint": "请向老师索要“班级打卡”屏幕上显示的6位数代码，并在下方输入以将此设备关联到你的班级。",
   "kiosk_setup_title": "设置班级自助终端",
   "kiosk_setup_token_hint": "代码10分钟后失效 - 如果代码停止工作，请老师重新生成一个新代码。",

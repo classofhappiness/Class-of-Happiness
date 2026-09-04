@@ -971,6 +971,7 @@
   "kiosk_setup_network_error": "Der Server konnte nicht erreicht werden. Verbindung prüfen und erneut versuchen.",
   "kiosk_tap_name_hint": "Tippe auf deinen Namen, um dich einzuchecken",
   "kiosk_no_students_hint": "Bitte deine Lehrkraft, Schüler zur Klasse hinzuzufügen",
+  "kiosk_screen_title": "Kiosk für Klassen-Check-in",
   "about_title": "Über Class of Happiness",
   "about_description": "Class of Happiness hilft Schülern, Lehrkräften und Familien, Emotionen durch Bewusstsein und hilfreiche Strategien zu verstehen und zu bewältigen.",
   "disclaimer_section_title": "Haftungsausschluss",

@@ -956,6 +956,7 @@
   "kiosk_setup_network_error": "Não foi possível contactar o servidor. Verifica a ligação e tenta novamente.",
   "kiosk_tap_name_hint": "Toca no teu nome para fazer check-in",
   "kiosk_no_students_hint": "Pede ao teu professor para adicionar alunos à turma",
+  "kiosk_screen_title": "Quiosque de Check-in da Turma",
   "about_title": "Sobre a Class of Happiness",
   "about_description": "A Class of Happiness ajuda alunos, professores e famílias a compreender e gerir emoções através da consciência emocional e de estratégias úteis.",
   "disclaimer_section_title": "Aviso Legal",

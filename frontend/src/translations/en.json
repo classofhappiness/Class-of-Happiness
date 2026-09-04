@@ -317,6 +317,7 @@
   "keep_private": "Keep Private",
   "keep_subscription": "Keep Subscription",
   "kiosk_no_students_hint": "Ask your teacher to add students to the class",
+  "kiosk_screen_title": "Kiosk Class Check-in",
   "kiosk_setup_hint": "Ask your teacher for a 6-digit code from their Class Check-In screen, and enter it below to link this device to your classroom.",
   "kiosk_setup_title": "Set Up Classroom Kiosk",
   "kiosk_setup_token_hint": "Codes expire after 10 minutes - if yours stopped working, ask your teacher to generate a new one.",

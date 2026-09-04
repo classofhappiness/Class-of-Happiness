@@ -221,7 +221,7 @@ export default function KioskScreen() {
           {/* COH Branding */}
           <View style={st.brandBox}>
             <Text style={st.brandEmoji}>😊</Text>
-            <Text style={st.brandTitle}>Class of Happiness</Text>
+            <Text style={st.brandTitle}>{t('kiosk_screen_title') || 'Kiosk Class Check-in'}</Text>
             <Text style={st.brandTagline}>{t('kiosk_tagline') || 'Emotional Wellbeing for Schools'}</Text>
           </View>
 
@@ -276,7 +276,7 @@ export default function KioskScreen() {
         <View style={st.headerBrand}>
           <Text style={st.headerEmoji}>😊</Text>
           <View>
-            <Text style={st.headerTitle}>Class of Happiness</Text>
+            <Text style={st.headerTitle}>{t('kiosk_screen_title') || 'Kiosk Class Check-in'}</Text>
             {classroomName ? <Text style={st.headerSub}>{classroomName}{teacherName ? ` · ${teacherName}` : ''}</Text> : null}
           </View>
         </View>
