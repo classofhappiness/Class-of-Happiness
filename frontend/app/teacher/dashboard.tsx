@@ -134,6 +134,8 @@ export default function TeacherDashboardScreen() {
   const [selectedClassroom, setSelectedClassroom] = useState<string|null>(null);
   const [alertCount, setAlertCount] = useState(0);
   const [tipDismissed, setTipDismissed] = useState(false);
+  const [trialBannerDismissed, setTrialBannerDismissed] = useState(false);
+  const [alertBannerDismissed, setAlertBannerDismissed] = useState(false);
   const [checkinsExpanded, setCheckinsExpanded] = useState(false);
   const [graphExpanded, setGraphExpanded] = useState(false);
   const [localClassrooms, setLocalClassrooms] = useState<any[]>([]);
@@ -324,7 +326,7 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
   const getStudentName = (id:string) => students.find(s=>s.id===id)?.name || t('student') || 'Student';
   const getStudent = (id:string) => students.find(s=>s.id===id);
   const formatTime = (ts:string) => { try { return new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); } catch { return ''; } };
-  const periodLabel = (p:Period) => p===1?(t('today')||t('today') || 'Today'):p===7?(t('week')||t('this_week') || 'Week'):p===14?t('days_14') || 'Fortnight':t('month') || 'Month';
+  const periodLabel = (p:Period) => p===1?(t('today')||t('today') || 'Today'):p===7?(t('week')||t('this_week') || 'Week'):p===14?(t('days_14') || '2 Weeks'):t('month') || 'Month';
 
   const zc = analytics?.zone_counts || { blue:0, green:0, yellow:0, red:0 };
   const chartData = [
@@ -338,60 +340,19 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
   // console.log('Analytics:', JSON.stringify(analytics));
   // console.log('Chart data:', chartData);
 
+  // Redesign round 2 (Sep 4, Marisa's annotated mockup): Class Check-In (kiosk) moved off
+  // this grid entirely, down to 6 tiles matching her exact order. The kiosk launch/pairing
+  // functions moved to teacher/classrooms.tsx, which now owns the entry point - not removed,
+  // relocated (see COH-REVIEW-PLAN.md, kiosk was orphaned once before and Jono was explicit
+  // about never letting that happen again).
   const NAV_BUTTONS = [
     { label: t('students')||'Students', icon: 'people', color: '#4CAF50', route: '/teacher/students', count: students.length },
     { label: t('classrooms')||'Classrooms', icon: 'school', color: '#5C6BC0', route: '/teacher/classrooms', count: classrooms.length },
-    { label: 'My\nCheck-In', icon: 'self-improvement', color: '#26A69A', route: '/teacher/checkin', count: null },
-
-    { label: t('resources')||'Resources', icon: 'library-books', color: '#5C6BC0', route: '/teacher/resources', count: null },
     { label: t('alerts')||'Alerts', icon: 'notifications', color: '#F44336', route: '/teacher/alerts', count: alertCount > 0 ? alertCount : null },
+    { label: t('resources')||'Resources', icon: 'library-books', color: '#5C6BC0', route: '/teacher/resources', count: null },
+    { label: 'My\nCheck-In', icon: 'self-improvement', color: '#26A69A', route: '/teacher/checkin', count: null },
     { label: t('creatures_manage')||'Creatures', icon: 'pets', color: '#9C27B0', route: '/teacher/creature-code', count: null },
-    { label: t('class_checkin_nav')||'Class\nCheck-In', icon: 'tablet-mac', color: '#FF9800', route: '/kiosk', count: null },
   ];
-
-  // Real feature Aug 30 (build-26, kiosk restore): kiosk/index.tsx expects its own
-  // kiosk_token in storage (set via a separate, currently-broken device-setup flow -
-  // /api/auth/kiosk-setup doesn't exist backend-side). Launching from an already-logged-in
-  // teacher sidesteps that entirely - bridge this session's own real token into kiosk_token
-  // before navigating, so the student grid loads directly with no setup step.
-  const launchKiosk = async () => {
-    const token = await AsyncStorage.getItem('session_token');
-    if (token) {
-      await AsyncStorage.setItem('kiosk_token', token);
-      await AsyncStorage.setItem('kiosk_teacher_name', user?.name || '');
-    }
-    router.push('/kiosk' as any);
-  };
-
-  // Real feature Aug 31 (build-26): standalone kiosk-device pairing. launchKiosk() above
-  // bridges THIS device's own session - fine for the teacher's own phone, but a second,
-  // standalone device (a classroom tablet) has no session to bridge. Long-press generates a
-  // short-lived 6-digit code (POST /kiosk/generate-code) to type into that other device's
-  // numpad instead - reuses the same fetch-and-Alert.alert pattern as handleShowClassCode
-  // above rather than adding new UI chrome.
-  const handlePairKioskDevice = async () => {
-    try {
-      const token = await AsyncStorage.getItem('session_token');
-      const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-      const res = await fetch(`${BURL}/api/kiosk/generate-code`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        Alert.alert(
-          t('pair_kiosk_device') || 'Pair a Kiosk Device',
-          `${t('pair_kiosk_device_hint') || 'Enter this code on the other device to link it to'} ${data.classroom_name || ''}:\n\n${data.code}\n\n${t('pair_kiosk_device_expiry') || 'This code expires in 10 minutes.'}`,
-          [{ text: t('ok') || 'OK' }]
-        );
-      } else {
-        Alert.alert(t('error') || 'Error', data.detail || t('could_not_generate_kiosk_code') || 'Could not generate a code. Please try again.');
-      }
-    } catch (e) {
-      Alert.alert(t('error') || 'Error', t('could_not_generate_kiosk_code') || 'Could not generate a code.');
-    }
-  };
 
   const handleShowClassCode = async (classroomId: string, classroomName: string) => {
     setClassCodeLoading(classroomId);
@@ -432,29 +393,9 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
     <SafeAreaView style={st.container}>
       <TranslatedHeader title={t('teacher_dashboard')||'Teacher Dashboard'} backTo="/" />
 
-      {/* Nav buttons — top, large icons */}
-      <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:16, paddingVertical:10, width:'100%'}}>
-        {NAV_BUTTONS.map((btn) => (
-          <TouchableOpacity
-            key={btn.route}
-            style={{alignItems:'center', gap:4, flex:1}}
-            onPress={() => btn.route === '/kiosk' ? launchKiosk() : router.push(btn.route as any)}
-            onLongPress={btn.route === '/kiosk' ? handlePairKioskDevice : undefined}
-          >
-            <View style={{width:52, height:52, borderRadius:16, backgroundColor: btn.color + '15', alignItems:'center', justifyContent:'center', position:'relative'}}>
-              <MaterialIcons name={btn.icon as any} size={28} color={btn.color}/>
-              {btn.count != null && btn.count > 0 && (
-                <View style={[st.badge, {backgroundColor: btn.icon === 'notifications' ? '#F44336' : btn.color}]}>
-                  <Text style={st.badgeTxt}>{btn.count}</Text>
-                </View>
-              )}
-            </View>
-            <Text style={{fontSize:9, fontWeight:'600', color:'#555', textAlign:'center'}}>{btn.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Period tabs */}
+      {/* Time filter pills — round 2 of Marisa's mockup (Sep 4): now the second element on
+          screen, directly under the header. The icon grid that used to sit here moved down
+          near Today's Class Mood (see below). */}
       <View style={{backgroundColor:'#F5F5F8', marginHorizontal:0, paddingTop:4, paddingBottom:4}}>
         <View style={st.periodRow}>
           {([1,7,14,30] as Period[]).map(p => (
@@ -496,8 +437,18 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh}/>}
         showsVerticalScrollIndicator={false}>
 
-        {/* Alert banner */}
-        {alertCount > 0 && (
+        {/* Notification banners — round 2 (Sep 4, Marisa's mockup + Jono's follow-up
+            correction): live directly under the time filter pills, not fixed blocks mid-page.
+            Each is independently dismissible via X. Swipe-to-dismiss was tried here via
+            react-native-gesture-handler's Swipeable but caused an on-load crash in Expo Go
+            (this app runs newArchEnabled, and Swipeable was the first use of that specific
+            component anywhere in the codebase - a static SSR export rendered clean, since
+            that check can't exercise native gesture bindings at all, so the crash only ever
+            showed up on-device) - reverted, X-only per Jono's own fallback call, logged as a
+            real nice-to-have needing a proper native-module compatibility check, not "cheap."
+            Session-scoped dismissal (plain state), same pattern already established for the
+            two banners that already had an X. */}
+        {alertCount > 0 && !alertBannerDismissed && (
           <TouchableOpacity
             onPress={() => router.push('/teacher/alerts')}
             style={{ flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#FFF3F3',
@@ -507,7 +458,9 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
             <Text style={{ flex:1, fontSize:13, fontWeight:'600', color:'#C62828' }}>
               {alertCount} {alertCount === 1 ? (t('student_needs') || 'student needs') : (t('students_need') || 'students need')} {t('support_today') || 'support today'}
             </Text>
-            <MaterialIcons name="chevron-right" size={18} color="#F44336" />
+            <TouchableOpacity onPress={(e) => { e.stopPropagation(); setAlertBannerDismissed(true); }} style={{ padding:4 }}>
+              <MaterialIcons name="close" size={16} color="#F44336" />
+            </TouchableOpacity>
           </TouchableOpacity>
         )}
 
@@ -565,8 +518,13 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
         })()}
 
 
-      {/* Trial code banner — shows when no active subscription */}
-      {!hasActiveSubscription && (
+      {/* Trial code banner — shows when no active subscription. New (Sep 4, Marisa's design
+          review): dismissable with an X, same session-scoped pattern as the Daily Colour Tip
+          banner's existing tipDismissed above - plain component state, so it stays hidden for
+          the rest of this session but reappears on a fresh app load, matching what was asked
+          ("don't reappear once dismissed this session"). The green tip banner already had this
+          exact dismiss behaviour before today - only this yellow one was missing it. */}
+      {!hasActiveSubscription && !trialBannerDismissed && (
         <TouchableOpacity
           onPress={() => router.push('/settings')}
           style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#FFF8E1',
@@ -577,25 +535,11 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
             <Text style={{ fontSize:13, fontWeight:'700', color:'#333' }}>{t('start_free_trial_banner') || 'Start your free trial'}</Text>
             <Text style={{ fontSize:11, color:'#666' }}>{t('go_to_settings_enter_code') || 'Go to Settings'} → {t('enter_code_30_days_free') || 'enter code HAPPYCLASS2026 for 30 days free'}</Text>
           </View>
-          <MaterialIcons name="chevron-right" size={20} color="#FFC107" />
+          <TouchableOpacity onPress={(e) => { e.stopPropagation(); setTrialBannerDismissed(true); }} style={{ padding:4 }}>
+            <MaterialIcons name="close" size={16} color="#B0A060" />
+          </TouchableOpacity>
         </TouchableOpacity>
       )}
-        {/* Emotion summary pills */}
-        <Text style={{fontSize:13, fontWeight:'700', color:'#333', marginBottom:6, marginTop:4}}>
-          {t('class_mood_snapshot') || "Today's Class Mood"}
-        </Text>
-        <View style={{flexDirection:'row', gap:6, marginBottom:8}}>
-          {(['blue','green','yellow','red'] as const).map(z => (
-            <View key={z} style={[st.snapPill,{borderColor:ZONE_COLORS[z]+'50',backgroundColor:ZONE_COLORS[z]+'12',flex:1}]}>
-              <Text style={st.snapEmoji}>{ZONE_EMOJI[z]}</Text>
-              <Text style={[st.snapCount,{color:ZONE_COLORS[z]}]}>{todaySnap[z]}</Text>
-            </View>
-          ))}
-          <View style={[st.snapPill,{borderColor:'#5C6BC020',backgroundColor:'#F3F4FF',flex:1}]}>
-            <MaterialIcons name="today" size={11} color="#5C6BC0"/>
-            <Text style={[st.snapCount,{color:'#5C6BC0'}]}>{todaySnap.total}</Text>
-          </View>
-        </View>
 
         {/* Collapsible check-ins */}
         <TouchableOpacity style={st.sectionHeader} onPress={() => setCheckinsExpanded(e=>!e)}>
@@ -747,6 +691,63 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
             )}
           </View>
         )}
+
+        {/* Icon grid — spacing/sizing round (Sep 5, on-device review):
+            1. Tiles shrunk (116->84) with real horizontal padding inside each column so a
+               visible gutter shows between adjacent circles - at 116px the circle nearly
+               filled its whole 33.33% column, leaving almost no gap.
+            2. marginTop bumped 8->28 for real separation from the Emotion Graph section above.
+            3. Badge re-sized using actual platform convention, not a naive scale-with-icon
+               ratio: both iOS (~24pt badge on a ~60pt icon, ratio ~0.4) and Material (a
+               ~16-20dp badge held roughly fixed even as the icon/avatar it sits on grows,
+               e.g. ~18dp badge on a 40dp avatar, ratio ~0.45 trending smaller on bigger icons)
+               converge on the same real answer: legible badge numbers stay near a fixed
+               absolute size, they don't scale linearly with container size. 14px was too
+               small to read comfortably; scaling proportionally to an 84px tile would give a
+               cluttering ~34px badge. Landed on 18px (badge text 8->10px) - up from 14px,
+               clearly more readable, still reads as a small marker not a second icon. */}
+        <View style={{flexDirection:'row', flexWrap:'wrap', marginTop:28, marginBottom:4}}>
+          {NAV_BUTTONS.map((btn) => (
+            <TouchableOpacity
+              key={btn.route}
+              style={{width:'33.33%', alignItems:'center', gap:6, marginBottom:18, paddingHorizontal:10}}
+              onPress={() => router.push(btn.route as any)}
+            >
+              <View style={{width:84, height:84, borderRadius:24, backgroundColor: btn.color + '15', alignItems:'center', justifyContent:'center', position:'relative'}}>
+                <MaterialIcons name={btn.icon as any} size={46} color={btn.color}/>
+                {btn.count != null && btn.count > 0 && (
+                  <View style={[st.badge, {width:18, height:18, borderRadius:9, top:-4, right:-4, backgroundColor: btn.icon === 'notifications' ? '#F44336' : btn.color}]}>
+                    <Text style={[st.badgeTxt, {fontSize:10}]}>{btn.count}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={{fontSize:12, fontWeight:'700', color:'#555', textAlign:'center'}}>{btn.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Today's Class Mood — per Marisa's mockup (Sep 4): large solid-colour circles
+            instead of small bordered pills, sized responsively via flex+aspectRatio so 4
+            always fill the row cleanly. The old "Today" total pill this replaced is still
+            pending Jono's decision (see the calendar-chip question answered separately) -
+            not re-added here yet since the decision hasn't come back.
+            Active-filter indicator added Sep 5 (on-device review): shows the period pill
+            whenever it isn't the default "Today" (showing "· Today" would be redundant next
+            to a title that already says "Today's Class Mood"), and the classroom name
+            whenever one specific classroom is selected instead of "All". */}
+        <Text style={{fontSize:13, fontWeight:'700', color:'#333', marginBottom:6, marginTop:4}}>
+          {t('class_mood_snapshot') || "Today's Class Mood"}
+          {period !== 1 ? ` · ${periodLabel(period)}` : ''}
+          {selectedClassroom ? ` · ${(localClassrooms.length > 0 ? localClassrooms : classrooms).find((c:any)=>c.id===selectedClassroom)?.name || ''}` : ''}
+        </Text>
+        <View style={{flexDirection:'row', gap:8, marginBottom:8}}>
+          {(['blue','green','yellow','red'] as const).map(z => (
+            <View key={z} style={{flex:1, aspectRatio:1, borderRadius:999, backgroundColor:ZONE_COLORS[z], alignItems:'center', justifyContent:'center'}}>
+              <Text style={{fontSize:16}}>{ZONE_EMOJI[z]}</Text>
+              <Text style={{fontSize:20, fontWeight:'900', color:'white'}}>{todaySnap[z]}</Text>
+            </View>
+          ))}
+        </View>
 
         {/* Widget button removed for now — no real native OS widget exists yet, only an
             in-app preview screen (app/teacher/widget.tsx, kept intact for a future real
