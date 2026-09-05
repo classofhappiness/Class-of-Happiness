@@ -159,11 +159,17 @@ export default function ColourSelectionScreen() {
         </View>
 
         {/* Help button */}
+        {/* New feature Sep 4 (Marisa's design review, S04): "Need help? Tap here!" was reading
+            as a plain label, not a button - kids weren't tapping it. No existing screen had a
+            matching pattern to copy, so this is a new design-system treatment: white fill +
+            navy border + pill shape, signalling "this is tappable" the way a real button
+            should, distinct from the plain-text hints elsewhere on this screen. */}
         <TouchableOpacity
           style={styles.helpButton}
+          activeOpacity={0.75}
           onPress={() => { playButtonFeedback(); setShowHelp(true); }}
         >
-          <MaterialIcons name="help-outline" size={16} color="#5C6BC0" />
+          <MaterialIcons name="help-outline" size={18} color="#1A1A2E" />
           <Text style={styles.helpButtonText}>{t('need_help') || 'Need help? Tap here!'}</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -235,8 +241,8 @@ const styles = StyleSheet.create({
   zoneTitle: { fontSize: 20, fontWeight: 'bold', color: 'white', marginBottom: 4 },
   zoneWords: { fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: '500' },
 
-  helpButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, padding: 8, backgroundColor: 'white', borderRadius: 12 },
-  helpButtonText: { fontSize: 12, color: '#5C6BC0', fontWeight: '600' },
+  helpButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 14, alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 22, backgroundColor: 'white', borderRadius: 24, borderWidth: 2, borderColor: '#1A1A2E' },
+  helpButtonText: { fontSize: 13, color: '#1A1A2E', fontWeight: '700' },
   errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   errorText: { fontSize: 18, color: '#666' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', alignItems: 'center' },
