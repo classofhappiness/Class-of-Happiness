@@ -346,6 +346,7 @@ function AppContent() {
             title: 'Family Dashboard',
             headerTitleAlign: 'center',
             headerTitleStyle: { fontWeight: '700' },
+            headerRight: () => <HomeToDashboard />,
           }}
         />
         <Stack.Screen
