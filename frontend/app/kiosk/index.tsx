@@ -4,6 +4,7 @@ import {
   ScrollView, ActivityIndicator, Animated, useWindowDimensions, Image
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -217,11 +218,18 @@ export default function KioskScreen() {
   if (setupMode) {
     return (
       <SafeAreaView style={st.container}>
+        {/* Redesign (Sep 5, on-device review): this screen and the active-session view below
+            each had their own custom branded header block AND, since "kiosk" had no explicit
+            Stack.Screen entry, the app's default native header stacked on top of it too - two
+            real headers, not one. Now registered with headerShown:false (see _layout.tsx) and
+            using the same TranslatedHeader every other screen uses, for exactly one header. */}
+        <TranslatedHeader title={t('kiosk_screen_title') || 'Kiosk - Student Class Check In'} />
         <View style={st.setupScreen}>
-          {/* COH Branding */}
+          {/* Kiosk's own visual identity, per Jono's request - a ticket emoji distinguishes
+              this from the rest of the app's 😊 branding, since it's a different kind of
+              screen (a shared device, not a personal one). */}
           <View style={st.brandBox}>
-            <Text style={st.brandEmoji}>😊</Text>
-            <Text style={st.brandTitle}>{t('kiosk_screen_title') || 'Kiosk Class Check-in'}</Text>
+            <Text style={st.brandEmoji}>🎟️</Text>
             <Text style={st.brandTagline}>{t('kiosk_tagline') || 'Emotional Wellbeing for Schools'}</Text>
           </View>
 
@@ -271,14 +279,13 @@ export default function KioskScreen() {
 
   return (
     <SafeAreaView style={st.container}>
-      {/* Header */}
+      <TranslatedHeader title={t('kiosk_screen_title') || 'Kiosk - Student Class Check In'} />
+      {/* Classroom/teacher context and the refresh action - TranslatedHeader has no subtitle
+          slot, so this now lives just below it rather than crammed into the header itself. */}
       <View style={st.header}>
         <View style={st.headerBrand}>
-          <Text style={st.headerEmoji}>😊</Text>
-          <View>
-            <Text style={st.headerTitle}>{t('kiosk_screen_title') || 'Kiosk Class Check-in'}</Text>
-            {classroomName ? <Text style={st.headerSub}>{classroomName}{teacherName ? ` · ${teacherName}` : ''}</Text> : null}
-          </View>
+          <Text style={st.headerEmoji}>🎟️</Text>
+          {classroomName ? <Text style={st.headerSub}>{classroomName}{teacherName ? ` · ${teacherName}` : ''}</Text> : null}
         </View>
         <TouchableOpacity onPress={() => loadStudents(kioskToken!)} style={st.refreshBtn}>
           <MaterialIcons name="refresh" size={22} color={INDIGO} />

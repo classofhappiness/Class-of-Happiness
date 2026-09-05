@@ -13,6 +13,7 @@ import {
   Platform,
   Image,} from 'react-native';
 import { useRouter, useNavigation } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
@@ -51,7 +52,47 @@ const BULK_STRATEGIES = {
 export default function ManageClassroomsScreen() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { classrooms, students, refreshClassrooms, refreshStudents, t, language, translations } = useApp();
+  const { classrooms, students, refreshClassrooms, refreshStudents, t, language, translations, user } = useApp();
+
+  // Redesign round 2 (Sep 4, Marisa's mockup): relocated from teacher/dashboard.tsx's nav
+  // grid, which dropped to 6 tiles matching her exact order - kiosk needed a new home, not to
+  // be dropped (it's been silently orphaned once before, see COH-REVIEW-PLAN.md). Moved
+  // as-is (Alert-based pairing) per Jono's explicit call - the QR-code pairing modal built
+  // earlier this session lives only on an unpushed local branch and ships through its own PR
+  // later; this button gets upgraded to that modal once it merges (logged in
+  // COH-REVIEW-PLAN.md), not duplicated here in the meantime.
+  const launchKiosk = async () => {
+    const token = await AsyncStorage.getItem('session_token');
+    if (token) {
+      await AsyncStorage.setItem('kiosk_token', token);
+      await AsyncStorage.setItem('kiosk_teacher_name', user?.name || '');
+    }
+    router.push('/kiosk' as any);
+  };
+
+  const handlePairKioskDevice = async () => {
+    try {
+      const token = await AsyncStorage.getItem('session_token');
+      const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const res = await fetch(`${BURL}/api/kiosk/generate-code`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        Alert.alert(
+          t('pair_kiosk_device') || 'Pair a Kiosk Device',
+          `${t('pair_kiosk_device_hint') || 'Enter this code on the other device to link it to'} ${data.classroom_name || ''}:\n\n${data.code}\n\n${t('pair_kiosk_device_expiry') || 'This code expires in 10 minutes.'}`,
+          [{ text: t('ok') || 'OK' }]
+        );
+      } else {
+        Alert.alert(t('error') || 'Error', data.detail || t('could_not_generate_kiosk_code') || 'Could not generate a code. Please try again.');
+      }
+    } catch (e) {
+      Alert.alert(t('error') || 'Error', t('could_not_generate_kiosk_code') || 'Could not generate a code.');
+    }
+  };
 
   // Create classroom modal
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -219,6 +260,24 @@ export default function ManageClassroomsScreen() {
         <TouchableOpacity style={styles.addButton} onPress={() => setCreateModalVisible(true)}>
           <MaterialIcons name="add" size={24} color="white" />
           <Text style={styles.addButtonText}>{t('create_new_classroom') || 'Create New Classroom'}</Text>
+        </TouchableOpacity>
+
+        {/* Class Check-In (kiosk) — relocated here from the dashboard nav grid, round 2.
+            Renamed + given its own 🎟️ identity per Jono's on-device review (Sep 5), reusing
+            the same kiosk_screen_title key the kiosk screen itself now shows, so the label
+            here and the heading a student actually lands on always say the same thing. */}
+        <TouchableOpacity
+          style={[styles.addButton, { backgroundColor: '#FF9800', marginTop: -4 }]}
+          onPress={launchKiosk}
+          onLongPress={handlePairKioskDevice}
+        >
+          <Text style={{ fontSize: 22 }}>🎟️</Text>
+          <View style={{ alignItems: 'center' }}>
+            <Text style={styles.addButtonText}>{t('kiosk_screen_title') || 'KIOSK - Student Class Check In'}</Text>
+            <Text style={{ color: '#1A1A2E', fontStyle: 'italic', fontSize: 11, marginTop: 2 }}>
+              {t('kiosk_button_subtitle') || 'For students to use their device'}
+            </Text>
+          </View>
         </TouchableOpacity>
 
         {/* Classrooms List */}

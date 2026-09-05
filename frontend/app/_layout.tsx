@@ -406,6 +406,13 @@ function AppContent() {
             title: 'Quick Class Check-in',
           }}
         />
+        <Stack.Screen
+          name="kiosk/index"
+          options={{
+            headerShown: false,
+            title: 'Kiosk',
+          }}
+        />
       </Stack>
       {showSplashAnim && <SplashAnimation onFinish={() => setShowSplashAnim(false)} />}
     </>
