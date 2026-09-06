@@ -746,6 +746,7 @@
   "yellow_short_label": "Gelb",
   "red_short_label": "Rot",
   "linked_students_filter": "🔗 Verknüpfte Schüler",
+  "select_filter_linked": "Verknüpft",
   "confirm_delete_resource": "Diese Ressource löschen?",
   "zone_alert": "Zonenwarnung",
   "mark_resolved": "Als Erledigt Markieren",

@@ -33,8 +33,18 @@ export default function StudentSelectScreen() {
   const [selectedClassroom, setSelectedClassroom] = useState<string | null>(null);
   const [localClassrooms, setLocalClassrooms] = useState<any[]>([]);
 
-  // Fetch classrooms independently so teacher login shows filter
+  // Build 27: root-caused a real bug here - this fetched the teacher-only GET /classrooms
+  // unconditionally, same call-site-audit pattern as A90's refreshStudents/refreshClassrooms
+  // crash fix, just manifesting differently: a bare `catch {}` here (not console.error) meant
+  // a parent-role 403 failed silently instead of LogBoxing, leaving `localClassrooms` empty.
+  // Combined with the render gate below (which used to require classroom data to exist before
+  // showing the row AT ALL), this made the entire filter row - including "All" - vanish for
+  // every parent-role session, confirmed as the real cause of "classroom filter tab not
+  // coming up" seen on the PT device pass (that account is parent-role). Only fetch for
+  // teacher-tier roles now; parent role never had real classrooms to filter by anyway.
+  const isTeacherTierRole = user?.role === 'teacher' || user?.role === 'school_admin' || user?.role === 'superadmin';
   useEffect(() => {
+    if (!isTeacherTierRole) return;
     const fetchClassrooms = async () => {
       try {
         const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -45,7 +55,7 @@ export default function StudentSelectScreen() {
       } catch {}
     };
     fetchClassrooms();
-  }, []);
+  }, [isTeacherTierRole]);
   const [studentCreatures, setStudentCreatures] = useState<Record<string, StudentCreatureData>>({});
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   // Real feature Aug 22 (item 7): the tick/completion row here only ever reflected the 4
@@ -459,38 +469,56 @@ export default function StudentSelectScreen() {
   return (
     <View style={styles.container}>
       <TranslatedHeader title={t('select_profile')} backTo="/" />
-      {/* Classroom filter — fixed, never scrolls away, matches teacher flow */}
-      {(localClassrooms.length > 0 || (classrooms && classrooms.length > 1)) && (
-        <View style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal:12, paddingVertical:8, flexDirection:'row', gap:8, alignItems:'center' }}>
-            <TouchableOpacity
+      {/* Build 27: filter row now always renders All + Linked, matching the teacher
+          dashboard's own filter-pill component/style exactly - previously this whole row
+          (including "All") was gated on classroom data existing at all, which is exactly
+          what made it disappear for parent-role sessions once classroom data legitimately
+          became unavailable for that role (see the fetch fix above). Order: All -> Linked
+          (chain icon, students with a real family link) -> classrooms alphabetically. */}
+      <View style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0' }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal:12, paddingVertical:8, flexDirection:'row', gap:8, alignItems:'center' }}>
+          <TouchableOpacity
+            style={{ paddingHorizontal:14, paddingVertical:7, borderRadius:16,
+              backgroundColor: !selectedClassroom ? '#5C6BC0' : '#EEEEEE',
+              borderWidth:1, borderColor: !selectedClassroom ? '#5C6BC0' : '#DDD' }}
+            onPress={() => setSelectedClassroom(null)}>
+            <Text style={{ fontSize:13, fontWeight:'600', color: !selectedClassroom ? 'white' : '#555' }}>
+              {t('all') || 'All'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ flexDirection:'row', alignItems:'center', gap:4, paddingHorizontal:14, paddingVertical:7, borderRadius:16,
+              backgroundColor: selectedClassroom === 'linked' ? '#5C6BC0' : '#EEEEEE',
+              borderWidth:1, borderColor: selectedClassroom === 'linked' ? '#5C6BC0' : '#DDD' }}
+            onPress={() => setSelectedClassroom('linked')}>
+            <MaterialIcons name="link" size={14} color={selectedClassroom === 'linked' ? 'white' : '#555'} />
+            <Text style={{ fontSize:13, fontWeight:'600', color: selectedClassroom === 'linked' ? 'white' : '#555' }}>
+              {t('select_filter_linked') || 'Linked'}
+            </Text>
+          </TouchableOpacity>
+          {(localClassrooms.length > 0 ? localClassrooms : classrooms)
+            .slice()
+            .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''))
+            .map((cl: any) => (
+            <TouchableOpacity key={cl.id}
               style={{ paddingHorizontal:14, paddingVertical:7, borderRadius:16,
-                backgroundColor: !selectedClassroom ? '#5C6BC0' : '#EEEEEE',
-                borderWidth:1, borderColor: !selectedClassroom ? '#5C6BC0' : '#DDD' }}
-              onPress={() => setSelectedClassroom(null)}>
-              <Text style={{ fontSize:13, fontWeight:'600', color: !selectedClassroom ? 'white' : '#555' }}>
-                {t('all') || 'All'}
-              </Text>
+                backgroundColor: selectedClassroom === cl.id ? '#5C6BC0' : '#EEEEEE',
+                borderWidth:1, borderColor: selectedClassroom === cl.id ? '#5C6BC0' : '#DDD' }}
+              onPress={() => setSelectedClassroom(cl.id)}>
+              <Text style={{ fontSize:13, fontWeight:'600',
+                color: selectedClassroom === cl.id ? 'white' : '#555' }}>{cl.name}</Text>
             </TouchableOpacity>
-            {(localClassrooms.length > 0 ? localClassrooms : classrooms).map((cl: any) => (
-              <TouchableOpacity key={cl.id}
-                style={{ paddingHorizontal:14, paddingVertical:7, borderRadius:16,
-                  backgroundColor: selectedClassroom === cl.id ? '#5C6BC0' : '#EEEEEE',
-                  borderWidth:1, borderColor: selectedClassroom === cl.id ? '#5C6BC0' : '#DDD' }}
-                onPress={() => setSelectedClassroom(cl.id)}>
-                <Text style={{ fontSize:13, fontWeight:'600',
-                  color: selectedClassroom === cl.id ? 'white' : '#555' }}>{cl.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
+          ))}
+        </ScrollView>
+      </View>
       <ScrollView contentContainerStyle={styles.scrollContent}>
 
 
         <View style={styles.studentsGrid}>
-          {(selectedClassroom ? students.filter(s => s.classroom_id === selectedClassroom) : students)
+          {(selectedClassroom === 'linked' ? students.filter((s: any) => s.is_linked)
+            : selectedClassroom ? students.filter(s => s.classroom_id === selectedClassroom)
+            : students)
             .slice()
             .sort((a: any, b: any) => {
               const aDate = a.last_checkin_date || a.updated_at || '';

@@ -746,6 +746,7 @@
   "yellow_short_label": "Jaune",
   "red_short_label": "Rouge",
   "linked_students_filter": "🔗 Élèves Liés",
+  "select_filter_linked": "Liés",
   "confirm_delete_resource": "Supprimer cette ressource ?",
   "zone_alert": "Alerte de Zone",
   "mark_resolved": "Marquer comme Résolu",
