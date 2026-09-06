@@ -55,6 +55,12 @@ export default function StudentSelectScreen() {
   // community creatures (per /students/{id}/my-creatures, filtered to is_active community
   // entries) so they render alongside the defaults with the same tick/in-progress treatment.
   const [studentActiveCommunity, setStudentActiveCommunity] = useState<Record<string, any[]>>({});
+  // Round 3 (Sep 5), item 16: redesigned card display - up to 4 minis (most recent first) +
+  // a "xN" total-collection chip, and a milestone-only border. Reuses the SAME
+  // creaturesApi.getMyCreatures() call already made below for studentActiveCommunity - no new
+  // network request, just also keeping the FULL per-colour data (default + every community
+  // creature, not just active ones) instead of discarding everything but the active subset.
+  const [studentAllCreatureData, setStudentAllCreatureData] = useState<Record<string, Record<string, any[]>>>({});
   // Real feature Aug 23 (item 6): the card only ever reflected default-creature completion
   // status - a student with all 4 defaults done had no way to know there were new
   // Family/Class/School/Global creatures they hadn't started yet. Counts eligible creatures
@@ -138,6 +144,7 @@ export default function StudentSelectScreen() {
       students.map(s => creaturesApi.getMyCreatures(s.id).then(data => ({ id: s.id, data })))
     ).then(results => {
       const active: Record<string, any[]> = {};
+      const allData: Record<string, Record<string, any[]>> = {};
       results.forEach(r => {
         if (r.status !== 'fulfilled') return;
         const { id, data } = r.value;
@@ -150,8 +157,10 @@ export default function StudentSelectScreen() {
           });
         });
         if (entries.length) active[id] = entries;
+        if (data?.colours) allData[id] = data.colours;
       });
       setStudentActiveCommunity(active);
+      setStudentAllCreatureData(allData);
     }).catch(() => {});
   }, [students]);
 
@@ -206,6 +215,65 @@ export default function StudentSelectScreen() {
     router.push('/profiles/create');
   };
 
+  // Round 3 (Sep 5), item 16b: milestone-only border - one side per original colour, filled in
+  // only once that colour's DEFAULT creature is fully evolved (stage 3). A full rainbow (all
+  // 4 sides coloured) means the core journey - the 4 originals - is complete, independent of
+  // however many submitted creatures have been added since. Deliberately never encodes
+  // anything else (not "has any progress", not community completion), so it reads the same
+  // way at 4 creatures or 40. Plain View border-side colours, no extra library.
+  const MILESTONE_BORDER_COLOUR: Record<string, string> = { blue: '#4A90D9', green: '#4CAF73', yellow: '#FFC107', red: '#E05252' };
+  const getMilestoneBorderStyle = (studentId: string) => {
+    const colours = studentAllCreatureData[studentId];
+    const sideFor = (colour: string) => {
+      const bucket = colours?.[colour] || [];
+      const isDefaultComplete = bucket.find((e: any) => e.type === 'default')?.is_complete;
+      return isDefaultComplete ? MILESTONE_BORDER_COLOUR[colour] : '#E5E5E5';
+    };
+    return {
+      borderWidth: 2,
+      borderTopColor: sideFor('blue'),
+      borderRightColor: sideFor('green'),
+      borderBottomColor: sideFor('yellow'),
+      borderLeftColor: sideFor('red'),
+    };
+  };
+
+  // Round 3 (Sep 5), item 16c: chip tint hooks for milestone tiers - implemented now even
+  // though most students won't hit these yet, so the thresholds don't need revisiting later.
+  // Bronze/silver/gold are placeholders for whatever real tier styling gets designed - the
+  // threshold logic itself (10/25/50) is the part worth having cheaply in place early.
+  const getCountChipTint = (count: number) => {
+    if (count >= 50) return { backgroundColor: '#FFF8E1', borderColor: '#D4AF37' }; // gold
+    if (count >= 25) return { backgroundColor: '#F5F5F5', borderColor: '#A8A8A8' }; // silver
+    if (count >= 10) return { backgroundColor: '#FBEEE6', borderColor: '#CD7F32' }; // bronze
+    return { backgroundColor: '#F0F0F0', borderColor: '#DDD' };
+  };
+
+  // Round 3 (Sep 5), item 16a: up to 4 minis, most recent first, then a "xN" chip for the real
+  // total (defaults + every submitted creature, matching what /my-creatures actually returns -
+  // "Matilda (7)" is her real 4 defaults + 3 community creatures, not a mocked number).
+  // "Most recent" is a real limitation, disclosed rather than faked: community creatures have
+  // a genuine started_at timestamp, defaults don't (no per-creature "last touched" field exists
+  // in the data model today) - so the sort is is_active first (a real, live recency signal),
+  // then real started_at/completed_at where it exists, with defaults (no timestamp) sinking to
+  // the end unless they're the active one. Exactly right once any community creature exists;
+  // for an all-defaults collection it's really just "active first, then colour order".
+  const getSortedCreatureEntries = (studentId: string) => {
+    const colours = studentAllCreatureData[studentId];
+    if (!colours) return null;
+    const flat: any[] = [];
+    Object.entries(colours).forEach(([colour, bucket]) => {
+      (bucket as any[]).forEach(entry => flat.push({ ...entry, colour }));
+    });
+    flat.sort((a, b) => {
+      if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
+      const aTs = a.completed_at || a.started_at || '';
+      const bTs = b.completed_at || b.started_at || '';
+      return bTs.localeCompare(aTs);
+    });
+    return flat;
+  };
+
   // Render mini creature icons for a student
   const renderCreatureIcons = (studentId: string) => {
     const data = studentCreatures[studentId];
@@ -253,44 +321,83 @@ export default function StudentSelectScreen() {
               ⭐ {currentPts}/{totalNeeded} pts to complete all
             </Text>
           )}
-          {allComplete && (
-            <Text style={{ fontSize: 9, color: '#4CAF50', textAlign: 'center', marginBottom: 2, fontWeight: '600' }}>
-              ✅ All creatures complete!
-            </Text>
-          )}
           {!!studentNewEligibleCount[studentId] && (
             <Text style={{ fontSize: 9, color: '#9C27B0', textAlign: 'center', marginBottom: 2, fontWeight: '700' }}>
               🌟 New creatures to evolve!
             </Text>
           )}
-          <View style={styles.collectedIcons}>
-            {allCreatures.slice(0, 4).map((creature: any) => {
-              const cStage = Number(creature.current_stage || 0);
-              const cColor = creature.color || '#CCC';
-              const cEmoji = creature.stages?.[cStage]?.emoji || '🥚';
-              const hasPoints = Number(creature.current_points || 0) > 0;
+          {(() => {
+            // Round 3 (Sep 5), item 16a: replaces the old "first 4 defaults + separately-
+            // appended active community icons" layout with one merged, recency-sorted list
+            // (see getSortedCreatureEntries above) plus a real total-collection count chip.
+            // Falls back to the pre-existing defaults-only rendering if the richer
+            // /my-creatures data for this student hasn't loaded yet, so nothing regresses
+            // during that brief window.
+            const sorted = getSortedCreatureEntries(studentId);
+            if (!sorted) {
               return (
-                <View
-                  key={creature.id}
-                  style={[styles.collectedCreatureIcon, { 
-                    backgroundColor: hasPoints ? cColor + '30' : '#F0F0F0',
-                    borderWidth: 1,
-                    borderColor: hasPoints ? cColor : '#DDD',
-                  }]}
-                >
-                  <Text style={[styles.collectedEmoji, { opacity: hasPoints ? 1 : 0.4 }]}>
-                    {cEmoji}
-                  </Text>
-                  {cStage >= 3 && (
-                    <View style={[styles.completeBadge, { backgroundColor: cColor }]}>
-                      <Text style={styles.completeBadgeText}>✓</Text>
-                    </View>
-                  )}
+                <View style={styles.collectedIcons}>
+                  {allCreatures.slice(0, 4).map((creature: any) => {
+                    const cStage = Number(creature.current_stage || 0);
+                    const cColor = creature.color || '#CCC';
+                    const cEmoji = creature.stages?.[cStage]?.emoji || '🥚';
+                    const hasPoints = Number(creature.current_points || 0) > 0;
+                    return (
+                      <View key={creature.id} style={[styles.collectedCreatureIcon, {
+                        backgroundColor: hasPoints ? cColor + '30' : '#F0F0F0', borderWidth: 1,
+                        borderColor: hasPoints ? cColor : '#DDD',
+                      }]}>
+                        <Text style={[styles.collectedEmoji, { opacity: hasPoints ? 1 : 0.4 }]}>{cEmoji}</Text>
+                        {cStage >= 3 && (
+                          <View style={[styles.completeBadge, { backgroundColor: cColor }]}>
+                            <Text style={styles.completeBadgeText}>✓</Text>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
                 </View>
               );
-            })}
-            {renderActiveCommunityIcons()}
-          </View>
+            }
+            const totalCount = sorted.length;
+            const visible = sorted.slice(0, 4);
+            return (
+              <View style={styles.collectedIcons}>
+                {visible.map((entry: any) => {
+                  const zoneColor = COMMUNITY_ZONE_COLORS[entry.colour] || '#5C6BC0';
+                  const hasProgress = entry.type === 'default' ? Number(entry.points || 0) > 0 : true;
+                  return (
+                    <View
+                      key={`${entry.type}-${entry.id}`}
+                      style={[styles.collectedCreatureIcon, {
+                        backgroundColor: hasProgress ? zoneColor + '30' : '#F0F0F0',
+                        borderWidth: 1, borderColor: hasProgress ? zoneColor : '#DDD',
+                      }]}
+                    >
+                      {entry.type === 'community' ? (
+                        entry.stage_image ? <Image source={{ uri: entry.stage_image }} style={styles.communityThumb} /> : <Text style={styles.collectedEmoji}>🐾</Text>
+                      ) : (
+                        <Text style={[styles.collectedEmoji, { opacity: hasProgress ? 1 : 0.4 }]}>{entry.emoji || '🥚'}</Text>
+                      )}
+                      {entry.is_complete && (
+                        <View style={[styles.completeBadge, { backgroundColor: zoneColor }]}>
+                          <Text style={styles.completeBadgeText}>✓</Text>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+                {/* Jono's decision (Sep 6): chip only when there's more to show than the 4
+                    minis already display - at exactly 4 (the real minimum, all students
+                    start here), the minis speak for themselves, no redundant "×4". */}
+                {totalCount > 4 && (
+                  <View style={[styles.collectedCreatureIcon, getCountChipTint(totalCount), { borderWidth: 1, alignItems: 'center', justifyContent: 'center' }]}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#555' }}>×{totalCount}</Text>
+                  </View>
+                )}
+              </View>
+            );
+          })()}
         </View>
       );
     }
@@ -399,6 +506,7 @@ export default function StudentSelectScreen() {
               style={({ pressed }) => [
                 styles.studentCard,
                 { width: cardWidth },
+                getMilestoneBorderStyle(student.id),
                 selectedStudentId === student.id && styles.studentCardSelected,
                 pressed && styles.studentCardPressed
               ]}
