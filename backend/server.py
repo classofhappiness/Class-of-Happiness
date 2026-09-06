@@ -6074,8 +6074,17 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
                 Paragraph(comment,                               ST_SMALL),
             ])
 
+        # Real fix (fix/pdf-report-pagination): splitByRow=0 told ReportLab this table could
+        # never break across a page boundary at all, and the whole thing was then wrapped in
+        # KeepTogether below - which additionally demanded the ENTIRE table fit on one single
+        # page. For a busy month (Matilda, Aug 2026, 49 rows) the table's real height (816pt)
+        # exceeded the usable page height (757pt) with no way to satisfy either constraint,
+        # raising a hard LayoutError and 500ing the whole endpoint. repeatRows=1 (kept, was
+        # already here) exists specifically so a table CAN split across pages while repeating
+        # its header row - splitByRow=1 (the actual default; set explicitly here since this is
+        # the exact property that was disabled) lets it actually do that.
         log_tbl = Table(log_rows, colWidths=[38, 32, 48, 68, 140, 129],
-                        repeatRows=1, splitByRow=0)
+                        repeatRows=1, splitByRow=1)
         log_style_list = [
             ('BACKGROUND',     (0,0), (-1,0), INDIGO),
             ('TEXTCOLOR',      (0,0), (-1,0), WHITE),
@@ -6094,12 +6103,17 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
             src_color = colors.HexColor('#4CAF50') if src == "home" else colors.HexColor('#5C6BC0')
             log_style_list.append(('TEXTCOLOR', (2,i), (2,i), src_color))
         log_tbl.setStyle(TableStyle(log_style_list))
-        # Keep heading with first few rows to prevent orphaned header
-        try:
-            elements.append(KeepTogether([log_heading, Spacer(1, 4), log_tbl]))
-        except Exception:
-            elements.append(log_heading)
-            elements.append(log_tbl)
+        # Real fix (fix/pdf-report-pagination): this used to wrap the WHOLE table (heading +
+        # every row) in KeepTogether, which is exactly what made the LayoutError above
+        # unavoidable for a large month - KeepTogether refuses to let its contents split across
+        # pages at all, no matter what repeatRows/splitByRow allow. Only the heading+spacer
+        # (always tiny, always fits) stay glued together now, so the heading is never orphaned
+        # alone at the bottom of a page - the table itself flows and splits freely right after,
+        # with its own repeatRows=1 repeating the header row on every continuation page. The
+        # old try/except here never actually caught anything real: KeepTogether's own
+        # LayoutError only surfaces later, inside doc.build() below, not at append() time.
+        elements.append(KeepTogether([log_heading, Spacer(1, 4)]))
+        elements.append(log_tbl)
     else:
         elements.append(Paragraph("No check-ins recorded for this period.", ST_BODY))
 
