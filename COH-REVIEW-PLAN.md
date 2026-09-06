@@ -2504,3 +2504,17 @@ Full pre-flight against `origin/main` (PR #3 + PR #4 merged, no kiosk/audio comm
 **iOS submitted to App Store Connect** on Jono's go: `eas submit --platform ios --id 8c8e9b73-51ed-4876-9bea-052bb8aa9d55 --profile production` - succeeded, uploaded, now in Apple's processing queue (~5-10 min). Submission: https://expo.dev/accounts/jwacarey/projects/class-of-happiness/submissions/8bdc42bf-f8c3-483d-9fc3-37d08fabd554. Release-notes/submit-for-review step in App Store Connect is still manual, on Jono.
 
 **Android build (`2817003d-6046-4130-868a-10a165c31d33`, preview profile)**: FINISHED, no errors, 1.4.0/versionCode 9 confirmed, ~15 min. Direct-download `.apk`: https://expo.dev/artifacts/eas/TRIf6i3wPVspuiwQcS-Peiq4PIjLurG7miVN-PX_pFs.apk - handed to Jono to update classofhappiness.com and Linktree, same as build 25. Build 26 both platforms now complete: iOS submitted (Apple processing), Android ready for direct distribution, Play submission still pending verification.
+
+## A102 — iOS export compliance confirmed closed; portal password hashing logged as priority post-ship, 2026-09-06
+
+**Export compliance**: `app.json`'s `ios.infoPlist.ITSAppUsesNonExemptEncryption` was already `false` - nothing to add, confirmed on `main`. Audited to make sure the flag is actually accurate (scoped correctly to the iOS *app bundle*, not the backend, since Railway-hosted server code never ships in the compiled binary and is irrelevant to this specific flag): frontend's only crypto-adjacent dependency is `expo-crypto`, never imported directly anywhere in app code - it's a transitive dependency of `expo-auth-session`, used only for standard OAuth PKCE hashing (the textbook "authentication only" exemption). No custom crypto libraries anywhere (`crypto-js`/`node-forge`/`tweetnacl`/`react-native-keychain`/etc. - none present), no custom TLS or certificate pinning, all network calls are plain HTTPS `fetch`. Closed, Jono confirmed.
+
+**Priority backend item, logged for post-ship, own branch, propose-before-build**: portal password hashing (`server.py`'s `hash_password`/`verify_password`, ~line 14715) currently uses plain salted SHA-256 via Python's `hashlib` - a fast general-purpose hash, not a slow key-derivation function, so it's materially weaker against offline brute-force than bcrypt/Argon2 for this specific purpose (found in passing during the export-compliance audit above, unrelated to it).
+
+Migration approach, confirmed with Jono, **to propose in detail when that branch starts, not built now**: standard lazy-migration pattern -
+- New signups/password-sets hash with bcrypt immediately.
+- On every successful login, verify against whichever hash format is stored (old SHA-256:salt or new bcrypt) - if it matched the OLD format, re-hash the same plaintext password with bcrypt and overwrite the stored value before returning success.
+- Existing users migrate transparently the next time they log in - no forced resets, no reset emails, no downtime.
+- Users who never log in again stay on the old hash indefinitely, which is an accepted, normal tradeoff of this pattern (not a gap to solve for).
+
+Logged alongside `fix/pdf-report-pagination`-style backend work as a priority post-ship item - not scheduled/branched yet.
