@@ -2518,3 +2518,15 @@ Migration approach, confirmed with Jono, **to propose in detail when that branch
 - Users who never log in again stay on the old hash indefinitely, which is an accepted, normal tradeoff of this pattern (not a gap to solve for).
 
 Logged alongside `fix/pdf-report-pagination`-style backend work as a priority post-ship item - not scheduled/branched yet.
+
+## A103 — logged for build 27+: full accessibility pass, 2026-09-06
+
+Not started, not scoped in detail - a log entry only, per Jono. Scope as given:
+- VoiceOver labels on all interactive elements (frontend-wide audit, likely the largest piece)
+- Dynamic Type support (text scales with the system font-size setting, without breaking layout)
+- Reduced-motion respect (the app's various pulse/bounce/preview-cycle animations - creature cards, active rings, kiosk prompt pulse, etc. - should check `prefers-reduced-motion`/`AccessibilityInfo.isReduceMotionEnabled` and scale back or disable)
+- Colour-blind verification of the emotion-colour system specifically - confirm the emoji+text pairing already used throughout (never colour alone) actually holds up for every colour-carrying UI element, not just the original check-in flow
+
+Once built and verified: declare the verified features in App Store Connect's Accessibility showcase (a real App Store metadata step, not just a code change).
+
+Jono's framing: a genuine differentiator for SEND-focused sales (special educational needs and disabilities) - worth treating as a real feature investment, not a compliance checkbox, when this gets scoped.
