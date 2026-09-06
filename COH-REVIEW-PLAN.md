@@ -2517,7 +2517,7 @@ Migration approach, confirmed with Jono, **to propose in detail when that branch
 - Existing users migrate transparently the next time they log in - no forced resets, no reset emails, no downtime.
 - Users who never log in again stay on the old hash indefinitely, which is an accepted, normal tradeoff of this pattern (not a gap to solve for).
 
-Logged alongside `fix/pdf-report-pagination`-style backend work as a priority post-ship item - not scheduled/branched yet.
+Queued alongside `fix/report-source` (A99 finding #1 - `generate_pdf_report`'s home/school source-tagging bug) as a priority post-ship backend item - not scheduled/branched yet.
 
 ## A103 — logged for build 27+: full accessibility pass, 2026-09-06
 
