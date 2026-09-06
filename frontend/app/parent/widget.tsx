@@ -165,7 +165,7 @@ export default function ParentWidgetScreen() {
       </View>
 
       <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={INDIGO} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={INDIGO} colors={[INDIGO]} />}
         contentContainerStyle={{ paddingBottom: 40 }}>
 
         {loading ? (

@@ -225,7 +225,7 @@ export default function TeacherAlertsScreen() {
         </View>
       </View>
       <ScrollView contentContainerStyle={{ padding:14 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#5C6BC0" colors={['#5C6BC0']} />}>
         {loading && <View style={{ alignItems:'center', marginTop:30 }}><EmotionColourLoader visible size={48} /></View>}
         {!loading && filtered.length === 0 && (
           <View style={{ alignItems:'center', marginTop:50 }}>
