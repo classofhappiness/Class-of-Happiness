@@ -24,7 +24,7 @@ export default function HomeScreen() {
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.loadingContainer}>
           <Text style={styles.appTitle} allowFontScaling={false}>Class of Happiness</Text>
-          <Text style={styles.loadingText}>Loading...</Text>
+          <Text style={styles.loadingText}>{t('loading') || 'Loading...'}</Text>
         </View>
       </View>
     );
@@ -69,7 +69,7 @@ export default function HomeScreen() {
           ))}
         </View>
         <View style={{flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, marginBottom:16}}>
-          <Text style={{fontSize:12, fontStyle:'italic', color:'#000', fontWeight:'400'}}>Select below to begin</Text>
+          <Text style={{fontSize:12, fontStyle:'italic', color:'#000', fontWeight:'400'}}>{t('select_below_to_begin') || 'Select below to begin'}</Text>
           <Text style={{fontSize:13, color:'#000'}}>↓</Text>
         </View>
 
@@ -124,7 +124,7 @@ export default function HomeScreen() {
             <MaterialIcons name="school" size={26} color="white" />
             <View style={{alignItems:'center'}}>
               <Text style={styles.roleButtonTitle}>{t('teacher') || 'Teacher'}</Text>
-              <Text style={{fontSize:10, color:'#1A1A2E', fontStyle:'italic', fontWeight:'600', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}>{'Teachers Dashboard — support your students here'}</Text>
+              <Text style={{fontSize:10, color:'#1A1A2E', fontStyle:'italic', fontWeight:'600', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}>{t('teacher_dashboard_subtitle') || 'Teachers Dashboard — support your students here'}</Text>
             </View>
             {(!isAuthenticated || teacherLocked) && <MaterialIcons name="lock" size={14} color="rgba(255,255,255,0.7)" />}
           </TouchableOpacity>
@@ -140,7 +140,7 @@ export default function HomeScreen() {
             <MaterialIcons name="family-restroom" size={26} color="white" />
             <View style={{alignItems:'center'}}>
               <Text style={styles.roleButtonTitle}>{t('parent') || 'Parent'}</Text>
-              <Text style={{fontSize:10, color:'#1A1A2E', fontStyle:'italic', fontWeight:'600', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}>{'Family Dashboard — support your family here'}</Text>
+              <Text style={{fontSize:10, color:'#1A1A2E', fontStyle:'italic', fontWeight:'600', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}>{t('family_dashboard_subtitle') || 'Family Dashboard — support your family here'}</Text>
             </View>
             {!isAuthenticated && <MaterialIcons name="lock" size={14} color="rgba(255,255,255,0.7)" />}
           </TouchableOpacity>
@@ -159,7 +159,7 @@ export default function HomeScreen() {
           <Text style={styles.copyrightText}>© 2026 Class of Happiness</Text>
           <TouchableOpacity style={styles.aboutButton} onPress={() => router.push('/about' as any)}>
             <MaterialIcons name="info-outline" size={14} color="#CCC" />
-            <Text style={styles.aboutButtonText}>About & Privacy</Text>
+            <Text style={styles.aboutButtonText}>{t('about_privacy') || 'About & Privacy'}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
