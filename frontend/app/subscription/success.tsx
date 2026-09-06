@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'rea
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { useApp } from '../../src/context/AppContext';
 import { subscriptionApi } from '../../src/utils/api';
 
@@ -41,7 +42,7 @@ export default function SubscriptionSuccessScreen() {
       <View style={styles.content}>
         {status === 'loading' && (
           <>
-            <ActivityIndicator size="large" color="#5C6BC0" />
+            <EmotionColourLoader visible size={64} />
             <Text style={styles.loadingText}>Verifying your payment...</Text>
           </>
         )}

@@ -266,13 +266,18 @@ export default function ManageClassroomsScreen() {
             Renamed + given its own 🎟️ identity per Jono's on-device review (Sep 5), reusing
             the same kiosk_screen_title key the kiosk screen itself now shows, so the label
             here and the heading a student actually lands on always say the same thing. */}
+        {/* Build 26 (Sep 6, on-device review): 🎟️ bumped ~3x (22->64) and moved into its own
+            fixed square with equal padding on all sides, like an icon slot next to the text -
+            was a small inline glyph that read as an afterthought next to the two-line label. */}
         <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: '#FF9800', marginTop: -4 }]}
+          style={[styles.addButton, { backgroundColor: '#FF9800', marginTop: -4, justifyContent: 'flex-start' }]}
           onPress={launchKiosk}
           onLongPress={handlePairKioskDevice}
         >
-          <Text style={{ fontSize: 22 }}>🎟️</Text>
-          <View style={{ alignItems: 'center' }}>
+          <View style={{ width: 76, height: 76, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 64 }}>🎟️</Text>
+          </View>
+          <View style={{ flex: 1, alignItems: 'center' }}>
             <Text style={styles.addButtonText}>{t('kiosk_screen_title') || 'KIOSK - Student Class Check In'}</Text>
             <Text style={{ color: '#1A1A2E', fontStyle: 'italic', fontSize: 11, marginTop: 2 }}>
               {t('kiosk_button_subtitle') || 'For students to use their device'}

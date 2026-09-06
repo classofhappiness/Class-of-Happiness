@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator, Platform } from 'react-nativ
 import { useRouter, useLocalSearchParams, useGlobalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
+import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import * as ExpoLinking from 'expo-linking';
 import { authApi, setSessionToken } from '../../src/utils/api';
 import { useApp } from '../../src/context/AppContext';
@@ -168,7 +169,7 @@ export default function AuthCallbackScreen() {
           </>
         ) : (
           <>
-            <ActivityIndicator size="large" color="#5C6BC0" />
+            <EmotionColourLoader visible size={64} />
             <Text style={styles.text}>Signing you in...</Text>
             <Text style={styles.statusText}>{status}</Text>
           </>

@@ -334,7 +334,7 @@ export default function LinkedChildDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={s.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+      <ScrollView style={s.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#5C6BC0" colors={['#5C6BC0']} />}>
 
         <View style={s.childCard}>
           <View style={s.childAvatar}><Text style={{ fontSize: 28 }}>{'\u{1F467}'}</Text></View>
@@ -526,11 +526,14 @@ export default function LinkedChildDetailScreen() {
                           {(ci.strategies_selected?.length>0 || ci.helpers_selected?.length>0) && <Text style={s.ciStrats}>{(ci.strategies_selected || ci.helpers_selected || []).map((sid: string) => resolveStrategyName(sid, t, STRATEGY_NAMES)).join(', ')}</Text>}
                           {ci.comment && <Text style={s.ciComment}>"{ci.comment}"</Text>}
                         </View>
-                        {!isFamilyChild && (
-                          <View style={[s.sourceBadge,{backgroundColor:isHome?'#E8F5E9':'#E3F2FD'}]}>
-                            <MaterialIcons name={isHome?'home':'school'} size={13} color={isHome?'#4CAF50':'#2196F3'} />
-                          </View>
-                        )}
+                        {/* Round 3 (Sep 5): this badge already existed but was gated behind
+                            !isFamilyChild, hiding it exactly for a genuinely school-linked
+                            child (e.g. Matilda) viewed via the family-member path - the case
+                            where home vs school actually varies per check-in and the icon is
+                            most useful. Now always shows. */}
+                        <View style={[s.sourceBadge,{backgroundColor:isHome?'#E8F5E9':'#E3F2FD'}]}>
+                          <MaterialIcons name={isHome?'home':'school'} size={13} color={isHome?'#4CAF50':'#2196F3'} />
+                        </View>
                       </View>
                     );
                   });

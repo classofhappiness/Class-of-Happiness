@@ -181,6 +181,7 @@ function AppContent() {
           options={{
             title: 'Settings',
             headerBackTitle: 'Back',
+            headerRight: () => <HomeToDashboard />,
           }}
         />
         <Stack.Screen

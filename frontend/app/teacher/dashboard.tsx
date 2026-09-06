@@ -4,9 +4,11 @@ import {
   ScrollView, RefreshControl, useWindowDimensions, Alert,
 } from 'react-native';
 import { useRouter, useNavigation, useFocusEffect } from 'expo-router';
+import { Swipeable } from 'react-native-gesture-handler';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
 import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { zoneLogsApi, ZoneLog } from '../../src/utils/api';
@@ -133,11 +135,9 @@ export default function TeacherDashboardScreen() {
   const [barData, setBarData] = useState<{value:number,label:string,frontColor:string}[]>([]);
   const [selectedClassroom, setSelectedClassroom] = useState<string|null>(null);
   const [alertCount, setAlertCount] = useState(0);
-  const [tipDismissed, setTipDismissed] = useState(false);
-  const [trialBannerDismissed, setTrialBannerDismissed] = useState(false);
-  const [alertBannerDismissed, setAlertBannerDismissed] = useState(false);
   const [checkinsExpanded, setCheckinsExpanded] = useState(false);
   const [graphExpanded, setGraphExpanded] = useState(false);
+  const [tipDismissed, setTipDismissed] = useState(false);
   const [localClassrooms, setLocalClassrooms] = useState<any[]>([]);
 
   useEffect(() => {
@@ -384,6 +384,33 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
     }
   };
 
+  // New feature Sep 5 (review round 3, item 1): the lock/key icon already shows the code via
+  // an Alert, but a teacher reading it off a phone screen to a room of students then has to
+  // re-fetch it again to actually copy it - this fetches the same code and copies it directly,
+  // one tap, no dialog to read from.
+  const [classCodeCopying, setClassCodeCopying] = useState<string | null>(null);
+  const handleCopyClassCode = async (classroomId: string, classroomName: string) => {
+    setClassCodeCopying(classroomId);
+    try {
+      const token = await AsyncStorage.getItem('session_token');
+      const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const res = await fetch(`${BURL}/api/classrooms/${classroomId}/join-code`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        await Clipboard.setStringAsync(data.join_code);
+        Alert.alert('✅ ' + (t('copied') || 'Copied'), `${classroomName}: ${data.join_code}`);
+      } else {
+        Alert.alert(t('error') || 'Error', t('could_not_get_class_code_retry') || 'Could not get class code. Please try again.');
+      }
+    } catch (e) {
+      Alert.alert(t('error') || 'Error', t('could_not_get_class_code') || 'Could not get class code.');
+    } finally {
+      setClassCodeCopying(null);
+    }
+  };
+
   // See the role-gate useEffect above - this is the actual early-return point, placed after
   // every hook in the component per React's rules of hooks (an early return any earlier would
   // skip hooks declared below it on some renders and not others).
@@ -426,6 +453,15 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
                       name={classCodeLoading===c.id ? 'hourglass-empty' : 'vpn-key'}
                       size={13} color="#5C6BC0" />
                   </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleCopyClassCode(c.id, c.name)}
+                    disabled={classCodeCopying === c.id}
+                    style={{width:26, height:26, borderRadius:13, backgroundColor:'#F0F4FF',
+                      justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#C5CAE9'}}>
+                    <MaterialIcons
+                      name={classCodeCopying===c.id ? 'hourglass-empty' : 'content-copy'}
+                      size={13} color="#5C6BC0" />
+                  </TouchableOpacity>
                 </View>
               ))}
             </View>
@@ -434,112 +470,15 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
       </View>
       {/* Main scroll */}
       <ScrollView style={{flex:1}} contentContainerStyle={st.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh}/>}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#5C6BC0" colors={['#5C6BC0']}/>}
         showsVerticalScrollIndicator={false}>
 
-        {/* Notification banners — round 2 (Sep 4, Marisa's mockup + Jono's follow-up
-            correction): live directly under the time filter pills, not fixed blocks mid-page.
-            Each is independently dismissible via X. Swipe-to-dismiss was tried here via
-            react-native-gesture-handler's Swipeable but caused an on-load crash in Expo Go
-            (this app runs newArchEnabled, and Swipeable was the first use of that specific
-            component anywhere in the codebase - a static SSR export rendered clean, since
-            that check can't exercise native gesture bindings at all, so the crash only ever
-            showed up on-device) - reverted, X-only per Jono's own fallback call, logged as a
-            real nice-to-have needing a proper native-module compatibility check, not "cheap."
-            Session-scoped dismissal (plain state), same pattern already established for the
-            two banners that already had an X. */}
-        {alertCount > 0 && !alertBannerDismissed && (
-          <TouchableOpacity
-            onPress={() => router.push('/teacher/alerts')}
-            style={{ flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#FFF3F3',
-              borderLeftWidth:4, borderLeftColor:'#F44336', marginBottom:8,
-              borderRadius:8, padding:10 }}>
-            <MaterialIcons name="notifications-active" size={18} color="#F44336" />
-            <Text style={{ flex:1, fontSize:13, fontWeight:'600', color:'#C62828' }}>
-              {alertCount} {alertCount === 1 ? (t('student_needs') || 'student needs') : (t('students_need') || 'students need')} {t('support_today') || 'support today'}
-            </Text>
-            <TouchableOpacity onPress={(e) => { e.stopPropagation(); setAlertBannerDismissed(true); }} style={{ padding:4 }}>
-              <MaterialIcons name="close" size={16} color="#F44336" />
-            </TouchableOpacity>
-          </TouchableOpacity>
-        )}
-
-        {/* Daily Colour Tip */}
-        {analytics?.zone_counts && !tipDismissed && (() => {
-          const zc = (analytics as any).zone_counts as any;
-          const dominant = ['red','yellow','blue','green'].find(col => zc[col] > 0) || 'green';
-          const tips = (COLOUR_TIPS_TEACHER as any)[dominant] || COLOUR_TIPS_TEACHER.green;
-          const tip = tips[new Date().getDate() % tips.length];
-          const clrs: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
-          const bgs: Record<string,string> = { blue:'#EBF5FB', green:'#EAFAF1', yellow:'#FEFDE7', red:'#FDEDEC' };
-          const handleShowClassCode = async (classroomId: string, classroomName: string) => {
-    setClassCodeLoading(classroomId);
-    try {
-      const AsyncStorage2 = (await import('@react-native-async-storage/async-storage')).default;
-      const token = await AsyncStorage2.getItem('session_token');
-      const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-      const res = await fetch(`${BURL}/api/classrooms/${classroomId}/join-code`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        Alert.alert(
-          `${classroomName}`,
-          `${t('share_code_with_students') || 'Share this code with your students:'}
-
-${data.join_code}
-
-${t('students_enter_code_join_class') || 'Students enter this when creating their profile to join your class automatically.'}`,
-          [{ text: t('ok') || 'OK' }]
-        );
-      } else {
-        Alert.alert(t('error') || 'Error', t('could_not_get_class_code_retry') || 'Could not get class code. Please try again.');
-      }
-    } catch (e) {
-      Alert.alert(t('error') || 'Error', t('could_not_get_class_code') || 'Could not get class code.');
-    } finally {
-      setClassCodeLoading(null);
-    }
-  };
-
-  return (
-            <View style={{ marginHorizontal:16, marginBottom:10, padding:12, borderRadius:12,
-              backgroundColor: bgs[dominant], borderLeftWidth:4, borderLeftColor: clrs[dominant],
-              flexDirection:'row', alignItems:'flex-start' }}>
-              <View style={{ flex:1 }}>
-                <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:3 }}>{t(tip.tipKey) || tip.tip}</Text>
-                <Text style={{ fontSize:12, color:'#555', lineHeight:17 }}>{t(tip.actionKey) || tip.action}</Text>
-              </View>
-              <TouchableOpacity onPress={() => setTipDismissed(true)} style={{ padding:4, marginLeft:8 }}>
-                <MaterialIcons name="close" size={16} color="#AAA" />
-              </TouchableOpacity>
-            </View>
-          );
-        })()}
-
-
-      {/* Trial code banner — shows when no active subscription. New (Sep 4, Marisa's design
-          review): dismissable with an X, same session-scoped pattern as the Daily Colour Tip
-          banner's existing tipDismissed above - plain component state, so it stays hidden for
-          the rest of this session but reappears on a fresh app load, matching what was asked
-          ("don't reappear once dismissed this session"). The green tip banner already had this
-          exact dismiss behaviour before today - only this yellow one was missing it. */}
-      {!hasActiveSubscription && !trialBannerDismissed && (
-        <TouchableOpacity
-          onPress={() => router.push('/settings')}
-          style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#FFF8E1',
-            marginHorizontal:16, marginBottom:10, padding:12, borderRadius:12, gap:10,
-            borderWidth:1, borderColor:'#FFE082' }}>
-          <Text style={{ fontSize:20 }}>🎁</Text>
-          <View style={{ flex:1 }}>
-            <Text style={{ fontSize:13, fontWeight:'700', color:'#333' }}>{t('start_free_trial_banner') || 'Start your free trial'}</Text>
-            <Text style={{ fontSize:11, color:'#666' }}>{t('go_to_settings_enter_code') || 'Go to Settings'} → {t('enter_code_30_days_free') || 'enter code HAPPYCLASS2026 for 30 days free'}</Text>
-          </View>
-          <TouchableOpacity onPress={(e) => { e.stopPropagation(); setTrialBannerDismissed(true); }} style={{ padding:4 }}>
-            <MaterialIcons name="close" size={16} color="#B0A060" />
-          </TouchableOpacity>
-        </TouchableOpacity>
-      )}
+        {/* Build 26 (Sep 6): the alert/colour-tip/trial banner stack (built in review round 3,
+            A86) is removed entirely by design - push notifications supersede it in build 27.
+            The Alerts nav tile's own badge (NAV_BUTTONS, count: alertCount) is the in-app alert
+            channel now. Colour tip content relocated below into the Emotion Graph section
+            (same zone_counts data, no new fetch); trial/HAPPYCLASS2026 messaging relocated to
+            Settings' existing Trial Code section. See COH-REVIEW-PLAN.md A88. */}
 
         {/* Collapsible check-ins */}
         <TouchableOpacity style={st.sectionHeader} onPress={() => setCheckinsExpanded(e=>!e)}>
@@ -591,7 +530,20 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
                 <View style={{flex:1,marginLeft:10}}>
                   <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
                     <Text style={st.logName}>{getStudentName(log.student_id)}</Text>
-                    {(log as any).location==='home' && <View style={st.homeBadge}><Text style={st.homeBadgeTxt}>🏠 HOME</Text></View>}
+                    {/* Build 26 (Sep 6): was HOME-only and conditional, so every school
+                        check-in (the overwhelming majority here, including anything logged via
+                        bulk check-in - logged_by:'teacher_bulk', never sets `location` at all)
+                        showed no icon whatsoever. Same home/else-school binary already proven
+                        correct in linked-child/[id].tsx (Matilda's own screen) - `logged_by`
+                        checked ahead of the legacy `location` field since bulk check-ins and
+                        the generic /feeling-logs endpoint don't always set the latter. */}
+                    {(() => {
+                      const l = log as any;
+                      const isHome = l.location==='home' || l.logged_by==='parent' || l.logged_by==='family';
+                      return isHome
+                        ? <View style={st.homeBadge}><Text style={st.homeBadgeTxt}>🏠 HOME</Text></View>
+                        : <View style={st.schoolBadge}><Text style={st.schoolBadgeTxt}>🏫 SCHOOL</Text></View>;
+                    })()}
                   </View>
                   {(() => { const s = getStudent(log.student_id); const allCl = localClassrooms.length > 0 ? localClassrooms : classrooms; const cl = s?.classroom_id ? allCl.find((c:any)=>c.id===s.classroom_id) : null; return cl ? <Text style={{fontSize:9,color:'#AAA'}}>{cl.name}</Text> : null; })()}
                   {(log as any).strategies_selected?.length > 0 && (
@@ -680,6 +632,34 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
                 <Text style={{fontSize:11,color:'#999',textAlign:'center',marginTop:6}}>
                   {t('check_ins')||'Check-ins'}: {todaySnap.total} · {periodLabel(period)}
                 </Text>
+                {/* Daily colour tip, relocated here from the removed dashboard banner (build 26,
+                    Sep 6) - same dominant-colour computation, now living beside the chart it's
+                    actually about instead of floating above the whole dashboard. Approved-
+                    with-tweak same day: X-dismiss + Swipeable both restored (cheap - the same
+                    Swipeable already proven safe on this screen's now-removed banners, see
+                    A86/A90) since a permanent, un-dismissable card was still an unwanted
+                    fixture even living inside a collapsible section. */}
+                {!tipDismissed && (() => {
+                  const dominant = (['red','yellow','blue','green'] as const).find(col => zc[col] > 0) || 'green';
+                  const tips = (COLOUR_TIPS_TEACHER as any)[dominant] || COLOUR_TIPS_TEACHER.green;
+                  const tip = tips[new Date().getDate() % tips.length];
+                  const clrs: Record<string,string> = { blue:'#4A90D9', green:'#4CAF50', yellow:'#FFC107', red:'#F44336' };
+                  const bgs: Record<string,string> = { blue:'#EBF5FB', green:'#EAFAF1', yellow:'#FEFDE7', red:'#FDEDEC' };
+                  return (
+                    <Swipeable renderRightActions={() => null} onSwipeableOpen={() => setTipDismissed(true)}>
+                    <View style={{ marginTop:14, width:'100%', padding:12, borderRadius:12, flexDirection:'row', alignItems:'flex-start',
+                      backgroundColor: bgs[dominant], borderLeftWidth:4, borderLeftColor: clrs[dominant] }}>
+                      <View style={{ flex:1 }}>
+                        <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:3 }}>{t(tip.tipKey) || tip.tip}</Text>
+                        <Text style={{ fontSize:12, color:'#555', lineHeight:17 }}>{t(tip.actionKey) || tip.action}</Text>
+                      </View>
+                      <TouchableOpacity onPress={() => setTipDismissed(true)} style={{ padding:4, marginLeft:8 }}>
+                        <MaterialIcons name="close" size={16} color="#AAA" />
+                      </TouchableOpacity>
+                    </View>
+                    </Swipeable>
+                  );
+                })()}
                 </View>
               </>
             ) : (
@@ -737,8 +717,13 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
             whenever one specific classroom is selected instead of "All". */}
         <Text style={{fontSize:13, fontWeight:'700', color:'#333', marginBottom:6, marginTop:4}}>
           {t('class_mood_snapshot') || "Today's Class Mood"}
-          {period !== 1 ? ` · ${periodLabel(period)}` : ''}
-          {selectedClassroom ? ` · ${(localClassrooms.length > 0 ? localClassrooms : classrooms).find((c:any)=>c.id===selectedClassroom)?.name || ''}` : ''}
+          {/* Build 26 (Sep 6): inline filter label ("· 2 Weeks · Saint Antonio Room") dropped
+              to normal weight - was inheriting the title's bold, read as if it were part of
+              the heading itself instead of a lightweight active-filter indicator. */}
+          <Text style={{fontWeight:'400', color:'#666'}}>
+            {period !== 1 ? ` · ${periodLabel(period)}` : ''}
+            {selectedClassroom ? ` · ${(localClassrooms.length > 0 ? localClassrooms : classrooms).find((c:any)=>c.id===selectedClassroom)?.name || ''}` : ''}
+          </Text>
         </Text>
         <View style={{flexDirection:'row', gap:8, marginBottom:8}}>
           {(['blue','green','yellow','red'] as const).map(z => (
@@ -793,6 +778,8 @@ const st = StyleSheet.create({
   zonePill: { width:14, height:14, borderRadius:7 },
   homeBadge: { backgroundColor:'#E8F5E9', paddingHorizontal:4, paddingVertical:1, borderRadius:5 },
   homeBadgeTxt: { fontSize:8, color:'#4CAF50', fontWeight:'700' },
+  schoolBadge: { backgroundColor:'#E3F2FD', paddingHorizontal:4, paddingVertical:1, borderRadius:5 },
+  schoolBadgeTxt: { fontSize:8, color:'#2196F3', fontWeight:'700' },
   card: { backgroundColor:'white', borderRadius:14, padding:14, marginBottom:10 },
   empty: { paddingVertical:20, alignItems:'center' },
   emptyTxt: { fontSize:13, color:'#CCC' },

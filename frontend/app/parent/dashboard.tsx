@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerForPushNotifications } from '../../src/utils/notifications';
@@ -218,6 +219,7 @@ export default function ParentDashboard() {
   // Analytics
   const [analytics, setAnalytics] = useState<{ zone_counts: Record<string, number> } | null>(null);
   const [weekExpanded, setWeekExpanded] = useState(false);
+  const [tipDismissed, setTipDismissed] = useState(false);
   const [selectedWeekChild, setSelectedWeekChild] = useState<string | null>(null);
   const [parentAlertCount, setParentAlertCount] = useState(0);
   const [linkedChildSections, setLinkedChildSections] = useState<Record<string, {emoDistrib:boolean, recentCheckins:boolean, weekOverview:boolean}>>({});
@@ -230,7 +232,6 @@ export default function ParentDashboard() {
   const [analyticsPeriod, setAnalyticsPeriod] = useState<1|7|14|30>(7);
   const [checkInsExpanded, setCheckInsExpanded] = useState(false);
 
-  const [tipDismissed, setTipDismissed] = useState(false);
   // removed duplicate checkInsExpanded state — using checkInsExpanded
   const [recentLogs, setRecentLogs] = useState<(ZoneLog | FamilyZoneLog)[]>([]);
   
@@ -868,30 +869,18 @@ export default function ParentDashboard() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#5C6BC0" colors={['#5C6BC0']} />
         }
       >
-        {/* Alert banner */}
-        {parentAlertCount > 0 && (
-          <TouchableOpacity
-            onPress={() => router.push('/parent/alerts')}
-            style={{ flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#FFF3F3',
-              borderLeftWidth:4, borderLeftColor:'#F44336', marginHorizontal:12, marginBottom:8,
-              borderRadius:8, padding:10 }}>
-            <MaterialIcons name="notifications-active" size={18} color="#F44336" />
-            <Text style={{ flex:1, fontSize:13, fontWeight:'600', color:'#C62828' }}>
-              {parentAlertCount} {parentAlertCount === 1 ? 'alert' : 'alerts'} need your attention
-            </Text>
-            <MaterialIcons name="chevron-right" size={18} color="#F44336" />
-          </TouchableOpacity>
-        )}
+        {/* Build 26 (Sep 6): the alert/colour-tip/trial banner stack (built in review round 3,
+            A86) is removed entirely by design, mobile app only - push notifications supersede
+            it in build 27. The Alerts nav tile's own badge (count: parentAlertCount) is the
+            in-app alert channel now. Colour tip relocated into Week Overview below (same
+            zone-count data, no new fetch); trial/HAPPYCLASS2026 messaging relocated to
+            Settings' existing Trial Code section. See COH-REVIEW-PLAN.md A88. */}
 
-        {/* Subtitle only — title shown in TranslatedHeader */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 0, paddingBottom: 2, alignItems: 'center' }}>
-          <Text style={{ fontSize: 13, color: '#666', textAlign: 'center', fontWeight: '400', letterSpacing: 0.2 }}>
-            {t('family_wellbeing_desc') || "My Family's Emotional Wellbeing"}
-          </Text>
-        </View>
+        {/* Subtitle removed (round 3, Sep 5) - wasted space per review, title alone in the
+            native header already says "Family Dashboard". */}
 
         {/* Time filter pills — restructure (Sep 5) to mirror the teacher dashboard: now the
             second real element on screen, always visible, instead of buried inside the
@@ -907,15 +896,24 @@ export default function ParentDashboard() {
                 borderWidth:1, borderColor: selectedWeekChild===null?'#5C6BC0':'#E0E0E0' }}>
               <Text style={{ fontSize:11, fontWeight:'700', color: selectedWeekChild===null?'white':'#666' }}>All</Text>
             </TouchableOpacity>
+            {/* Build 26 (Sep 6): was filtered to relationship==='child' only, so any
+                self/partner family member (e.g. a parent logging their own wellbeing
+                check-ins via the Wellbeing button) could never get a filter pill at all,
+                regardless of how long they'd existed - confirmed live (Joana, relationship
+                "self", pre-existing) vs. a child member (Jeffrey) showing fine right after
+                creation. getFilteredLogs() below already matches by member id generically
+                (not child-specific), so the underlying filter always supported this - only
+                the pill list itself was artificially narrowed. Now built from every family
+                member, any relationship. */}
             {(() => {
-              const kids: {id:string,name:string}[] = [];
-              (familyMembers as any[]).filter((m:any)=>m.relationship==='child').forEach((m:any)=>{
+              const pills: {id:string,name:string}[] = [];
+              (familyMembers as any[]).forEach((m:any)=>{
                 // Use linked child ID if this family member is also school-linked
                 const lc = linkedChildren.find((l:any)=>l.name===m.name);
-                kids.push({id: lc ? lc.id : m.id, name:m.name});
+                pills.push({id: lc ? lc.id : m.id, name:m.name});
               });
-              linkedChildren.forEach((lc:any)=>{ if(!kids.some(c=>c.name===lc.name)) kids.push({id:lc.id,name:lc.name}); });
-              return kids.map(k=>(
+              linkedChildren.forEach((lc:any)=>{ if(!pills.some(c=>c.name===lc.name)) pills.push({id:lc.id,name:lc.name}); });
+              return pills.map(k=>(
                 <TouchableOpacity key={k.id} onPress={()=>setSelectedWeekChild(selectedWeekChild===k.id?null:k.id)}
                   style={{ paddingHorizontal:12, paddingVertical:5, borderRadius:16,
                     backgroundColor: selectedWeekChild===k.id?'#5C6BC0':'#F0F0F0',
@@ -938,45 +936,6 @@ export default function ParentDashboard() {
           </View>
         </View>
 
-        {/* Daily Colour Tip for Parents — tap X to dismiss */}
-        {familyMembers.length > 0 && !tipDismissed && (() => {
-          const logs = (recentLogs as any[]) || [];
-          const colour = logs[0]?.feeling_colour || logs[0]?.zone || 'green';
-          const tips = (COLOUR_TIPS_PARENT as any)[colour] || COLOUR_TIPS_PARENT.green;
-          const tip = tips[new Date().getDate() % tips.length];
-          const clrs: Record<string,string> = EMOTION_COLOURS;
-          const bgs: Record<string,string> = { blue:'#EBF5FB', green:'#EAFAF1', yellow:'#FEFDE7', red:'#FDEDEC' };
-          return (
-            <View style={{ marginHorizontal:16, marginBottom:10, padding:12, borderRadius:12,
-              backgroundColor: bgs[colour] || '#EAFAF1', borderLeftWidth:4, borderLeftColor: clrs[colour] || EMOTION_COLOURS.green,
-              flexDirection:'row', alignItems:'flex-start' }}>
-              <View style={{ flex:1 }}>
-                <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:3 }}>{t(tip.tipKey) || tip.tip}</Text>
-                <Text style={{ fontSize:12, color:'#555', lineHeight:17 }}>{t(tip.actionKey) || tip.action}</Text>
-              </View>
-              <TouchableOpacity onPress={() => setTipDismissed(true)} style={{ padding:4, marginLeft:8 }}>
-                <MaterialIcons name="close" size={16} color="#AAA" />
-              </TouchableOpacity>
-            </View>
-          );
-        })()}
-
-
-      {/* Trial code banner — shows when no active subscription */}
-      {!hasActiveSubscription && (
-        <TouchableOpacity
-          onPress={() => router.push('/settings')}
-          style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#FFF8E1',
-            marginHorizontal:16, marginBottom:10, padding:12, borderRadius:12, gap:10,
-            borderWidth:1, borderColor:'#FFE082' }}>
-          <Text style={{ fontSize:20 }}>🎁</Text>
-          <View style={{ flex:1 }}>
-            <Text style={{ fontSize:13, fontWeight:'700', color:'#333' }}>{t('start_free_trial_banner') || 'Start your free trial'}</Text>
-            <Text style={{ fontSize:11, color:'#666' }}>{t('go_to_settings_enter_code') || 'Go to Settings'} → {t('enter_code_30_days_free') || 'enter code HAPPYCLASS2026 for 30 days free'}</Text>
-          </View>
-          <MaterialIcons name="chevron-right" size={20} color="#FFC107" />
-        </TouchableOpacity>
-      )}
         {/* Children Analytics */}
         <>
           <View style={styles.section}>
@@ -1028,6 +987,43 @@ export default function ParentDashboard() {
                         </View>
                       );
                     })}
+                    {/* Daily colour tip, relocated here from the removed dashboard banner
+                        (build 26, Sep 6) - reuses this section's own period-filtered `counts`
+                        instead of the banner's old "latest single log" signal, so the tip now
+                        reflects whichever period is actually selected. Approved-with-tweak
+                        same day: X-dismiss + Swipeable restored (cheap - gesture-handler is
+                        already a dependency, same pattern as the teacher dashboard's own
+                        relocated tip) since a permanent, un-dismissable card was still an
+                        unwanted fixture even living inside a collapsible section.
+                        Real fix, same day: swipe-to-dismiss didn't register here even though
+                        the X button did, while the teacher dashboard's identical Swipeable
+                        worked for both. Only real difference between the two blocks was this
+                        View missing `width:'100%'` - Swipeable measures its child via onLayout
+                        to compute drag thresholds, and without an explicit width this row could
+                        shrink-wrap instead of spanning the card, breaking the pan gesture's
+                        math while leaving the plain-press X button (unaffected by that
+                        measurement) working fine. Added, matching the teacher dashboard exactly. */}
+                    {!tipDismissed && (() => {
+                      const dominant = (['red','yellow','blue','green'] as const).find(c => counts[c] > 0) || 'green';
+                      const tips = (COLOUR_TIPS_PARENT as any)[dominant] || COLOUR_TIPS_PARENT.green;
+                      const tip = tips[new Date().getDate() % tips.length];
+                      const clrs: Record<string,string> = EMOTION_COLOURS;
+                      const bgs: Record<string,string> = { blue:'#EBF5FB', green:'#EAFAF1', yellow:'#FEFDE7', red:'#FDEDEC' };
+                      return (
+                        <Swipeable renderRightActions={() => null} onSwipeableOpen={() => setTipDismissed(true)}>
+                        <View style={{ marginTop:4, width:'100%', padding:12, borderRadius:12, flexDirection:'row', alignItems:'flex-start',
+                          backgroundColor: bgs[dominant] || '#EAFAF1', borderLeftWidth:4, borderLeftColor: clrs[dominant] || EMOTION_COLOURS.green }}>
+                          <View style={{ flex:1 }}>
+                            <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:3 }}>{t(tip.tipKey) || tip.tip}</Text>
+                            <Text style={{ fontSize:12, color:'#555', lineHeight:17 }}>{t(tip.actionKey) || tip.action}</Text>
+                          </View>
+                          <TouchableOpacity onPress={() => setTipDismissed(true)} style={{ padding:4, marginLeft:8 }}>
+                            <MaterialIcons name="close" size={16} color="#AAA" />
+                          </TouchableOpacity>
+                        </View>
+                        </Swipeable>
+                      );
+                    })()}
                   </View>
                 );
               })()}
@@ -1077,7 +1073,10 @@ export default function ParentDashboard() {
                                 <View style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
                                   <View style={[styles.weeklyZoneDot, { backgroundColor: dotColor }]} />
                                   {initial ? <Text style={{ fontSize:7, color:'#888', fontWeight:'700' }}>{initial}</Text> : null}
-                                  {(log as any).location==='home' ? <Text style={{ fontSize:7 }}>🏠</Text> : null}
+                                  {/* Build 26 (Sep 6): was HOME-only, so a school check-in
+                                      showed nothing here at all - same home/else-school binary
+                                      as linked-child/[id].tsx and the teacher dashboard fix. */}
+                                  <Text style={{ fontSize:7 }}>{((log as any).location==='home' || (log as any).logged_by==='parent' || (log as any).logged_by==='family') ? '🏠' : '🏫'}</Text>
                                 </View>
                                 <Text style={{ fontSize:7, color:'#AAA' }}>{ampm}</Text>
                               </View>
@@ -1122,8 +1121,16 @@ export default function ParentDashboard() {
                       </View>
                       <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                         <Text style={styles.logTime}>{new Date((log as any).timestamp||(log as any).created_at).toLocaleDateString(undefined,{month:'short',day:'numeric'})} · {formatTime((log as any).timestamp||(log as any).created_at)}</Text>
-                        {(log as any).logged_by === 'parent' && <Text style={{ fontSize: 9, color: '#4CAF50', fontWeight: '700' }}>{t('home') || 'HOME'}</Text>}
-                        {(log as any).logged_by === 'student' && <Text style={{ fontSize: 9, color: '#5C6BC0', fontWeight: '700' }}>{t('school') || t('school') || 'SCHOOL'}</Text>}
+                        {/* Home/school icon added (round 3, Sep 5) - was text-only before.
+                            Build 26 (Sep 6): was an exact match on logged_by==='parent' /
+                            'student' - missed 'teacher_bulk' (bulk check-in never sets
+                            logged_by to 'student') and 'family', so any check-in logged that
+                            way (e.g. a teacher's own linked child, checked in via their
+                            classroom's bulk check-in - the "family-dash-as-teacher" gap) showed
+                            no icon at all. Same home/else-school binary as linked-child/[id].tsx. */}
+                        {((log as any).location==='home' || (log as any).logged_by==='parent' || (log as any).logged_by==='family')
+                          ? <Text style={{ fontSize: 9, color: '#4CAF50', fontWeight: '700' }}>🏠 {t('home') || 'HOME'}</Text>
+                          : <Text style={{ fontSize: 9, color: '#5C6BC0', fontWeight: '700' }}>🏫 {t('school') || 'SCHOOL'}</Text>}
                       </View>
                       {(log as any).strategies_selected?.length > 0 && (
                         <Text style={[styles.logTime, { color: '#AAA', fontSize: 10 }]} numberOfLines={1}>
@@ -1192,11 +1199,18 @@ export default function ParentDashboard() {
             </TouchableOpacity>
           ) : (
             <>
+            {/* Build 26 (Sep 6), approved-with-tweak: this used to split members into two
+                hardcoded even/odd rows inside the horizontal scroll (a 2-row zigzag grid, not
+                a single scrollable row) - a newly-added member landing at the end of
+                orderedMembers (already correct, see the sort effect above) could surface in
+                either row depending on parity, reading as if it hadn't actually been appended.
+                Now a single flat row; the "Add more" upgrade card (freemium, 2+ members) moved
+                out from after a `return` in the old per-row map, where it was unreachable dead
+                code that never actually rendered - now a real sibling appended once, after the
+                last member card, in that same row. */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{flexDirection:'column', gap:6, paddingHorizontal:12, paddingBottom:6}}>
-              {[orderedMembers.filter((_:any,i:number)=>i%2===0), orderedMembers.filter((_:any,i:number)=>i%2!==0)].map((row: any[], rowIdx: number) => (
-                <View key={rowIdx} style={{flexDirection:'row', gap:10}}>
-                {row.map((member) => {
+              <View style={{flexDirection:'row', gap:10, paddingHorizontal:12, paddingBottom:6}}>
+                {orderedMembers.map((member) => {
                 const creature = memberCreatures[member.id];
                 const creatureEmoji = childCreatures[member.id]?.emoji || creature?.emoji || '🥚';
                 const isChild = member.relationship === 'child';
@@ -1348,21 +1362,19 @@ export default function ParentDashboard() {
                     )}
                   </TouchableOpacity>
                 );
-                  {rowIdx === 0 && !hasActiveSubscription && familyMembers.length >= 2 && (
-                    <TouchableOpacity onPress={() => router.push('/subscription')}
-                      style={[styles.gridCard, { borderColor:'#5C6BC0', borderStyle:'dashed', opacity:0.85, justifyContent:'center', alignItems:'center', gap:6 }]}>
-                      <View style={{ width:40, height:40, borderRadius:20, backgroundColor:'#EDE7F6', justifyContent:'center', alignItems:'center' }}>
-                        <MaterialIcons name="lock" size={20} color="#5C6BC0" />
-                      </View>
-                      <Text style={{ fontSize:10, fontWeight:'700', color:'#5C6BC0', textAlign:'center' }}>{t('add_more')||'Add more'}</Text>
-                      <View style={{ backgroundColor:'#5C6BC0', borderRadius:8, paddingHorizontal:8, paddingVertical:3 }}>
-                        <Text style={{ fontSize:9, color:'white', fontWeight:'700' }}>{t('upgrade') || 'UPGRADE'}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  )}
               })}
-                </View>
-              ))}
+                {!hasActiveSubscription && familyMembers.length >= 2 && (
+                  <TouchableOpacity onPress={() => router.push('/subscription')}
+                    style={[styles.gridCard, { borderColor:'#5C6BC0', borderStyle:'dashed', opacity:0.85, justifyContent:'center', alignItems:'center', gap:6 }]}>
+                    <View style={{ width:40, height:40, borderRadius:20, backgroundColor:'#EDE7F6', justifyContent:'center', alignItems:'center' }}>
+                      <MaterialIcons name="lock" size={20} color="#5C6BC0" />
+                    </View>
+                    <Text style={{ fontSize:10, fontWeight:'700', color:'#5C6BC0', textAlign:'center' }}>{t('add_more')||'Add more'}</Text>
+                    <View style={{ backgroundColor:'#5C6BC0', borderRadius:8, paddingHorizontal:8, paddingVertical:3 }}>
+                      <Text style={{ fontSize:9, color:'white', fontWeight:'700' }}>{t('upgrade') || 'UPGRADE'}</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
               </View>
             </ScrollView>
 
@@ -1385,13 +1397,12 @@ export default function ParentDashboard() {
           </TouchableOpacity>
         )}
 
-        {/* Icon grid — restructure (Sep 5) to mirror the teacher dashboard: moved to the very
-            end (after Family Member cards), tiles sized to match teacher-dash's own
-            spacing/sizing pass (84px circles, 46px icons, 18px badge - same numbers, same
-            reasoning: badges stay near a fixed legible size rather than scaling with the
-            icon, see teacher/dashboard.tsx's own note). Same 4 destinations as the old
-            compactActions row - Family Strategies, Resources, Alerts (with its badge),
-            Creatures - just restyled as tiles instead of a small icon-over-label row. */}
+        {/* Icon grid — round 3 (Sep 5): all 4 tiles must fit on one row (unlike the teacher
+            dashboard's 6 tiles across 2 rows of 3), so these are smaller than teacher-dash's
+            84px - 64px circles, 34px icons, 16px badge - same "fixed legible size" reasoning
+            for the badge, just scaled down a step since the tile itself is smaller. Same
+            gutter approach (paddingHorizontal per column) so the white space between tiles
+            matches teacher-dash's feel even though the tiles themselves don't. */}
         <View style={{flexDirection:'row', flexWrap:'wrap', marginTop:12, marginBottom:4, paddingHorizontal:6}}>
           {[
             { label: t('family_strategies') || 'Family Strategies', icon: 'lightbulb', color: '#FFC107', route: '/parent/family-strategies', count: null },
@@ -1401,18 +1412,18 @@ export default function ParentDashboard() {
           ].map((btn) => (
             <TouchableOpacity
               key={btn.route}
-              style={{width:'33.33%', alignItems:'center', gap:6, marginBottom:18, paddingHorizontal:10}}
+              style={{width:'25%', alignItems:'center', gap:6, marginBottom:18, paddingHorizontal:6}}
               onPress={() => router.push(btn.route as any)}
             >
-              <View style={{width:84, height:84, borderRadius:24, backgroundColor: btn.color + '15', alignItems:'center', justifyContent:'center', position:'relative'}}>
-                <MaterialIcons name={btn.icon as any} size={46} color={btn.color}/>
+              <View style={{width:64, height:64, borderRadius:18, backgroundColor: btn.color + '15', alignItems:'center', justifyContent:'center', position:'relative'}}>
+                <MaterialIcons name={btn.icon as any} size={34} color={btn.color}/>
                 {btn.count != null && btn.count > 0 && (
-                  <View style={{position:'absolute', top:-4, right:-4, width:18, height:18, borderRadius:9, alignItems:'center', justifyContent:'center', backgroundColor: btn.color}}>
-                    <Text style={{fontSize:10, color:'white', fontWeight:'700'}}>{btn.count}</Text>
+                  <View style={{position:'absolute', top:-4, right:-4, width:16, height:16, borderRadius:8, alignItems:'center', justifyContent:'center', backgroundColor: btn.color}}>
+                    <Text style={{fontSize:9, color:'white', fontWeight:'700'}}>{btn.count}</Text>
                   </View>
                 )}
               </View>
-              <Text style={{fontSize:12, fontWeight:'700', color:'#555', textAlign:'center'}}>{btn.label}</Text>
+              <Text style={{fontSize:11, fontWeight:'700', color:'#555', textAlign:'center'}}>{btn.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
