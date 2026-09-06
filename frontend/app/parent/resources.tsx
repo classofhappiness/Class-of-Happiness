@@ -325,7 +325,7 @@ export default function ResourcesScreen() {
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#5C6BC0" colors={['#5C6BC0']} />}
       >
         {/* Topic Filter */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.topicScroll}>

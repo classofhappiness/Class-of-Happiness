@@ -11,10 +11,18 @@ import { useApp } from '../context/AppContext';
 // view" interaction from the old CreatureCollection modal, adapted to the new unified My
 // Creatures screen - a detail modal opened by tapping a card, rather than a permanently-docked
 // side panel, so it fits the new collapsible-sections grid layout instead of fighting it.
-// Bonus Items only applies to default creatures (moves/outfits/foods/homes are properties of
-// the 4 hardcoded default creatures, CREATURES catalog in server.py) - community creatures are
-// 4 photos, not an emoji+accessory system, so there is genuinely nothing to show there. Shown
-// honestly: the tab/section simply doesn't render for a community creature, not faked.
+//
+// Real feature Sep 5 (round 3, item 11): moves/outfits/foods/homes are defined per default
+// creature in CREATURES (server.py), but each default creature maps 1:1 to exactly one colour
+// (FEELING_COLOUR_MAP: blue->aqua_buddy, green->leaf_friend, yellow->spark_pal,
+// red->blaze_heart) - so bonus items are, in effect, colour-linked, not creature-linked. A
+// submitted/community creature occupies the same colour slot as its default counterpart (only
+// one is ever "active" per colour at a time), so it now inherits and displays that colour's
+// real bonus items too, via COLOUR_TO_DEFAULT_ID below - not faked or invented, the exact same
+// unlock data the colour's default creature would show.
+const COLOUR_TO_DEFAULT_ID: Record<string, string> = {
+  blue: 'aqua_buddy', green: 'leaf_friend', yellow: 'spark_pal', red: 'blaze_heart',
+};
 
 const ZONE_COLORS: Record<string, string> = {
   blue: '#4A90D9', green: '#4CAF73', yellow: '#FFC107', red: '#E05252',
@@ -53,11 +61,16 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
   const [replayingId, setReplayingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!visible || !entry || entry.type !== 'default' || !studentId) { setBonusItems(null); return; }
+    if (!visible || !entry || !studentId) { setBonusItems(null); return; }
     setLoadingBonus(true);
+    // Default creature -> look up its own items directly. Community creature -> look up its
+    // colour's default creature instead (see COLOUR_TO_DEFAULT_ID above) - same unlock data
+    // that colour's own default would show, since only one of the two is ever "active" for a
+    // given colour at once.
+    const lookupId = entry.type === 'default' ? entry.id : COLOUR_TO_DEFAULT_ID[colour];
     rewardsApi.getCollection(studentId)
       .then(data => {
-        const creature = (data.all_creatures || []).find((c: any) => c.id === entry.id);
+        const creature = (data.all_creatures || []).find((c: any) => c.id === lookupId);
         setBonusItems({
           moves: creature?.moves || [],
           outfits: creature?.outfits || [],
@@ -71,7 +84,7 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
       })
       .catch(() => setBonusItems(null))
       .finally(() => setLoadingBonus(false));
-  }, [visible, entry?.id, entry?.type, studentId]);
+  }, [visible, entry?.id, entry?.type, studentId, colour]);
 
   if (!entry) return null;
   const color = ZONE_COLORS[colour] || '#4A90D9';
@@ -172,7 +185,7 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
                 : `${t('stage') || 'Stage'} ${entry.current_stage} / ${entry.max_stage}`}
             </Text>
 
-            {entry.type === 'default' && (
+            {!!COLOUR_TO_DEFAULT_ID[colour] && (
               <>
                 <Text style={[s.sectionTitle, { marginTop: 18 }]}>🎁 {t('bonus_items') || 'Bonus Items'}</Text>
                 {loadingBonus ? (
@@ -181,7 +194,7 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
                   <>
                     {renderItemGrid(bonusItems.moves, bonusItems.unlockedMoves, t('moves') || 'Moves', '🎬', 'moves')}
                     {renderItemGrid(bonusItems.outfits, bonusItems.unlockedOutfits, t('outfits') || 'Outfits', '👗', 'outfits')}
-                    {renderItemGrid(bonusItems.foods, bonusItems.unlockedFoods, t('foods') || 'Foods', '🍎', 'foods')}
+                    {renderItemGrid(bonusItems.foods, bonusItems.unlockedFoods, t('foods') || 'Food', '🍎', 'foods')}
                     {renderItemGrid(bonusItems.homes, bonusItems.unlockedHomes, t('homes') || 'Homes', '🏠', 'homes')}
                   </>
                 ) : (

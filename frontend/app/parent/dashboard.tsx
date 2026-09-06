@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerForPushNotifications } from '../../src/utils/notifications';
@@ -218,6 +219,7 @@ export default function ParentDashboard() {
   // Analytics
   const [analytics, setAnalytics] = useState<{ zone_counts: Record<string, number> } | null>(null);
   const [weekExpanded, setWeekExpanded] = useState(false);
+  const [tipDismissed, setTipDismissed] = useState(false);
   const [selectedWeekChild, setSelectedWeekChild] = useState<string | null>(null);
   const [parentAlertCount, setParentAlertCount] = useState(0);
   const [linkedChildSections, setLinkedChildSections] = useState<Record<string, {emoDistrib:boolean, recentCheckins:boolean, weekOverview:boolean}>>({});
@@ -230,7 +232,6 @@ export default function ParentDashboard() {
   const [analyticsPeriod, setAnalyticsPeriod] = useState<1|7|14|30>(7);
   const [checkInsExpanded, setCheckInsExpanded] = useState(false);
 
-  const [tipDismissed, setTipDismissed] = useState(false);
   // removed duplicate checkInsExpanded state — using checkInsExpanded
   const [recentLogs, setRecentLogs] = useState<(ZoneLog | FamilyZoneLog)[]>([]);
   
@@ -868,69 +869,298 @@ export default function ParentDashboard() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#5C6BC0" colors={['#5C6BC0']} />
         }
       >
-        {/* Alert banner */}
-        {parentAlertCount > 0 && (
-          <TouchableOpacity
-            onPress={() => router.push('/parent/alerts')}
-            style={{ flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#FFF3F3',
-              borderLeftWidth:4, borderLeftColor:'#F44336', marginHorizontal:12, marginBottom:8,
-              borderRadius:8, padding:10 }}>
-            <MaterialIcons name="notifications-active" size={18} color="#F44336" />
-            <Text style={{ flex:1, fontSize:13, fontWeight:'600', color:'#C62828' }}>
-              {parentAlertCount} {parentAlertCount === 1 ? 'alert' : 'alerts'} need your attention
-            </Text>
-            <MaterialIcons name="chevron-right" size={18} color="#F44336" />
-          </TouchableOpacity>
-        )}
+        {/* Build 26 (Sep 6): the alert/colour-tip/trial banner stack (built in review round 3,
+            A86) is removed entirely by design, mobile app only - push notifications supersede
+            it in build 27. The Alerts nav tile's own badge (count: parentAlertCount) is the
+            in-app alert channel now. Colour tip relocated into Week Overview below (same
+            zone-count data, no new fetch); trial/HAPPYCLASS2026 messaging relocated to
+            Settings' existing Trial Code section. See COH-REVIEW-PLAN.md A88. */}
 
-        {/* Subtitle only — title shown in TranslatedHeader */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 0, paddingBottom: 2, alignItems: 'center' }}>
-          <Text style={{ fontSize: 13, color: '#666', textAlign: 'center', fontWeight: '400', letterSpacing: 0.2 }}>
-            {t('family_wellbeing_desc') || "My Family's Emotional Wellbeing"}
-          </Text>
-        </View>
-        {/* Daily Colour Tip for Parents — tap X to dismiss */}
-        {familyMembers.length > 0 && !tipDismissed && (() => {
-          const logs = (recentLogs as any[]) || [];
-          const colour = logs[0]?.feeling_colour || logs[0]?.zone || 'green';
-          const tips = (COLOUR_TIPS_PARENT as any)[colour] || COLOUR_TIPS_PARENT.green;
-          const tip = tips[new Date().getDate() % tips.length];
-          const clrs: Record<string,string> = EMOTION_COLOURS;
-          const bgs: Record<string,string> = { blue:'#EBF5FB', green:'#EAFAF1', yellow:'#FEFDE7', red:'#FDEDEC' };
-          return (
-            <View style={{ marginHorizontal:16, marginBottom:10, padding:12, borderRadius:12,
-              backgroundColor: bgs[colour] || '#EAFAF1', borderLeftWidth:4, borderLeftColor: clrs[colour] || EMOTION_COLOURS.green,
-              flexDirection:'row', alignItems:'flex-start' }}>
-              <View style={{ flex:1 }}>
-                <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:3 }}>{t(tip.tipKey) || tip.tip}</Text>
-                <Text style={{ fontSize:12, color:'#555', lineHeight:17 }}>{t(tip.actionKey) || tip.action}</Text>
-              </View>
-              <TouchableOpacity onPress={() => setTipDismissed(true)} style={{ padding:4, marginLeft:8 }}>
-                <MaterialIcons name="close" size={16} color="#AAA" />
+        {/* Subtitle removed (round 3, Sep 5) - wasted space per review, title alone in the
+            native header already says "Family Dashboard". */}
+
+        {/* Time filter pills — restructure (Sep 5) to mirror the teacher dashboard: now the
+            second real element on screen, always visible, instead of buried inside the
+            collapsed Week Overview section. Same state (selectedWeekChild/analyticsPeriod)
+            already powered Week Overview AND Recent Check-ins below - only where this control
+            renders changed, not how it computes. */}
+        <View style={{ paddingHorizontal:16, paddingBottom:8, gap:8 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ flexDirection:'row', gap:6 }}>
+            <TouchableOpacity onPress={() => setSelectedWeekChild(null)}
+              style={{ paddingHorizontal:12, paddingVertical:5, borderRadius:16,
+                backgroundColor: selectedWeekChild===null?'#5C6BC0':'#F0F0F0',
+                borderWidth:1, borderColor: selectedWeekChild===null?'#5C6BC0':'#E0E0E0' }}>
+              <Text style={{ fontSize:11, fontWeight:'700', color: selectedWeekChild===null?'white':'#666' }}>All</Text>
+            </TouchableOpacity>
+            {/* Build 26 (Sep 6): was filtered to relationship==='child' only, so any
+                self/partner family member (e.g. a parent logging their own wellbeing
+                check-ins via the Wellbeing button) could never get a filter pill at all,
+                regardless of how long they'd existed - confirmed live (Joana, relationship
+                "self", pre-existing) vs. a child member (Jeffrey) showing fine right after
+                creation. getFilteredLogs() below already matches by member id generically
+                (not child-specific), so the underlying filter always supported this - only
+                the pill list itself was artificially narrowed. Now built from every family
+                member, any relationship. */}
+            {(() => {
+              const pills: {id:string,name:string}[] = [];
+              (familyMembers as any[]).forEach((m:any)=>{
+                // Use linked child ID if this family member is also school-linked
+                const lc = linkedChildren.find((l:any)=>l.name===m.name);
+                pills.push({id: lc ? lc.id : m.id, name:m.name});
+              });
+              linkedChildren.forEach((lc:any)=>{ if(!pills.some(c=>c.name===lc.name)) pills.push({id:lc.id,name:lc.name}); });
+              return pills.map(k=>(
+                <TouchableOpacity key={k.id} onPress={()=>setSelectedWeekChild(selectedWeekChild===k.id?null:k.id)}
+                  style={{ paddingHorizontal:12, paddingVertical:5, borderRadius:16,
+                    backgroundColor: selectedWeekChild===k.id?'#5C6BC0':'#F0F0F0',
+                    borderWidth:1, borderColor: selectedWeekChild===k.id?'#5C6BC0':'#E0E0E0' }}>
+                  <Text style={{ fontSize:11, fontWeight:'700', color: selectedWeekChild===k.id?'white':'#666' }}>{k.name}</Text>
+                </TouchableOpacity>
+              ));
+            })()}
+          </ScrollView>
+          <View style={{ flexDirection:'row', gap:6 }}>
+            {([1,7,14,30] as const).map(p=>(
+              <TouchableOpacity key={p} onPress={()=>setAnalyticsPeriod(p)}
+                style={{ flex:1, paddingVertical:6, borderRadius:8, alignItems:'center',
+                  backgroundColor: analyticsPeriod===p?'#5C6BC0':'#F0F0F0' }}>
+                <Text style={{ fontSize:11, fontWeight:'700', color: analyticsPeriod===p?'white':'#888' }}>
+                  {p===1?(t('today')||'Today'):p===7?(t('this_week')||'Week'):p===14?(t('period_fortnight')||'Fortnight'):(t('month')||'Month')}
+                </Text>
               </TouchableOpacity>
-            </View>
-          );
-        })()}
-
-
-      {/* Trial code banner — shows when no active subscription */}
-      {!hasActiveSubscription && (
-        <TouchableOpacity
-          onPress={() => router.push('/settings')}
-          style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#FFF8E1',
-            marginHorizontal:16, marginBottom:10, padding:12, borderRadius:12, gap:10,
-            borderWidth:1, borderColor:'#FFE082' }}>
-          <Text style={{ fontSize:20 }}>🎁</Text>
-          <View style={{ flex:1 }}>
-            <Text style={{ fontSize:13, fontWeight:'700', color:'#333' }}>{t('start_free_trial_banner') || 'Start your free trial'}</Text>
-            <Text style={{ fontSize:11, color:'#666' }}>{t('go_to_settings_enter_code') || 'Go to Settings'} → {t('enter_code_30_days_free') || 'enter code HAPPYCLASS2026 for 30 days free'}</Text>
+            ))}
           </View>
-          <MaterialIcons name="chevron-right" size={20} color="#FFC107" />
-        </TouchableOpacity>
-      )}
+        </View>
+
+        {/* Children Analytics */}
+        <>
+          <View style={styles.section}>
+            <TouchableOpacity style={styles.collapsibleHeader} onPress={()=>setWeekExpanded(e=>!e)} activeOpacity={0.7}>
+              <Text style={styles.sectionTitle}>{t('week_overview')||'Week Overview'}</Text>
+              <MaterialIcons name={weekExpanded?'expand-less':'expand-more'} size={22} color="#5C6BC0" />
+              </TouchableOpacity>
+
+
+              {weekExpanded && (() => {
+                const filtered = getFilteredLogs().filter((l:any) => {
+                  const ts = (l as any).timestamp || (l as any).created_at;
+                  if (!ts) return false;
+                  const logDate = new Date(ts);
+                  if (analyticsPeriod === 1) {
+                    const today = new Date(); today.setHours(0,0,0,0);
+                    return logDate >= today;
+                  }
+                  const diff = (Date.now() - logDate.getTime()) / 86400000;
+                  return diff <= analyticsPeriod;
+                });
+                const counts: Record<string,number> = { blue:0, green:0, yellow:0, red:0 };
+                filtered.forEach((l:any) => { const z = (l as any).zone || (l as any).feeling_colour; if (z in counts) counts[z]++; });
+                const total = Object.values(counts).reduce((a,b)=>a+b,0);
+                const ZONE_LABELS: Record<string,string> = {
+                  green: (t('zone_green') || 'Green Emotions') + ' 😊',
+                  blue: (t('zone_blue') || 'Blue Emotions') + ' 😢',
+                  yellow: (t('zone_yellow') || 'Yellow Emotions') + ' 😰',
+                  red: (t('zone_red') || 'Red Emotions') + ' 😠'
+                };
+                if (total === 0) return <Text style={{ color:'#999', fontSize:13, textAlign:'center', paddingVertical:16 }}>{t('no_checkins_for_period') || 'No check-ins for this period'}</Text>;
+                return (
+                  <View style={{ gap:10, marginTop:12 }}>
+                    {/* Summary pill */}
+                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, marginBottom:4 }}>
+                      <Text style={{ fontSize:22, fontWeight:'800', color:'#333' }}>{total}</Text>
+                      <Text style={{ fontSize:13, color:'#888' }}>{t('checkins_total') || 'check-ins total'}</Text>
+                    </View>
+                    {(['green','blue','yellow','red'] as const).map(zone => {
+                      const pct = total > 0 ? Math.round((counts[zone]/total)*100) : 0;
+                      return (
+                        <View key={zone} style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
+                          <Text style={{ fontSize:12, color:'#333', width:90 }}>{ZONE_LABELS[zone]}</Text>
+                          <View style={{ flex:1, height:12, backgroundColor:'#F0F0F0', borderRadius:6, overflow:'hidden' }}>
+                            <View style={{ width:`${pct}%` as any, height:12, borderRadius:6, backgroundColor:ZONE_COLORS[zone] }} />
+                          </View>
+                          <Text style={{ fontSize:12, fontWeight:'700', color:'#333', width:38, textAlign:'right' }}>{pct}%</Text>
+                          <Text style={{ fontSize:11, color:'#888', width:20 }}>({counts[zone]})</Text>
+                        </View>
+                      );
+                    })}
+                    {/* Daily colour tip, relocated here from the removed dashboard banner
+                        (build 26, Sep 6) - reuses this section's own period-filtered `counts`
+                        instead of the banner's old "latest single log" signal, so the tip now
+                        reflects whichever period is actually selected. Approved-with-tweak
+                        same day: X-dismiss + Swipeable restored (cheap - gesture-handler is
+                        already a dependency, same pattern as the teacher dashboard's own
+                        relocated tip) since a permanent, un-dismissable card was still an
+                        unwanted fixture even living inside a collapsible section.
+                        Real fix, same day: swipe-to-dismiss didn't register here even though
+                        the X button did, while the teacher dashboard's identical Swipeable
+                        worked for both. Only real difference between the two blocks was this
+                        View missing `width:'100%'` - Swipeable measures its child via onLayout
+                        to compute drag thresholds, and without an explicit width this row could
+                        shrink-wrap instead of spanning the card, breaking the pan gesture's
+                        math while leaving the plain-press X button (unaffected by that
+                        measurement) working fine. Added, matching the teacher dashboard exactly. */}
+                    {!tipDismissed && (() => {
+                      const dominant = (['red','yellow','blue','green'] as const).find(c => counts[c] > 0) || 'green';
+                      const tips = (COLOUR_TIPS_PARENT as any)[dominant] || COLOUR_TIPS_PARENT.green;
+                      const tip = tips[new Date().getDate() % tips.length];
+                      const clrs: Record<string,string> = EMOTION_COLOURS;
+                      const bgs: Record<string,string> = { blue:'#EBF5FB', green:'#EAFAF1', yellow:'#FEFDE7', red:'#FDEDEC' };
+                      return (
+                        <Swipeable renderRightActions={() => null} onSwipeableOpen={() => setTipDismissed(true)}>
+                        <View style={{ marginTop:4, width:'100%', padding:12, borderRadius:12, flexDirection:'row', alignItems:'flex-start',
+                          backgroundColor: bgs[dominant] || '#EAFAF1', borderLeftWidth:4, borderLeftColor: clrs[dominant] || EMOTION_COLOURS.green }}>
+                          <View style={{ flex:1 }}>
+                            <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:3 }}>{t(tip.tipKey) || tip.tip}</Text>
+                            <Text style={{ fontSize:12, color:'#555', lineHeight:17 }}>{t(tip.actionKey) || tip.action}</Text>
+                          </View>
+                          <TouchableOpacity onPress={() => setTipDismissed(true)} style={{ padding:4, marginLeft:8 }}>
+                            <MaterialIcons name="close" size={16} color="#AAA" />
+                          </TouchableOpacity>
+                        </View>
+                        </Swipeable>
+                      );
+                    })()}
+                  </View>
+                );
+              })()}
+            </View>
+
+            {/* Recent Activity */}
+            <View style={styles.section}>
+              <TouchableOpacity
+                style={styles.collapsibleHeader}
+                onPress={() => setCheckInsExpanded(e => !e)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.sectionTitle}>{t('recent_check_ins')}</Text>
+                <MaterialIcons name={checkInsExpanded ? 'expand-less' : 'expand-more'} size={22} color="#5C6BC0" />
+              </TouchableOpacity>
+              
+              {checkInsExpanded && (
+              <View>
+              {/* Weekly Table View - All 7 days */}
+              <View style={styles.weeklyTable}>
+                <View style={styles.weeklyHeader}>
+                  {(language === 'pt'
+                    ? ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
+                    : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+                  ).map((day) => (
+                    <View key={day} style={styles.weeklyDayHeader}>
+                      <Text style={styles.weeklyDayText}>{day}</Text>
+                    </View>
+                  ))}
+                </View>
+                <View style={styles.weeklyBody}>
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => {
+                    const dayData = getWeeklyLogs()[day];
+                    return (
+                      <View key={day} style={styles.weeklyDayCell}>
+                        {dayData.logs.length > 0 ? (
+                          dayData.logs.slice(0, 3).map((log, idx) => {
+                            const ts = (log as any).timestamp || (log as any).created_at || '';
+                            const hour = ts ? new Date(ts).getHours() : 12;
+                            const ampm = hour < 12 ? 'am' : 'pm';
+                            const fullName = (log as any).member_name || (log as any).student_name || '';
+                            const initial = fullName.length >= 2 ? fullName.slice(0,2) : fullName.toUpperCase();
+                            const zone = (log as any).zone || (log as any).feeling_colour || 'green';
+                            const dotColor = ZONE_COLORS[zone] || EMOTION_COLOURS.green;
+                            return (
+                              <View key={idx} style={{ alignItems:'center', marginBottom:3 }}>
+                                <View style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
+                                  <View style={[styles.weeklyZoneDot, { backgroundColor: dotColor }]} />
+                                  {initial ? <Text style={{ fontSize:7, color:'#888', fontWeight:'700' }}>{initial}</Text> : null}
+                                  {/* Build 26 (Sep 6): was HOME-only, so a school check-in
+                                      showed nothing here at all - same home/else-school binary
+                                      as linked-child/[id].tsx and the teacher dashboard fix. */}
+                                  <Text style={{ fontSize:7 }}>{((log as any).location==='home' || (log as any).logged_by==='parent' || (log as any).logged_by==='family') ? '🏠' : '🏫'}</Text>
+                                </View>
+                                <Text style={{ fontSize:7, color:'#AAA' }}>{ampm}</Text>
+                              </View>
+                            );
+                          })
+                        ) : (
+                          <Text style={styles.weeklyNoData}>-</Text>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+              
+              {/* Recent logs list */}
+              {(() => {
+                const periodFiltered = getFilteredLogs().filter((l:any) => {
+                  const ts = (l as any).timestamp || (l as any).created_at;
+                  if (!ts) return false;
+                  const logDate = new Date(ts);
+                  if (analyticsPeriod === 1) {
+                    const today = new Date(); today.setHours(0,0,0,0);
+                    return logDate >= today;
+                  }
+                  return (Date.now() - logDate.getTime()) / 86400000 <= analyticsPeriod;
+                });
+                return periodFiltered.length > 0 ? (
+                periodFiltered.slice(0, 10).map((log) => (
+                  <View key={log.id} style={styles.logItem}>
+                    <View style={[styles.logZone, { backgroundColor: ZONE_COLORS[log.zone] }]}>
+                      <Text style={styles.logZoneText}>
+                        {log.zone==='green'?'😊':log.zone==='blue'?'😔':log.zone==='yellow'?'😟':'😣'}
+                      </Text>
+                    </View>
+                    <View style={styles.logDetails}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:4, flexWrap:'wrap' }}>
+                          {(log as any).member_name && <Text style={[styles.logZoneName, { fontSize:14 }]}>{(log as any).member_name.split(' ')[0]}</Text>}
+                          {!(log as any).member_name && (log as any).student_name && <Text style={[styles.logZoneName, { fontSize:14, color:'#5C6BC0' }]}>{(log as any).student_name.split(' ')[0]}</Text>}
+                          <Text style={{ fontSize:11, color:'#888' }}>{getZoneLabel(log.zone, t)}</Text>
+                        </View>
+                      </View>
+                      <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                        <Text style={styles.logTime}>{new Date((log as any).timestamp||(log as any).created_at).toLocaleDateString(undefined,{month:'short',day:'numeric'})} · {formatTime((log as any).timestamp||(log as any).created_at)}</Text>
+                        {/* Home/school icon added (round 3, Sep 5) - was text-only before.
+                            Build 26 (Sep 6): was an exact match on logged_by==='parent' /
+                            'student' - missed 'teacher_bulk' (bulk check-in never sets
+                            logged_by to 'student') and 'family', so any check-in logged that
+                            way (e.g. a teacher's own linked child, checked in via their
+                            classroom's bulk check-in - the "family-dash-as-teacher" gap) showed
+                            no icon at all. Same home/else-school binary as linked-child/[id].tsx. */}
+                        {((log as any).location==='home' || (log as any).logged_by==='parent' || (log as any).logged_by==='family')
+                          ? <Text style={{ fontSize: 9, color: '#4CAF50', fontWeight: '700' }}>🏠 {t('home') || 'HOME'}</Text>
+                          : <Text style={{ fontSize: 9, color: '#5C6BC0', fontWeight: '700' }}>🏫 {t('school') || 'SCHOOL'}</Text>}
+                      </View>
+                      {(log as any).strategies_selected?.length > 0 && (
+                        <Text style={[styles.logTime, { color: '#AAA', fontSize: 10 }]} numberOfLines={1}>
+                          {(log as any).strategies_selected.slice(0,2).map((s:string)=>strategyNames[s]||resolveStrategyName(s, t, STRATEGY_NAMES)).join(', ')}
+                          {(log as any).strategies_selected.length > 2 ? ` +${(log as any).strategies_selected.length-2}` : ''}
+                        </Text>
+                      )}
+                      {log.comment && (
+                        <View style={styles.commentBubble}>
+                          <MaterialIcons name="chat-bubble" size={14} color="#666" />
+                          <Text style={styles.commentText}>"{log.comment}"</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <View style={styles.noDataContainer}>
+                  <MaterialIcons name="history" size={48} color="#CCC" />
+                  <Text style={styles.noDataText}>{t('no_recent_activity')}</Text>
+                </View>
+              ); })()}
+            </View>
+            )}
+            </View>
+          </>
+        {/* Family Member cards — restructure (Sep 5, mirrors teacher dashboard): moved from
+            near the top of the screen down to right after Recent Check-ins. Block itself
+            (reorder mode, add-member flow, creature emoji, the upgrade nudge banner that
+            follows it) is unchanged, only its position moved. */}
         {/* Family Members — Whole card taps to check in */}
         <View style={styles.familySection}>
           <View style={{flexDirection:'row',justifyContent:'flex-end',paddingHorizontal:12,paddingBottom:2,gap:6}}>
@@ -969,11 +1199,18 @@ export default function ParentDashboard() {
             </TouchableOpacity>
           ) : (
             <>
+            {/* Build 26 (Sep 6), approved-with-tweak: this used to split members into two
+                hardcoded even/odd rows inside the horizontal scroll (a 2-row zigzag grid, not
+                a single scrollable row) - a newly-added member landing at the end of
+                orderedMembers (already correct, see the sort effect above) could surface in
+                either row depending on parity, reading as if it hadn't actually been appended.
+                Now a single flat row; the "Add more" upgrade card (freemium, 2+ members) moved
+                out from after a `return` in the old per-row map, where it was unreachable dead
+                code that never actually rendered - now a real sibling appended once, after the
+                last member card, in that same row. */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{flexDirection:'column', gap:6, paddingHorizontal:12, paddingBottom:6}}>
-              {[orderedMembers.filter((_:any,i:number)=>i%2===0), orderedMembers.filter((_:any,i:number)=>i%2!==0)].map((row: any[], rowIdx: number) => (
-                <View key={rowIdx} style={{flexDirection:'row', gap:10}}>
-                {row.map((member) => {
+              <View style={{flexDirection:'row', gap:10, paddingHorizontal:12, paddingBottom:6}}>
+                {orderedMembers.map((member) => {
                 const creature = memberCreatures[member.id];
                 const creatureEmoji = childCreatures[member.id]?.emoji || creature?.emoji || '🥚';
                 const isChild = member.relationship === 'child';
@@ -1125,21 +1362,19 @@ export default function ParentDashboard() {
                     )}
                   </TouchableOpacity>
                 );
-                  {rowIdx === 0 && !hasActiveSubscription && familyMembers.length >= 2 && (
-                    <TouchableOpacity onPress={() => router.push('/subscription')}
-                      style={[styles.gridCard, { borderColor:'#5C6BC0', borderStyle:'dashed', opacity:0.85, justifyContent:'center', alignItems:'center', gap:6 }]}>
-                      <View style={{ width:40, height:40, borderRadius:20, backgroundColor:'#EDE7F6', justifyContent:'center', alignItems:'center' }}>
-                        <MaterialIcons name="lock" size={20} color="#5C6BC0" />
-                      </View>
-                      <Text style={{ fontSize:10, fontWeight:'700', color:'#5C6BC0', textAlign:'center' }}>{t('add_more')||'Add more'}</Text>
-                      <View style={{ backgroundColor:'#5C6BC0', borderRadius:8, paddingHorizontal:8, paddingVertical:3 }}>
-                        <Text style={{ fontSize:9, color:'white', fontWeight:'700' }}>{t('upgrade') || 'UPGRADE'}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  )}
               })}
-                </View>
-              ))}
+                {!hasActiveSubscription && familyMembers.length >= 2 && (
+                  <TouchableOpacity onPress={() => router.push('/subscription')}
+                    style={[styles.gridCard, { borderColor:'#5C6BC0', borderStyle:'dashed', opacity:0.85, justifyContent:'center', alignItems:'center', gap:6 }]}>
+                    <View style={{ width:40, height:40, borderRadius:20, backgroundColor:'#EDE7F6', justifyContent:'center', alignItems:'center' }}>
+                      <MaterialIcons name="lock" size={20} color="#5C6BC0" />
+                    </View>
+                    <Text style={{ fontSize:10, fontWeight:'700', color:'#5C6BC0', textAlign:'center' }}>{t('add_more')||'Add more'}</Text>
+                    <View style={{ backgroundColor:'#5C6BC0', borderRadius:8, paddingHorizontal:8, paddingVertical:3 }}>
+                      <Text style={{ fontSize:9, color:'white', fontWeight:'700' }}>{t('upgrade') || 'UPGRADE'}</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
               </View>
             </ScrollView>
 
@@ -1162,302 +1397,36 @@ export default function ParentDashboard() {
           </TouchableOpacity>
         )}
 
-        {/* Linked Children in family grid above */}
-        {false && <View>
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{t('children_school')}</Text>
+        {/* Icon grid — round 3 (Sep 5): all 4 tiles must fit on one row (unlike the teacher
+            dashboard's 6 tiles across 2 rows of 3), so these are smaller than teacher-dash's
+            84px - 64px circles, 34px icons, 16px badge - same "fixed legible size" reasoning
+            for the badge, just scaled down a step since the tile itself is smaller. Same
+            gutter approach (paddingHorizontal per column) so the white space between tiles
+            matches teacher-dash's feel even though the tiles themselves don't. */}
+        <View style={{flexDirection:'row', flexWrap:'wrap', marginTop:12, marginBottom:4, paddingHorizontal:6}}>
+          {[
+            { label: t('family_strategies') || 'Family Strategies', icon: 'lightbulb', color: '#FFC107', route: '/parent/family-strategies', count: null },
+            { label: t('resources') || 'Resources', icon: 'library-books', color: '#5C6BC0', route: '/parent/resources', count: null },
+            { label: t('alerts') || 'Alerts', icon: 'notifications', color: '#F44336', route: '/parent/alerts', count: parentAlertCount > 0 ? parentAlertCount : null },
+            { label: t('creatures_manage') || 'Creatures', icon: 'pets', color: '#9C27B0', route: '/parent/creature-code', count: null },
+          ].map((btn) => (
             <TouchableOpacity
-              style={styles.linkButton}
-              onPress={() => setShowLinkModal(true)}
+              key={btn.route}
+              style={{width:'25%', alignItems:'center', gap:6, marginBottom:18, paddingHorizontal:6}}
+              onPress={() => router.push(btn.route as any)}
             >
-              <MaterialIcons name="link" size={18} color="white" />
-              <Text style={styles.linkButtonText}>{t('link_child')}</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.membersScroll}>
-            {linkedChildren.map((child) => (
-              <TouchableOpacity
-                key={child.id}
-                style={{ backgroundColor:'white', borderRadius:14, padding:12, marginRight:12, marginBottom:8, width:160, flexDirection:'row', alignItems:'center', gap:10, shadowColor:'#000', shadowOpacity:0.04, shadowRadius:4, elevation:1 }}
-                onPress={() => router.push(`/parent/linked-child/${child.id}`)}
-              >
-                <Avatar
-                  type={child.avatar_type}
-                  preset={child.avatar_preset}
-                  custom={child.avatar_custom}
-                  size={42}
-                  presetAvatars={presetAvatars}
-                />
-                <View style={{ flex:1 }}>
-                  <Text style={{ fontSize:13, fontWeight:'700', color:'#333' }} numberOfLines={1}>{child.name}</Text>
-                  <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginTop:2 }}>
-                    <MaterialIcons name="school" size={10} color="#5C6BC0" />
-                    <Text style={{ fontSize:10, color:'#5C6BC0' }}>{t('school')||'School'}</Text>
-                  </View>
-                </View>
-                <MaterialIcons name="chevron-right" size={16} color="#CCC" />
-
-              </TouchableOpacity>
-            ))}
-
-            {linkedChildren.length === 0 && (
-              <View style={styles.emptyMembers}>
-                <Text style={styles.emptyText}>{t('link_children_school')}</Text>
-              </View>
-            )}
-          </ScrollView>
-        </View>
-
-        </View>}
-        {/* Quick Actions — compact row */}
-        <View style={styles.section}>
-          <View style={styles.compactActions}>
-            <TouchableOpacity style={styles.compactAction} onPress={() => router.push('/parent/family-strategies')}>
-              <MaterialIcons name="lightbulb" size={22} color="#FFC107" />
-              <Text style={styles.compactActionTxt}>{t('family_strategies') || 'Family Strategies'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.compactAction} onPress={() => router.push('/parent/resources')}>
-              <MaterialIcons name="library-books" size={22} color="#5C6BC0" />
-              <Text style={styles.compactActionTxt}>{t('resources') || 'Resources'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.compactAction} onPress={() => router.push('/parent/alerts')}>
-              <View style={{ position:'relative' }}>
-                <MaterialIcons name="notifications" size={22} color="#F44336" />
-                {parentAlertCount > 0 && (
-                  <View style={{ position:'absolute', top:-4, right:-4, backgroundColor:'#F44336',
-                    borderRadius:8, minWidth:16, height:16, alignItems:'center', justifyContent:'center', paddingHorizontal:2 }}>
-                    <Text style={{ fontSize:9, color:'white', fontWeight:'700' }}>{parentAlertCount}</Text>
+              <View style={{width:64, height:64, borderRadius:18, backgroundColor: btn.color + '15', alignItems:'center', justifyContent:'center', position:'relative'}}>
+                <MaterialIcons name={btn.icon as any} size={34} color={btn.color}/>
+                {btn.count != null && btn.count > 0 && (
+                  <View style={{position:'absolute', top:-4, right:-4, width:16, height:16, borderRadius:8, alignItems:'center', justifyContent:'center', backgroundColor: btn.color}}>
+                    <Text style={{fontSize:9, color:'white', fontWeight:'700'}}>{btn.count}</Text>
                   </View>
                 )}
               </View>
-              <Text style={styles.compactActionTxt}>{t('alerts') || 'Alerts'}</Text>
+              <Text style={{fontSize:11, fontWeight:'700', color:'#555', textAlign:'center'}}>{btn.label}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.compactAction} onPress={() => router.push('/parent/creature-code')}>
-              <MaterialIcons name="pets" size={22} color="#9C27B0" />
-              <Text style={styles.compactActionTxt}>{t('creatures_manage') || 'Creatures'}</Text>
-            </TouchableOpacity>
-            {/* Widget button removed for now — see app/parent/widget.tsx for the kept-intact
-                preview screen; no real native OS widget exists yet, was misleading to show
-                "Add Widget" without one. Jono's explicit decision: revisit when a real native
-                widget is actually built. */}
-          </View>
+          ))}
         </View>
-
-        {/* Children Analytics */}
-        <>
-          {/* Child + period filters — only show when section is expanded */}
-          {weekExpanded && <View style={{ paddingHorizontal:16, paddingBottom:8, gap:8 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ flexDirection:'row', gap:6 }}>
-              <TouchableOpacity onPress={() => setSelectedWeekChild(null)}
-                style={{ paddingHorizontal:12, paddingVertical:5, borderRadius:16,
-                  backgroundColor: selectedWeekChild===null?'#5C6BC0':'#F0F0F0',
-                  borderWidth:1, borderColor: selectedWeekChild===null?'#5C6BC0':'#E0E0E0' }}>
-                <Text style={{ fontSize:11, fontWeight:'700', color: selectedWeekChild===null?'white':'#666' }}>All</Text>
-              </TouchableOpacity>
-              {(() => {
-                const kids: {id:string,name:string}[] = [];
-                (familyMembers as any[]).filter((m:any)=>m.relationship==='child').forEach((m:any)=>{
-                  // Use linked child ID if this family member is also school-linked
-                  const lc = linkedChildren.find((l:any)=>l.name===m.name);
-                  kids.push({id: lc ? lc.id : m.id, name:m.name});
-                });
-                linkedChildren.forEach((lc:any)=>{ if(!kids.some(c=>c.name===lc.name)) kids.push({id:lc.id,name:lc.name}); });
-                return kids.map(k=>(
-                  <TouchableOpacity key={k.id} onPress={()=>setSelectedWeekChild(selectedWeekChild===k.id?null:k.id)}
-                    style={{ paddingHorizontal:12, paddingVertical:5, borderRadius:16,
-                      backgroundColor: selectedWeekChild===k.id?'#5C6BC0':'#F0F0F0',
-                      borderWidth:1, borderColor: selectedWeekChild===k.id?'#5C6BC0':'#E0E0E0' }}>
-                    <Text style={{ fontSize:11, fontWeight:'700', color: selectedWeekChild===k.id?'white':'#666' }}>{k.name}</Text>
-                  </TouchableOpacity>
-                ));
-              })()}
-            </ScrollView>
-            <View style={{ flexDirection:'row', gap:6 }}>
-              {([1,7,14,30] as const).map(p=>(
-                <TouchableOpacity key={p} onPress={()=>setAnalyticsPeriod(p)}
-                  style={{ flex:1, paddingVertical:6, borderRadius:8, alignItems:'center',
-                    backgroundColor: analyticsPeriod===p?'#5C6BC0':'#F0F0F0' }}>
-                  <Text style={{ fontSize:11, fontWeight:'700', color: analyticsPeriod===p?'white':'#888' }}>
-                    {p===1?(t('today')||'Today'):p===7?(t('this_week')||'Week'):p===14?(t('period_fortnight')||'Fortnight'):(t('month')||'Month')}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>}
-          <View style={styles.section}>
-            <TouchableOpacity style={styles.collapsibleHeader} onPress={()=>setWeekExpanded(e=>!e)} activeOpacity={0.7}>
-              <Text style={styles.sectionTitle}>{t('week_overview')||'Week Overview'}</Text>
-              <MaterialIcons name={weekExpanded?'expand-less':'expand-more'} size={22} color="#5C6BC0" />
-              </TouchableOpacity>
-
-
-              {weekExpanded && (() => {
-                const filtered = getFilteredLogs().filter((l:any) => {
-                  const ts = (l as any).timestamp || (l as any).created_at;
-                  if (!ts) return false;
-                  const logDate = new Date(ts);
-                  if (analyticsPeriod === 1) {
-                    const today = new Date(); today.setHours(0,0,0,0);
-                    return logDate >= today;
-                  }
-                  const diff = (Date.now() - logDate.getTime()) / 86400000;
-                  return diff <= analyticsPeriod;
-                });
-                const counts: Record<string,number> = { blue:0, green:0, yellow:0, red:0 };
-                filtered.forEach((l:any) => { const z = (l as any).zone || (l as any).feeling_colour; if (z in counts) counts[z]++; });
-                const total = Object.values(counts).reduce((a,b)=>a+b,0);
-                const ZONE_LABELS: Record<string,string> = {
-                  green: (t('zone_green') || 'Green Emotions') + ' 😊',
-                  blue: (t('zone_blue') || 'Blue Emotions') + ' 😢',
-                  yellow: (t('zone_yellow') || 'Yellow Emotions') + ' 😰',
-                  red: (t('zone_red') || 'Red Emotions') + ' 😠'
-                };
-                if (total === 0) return <Text style={{ color:'#999', fontSize:13, textAlign:'center', paddingVertical:16 }}>{t('no_checkins_for_period') || 'No check-ins for this period'}</Text>;
-                return (
-                  <View style={{ gap:10, marginTop:12 }}>
-                    {/* Summary pill */}
-                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, marginBottom:4 }}>
-                      <Text style={{ fontSize:22, fontWeight:'800', color:'#333' }}>{total}</Text>
-                      <Text style={{ fontSize:13, color:'#888' }}>{t('checkins_total') || 'check-ins total'}</Text>
-                    </View>
-                    {(['green','blue','yellow','red'] as const).map(zone => {
-                      const pct = total > 0 ? Math.round((counts[zone]/total)*100) : 0;
-                      return (
-                        <View key={zone} style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
-                          <Text style={{ fontSize:12, color:'#333', width:90 }}>{ZONE_LABELS[zone]}</Text>
-                          <View style={{ flex:1, height:12, backgroundColor:'#F0F0F0', borderRadius:6, overflow:'hidden' }}>
-                            <View style={{ width:`${pct}%` as any, height:12, borderRadius:6, backgroundColor:ZONE_COLORS[zone] }} />
-                          </View>
-                          <Text style={{ fontSize:12, fontWeight:'700', color:'#333', width:38, textAlign:'right' }}>{pct}%</Text>
-                          <Text style={{ fontSize:11, color:'#888', width:20 }}>({counts[zone]})</Text>
-                        </View>
-                      );
-                    })}
-                  </View>
-                );
-              })()}
-            </View>
-
-            {/* Recent Activity */}
-            <View style={styles.section}>
-              <TouchableOpacity
-                style={styles.collapsibleHeader}
-                onPress={() => setCheckInsExpanded(e => !e)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.sectionTitle}>{t('recent_check_ins')}</Text>
-                <MaterialIcons name={checkInsExpanded ? 'expand-less' : 'expand-more'} size={22} color="#5C6BC0" />
-              </TouchableOpacity>
-              
-              {checkInsExpanded && (
-              <View>
-              {/* Weekly Table View - All 7 days */}
-              <View style={styles.weeklyTable}>
-                <View style={styles.weeklyHeader}>
-                  {(language === 'pt'
-                    ? ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
-                    : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-                  ).map((day) => (
-                    <View key={day} style={styles.weeklyDayHeader}>
-                      <Text style={styles.weeklyDayText}>{day}</Text>
-                    </View>
-                  ))}
-                </View>
-                <View style={styles.weeklyBody}>
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => {
-                    const dayData = getWeeklyLogs()[day];
-                    return (
-                      <View key={day} style={styles.weeklyDayCell}>
-                        {dayData.logs.length > 0 ? (
-                          dayData.logs.slice(0, 3).map((log, idx) => {
-                            const ts = (log as any).timestamp || (log as any).created_at || '';
-                            const hour = ts ? new Date(ts).getHours() : 12;
-                            const ampm = hour < 12 ? 'am' : 'pm';
-                            const fullName = (log as any).member_name || (log as any).student_name || '';
-                            const initial = fullName.length >= 2 ? fullName.slice(0,2) : fullName.toUpperCase();
-                            const zone = (log as any).zone || (log as any).feeling_colour || 'green';
-                            const dotColor = ZONE_COLORS[zone] || EMOTION_COLOURS.green;
-                            return (
-                              <View key={idx} style={{ alignItems:'center', marginBottom:3 }}>
-                                <View style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
-                                  <View style={[styles.weeklyZoneDot, { backgroundColor: dotColor }]} />
-                                  {initial ? <Text style={{ fontSize:7, color:'#888', fontWeight:'700' }}>{initial}</Text> : null}
-                                  {(log as any).location==='home' ? <Text style={{ fontSize:7 }}>🏠</Text> : null}
-                                </View>
-                                <Text style={{ fontSize:7, color:'#AAA' }}>{ampm}</Text>
-                              </View>
-                            );
-                          })
-                        ) : (
-                          <Text style={styles.weeklyNoData}>-</Text>
-                        )}
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
-              
-              {/* Recent logs list */}
-              {(() => {
-                const periodFiltered = getFilteredLogs().filter((l:any) => {
-                  const ts = (l as any).timestamp || (l as any).created_at;
-                  if (!ts) return false;
-                  const logDate = new Date(ts);
-                  if (analyticsPeriod === 1) {
-                    const today = new Date(); today.setHours(0,0,0,0);
-                    return logDate >= today;
-                  }
-                  return (Date.now() - logDate.getTime()) / 86400000 <= analyticsPeriod;
-                });
-                return periodFiltered.length > 0 ? (
-                periodFiltered.slice(0, 10).map((log) => (
-                  <View key={log.id} style={styles.logItem}>
-                    <View style={[styles.logZone, { backgroundColor: ZONE_COLORS[log.zone] }]}>
-                      <Text style={styles.logZoneText}>
-                        {log.zone==='green'?'😊':log.zone==='blue'?'😔':log.zone==='yellow'?'😟':'😣'}
-                      </Text>
-                    </View>
-                    <View style={styles.logDetails}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <View style={{ flexDirection:'row', alignItems:'center', gap:4, flexWrap:'wrap' }}>
-                          {(log as any).member_name && <Text style={[styles.logZoneName, { fontSize:14 }]}>{(log as any).member_name.split(' ')[0]}</Text>}
-                          {!(log as any).member_name && (log as any).student_name && <Text style={[styles.logZoneName, { fontSize:14, color:'#5C6BC0' }]}>{(log as any).student_name.split(' ')[0]}</Text>}
-                          <Text style={{ fontSize:11, color:'#888' }}>{getZoneLabel(log.zone, t)}</Text>
-                        </View>
-                      </View>
-                      <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                        <Text style={styles.logTime}>{new Date((log as any).timestamp||(log as any).created_at).toLocaleDateString(undefined,{month:'short',day:'numeric'})} · {formatTime((log as any).timestamp||(log as any).created_at)}</Text>
-                        {(log as any).logged_by === 'parent' && <Text style={{ fontSize: 9, color: '#4CAF50', fontWeight: '700' }}>{t('home') || 'HOME'}</Text>}
-                        {(log as any).logged_by === 'student' && <Text style={{ fontSize: 9, color: '#5C6BC0', fontWeight: '700' }}>{t('school') || t('school') || 'SCHOOL'}</Text>}
-                      </View>
-                      {(log as any).strategies_selected?.length > 0 && (
-                        <Text style={[styles.logTime, { color: '#AAA', fontSize: 10 }]} numberOfLines={1}>
-                          {(log as any).strategies_selected.slice(0,2).map((s:string)=>strategyNames[s]||resolveStrategyName(s, t, STRATEGY_NAMES)).join(', ')}
-                          {(log as any).strategies_selected.length > 2 ? ` +${(log as any).strategies_selected.length-2}` : ''}
-                        </Text>
-                      )}
-                      {log.comment && (
-                        <View style={styles.commentBubble}>
-                          <MaterialIcons name="chat-bubble" size={14} color="#666" />
-                          <Text style={styles.commentText}>"{log.comment}"</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                ))
-              ) : (
-                <View style={styles.noDataContainer}>
-                  <MaterialIcons name="history" size={48} color="#CCC" />
-                  <Text style={styles.noDataText}>{t('no_recent_activity')}</Text>
-                </View>
-              ); })()}
-            </View>
-            )}
-            </View>
-          </>
       </ScrollView>
 
 

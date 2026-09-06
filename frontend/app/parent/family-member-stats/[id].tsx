@@ -250,7 +250,7 @@ export default function FamilyMemberStatsScreen() {
 
       <ScrollView
         contentContainerStyle={{padding:16, paddingBottom:40}}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4CAF50" />}>
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4CAF50" colors={['#4CAF50']} />}>
 
         {/* Summary line */}
         <View style={{flexDirection:'row', alignItems:'center', justifyContent:'center', gap:12, marginBottom:12}}>

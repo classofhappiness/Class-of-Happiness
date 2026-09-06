@@ -74,7 +74,7 @@ function CreatureGridCard({
 }: {
   item: CreatureEntry; colour: string; width: number | string; onPress: () => void; t: (key: string) => string | undefined;
 }) {
-  const ringPulse = useRef(new Animated.Value(0.5)).current;
+  const ringPulse = useRef(new Animated.Value(1)).current;
   const expired = item.was_featured && item.featured_until && new Date(item.featured_until) < new Date();
   const imgUrl = item.type === 'community' ? item.stage_image : null;
 
@@ -91,38 +91,61 @@ function CreatureGridCard({
   }, [item.is_active]);
 
   return (
-    <TouchableOpacity onPress={onPress} style={{ width: width as any }}>
-      {/* Real fix Aug 28: width here can be a percentage string (gridCardWidth), not a
-          pixel number - can't do pixel arithmetic on that to inset an inner card. Instead
-          the ring's border+padding space is always reserved (active or not, so toggling
-          active state never shifts layout) and only its opacity animates - 0 when inactive,
-          pulsing when active. */}
+    <TouchableOpacity onPress={onPress} style={{ width: width as any, position: 'relative', padding: ACTIVE_RING_GAP + ACTIVE_RING_THICKNESS }}>
+      {/* Real bug fix Sep 5 (round 3, item 11): this ring used to WRAP the card, so its
+          opacity (0 when inactive, pulsing when active) controlled the ENTIRE card's
+          visibility, not just a decorative border - a default creature became invisible the
+          moment a community creature took over "active" for the same colour (is_active can
+          only be true for one creature per colour), while still being pressable and correct
+          in its own detail view (which reads the same data, just doesn't go through this ring
+          at all). Exact same bug already found and fixed in world-creatures.tsx (A74,
+          2026-08-30) - never ported over here. Now a purely decorative, absolutely-positioned
+          sibling with pointerEvents="none" that never touches the real content's opacity, same
+          fix, same reserved-padding trick so layout doesn't shift when active state changes.
+          ringPulse's initial value also matched to world-creatures.tsx's fix: 1, not 0.5, so a
+          freshly-mounted active card isn't statically faded before its first animation frame. */}
       <Animated.View
+        pointerEvents="none"
         style={{
+          position: 'absolute',
+          top: 0, left: 0, right: 0, bottom: 0,
           borderRadius: CARD_RADIUS + ACTIVE_RING_GAP,
           borderWidth: ACTIVE_RING_THICKNESS,
-          padding: ACTIVE_RING_GAP,
-          borderColor: ACTIVE_RING_COLOUR,
+          // Build 26 (Sep 6): was the generic ACTIVE_RING_COLOUR indigo for every creature
+          // regardless of colour - confuses the emotion-colour language (Spark Pal's ring
+          // should read yellow, Aqua Buddy's blue, etc, not the same blue for all four). Same
+          // EMOTION_COLORS map already used for this card's border/background elsewhere.
+          borderColor: EMOTION_COLORS[colour] || ACTIVE_RING_COLOUR,
           opacity: item.is_active ? ringPulse : 0,
         }}
-      >
-        <View style={[styles.card, { width: '100%', borderColor: EMOTION_COLORS[colour], borderWidth: 1 }]}>
-          {/* Real fix Aug 23: the old CreatureCollection modal's grid used a per-colour tinted
-              circular background behind each creature (cColor + '25') - this was lost when
-              rebuilt as a flat grey box. Restored, alongside the movement animations already
-              brought back. */}
-          <View style={[styles.imgWrap, { backgroundColor: EMOTION_COLORS[colour] + '25' }]}>
-            <AnimatedCreatureVisual
-              zone={colour}
-              size={64}
-              unlocked={item.current_stage > 0 || item.is_complete}
-              emoji={item.type === 'default' ? item.emoji : undefined}
-              imageUrl={imgUrl || undefined}
-            />
-          </View>
+      />
+      <View style={[styles.card, { width: '100%', borderColor: EMOTION_COLORS[colour], borderWidth: 1 }]}>
+        {/* Real fix Aug 23: the old CreatureCollection modal's grid used a per-colour tinted
+            circular background behind each creature (cColor + '25') - this was lost when
+            rebuilt as a flat grey box. Restored, alongside the movement animations already
+            brought back. */}
+        <View style={[styles.imgWrap, { backgroundColor: EMOTION_COLORS[colour] + '25' }]}>
+          <AnimatedCreatureVisual
+            zone={colour}
+            size={64}
+            unlocked={item.current_stage > 0 || item.is_complete}
+            emoji={item.type === 'default' ? item.emoji : undefined}
+            imageUrl={imgUrl || undefined}
+          />
+        </View>
+        {/* Build 26 (Sep 6): text block below the image was unbounded height, so a card with
+            0 badges (e.g. a default creature, never "was_featured" - only community creatures
+            can be) sat visibly shorter than one with both the active pill AND the limited-
+            edition badge showing. imgWrap above is already consistent (aspectRatio tied to
+            the same `width` prop every sibling card shares) - minHeight here just floors the
+            variable part so every card in a row ends up the same total height, confirmed by
+            actually summing the worst-case combination's font sizes/margins below. */}
+        <View style={{ minHeight: 90, alignItems: 'center', width: '100%' }}>
           <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
           {item.is_active ? (
-            <View style={styles.activeBadgePill}>
+            // Build 26 (Sep 6): background now matches the ring's per-creature EMOTION_COLORS
+            // fix instead of the flat ACTIVE_RING_COLOUR indigo - badge and ring should agree.
+            <View style={[styles.activeBadgePill, { backgroundColor: EMOTION_COLORS[colour] || ACTIVE_RING_COLOUR }]}>
               <Text style={styles.activeBadgePillText} numberOfLines={1}>{t('active_badge') || '★ Active'}</Text>
             </View>
           ) : null}
@@ -138,7 +161,7 @@ function CreatureGridCard({
             {item.is_complete ? (t('fully_evolved') || '🏆 Fully evolved!') : `${t('stage') || 'Stage'} ${item.current_stage} / ${item.max_stage}`}
           </Text>
         </View>
-      </Animated.View>
+      </View>
     </TouchableOpacity>
   );
 }

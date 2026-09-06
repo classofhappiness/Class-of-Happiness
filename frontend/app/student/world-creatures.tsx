@@ -179,7 +179,12 @@ function CreatureCard({
           top: 0, left: 0, right: 0, bottom: 0,
           borderRadius: 14 + ACTIVE_RING_GAP,
           borderWidth: ACTIVE_RING_THICKNESS,
-          borderColor: ACTIVE_RING_COLOUR,
+          // Build 26 (Sep 6): was the generic ACTIVE_RING_COLOUR indigo for every creature
+          // regardless of colour - confuses the whole point of the emotion-colour language
+          // (Spark Pal's ring should read yellow, Aqua Buddy's blue, etc, not the same blue
+          // for all four). Same EMOTION_COLORS map already used for this card's top border/
+          // buttons elsewhere, just applied here too.
+          borderColor: EMOTION_COLORS[item.emotion_colour] || ACTIVE_RING_COLOUR,
           opacity: showActiveRing ? ringPulse : 0,
         }}
       />
@@ -238,7 +243,10 @@ function CreatureCard({
                       coloured text - redundant coding for kids who can't yet read fluently
                       or may be colourblind. Full original translated sentence kept below
                       unchanged, rather than inventing a new, un-translated shortened key. */}
-                  <View style={styles.activeBadgePill}>
+                  {/* Build 26 (Sep 6): background now matches the ring's per-creature
+                      EMOTION_COLORS fix instead of the flat ACTIVE_RING_COLOUR indigo - same
+                      colour language, badge and ring should agree. */}
+                  <View style={[styles.activeBadgePill, { backgroundColor: EMOTION_COLORS[item.emotion_colour] || ACTIVE_RING_COLOUR }]}>
                     <Text style={styles.activeBadgePillText} numberOfLines={1}>{t('active_badge') || '★ Active'}</Text>
                   </View>
                   <Text style={styles.activeHint} numberOfLines={1}>{t('active_checkin_hint') || '★ Active — check in to grow!'}</Text>
@@ -279,6 +287,16 @@ export default function GlobalCreaturesScreen() {
   const [scopePref, setScopePref] = useState<string>('any');
   const [hasClassroom, setHasClassroom] = useState(false);
   const [scopeChanging, setScopeChanging] = useState(false);
+  // Round 3 (Sep 5), item 13: scopeChanging already existed (disabling the tab buttons during
+  // a switch) but nothing ever showed a loading state, so switching tabs looked like nothing
+  // was happening. showScopeLoader is delayed 300ms so a fast switch (already-cached data,
+  // or a quick network response) never flashes a spinner - only a genuinely slow fetch does.
+  const [showScopeLoader, setShowScopeLoader] = useState(false);
+  // Per-scope session cache, checked (13b): yes, every tab switch called setScopePref then
+  // re-fetched the full /creatures/eligible list unconditionally, every time, even for a scope
+  // already visited this session. Caching each scope's result here makes switching back
+  // instant with zero network calls.
+  const scopeCacheRef = useRef<Record<string, { creatures: any[]; countriesJoined: number }>>({});
   // Real feature Aug 23 (item 8): aggregate teaser - shows momentum toward the world map
   // without ever revealing a specific below-threshold country. Jono confirmed he wants to
   // keep the 5-contributor threshold as-is; this is purely additive.
@@ -310,10 +328,14 @@ export default function GlobalCreaturesScreen() {
   const load = async () => {
     try {
       const data = await creaturesApi.getEligible(studentId);
-      setCreatures(data?.creatures || []);
-      setScopePref(data?.scope_pref || 'any');
+      const list = data?.creatures || [];
+      const cj = data?.countries_joined || 0;
+      const pref = data?.scope_pref || 'any';
+      setCreatures(list);
+      setScopePref(pref);
       setHasClassroom(!!data?.has_classroom);
-      setCountriesJoined(data?.countries_joined || 0);
+      setCountriesJoined(cj);
+      scopeCacheRef.current[pref] = { creatures: list, countriesJoined: cj };
       if (studentId) {
         try {
           const activeData = await creaturesApi.getActiveCreatures(studentId);
@@ -336,12 +358,27 @@ export default function GlobalCreaturesScreen() {
 
   const handleScopeChange = async (pref: string) => {
     if (!studentId || pref === scopePref) return;
-    setScopeChanging(true);
     setScopePref(pref);
+
+    const cached = scopeCacheRef.current[pref];
+    if (cached) {
+      // Already visited this scope this session - instant, no loader, no network call for
+      // the list itself. Still persist the preference server-side so it's remembered next
+      // time the student opens this screen, but that doesn't block the UI update.
+      setCreatures(cached.creatures);
+      setCountriesJoined(cached.countriesJoined);
+      creaturesApi.setScopePref(studentId, pref).catch(() => {});
+      return;
+    }
+
+    setScopeChanging(true);
+    const loaderTimer = setTimeout(() => setShowScopeLoader(true), 300);
     try {
       await creaturesApi.setScopePref(studentId, pref);
       await load();
     } catch (e) {}
+    clearTimeout(loaderTimer);
+    setShowScopeLoader(false);
     setScopeChanging(false);
   };
 
@@ -467,7 +504,10 @@ export default function GlobalCreaturesScreen() {
           </TouchableOpacity>
         ))}
       </View>
-      {loading ? (
+      {loading || showScopeLoader ? (
+        // Round 3, item 13a: showScopeLoader covers a slow scope switch the same way `loading`
+        // covers the initial mount - tab bar and filter row above stay fully visible/tappable
+        // (not gated on this condition), only the grid area shows the loader.
         <View style={{ marginTop: 60, alignItems: 'center' }}><EmotionColourLoader visible size={64} /></View>
       ) : pages.length === 0 ? (
         <Text style={styles.empty}>No creatures available to you yet — be the first to submit one! 🦕</Text>
@@ -480,7 +520,7 @@ export default function GlobalCreaturesScreen() {
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor="#5C6BC0" colors={['#5C6BC0']} />}
             contentContainerStyle={{ paddingTop: 12 }}
           />
           {pages.length > 1 && (
@@ -522,7 +562,15 @@ const styles = StyleSheet.create({
   lockOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,.35)', alignItems: 'center', justifyContent: 'center' },
   previewBadge: { position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(0,0,0,.55)', borderRadius: 50, paddingHorizontal: 8, paddingVertical: 3 },
   previewBadgeText: { color: 'white', fontSize: 9, fontWeight: '800' },
-  cardBody: { padding: 8 },
+  // Build 26 (Sep 6): was unset (height purely content-driven), so cards varied a lot -
+  // a default creature (no classroom_name/country/expiry ever set, since those are
+  // community-submission-only fields) sits at the short end, while an active community
+  // creature's footer stacks 3 elements (pill + 2 hint lines) at the tall end. minHeight
+  // sized to the worst realistic combination (2-line metaRow + expiry + active footer);
+  // shorter cards now just have blank space below instead of shrinking, so every row lines
+  // up. Estimated from the actual font sizes/margins below, not visually confirmed on
+  // device yet - flag if it's off in either direction.
+  cardBody: { padding: 8, minHeight: 134 },
   creatureName: { fontSize: 12, fontWeight: '900', color: '#1A1A2E', marginBottom: 3 },
   textLocked: { color: '#9CA3AF' },
   metaRow: { marginBottom: 2 },

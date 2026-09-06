@@ -17,7 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
-import { studentsApi } from '../../src/utils/api';
+import { studentsApi, familyApi } from '../../src/utils/api';
 
 const PRESET_AVATARS = [
   { id: 'cat', emoji: '🐱', name: 'Cat' },
@@ -35,7 +35,16 @@ export default function CreateProfileScreen() {
   const router = useRouter();
   const navigation = useNavigation() as any;
   React.useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
-  const { refreshStudents, classrooms, t } = useApp();
+  const { refreshStudents, classrooms, t, user } = useApp();
+  // Jono's decision (Sep 6): gate by ACTIVE role, Google Classroom/ClassDojo convention -
+  // a teacher-tier account sees only the classroom dropdown (they assign directly). The
+  // dropdown was already accidentally teacher-only in practice (GET /classrooms 403s for
+  // non-teacher roles, so `classrooms` was just always empty) - this makes it a deliberate
+  // check instead of a side effect. A parent-facing Class Code field (link after the fact)
+  // was also built and gated the other way, then hidden again in build 26 once the crash
+  // audit found it was wired to a path that always 403'd for parent role - see the Class
+  // Join Code comment below and COH-REVIEW-PLAN.md.
+  const isTeacherRole = user?.role === 'teacher' || user?.role === 'school_admin' || user?.role === 'superadmin';
   const [name, setName] = useState('');
   const [avatarType, setAvatarType] = useState<'preset' | 'custom'>('preset');
   const [selectedPreset, setSelectedPreset] = useState('cat');
@@ -43,9 +52,6 @@ export default function CreateProfileScreen() {
   const params = useLocalSearchParams<{ classroomId?: string }>();
   const [selectedClassroom, setSelectedClassroom] = useState<string | null>(params.classroomId || null);
   const [saving, setSaving] = useState(false);
-  const [classJoinCode, setClassJoinCode] = useState('');
-  const [joinCodeStatus, setJoinCodeStatus] = useState<'idle'|'checking'|'found'|'invalid'>('idle');
-  const [joinedClassName, setJoinedClassName] = useState('');
 
   const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -90,29 +96,6 @@ export default function CreateProfileScreen() {
     }
   };
 
-  const handleJoinCodeChange = async (code: string) => {
-    const upper = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    setClassJoinCode(upper);
-    setJoinCodeStatus('idle');
-    setJoinedClassName('');
-    if (upper.length === 6) {
-      setJoinCodeStatus('checking');
-      try {
-        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-        const res = await fetch(`${BACKEND_URL}/api/classrooms/join/${upper}`);
-        if (res.ok) {
-          const data = await res.json();
-          setJoinCodeStatus('found');
-          setJoinedClassName(data.name);
-        } else {
-          setJoinCodeStatus('invalid');
-        }
-      } catch {
-        setJoinCodeStatus('invalid');
-      }
-    }
-  };
-
   const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert('Name Required', 'Please enter a name for this profile.');
@@ -121,31 +104,34 @@ export default function CreateProfileScreen() {
 
     setSaving(true);
     try {
-      // Try server-side creation first (works when logged in as teacher/parent)
-      await studentsApi.create({
-        name: name.trim(),
-        avatar_type: avatarType,
-        avatar_preset: avatarType === 'preset' ? selectedPreset : undefined,
-        avatar_custom: avatarType === 'custom' ? customImage || undefined : undefined,
-        classroom_id: selectedClassroom || undefined,
-      });
-      await refreshStudents();
-      // Join classroom if code provided
-      if (classJoinCode.length === 6 && joinCodeStatus === 'found') {
-        try {
-          const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-          const newStudents = await (await import('../../src/utils/api')).studentsApi.getAll();
-          const newStudent = newStudents.find((s: any) => s.name === name.trim());
-          if (newStudent) {
-            await fetch(`${BACKEND_URL}/api/classrooms/join/${classJoinCode}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ student_id: newStudent.id }),
-            });
-          }
-        } catch (e) { console.log('Class join error:', e); }
+      // Real fix (build 26, Sep 6): POST /students is teacher/school_admin/superadmin-only
+      // server-side (a deliberate Aug 26 security hardening, staying as-is per Jono's
+      // explicit call) - it always 403'd for parent role, silently falling into the
+      // AsyncStorage-only local fallback below with no indication the profile never reached
+      // the server. Parent role now goes through the real, working path instead:
+      // POST /family/members already auto-creates a real students row (+ student_rewards)
+      // for relationship:"child" and scopes it to the parent's own family - the exact same
+      // server-side flow parent/dashboard.tsx's "Add Family Member" modal uses. Teacher role
+      // is unaffected, still creates directly via studentsApi.create().
+      if (isTeacherRole) {
+        await studentsApi.create({
+          name: name.trim(),
+          avatar_type: avatarType,
+          avatar_preset: avatarType === 'preset' ? selectedPreset : undefined,
+          avatar_custom: avatarType === 'custom' ? customImage || undefined : undefined,
+          classroom_id: selectedClassroom || undefined,
+        });
+      } else {
+        await familyApi.createMember({
+          name: name.trim(),
+          relationship: 'child',
+          avatar_type: avatarType,
+          avatar_preset: avatarType === 'preset' ? selectedPreset : undefined,
+          avatar_custom: avatarType === 'custom' ? customImage || undefined : undefined,
+        });
       }
-      Alert.alert('Profile Created!', `${name}'s profile has been created.${joinedClassName ? ` Added to ${joinedClassName}!` : ''}`, [
+      await refreshStudents();
+      Alert.alert('Profile Created!', `${name}'s profile has been created.`, [
         { text: 'OK', onPress: () => router.back() }
       ]);
     } catch (error: any) {
@@ -278,8 +264,8 @@ export default function CreateProfileScreen() {
             </View>
           </View>
 
-          {/* Classroom Selection */}
-          {classrooms.length > 0 && (
+          {/* Classroom Selection - teacher-tier accounts only */}
+          {isTeacherRole && classrooms.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>📚 Assign to Classroom</Text>
               <View style={styles.classroomList}>
@@ -308,37 +294,12 @@ export default function CreateProfileScreen() {
             </View>
           )}
 
-          {/* Class Join Code */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🏫 {t('class_code_label') || 'Class Code'}</Text>
-            <Text style={{ fontSize: 13, color: '#888', marginBottom: 10 }}>
-              {t('class_code_optional') || 'Ask your teacher for your class code (optional)'}
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-              <TextInput
-                style={[styles.nameInput, { flex: 1, fontSize: 22, letterSpacing: 6, textAlign: 'center', fontWeight: '700' }]}
-                placeholder="ABC123"
-                placeholderTextColor="#CCC"
-                value={classJoinCode}
-                onChangeText={handleJoinCodeChange}
-                maxLength={6}
-                autoCapitalize="characters"
-              />
-            </View>
-            {joinCodeStatus === 'checking' && (
-              <Text style={{ color: '#888', fontSize: 13, marginTop: 6 }}>🔍 Checking...</Text>
-            )}
-            {joinCodeStatus === 'found' && (
-              <Text style={{ color: '#4CAF50', fontSize: 13, fontWeight: '700', marginTop: 6 }}>
-                ✅ {joinedClassName}
-              </Text>
-            )}
-            {joinCodeStatus === 'invalid' && (
-              <Text style={{ color: '#F44336', fontSize: 13, marginTop: 6 }}>
-                ❌ {t('invalid_class_code') || 'Code not found — check with your teacher'}
-              </Text>
-            )}
-          </View>
+          {/* Class Join Code - HIDDEN, build 26 (Sep 6), per Jono's explicit call: this field
+              was wired to POST /api/classrooms/join/{code} against a student created via
+              POST /students, which always 403's for parent role (the only role this field
+              ever showed for) - a field wired to a dead path must not ship. Returns in build
+              27 once the new class-code endpoint (validates + creates + links the student in
+              one transaction) lands - see COH-REVIEW-PLAN.md. */}
 
           {/* Save Button */}
           <TouchableOpacity

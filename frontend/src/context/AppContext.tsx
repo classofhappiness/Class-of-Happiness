@@ -331,11 +331,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const refreshStudents = async () => {
     if (!isAuthenticated) return; // ✅ Don't fetch if not logged in
     try {
-      const data = await studentsApi.getAll();
+      // Real fix (build 26, Sep 6): GET /students is teacher/school_admin/superadmin-only
+      // server-side (403 "Teacher access required" otherwise) - this used to call it
+      // unconditionally for every role, including parent, before the isParentUser check
+      // below even ran. For a parent account the 403 threw here and skipped the family-
+      // members fetch entirely (it's later in this same try block), leaving `students` empty
+      // and crashing the student-select flow. Computed isParentUser first and only call the
+      // teacher endpoint for non-parent roles; parent/family accounts go straight to their
+      // real source (/api/family/members) below instead.
+      const isParentUser = user?.role === 'parent' || user?.role === 'family' || (!user?.role);
+      const data = isParentUser ? [] : await studentsApi.getAll();
 
       // Only merge family children for parent/family users — NOT teachers
       let familyStudents: any[] = [];
-      const isParentUser = user?.role === 'parent' || user?.role === 'family' || (!user?.role);
       if (isParentUser) { try {
         const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
@@ -390,15 +398,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
       setStudents(sorted);
     } catch (error) {
-      // Silently ignore auth errors - user may not be logged in
-      if (!String(error).includes('401') && !String(error).includes('authenticated')) {
+      // Silently ignore auth errors (user may not be logged in) and role-mismatch errors
+      // (a stale/incorrect role hitting the teacher-only endpoint above is now prevented by
+      // the isParentUser gate, but this stays as a second line of defense - console.error in
+      // Expo Go's dev build surfaces as a full-screen LogBox overlay, which is what actually
+      // read as a "crash" here, not a real unhandled exception. Fail quietly instead.
+      if (!String(error).includes('401') && !String(error).includes('authenticated') && !String(error).includes('Teacher access required')) {
         console.error('Error fetching students:', error);
       }
+      setStudents([]);
     }
   };
 
   const refreshClassrooms = async () => {
     if (!isAuthenticated) return; // ✅ Don't fetch if not logged in
+    // Real fix (build 26, Sep 6), same family as refreshStudents above: GET /classrooms is
+    // teacher/school_admin/superadmin-only server-side. A parent account always got back a
+    // silent 403 here (classrooms just stayed [] - noted as a side effect in A86), but this
+    // call ran unconditionally from the background loader for every authenticated role, so
+    // the 403 - and its console.error - fired every app load for a parent, surfacing as a
+    // LogBox crash in Expo Go. Parent/family roles skip the call entirely now.
+    const isParentUser = user?.role === 'parent' || user?.role === 'family' || (!user?.role);
+    if (isParentUser) { setClassrooms([]); return; }
     try {
       const data = await classroomsApi.getAll();
       setClassrooms(data);
@@ -407,6 +428,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (!String(error).includes('401') && !String(error).includes('authenticated')) {
         console.error('Error fetching classrooms:', error);
       }
+      setClassrooms([]);
     }
   };
 

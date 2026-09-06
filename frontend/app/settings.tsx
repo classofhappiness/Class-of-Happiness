@@ -70,6 +70,25 @@ function renewalCountdownLabel(expiresAtIso: string): string {
   return daysLeft === 1 ? 'Renews in 1 day' : `Renews in ${daysLeft} days`;
 }
 
+// Build 26 (Sep 6): mirrors the backend's own _trial_is_valid fallback exactly - a promo
+// code (e.g. HAPPYCLASS2026) writes a real expiry into subscription_expires_at (checked
+// first), a regular trial (POST /subscription/start-trial) never sets that field at all and
+// falls back to trial_started_at + the standard 14-day TRIAL_DURATION_DAYS. Getting this
+// wrong the same way the backend bug (Aug 25) did would show a promo trial's days-left as if
+// it were a plain 14-day trial.
+const TRIAL_DURATION_DAYS = 14;
+function trialDaysLeftLabel(user: any): string {
+  let expiresAt: Date | null = null;
+  if (user?.subscription_expires_at) {
+    expiresAt = new Date(user.subscription_expires_at);
+  } else if (user?.trial_started_at) {
+    expiresAt = new Date(new Date(user.trial_started_at).getTime() + TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000);
+  }
+  if (!expiresAt) return 'Trial active';
+  const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+  return daysLeft === 1 ? 'Trial active — 1 day left' : `Trial active — ${daysLeft} days left`;
+}
+
 export default function SettingsScreen() {
   const router = useRouter();
   const navigation = useNavigation();
@@ -628,7 +647,16 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Trial Code Section */}
+        {/* Trial Code Section. Build 26 (Sep 6): the dashboard trial banners (teacher +
+            family) that pointed people here are gone - this is now the only place that
+            messaging lives, so the specific code/offer text they carried ("enter code
+            HAPPYCLASS2026 for 30 days free") is relocated here as a subtitle. Approved-
+            with-tweak same day: that offer text only makes sense for someone who hasn't
+            redeemed anything yet - a user already ON an active trial (hasActiveSubscription
+            is true for 'trial', not just 'active') was seeing nothing at all here instead of
+            anything reflecting their real state. Now shows the trial's own days-remaining
+            countdown instead of just disappearing; the offer text still shows for anyone with
+            no subscription and no trial. */}
         <TouchableOpacity
           style={styles.settingItem}
           onPress={() => setShowTrialCode(!showTrialCode)}
@@ -637,6 +665,15 @@ export default function SettingsScreen() {
             <MaterialIcons name="card-giftcard" size={24} color="#FF9800" />
             <View style={styles.settingText}>
               <Text style={styles.settingLabel}>{t('have_trial_code')}</Text>
+              {user?.subscription_status === 'trial' ? (
+                <Text style={[styles.settingSubValue, { color: '#4CAF50', fontWeight: '600' }]}>
+                  {trialDaysLeftLabel(user)}
+                </Text>
+              ) : !hasActiveSubscription && (
+                <Text style={styles.settingSubValue}>
+                  {t('enter_code_30_days_free') || 'enter code HAPPYCLASS2026 for 30 days free'}
+                </Text>
+              )}
             </View>
           </View>
           <MaterialIcons 

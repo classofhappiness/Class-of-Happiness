@@ -181,6 +181,7 @@ function AppContent() {
           options={{
             title: 'Settings',
             headerBackTitle: 'Back',
+            headerRight: () => <HomeToDashboard />,
           }}
         />
         <Stack.Screen
@@ -346,6 +347,7 @@ function AppContent() {
             title: 'Family Dashboard',
             headerTitleAlign: 'center',
             headerTitleStyle: { fontWeight: '700' },
+            headerRight: () => <HomeToDashboard />,
           }}
         />
         <Stack.Screen
@@ -403,6 +405,13 @@ function AppContent() {
           options={{
             headerShown: false,
             title: 'Quick Class Check-in',
+          }}
+        />
+        <Stack.Screen
+          name="kiosk/index"
+          options={{
+            headerShown: false,
+            title: 'Kiosk',
           }}
         />
       </Stack>

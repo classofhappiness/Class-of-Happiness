@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
-  ScrollView, ActivityIndicator, Animated, useWindowDimensions, Image
+  ScrollView, ActivityIndicator, Animated, useWindowDimensions, Image, Platform
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -12,6 +13,56 @@ import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { useApp } from '../../src/context/AppContext';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+
+// Review round 3 (Sep 5): the shared TranslatedHeader can't fit "🎟️ Kiosk" on its own line
+// above a "Student Devices Check In" subline (single Text, numberOfLines={1}, no subtitle
+// slot) - that's exactly what this screen now needs, so it gets its own header instead of
+// reusing the shared one. Structurally identical to TranslatedHeader otherwise (same back
+// button, same 32px logo on the right) so it still reads as "one clean header, like other
+// screens" - only the centre title area is custom.
+function KioskHeader() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { t } = useApp();
+  // Single translation key, same one the Classrooms button uses (kept in sync automatically
+  // rather than as two parallel keys that could drift) - "Kiosk - Student Devices Check In".
+  // Split on " - " for the heading's two-line layout; if a translation ever omits the
+  // separator, the whole string just renders as line 1 rather than breaking.
+  const fullTitle = t('kiosk_screen_title') || 'Kiosk - Student Devices Check In';
+  const sepIdx = fullTitle.indexOf(' - ');
+  const line1 = sepIdx >= 0 ? fullTitle.slice(0, sepIdx) : fullTitle;
+  const line2 = sepIdx >= 0 ? fullTitle.slice(sepIdx + 3) : '';
+  return (
+    <View style={[kh.header, { paddingTop: (Platform.OS === 'ios' ? insets.top : 12) + 4 }]}>
+      <View style={kh.headerContent}>
+        <View style={kh.backSlot}>
+          <TouchableOpacity onPress={() => router.back()} style={kh.backButton}>
+            <MaterialIcons name="arrow-back" size={24} color="#333" />
+          </TouchableOpacity>
+        </View>
+        <View style={kh.titleBlock}>
+          <Text style={kh.titleLine1} numberOfLines={1}>🎟️ {line1}</Text>
+          {!!line2 && <Text style={kh.titleLine2} numberOfLines={1}>{line2}</Text>}
+        </View>
+        <View style={kh.rightSlot}>
+          <Image source={require('../../assets/images/logo_coh.png')} style={kh.logo} resizeMode="contain" />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const kh = StyleSheet.create({
+  header: { backgroundColor: '#F8F9FA', paddingBottom: 0, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
+  headerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 6 },
+  backSlot: { width: 40, alignItems: 'flex-start' },
+  backButton: { padding: 4 },
+  titleBlock: { flex: 1, alignItems: 'center' },
+  titleLine1: { fontSize: 17, fontWeight: 'bold', color: '#333' },
+  titleLine2: { fontSize: 11, color: '#888', marginTop: 1 },
+  rightSlot: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 40, justifyContent: 'flex-end' },
+  logo: { width: 32, height: 32 },
+});
 const INDIGO = '#5C6BC0';
 const ZONE_COLORS: Record<string,string> = EMOTION_COLOURS;
 const ZONE_EMOJI: Record<string,string> = { blue:'😢', green:'😊', yellow:'😰', red:'😠' };
@@ -217,11 +268,15 @@ export default function KioskScreen() {
   if (setupMode) {
     return (
       <SafeAreaView style={st.container}>
+        {/* Redesign (Sep 5, on-device review): this screen and the active-session view below
+            each had their own custom branded header block AND, since "kiosk" had no explicit
+            Stack.Screen entry, the app's default native header stacked on top of it too - two
+            real headers, not one. Now registered with headerShown:false (see _layout.tsx) and
+            using a dedicated KioskHeader instead - see the note above its definition. */}
+        <KioskHeader />
         <View style={st.setupScreen}>
-          {/* COH Branding */}
+          {/* 🎟️ now lives in the heading itself (round 3, Sep 5), not duplicated here too. */}
           <View style={st.brandBox}>
-            <Text style={st.brandEmoji}>😊</Text>
-            <Text style={st.brandTitle}>Class of Happiness</Text>
             <Text style={st.brandTagline}>{t('kiosk_tagline') || 'Emotional Wellbeing for Schools'}</Text>
           </View>
 
@@ -271,25 +326,32 @@ export default function KioskScreen() {
 
   return (
     <SafeAreaView style={st.container}>
-      {/* Header */}
-      <View style={st.header}>
-        <View style={st.headerBrand}>
-          <Text style={st.headerEmoji}>😊</Text>
-          <View>
-            <Text style={st.headerTitle}>Class of Happiness</Text>
-            {classroomName ? <Text style={st.headerSub}>{classroomName}{teacherName ? ` · ${teacherName}` : ''}</Text> : null}
+      <KioskHeader />
+      {/* Classroom/teacher context - the header has no subtitle slot, so this lives just
+          below it. Build 26 (Sep 6): the refresh button that used to share this row moved
+          down next to the main prompt heading instead (below) - this row is now
+          classroom-name-only, so it's skipped entirely with no classroom assigned instead of
+          rendering an empty white bar full of wasted vertical space above the heading. */}
+      {classroomName ? (
+        <View style={st.header}>
+          <View style={st.headerBrand}>
+            <Text style={st.headerSub}>{classroomName}{teacherName ? ` · ${teacherName}` : ''}</Text>
           </View>
         </View>
+      ) : null}
+
+      {/* Main prompt - refresh button now sits right of the heading itself (build 26, Sep 6)
+          instead of on its own row above; kept outside the pulsing Animated.View so only the
+          text breathes, not the static icon. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+        <Animated.View style={[st.promptBox, { transform: [{ scale: pulseAnim }] }]}>
+          <Text style={st.promptTitle}>{t('how_are_you_feeling') || 'How are you feeling today?'}</Text>
+          <Text style={st.promptSub}>{t('kiosk_tap_name_hint') || 'Tap your name to check in'} 👇</Text>
+        </Animated.View>
         <TouchableOpacity onPress={() => loadStudents(kioskToken!)} style={st.refreshBtn}>
-          <MaterialIcons name="refresh" size={22} color={INDIGO} />
+          <MaterialIcons name="refresh" size={30} color={INDIGO} />
         </TouchableOpacity>
       </View>
-
-      {/* Main prompt */}
-      <Animated.View style={[st.promptBox, { transform: [{ scale: pulseAnim }] }]}>
-        <Text style={st.promptTitle}>{t('how_are_you_feeling') || 'How are you feeling today?'}</Text>
-        <Text style={st.promptSub}>{t('kiosk_tap_name_hint') || 'Tap your name to check in'} 👇</Text>
-      </Animated.View>
 
       {/* Student grid */}
       {loading ? (
