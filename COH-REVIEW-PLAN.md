@@ -2496,3 +2496,7 @@ Full pre-flight against `origin/main` (PR #3 + PR #4 merged, no kiosk/audio comm
 **Google Play verification status**: pending Jono's own check of Play Console - Android build/submit gated on that; iOS proceeding regardless tonight.
 
 **GO given**: version bump -> commit -> push -> EAS production build, iOS first (Android only if Play is confirmed cleared). Submission explicitly paused until Jono reviews build results.
+
+**iOS build (`8c8e9b73-51ed-4876-9bea-052bb8aa9d55`)**: FINISHED, no errors, 1.4.0/build 26 confirmed, ~5m20s. Artifact: https://expo.dev/artifacts/eas/JLkmNb_NVNDWT48M824BT637w6qi4MsOyK8DQF_ZDRw.ipa - not submitted, pending Jono's review.
+
+**Android clarification from Jono**: Google Play verification is still unresolved, but that's irrelevant to the primary Android channel - it ships as a direct APK from classofhappiness.com, exactly like build 25. Confirmed by checking real EAS build history (`eas build:list`): build 25 (versionCode 8) itself was produced by running BOTH profiles - `production` -> `.aab` (Play, unused for now) and `preview` -> `.apk` (the real distribution artifact, matches `build-25-release/`'s two files exactly). Same pattern used here: `eas build --platform android --profile preview` kicked off (`2817003d-6046-4130-868a-10a165c31d33`), same default keystore as every prior build (upgrade-compatible for existing installs). **Logged for later: submit to Google Play once identity verification clears** - not attempted this round.
