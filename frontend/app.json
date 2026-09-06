@@ -2,7 +2,7 @@
   "expo": {
     "name": "Class of Happiness",
     "slug": "class-of-happiness",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "classofhappiness",
@@ -18,14 +18,14 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryAddUsageDescription": "Save photos from Class of Happiness"
       },
-      "buildNumber": "25",
+      "buildNumber": "26",
       "entitlements": {
         "aps-environment": "production"
       }
     },
     "android": {
       "package": "com.classofhappiness.app",
-      "versionCode": 8,
+      "versionCode": 9,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
