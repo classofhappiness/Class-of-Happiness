@@ -537,47 +537,74 @@ export default function ParentDashboard() {
         grandparent: {emoji:'🌸', color:'#9C27B0'},
         other: {emoji:'⭐', color:'#FF9800'},
       };
-      for (const m of members) {
-        // Try to find a linked student for this family member (match by name or student_id)
+      // Resolve linked student IDs for all members up front, then fetch collections for
+      // all of them in ONE batch call (was: one sequential rewardsApi.getCollection await
+      // per member) and community creatures in parallel (was: sequential per member) -
+      // this was the main source of Family Dashboard's slow load with several members.
+      const linkedIdByMember: Record<string, string> = {};
+      members.forEach((m: any) => {
         const linkedId = (m as any).student_id ||
           children.find((s: any) => s.name === m.name)?.id;
-        if (linkedId) {
-          try {
-            const collection = await rewardsApi.getCollection(linkedId);
-            if (collection) {
-              const stage = collection.current_stage || 0;
-              const stageEmoji = collection.current_creature?.stages?.[stage]?.emoji;
-              creatureMap[m.id] = {
-                emoji: stageEmoji || collection.current_creature?.emoji || '🥚',
-                color: collection.current_creature?.color || '#4CAF50',
-                points: collection.current_points || 0,
-                stage,
-                currentStage: stage,
-                currentCreature: collection.current_creature,
-                name: collection.current_creature?.name || '',
-                hasRealCreature: !!stageEmoji,
-                allCreatures: collection.all_creatures || [],
-                current_points: collection.current_points || 0,
-              };
-            }
-          } catch { /* no creature yet - use default */ }
-          // Real feature Aug 23 (item 5): the small family-member cards never showed active
-          // community (Family/Class/School/Global) creatures at all - only defaults, via
-          // rewardsApi.getCollection above. Same enrichment already built for
-          // student/select.tsx's bigger cards, applied here too so both surfaces are
-          // consistent.
-          try {
-            const myCreatures = await creaturesApi.getMyCreatures(linkedId);
-            const active: any[] = [];
-            Object.entries(myCreatures?.colours || {}).forEach(([colour, bucket]) => {
-              (bucket as any[]).forEach(entry => {
-                if (entry.type === 'community' && entry.is_active) active.push({ ...entry, colour });
-              });
+        if (linkedId) linkedIdByMember[m.id] = linkedId;
+      });
+      const linkedIds = Array.from(new Set(Object.values(linkedIdByMember)));
+
+      let batchCollections: Record<string, any> = {};
+      if (linkedIds.length > 0) {
+        try {
+          const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+          const tok = await AsyncStorage.getItem('session_token');
+          const r = await fetch(`${BURL}/api/rewards/batch/collections?student_ids=${linkedIds.join(',')}`, {
+            headers: { Authorization: `Bearer ${tok}` }
+          });
+          if (r.ok) batchCollections = await r.json();
+        } catch { /* fall through - members without a collection just get defaults below */ }
+      }
+
+      // Real feature Aug 23 (item 5): the small family-member cards never showed active
+      // community (Family/Class/School/Global) creatures at all - only defaults, via
+      // rewardsApi.getCollection above. Same enrichment already built for
+      // student/select.tsx's bigger cards, applied here too so both surfaces are
+      // consistent.
+      const communityResults = await Promise.all(linkedIds.map(async (linkedId) => {
+        try {
+          const myCreatures = await creaturesApi.getMyCreatures(linkedId);
+          const active: any[] = [];
+          Object.entries(myCreatures?.colours || {}).forEach(([colour, bucket]) => {
+            (bucket as any[]).forEach(entry => {
+              if (entry.type === 'community' && entry.is_active) active.push({ ...entry, colour });
             });
-            if (active.length) {
-              creatureMap[m.id] = { ...(creatureMap[m.id] || {}), activeCommunity: active };
-            }
-          } catch { /* no community creature - fine, defaults still show */ }
+          });
+          return { linkedId, active };
+        } catch { return { linkedId, active: [] as any[] }; }
+      }));
+      const communityByLinkedId: Record<string, any[]> = {};
+      communityResults.forEach(({ linkedId, active }) => { communityByLinkedId[linkedId] = active; });
+
+      for (const m of members) {
+        const linkedId = linkedIdByMember[m.id];
+        if (linkedId) {
+          const collection = batchCollections[linkedId];
+          if (collection?.current_creature) {
+            const stage = collection.current_stage || 0;
+            const stageEmoji = collection.current_creature?.stages?.[stage]?.emoji;
+            creatureMap[m.id] = {
+              emoji: stageEmoji || collection.current_creature?.emoji || '🥚',
+              color: collection.current_creature?.color || '#4CAF50',
+              points: collection.current_points || 0,
+              stage,
+              currentStage: stage,
+              currentCreature: collection.current_creature,
+              name: collection.current_creature?.name || '',
+              hasRealCreature: !!stageEmoji,
+              allCreatures: collection.all_creatures || [],
+              current_points: collection.current_points || 0,
+            };
+          }
+          const active = communityByLinkedId[linkedId] || [];
+          if (active.length) {
+            creatureMap[m.id] = { ...(creatureMap[m.id] || {}), activeCommunity: active };
+          }
         }
         // Give non-linked members a default creature
         if (!creatureMap[m.id]) {
@@ -615,72 +642,75 @@ export default function ParentDashboard() {
 
   const fetchMemberData = useCallback(async () => {
     // Fetch combined logs for ALL children (family + linked)
-    // This powers the Week Overview and Recent Check-ins sections
+    // This powers the Week Overview and Recent Check-ins sections.
+    // Reuses familyMembers/linkedChildren from fetchData() instead of re-fetching both lists
+    // again here (was a fully redundant duplicate fetch), and fetches all children/linked
+    // kids in parallel instead of one sequential await chain per child - the other main
+    // source of Family Dashboard's slow load.
     try {
       const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-      const AsyncStorage2 = (await import('@react-native-async-storage/async-storage')).default;
-      const token = await AsyncStorage2.getItem('session_token');
+      const token = await AsyncStorage.getItem('session_token');
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      // Get all family members
-      const membersRes = await fetch(`${BACKEND_URL}/api/family/members`, { headers });
-      const allMembers = membersRes.ok ? await membersRes.json() : [];
-      const children = allMembers.filter((m: any) => m.relationship === 'child');
+      const children = familyMembers.filter((m: any) => m.relationship === 'child');
+      const linkedKids = linkedChildren;
 
-      // Also get school-linked children
-      const linkedRes = await fetch(`${BACKEND_URL}/api/parent/linked-children`, { headers });
-      const linkedKids = linkedRes.ok ? await linkedRes.json() : [];
-
-      const allLogs: any[] = [];
-
-      // Fetch logs for each family child
-      for (const child of children) {
+      const childResults = await Promise.all(children.map(async (child: any) => {
+        const logs: any[] = [];
         // From feeling_logs via student_id (primary source — creature points go here)
         if (child.student_id) {
           try {
             const r = await fetch(`${BACKEND_URL}/api/zone-logs/student/${child.student_id}?days=${analyticsPeriod}`, { headers });
-            const logs = r.ok ? await r.json() : [];
-            const tagged = Array.isArray(logs) ? logs.map((l: any) => ({
-              ...l,
-              zone: l.zone || l.feeling_colour,
-              member_name: child.name,
-              member_id: child.id,
-            })) : [];
-            allLogs.push(...tagged);
+            const d = r.ok ? await r.json() : [];
+            if (Array.isArray(d)) {
+              logs.push(...d.map((l: any) => ({
+                ...l,
+                zone: l.zone || l.feeling_colour,
+                member_name: child.name,
+                member_id: child.id,
+              })));
+            }
           } catch {}
         }
         // Also from family_zone_logs (fallback)
         try {
           const r2 = await fetch(`${BACKEND_URL}/api/family/zone-logs/${child.id}?days=${analyticsPeriod}`, { headers });
-          const logs2 = r2.ok ? await r2.json() : [];
-          const tagged2 = Array.isArray(logs2) ? logs2.map((l: any) => ({
-            ...l,
-            zone: l.zone || l.feeling_colour,
-            member_name: child.name,
-            member_id: child.id,
-          })) : [];
-          // Deduplicate by id
-          const existingIds = new Set(allLogs.map((l: any) => l.id));
-          allLogs.push(...tagged2.filter((l: any) => !existingIds.has(l.id)));
+          const d2 = r2.ok ? await r2.json() : [];
+          if (Array.isArray(d2)) {
+            const existingIds = new Set(logs.map((l: any) => l.id));
+            logs.push(...d2.filter((l: any) => !existingIds.has(l.id)).map((l: any) => ({
+              ...l,
+              zone: l.zone || l.feeling_colour,
+              member_name: child.name,
+              member_id: child.id,
+            })));
+          }
         } catch {}
-      }
+        return logs;
+      }));
 
-      // Fetch logs for ALL school-linked children
-      for (const linked of linkedKids) {
+      const linkedResults = await Promise.all(linkedKids.map(async (linked: any) => {
         try {
           const r = await fetch(`${BACKEND_URL}/api/parent/linked-child/${linked.id}/all-checkins?days=${analyticsPeriod}`, { headers });
-          const logs = r.ok ? await r.json() : [];
-          const tagged = Array.isArray(logs) ? logs.map((l: any) => ({
+          const d = r.ok ? await r.json() : [];
+          return Array.isArray(d) ? d.map((l: any) => ({
             ...l,
             zone: l.zone || l.feeling_colour,
             member_name: linked.name,
             linked_id: linked.id,
             student_id: linked.id,
           })) : [];
-          const existingIds2 = new Set(allLogs.map((l: any) => l.id));
-          allLogs.push(...tagged.filter((l: any) => !existingIds2.has(l.id)));
-        } catch {}
-      }
+        } catch { return []; }
+      }));
+
+      const allLogs: any[] = [];
+      childResults.forEach(logs => allLogs.push(...logs));
+      const existingIds2 = new Set(allLogs.map((l: any) => l.id));
+      linkedResults.forEach(logs => {
+        logs.forEach((l: any) => {
+          if (!existingIds2.has(l.id)) { allLogs.push(l); existingIds2.add(l.id); }
+        });
+      });
 
       // Sort by timestamp desc
       allLogs.sort((a: any, b: any) => new Date(b.timestamp || b.created_at).getTime() - new Date(a.timestamp || a.created_at).getTime());
@@ -696,7 +726,7 @@ export default function ParentDashboard() {
       setRecentLogs([]);
       setAnalytics({ zone_counts: { blue: 0, green: 0, yellow: 0, red: 0 } });
     }
-  }, [analyticsPeriod]);
+  }, [analyticsPeriod, familyMembers, linkedChildren]);
 
   // Register for push notifications on mount
   useEffect(() => {
@@ -706,7 +736,8 @@ export default function ParentDashboard() {
   useEffect(() => {
     fetchData();
     loadParentAlerts();
-    fetchMemberData(); // Load children's data for graphs on mount
+    // fetchMemberData() runs via the [fetchMemberData] effect below, which also re-fires
+    // once fetchData() populates familyMembers/linkedChildren (no need to call it here too).
   }, []);
 
   // Reload alert count every time dashboard comes into focus (e.g. after resolving alerts)
@@ -720,7 +751,7 @@ export default function ParentDashboard() {
 
   useEffect(() => {
     fetchMemberData();
-  }, [analyticsPeriod]);
+  }, [fetchMemberData]);
 
   // Sync ordered members from saved order or default
   useEffect(() => {
@@ -1229,26 +1260,34 @@ export default function ParentDashboard() {
                     <View style={styles.gridCardActions}>
                       {reorderMode ? (
                         <>
-                          <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); moveCard(orderedMembers.indexOf(member), -1); }} style={styles.gridActionBtn}>
+                          <TouchableOpacity hitSlop={{top:10,bottom:10,left:6,right:6}} onPress={(e) => { e.stopPropagation?.(); moveCard(orderedMembers.indexOf(member), -1); }} style={styles.gridActionBtn}>
                             <MaterialIcons name="chevron-left" size={16} color="#5C6BC0" />
                           </TouchableOpacity>
-                          <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); moveCard(orderedMembers.indexOf(member), 1); }} style={styles.gridActionBtn}>
+                          <TouchableOpacity hitSlop={{top:10,bottom:10,left:6,right:6}} onPress={(e) => { e.stopPropagation?.(); moveCard(orderedMembers.indexOf(member), 1); }} style={styles.gridActionBtn}>
                             <MaterialIcons name="chevron-right" size={16} color="#5C6BC0" />
                           </TouchableOpacity>
                         </>
                       ) : (
-                        <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); handleEditFamilyMember(member); }} style={styles.gridActionBtn}>
+                        <TouchableOpacity hitSlop={{top:10,bottom:10,left:6,right:6}} onPress={(e) => { e.stopPropagation?.(); handleEditFamilyMember(member); }} style={styles.gridActionBtn}>
                           <MaterialIcons name="edit" size={11} color="#5C6BC0" />
                         </TouchableOpacity>
                       )}
                       {isLinked && (
                         <TouchableOpacity
+                          hitSlop={{top:10,bottom:10,left:6,right:6}}
                           onPress={(e) => { e.stopPropagation?.(); router.push(`/parent/linked-child/${linkedChildId || member.id}`); }}
                           style={[styles.linkedBadge, { backgroundColor:'#E8F5E9' }]}>
                           <MaterialIcons name="link" size={10} color="#4CAF50" />
                         </TouchableOpacity>
                       )}
-                      <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); handleDeleteFamilyMember(member); }} style={styles.gridActionBtn}>
+                      {/* Build 27 fix (Family Dashboard bug report): this button's hit area was
+                          just the 11px icon + 2px padding (~15x15). On a real device a tap that
+                          drifts even slightly during touch-up gets claimed and cancelled by this
+                          TouchableOpacity without firing onPress or bubbling to the card's own
+                          onPress - reproducing "tapping delete does nothing" with no error/toast,
+                          since no handler ever runs. hitSlop expands the tappable area without
+                          changing the visible icon size. */}
+                      <TouchableOpacity hitSlop={{top:10,bottom:10,left:6,right:6}} onPress={(e) => { e.stopPropagation?.(); handleDeleteFamilyMember(member); }} style={styles.gridActionBtn}>
                         <MaterialIcons name="close" size={11} color="#F44336" />
                       </TouchableOpacity>
                     </View>
