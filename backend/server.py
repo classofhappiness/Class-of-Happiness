@@ -12406,6 +12406,7 @@ async def get_wellbeing_tracker(request: Request):
     user = await get_current_user(request)
     if not user or user.get("role") not in ["school_admin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
+    _require_feature_access(user, "wellbeing_welfare", "Wellbeing Tracker")
     try:
         records = supabase.table("school_wellbeing_tracker").select("*").eq("school_admin_id", user["user_id"]).order("updated_at", desc=True).execute().data or []
         return records
@@ -12418,6 +12419,7 @@ async def create_wellbeing_record(request: Request):
     user = await get_current_user(request)
     if not user or user.get("role") not in ["school_admin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
+    _require_feature_access(user, "wellbeing_welfare", "Wellbeing Tracker")
     body = await request.json()
     record = {
         "id": str(uuid.uuid4()),
@@ -12443,6 +12445,7 @@ async def update_wellbeing_record(record_id: str, request: Request):
     user = await get_current_user(request)
     if not user or user.get("role") not in ["school_admin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
+    _require_feature_access(user, "wellbeing_welfare", "Wellbeing Tracker")
     body = await request.json()
     body["updated_at"] = datetime.now(timezone.utc).isoformat()
     # Only update own records
@@ -12454,6 +12457,7 @@ async def delete_wellbeing_record(record_id: str, request: Request):
     user = await get_current_user(request)
     if not user or user.get("role") not in ["school_admin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
+    _require_feature_access(user, "wellbeing_welfare", "Wellbeing Tracker")
     supabase.table("school_wellbeing_tracker").delete().eq("id", record_id).eq("school_admin_id", user["user_id"]).execute()
     return {"status": "deleted"}
 
@@ -12500,6 +12504,7 @@ async def get_services_directory(request: Request):
     user = await get_current_user(request)
     if not user or user.get("role") not in ["school_admin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
+    _require_feature_access(user, "services_directory", "Services Directory")
     try:
         services = supabase.table("school_services_directory").select("*").eq("school_admin_id", user["user_id"]).order("category").execute().data or []
         return services
@@ -12511,6 +12516,7 @@ async def save_service(request: Request):
     user = await get_current_user(request)
     if not user or user.get("role") not in ["school_admin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
+    _require_feature_access(user, "services_directory", "Services Directory")
     body = await request.json()
     service = {
         "id": str(uuid.uuid4()),
@@ -12533,8 +12539,740 @@ async def delete_service(service_id: str, request: Request):
     user = await get_current_user(request)
     if not user or user.get("role") not in ["school_admin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
+    _require_feature_access(user, "services_directory", "Services Directory")
     supabase.table("school_services_directory").delete().eq("id", service_id).eq("school_admin_id", user["user_id"]).execute()
     return {"status": "deleted"}
+
+
+# ============================================================
+# Two-level per-school feature toggles (school_features table, Sep 8)
+# Superadmin controls which optional tabs a school may see at all
+# (allowed_by_superadmin); the school's own admin controls whether they
+# currently want it shown (enabled_by_school). A tab is live for a school
+# only when BOTH are true - enforced here server-side on every gated
+# endpoint, never just hidden in the UI. services_directory/wellbeing_
+# welfare never had a toggle anywhere before this (verified: no
+# admin_settings key, no school_profiles column, no gating logic in
+# portal.html - they were simply always-on tabs), so a MISSING row for
+# those two fails OPEN (preserves that always-on history for any school,
+# including ones created after this shipped). careers_advisory is new and
+# fails CLOSED - a missing row means "never allowed", same as before this
+# feature existed.
+# ============================================================
+ALL_SCHOOL_FEATURE_KEYS = ["careers_advisory", "services_directory", "wellbeing_welfare"]
+_FEATURE_FAIL_OPEN_KEYS = {"services_directory", "wellbeing_welfare"}
+
+def _get_school_feature_flags(school_admin_id: str, feature_key: str) -> dict:
+    try:
+        r = supabase.table("school_features").select("allowed_by_superadmin,enabled_by_school") \
+            .eq("school_admin_id", school_admin_id).eq("feature_key", feature_key).execute()
+        if r.data:
+            row = r.data[0]
+            return {
+                "allowed_by_superadmin": bool(row.get("allowed_by_superadmin")),
+                "enabled_by_school": bool(row.get("enabled_by_school", True)),
+            }
+    except Exception as e:
+        logger.error(f"_get_school_feature_flags error ({feature_key}): {e}")
+    if feature_key in _FEATURE_FAIL_OPEN_KEYS:
+        return {"allowed_by_superadmin": True, "enabled_by_school": True}
+    return {"allowed_by_superadmin": False, "enabled_by_school": True}
+
+def _require_feature_access(user: dict, feature_key: str, label: str) -> None:
+    """403s unless feature_key is BOTH allowed by superadmin AND enabled by
+    this school - the gate every optional-tab endpoint applies, not just a
+    hidden tab in the UI. services_directory/wellbeing_welfare fail open
+    (see _get_school_feature_flags), so this is a no-op for every school
+    today - it only starts actually restricting a school the moment a
+    superadmin explicitly disallows one of these two for them."""
+    flags = _get_school_feature_flags(user["user_id"], feature_key)
+    if not (flags["allowed_by_superadmin"] and flags["enabled_by_school"]):
+        raise HTTPException(status_code=403, detail=f"{label} is not enabled for this school")
+
+def _require_careers_access(user: dict) -> None:
+    _require_feature_access(user, "careers_advisory", "Careers Advisory")
+
+@api_router.get("/features")
+async def get_my_school_features(request: Request):
+    """Optional tabs THIS school is allowed to see, with their own show/hide
+    state. A feature the superadmin hasn't allowed is simply absent from the
+    list - no greyed-out teaser."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    result = []
+    for key in ALL_SCHOOL_FEATURE_KEYS:
+        flags = _get_school_feature_flags(user["user_id"], key)
+        if flags["allowed_by_superadmin"]:
+            result.append({"feature_key": key, "enabled_by_school": flags["enabled_by_school"]})
+    return result
+
+@api_router.put("/features/{feature_key}")
+async def set_my_school_feature(feature_key: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    if feature_key not in ALL_SCHOOL_FEATURE_KEYS:
+        raise HTTPException(status_code=404, detail="Unknown feature")
+    flags = _get_school_feature_flags(user["user_id"], feature_key)
+    if not flags["allowed_by_superadmin"]:
+        raise HTTPException(status_code=403, detail="This feature is not enabled for your school")
+    body = await request.json()
+    enabled = bool(body.get("enabled_by_school", True))
+    supabase.table("school_features").upsert({
+        "school_admin_id": user["user_id"],
+        "feature_key": feature_key,
+        "allowed_by_superadmin": True,
+        "enabled_by_school": enabled,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }, on_conflict="school_admin_id,feature_key").execute()
+    return {"feature_key": feature_key, "enabled_by_school": enabled}
+
+@api_router.get("/admin/school-features")
+async def get_all_school_features(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    profiles = supabase.table("school_profiles").select("id,school_name,school_admin_user_id").execute().data or []
+    existing = supabase.table("school_features").select("*").execute().data or []
+    by_admin: dict = {}
+    for row in existing:
+        by_admin.setdefault(row["school_admin_id"], {})[row["feature_key"]] = row
+    result = []
+    for p in profiles:
+        admin_id = p.get("school_admin_user_id")
+        if not admin_id:
+            continue
+        features = {}
+        for key in ALL_SCHOOL_FEATURE_KEYS:
+            row = by_admin.get(admin_id, {}).get(key)
+            if row:
+                features[key] = {"allowed_by_superadmin": row["allowed_by_superadmin"], "enabled_by_school": row["enabled_by_school"]}
+            else:
+                features[key] = _get_school_feature_flags(admin_id, key)
+        result.append({"school_admin_id": admin_id, "school_name": p.get("school_name"), "features": features})
+    return result
+
+@api_router.put("/admin/school-features/{school_admin_id}/{feature_key}")
+async def set_school_feature_allowed(school_admin_id: str, feature_key: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    if feature_key not in ALL_SCHOOL_FEATURE_KEYS:
+        raise HTTPException(status_code=404, detail="Unknown feature")
+    body = await request.json()
+    allowed = bool(body.get("allowed_by_superadmin", False))
+    existing = supabase.table("school_features").select("enabled_by_school") \
+        .eq("school_admin_id", school_admin_id).eq("feature_key", feature_key).execute()
+    enabled_by_school = existing.data[0]["enabled_by_school"] if existing.data else True
+    supabase.table("school_features").upsert({
+        "school_admin_id": school_admin_id,
+        "feature_key": feature_key,
+        "allowed_by_superadmin": allowed,
+        "enabled_by_school": enabled_by_school,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }, on_conflict="school_admin_id,feature_key").execute()
+    return {"school_admin_id": school_admin_id, "feature_key": feature_key, "allowed_by_superadmin": allowed, "enabled_by_school": enabled_by_school}
+
+
+# ============================================================
+# Careers Advisory (trial, per-school opt-in via school_features above)
+# Every endpoint: resolves school_admin_id from the session (never a
+# client-sent value), gated by _require_careers_access, and every row
+# read/write/delete is scoped .eq("school_admin_id", user["user_id"]) -
+# same IDOR-hardening pattern as the Aug 26 fixes elsewhere in this file.
+# ============================================================
+
+def _school_admin_classroom_ids(user: dict) -> list:
+    """Same teacher_ids/classroom_owner_id resolution already used by
+    /school-admin/analytics and /school-admin/users, reused here so
+    /careers/students and student-ownership checks see the exact same
+    roster a school admin sees everywhere else in the portal."""
+    user_id = user["user_id"]
+    school_name = user.get("school_name", "")
+    teachers_by_id = supabase.table("users").select("user_id").eq("school_admin_id", user_id).execute()
+    teachers_by_name = supabase.table("users").select("user_id").eq("school_name", school_name).eq("role", "teacher").execute() if school_name else type('obj', (object,), {'data': []})()
+    teacher_ids = list({t["user_id"] for t in (teachers_by_id.data or []) + (teachers_by_name.data or [])})
+    classroom_owner_ids = teacher_ids + [user_id]
+    classrooms = supabase.table("classrooms").select("id").in_("user_id", classroom_owner_ids).execute().data or []
+    return [c["id"] for c in classrooms]
+
+def _student_in_school(student_id: str, user: dict) -> bool:
+    classroom_ids = _school_admin_classroom_ids(user)
+    if not classroom_ids:
+        return False
+    r = supabase.table("students").select("id").eq("id", student_id).in_("classroom_id", classroom_ids).execute()
+    return bool(r.data)
+
+def _get_owned_careers_profile(profile_id: str, school_admin_id: str) -> dict:
+    """Ownership check for anything keyed by profile_id (academic/assessments/
+    activities/universities/meetings) - 404s on any profile_id not owned by
+    this school, matching the rest of the app's no-IDOR convention."""
+    r = supabase.table("careers_profiles").select("*").eq("id", profile_id).eq("school_admin_id", school_admin_id).execute()
+    if not r.data:
+        raise HTTPException(status_code=404, detail="Careers profile not found")
+    return r.data[0]
+
+@api_router.get("/careers/students")
+async def get_careers_students(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    classroom_ids = _school_admin_classroom_ids(user)
+    students = supabase.table("students").select("id,name,classroom_id").in_("classroom_id", classroom_ids).execute().data or [] if classroom_ids else []
+    classrooms = supabase.table("classrooms").select("id,name").in_("id", classroom_ids).execute().data or [] if classroom_ids else []
+    classroom_name_by_id = {c["id"]: c["name"] for c in classrooms}
+    profile_rows = supabase.table("careers_profiles").select("student_id").eq("school_admin_id", user["user_id"]).execute().data or []
+    has_profile_ids = {p["student_id"] for p in profile_rows}
+    return [
+        {"id": s["id"], "name": s["name"], "classroom_name": classroom_name_by_id.get(s["classroom_id"], ""),
+         "has_profile": s["id"] in has_profile_ids}
+        for s in sorted(students, key=lambda s: s.get("name") or "")
+    ]
+
+def _fetch_careers_bundle(student_id: str, school_admin_id: str) -> dict:
+    """Shared by GET /careers/profiles/{student_id} and the pathway-summary PDF -
+    same one-call bundle shape, one place to keep it correct."""
+    profile_r = supabase.table("careers_profiles").select("*").eq("student_id", student_id).eq("school_admin_id", school_admin_id).execute()
+    profile = profile_r.data[0] if profile_r.data else None
+    if not profile:
+        return {"profile": None, "academic": [], "assessments": [], "activities": [], "universities": [], "meetings": []}
+    profile_id = profile["id"]
+    academic = supabase.table("careers_academic_records").select("*").eq("profile_id", profile_id).order("created_at", desc=True).execute().data or []
+    assessments = supabase.table("careers_assessments").select("*").eq("profile_id", profile_id).order("taken_on", desc=True).execute().data or []
+    try:
+        activities = supabase.table("careers_activities").select("*").eq("profile_id", profile_id).order("start_date", desc=True).execute().data or []
+    except Exception:
+        activities = []  # careers_v2_additions.sql not applied yet - degrade gracefully, don't 500 the whole bundle
+    universities = supabase.table("careers_university_options").select("*").eq("profile_id", profile_id).order("sort_order").execute().data or []
+    meetings = supabase.table("careers_meetings").select("*").eq("profile_id", profile_id).order("met_on", desc=True).execute().data or []
+    return {"profile": profile, "academic": academic, "assessments": assessments, "activities": activities,
+            "universities": universities, "meetings": meetings}
+
+@api_router.get("/careers/profiles/{student_id}")
+async def get_careers_profile_bundle(student_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    if not _student_in_school(student_id, user):
+        raise HTTPException(status_code=404, detail="Student not found")
+    return _fetch_careers_bundle(student_id, user["user_id"])
+
+@api_router.post("/careers/profiles")
+async def upsert_careers_profile(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    body = await request.json()
+    student_id = body.get("student_id")
+    if not student_id:
+        raise HTTPException(status_code=400, detail="student_id is required")
+    if not _student_in_school(student_id, user):
+        raise HTTPException(status_code=404, detail="Student not found")
+    allowed = ["first_language", "other_languages", "schooling_history", "nationality", "interests",
+               "strengths", "send_notes", "curriculum", "year_group", "advisor_notes"]
+    updates = {k: v for k, v in body.items() if k in allowed}
+    updates.update({
+        "student_id": student_id,
+        "school_admin_id": user["user_id"],
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    })
+    existing = supabase.table("careers_profiles").select("id").eq("student_id", student_id).eq("school_admin_id", user["user_id"]).execute()
+    if existing.data:
+        result = supabase.table("careers_profiles").update(updates).eq("id", existing.data[0]["id"]).execute()
+    else:
+        updates["id"] = str(uuid.uuid4())
+        updates["created_at"] = datetime.now(timezone.utc).isoformat()
+        result = supabase.table("careers_profiles").insert(updates).execute()
+    return result.data[0] if result.data else updates
+
+@api_router.post("/careers/academic")
+async def add_careers_academic(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    body = await request.json()
+    profile_id = body.get("profile_id")
+    if not profile_id:
+        raise HTTPException(status_code=400, detail="profile_id is required")
+    _get_owned_careers_profile(profile_id, user["user_id"])
+    record = {
+        "id": str(uuid.uuid4()), "profile_id": profile_id, "school_admin_id": user["user_id"],
+        "subject": body.get("subject", ""), "curriculum": body.get("curriculum"),
+        "term_label": body.get("term_label", ""), "grade": body.get("grade"),
+        "predicted_grade": body.get("predicted_grade"), "teacher_comment": body.get("teacher_comment"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    supabase.table("careers_academic_records").insert(record).execute()
+    return record
+
+@api_router.delete("/careers/academic/{record_id}")
+async def delete_careers_academic(record_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    supabase.table("careers_academic_records").delete().eq("id", record_id).eq("school_admin_id", user["user_id"]).execute()
+    return {"status": "deleted"}
+
+@api_router.post("/careers/assessments")
+async def add_careers_assessment(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    body = await request.json()
+    profile_id = body.get("profile_id")
+    if not profile_id:
+        raise HTTPException(status_code=400, detail="profile_id is required")
+    _get_owned_careers_profile(profile_id, user["user_id"])
+    assessment_type = body.get("assessment_type")
+    if assessment_type not in ("DISC", "RIASEC", "CAREERS_QUESTIONNAIRE", "OTHER"):
+        raise HTTPException(status_code=400, detail="Invalid assessment_type")
+    record = {
+        "id": str(uuid.uuid4()), "profile_id": profile_id, "school_admin_id": user["user_id"],
+        "assessment_type": assessment_type, "taken_on": body.get("taken_on"),
+        "result": body.get("result", {}), "interpretation": body.get("interpretation"),
+        "attachment_url": body.get("attachment_url"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    supabase.table("careers_assessments").insert(record).execute()
+    return record
+
+@api_router.delete("/careers/assessments/{assessment_id}")
+async def delete_careers_assessment(assessment_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    supabase.table("careers_assessments").delete().eq("id", assessment_id).eq("school_admin_id", user["user_id"]).execute()
+    return {"status": "deleted"}
+
+@api_router.post("/careers/universities")
+async def add_careers_university(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    body = await request.json()
+    profile_id = body.get("profile_id")
+    if not profile_id:
+        raise HTTPException(status_code=400, detail="profile_id is required")
+    _get_owned_careers_profile(profile_id, user["user_id"])
+    record = {
+        "id": str(uuid.uuid4()), "profile_id": profile_id, "school_admin_id": user["user_id"],
+        "university_name": body.get("university_name", ""), "country": body.get("country"),
+        "course_name": body.get("course_name"), "course_url": body.get("course_url"),
+        "entry_requirements": body.get("entry_requirements"), "category": body.get("category"),
+        "status": body.get("status", "RESEARCHING"), "notes": body.get("notes"),
+        "sort_order": body.get("sort_order", 0),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    supabase.table("careers_university_options").insert(record).execute()
+    return record
+
+@api_router.put("/careers/universities/{option_id}")
+async def update_careers_university(option_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    body = await request.json()
+    allowed = ["university_name", "country", "course_name", "course_url", "entry_requirements",
+               "category", "status", "notes", "sort_order"]
+    updates = {k: v for k, v in body.items() if k in allowed}
+    result = supabase.table("careers_university_options").update(updates) \
+        .eq("id", option_id).eq("school_admin_id", user["user_id"]).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="University option not found")
+    return result.data[0]
+
+@api_router.delete("/careers/universities/{option_id}")
+async def delete_careers_university(option_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    supabase.table("careers_university_options").delete().eq("id", option_id).eq("school_admin_id", user["user_id"]).execute()
+    return {"status": "deleted"}
+
+@api_router.post("/careers/meetings")
+async def add_careers_meeting(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    body = await request.json()
+    profile_id = body.get("profile_id")
+    if not profile_id:
+        raise HTTPException(status_code=400, detail="profile_id is required")
+    _get_owned_careers_profile(profile_id, user["user_id"])
+    record = {
+        "id": str(uuid.uuid4()), "profile_id": profile_id, "school_admin_id": user["user_id"],
+        "met_on": body.get("met_on") or datetime.now(timezone.utc).date().isoformat(),
+        "meeting_type": body.get("meeting_type", "GUIDANCE"),
+        "summary": body.get("summary", ""), "actions": body.get("actions"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    supabase.table("careers_meetings").insert(record).execute()
+    return record
+
+
+# ── Activities & work experience (careers_v2_additions.sql) ──
+@api_router.post("/careers/activities")
+async def add_careers_activity(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    body = await request.json()
+    profile_id = body.get("profile_id")
+    if not profile_id:
+        raise HTTPException(status_code=400, detail="profile_id is required")
+    _get_owned_careers_profile(profile_id, user["user_id"])
+    activity_type = body.get("activity_type")
+    if activity_type not in ("WORK_EXPERIENCE", "VOLUNTEERING", "CLUB", "COMPETITION", "LEADERSHIP", "COURSE", "OTHER"):
+        raise HTTPException(status_code=400, detail="Invalid activity_type")
+    record = {
+        "id": str(uuid.uuid4()), "profile_id": profile_id, "school_admin_id": user["user_id"],
+        "activity_type": activity_type, "title": body.get("title", ""),
+        "organisation": body.get("organisation"), "start_date": body.get("start_date"),
+        "end_date": body.get("end_date"), "hours": body.get("hours"),
+        "description": body.get("description"), "skills": body.get("skills", []),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        supabase.table("careers_activities").insert(record).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not save activity - has careers_v2_additions.sql been run? ({str(e)[:120]})")
+    return record
+
+@api_router.put("/careers/activities/{activity_id}")
+async def update_careers_activity(activity_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    body = await request.json()
+    allowed = ["activity_type", "title", "organisation", "start_date", "end_date", "hours", "description", "skills"]
+    updates = {k: v for k, v in body.items() if k in allowed}
+    result = supabase.table("careers_activities").update(updates) \
+        .eq("id", activity_id).eq("school_admin_id", user["user_id"]).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    return result.data[0]
+
+@api_router.delete("/careers/activities/{activity_id}")
+async def delete_careers_activity(activity_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    supabase.table("careers_activities").delete().eq("id", activity_id).eq("school_admin_id", user["user_id"]).execute()
+    return {"status": "deleted"}
+
+
+# ── Destinations (school-level leaver log, careers_v2_additions.sql) ──
+@api_router.get("/careers/destinations")
+async def get_careers_destinations(request: Request, year: str = None):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    try:
+        q = supabase.table("careers_destinations").select("*").eq("school_admin_id", user["user_id"])
+        if year:
+            q = q.eq("leaving_year", year)
+        rows = q.order("leaving_year", desc=True).order("student_name").execute().data or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not load destinations - has careers_v2_additions.sql been run? ({str(e)[:120]})")
+    by_year: dict = {}
+    for r in rows:
+        by_year.setdefault(r["leaving_year"], []).append(r)
+    DEST_LABELS = {"UNIVERSITY": "university", "COLLEGE": "college", "APPRENTICESHIP": "apprenticeship",
+                   "EMPLOYMENT": "employment", "GAP_YEAR": "gap year", "OTHER": "other"}
+    summaries = {}
+    for yr, items in by_year.items():
+        counts: dict = {}
+        for it in items:
+            counts[it["destination_type"]] = counts.get(it["destination_type"], 0) + 1
+        parts = [f"{v} {DEST_LABELS.get(k, k.lower())}" for k, v in counts.items()]
+        summaries[yr] = f"{len(items)} leavers · " + " · ".join(parts)
+    return {"destinations": rows, "summaries": summaries}
+
+@api_router.post("/careers/destinations")
+async def add_careers_destination(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    body = await request.json()
+    student_name = (body.get("student_name") or "").strip()
+    leaving_year = (body.get("leaving_year") or "").strip()
+    destination_type = body.get("destination_type")
+    if not student_name or not leaving_year:
+        raise HTTPException(status_code=400, detail="student_name and leaving_year are required")
+    if destination_type not in ("UNIVERSITY", "COLLEGE", "APPRENTICESHIP", "EMPLOYMENT", "GAP_YEAR", "OTHER"):
+        raise HTTPException(status_code=400, detail="Invalid destination_type")
+    student_id = body.get("student_id")
+    if student_id and not _student_in_school(student_id, user):
+        raise HTTPException(status_code=404, detail="Student not found")
+    record = {
+        "id": str(uuid.uuid4()), "school_admin_id": user["user_id"],
+        "student_id": student_id, "student_name": student_name, "leaving_year": leaving_year,
+        "destination_type": destination_type, "institution": body.get("institution"),
+        "course_name": body.get("course_name"), "country": body.get("country"),
+        "notes": body.get("notes"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        supabase.table("careers_destinations").insert(record).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not save destination - has careers_v2_additions.sql been run? ({str(e)[:120]})")
+    return record
+
+@api_router.put("/careers/destinations/{destination_id}")
+async def update_careers_destination(destination_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    body = await request.json()
+    allowed = ["student_name", "leaving_year", "destination_type", "institution", "course_name", "country", "notes"]
+    updates = {k: v for k, v in body.items() if k in allowed}
+    updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = supabase.table("careers_destinations").update(updates) \
+        .eq("id", destination_id).eq("school_admin_id", user["user_id"]).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Destination record not found")
+    return result.data[0]
+
+@api_router.delete("/careers/destinations/{destination_id}")
+async def delete_careers_destination(destination_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    supabase.table("careers_destinations").delete().eq("id", destination_id).eq("school_admin_id", user["user_id"]).execute()
+    return {"status": "deleted"}
+
+
+@api_router.get("/careers/reports/pathway-summary/{student_id}")
+async def careers_pathway_summary_pdf(student_id: str, request: Request):
+    """Read-only, printable one-page(ish) pathway summary for a parent/student handout.
+    Reuses the exact same ReportLab branding/colours as /reports/pdf/school-overview (real
+    INDIGO #5C6BC0 header style already proven there - not the prototype's navy #1A1A2E,
+    which was never the actual established PDF colour in this codebase). Deliberately
+    EXCLUDES send_notes entirely and any raw DISC/RIASEC numeric scores - interpretation
+    text (and the primary/secondary/Holland-code labels, which are categorical, not scores)
+    only. Tables use repeatRows=1/splitByRow=1 (the real fix/pdf-report-pagination lesson -
+    splitByRow=0 or wrapping a long table in KeepTogether raises a hard LayoutError once a
+    table's real height exceeds one page) so a student with many activities/university
+    options still paginates correctly instead of 500ing."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_careers_access(user)
+    if not _student_in_school(student_id, user):
+        raise HTTPException(status_code=404, detail="Student not found")
+    student_r = supabase.table("students").select("id,name").eq("id", student_id).execute()
+    if not student_r.data:
+        raise HTTPException(status_code=404, detail="Student not found")
+    student_name = student_r.data[0].get("name") or "Student"
+    bundle = _fetch_careers_bundle(student_id, user["user_id"])
+    profile = bundle["profile"] or {}
+
+    import io, os
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    from reportlab.platypus import Image as RLImage
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36)
+
+    INDIGO = colors.HexColor('#5C6BC0')
+    GREY = colors.HexColor('#666666')
+    LIGHT_GREY = colors.HexColor('#E0E0E0')
+    WHITE = colors.white
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('CoHTitle', parent=styles['Heading1'], textColor=INDIGO, fontSize=18, spaceAfter=2)
+    sub_style = ParagraphStyle('CoHSub', parent=styles['Normal'], textColor=GREY, fontSize=10)
+    section_style = ParagraphStyle('CoHSection', parent=styles['Heading2'], textColor=INDIGO, fontSize=13, spaceBefore=14, spaceAfter=8)
+    body_style = ParagraphStyle('CoHBody', parent=styles['Normal'], fontSize=9.5, leading=13)
+    cell_style = ParagraphStyle('CoHCell', parent=styles['Normal'], fontSize=8.5, leading=11)
+
+    CURRICULUM_LABELS = {"IGCSE": "IGCSE", "IB": "IB", "A_LEVEL": "A Level", "OTHER": "Other"}
+    CATEGORY_LABELS = {"ASPIRATIONAL": "Aspirational", "MATCH": "Match", "SAFETY": "Safety"}
+    ACTIVITY_LABELS = {"WORK_EXPERIENCE": "Work experience", "VOLUNTEERING": "Volunteering", "CLUB": "Club",
+                        "COMPETITION": "Competition", "LEADERSHIP": "Leadership", "COURSE": "Course", "OTHER": "Other"}
+
+    elements = []
+    logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_coh.png")
+    try:
+        if not os.path.exists(logo_path):
+            raise FileNotFoundError()
+        coh_logo = RLImage(logo_path, width=44, height=44)
+        logo_cell = Table([[coh_logo, Paragraph("Class of Happiness — Pathway Summary", title_style)]],
+            colWidths=[52, 400],
+            style=[('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('PADDING', (0, 0), (-1, -1), 0), ('LEFTPADDING', (1, 0), (1, 0), 6)])
+        elements.append(logo_cell)
+    except Exception:
+        elements.append(Paragraph("Class of Happiness — Pathway Summary", title_style))
+    meta_bits = [student_name]
+    if profile.get("year_group"):
+        meta_bits.append(profile["year_group"])
+    if profile.get("curriculum"):
+        meta_bits.append(CURRICULUM_LABELS.get(profile["curriculum"], profile["curriculum"]))
+    elements.append(Paragraph(f"{' · '.join(meta_bits)} · Generated {datetime.now(timezone.utc).strftime('%d %b %Y')}", sub_style))
+    elements.append(Spacer(1, 0.4 * cm))
+    elements.append(HRFlowable(width="100%", color=LIGHT_GREY))
+    elements.append(Spacer(1, 0.3 * cm))
+
+    # Profile & background - explicitly excludes send_notes (SEND-relevant context is for
+    # advisor eyes only, never a printed parent/student handout).
+    elements.append(Paragraph("Profile & Background", section_style))
+    profile_lines = []
+    if profile.get("first_language"):
+        profile_lines.append(f"<b>First language:</b> {profile['first_language']}")
+    other_langs = profile.get("other_languages") or []
+    if other_langs:
+        profile_lines.append("<b>Other languages:</b> " + ", ".join(
+            f"{l.get('language','')} ({l.get('level','')})" if isinstance(l, dict) else str(l) for l in other_langs))
+    if profile.get("nationality"):
+        profile_lines.append(f"<b>Nationality:</b> {profile['nationality']}")
+    if profile.get("schooling_history"):
+        profile_lines.append(f"<b>Schooling history:</b> {profile['schooling_history']}")
+    if profile.get("strengths"):
+        profile_lines.append(f"<b>Strengths:</b> {profile['strengths']}")
+    interests = profile.get("interests") or []
+    if interests:
+        profile_lines.append("<b>Interests:</b> " + ", ".join(str(i) for i in interests))
+    if profile_lines:
+        for line in profile_lines:
+            elements.append(Paragraph(line, body_style))
+            elements.append(Spacer(1, 0.1 * cm))
+    else:
+        elements.append(Paragraph("No profile details recorded yet.", sub_style))
+    elements.append(Spacer(1, 0.3 * cm))
+
+    # Academic progress - latest record per subject only ("latest grades with predicted").
+    elements.append(Paragraph("Latest Grades", section_style))
+    latest_by_subject: dict = {}
+    for rec in bundle["academic"]:
+        subj = rec.get("subject") or "—"
+        if subj not in latest_by_subject or (rec.get("created_at") or "") > (latest_by_subject[subj].get("created_at") or ""):
+            latest_by_subject[subj] = rec
+    if latest_by_subject:
+        grade_rows = [[Paragraph("<b>Subject</b>", cell_style), Paragraph("<b>Term</b>", cell_style),
+                       Paragraph("<b>Current</b>", cell_style), Paragraph("<b>Predicted</b>", cell_style)]]
+        for subj, rec in sorted(latest_by_subject.items()):
+            grade_rows.append([Paragraph(subj, cell_style), Paragraph(rec.get("term_label") or "—", cell_style),
+                                Paragraph(rec.get("grade") or "—", cell_style), Paragraph(rec.get("predicted_grade") or "—", cell_style)])
+        grade_table = Table(grade_rows, colWidths=[5.5 * cm, 4.5 * cm, 3 * cm, 3 * cm], repeatRows=1, splitByRow=1)
+        grade_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), INDIGO), ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+            ('GRID', (0, 0), (-1, -1), 0.5, LIGHT_GREY), ('PADDING', (0, 0), (-1, -1), 6),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+        elements.append(grade_table)
+    else:
+        elements.append(Paragraph("No academic records yet.", sub_style))
+    elements.append(Spacer(1, 0.3 * cm))
+
+    # Assessments - interpretation text (and categorical primary/secondary/Holland code)
+    # only. No raw DISC D/I/S/C or RIASEC numeric scores anywhere in this document.
+    elements.append(Paragraph("Assessment Interpretations", section_style))
+    if bundle["assessments"]:
+        for a in bundle["assessments"]:
+            result = a.get("result") or {}
+            label = {"DISC": "DISC", "RIASEC": "Careers Questionnaire (RIASEC)",
+                      "CAREERS_QUESTIONNAIRE": "Careers Questionnaire", "OTHER": "Assessment"}.get(a.get("assessment_type"), "Assessment")
+            head_bits = [label]
+            if a.get("assessment_type") == "DISC" and (result.get("primary") or result.get("secondary")):
+                head_bits.append(f"Primary {result.get('primary','—')} / Secondary {result.get('secondary','—')}")
+            if result.get("code"):
+                head_bits.append(f"Code: {result['code']}")
+            if a.get("taken_on"):
+                head_bits.append(str(a["taken_on"]))
+            elements.append(Paragraph(" · ".join(head_bits), ParagraphStyle('AssessHead', parent=body_style, fontName='Helvetica-Bold')))
+            if a.get("interpretation"):
+                elements.append(Paragraph(a["interpretation"], body_style))
+            elements.append(Spacer(1, 0.2 * cm))
+    else:
+        elements.append(Paragraph("No assessments recorded yet.", sub_style))
+    elements.append(Spacer(1, 0.1 * cm))
+
+    # Activities highlights
+    elements.append(Paragraph("Activities & Work Experience", section_style))
+    if bundle["activities"]:
+        for act in bundle["activities"]:
+            dates = " – ".join(d for d in [act.get("start_date"), act.get("end_date")] if d)
+            bits = [ACTIVITY_LABELS.get(act.get("activity_type"), act.get("activity_type") or ""), act.get("title") or ""]
+            if act.get("organisation"):
+                bits.append(act["organisation"])
+            if dates:
+                bits.append(dates)
+            elements.append(Paragraph(" · ".join(b for b in bits if b), body_style))
+        elements.append(Spacer(1, 0.2 * cm))
+    else:
+        elements.append(Paragraph("No activities recorded yet.", sub_style))
+    elements.append(Spacer(1, 0.1 * cm))
+
+    # University pathway
+    elements.append(Paragraph("University Pathway", section_style))
+    if bundle["universities"]:
+        uni_rows = [[Paragraph("<b>University</b>", cell_style), Paragraph("<b>Course</b>", cell_style),
+                     Paragraph("<b>Category</b>", cell_style), Paragraph("<b>Status</b>", cell_style),
+                     Paragraph("<b>Entry requirements</b>", cell_style)]]
+        for u in bundle["universities"]:
+            name_bits = u.get("university_name") or "—"
+            if u.get("country"):
+                name_bits += f" ({u['country']})"
+            uni_rows.append([
+                Paragraph(name_bits, cell_style), Paragraph(u.get("course_name") or "—", cell_style),
+                Paragraph(CATEGORY_LABELS.get(u.get("category"), u.get("category") or "—"), cell_style),
+                Paragraph((u.get("status") or "—").replace("_", " ").title(), cell_style),
+                Paragraph(u.get("entry_requirements") or "—", cell_style),
+            ])
+        uni_table = Table(uni_rows, colWidths=[4.2 * cm, 3.5 * cm, 2.3 * cm, 2.3 * cm, 3.7 * cm], repeatRows=1, splitByRow=1)
+        uni_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), INDIGO), ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+            ('GRID', (0, 0), (-1, -1), 0.5, LIGHT_GREY), ('PADDING', (0, 0), (-1, -1), 6),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+        elements.append(uni_table)
+    else:
+        elements.append(Paragraph("No university options recorded yet.", sub_style))
+    elements.append(Spacer(1, 0.3 * cm))
+
+    # Next actions - from the latest meeting only.
+    elements.append(Paragraph("Agreed Next Actions", section_style))
+    latest_meeting = bundle["meetings"][0] if bundle["meetings"] else None
+    if latest_meeting and (latest_meeting.get("actions") or latest_meeting.get("summary")):
+        if latest_meeting.get("met_on"):
+            elements.append(Paragraph(f"From the meeting on {latest_meeting['met_on']}:", ParagraphStyle('MeetHead', parent=body_style, fontName='Helvetica-Bold')))
+        if latest_meeting.get("actions"):
+            elements.append(Paragraph(latest_meeting["actions"], body_style))
+        elif latest_meeting.get("summary"):
+            elements.append(Paragraph(latest_meeting["summary"], body_style))
+    else:
+        elements.append(Paragraph("No guidance meetings logged yet.", sub_style))
+
+    doc.build(elements)
+    buffer.seek(0)
+    safe_name = student_name.replace(" ", "_")
+    filename = f"PathwaySummary_{safe_name}_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.pdf"
+    return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
 
 @api_router.get("/school-admin/school-strategies")
 async def get_school_strategies(request: Request, strategy_type: str = None):
