@@ -12724,25 +12724,58 @@ def _extract_year_token(text: str):
     m = re.match(r"^\s*(year\s*\d+|grade\s*\d+)", text, re.I)
     return re.sub(r"\s+", "", m.group(1)).lower() if m else None
 
+_SECONDARY_KEYWORDS = re.compile(r"\b(sixth\s*form|ib|igcse|a[\s-]?level|secondary|senior)\b", re.I)
+
+def _classify_classroom_secondary(name: str) -> str:
+    """'secondary' | 'primary' | 'unlabelled' for the /careers/students filter.
+    Careers Advisory is secondary-only: Year/Grade 7+ or a recognised secondary
+    label (sixth form/IB/IGCSE/A level/secondary/senior) -> secondary. Year/Grade
+    6 and below -> primary, cleanly excluded (not ambiguous). No parseable token
+    or keyword at all -> unlabelled - excluded by default but counted, so a real
+    secondary class with a vague name (e.g. "Geography Class") doesn't silently
+    disappear with no indication anything was hidden."""
+    if not name:
+        return "unlabelled"
+    tok = _extract_year_token(name)
+    if tok:
+        m = re.search(r"\d+", tok)
+        n = int(m.group()) if m else None
+        return "secondary" if (n is not None and n >= 7) else "primary"
+    if _SECONDARY_KEYWORDS.search(name):
+        return "secondary"
+    return "unlabelled"
+
 @api_router.get("/careers/students")
 async def get_careers_students(request: Request):
     """Real bug fix Sep 8: the demo careers profiles were originally seeded onto
     whichever students happened to exist (primary-age), so the list's real
     classroom (e.g. Year 4) contradicted the profile's own year_group (e.g.
-    Year 11). Re-seeded onto age-appropriate students, and this endpoint now
-    also surfaces profile_year_group + year_mismatch so any FUTURE case like
-    that is visible in the list itself instead of only inside the record -
-    the classroom is always the field this flags as authoritative."""
+    Year 11). Re-seeded onto age-appropriate students. Careers Advisory is
+    secondary-only, so this list is now filtered server-side to secondary
+    classrooms via _classify_classroom_secondary - primary classrooms are
+    excluded outright, and classrooms with no parseable year/keyword at all
+    are excluded but their student count is surfaced separately so a real
+    secondary class with a vague name isn't silently invisible with no trace.
+    Each entry also carries profile_year_group/profile_curriculum + a
+    year_mismatch flag (classroom-parsed year vs profile's own year_group) for
+    any future case like the original bug - the profile's own values are what
+    the portal displays as primary, this flag is purely a heads-up."""
     user = await get_current_user(request)
     if not user or user.get("role") != "school_admin":
         raise HTTPException(status_code=403, detail="School admin access required")
     _require_careers_access(user)
     classroom_ids = _school_admin_classroom_ids(user)
-    students = supabase.table("students").select("id,name,classroom_id").in_("classroom_id", classroom_ids).execute().data or [] if classroom_ids else []
+    all_students = supabase.table("students").select("id,name,classroom_id").in_("classroom_id", classroom_ids).execute().data or [] if classroom_ids else []
     classrooms = supabase.table("classrooms").select("id,name").in_("id", classroom_ids).execute().data or [] if classroom_ids else []
     classroom_name_by_id = {c["id"]: c["name"] for c in classrooms}
-    profile_rows = supabase.table("careers_profiles").select("student_id,year_group").eq("school_admin_id", user["user_id"]).execute().data or []
+    classroom_class = {c["id"]: _classify_classroom_secondary(c.get("name") or "") for c in classrooms}
+
+    profile_rows = supabase.table("careers_profiles").select("student_id,year_group,curriculum").eq("school_admin_id", user["user_id"]).execute().data or []
     profile_by_student = {p["student_id"]: p for p in profile_rows}
+
+    students = [s for s in all_students if classroom_class.get(s["classroom_id"]) == "secondary"]
+    unlabelled_count = len([s for s in all_students if classroom_class.get(s["classroom_id"]) == "unlabelled"])
+
     result = []
     for s in sorted(students, key=lambda s: s.get("name") or ""):
         classroom_name = classroom_name_by_id.get(s["classroom_id"], "")
@@ -12750,10 +12783,11 @@ async def get_careers_students(request: Request):
         entry = {"id": s["id"], "name": s["name"], "classroom_name": classroom_name, "has_profile": profile is not None}
         if profile:
             entry["profile_year_group"] = profile.get("year_group")
+            entry["profile_curriculum"] = profile.get("curriculum")
             c_tok, p_tok = _extract_year_token(classroom_name), _extract_year_token(profile.get("year_group") or "")
             entry["year_mismatch"] = bool(c_tok and p_tok and c_tok != p_tok)
         result.append(entry)
-    return result
+    return {"students": result, "unlabelled_count": unlabelled_count}
 
 def _fetch_careers_bundle(student_id: str, school_admin_id: str) -> dict:
     """Shared by GET /careers/profiles/{student_id} and the pathway-summary PDF -
