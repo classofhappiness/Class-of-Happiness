@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 import uuid
 import os
+import re
 import logging
 import httpx
 import io
@@ -12713,8 +12714,25 @@ def _get_owned_careers_profile(profile_id: str, school_admin_id: str) -> dict:
         raise HTTPException(status_code=404, detail="Careers profile not found")
     return r.data[0]
 
+def _extract_year_token(text: str):
+    """Pulls a leading 'Year N' / 'Grade N' token out of a classroom name or a
+    profile's year_group for a cheap, best-effort consistency check - e.g.
+    'Year 4 - Maple Class' -> 'year4'. Returns None if there's no such token
+    (a classroom like 'Geography Class' just never gets flagged either way)."""
+    if not text:
+        return None
+    m = re.match(r"^\s*(year\s*\d+|grade\s*\d+)", text, re.I)
+    return re.sub(r"\s+", "", m.group(1)).lower() if m else None
+
 @api_router.get("/careers/students")
 async def get_careers_students(request: Request):
+    """Real bug fix Sep 8: the demo careers profiles were originally seeded onto
+    whichever students happened to exist (primary-age), so the list's real
+    classroom (e.g. Year 4) contradicted the profile's own year_group (e.g.
+    Year 11). Re-seeded onto age-appropriate students, and this endpoint now
+    also surfaces profile_year_group + year_mismatch so any FUTURE case like
+    that is visible in the list itself instead of only inside the record -
+    the classroom is always the field this flags as authoritative."""
     user = await get_current_user(request)
     if not user or user.get("role") != "school_admin":
         raise HTTPException(status_code=403, detail="School admin access required")
@@ -12723,13 +12741,19 @@ async def get_careers_students(request: Request):
     students = supabase.table("students").select("id,name,classroom_id").in_("classroom_id", classroom_ids).execute().data or [] if classroom_ids else []
     classrooms = supabase.table("classrooms").select("id,name").in_("id", classroom_ids).execute().data or [] if classroom_ids else []
     classroom_name_by_id = {c["id"]: c["name"] for c in classrooms}
-    profile_rows = supabase.table("careers_profiles").select("student_id").eq("school_admin_id", user["user_id"]).execute().data or []
-    has_profile_ids = {p["student_id"] for p in profile_rows}
-    return [
-        {"id": s["id"], "name": s["name"], "classroom_name": classroom_name_by_id.get(s["classroom_id"], ""),
-         "has_profile": s["id"] in has_profile_ids}
-        for s in sorted(students, key=lambda s: s.get("name") or "")
-    ]
+    profile_rows = supabase.table("careers_profiles").select("student_id,year_group").eq("school_admin_id", user["user_id"]).execute().data or []
+    profile_by_student = {p["student_id"]: p for p in profile_rows}
+    result = []
+    for s in sorted(students, key=lambda s: s.get("name") or ""):
+        classroom_name = classroom_name_by_id.get(s["classroom_id"], "")
+        profile = profile_by_student.get(s["id"])
+        entry = {"id": s["id"], "name": s["name"], "classroom_name": classroom_name, "has_profile": profile is not None}
+        if profile:
+            entry["profile_year_group"] = profile.get("year_group")
+            c_tok, p_tok = _extract_year_token(classroom_name), _extract_year_token(profile.get("year_group") or "")
+            entry["year_mismatch"] = bool(c_tok and p_tok and c_tok != p_tok)
+        result.append(entry)
+    return result
 
 def _fetch_careers_bundle(student_id: str, school_admin_id: str) -> dict:
     """Shared by GET /careers/profiles/{student_id} and the pathway-summary PDF -
