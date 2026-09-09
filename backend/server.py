@@ -7389,17 +7389,29 @@ def _gather_school_pdf_stats(school_name: Optional[str], start_date: str, admin_
     same pattern used everywhere else in this file) - a superadmin/admin call always
     resolves purely by school_name."""
     if admin_id:
-        t1 = supabase.table("users").select("user_id").eq("school_admin_id", admin_id).execute()
-        t2 = supabase.table("users").select("user_id").eq("school_name", school_name).eq("role", "teacher").execute() if school_name else type("o", (object,), {"data": []})()
-        teacher_ids = list({t["user_id"] for t in (t1.data or []) + (t2.data or [])})
+        t1 = supabase.table("users").select("user_id,name").eq("school_admin_id", admin_id).execute()
+        t2 = supabase.table("users").select("user_id,name").eq("school_name", school_name).eq("role", "teacher").execute() if school_name else type("o", (object,), {"data": []})()
+        teacher_list = list({t["user_id"]: t for t in (t1.data or []) + (t2.data or [])}.values())
+        teacher_ids = [t["user_id"] for t in teacher_list]
+        # Real bug fix Sep 9: classroom_owner_ids never included the school_admin's OWN
+        # user_id, only linked teachers - same gap already fixed elsewhere in this file
+        # (get_school_admin_analytics, Aug 21) for any classroom a school_admin creates
+        # directly (e.g. Sixth Form - Advisory Class at Sunshine). Without this, a
+        # school-admin-owned classroom silently never appeared in their own PDF export.
+        classroom_owner_ids = teacher_ids + [admin_id]
     elif school_name:
-        t = supabase.table("users").select("user_id").eq("school_name", school_name).in_("role", ["teacher", "school_admin"]).execute()
-        teacher_ids = [u["user_id"] for u in (t.data or [])]
+        t = supabase.table("users").select("user_id,name").eq("school_name", school_name).in_("role", ["teacher", "school_admin"]).execute()
+        teacher_list = t.data or []
+        teacher_ids = [u["user_id"] for u in teacher_list]
+        classroom_owner_ids = teacher_ids
     else:
-        teacher_ids = [u["user_id"] for u in (supabase.table("users").select("user_id").in_("role", ["teacher", "school_admin"]).execute().data or [])]
+        teacher_list = supabase.table("users").select("user_id,name").in_("role", ["teacher", "school_admin"]).execute().data or []
+        teacher_ids = [u["user_id"] for u in teacher_list]
+        classroom_owner_ids = teacher_ids
 
-    classroom_ids = [c["id"] for c in (supabase.table("classrooms").select("id").in_("user_id", teacher_ids).execute().data or [])] if teacher_ids else []
-    students = supabase.table("students").select("id").in_("classroom_id", classroom_ids).execute().data or [] if classroom_ids else []
+    classrooms = supabase.table("classrooms").select("id,name").in_("user_id", classroom_owner_ids).execute().data or [] if classroom_owner_ids else []
+    classroom_ids = [c["id"] for c in classrooms]
+    students = supabase.table("students").select("id,classroom_id").in_("classroom_id", classroom_ids).execute().data or [] if classroom_ids else []
     student_ids = [s["id"] for s in students]
     # Real bug fix Aug 28: same PostgREST 1000-row silent-cap issue found live-verifying
     # demo-prep item 4 (see _fetch_all_paginated's docstring) - a school with >1000
@@ -7416,12 +7428,42 @@ def _gather_school_pdf_stats(school_name: Optional[str], start_date: str, admin_
             strategy_counts[h] = strategy_counts.get(h, 0) + 1
     top_strategies = [(resolve_strategy_name(sid), count) for sid, count in sorted(strategy_counts.items(), key=lambda x: x[1], reverse=True)[:5]]
 
+    # Class performance comparison - same per-classroom aggregation as
+    # /school-admin/analytics's classroom_breakdown, reused here for the Overview PDF
+    # (real bug fix Sep 9: the portal's own chart read a c.zone_counts field that never
+    # existed on that endpoint's entries - the real key is zone_distribution, kept
+    # consistent here too so the PDF and the on-screen chart never drift apart).
+    classroom_breakdown = []
+    for c in classrooms:
+        c_student_ids = {s["id"] for s in students if s.get("classroom_id") == c["id"]}
+        c_logs = [l for l in logs if l.get("student_id") in c_student_ids]
+        c_zones = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+        for l in c_logs:
+            z = l.get("feeling_colour") or l.get("zone") or "blue"
+            if z in c_zones:
+                c_zones[z] += 1
+        classroom_breakdown.append({
+            "classroom_name": c.get("name", "Classroom"),
+            "checkin_count": len(c_logs),
+            "zone_distribution": c_zones,
+        })
+
+    # Alerts summary - same aggregate-only figures as /school-admin/analytics (no names).
+    alert_volume = 0
+    if student_ids:
+        alerts_res = supabase.table("student_alerts").select("id").in_("student_id", student_ids).gte("created_at", start_date).execute()
+        alert_volume = len(alerts_res.data or [])
+    students_needing_support = len({l["student_id"] for l in logs if (l.get("feeling_colour") or l.get("zone")) == "red" and l.get("student_id")})
+
     return {
         "teacher_ids": teacher_ids,
         "student_ids": student_ids,
         "zone_counts": zone_counts,
         "top_strategies": top_strategies,
         "total_checkins": len(logs),
+        "classroom_breakdown": classroom_breakdown,
+        "alert_volume": alert_volume,
+        "students_needing_support": students_needing_support,
     }
 
 
@@ -7495,6 +7537,9 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
         zone_counts = stats["zone_counts"]
         top_strategies = stats["top_strategies"]
         total_checkins = stats["total_checkins"]
+        classroom_breakdown = stats["classroom_breakdown"]
+        alert_volume = stats["alert_volume"]
+        students_needing_support = stats["students_needing_support"]
 
     import io, os
     from reportlab.lib.pagesizes import A4
@@ -7585,6 +7630,44 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
             elements.append(strat_table)
         else:
             elements.append(Paragraph("No strategy data for this period.", sub_style))
+        elements.append(Spacer(1, 0.4*cm))
+
+        elements.append(Paragraph("Class Performance Comparison", section_style))
+        if classroom_breakdown:
+            class_data = [["Class", "Check-ins", "Green", "Blue", "Yellow", "Red"]]
+            for c in classroom_breakdown:
+                zd = c["zone_distribution"]
+                class_data.append([c["classroom_name"], str(c["checkin_count"]), str(zd["green"]), str(zd["blue"]), str(zd["yellow"]), str(zd["red"])])
+            # Real fix (fix/pdf-report-pagination): splitByRow=1 + repeatRows=1 so this
+            # table can break across a page for a school with many classrooms, instead of
+            # demanding it all fit on one page (the original LayoutError cause).
+            class_table = Table(class_data, colWidths=[6*cm, 2.5*cm, 2*cm, 2*cm, 2*cm, 2*cm], repeatRows=1, splitByRow=1)
+            class_table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), INDIGO),
+                ('TEXTCOLOR', (0,0), (-1,0), WHITE),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
+                ('PADDING', (0,0), (-1,-1), 6),
+            ]))
+            elements.append(class_table)
+        else:
+            elements.append(Paragraph("No classroom data for this period.", sub_style))
+        elements.append(Spacer(1, 0.4*cm))
+
+        elements.append(Paragraph("Alerts Summary", section_style))
+        alerts_data = [
+            ["Alerts Raised", str(alert_volume)],
+            ["Students in Red This Period", str(students_needing_support)],
+        ]
+        alerts_table = Table(alerts_data, colWidths=[8*cm, 8*cm])
+        alerts_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (0,-1), colors.HexColor('#F8F9FA')),
+            ('TEXTCOLOR', (0,0), (0,-1), GREY),
+            ('FONTNAME', (1,0), (1,-1), 'Helvetica-Bold'),
+            ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
+            ('PADDING', (0,0), (-1,-1), 8),
+        ]))
+        elements.append(alerts_table)
     else:
         # Real feature Aug 28 (item 6): multi-school comparison table + a full per-school
         # detail section each - the actual fix for "all schools is too basic", not just a
@@ -7674,7 +7757,13 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
 
     doc.build(elements)
     buffer.seek(0)
-    filename = f"CoH_School_Report_{display_name.replace(' ','_')}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.pdf"
+    # School admin's own Overview "Produce PDF" button gets the Overview_<School>_<date>
+    # name it asked for; every other caller (superadmin app dashboard) keeps the existing
+    # CoH_School_Report_... convention unchanged, since this endpoint is shared.
+    if user.get("role") == "school_admin":
+        filename = f"Overview_{display_name.replace(' ','_')}_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.pdf"
+    else:
+        filename = f"CoH_School_Report_{display_name.replace(' ','_')}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.pdf"
     return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
@@ -11643,8 +11732,14 @@ def _fetch_all_paginated(table: str, select_fields: str, filters_fn, page_size: 
 
 
 @api_router.get("/school-admin/analytics")
-async def get_school_admin_analytics(request: Request, period: int = 30):
-    """Rich emotional wellbeing analytics for school admin — no individual student data."""
+async def get_school_admin_analytics(request: Request, period: int = 30, classroom_id: str = None):
+    """Rich emotional wellbeing analytics for school admin — no individual student data.
+    Real feature Sep 9 (Overview classroom filter pills): an optional classroom_id scopes
+    zone_distribution/engagement/top-strategies/alerts/participation to one classroom -
+    classroom_breakdown itself always stays the FULL comparison across every classroom
+    regardless (computed from the unfiltered student/log set before any narrowing) so the
+    portal can highlight the selected pill's own bar within a chart that still shows every
+    class, rather than the chart losing all its other bars the moment a pill is picked."""
     user = await get_current_user(request)
     if not user or user.get("role") not in ["school_admin", "admin", "superadmin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
@@ -11684,13 +11779,24 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
     # architectural fact already fixed twice elsewhere in this file today). classroom_ids
     # is already correctly computed right above — just wasn't being used here.
     students_res = supabase.table("students").select("*").in_("classroom_id", classroom_ids).execute() if classroom_ids else type('obj', (object,), {'data': []})()
-    students = students_res.data or []
-    student_ids = [s["id"] for s in students]
+    all_students = students_res.data or []
+    all_student_ids = [s["id"] for s in all_students]
 
-    # Get feeling logs
-    logs = []
-    if student_ids:
-        logs = _fetch_all_paginated("feeling_logs", "*", lambda q: q.in_("student_id", student_ids).gte("timestamp", start_date))
+    # Get feeling logs (unfiltered - classroom_breakdown below needs every classroom's own
+    # logs regardless of which pill is selected, and the classroom_id filter is applied
+    # in-memory right after, no second query needed).
+    all_logs = []
+    if all_student_ids:
+        all_logs = _fetch_all_paginated("feeling_logs", "*", lambda q: q.in_("student_id", all_student_ids).gte("timestamp", start_date))
+
+    if classroom_id:
+        if classroom_id not in classroom_ids:
+            raise HTTPException(status_code=404, detail="Classroom not found")
+        students = [s for s in all_students if s.get("classroom_id") == classroom_id]
+        student_ids = [s["id"] for s in students]
+        logs = [l for l in all_logs if l.get("student_id") in set(student_ids)]
+    else:
+        students, student_ids, logs = all_students, all_student_ids, all_logs
 
     # Aggregate — no individual identifiers returned
     zone_dist = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
@@ -11718,7 +11824,10 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
         for s in (log.get("helpers_selected") or log.get("strategies_selected") or []):
             strategy_counts[s] = strategy_counts.get(s, 0) + 1
 
-    # Classroom breakdown (aggregate only)
+    # Classroom breakdown (aggregate only) - ALWAYS the full comparison across every
+    # classroom (built from all_students/all_logs, not the possibly classroom_id-narrowed
+    # students/logs above), so a selected pill highlights its own bar in a chart that still
+    # shows every class, rather than the chart collapsing to one bar when filtered.
     classroom_breakdown = []
     for c in classrooms:
         owner_id = c.get("user_id")
@@ -11727,14 +11836,15 @@ async def get_school_admin_analytics(request: Request, period: int = 30):
         else:
             teacher = next((t for t in teacher_list if t["user_id"] == owner_id), {})
             teacher_name = teacher.get("name", "Teacher")
-        c_students = [s for s in students if s.get("classroom_id") == c["id"]]
-        c_logs = [l for l in logs if l.get("student_id") in {s["id"] for s in c_students}]
+        c_students = [s for s in all_students if s.get("classroom_id") == c["id"]]
+        c_logs = [l for l in all_logs if l.get("student_id") in {s["id"] for s in c_students}]
         c_zones = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
         for l in c_logs:
             z = l.get("feeling_colour") or "blue"
             if z in c_zones:
                 c_zones[z] += 1
         classroom_breakdown.append({
+            "classroom_id": c["id"],
             "classroom_name": c.get("name", "Classroom"),
             "teacher_name": teacher_name,
             "student_count": len(c_students),
