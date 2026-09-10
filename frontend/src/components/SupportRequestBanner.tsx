@@ -4,8 +4,26 @@ import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supportRequestsApi, SupportRequest, formatSupportRequestStatus } from '../utils/api';
 
-const POLL_MS = 4000;
+// POLL_MS deliberately shorter than FLASH_MS: with them equal, a flip detected right at
+// the edge of a poll cycle could show for close to 0ms of its own flash window instead of
+// a real "brief moment." At 2s polling, the worst-case detection lag still leaves ~2s of
+// the 4s window visible.
+const POLL_MS = 2000;
 const FLASH_MS = 4000; // how long a just-resolved/acknowledged request stays visible before it self-removes
+
+// Flip moment for a non-pending row, taken from the server's own timestamps rather than
+// "did this client happen to witness the transition between two polls" - a ref-based
+// witnessed-transition approach broke the first time the app was backgrounded, the
+// dashboard wasn't focused, or Fast Refresh remounted the component at the wrong moment:
+// the very next poll would see the row already ACKNOWLEDGED with no known prior state,
+// and silently show nothing at all (confirmed live - Jono saw the pending pill vanish
+// with no green flash). Using acknowledged_at/responded_at directly is correct regardless
+// of mount timing: a flip within the last FLASH_MS shows (for its remaining window, not a
+// fresh 4s), anything older correctly stays hidden - "brief moment" is real, not luck.
+function flipTimestamp(r: SupportRequest): number | null {
+  const iso = r.status === 'RESOLVED' ? (r.responded_at || r.acknowledged_at) : r.acknowledged_at;
+  return iso ? new Date(iso).getTime() : null;
+}
 
 // Real feature Sep 10 (build 27): the teacher-side "Uber-style" pending banner. Minimal
 // footprint per Jono's amendment - renders nothing when there's nothing to show, and a
@@ -15,38 +33,39 @@ const FLASH_MS = 4000; // how long a just-resolved/acknowledged request stays vi
 export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
   const router = useRouter();
   const [active, setActive] = useState<Record<string, SupportRequest>>({});
-  const prevStatus = useRef<Record<string, string>>({});
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
 
+    const scheduleRemoval = (id: string, msRemaining: number) => {
+      if (timers.current[id]) clearTimeout(timers.current[id]);
+      timers.current[id] = setTimeout(() => {
+        setActive((a) => { const n = { ...a }; delete n[id]; return n; });
+        delete timers.current[id];
+      }, Math.max(0, msRemaining));
+    };
+
     const poll = () => {
       supportRequestsApi.list().then((list) => {
         if (cancelled) return;
-        setActive((current) => {
-          const next = { ...current };
-          list.forEach((r) => {
-            const was = prevStatus.current[r.id];
-            if (r.status === 'PENDING') {
-              next[r.id] = r;
-              if (timers.current[r.id]) { clearTimeout(timers.current[r.id]); delete timers.current[r.id]; }
-            } else if (was && was !== r.status) {
-              // Just transitioned during this session - flash it, then remove for good.
-              next[r.id] = r;
-              if (timers.current[r.id]) clearTimeout(timers.current[r.id]);
-              timers.current[r.id] = setTimeout(() => {
-                setActive((a) => { const n = { ...a }; delete n[r.id]; return n; });
-                delete timers.current[r.id];
-              }, FLASH_MS);
-            } else if (current[r.id]) {
-              next[r.id] = r; // mid-flash already - keep, timer already running
-            }
-            prevStatus.current[r.id] = r.status;
-          });
-          return next;
+        const now = Date.now();
+        const next: Record<string, SupportRequest> = {};
+        list.forEach((r) => {
+          if (r.status === 'PENDING') {
+            next[r.id] = r;
+            if (timers.current[r.id]) { clearTimeout(timers.current[r.id]); delete timers.current[r.id]; }
+            return;
+          }
+          const flipAt = flipTimestamp(r);
+          if (flipAt === null) return;
+          const msRemaining = flipAt + FLASH_MS - now;
+          if (msRemaining <= 0) return; // flipped more than FLASH_MS ago - stays hidden, no lingering
+          next[r.id] = r;
+          scheduleRemoval(r.id, msRemaining);
         });
+        setActive(next);
       }).catch(() => {});
     };
 
