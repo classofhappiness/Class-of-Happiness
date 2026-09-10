@@ -7462,6 +7462,31 @@ def _gather_school_pdf_stats(school_name: Optional[str], start_date: str, admin_
         alert_volume = len(alerts_res.data or [])
     students_needing_support = len({l["student_id"] for l in logs if (l.get("feeling_colour") or l.get("zone")) == "red" and l.get("student_id")})
 
+    # Support Requests summary (build 27) - per-student counts for the PDF's "Tom needed
+    # SEND support x3 this week" line. admin_id-only (the school_admin's own self-service
+    # export): support_requests is keyed by school_admin_id, and resolving that id for a
+    # superadmin's by-school_name multi-school report isn't worth the extra lookup for a
+    # feature that was only ever asked for on the school_admin's own Overview button.
+    # Classroom-level requests (student_id null) are correctly never attributed to any
+    # student here, per Jono's schema amendment.
+    support_request_summary = []
+    if admin_id:
+        try:
+            sr_rows = supabase.table("support_requests").select("student_id").eq("school_admin_id", admin_id).gte("created_at", start_date).execute().data or []
+            sr_counts = {}
+            for row in sr_rows:
+                sid = row.get("student_id")
+                if sid:
+                    sr_counts[sid] = sr_counts.get(sid, 0) + 1
+            if sr_counts:
+                sr_names = {s["id"]: s["name"] for s in (supabase.table("students").select("id,name").in_("id", list(sr_counts.keys())).execute().data or [])}
+                support_request_summary = sorted(
+                    [{"student_name": sr_names.get(sid, "Student"), "count": c} for sid, c in sr_counts.items()],
+                    key=lambda x: -x["count"]
+                )
+        except Exception as e:
+            logger.error(f"Could not gather support request summary for PDF: {e}")
+
     return {
         "teacher_ids": teacher_ids,
         "student_ids": student_ids,
@@ -7471,6 +7496,7 @@ def _gather_school_pdf_stats(school_name: Optional[str], start_date: str, admin_
         "classroom_breakdown": classroom_breakdown,
         "alert_volume": alert_volume,
         "students_needing_support": students_needing_support,
+        "support_request_summary": support_request_summary,
     }
 
 
@@ -7547,6 +7573,7 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
         classroom_breakdown = stats["classroom_breakdown"]
         alert_volume = stats["alert_volume"]
         students_needing_support = stats["students_needing_support"]
+        support_request_summary = stats["support_request_summary"]
 
     import io, os
     from reportlab.lib.pagesizes import A4
@@ -7675,6 +7702,16 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
             ('PADDING', (0,0), (-1,-1), 8),
         ]))
         elements.append(alerts_table)
+
+        # Support Requests summary (build 27) - "Tom needed SEND support x3 this week".
+        # Classroom-level requests (no student_id) are never attributed to any student,
+        # per Jono's schema amendment - support_request_summary only ever contains rows
+        # that had a real student_id to begin with (enforced in _gather_school_pdf_stats).
+        if support_request_summary:
+            elements.append(Spacer(1, 0.4*cm))
+            elements.append(Paragraph("Support Requests", section_style))
+            for row in support_request_summary:
+                elements.append(Paragraph(f"{row['student_name']} needed SEND support ×{row['count']} this period.", sub_style))
     else:
         # Real feature Aug 28 (item 6): multi-school comparison table + a full per-school
         # detail section each - the actual fix for "all schools is too basic", not just a
