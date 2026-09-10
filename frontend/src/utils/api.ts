@@ -332,7 +332,7 @@ export const customStrategiesApi = {
 
 // Zone Logs API
 export const zoneLogsApi = {
-  create: (data: { student_id: string; zone: string; strategies_selected: string[]; comment?: string; logged_by?: string }): Promise<ZoneLog> => 
+  create: (data: { student_id: string; zone: string; strategies_selected: string[]; comment?: string; logged_by?: string; suppress_auto_alert?: boolean }): Promise<ZoneLog> =>
     apiRequest('/zone-logs', { method: 'POST', body: JSON.stringify(data) }),
   
   getByStudent: (studentId: string, days?: number): Promise<ZoneLog[]> => 
@@ -1020,6 +1020,10 @@ export interface SupportRequest {
   acknowledged_at: string | null;
   last_rebuzz_at: string | null;
   created_at: string;
+  // Server-enriched display fields (list endpoint only - not stored columns)
+  student_name?: string | null;
+  classroom_name?: string | null;
+  requested_by_name?: string | null;
 }
 
 export interface StaffShortcut {
@@ -1037,6 +1041,9 @@ export const supportRequestsApi = {
   list: (): Promise<SupportRequest[]> =>
     apiRequest('/support-requests'),
 
+  getOne: (id: string): Promise<SupportRequest> =>
+    apiRequest(`/support-requests/${id}`),
+
   acknowledge: (id: string): Promise<SupportRequest> =>
     apiRequest(`/support-requests/${id}/acknowledge`, { method: 'POST' }),
 
@@ -1052,4 +1059,44 @@ export const supportRequestsApi = {
   deleteShortcut: (id: string): Promise<void> =>
     apiRequest(`/support-requests/staff-shortcuts/${id}`, { method: 'DELETE' }),
 };
+
+// Real addition Sep 10 (build 27, design change 5): teacher-side status wording, per
+// Jono's tone spec - warm/glanceable, no "alert/incident report/dispatch" language
+// (INCIDENT alone keeps urgent language). Colours reuse the app's emotion palette EXCEPT
+// pending-yellow: the shared EMOTION_COLOURS.yellow is #FFC107 (Aug 19 decision - the
+// design doc's #FFD93D was dropped because nothing else used it), but Jono specified
+// #FFD93D twice, explicitly, for this one state - a deliberate exception, not a miss.
+export const SUPPORT_REQUEST_STATUS_COLOURS = {
+  pendingYellow: '#FFD93D',
+  pendingRed: '#E05252',
+  resolvedGreen: '#4CAF73',
+} as const;
+
+export interface SupportRequestStatusDisplay {
+  text: string;
+  color: string;
+  pulse: boolean; // gentle pulse for "still waiting", dropped once we're honest about a stalled re-buzz
+}
+
+export function formatSupportRequestStatus(r: SupportRequest): SupportRequestStatusDisplay {
+  const { pendingYellow, pendingRed, resolvedGreen } = SUPPORT_REQUEST_STATUS_COLOURS;
+  if (r.status === 'PENDING') {
+    const color = r.is_incident ? pendingRed : pendingYellow;
+    if (r.last_rebuzz_at) {
+      // Honest state once the first re-buzz has already fired unanswered - so an anxious
+      // teacher can judge plan B instead of watching an endless reassuring pulse.
+      return { text: 'No response yet — re-buzzing', color, pulse: false };
+    }
+    return { text: r.is_incident ? '🚨 Sent — waiting' : 'Sent — waiting', color, pulse: true };
+  }
+  if (r.status === 'ACKNOWLEDGED') {
+    const seenOnly = r.request_type === 'STAFF_MEMBER' || r.request_type === 'BACK_ON_TRACK';
+    return { text: seenOnly ? 'Seen' : 'Seen — on the way', color: resolvedGreen, pulse: false };
+  }
+  // RESOLVED
+  const resp = (r.admin_response || '').trim();
+  const upper = resp.toUpperCase();
+  const text = upper === 'YES' ? 'Sorted ✓' : upper === 'NO' ? "Can't right now" : (resp || 'Resolved');
+  return { text, color: resolvedGreen, pulse: false };
+}
 

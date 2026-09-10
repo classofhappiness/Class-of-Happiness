@@ -1,20 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, Alert, ActivityIndicator, TextInput,
+  TouchableOpacity, Alert, ActivityIndicator, TextInput, Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
-import { supportRequestsApi, SupportRequestType, StaffShortcut } from '../../src/utils/api';
+import {
+  supportRequestsApi, SupportRequestType, StaffShortcut, SupportRequest,
+  zoneLogsApi, formatSupportRequestStatus,
+} from '../../src/utils/api';
+import { EMOTION_COLOURS, EmotionZone } from '../../src/constants/emotionColours';
 
 const RECENTS_KEY = 'support_request_recent_staff_names';
 const MAX_RECENTS = 5;
+const COLOUR_ZONES: EmotionZone[] = ['blue', 'green', 'yellow', 'red'];
+const STATUS_POLL_MS = 4000;
 
-type Step = 'classroom' | 'student' | 'type' | 'detail' | 'success';
+type Step = 'classroom' | 'student' | 'type' | 'detail' | 'status';
 
 const REQUEST_TYPES: { type: SupportRequestType; icon: keyof typeof MaterialIcons.glyphMap; label: string; needsTarget?: 'staff' | 'note' }[] = [
   { type: 'STAFF_MEMBER', icon: 'person-search', label: 'Student to a staff member', needsTarget: 'staff' },
@@ -46,6 +52,12 @@ export default function SupportRequestScreen() {
   const [recents, setRecents] = useState<string[]>([]);
   const [shortcuts, setShortcuts] = useState<StaffShortcut[]>([]);
   const [saving, setSaving] = useState(false);
+  // Design change 6 (Sep 10): optional colour circles on the individual-student step only -
+  // CLASSROOM_SUPPORT never gets one (Jono: a class-level colour would create false
+  // check-ins for regulated students). Selected colour writes a REAL check-in at submit
+  // time; skipped falls back to the existing auto-attach-latest-checkin behaviour.
+  const [studentColours, setStudentColours] = useState<Record<string, EmotionZone>>({});
+  const [sentRequest, setSentRequest] = useState<SupportRequest | null>(null);
 
   const classroomStudents = (students || []).filter((s: any) => s.classroom_id === classroomId);
 
@@ -55,6 +67,32 @@ export default function SupportRequestScreen() {
     });
     supportRequestsApi.getShortcuts().then(setShortcuts).catch(() => {});
   }, []);
+
+  // Design change 5 (Sep 10): "Uber-request" live status - polls this one request until
+  // resolved, so the status can flip in place instead of the screen just disappearing.
+  // Stops once RESOLVED (nothing left to change) or on unmount (teacher navigated away).
+  useEffect(() => {
+    if (step !== 'status' || !sentRequest || sentRequest.status === 'RESOLVED') return;
+    const id = sentRequest.id;
+    const interval = setInterval(() => {
+      supportRequestsApi.getOne(id).then(setSentRequest).catch(() => {});
+    }, STATUS_POLL_MS);
+    return () => clearInterval(interval);
+  }, [step, sentRequest?.id, sentRequest?.status]);
+
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const display = sentRequest ? formatSupportRequestStatus(sentRequest) : null;
+    if (!display?.pulse) { pulseAnim.setValue(1); return; }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [sentRequest?.status, sentRequest?.last_rebuzz_at]);
 
   const pickClassroom = (c: any) => {
     setClassroomId(c.id); setClassroomName(c.name); setStep('student');
@@ -93,7 +131,22 @@ export default function SupportRequestScreen() {
     }
     setSaving(true);
     try {
-      await supportRequestsApi.create({
+      // Design change 6: a selected colour writes a REAL check-in first (same endpoint,
+      // path, and downstream effects - streaks/analytics/history - as any other check-in),
+      // via the /feeling-logs write-through used by design change 6, and
+      // create_support_request's own auto-attach then picks it up as the latest
+      // feeling_log automatically - no need to also pass colour to the request itself.
+      // Never let a colour-write failure block the actual request.
+      const colour = studentId ? studentColours[studentId] : undefined;
+      if (colour) {
+        try {
+          await zoneLogsApi.create({
+            student_id: studentId!, zone: colour, strategies_selected: [],
+            logged_by: 'teacher_individual', suppress_auto_alert: true,
+          });
+        } catch {}
+      }
+      const created = await supportRequestsApi.create({
         request_type: finalType,
         student_id: studentId || undefined,
         classroom_id: finalType === 'CLASSROOM_SUPPORT' ? classroomId : undefined,
@@ -102,14 +155,8 @@ export default function SupportRequestScreen() {
       if (finalType === 'STAFF_MEMBER' && finalText.trim()) {
         await saveRecent(finalText.trim());
       }
-      setStep('success');
-      // Real bug fix Sep 10: router.back() pops whatever's on the nav stack, which
-      // isn't deterministic - depends on how the teacher arrived here (straight from
-      // a freshly-loaded dashboard vs. through a longer login/redirect chain). Confirmed
-      // live: first send of a device-pass session bounced to the app's home screen,
-      // second send (shallower stack) correctly landed on the dashboard. replace() to
-      // the dashboard route directly is deterministic regardless of stack depth.
-      setTimeout(() => router.replace('/teacher/dashboard'), 1500);
+      setSentRequest(created);
+      setStep('status');
     } catch (e: any) {
       Alert.alert(t('error') || 'Error', e.message || 'Could not send request');
     } finally {
@@ -117,13 +164,18 @@ export default function SupportRequestScreen() {
     }
   };
 
-  if (step === 'success') {
+  if (step === 'status' && sentRequest) {
+    const display = formatSupportRequestStatus(sentRequest);
+    const who = sentRequest.student_name || studentName || sentRequest.classroom_name || classroomName || 'Classroom';
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.successScreen}>
-          <MaterialIcons name="check-circle" size={80} color="#4CAF50" />
-          <Text style={styles.successTitle}>Request sent</Text>
-          <Text style={styles.successSub}>The school admin has been notified</Text>
+          <Animated.View style={[styles.statusDot, { backgroundColor: display.color, opacity: pulseAnim }]} />
+          <Text style={styles.successTitle}>{who}</Text>
+          <Text style={styles.statusText}>{display.text}</Text>
+          <TouchableOpacity style={styles.backToDashboardBtn} onPress={() => router.replace('/teacher/dashboard')}>
+            <Text style={styles.backToDashboardText}>Back to Dashboard</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -184,11 +236,28 @@ export default function SupportRequestScreen() {
             <MaterialIcons name="chevron-right" size={20} color="#999" />
           </TouchableOpacity>
           {classroomStudents.map((s: any) => (
-            <TouchableOpacity key={s.id} style={styles.rowCard} onPress={() => pickStudent(s)}>
+            <View key={s.id} style={styles.rowCard}>
               <Avatar type={s.avatar_type || 'preset'} preset={s.avatar_preset} custom={s.avatar_custom} size={36} />
-              <Text style={[styles.rowTitle, { flex: 1 }]}>{s.name}</Text>
-              <MaterialIcons name="chevron-right" size={20} color="#999" />
-            </TouchableOpacity>
+              <Text style={[styles.rowTitle, { flex: 1 }]} numberOfLines={1}>{s.name}</Text>
+              <View style={styles.colourCircleRow}>
+                {COLOUR_ZONES.map(zone => (
+                  <TouchableOpacity
+                    key={zone}
+                    onPress={() => setStudentColours(prev => ({
+                      ...prev, [s.id]: prev[s.id] === zone ? (undefined as any) : zone,
+                    }))}
+                    style={[
+                      styles.colourCircle,
+                      { backgroundColor: EMOTION_COLOURS[zone] },
+                      studentColours[s.id] === zone && styles.colourCircleSelected,
+                    ]}
+                  />
+                ))}
+              </View>
+              <TouchableOpacity onPress={() => pickStudent(s)} style={styles.rowArrowBtn}>
+                <MaterialIcons name="chevron-right" size={20} color="#999" />
+              </TouchableOpacity>
+            </View>
           ))}
         </ScrollView>
       </SafeAreaView>
@@ -318,7 +387,18 @@ const styles = StyleSheet.create({
   bottomSubmitText: { color: 'white', fontWeight: '700', fontSize: 16 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   emptyText: { fontSize: 16, color: '#999', marginTop: 12, textAlign: 'center' },
-  successScreen: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  successTitle: { fontSize: 24, fontWeight: '700', color: '#333', marginTop: 16 },
+  successScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  successTitle: { fontSize: 24, fontWeight: '700', color: '#333', marginTop: 16, textAlign: 'center' },
   successSub: { fontSize: 14, color: '#888', marginTop: 8 },
+  colourCircleRow: { flexDirection: 'row', gap: 6 },
+  colourCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: 'transparent' },
+  colourCircleSelected: { borderColor: '#333' },
+  rowArrowBtn: { padding: 4 },
+  statusDot: { width: 22, height: 22, borderRadius: 11, marginBottom: 8 },
+  statusText: { fontSize: 18, fontWeight: '700', color: '#333', marginTop: 4, textAlign: 'center' },
+  backToDashboardBtn: {
+    marginTop: 32, backgroundColor: '#5C6BC0', borderRadius: 14,
+    paddingVertical: 14, paddingHorizontal: 28,
+  },
+  backToDashboardText: { color: 'white', fontWeight: '700', fontSize: 15 },
 });
