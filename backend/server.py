@@ -13697,13 +13697,23 @@ async def list_support_requests(request: Request):
     Real bug fix Sep 10: the raw row only ever carried student_id/classroom_id/
     requested_by as opaque ids - nothing human-readable to actually display in the app
     or portal list. Enriches with student_name/classroom_name/requested_by_name here,
-    same one-extra-query-per-list-not-per-row pattern used elsewhere in this file."""
+    same one-extra-query-per-list-not-per-row pattern used elsewhere in this file.
+
+    Real addition Sep 10 (design change: dashboard pending banner): also serves teachers
+    their OWN sent requests (requested_by == them, not the whole school's queue) - the
+    banner polls this same endpoint rather than a separate one."""
     user = await get_current_user(request)
-    if not user or user.get("role") != "school_admin":
-        raise HTTPException(status_code=403, detail="School admin access required")
-    _require_feature_access(user, "support_requests", "Support Requests")
+    if not user or user.get("role") not in ("school_admin", "teacher"):
+        raise HTTPException(status_code=403, detail="School admin or teacher access required")
+    is_teacher = user.get("role") == "teacher"
+    school_admin_id = _teacher_school_admin_id(user) if is_teacher else user["user_id"]
+    if is_teacher and not school_admin_id:
+        return []
+    _require_feature_access(user, "support_requests", "Support Requests", school_admin_id=school_admin_id)
     try:
-        rows = supabase.table("support_requests").select("*").eq("school_admin_id", user["user_id"]).order("created_at", desc=True).limit(200).execute().data or []
+        query = supabase.table("support_requests").select("*").order("created_at", desc=True).limit(200)
+        query = query.eq("requested_by", user["user_id"]) if is_teacher else query.eq("school_admin_id", school_admin_id)
+        rows = query.execute().data or []
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not load support requests - has support_requests_migration.sql been run? ({str(e)[:150]})")
     rows.sort(key=lambda r: 0 if r.get("is_incident") else 1)
