@@ -13594,12 +13594,16 @@ async def create_support_request(request: Request):
             raise HTTPException(status_code=403, detail="Not your classroom")
 
     # Auto-attach current check-in colour - student-linked types only, per the brief.
+    # Real bug fix Sep 10: feeling_logs has no "zone" column at all (confirmed live -
+    # 42703 "column feeling_logs.zone does not exist") - selecting it threw on every
+    # single call, silently swallowed by this same try/except, so checkin_colour_at_request
+    # has been null for every support request ever created. Only feeling_colour is real.
     checkin_colour = None
     if student_id:
         try:
-            logs_r = supabase.table("feeling_logs").select("feeling_colour,zone").eq("student_id", student_id).order("timestamp", desc=True).limit(1).execute()
+            logs_r = supabase.table("feeling_logs").select("feeling_colour").eq("student_id", student_id).order("timestamp", desc=True).limit(1).execute()
             if logs_r.data:
-                checkin_colour = logs_r.data[0].get("feeling_colour") or logs_r.data[0].get("zone")
+                checkin_colour = logs_r.data[0].get("feeling_colour")
         except Exception:
             pass
 
