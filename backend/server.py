@@ -2353,6 +2353,24 @@ class LinkChildRequest(BaseModel):
     link_code: str
 
 # ================== AUTH HELPERS ==================
+def _parse_supabase_timestamp(ts: str) -> datetime:
+    """Real bug fix Sep 10: Postgres/PostgREST serializes timestamptz with variable
+    fractional-second precision (trailing zeros stripped) - e.g. '.04663' (5 digits)
+    instead of a clean 0/3/6-digit fraction. This server's Python version's
+    datetime.fromisoformat only accepts 0, 3, or 6 digit fractions and raises ValueError
+    on anything else - confirmed live: this silently broke get_current_user's session-
+    expiry check (caught by its own broad except, logged as "Auth error", returned as an
+    ordinary 401/403) for any session whose expires_at happened to round-trip through
+    Postgres with an awkward digit count - a random-looking, intermittent auth failure
+    with no code-level pattern, not specific to any one account or feature. Pads/truncates
+    the fractional-seconds portion to exactly 6 digits before parsing."""
+    ts = ts.replace("Z", "+00:00")
+    m = re.match(r"^(.*?\.)(\d+)([+-]\d{2}:\d{2})$", ts)
+    if m:
+        frac = (m.group(2) + "000000")[:6]
+        ts = m.group(1) + frac + m.group(3)
+    return datetime.fromisoformat(ts)
+
 async def get_current_user(request: Request) -> Optional[dict]:
     """Get current user from Supabase session token"""
     session_token = request.cookies.get("session_token")
@@ -2388,7 +2406,7 @@ async def get_current_user(request: Request) -> Optional[dict]:
                 }
             return None
         session = result.data[0]
-        expires_at = datetime.fromisoformat(session["expires_at"].replace("Z", "+00:00"))
+        expires_at = _parse_supabase_timestamp(session["expires_at"])
         if expires_at < datetime.now(timezone.utc):
             return None
         user_result = supabase.table("users").select("*").eq("user_id", session["user_id"]).execute()
@@ -13566,8 +13584,17 @@ async def create_support_request(request: Request):
     # Push to the target school_admin - incidents get the dedicated high-priority channel
     # (Phase 1's own native config plugin sets this channel up on Android; iOS ignores
     # channel_id and uses interruptionLevel via the app-side notifee call instead).
-    admin_r = supabase.table("users").select("push_token").eq("user_id", school_admin_id).execute()
-    admin_token = admin_r.data[0].get("push_token") if admin_r.data else None
+    # Real bug fix Sep 10: found live that users.push_token doesn't exist in the DB at all
+    # yet (separate migration filed for it) - wrapped in try/except so a push-side failure
+    # (missing column today, or any future transient DB hiccup) can never prevent the
+    # support request itself from being created and returned to the teacher. Matches the
+    # same defensive pattern already used for the push-sending block in help-request.
+    admin_token = None
+    try:
+        admin_r = supabase.table("users").select("push_token").eq("user_id", school_admin_id).execute()
+        admin_token = admin_r.data[0].get("push_token") if admin_r.data else None
+    except Exception as e:
+        logger.error(f"Could not look up admin push_token for support request {created['id']}: {e}")
     request_type_labels = {
         "CLASSROOM_SUPPORT": "needs support in the classroom",
         "STAFF_MEMBER": f"needs {target_text or 'a staff member'}",
@@ -13589,7 +13616,11 @@ async def create_support_request(request: Request):
 @api_router.get("/support-requests")
 async def list_support_requests(request: Request):
     """School admin's own queue - incidents pinned top (stable sort preserves the
-    created_at desc ordering within each group), then everything else newest first."""
+    created_at desc ordering within each group), then everything else newest first.
+    Real bug fix Sep 10: the raw row only ever carried student_id/classroom_id/
+    requested_by as opaque ids - nothing human-readable to actually display in the app
+    or portal list. Enriches with student_name/classroom_name/requested_by_name here,
+    same one-extra-query-per-list-not-per-row pattern used elsewhere in this file."""
     user = await get_current_user(request)
     if not user or user.get("role") != "school_admin":
         raise HTTPException(status_code=403, detail="School admin access required")
@@ -13599,6 +13630,17 @@ async def list_support_requests(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not load support requests - has support_requests_migration.sql been run? ({str(e)[:150]})")
     rows.sort(key=lambda r: 0 if r.get("is_incident") else 1)
+
+    student_ids = list({r["student_id"] for r in rows if r.get("student_id")})
+    classroom_ids = list({r["classroom_id"] for r in rows if r.get("classroom_id")})
+    teacher_ids = list({r["requested_by"] for r in rows if r.get("requested_by")})
+    student_names = {s["id"]: s["name"] for s in (supabase.table("students").select("id,name").in_("id", student_ids).execute().data or [])} if student_ids else {}
+    classroom_names = {c["id"]: c["name"] for c in (supabase.table("classrooms").select("id,name").in_("id", classroom_ids).execute().data or [])} if classroom_ids else {}
+    teacher_names = {u["user_id"]: (u.get("name") or u.get("email")) for u in (supabase.table("users").select("user_id,name,email").in_("user_id", teacher_ids).execute().data or [])} if teacher_ids else {}
+    for r in rows:
+        r["student_name"] = student_names.get(r.get("student_id"))
+        r["classroom_name"] = classroom_names.get(r.get("classroom_id"))
+        r["requested_by_name"] = teacher_names.get(r.get("requested_by"))
     return rows
 
 @api_router.post("/support-requests/{request_id}/acknowledge")
@@ -13635,8 +13677,12 @@ async def respond_support_request(request_id: str, request: Request):
         updates["acknowledged_at"] = now_iso
     result = supabase.table("support_requests").update(updates).eq("id", request_id).execute()
 
-    teacher_r = supabase.table("users").select("push_token").eq("user_id", row["requested_by"]).execute()
-    teacher_token = teacher_r.data[0].get("push_token") if teacher_r.data else None
+    teacher_token = None
+    try:
+        teacher_r = supabase.table("users").select("push_token").eq("user_id", row["requested_by"]).execute()
+        teacher_token = teacher_r.data[0].get("push_token") if teacher_r.data else None
+    except Exception as e:
+        logger.error(f"Could not look up teacher push_token for support request {request_id}: {e}")
     await _send_push(
         [teacher_token] if teacher_token else [],
         "Support request update", f"Response: {response_text}",
@@ -13699,20 +13745,38 @@ async def _support_requests_rebuzz_loop():
             standard_cutoff = (now - timedelta(minutes=2)).isoformat()
             pending = supabase.table("support_requests").select("*").eq("status", "PENDING").is_("acknowledged_at", "null").execute().data or []
             for r in pending:
-                last = r.get("last_rebuzz_at") or r.get("created_at")
-                due = r.get("is_incident") or (last and last < standard_cutoff)
-                if not due:
-                    continue
-                admin_r = supabase.table("users").select("push_token").eq("user_id", r["school_admin_id"]).execute()
-                admin_token = admin_r.data[0].get("push_token") if admin_r.data else None
-                await _send_push(
-                    [admin_token] if admin_token else [],
-                    "🚨 Incident (unacknowledged)" if r.get("is_incident") else "🔔 Support request (unacknowledged)",
-                    "Still waiting for a response",
-                    data={"type": "support_request_rebuzz", "id": r["id"]},
-                    priority="high", channel_id="incident" if r.get("is_incident") else "default",
-                )
-                supabase.table("support_requests").update({"last_rebuzz_at": now.isoformat()}).eq("id", r["id"]).execute()
+                # Real fix Sep 10: each request handled in its own try/except - an error on
+                # one row (e.g. the missing users.push_token column found live today, or any
+                # future transient issue) used to unwind this whole for-loop via the outer
+                # try/except, silently skipping every OTHER pending request for that tick too.
+                try:
+                    last = r.get("last_rebuzz_at") or r.get("created_at")
+                    due = r.get("is_incident") or (last and last < standard_cutoff)
+                    if not due:
+                        continue
+                    # Real fix Sep 10: push lookup/send failure must NOT prevent last_rebuzz_at
+                    # from advancing (confirmed live: it was inside the same try as the update
+                    # below, so a push_token lookup error silently meant this row re-attempted
+                    # every single tick forever instead of respecting its own cadence). This
+                    # timestamp tracks "we attempted to re-notify," not "delivery succeeded" -
+                    # delivery success isn't reliably knowable from Expo's response anyway.
+                    admin_token = None
+                    try:
+                        admin_r = supabase.table("users").select("push_token").eq("user_id", r["school_admin_id"]).execute()
+                        admin_token = admin_r.data[0].get("push_token") if admin_r.data else None
+                    except Exception as e:
+                        logger.error(f"[support_requests rebuzz] push_token lookup failed for {r['id']}: {e}")
+                    if admin_token:
+                        await _send_push(
+                            [admin_token],
+                            "🚨 Incident (unacknowledged)" if r.get("is_incident") else "🔔 Support request (unacknowledged)",
+                            "Still waiting for a response",
+                            data={"type": "support_request_rebuzz", "id": r["id"]},
+                            priority="high", channel_id="incident" if r.get("is_incident") else "default",
+                        )
+                    supabase.table("support_requests").update({"last_rebuzz_at": now.isoformat()}).eq("id", r["id"]).execute()
+                except Exception as e:
+                    logger.error(f"[support_requests rebuzz] row {r.get('id')} error: {e}")
         except Exception as e:
             logger.error(f"[support_requests rebuzz] loop error: {e}")
 
