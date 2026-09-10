@@ -2316,6 +2316,14 @@ class FeelingLogCreate(BaseModel):
     strategies_selected: List[str] = []  # frontend compatibility alias
     comment: Optional[str] = None
     location: str = "school"
+    # Real addition Sep 10 (build 27, design change 6): Support Requests' optional
+    # colour-circle step writes a REAL check-in through this same endpoint (Jono's call -
+    # a class-level colour would otherwise never reach analytics/streaks/history). Both
+    # default to prior behaviour for every existing caller, which never sends either field.
+    logged_by: Optional[str] = None  # e.g. "teacher_individual" - distinguishes from student self check-ins
+    suppress_auto_alert: bool = False  # skip the automatic zone_alert/parent_message row below -
+    # the support request's own companion student_alerts row already covers it; without this,
+    # an incident+red selection would create two alert rows for the same moment.
 
 class AddPointsRequest(BaseModel):
     points_type: str = "checkin"
@@ -2935,6 +2943,8 @@ async def create_feeling_log(log: FeelingLogCreate, request: Request):
         "location": log.location,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
+    if log.logged_by:
+        new_log["logged_by"] = log.logged_by
     result = supabase.table("feeling_logs").insert(new_log).execute()
     saved = result.data[0] if result.data else new_log
 
@@ -2942,7 +2952,7 @@ async def create_feeling_log(log: FeelingLogCreate, request: Request):
     try:
         comment_text = (log.comment or "").strip()
         zone_val = log.feeling_colour or log.zone or ""
-        should_alert = bool(comment_text) or zone_val in ("yellow", "red", "blue")
+        should_alert = not log.suppress_auto_alert and (bool(comment_text) or zone_val in ("yellow", "red", "blue"))
         if should_alert and log.student_id:
             student_r = supabase.table("students").select("name,classroom_id").eq("id", log.student_id).execute()
             student_name = student_r.data[0].get("name", "Student") if student_r.data else "Student"
@@ -13661,6 +13671,14 @@ async def create_support_request(request: Request):
         "OTHER": target_text or "needs support",
     }
     who = student_name or classroom_name or "A classroom"
+    # Real addition Sep 10 (tone spec): standard buzz gets its own bundled soft two-note
+    # sound (assets/sounds/support_buzz.wav, wired into app.json's expo-notifications
+    # plugin) - a wellbeing app shouldn't sound like a security alarm for a routine
+    # request. Incidents keep "default" for now; the harsh continuous ring is deliberately
+    # notifee's job (full-screen intent + looping), not something a one-shot push sound can
+    # do - that lands when the client-side notifee integration ships. Needs a real EAS/dev
+    # build to actually hear either - Expo Go doesn't deliver remote push at all (see
+    # notifications.ts's IS_EXPO_GO guard).
     await _send_push(
         [admin_token] if admin_token else [],
         "🚨 Incident" if is_incident else "🔔 Support request",
@@ -13668,6 +13686,7 @@ async def create_support_request(request: Request):
         data={"type": "support_request", "id": created["id"], "is_incident": is_incident},
         priority="high",
         channel_id="incident" if is_incident else "default",
+        sound="default" if is_incident else "support_buzz.wav",
     )
     return created
 
@@ -13700,6 +13719,32 @@ async def list_support_requests(request: Request):
         r["classroom_name"] = classroom_names.get(r.get("classroom_id"))
         r["requested_by_name"] = teacher_names.get(r.get("requested_by"))
     return rows
+
+@api_router.get("/support-requests/{request_id}")
+async def get_support_request(request_id: str, request: Request):
+    """Real addition Sep 10 (build 27, design change 5): single-row lookup for the
+    teacher-side live status screen to poll - GET /support-requests above is
+    school_admin-only and scoped to the whole queue, not what a teacher polling their own
+    just-sent request needs. Visible to the teacher who sent it OR the school_admin who
+    owns it - same two-sided-conversation shape as respond/acknowledge."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ("teacher", "school_admin"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    result = supabase.table("support_requests").select("*").eq("id", request_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Support request not found")
+    row = result.data[0]
+    is_owner = row.get("requested_by") == user["user_id"]
+    is_admin = user.get("role") == "school_admin" and row.get("school_admin_id") == user["user_id"]
+    if not (is_owner or is_admin):
+        raise HTTPException(status_code=403, detail="Not your request")
+    if row.get("student_id"):
+        s = supabase.table("students").select("name").eq("id", row["student_id"]).execute()
+        row["student_name"] = s.data[0]["name"] if s.data else None
+    if row.get("classroom_id"):
+        c = supabase.table("classrooms").select("name").eq("id", row["classroom_id"]).execute()
+        row["classroom_name"] = c.data[0]["name"] if c.data else None
+    return row
 
 @api_router.post("/support-requests/{request_id}/acknowledge")
 async def acknowledge_support_request(request_id: str, request: Request):
@@ -13831,6 +13876,7 @@ async def _support_requests_rebuzz_loop():
                             "Still waiting for a response",
                             data={"type": "support_request_rebuzz", "id": r["id"]},
                             priority="high", channel_id="incident" if r.get("is_incident") else "default",
+                            sound="default" if r.get("is_incident") else "support_buzz.wav",
                         )
                     supabase.table("support_requests").update({"last_rebuzz_at": now.isoformat()}).eq("id", r["id"]).execute()
                 except Exception as e:
