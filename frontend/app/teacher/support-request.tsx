@@ -258,8 +258,8 @@ export default function SupportRequestScreen() {
           <TouchableOpacity style={[styles.rowCard, styles.wholeClassCard]} onPress={pickWholeClassroom}>
             <MaterialIcons name="groups" size={24} color="#5C6BC0" />
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>Whole classroom</Text>
-              <Text style={styles.rowSub}>Support to the classroom — no specific student</Text>
+              <Text style={styles.wholeClassTitle}>🆘 Support to my classroom</Text>
+              <Text style={styles.rowSub}>No specific student — support for the whole class</Text>
             </View>
             <MaterialIcons name="chevron-right" size={20} color="#999" />
           </TouchableOpacity>
@@ -397,7 +397,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'white', borderRadius: 12, padding: 16,
     borderWidth: 1, borderColor: '#E0E0E0',
   },
-  wholeClassCard: { backgroundColor: '#EEF1FB' },
+  // Real fix Sep 10 (Jono's placement call): relabelled from "Whole classroom" to the
+  // action itself ("Support to my classroom") - a stressed teacher scans for the words
+  // of the request they're making, not a selection label. Border strengthened (was tint
+  // only) so it reads as visually distinct from the student rows below, not just another
+  // list item with a different background.
+  wholeClassCard: { backgroundColor: '#EEF1FB', borderColor: '#5C6BC0', borderWidth: 1.5 },
+  wholeClassTitle: { fontSize: 15, fontWeight: '800', color: '#333' },
   incidentCard: { borderColor: '#F44336', borderWidth: 1.5 },
   incidentText: { color: '#F44336', fontWeight: '800' },
   rowTitle: { fontSize: 15, fontWeight: '700', color: '#333' },
