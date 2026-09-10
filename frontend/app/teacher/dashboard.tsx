@@ -15,6 +15,7 @@ import { zoneLogsApi, ZoneLog, featuresApi } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { registerForPushNotifications } from '../../src/utils/notifications';
+import { SupportRequestBanner } from '../../src/components/SupportRequestBanner';
 import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
 
 // Real English fallback text, translated at render time via t(tipKey)/t(actionKey) below —
@@ -755,6 +756,13 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
             </View>
           ))}
         </View>
+
+        {/* Real feature Sep 10 (build 27): pending Support Request banner, directly under
+            Today's Class Mood per Jono's spec - Uber-style collapsed trip card, inset (not
+            edge-to-edge), scrolls with the page. Minimal footprint: renders nothing at all
+            when there's no open request; flashes green/resolved briefly then removes
+            itself for good rather than lingering (Alerts already has the full history). */}
+        <SupportRequestBanner enabled={supportRequestsEnabled} />
 
         {/* Widget button removed for now — no real native OS widget exists yet, only an
             in-app preview screen (app/teacher/widget.tsx, kept intact for a future real

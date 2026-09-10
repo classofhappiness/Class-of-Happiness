@@ -4,7 +4,7 @@ import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, Alert, ActivityIndicator, TextInput, Animated,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
@@ -41,6 +41,11 @@ export default function SupportRequestScreen() {
   const navigation = useNavigation() as any;
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { classrooms, students, t } = useApp();
+  // Real addition Sep 10 (dashboard pending banner): tapping the banner reopens THIS
+  // specific request's live status, deep-linked via ?viewId= rather than a new screen -
+  // reuses the exact same status step/polling this screen already has.
+  const { viewId } = useLocalSearchParams<{ viewId?: string }>();
+  const [viewLoading, setViewLoading] = useState(!!viewId);
 
   const [step, setStep] = useState<Step>('classroom');
   const [classroomId, setClassroomId] = useState('');
@@ -67,6 +72,19 @@ export default function SupportRequestScreen() {
     });
     supportRequestsApi.getShortcuts().then(setShortcuts).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!viewId) return;
+    supportRequestsApi.getOne(viewId).then(r => {
+      setSentRequest(r);
+      setStep('status');
+      setViewLoading(false);
+    }).catch(() => {
+      setViewLoading(false);
+      Alert.alert(t('error') || 'Error', 'Could not load this request');
+      router.replace('/teacher/dashboard');
+    });
+  }, [viewId]);
 
   // Design change 5 (Sep 10): "Uber-request" live status - polls this one request until
   // resolved, so the status can flip in place instead of the screen just disappearing.
@@ -163,6 +181,16 @@ export default function SupportRequestScreen() {
       setSaving(false);
     }
   };
+
+  if (viewLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.successScreen}>
+          <ActivityIndicator color="#5C6BC0" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (step === 'status' && sentRequest) {
     const display = formatSupportRequestStatus(sentRequest);
