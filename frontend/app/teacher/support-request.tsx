@@ -103,7 +103,13 @@ export default function SupportRequestScreen() {
         await saveRecent(finalText.trim());
       }
       setStep('success');
-      setTimeout(() => router.back(), 1500);
+      // Real bug fix Sep 10: router.back() pops whatever's on the nav stack, which
+      // isn't deterministic - depends on how the teacher arrived here (straight from
+      // a freshly-loaded dashboard vs. through a longer login/redirect chain). Confirmed
+      // live: first send of a device-pass session bounced to the app's home screen,
+      // second send (shallower stack) correctly landed on the dashboard. replace() to
+      // the dashboard route directly is deterministic regardless of stack depth.
+      setTimeout(() => router.replace('/teacher/dashboard'), 1500);
     } catch (e: any) {
       Alert.alert(t('error') || 'Error', e.message || 'Could not send request');
     } finally {
