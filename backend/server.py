@@ -8,6 +8,7 @@ from typing import List, Optional, Dict
 import uuid
 import os
 import re
+import asyncio
 import logging
 import httpx
 import io
@@ -12663,8 +12664,10 @@ async def delete_service(service_id: str, request: Request):
 # fails CLOSED - a missing row means "never allowed", same as before this
 # feature existed.
 # ============================================================
-ALL_SCHOOL_FEATURE_KEYS = ["careers_advisory", "services_directory", "wellbeing_welfare"]
+ALL_SCHOOL_FEATURE_KEYS = ["careers_advisory", "services_directory", "wellbeing_welfare", "support_requests"]
 _FEATURE_FAIL_OPEN_KEYS = {"services_directory", "wellbeing_welfare"}
+# support_requests fails CLOSED (not added above) - it's a new feature, same as
+# careers_advisory, not a long-standing always-on tab like the two fail-open keys.
 
 def _get_school_feature_flags(school_admin_id: str, feature_key: str) -> dict:
     try:
@@ -12682,14 +12685,23 @@ def _get_school_feature_flags(school_admin_id: str, feature_key: str) -> dict:
         return {"allowed_by_superadmin": True, "enabled_by_school": True}
     return {"allowed_by_superadmin": False, "enabled_by_school": True}
 
-def _require_feature_access(user: dict, feature_key: str, label: str) -> None:
+def _require_feature_access(user: dict, feature_key: str, label: str, school_admin_id: str = None) -> None:
     """403s unless feature_key is BOTH allowed by superadmin AND enabled by
     this school - the gate every optional-tab endpoint applies, not just a
     hidden tab in the UI. services_directory/wellbeing_welfare fail open
     (see _get_school_feature_flags), so this is a no-op for every school
     today - it only starts actually restricting a school the moment a
-    superadmin explicitly disallows one of these two for them."""
-    flags = _get_school_feature_flags(user["user_id"], feature_key)
+    superadmin explicitly disallows one of these two for them.
+
+    school_admin_id override added Sep 10 (Support Requests): every caller
+    before this feature WAS the school_admin checking their own flag
+    (user["user_id"] IS the school_admin_id). Support Requests is the first
+    feature a TEACHER calls into - the flag lives on the school_admin they're
+    linked to, not on the teacher's own id, so callers resolving that link
+    themselves (a missing link - a teacher with no school_admin_id - passes
+    None through here and correctly fails closed, same as any other unknown
+    school_admin_id) pass it explicitly instead."""
+    flags = _get_school_feature_flags(school_admin_id or user["user_id"], feature_key)
     if not (flags["allowed_by_superadmin"] and flags["enabled_by_school"]):
         raise HTTPException(status_code=403, detail=f"{label} is not enabled for this school")
 
@@ -13433,6 +13445,276 @@ async def careers_pathway_summary_pdf(student_id: str, request: Request):
     safe_name = student_name.replace(" ", "_")
     filename = f"PathwaySummary_{safe_name}_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.pdf"
     return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+# ============================================================
+# Support Request "buzz" system (build 27, Sep 10)
+# Teacher taps a button, picks a request type, and "buzzes" the shared
+# school_admin account (SEND worker/psych/principal). Gated by the
+# school_features key "support_requests" (fails CLOSED - a new feature, not
+# a long-standing always-on tab). NEVER parent-facing - see the parent-leak
+# audit note on GET /notifications/alerts, which excludes alert_type ==
+# "support_request" from every parent-reachable read of student_alerts.
+# ============================================================
+
+REQUEST_TYPES = ("CLASSROOM_SUPPORT", "STAFF_MEMBER", "BACK_ON_TRACK", "INCIDENT", "OTHER")
+
+def _teacher_school_admin_id(user: dict) -> Optional[str]:
+    """Resolves the school_admin a teacher's requests should go to - the direct FK
+    already set on their own user row (users.school_admin_id), the same field every
+    other school-admin resolution in this app treats as authoritative. Returns None for
+    a teacher with no linked school (confirmed live this exists - a real, non-demo
+    account had both school_admin_id and school_name unset) - the feature then correctly
+    reads as unavailable via _get_school_feature_flags' fail-closed default, rather than
+    crashing on a missing link."""
+    if user.get("role") == "school_admin":
+        return user["user_id"]
+    return user.get("school_admin_id")
+
+@api_router.post("/support-requests")
+async def create_support_request(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ("teacher", "school_admin"):
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    school_admin_id = _teacher_school_admin_id(user)
+    if not school_admin_id:
+        raise HTTPException(status_code=403, detail="No linked school found for this account")
+    _require_feature_access(user, "support_requests", "Support Requests", school_admin_id=school_admin_id)
+
+    body = await request.json()
+    request_type = body.get("request_type")
+    if request_type not in REQUEST_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid request_type")
+    student_id = body.get("student_id")
+    classroom_id = body.get("classroom_id")
+    target_text = (body.get("target_text") or "").strip() or None
+
+    # Real fix Sep 10 (Jono's schema amendment): CLASSROOM_SUPPORT is classroom-level -
+    # no individual student. Every other type needs a student. Mirrors the DB check
+    # constraint exactly, but checked here too for a clean 400 instead of a raw DB error.
+    if request_type == "CLASSROOM_SUPPORT":
+        if not classroom_id:
+            raise HTTPException(status_code=400, detail="classroom_id is required for CLASSROOM_SUPPORT")
+    elif not student_id:
+        raise HTTPException(status_code=400, detail="student_id is required for this request_type")
+
+    student_name = None
+    owner_classroom_id = classroom_id
+    if student_id:
+        student_r = supabase.table("students").select("id,name,classroom_id").eq("id", student_id).execute()
+        if not student_r.data:
+            raise HTTPException(status_code=404, detail="Student not found")
+        student = student_r.data[0]
+        student_name = student.get("name")
+        owner_classroom_id = owner_classroom_id or student.get("classroom_id")
+
+    # Ownership check: the classroom (student's own, or the explicit one for
+    # CLASSROOM_SUPPORT) must belong to this teacher - same no-IDOR convention as
+    # everywhere else in this file. school_admin callers (testing/self-service) skip
+    # this - they're not scoped to one classroom the way a teacher is.
+    classroom_name = None
+    if owner_classroom_id:
+        classroom_r = supabase.table("classrooms").select("id,user_id,name").eq("id", owner_classroom_id).execute()
+        if not classroom_r.data:
+            raise HTTPException(status_code=404, detail="Classroom not found")
+        classroom_name = classroom_r.data[0].get("name")
+        if user.get("role") == "teacher" and classroom_r.data[0].get("user_id") != user["user_id"]:
+            raise HTTPException(status_code=403, detail="Not your classroom")
+
+    # Auto-attach current check-in colour - student-linked types only, per the brief.
+    checkin_colour = None
+    if student_id:
+        try:
+            logs_r = supabase.table("feeling_logs").select("feeling_colour,zone").eq("student_id", student_id).order("timestamp", desc=True).limit(1).execute()
+            if logs_r.data:
+                checkin_colour = logs_r.data[0].get("feeling_colour") or logs_r.data[0].get("zone")
+        except Exception:
+            pass
+
+    is_incident = request_type == "INCIDENT"
+    row = {
+        "student_id": student_id, "school_admin_id": school_admin_id, "requested_by": user["user_id"],
+        "classroom_id": owner_classroom_id, "request_type": request_type, "target_text": target_text,
+        "is_incident": is_incident, "checkin_colour_at_request": checkin_colour, "status": "PENDING",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        result = supabase.table("support_requests").insert(row).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not create support request - has support_requests_migration.sql been run? ({str(e)[:150]})")
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Could not create support request")
+    created = result.data[0]
+
+    # Companion student_alerts row (school_admin_flag precedent) - skipped when there's no
+    # student to attribute it to (CLASSROOM_SUPPORT), per Jono's Sep 10 amendment. This is
+    # what makes the request show up in the existing teacher Alerts screen / per-student
+    # history with zero changes to either - context "school" matches the same convention
+    # help_request/school_admin_flag already use, which is exactly why the parent-leak
+    # audit above had to explicitly exclude this alert_type from every parent-reachable read.
+    if student_id:
+        try:
+            supabase.table("student_alerts").insert({
+                "id": str(uuid.uuid4()), "student_id": student_id, "student_name": student_name,
+                "alert_type": "support_request", "context": "school", "classroom_name": classroom_name,
+                "zone": checkin_colour, "message": target_text,
+                "created_at": datetime.now(timezone.utc).isoformat(), "resolved": False,
+            }).execute()
+        except Exception as e:
+            logger.error(f"Could not store support_request companion alert: {e}")
+
+    # Push to the target school_admin - incidents get the dedicated high-priority channel
+    # (Phase 1's own native config plugin sets this channel up on Android; iOS ignores
+    # channel_id and uses interruptionLevel via the app-side notifee call instead).
+    admin_r = supabase.table("users").select("push_token").eq("user_id", school_admin_id).execute()
+    admin_token = admin_r.data[0].get("push_token") if admin_r.data else None
+    request_type_labels = {
+        "CLASSROOM_SUPPORT": "needs support in the classroom",
+        "STAFF_MEMBER": f"needs {target_text or 'a staff member'}",
+        "BACK_ON_TRACK": "is heading to Back on Track - needs supervision",
+        "INCIDENT": "INCIDENT - needs immediate support",
+        "OTHER": target_text or "needs support",
+    }
+    who = student_name or classroom_name or "A classroom"
+    await _send_push(
+        [admin_token] if admin_token else [],
+        "🚨 Incident" if is_incident else "🔔 Support request",
+        f"{who}: {request_type_labels.get(request_type, 'needs support')}",
+        data={"type": "support_request", "id": created["id"], "is_incident": is_incident},
+        priority="high",
+        channel_id="incident" if is_incident else "default",
+    )
+    return created
+
+@api_router.get("/support-requests")
+async def list_support_requests(request: Request):
+    """School admin's own queue - incidents pinned top (stable sort preserves the
+    created_at desc ordering within each group), then everything else newest first."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_feature_access(user, "support_requests", "Support Requests")
+    try:
+        rows = supabase.table("support_requests").select("*").eq("school_admin_id", user["user_id"]).order("created_at", desc=True).limit(200).execute().data or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not load support requests - has support_requests_migration.sql been run? ({str(e)[:150]})")
+    rows.sort(key=lambda r: 0 if r.get("is_incident") else 1)
+    return rows
+
+@api_router.post("/support-requests/{request_id}/acknowledge")
+async def acknowledge_support_request(request_id: str, request: Request):
+    """Stops re-buzz without sending a response yet."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_feature_access(user, "support_requests", "Support Requests")
+    result = supabase.table("support_requests").update({
+        "status": "ACKNOWLEDGED", "acknowledged_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", request_id).eq("school_admin_id", user["user_id"]).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Support request not found")
+    return result.data[0]
+
+@api_router.post("/support-requests/{request_id}/respond")
+async def respond_support_request(request_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_feature_access(user, "support_requests", "Support Requests")
+    body = await request.json()
+    response_text = (body.get("response") or "").strip()
+    if not response_text:
+        raise HTTPException(status_code=400, detail="response is required")
+    existing = supabase.table("support_requests").select("*").eq("id", request_id).eq("school_admin_id", user["user_id"]).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Support request not found")
+    row = existing.data[0]
+    now_iso = datetime.now(timezone.utc).isoformat()
+    updates = {"admin_response": response_text, "responded_at": now_iso, "status": "RESOLVED"}
+    if not row.get("acknowledged_at"):
+        updates["acknowledged_at"] = now_iso
+    result = supabase.table("support_requests").update(updates).eq("id", request_id).execute()
+
+    teacher_r = supabase.table("users").select("push_token").eq("user_id", row["requested_by"]).execute()
+    teacher_token = teacher_r.data[0].get("push_token") if teacher_r.data else None
+    await _send_push(
+        [teacher_token] if teacher_token else [],
+        "Support request update", f"Response: {response_text}",
+        data={"type": "support_request_response", "id": request_id},
+    )
+    return result.data[0] if result.data else updates
+
+@api_router.get("/support-requests/staff-shortcuts")
+async def get_staff_shortcuts(request: Request):
+    """Teacher-readable, school_admin-writable list of tappable staff-name shortcuts
+    for the STAFF_MEMBER request type. No feature-gate check here beyond needing a
+    resolvable school - if support_requests isn't allowed the teacher never reaches the
+    UI that calls this anyway, and an empty list is a harmless response either way."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    school_admin_id = _teacher_school_admin_id(user)
+    if not school_admin_id:
+        return []
+    try:
+        return supabase.table("support_staff_shortcuts").select("*").eq("school_admin_id", school_admin_id).order("sort_order").execute().data or []
+    except Exception:
+        return []
+
+@api_router.post("/support-requests/staff-shortcuts")
+async def add_staff_shortcut(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_feature_access(user, "support_requests", "Support Requests")
+    body = await request.json()
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="name is required")
+    row = {"id": str(uuid.uuid4()), "school_admin_id": user["user_id"], "name": name,
+           "sort_order": body.get("sort_order", 0), "created_at": datetime.now(timezone.utc).isoformat()}
+    supabase.table("support_staff_shortcuts").insert(row).execute()
+    return row
+
+@api_router.delete("/support-requests/staff-shortcuts/{shortcut_id}")
+async def delete_staff_shortcut(shortcut_id: str, request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "school_admin":
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_feature_access(user, "support_requests", "Support Requests")
+    supabase.table("support_staff_shortcuts").delete().eq("id", shortcut_id).eq("school_admin_id", user["user_id"]).execute()
+    return {"status": "deleted"}
+
+async def _support_requests_rebuzz_loop():
+    """Background loop, started at app startup (single persistent Railway process -
+    confirmed this deployment doesn't run multiple worker processes before relying on
+    that assumption). Every 30s (the incident cadence itself, per Jono's Sep 10 answer),
+    re-sends the push for any PENDING+unacknowledged request whose last (re)buzz is older
+    than its own cadence - ~2min standard, ~30s (every tick) for incidents. Acknowledging
+    a request stops it immediately since the query only ever selects unacknowledged rows."""
+    while True:
+        try:
+            await asyncio.sleep(30)
+            now = datetime.now(timezone.utc)
+            standard_cutoff = (now - timedelta(minutes=2)).isoformat()
+            pending = supabase.table("support_requests").select("*").eq("status", "PENDING").is_("acknowledged_at", "null").execute().data or []
+            for r in pending:
+                last = r.get("last_rebuzz_at") or r.get("created_at")
+                due = r.get("is_incident") or (last and last < standard_cutoff)
+                if not due:
+                    continue
+                admin_r = supabase.table("users").select("push_token").eq("user_id", r["school_admin_id"]).execute()
+                admin_token = admin_r.data[0].get("push_token") if admin_r.data else None
+                await _send_push(
+                    [admin_token] if admin_token else [],
+                    "🚨 Incident (unacknowledged)" if r.get("is_incident") else "🔔 Support request (unacknowledged)",
+                    "Still waiting for a response",
+                    data={"type": "support_request_rebuzz", "id": r["id"]},
+                    priority="high", channel_id="incident" if r.get("is_incident") else "default",
+                )
+                supabase.table("support_requests").update({"last_rebuzz_at": now.isoformat()}).eq("id", r["id"]).execute()
+        except Exception as e:
+            logger.error(f"[support_requests rebuzz] loop error: {e}")
 
 
 @api_router.get("/school-admin/school-strategies")
@@ -15857,6 +16139,14 @@ async def get_creature_analytics(request: Request):
     top_schools = [{"school_name": s, "count": c} for s, c in top_schools]
 
     return {"featured": featured, "top_creatures": top_creatures, "top_users": top_users, "top_schools": top_schools}
+
+@app.on_event("startup")
+async def _start_support_requests_rebuzz():
+    """Fires the re-buzz background loop once, when this worker process boots. Relies on
+    Railway running this as a single persistent process (not horizontally scaled) - if
+    that ever changes, multiple workers would each run their own loop and double-send
+    re-buzzes, so this assumption needs re-checking before scaling this service out."""
+    asyncio.create_task(_support_requests_rebuzz_loop())
 
 # Real fix Aug 18: moved to the true end of the file. Was previously
 # called mid-file, silently orphaning every route defined after that
