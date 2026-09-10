@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import { EMOTION_COLOURS } from '../constants/emotionColours';
 
 // Backend URL from environment variable - required for all deployments
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
@@ -1062,14 +1063,13 @@ export const supportRequestsApi = {
 
 // Real addition Sep 10 (build 27, design change 5): teacher-side status wording, per
 // Jono's tone spec - warm/glanceable, no "alert/incident report/dispatch" language
-// (INCIDENT alone keeps urgent language). Colours reuse the app's emotion palette EXCEPT
-// pending-yellow: the shared EMOTION_COLOURS.yellow is #FFC107 (Aug 19 decision - the
-// design doc's #FFD93D was dropped because nothing else used it), but Jono specified
-// #FFD93D twice, explicitly, for this one state - a deliberate exception, not a miss.
+// (INCIDENT alone keeps urgent language). Colours reference EMOTION_COLOURS directly
+// (not hex literals) so a future palette change propagates here automatically - Sep 10
+// correction: the earlier #FFD93D/#E05252/#4CAF73 literals were a stale-notes error.
 export const SUPPORT_REQUEST_STATUS_COLOURS = {
-  pendingYellow: '#FFD93D',
-  pendingRed: '#E05252',
-  resolvedGreen: '#4CAF73',
+  pendingYellow: EMOTION_COLOURS.yellow,
+  pendingRed: EMOTION_COLOURS.red,
+  resolvedGreen: EMOTION_COLOURS.green,
 } as const;
 
 export interface SupportRequestStatusDisplay {
