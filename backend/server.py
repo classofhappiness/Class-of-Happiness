@@ -6757,6 +6757,39 @@ async def update_classroom_notification_settings(classroom_id: str, request: Req
         raise HTTPException(status_code=500, detail="Could not save")
     return {"ok": True, "updated": len(students.data or [])}
 
+async def _send_push(tokens: list, title: str, body: str, data: dict = None, sound: str = "default", priority: str = None, channel_id: str = None) -> int:
+    """Shared Expo push sender - extracted Sep 10 (Support Requests build, Phase 0) from
+    three copy-pasted inline versions of this exact pattern (help-request, zone-alert,
+    parent-message). Same behaviour as all three: filters to real ExponentPushToken
+    values, POSTs the whole batch in one call to exp.host, swallows/logs errors so a push
+    failure never blocks the caller's own response. channel_id is new - none of the three
+    original call sites set it (Expo defaults to the "default" Android channel), but the
+    Support Requests incident path needs to target a distinct high-priority channel."""
+    import httpx
+    valid_tokens = [t for t in (tokens or []) if t and t.startswith("ExponentPushToken")]
+    if not valid_tokens:
+        return 0
+    msg = {"title": title, "body": body, "sound": sound}
+    if data is not None:
+        msg["data"] = data
+    if priority:
+        msg["priority"] = priority
+    if channel_id:
+        msg["channelId"] = channel_id
+    messages = [{"to": t, **msg} for t in valid_tokens]
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                "https://exp.host/--/api/v2/push/send",
+                json=messages,
+                headers={"Content-Type": "application/json"},
+                timeout=10,
+            )
+        return len(messages)
+    except Exception as e:
+        logger.error(f"_send_push error: {e}")
+        return 0
+
 # ── Help request (student asks for help with strategy) ───
 @api_router.post("/notifications/help-request")
 async def send_help_request(request: Request):
@@ -6866,40 +6899,17 @@ async def send_help_request(request: Request):
     if message:
         notif_body += f"\n\"{message}\""
 
-    sent = 0
-    if tokens_to_notify:
-        try:
-            messages = [
-                {
-                    "to": token,
-                    "title": notif_title,
-                    "body": notif_body,
-                    "data": {
-                        "type": "help_request",
-                        "student_id": student_id,
-                        "student_name": student_name,
-                        "zone": zone,
-                        "strategy_name": strategy_name,
-                        "alert_id": alert_id,
-                    },
-                    "sound": "default",
-                    "priority": "high",
-                }
-                for _, token in tokens_to_notify
-                if token and token.startswith("ExponentPushToken")
-            ]
-            if messages:
-                async with httpx.AsyncClient() as client:
-                    resp = await client.post(
-                        "https://exp.host/--/api/v2/push/send",
-                        json=messages,
-                        headers={"Content-Type": "application/json"},
-                        timeout=10,
-                    )
-                sent = len(messages)
-                logger.info(f"Sent {sent} help request notifications for {student_name}")
-        except Exception as e:
-            logger.error(f"Push notification send error: {e}")
+    sent = await _send_push(
+        [token for _, token in tokens_to_notify],
+        notif_title, notif_body,
+        data={
+            "type": "help_request", "student_id": student_id, "student_name": student_name,
+            "zone": zone, "strategy_name": strategy_name, "alert_id": alert_id,
+        },
+        priority="high",
+    )
+    if sent:
+        logger.info(f"Sent {sent} help request notifications for {student_name}")
 
     # Award brave shield badge
     shield_awarded = False
@@ -7017,30 +7027,12 @@ async def send_zone_alert(request: Request):
     zone_emoji = {"blue": "🔵", "green": "🟢", "yellow": "🟡", "red": "🔴"}.get(zone, "💙")
     zone_label = {"blue": "Blue", "green": "Green", "yellow": "Yellow", "red": "Red"}.get(zone, zone.title())
 
-    sent = 0
-    try:
-        messages = [
-            {
-                "to": token,
-                "title": f"{zone_emoji} {student_name} checked in",
-                "body": f"Feeling {zone_label} right now.",
-                "data": {"type": "zone_alert", "student_id": student_id, "zone": zone, "log_id": log_id},
-                "sound": "default",
-            }
-            for token in tokens_to_notify
-            if token and token.startswith("ExponentPushToken")
-        ]
-        if messages:
-            async with httpx.AsyncClient() as client:
-                await client.post(
-                    "https://exp.host/--/api/v2/push/send",
-                    json=messages,
-                    headers={"Content-Type": "application/json"},
-                    timeout=10,
-                )
-            sent = len(messages)
-    except Exception as e:
-        logger.error(f"Zone alert push error: {e}")
+    sent = await _send_push(
+        tokens_to_notify,
+        f"{zone_emoji} {student_name} checked in",
+        f"Feeling {zone_label} right now.",
+        data={"type": "zone_alert", "student_id": student_id, "zone": zone, "log_id": log_id},
+    )
 
     return {"ok": True, "notifications_sent": sent}
 
@@ -7111,30 +7103,12 @@ async def send_parent_message(request: Request):
     except: pass
 
     zone_emoji = {"blue": "🔵", "green": "🟢", "yellow": "🟡", "red": "🔴"}.get(zone, "💙")
-    sent = 0
-    try:
-        messages = [
-            {
-                "to": token,
-                "title": f"{zone_emoji} Message from {student_name}",
-                "body": message[:100],
-                "data": {"type": "parent_message", "student_id": student_id, "zone": zone},
-                "sound": "default",
-            }
-            for token in tokens_to_notify
-            if token and token.startswith("ExponentPushToken")
-        ]
-        if messages:
-            async with httpx.AsyncClient() as client:
-                await client.post(
-                    "https://exp.host/--/api/v2/push/send",
-                    json=messages,
-                    headers={"Content-Type": "application/json"},
-                    timeout=10,
-                )
-            sent = len(messages)
-    except Exception as e:
-        logger.error(f"Parent message push error: {e}")
+    sent = await _send_push(
+        tokens_to_notify,
+        f"{zone_emoji} Message from {student_name}",
+        message[:100],
+        data={"type": "parent_message", "student_id": student_id, "zone": zone},
+    )
 
     return {"ok": True, "notifications_sent": sent}
 
@@ -7182,7 +7156,14 @@ async def test_alerts_endpoint():
     """Debug: returns all student_alerts"""
     try:
         result = supabase.table("student_alerts").select("*").order("created_at", desc=True).limit(50).execute()
-        return {"count": len(result.data or []), "alerts": result.data or []}
+        # Real fix Sep 10 (Support Requests parent-leak audit): this endpoint has NO
+        # authentication at all - a much bigger pre-existing issue than the one this line
+        # actually addresses (flagged separately, not fixed here to avoid silently changing
+        # this debug route's behaviour beyond the current task's scope). This filter only
+        # narrowly keeps support_request rows (never-parent-facing, per that feature's hard
+        # rule) from being among the data an unauthenticated caller can read from here.
+        alerts = [a for a in (result.data or []) if a.get("alert_type") != "support_request"]
+        return {"count": len(alerts), "alerts": alerts}
     except Exception as e:
         return {"error": str(e)}
 
@@ -7275,8 +7256,15 @@ async def get_alerts(request: Request, limit: int = 100):
         if role in ("teacher", "school_admin") or role3 in ("teacher", "school_admin"):
             filtered = [a for a in all_alerts if a.get("context") in ("school", None, "")]
         else:
-            # Parents see home alerts AND school alerts for their linked children
-            filtered = [a for a in all_alerts if a.get("context") in ("home", "school", "parent_message", None, "")]
+            # Parents see home alerts AND school alerts for their linked children.
+            # Real fix Sep 10 (Support Requests parent-leak audit): support_request is a
+            # school_admin-facing companion alert (student's classroom/staff-help request,
+            # never meant for a parent's eyes - "never parent-facing" is a hard rule for
+            # this feature) that would otherwise pass straight through this context filter
+            # since its context is "school", exactly like a legitimate parent-visible alert.
+            # Explicitly excluded here rather than changing its context, so it still shows
+            # up correctly for teachers/school_admin above.
+            filtered = [a for a in all_alerts if a.get("context") in ("home", "school", "parent_message", None, "") and a.get("alert_type") != "support_request"]
             try:
                 pass
             except Exception as e:
@@ -9969,10 +9957,15 @@ async def debug_student_classrooms():
         students = supabase.table("students").select("id,name,classroom_id,user_id").order("name").execute()
         classrooms = supabase.table("classrooms").select("id,name,user_id").execute()
         alerts = supabase.table("student_alerts").select("id,student_name,student_id,alert_type,created_at,resolved").order("created_at", desc=True).limit(10).execute()
+        # Real fix Sep 10 (Support Requests parent-leak audit): same no-auth issue as
+        # /notifications/alerts/test, flagged separately - this narrowly keeps
+        # never-parent-facing support_request rows out of what this unauthenticated
+        # debug route can leak, without changing anything else about it.
+        recent_alerts = [a for a in (alerts.data or []) if a.get("alert_type") != "support_request"]
         return {
             "students": students.data or [],
             "classrooms": classrooms.data or [],
-            "recent_alerts": alerts.data or []
+            "recent_alerts": recent_alerts
         }
     except Exception as e:
         return {"error": str(e)}
