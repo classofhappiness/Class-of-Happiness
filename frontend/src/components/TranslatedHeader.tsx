@@ -12,14 +12,20 @@ interface TranslatedHeaderProps {
   // Real addition Aug 16: for multi-step screens (like Submit a Creature) where
   // "back" means a previous internal step, not a different route.
   onBackPress?: () => void;
+  // Real addition Sep 10 (build 27): a single icon-only button left of the logo, for a
+  // screen-specific action (currently just the teacher dashboard's Support Request
+  // shortcut). Generic on purpose - this is a shared header used by many screens, so the
+  // feature-specific gating (toggle check, icon choice, route) stays in the caller.
+  extraAction?: { icon: keyof typeof MaterialIcons.glyphMap; onPress: () => void; color?: string; accessibilityLabel?: string };
 }
 
-export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({ 
-  title, 
+export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
+  title,
   showBack = true,
   backTo,
   showHome = false,
   onBackPress,
+  extraAction,
 }) => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -46,6 +52,15 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
         </View>
         <Text style={styles.title} numberOfLines={1}>{title}</Text>
         <View style={styles.rightSlot}>
+          {extraAction && (
+            <TouchableOpacity
+              onPress={extraAction.onPress}
+              style={styles.extraActionButton}
+              accessibilityLabel={extraAction.accessibilityLabel}
+            >
+              <MaterialIcons name={extraAction.icon} size={26} color={extraAction.color || '#333'} />
+            </TouchableOpacity>
+          )}
           <Image
             source={require('../../assets/images/logo_coh.png')}
             style={styles.logo}
@@ -92,6 +107,12 @@ const styles = StyleSheet.create({
   },
   homeButton: {
     padding: 4,
+  },
+  extraActionButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   logo: {
     width: 32,

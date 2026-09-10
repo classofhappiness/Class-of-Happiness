@@ -355,8 +355,9 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
   // this grid entirely, down to 6 tiles matching her exact order. The kiosk launch/pairing
   // functions moved to teacher/classrooms.tsx, which now owns the entry point - not removed,
   // relocated (see COH-REVIEW-PLAN.md, kiosk was orphaned once before and Jono was explicit
-  // about never letting that happen again). Verified live Sep 10 before adding a 7th tile
-  // here (Support Request) - the grid is genuinely still 6 today, the Sep 4 note wasn't stale.
+  // about never letting that happen again). Grid stays 6 tiles - Support Request briefly
+  // shipped as a 7th tile (Sep 10) then moved to a header icon button per Jono's device-pass
+  // design call: a 7th tile is one more tap+scan than a fixed header button mid-crisis.
   const NAV_BUTTONS = [
     { label: t('students')||'Students', icon: 'people', color: '#4CAF50', route: '/teacher/students', count: students.length },
     { label: t('classrooms')||'Classrooms', icon: 'school', color: '#5C6BC0', route: '/teacher/classrooms', count: classrooms.length },
@@ -364,9 +365,6 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
     { label: t('resources')||'Resources', icon: 'library-books', color: '#5C6BC0', route: '/teacher/resources', count: null },
     { label: 'My\nCheck-In', icon: 'self-improvement', color: '#26A69A', route: '/teacher/checkin', count: null },
     { label: t('creatures_manage')||'Creatures', icon: 'pets', color: '#9C27B0', route: '/teacher/creature-code', count: null },
-    ...(supportRequestsEnabled ? [
-      { label: 'Support\nRequest', icon: 'campaign', color: '#FF7043', route: '/teacher/support-request', count: null },
-    ] : []),
   ];
 
   const handleShowClassCode = async (classroomId: string, classroomName: string) => {
@@ -433,7 +431,16 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
 
   return (
     <SafeAreaView style={st.container}>
-      <TranslatedHeader title={t('teacher_dashboard')||'Teacher Dashboard'} backTo="/" />
+      <TranslatedHeader
+        title={t('teacher_dashboard')||'Teacher Dashboard'}
+        backTo="/"
+        extraAction={supportRequestsEnabled ? {
+          icon: 'campaign',
+          color: '#FF7043',
+          onPress: () => router.push('/teacher/support-request'),
+          accessibilityLabel: t('support_request') || 'Support Request',
+        } : undefined}
+      />
 
       {/* Time filter pills — round 2 of Marisa's mockup (Sep 4): now the second element on
           screen, directly under the header. The icon grid that used to sit here moved down
