@@ -12767,13 +12767,30 @@ def _require_careers_access(user: dict) -> None:
 async def get_my_school_features(request: Request):
     """Optional tabs THIS school is allowed to see, with their own show/hide
     state. A feature the superadmin hasn't allowed is simply absent from the
-    list - no greyed-out teaser."""
+    list - no greyed-out teaser.
+
+    Real bug fix Sep 10: this was school_admin-only from when it was built for
+    the portal (Careers Advisory/Portal Tabs, both school_admin-only surfaces).
+    Support Requests' teacher-side dashboard tile calls this same endpoint to
+    decide whether to show itself, and a teacher isn't a school_admin - every
+    call 403'd, the client's own .catch() swallowed that into "feature off",
+    and the tile silently never appeared for any teacher, ever. Confirmed live
+    Sep 10 (jono+teacher@gmail.com: 403 "School admin access required" despite
+    correct linkage and an enabled toggle - this endpoint was the actual bug,
+    not the data). Now resolves the target school via the same
+    _teacher_school_admin_id() helper the Support Requests endpoints already
+    use - a teacher with no linked school (confirmed live this real case
+    exists) gets an empty list, not an error, matching get_staff_shortcuts'
+    existing precedent for that same edge case."""
     user = await get_current_user(request)
-    if not user or user.get("role") != "school_admin":
-        raise HTTPException(status_code=403, detail="School admin access required")
+    if not user or user.get("role") not in ("school_admin", "teacher"):
+        raise HTTPException(status_code=403, detail="School admin or teacher access required")
+    school_admin_id = _teacher_school_admin_id(user)
+    if not school_admin_id:
+        return []
     result = []
     for key in ALL_SCHOOL_FEATURE_KEYS:
-        flags = _get_school_feature_flags(user["user_id"], key)
+        flags = _get_school_feature_flags(school_admin_id, key)
         if flags["allowed_by_superadmin"]:
             result.append({"feature_key": key, "enabled_by_school": flags["enabled_by_school"]})
     return result
