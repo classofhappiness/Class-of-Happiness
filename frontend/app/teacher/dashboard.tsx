@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
 import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
-import { zoneLogsApi, ZoneLog } from '../../src/utils/api';
+import { zoneLogsApi, ZoneLog, featuresApi } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { registerForPushNotifications } from '../../src/utils/notifications';
@@ -139,6 +139,17 @@ export default function TeacherDashboardScreen() {
   const [graphExpanded, setGraphExpanded] = useState(false);
   const [tipDismissed, setTipDismissed] = useState(false);
   const [localClassrooms, setLocalClassrooms] = useState<any[]>([]);
+  const [supportRequestsEnabled, setSupportRequestsEnabled] = useState(false);
+
+  // Real feature Sep 10 (build 27): Support Request tile only shows when the school has
+  // it enabled (school_features, two-level toggle) - fails closed on any error, same as
+  // the backend's own default for this key, rather than showing a tile that would just
+  // 403 when tapped.
+  useEffect(() => {
+    featuresApi.list()
+      .then(feats => setSupportRequestsEnabled(feats.some(f => f.feature_key === 'support_requests' && f.enabled_by_school)))
+      .catch(() => setSupportRequestsEnabled(false));
+  }, []);
 
   useEffect(() => {
     const fetchStrategyNames = async () => {
@@ -344,7 +355,8 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
   // this grid entirely, down to 6 tiles matching her exact order. The kiosk launch/pairing
   // functions moved to teacher/classrooms.tsx, which now owns the entry point - not removed,
   // relocated (see COH-REVIEW-PLAN.md, kiosk was orphaned once before and Jono was explicit
-  // about never letting that happen again).
+  // about never letting that happen again). Verified live Sep 10 before adding a 7th tile
+  // here (Support Request) - the grid is genuinely still 6 today, the Sep 4 note wasn't stale.
   const NAV_BUTTONS = [
     { label: t('students')||'Students', icon: 'people', color: '#4CAF50', route: '/teacher/students', count: students.length },
     { label: t('classrooms')||'Classrooms', icon: 'school', color: '#5C6BC0', route: '/teacher/classrooms', count: classrooms.length },
@@ -352,6 +364,9 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
     { label: t('resources')||'Resources', icon: 'library-books', color: '#5C6BC0', route: '/teacher/resources', count: null },
     { label: 'My\nCheck-In', icon: 'self-improvement', color: '#26A69A', route: '/teacher/checkin', count: null },
     { label: t('creatures_manage')||'Creatures', icon: 'pets', color: '#9C27B0', route: '/teacher/creature-code', count: null },
+    ...(supportRequestsEnabled ? [
+      { label: 'Support\nRequest', icon: 'campaign', color: '#FF7043', route: '/teacher/support-request', count: null },
+    ] : []),
   ];
 
   const handleShowClassCode = async (classroomId: string, classroomName: string) => {

@@ -993,3 +993,63 @@ export const rewardsApi = {
     apiRequest(`/rewards/${studentId}/collection`),
 };
 
+// School feature toggles (two-level allowed_by_superadmin/enabled_by_school system,
+// built Sep 8 for Careers Advisory - portal-only until now. Support Requests is the
+// first app-side consumer, hence this being added here rather than already existing.)
+export const featuresApi = {
+  list: (): Promise<{ feature_key: string; enabled_by_school: boolean }[]> =>
+    apiRequest('/features'),
+};
+
+// Support Request "buzz" system (build 27)
+export type SupportRequestType = 'CLASSROOM_SUPPORT' | 'STAFF_MEMBER' | 'BACK_ON_TRACK' | 'INCIDENT' | 'OTHER';
+
+export interface SupportRequest {
+  id: string;
+  student_id: string | null;
+  school_admin_id: string;
+  requested_by: string;
+  classroom_id: string | null;
+  request_type: SupportRequestType;
+  target_text: string | null;
+  is_incident: boolean;
+  checkin_colour_at_request: string | null;
+  status: 'PENDING' | 'ACKNOWLEDGED' | 'RESOLVED';
+  admin_response: string | null;
+  responded_at: string | null;
+  acknowledged_at: string | null;
+  last_rebuzz_at: string | null;
+  created_at: string;
+}
+
+export interface StaffShortcut {
+  id: string;
+  school_admin_id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+}
+
+export const supportRequestsApi = {
+  create: (data: { request_type: SupportRequestType; student_id?: string; classroom_id?: string; target_text?: string }): Promise<SupportRequest> =>
+    apiRequest('/support-requests', { method: 'POST', body: JSON.stringify(data) }),
+
+  list: (): Promise<SupportRequest[]> =>
+    apiRequest('/support-requests'),
+
+  acknowledge: (id: string): Promise<SupportRequest> =>
+    apiRequest(`/support-requests/${id}/acknowledge`, { method: 'POST' }),
+
+  respond: (id: string, response: string): Promise<SupportRequest> =>
+    apiRequest(`/support-requests/${id}/respond`, { method: 'POST', body: JSON.stringify({ response }) }),
+
+  getShortcuts: (): Promise<StaffShortcut[]> =>
+    apiRequest('/support-requests/staff-shortcuts'),
+
+  addShortcut: (name: string): Promise<StaffShortcut> =>
+    apiRequest('/support-requests/staff-shortcuts', { method: 'POST', body: JSON.stringify({ name }) }),
+
+  deleteShortcut: (id: string): Promise<void> =>
+    apiRequest(`/support-requests/staff-shortcuts/${id}`, { method: 'DELETE' }),
+};
+
