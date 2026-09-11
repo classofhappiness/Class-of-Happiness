@@ -10921,8 +10921,12 @@ async def update_teacher_resource(resource_id: str, request: Request):
     if not existing.data:
         raise HTTPException(status_code=404, detail="Resource not found")
     resource = existing.data[0]
-    if resource.get("topic") in {"emotions_program"} and user.get("role") != "superadmin":
-        raise HTTPException(status_code=403, detail="Only superadmin can edit Emotions Program resources")
+    # Real fix Sep 11 (Phase 2.5 parity audit, P0): widened from the old hardcoded
+    # topic=="emotions_program" check (Healthy Relationships/Leader Online/etc are also
+    # is_global=True superadmin content and were never covered by that check) to the
+    # general is_global flag - matches the equivalent fix on DELETE below.
+    if resource.get("is_global") and user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Only superadmin can edit global resources")
     is_owner = (resource.get("created_by") == user.get("user_id") or resource.get("user_id") == user.get("user_id"))
     is_admin = user.get("role") in ["admin", "superadmin", "school_admin"]
     if not is_owner and not is_admin:
@@ -10952,6 +10956,13 @@ async def delete_teacher_resource(resource_id: str, request: Request):
     if not existing.data:
         raise HTTPException(status_code=404, detail="Resource not found")
     resource = existing.data[0]
+    # Real fix Sep 11 (Phase 2.5 parity audit, P0 - confirmed live-production risk): this
+    # had NO protection at all for global content - a school_admin (is_admin=True below)
+    # could permanently delete any superadmin-authored global resource, unlike PUT just
+    # above which at least blocked editing (a narrower, now-widened check). Same is_global
+    # gate as PUT, applied to delete.
+    if resource.get("is_global") and user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Only superadmin can delete global resources")
     # Check ownership via created_by OR user_id (backwards compat) OR admin role
     is_owner = (
         resource.get("created_by") == user.get("user_id") or
