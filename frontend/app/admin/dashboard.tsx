@@ -12,6 +12,8 @@ import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { SecureField } from '../../src/components/SecureField';
 import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
+import { supportRequestsApi, SupportRequest } from '../../src/utils/api';
+import { useSupportRequestsList } from '../../src/utils/supportRequestsPoller';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const INDIGO = '#5C6BC0';
@@ -1884,6 +1886,161 @@ function getAdminResourceTopics(t: (k: string) => string) {
   ]);
 }
 
+// Real feature Sep 11 (Phase 2.5/2 item 5): the admin-app equivalent of the portal's
+// Support Requests tab - built once the resources/alerts patterns from items 1-2 settled
+// so it shares the same shapes (open queue + collapsed history) rather than inventing a
+// third variant. School_admin only for now, matching the portal's own scope today -
+// superadmin cross-school buzz visibility is a separate, not-yet-scoped gap (logged in
+// the parity audit). Uses the SAME shared poller the teacher app's banner/status screen
+// already use (useSupportRequestsList) - one poll for the whole app, not a new one.
+const SR_TYPE_LABELS: Record<string, string> = {
+  CLASSROOM_SUPPORT: 'Classroom support', STAFF_MEMBER: 'Staff member requested',
+  BACK_ON_TRACK: 'Back on Track supervision', INCIDENT: 'INCIDENT', OTHER: 'Other',
+};
+const SR_OPEN_STATUSES = ['PENDING', 'ACKNOWLEDGED'];
+
+function srTimeAgo(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const mins = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ago = mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : mins < 1440 ? `${Math.round(mins / 60)}h ago` : `${Math.round(mins / 1440)}d ago`;
+  return `${hh}:${mm} · ${ago}`;
+}
+
+function SupportRequestCard({ r, onAck, onRespond }: { r: SupportRequest; onAck: (id: string) => void; onRespond: (id: string, msg: string) => void }) {
+  const [msg, setMsg] = useState('');
+  const isOpen = SR_OPEN_STATUSES.includes(r.status);
+  const who = r.student_name || r.classroom_name || 'Classroom';
+  const zoneColor = r.checkin_colour_at_request ? ZONE_COLORS[r.checkin_colour_at_request] : null;
+  const metaParts = [SR_TYPE_LABELS[r.request_type] || r.request_type];
+  if (r.target_text) metaParts.push(r.target_text);
+  if (r.classroom_name && r.student_name) metaParts.push(r.classroom_name);
+  metaParts.push(`from ${r.requested_by_name || 'a teacher'}`);
+  const statusMeta: Record<string, { label: string; bg: string; fg: string }> = {
+    PENDING: { label: 'Pending', bg: '#FFF3E0', fg: '#E65100' },
+    ACKNOWLEDGED: { label: 'Acknowledged', bg: '#E8EAF6', fg: '#3949AB' },
+    CANCELLED: { label: 'Cancelled', bg: '#F0F0F0', fg: '#757575' },
+    SUPERSEDED: { label: 'Superseded', bg: '#F0F0F0', fg: '#757575' },
+    RESOLVED: { label: `Resolved: ${r.admin_response || ''}`, bg: '#E8F5E9', fg: '#2E7D32' },
+  };
+  const badge = statusMeta[r.status] || statusMeta.RESOLVED;
+  const terminalIso = r.status === 'RESOLVED' ? r.responded_at : r.status === 'CANCELLED' ? r.cancelled_at : r.status === 'SUPERSEDED' ? r.superseded_at : null;
+  const terminalLabel = r.status === 'RESOLVED' ? 'Resolved' : r.status === 'CANCELLED' ? 'Cancelled' : 'Superseded';
+
+  return (
+    <View style={[srS.card, r.is_incident && srS.cardIncident]}>
+      <View style={srS.cardHeaderRow}>
+        <View style={{ flex: 1 }}>
+          {r.is_incident && <Text style={srS.incidentTag}>🚨 INCIDENT</Text>}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {zoneColor && <View style={[srS.zoneDot, { backgroundColor: zoneColor }]} />}
+            <Text style={srS.who}>{who}</Text>
+          </View>
+          <Text style={srS.meta}>{metaParts.join(' · ')}</Text>
+          <Text style={srS.time}>Sent {srTimeAgo(r.created_at)}</Text>
+          {terminalIso && <Text style={srS.time}>{terminalLabel} {srTimeAgo(terminalIso)}</Text>}
+        </View>
+        <View style={[srS.badge, { backgroundColor: badge.bg }]}>
+          <Text style={[srS.badgeText, { color: badge.fg }]} numberOfLines={2}>{badge.label}</Text>
+        </View>
+      </View>
+      {isOpen && (
+        <View style={srS.actions}>
+          {r.status === 'PENDING' && (
+            <TouchableOpacity style={[srS.actionBtn, { backgroundColor: '#E0E0E0' }]} onPress={() => onAck(r.id)}>
+              <Text style={[srS.actionBtnText, { color: '#555' }]}>Acknowledge</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={[srS.actionBtn, { backgroundColor: '#4CAF73' }]} onPress={() => onRespond(r.id, 'YES')}>
+            <Text style={srS.actionBtnText}>Yes</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[srS.actionBtn, { backgroundColor: '#E05252' }]} onPress={() => onRespond(r.id, 'NO')}>
+            <Text style={srS.actionBtnText}>No</Text>
+          </TouchableOpacity>
+          <TextInput
+            style={srS.msgInput}
+            placeholder="Custom message…"
+            placeholderTextColor="#AAA"
+            value={msg}
+            onChangeText={setMsg}
+            onSubmitEditing={() => { if (msg.trim()) { onRespond(r.id, msg.trim()); setMsg(''); } }}
+          />
+          <TouchableOpacity style={[srS.actionBtn, { backgroundColor: INDIGO }]} onPress={() => { if (msg.trim()) { onRespond(r.id, msg.trim()); setMsg(''); } }}>
+            <Text style={srS.actionBtnText}>Send</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function SupportRequestsManager() {
+  const list = useSupportRequestsList(true);
+  const [resolvedOpen, setResolvedOpen] = useState(false);
+
+  const open = list
+    .filter(r => SR_OPEN_STATUSES.includes(r.status))
+    .sort((a, b) => (Number(b.is_incident) - Number(a.is_incident)) || (new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+  const closed = list
+    .filter(r => !SR_OPEN_STATUSES.includes(r.status))
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const onAck = async (id: string) => {
+    try { await supportRequestsApi.acknowledge(id); } catch { Alert.alert('Error', 'Could not acknowledge.'); }
+  };
+  const onRespond = async (id: string, response: string) => {
+    try { await supportRequestsApi.respond(id, response); } catch { Alert.alert('Error', 'Could not respond.'); }
+  };
+
+  return (
+    <View style={{ gap: 12 }}>
+      <SectionCard title="Support Requests" subtitle={`${open.length} open`} icon="notifications-active" color={INDIGO} defaultOpen>
+        {open.length === 0 ? (
+          <View style={{ alignItems: 'center', padding: 20 }}>
+            <MaterialIcons name="check-circle" size={28} color="#4CAF73" />
+            <Text style={{ color: '#888', marginTop: 6 }}>Nothing open right now.</Text>
+          </View>
+        ) : (
+          <View style={{ gap: 8 }}>
+            {open.map(r => <SupportRequestCard key={r.id} r={r} onAck={onAck} onRespond={onRespond} />)}
+          </View>
+        )}
+      </SectionCard>
+
+      <TouchableOpacity style={srS.resolvedToggle} onPress={() => setResolvedOpen(v => !v)}>
+        <Text style={srS.resolvedToggleText}>✓ Resolved ({closed.length})</Text>
+        <MaterialIcons name={resolvedOpen ? 'expand-less' : 'expand-more'} size={20} color="#888" />
+      </TouchableOpacity>
+      {resolvedOpen && (
+        <View style={{ gap: 8 }}>
+          {closed.map(r => <SupportRequestCard key={r.id} r={r} onAck={onAck} onRespond={onRespond} />)}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const srS = StyleSheet.create({
+  card: { backgroundColor: 'white', borderRadius: 14, padding: 12, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  cardIncident: { borderWidth: 1.5, borderColor: '#E05252' },
+  cardHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  incidentTag: { color: '#E05252', fontWeight: '900', fontSize: 11, marginBottom: 2 },
+  zoneDot: { width: 9, height: 9, borderRadius: 5 },
+  who: { fontSize: 14, fontWeight: '800', color: '#1A1A2E' },
+  meta: { fontSize: 12, color: '#888', marginTop: 2 },
+  time: { fontSize: 11, color: '#AAA', marginTop: 2 },
+  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, maxWidth: 120 },
+  badgeText: { fontSize: 10, fontWeight: '800' },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  actionBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
+  actionBtnText: { color: 'white', fontWeight: '700', fontSize: 12 },
+  msgInput: { flex: 1, minWidth: 120, backgroundColor: '#F8F9FA', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, fontSize: 12, borderWidth: 1, borderColor: '#E8E8E8' },
+  resolvedToggle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8F9FA', borderRadius: 10, padding: 12 },
+  resolvedToggleText: { fontSize: 13, fontWeight: '700', color: '#888' },
+});
+
 function ResourceUpload({ authToken }: { authToken: string|null }) {
   const { t } = useApp();
   const ADMIN_RESOURCE_TOPICS = getAdminResourceTopics(t);
@@ -2032,7 +2189,7 @@ export default function AdminDashboard() {
   const [adminCode, setAdminCode] = useState('');
   const [unlocked, setUnlocked] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [tab, setTab] = useState<'analytics'|'strategies'|'resources'|'creatures'|'schools'|'users'|'settings'>('analytics');
+  const [tab, setTab] = useState<'analytics'|'support_requests'|'strategies'|'resources'|'creatures'|'schools'|'users'|'settings'>('analytics');
   const [stats, setStats] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsPeriod, setStatsPeriod] = useState<1|7|30|90|180|365|730|1095>(7);
@@ -2087,6 +2244,7 @@ export default function AdminDashboard() {
       ]
     : [
         { id: 'analytics', icon: 'bar-chart', label: t('analytics') || 'Analytics' },
+        { id: 'support_requests', icon: 'notifications-active', label: t('support_requests') || 'Support Requests' },
         { id: 'strategies', icon: 'lightbulb', label: t('strategies') || 'Strategies' },
         { id: 'resources', icon: 'folder', label: t('resources') || 'Resources' },
         { id: 'settings', icon: 'account-balance', label: t('school') || 'School' },
@@ -2160,6 +2318,10 @@ export default function AdminDashboard() {
           isSuperAdmin
             ? <SuperAdminDashboard authToken={authToken} stats={stats} statsLoading={statsLoading} statsPeriod={statsPeriod} setStatsPeriod={setStatsPeriod} loadStats={loadStats} />
             : <SchoolAdminDashboard authToken={authToken} stats={stats} statsLoading={statsLoading} statsPeriod={statsPeriod} setStatsPeriod={setStatsPeriod} user={user} />
+        )}
+
+        {tab === 'support_requests' && !isSuperAdmin && (
+          <SupportRequestsManager />
         )}
 
         {tab === 'strategies' && (
