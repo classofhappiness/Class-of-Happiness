@@ -1015,10 +1015,17 @@ export interface SupportRequest {
   target_text: string | null;
   is_incident: boolean;
   checkin_colour_at_request: string | null;
-  status: 'PENDING' | 'ACKNOWLEDGED' | 'RESOLVED';
+  // CANCELLED (teacher self-service) and SUPERSEDED (auto, when an INCIDENT overrides an
+  // open standard request from the same teacher) added Sep 11 - both terminal, both
+  // evidence-preserving, never deleted.
+  status: 'PENDING' | 'ACKNOWLEDGED' | 'RESOLVED' | 'CANCELLED' | 'SUPERSEDED';
   admin_response: string | null;
   responded_at: string | null;
   acknowledged_at: string | null;
+  arrived_at: string | null; // teacher's own happy-path close - see markArrived()
+  cancelled_at: string | null;
+  superseded_at: string | null;
+  superseded_by_id: string | null;
   last_rebuzz_at: string | null;
   created_at: string;
   // Server-enriched display fields (list endpoint only - not stored columns)
@@ -1051,6 +1058,12 @@ export const supportRequestsApi = {
   respond: (id: string, response: string): Promise<SupportRequest> =>
     apiRequest(`/support-requests/${id}/respond`, { method: 'POST', body: JSON.stringify({ response }) }),
 
+  markArrived: (id: string): Promise<SupportRequest> =>
+    apiRequest(`/support-requests/${id}/arrived`, { method: 'POST' }),
+
+  cancel: (id: string): Promise<SupportRequest> =>
+    apiRequest(`/support-requests/${id}/cancel`, { method: 'POST' }),
+
   getShortcuts: (): Promise<StaffShortcut[]> =>
     apiRequest('/support-requests/staff-shortcuts'),
 
@@ -1078,22 +1091,46 @@ export interface SupportRequestStatusDisplay {
   pulse: boolean; // gentle pulse for "still waiting", dropped once we're honest about a stalled re-buzz
 }
 
+// Real addition Sep 11: elapsed time on PENDING states, teacher-side only (this
+// formatter has never been used by the admin queue/portal - those render their own
+// status badges straight from the raw row). Omitted under 1 minute so a just-sent
+// request doesn't read "· 0 min".
+function elapsedSuffix(createdAt: string): string {
+  const mins = Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000);
+  return mins >= 1 ? ` · ${mins} min` : '';
+}
+
 export function formatSupportRequestStatus(r: SupportRequest): SupportRequestStatusDisplay {
   const { pendingYellow, pendingRed, resolvedGreen } = SUPPORT_REQUEST_STATUS_COLOURS;
   if (r.status === 'PENDING') {
     const color = r.is_incident ? pendingRed : pendingYellow;
+    const elapsed = elapsedSuffix(r.created_at);
     if (r.last_rebuzz_at) {
       // Honest state once the first re-buzz has already fired unanswered - so an anxious
       // teacher can judge plan B instead of watching an endless reassuring pulse.
-      return { text: 'No response yet — re-buzzing', color, pulse: false };
+      return { text: `No response yet — re-buzzing${elapsed}`, color, pulse: false };
     }
-    return { text: r.is_incident ? '🚨 Sent — waiting' : 'Sent — waiting', color, pulse: true };
+    return { text: `${r.is_incident ? '🚨 Sent — waiting' : 'Sent — waiting'}${elapsed}`, color, pulse: true };
   }
   if (r.status === 'ACKNOWLEDGED') {
     const seenOnly = r.request_type === 'STAFF_MEMBER' || r.request_type === 'BACK_ON_TRACK';
     return { text: seenOnly ? 'Seen' : 'Seen — on the way', color: resolvedGreen, pulse: false };
   }
-  // RESOLVED
+  if (r.status === 'CANCELLED') {
+    return { text: 'Cancelled', color: resolvedGreen, pulse: false };
+  }
+  if (r.status === 'SUPERSEDED') {
+    // Should rarely if ever actually render - the banner hides SUPERSEDED rows outright
+    // (focus jumps straight to the incident that superseded it), but this keeps a sane,
+    // evidence-accurate string for any future history/log view that reads this row.
+    return { text: 'Superseded by incident', color: resolvedGreen, pulse: false };
+  }
+  // RESOLVED - a teacher's own "Support arrived" tap always wins the display, even if the
+  // admin separately said something ("On my way") before the teacher confirmed arrival -
+  // arrival is the true closer, per Jono's spec.
+  if (r.arrived_at) {
+    return { text: 'Help has arrived 💚', color: resolvedGreen, pulse: false };
+  }
   const resp = (r.admin_response || '').trim();
   const upper = resp.toUpperCase();
   const text = upper === 'YES' ? 'Sorted ✓' : upper === 'NO' ? "Can't right now" : (resp || 'Resolved');

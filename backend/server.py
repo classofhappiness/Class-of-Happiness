@@ -13618,6 +13618,19 @@ async def create_support_request(request: Request):
             pass
 
     is_incident = request_type == "INCIDENT"
+
+    # Real feature Sep 11 (Jono's Uber-model decision): one open (PENDING/ACKNOWLEDGED)
+    # non-incident request per teacher at a time - a stressed teacher shouldn't be able to
+    # queue up duplicates. INCIDENT always sends regardless, and SUPERSEDES (not coexists
+    # with) any open standard request from the same teacher - handled after insert below,
+    # since it needs this new row's own id to record what superseded what.
+    existing_open = supabase.table("support_requests").select("id").eq("requested_by", user["user_id"]).in_("status", ["PENDING", "ACKNOWLEDGED"]).execute().data or []
+    if not is_incident and existing_open:
+        # Same "type|payload" convention as free_tier_limit elsewhere in this file - the
+        # client parses the id back out to route the teacher to their existing request
+        # instead of showing a raw error.
+        raise HTTPException(status_code=409, detail=f"support_request_open|{existing_open[0]['id']}")
+
     row = {
         "student_id": student_id, "school_admin_id": school_admin_id, "requested_by": user["user_id"],
         "classroom_id": owner_classroom_id, "request_type": request_type, "target_text": target_text,
@@ -13631,6 +13644,16 @@ async def create_support_request(request: Request):
     if not result.data:
         raise HTTPException(status_code=500, detail="Could not create support request")
     created = result.data[0]
+
+    # Incident supersedes every open standard request from this same teacher - never
+    # coexists. Terminal, evidence-preserving (never deleted): stays in the log marked
+    # SUPERSEDED with a trace-back to which incident took priority.
+    if is_incident and existing_open:
+        superseded_now = datetime.now(timezone.utc).isoformat()
+        for r in existing_open:
+            supabase.table("support_requests").update({
+                "status": "SUPERSEDED", "superseded_at": superseded_now, "superseded_by_id": created["id"],
+            }).eq("id", r["id"]).execute()
 
     # Companion student_alerts row (school_admin_flag precedent) - skipped when there's no
     # student to attribute it to (CLASSROOM_SUPPORT), per Jono's Sep 10 amendment. This is
@@ -13802,6 +13825,67 @@ async def respond_support_request(request_id: str, request: Request):
         data={"type": "support_request_response", "id": request_id},
     )
     return result.data[0] if result.data else updates
+
+@api_router.post("/support-requests/{request_id}/arrived")
+async def mark_support_request_arrived(request_id: str, request: Request):
+    """Real addition Sep 11 (design change 5 revision): the teacher's own happy-path
+    closer - 'Support arrived' on the status screen, independent of whether the admin
+    ever explicitly acknowledged or responded. Sets arrived_at (its own column, separate
+    from admin_response/responded_at - nothing was "said" here, it's a teacher-confirmed
+    fact) and resolves the request. Either side can now close a request - whichever
+    happens first."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "teacher":
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    existing = supabase.table("support_requests").select("*").eq("id", request_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Support request not found")
+    row = existing.data[0]
+    if row.get("requested_by") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Not your request")
+    if row.get("status") in ("RESOLVED", "CANCELLED", "SUPERSEDED"):
+        return row
+    now_iso = datetime.now(timezone.utc).isoformat()
+    updates = {"status": "RESOLVED", "arrived_at": now_iso}
+    if not row.get("acknowledged_at"):
+        updates["acknowledged_at"] = now_iso
+    result = supabase.table("support_requests").update(updates).eq("id", request_id).execute()
+    return result.data[0] if result.data else {**row, **updates}
+
+@api_router.post("/support-requests/{request_id}/cancel")
+async def cancel_support_request(request_id: str, request: Request):
+    """Real addition Sep 11 (one-open-request rule): a teacher is never stuck behind
+    their own request - cancel is always available while a request is still open.
+    Terminal, evidence-preserving (never deleted, stays in the log marked CANCELLED).
+    Pushes the admin so they don't keep acting on something no longer needed."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "teacher":
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    existing = supabase.table("support_requests").select("*").eq("id", request_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Support request not found")
+    row = existing.data[0]
+    if row.get("requested_by") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Not your request")
+    if row.get("status") in ("RESOLVED", "CANCELLED", "SUPERSEDED"):
+        return row
+    now_iso = datetime.now(timezone.utc).isoformat()
+    result = supabase.table("support_requests").update({"status": "CANCELLED", "cancelled_at": now_iso}).eq("id", request_id).execute()
+    updated = result.data[0] if result.data else {**row, "status": "CANCELLED", "cancelled_at": now_iso}
+
+    admin_token = None
+    try:
+        admin_r = supabase.table("users").select("push_token").eq("user_id", row["school_admin_id"]).execute()
+        admin_token = admin_r.data[0].get("push_token") if admin_r.data else None
+    except Exception as e:
+        logger.error(f"Could not look up admin push_token for cancelled support request {request_id}: {e}")
+    await _send_push(
+        [admin_token] if admin_token else [],
+        "Support request cancelled", "The teacher no longer needs this - no action needed.",
+        data={"type": "support_request_cancelled", "id": request_id},
+        channel_id="default",  # cancel is always the standard channel, even if the cancelled request was an incident
+    )
+    return updated
 
 @api_router.get("/support-requests/staff-shortcuts")
 async def get_staff_shortcuts(request: Request):

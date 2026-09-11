@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useLayoutEffect, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
-  ScrollView, RefreshControl, useWindowDimensions, Alert,
+  ScrollView, RefreshControl, useWindowDimensions, Alert, Animated,
 } from 'react-native';
 import { useRouter, useNavigation, useFocusEffect } from 'expo-router';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -16,6 +16,7 @@ import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { registerForPushNotifications } from '../../src/utils/notifications';
 import { SupportRequestBanner } from '../../src/components/SupportRequestBanner';
+import { useSupportRequestsList } from '../../src/utils/supportRequestsPoller';
 import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
 
 // Real English fallback text, translated at render time via t(tipKey)/t(actionKey) below —
@@ -151,6 +152,28 @@ export default function TeacherDashboardScreen() {
       .then(feats => setSupportRequestsEnabled(feats.some(f => f.feature_key === 'support_requests' && f.enabled_by_school)))
       .catch(() => setSupportRequestsEnabled(false));
   }, []);
+
+  // Real feature Sep 11: ambient dashboard pulse while a support request is open
+  // (PENDING/ACKNOWLEDGED) - a slow, calm ~2s breathe of a low-opacity tint, visible from
+  // across a room without being a flashing alarm. Red for an open incident, yellow for
+  // standard. Stops the moment nothing is open any more (resolved/arrived). Same shared
+  // poller as the banner - this is an independent subscriber, not a second network poll.
+  const supportRequestsList = useSupportRequestsList(supportRequestsEnabled);
+  const openSupportRequests = supportRequestsList.filter(r => r.status !== 'RESOLVED');
+  const hasOpenIncident = openSupportRequests.some(r => r.is_incident);
+  const hasOpenRequest = openSupportRequests.length > 0;
+  const pulseOpacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!hasOpenRequest) { pulseOpacity.setValue(0); return; }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseOpacity, { toValue: 0.1, duration: 2000, useNativeDriver: true }),
+        Animated.timing(pulseOpacity, { toValue: 0.02, duration: 2000, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [hasOpenRequest]);
 
   useEffect(() => {
     const fetchStrategyNames = async () => {
@@ -432,6 +455,15 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
 
   return (
     <SafeAreaView style={st.container}>
+      {hasOpenRequest && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFillObject,
+            { backgroundColor: hasOpenIncident ? EMOTION_COLOURS.red : EMOTION_COLOURS.yellow, opacity: pulseOpacity, zIndex: 0 },
+          ]}
+        />
+      )}
       <TranslatedHeader
         title={t('teacher_dashboard')||'Teacher Dashboard'}
         backTo="/"
