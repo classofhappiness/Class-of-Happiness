@@ -13648,12 +13648,21 @@ async def create_support_request(request: Request):
     # Incident supersedes every open standard request from this same teacher - never
     # coexists. Terminal, evidence-preserving (never deleted): stays in the log marked
     # SUPERSEDED with a trace-back to which incident took priority.
+    # Real bug fix Sep 11, caught live before this ever shipped: this wasn't wrapped in
+    # try/except, so any failure here (including simply the migration not being run yet)
+    # crashed the whole request with a 500 AFTER the incident row had already been
+    # successfully created - the teacher would see a scary error for a request that
+    # actually went through. Matches the same defensive pattern as every other
+    # non-critical side-effect in this function (student_alerts insert, push send below).
     if is_incident and existing_open:
         superseded_now = datetime.now(timezone.utc).isoformat()
         for r in existing_open:
-            supabase.table("support_requests").update({
-                "status": "SUPERSEDED", "superseded_at": superseded_now, "superseded_by_id": created["id"],
-            }).eq("id", r["id"]).execute()
+            try:
+                supabase.table("support_requests").update({
+                    "status": "SUPERSEDED", "superseded_at": superseded_now, "superseded_by_id": created["id"],
+                }).eq("id", r["id"]).execute()
+            except Exception as e:
+                logger.error(f"Could not supersede request {r['id']} with incident {created['id']}: {e}")
 
     # Companion student_alerts row (school_admin_flag precedent) - skipped when there's no
     # student to attribute it to (CLASSROOM_SUPPORT), per Jono's Sep 10 amendment. This is
@@ -13849,7 +13858,10 @@ async def mark_support_request_arrived(request_id: str, request: Request):
     updates = {"status": "RESOLVED", "arrived_at": now_iso}
     if not row.get("acknowledged_at"):
         updates["acknowledged_at"] = now_iso
-    result = supabase.table("support_requests").update(updates).eq("id", request_id).execute()
+    try:
+        result = supabase.table("support_requests").update(updates).eq("id", request_id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not mark arrived - has 04_add_support_requests_arrived_at.sql been run? ({str(e)[:150]})")
     return result.data[0] if result.data else {**row, **updates}
 
 @api_router.post("/support-requests/{request_id}/cancel")
@@ -13870,7 +13882,10 @@ async def cancel_support_request(request_id: str, request: Request):
     if row.get("status") in ("RESOLVED", "CANCELLED", "SUPERSEDED"):
         return row
     now_iso = datetime.now(timezone.utc).isoformat()
-    result = supabase.table("support_requests").update({"status": "CANCELLED", "cancelled_at": now_iso}).eq("id", request_id).execute()
+    try:
+        result = supabase.table("support_requests").update({"status": "CANCELLED", "cancelled_at": now_iso}).eq("id", request_id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not cancel - has 05_add_support_requests_status_machine.sql been run? ({str(e)[:150]})")
     updated = result.data[0] if result.data else {**row, "status": "CANCELLED", "cancelled_at": now_iso}
 
     admin_token = None
