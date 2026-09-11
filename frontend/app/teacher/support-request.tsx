@@ -227,7 +227,12 @@ export default function SupportRequestScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <TranslatedHeader title={who} backTo="/teacher/dashboard" />
-        <View style={styles.successScreen}>
+        {/* Real fix Sep 11: this was a plain View, not scrollable - with the dot/title/
+            text plus now up to three buttons (Arrived/Cancel/Back to Dashboard), a small
+            screen or a long custom admin response could push Back to Dashboard below the
+            visible area entirely, not just make it laggy. ScrollView guarantees it's
+            always reachable regardless of content height or device size. */}
+        <ScrollView contentContainerStyle={styles.statusScroll}>
           <Animated.View style={[styles.statusDot, { backgroundColor: display.color, opacity: pulseAnim }]} />
           <Text style={styles.successTitle}>{who}</Text>
           <Text style={styles.statusText}>{display.text}</Text>
@@ -279,7 +284,7 @@ export default function SupportRequestScreen() {
           <TouchableOpacity style={styles.backToDashboardBtn} onPress={() => router.replace('/teacher/dashboard')}>
             <Text style={styles.backToDashboardText}>Back to Dashboard</Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -468,6 +473,9 @@ const styles = StyleSheet.create({
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   emptyText: { fontSize: 16, color: '#999', marginTop: 12, textAlign: 'center' },
   successScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  // ScrollView contentContainerStyle needs flexGrow (not flex) to both center short
+  // content AND allow scrolling past the viewport when content is taller than the screen.
+  statusScroll: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   successTitle: { fontSize: 24, fontWeight: '700', color: '#333', marginTop: 16, textAlign: 'center' },
   successSub: { fontSize: 14, color: '#888', marginTop: 8 },
   colourCircleRow: { flexDirection: 'row', gap: 6 },
