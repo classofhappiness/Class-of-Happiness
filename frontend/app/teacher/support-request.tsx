@@ -78,7 +78,9 @@ export default function SupportRequestScreen() {
   // classroom" - read-only, fetched once the classroom is chosen, zero new writes.
   const [colourMix, setColourMix] = useState<ColourMix | null>(null);
 
-  const classroomStudents = (students || []).filter((s: any) => s.classroom_id === classroomId);
+  const classroomStudents = (students || [])
+    .filter((s: any) => s.classroom_id === classroomId)
+    .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
 
   useEffect(() => {
     AsyncStorage.getItem(RECENTS_KEY).then(raw => {
