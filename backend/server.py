@@ -11074,6 +11074,16 @@ async def update_teacher_resource(resource_id: str, request: Request):
     for field in ("title", "description", "order_index", "target_audience", "week_number"):
         if field in body:
             updates[field] = body[field]
+    # Real fix Sep 11 (Resources Manager build): topic/category was silently unsupported
+    # here at all - the new manager's Topic dropdown edited nothing, live-confirmed this
+    # session (a PUT changing topic returned 200 but the value never actually changed).
+    # Both kept in sync, matching create_teacher_resource's own topic==category convention
+    # (various read paths check r.get("topic") or r.get("category") inconsistently).
+    if "topic" in body or "category" in body:
+        new_topic = body.get("topic") or body.get("category")
+        if new_topic:
+            updates["topic"] = new_topic
+            updates["category"] = new_topic
     if updates:
         supabase.table("resources").update(updates).eq("id", resource_id).execute()
     updated = supabase.table("resources").select(_RESOURCE_LIGHT_FIELDS).eq("id", resource_id).execute()
