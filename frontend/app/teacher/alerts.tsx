@@ -41,12 +41,20 @@ const Pill = ({ label, active, onPress, color='#5C6BC0' }: { label:string, activ
 const AlertCard = ({ alert, onResolve, selected, selectMode, onLongPress, onPress }: any) => {
   const { t } = useApp();
   const zc = ZONE_COLOR[alert.zone] || '#5C6BC0';
+  // Real fix Sep 11 (item 3): support_request fell into the generic else branch here and
+  // rendered as a bare "Message" - no distinguishing label at all. The companion alert's
+  // message field already carries the full readable type ("Student to a staff member
+  // (Tom)", "Back on Track", etc. - see backend's _support_request_readable_type), so this
+  // just needs its own badge, not a generic one.
   const typeLabel = alert.alert_type === 'help_request' ? (t('help_request') || 'Help Request') :
-                   alert.alert_type === 'zone_alert' ? (t('check_in_alert') || 'Check-in Alert') : (t('message_label') || 'Message');
+                   alert.alert_type === 'zone_alert' ? (t('check_in_alert') || 'Check-in Alert') :
+                   alert.alert_type === 'support_request' ? 'Support Request' : (t('message_label') || 'Message');
   const typeBg = alert.alert_type === 'help_request' ? '#FFF3E0' :
-                 alert.alert_type === 'parent_message' ? '#EEF2FF' : '#E8F5E9';
+                 alert.alert_type === 'parent_message' ? '#EEF2FF' :
+                 alert.alert_type === 'support_request' ? '#FFF3E0' : '#E8F5E9';
   const typeColor = alert.alert_type === 'help_request' ? '#E65100' :
-                   alert.alert_type === 'parent_message' ? '#5C6BC0' : '#2E7D32';
+                   alert.alert_type === 'parent_message' ? '#5C6BC0' :
+                   alert.alert_type === 'support_request' ? '#FF7043' : '#2E7D32';
   return (
     <TouchableOpacity onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}
       style={{ backgroundColor: selected ? '#E8F5E9' : 'white', borderRadius:14, marginBottom:10,
@@ -74,9 +82,11 @@ const AlertCard = ({ alert, onResolve, selected, selectMode, onLongPress, onPres
               </Text>
             ) : null}
             {alert.message ? (
-              <View style={{ backgroundColor:'#EEF2FF', borderRadius:10, padding:10, marginBottom:4,
-                borderLeftWidth:4, borderLeftColor:'#5C6BC0' }}>
-                <Text style={{ fontSize:11, color:'#5C6BC0', fontWeight:'700', marginBottom:3 }}>💬 {t('message_label') || 'Message'}</Text>
+              <View style={{ backgroundColor: alert.alert_type === 'support_request' ? '#FFF3E0' : '#EEF2FF', borderRadius:10, padding:10, marginBottom:4,
+                borderLeftWidth:4, borderLeftColor: alert.alert_type === 'support_request' ? '#FF7043' : '#5C6BC0' }}>
+                <Text style={{ fontSize:11, color: alert.alert_type === 'support_request' ? '#FF7043' : '#5C6BC0', fontWeight:'700', marginBottom:3 }}>
+                  {alert.alert_type === 'support_request' ? '🔔 Support Request' : `💬 ${t('message_label') || 'Message'}`}
+                </Text>
                 <Text style={{ fontSize:14, color:'#111', fontWeight:'600', lineHeight:20 }}>{alert.message}</Text>
               </View>
             ) : null}
@@ -280,7 +290,8 @@ export default function TeacherAlertsScreen() {
                   backgroundColor: ZONE_COLOR[a.zone] || '#CCC' }} />
                 <Text style={{ flex:1, fontSize:13, color:'#666' }}>
                   {a.student_name} · {a.alert_type === 'help_request' ? (t('help_request') || 'Help Request') :
-                  a.alert_type === 'zone_alert' ? (t('check_in_short') || 'Check-in') : (t('message_label') || 'Message')}
+                  a.alert_type === 'zone_alert' ? (t('check_in_short') || 'Check-in') :
+                  a.alert_type === 'support_request' ? `Support Request — ${a.message}` : (t('message_label') || 'Message')}
                 </Text>
                 <MaterialIcons name="check-circle" size={18} color="#4CAF50" />
               </View>

@@ -16,6 +16,8 @@ frontend/.metro-cache/
 # Allow app assets
 !frontend/assets/**/*.png
 !frontend/assets/**/*.jpg
+!frontend/assets/**/*.wav
+!frontend/assets/**/*.mp3
 *.swp
 COH-HANDOVER.md
 .DS_Store

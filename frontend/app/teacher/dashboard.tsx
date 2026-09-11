@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useLayoutEffect, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
-  ScrollView, RefreshControl, useWindowDimensions, Alert,
+  ScrollView, RefreshControl, useWindowDimensions, Alert, Animated,
 } from 'react-native';
 import { useRouter, useNavigation, useFocusEffect } from 'expo-router';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -11,10 +11,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
 import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
-import { zoneLogsApi, ZoneLog } from '../../src/utils/api';
+import { zoneLogsApi, ZoneLog, featuresApi } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { registerForPushNotifications } from '../../src/utils/notifications';
+import { SupportRequestBanner } from '../../src/components/SupportRequestBanner';
+import { useSupportRequestsList } from '../../src/utils/supportRequestsPoller';
 import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
 
 // Real English fallback text, translated at render time via t(tipKey)/t(actionKey) below —
@@ -139,6 +141,73 @@ export default function TeacherDashboardScreen() {
   const [graphExpanded, setGraphExpanded] = useState(false);
   const [tipDismissed, setTipDismissed] = useState(false);
   const [localClassrooms, setLocalClassrooms] = useState<any[]>([]);
+  const [supportRequestsEnabled, setSupportRequestsEnabled] = useState(false);
+
+  // Real feature Sep 10 (build 27): Support Request tile only shows when the school has
+  // it enabled (school_features, two-level toggle) - fails closed on any error, same as
+  // the backend's own default for this key, rather than showing a tile that would just
+  // 403 when tapped.
+  useEffect(() => {
+    featuresApi.list()
+      .then(feats => setSupportRequestsEnabled(feats.some(f => f.feature_key === 'support_requests' && f.enabled_by_school)))
+      .catch(() => setSupportRequestsEnabled(false));
+  }, []);
+
+  // Real feature Sep 11: ambient dashboard pulse while a support request is open - a
+  // slow, calm ~2s breathe of a tint, visible from across a room without being a
+  // flashing alarm. Tracks the SAME status progression as the pill/dot, not just
+  // request type: red while an incident is still waiting, yellow while a standard
+  // request is still waiting, green once everything open has been seen/acknowledged
+  // (nothing left pending). Stops the moment nothing is open any more. Real fix Sep 11
+  // (Jono's device pass): "!== RESOLVED" wrongly counted CANCELLED/SUPERSEDED as open -
+  // narrowed to the two states that are genuinely still active. Opacity range widened
+  // per Jono's feedback ("more yellow/red/green... but not too much") - stronger colour
+  // presence, same slow calm breathe, not a flash.
+  const supportRequestsList = useSupportRequestsList(supportRequestsEnabled);
+  const openSupportRequests = supportRequestsList.filter(r => r.status === 'PENDING' || r.status === 'ACKNOWLEDGED');
+  const hasOpenRequest = openSupportRequests.length > 0;
+  const hasPendingIncident = openSupportRequests.some(r => r.is_incident && r.status === 'PENDING');
+  const hasPendingStandard = openSupportRequests.some(r => !r.is_incident && r.status === 'PENDING');
+
+  // Real addition Sep 11 (item 4): the moment a teacher taps "Support arrived", a brief
+  // green breathe (~3s) confirms resolution - regardless of whether the admin had
+  // acknowledged first. Green always means "resolved," not just "seen." One-shot, not a
+  // loop - the ongoing ambient pulse (if something else is still open) resumes after.
+  const prevStatusRef = useRef<Record<string, string>>({});
+  const [arrivalFlash, setArrivalFlash] = useState(false);
+  useEffect(() => {
+    supportRequestsList.forEach(r => {
+      const was = prevStatusRef.current[r.id];
+      if (was && was !== 'RESOLVED' && r.status === 'RESOLVED' && r.arrived_at) {
+        setArrivalFlash(true);
+        setTimeout(() => setArrivalFlash(false), 3000);
+      }
+      prevStatusRef.current[r.id] = r.status;
+    });
+  }, [supportRequestsList]);
+
+  const pulseColor = arrivalFlash ? EMOTION_COLOURS.green
+    : hasPendingIncident ? EMOTION_COLOURS.red : hasPendingStandard ? EMOTION_COLOURS.yellow : EMOTION_COLOURS.green;
+  const pulseOpacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (arrivalFlash) {
+      const oneShot = Animated.sequence([
+        Animated.timing(pulseOpacity, { toValue: 0.22, duration: 1500, useNativeDriver: true }),
+        Animated.timing(pulseOpacity, { toValue: 0, duration: 1500, useNativeDriver: true }),
+      ]);
+      oneShot.start();
+      return () => oneShot.stop();
+    }
+    if (!hasOpenRequest) { pulseOpacity.setValue(0); return; }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseOpacity, { toValue: 0.22, duration: 2000, useNativeDriver: true }),
+        Animated.timing(pulseOpacity, { toValue: 0.06, duration: 2000, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [hasOpenRequest, arrivalFlash]);
 
   useEffect(() => {
     const fetchStrategyNames = async () => {
@@ -344,7 +413,9 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
   // this grid entirely, down to 6 tiles matching her exact order. The kiosk launch/pairing
   // functions moved to teacher/classrooms.tsx, which now owns the entry point - not removed,
   // relocated (see COH-REVIEW-PLAN.md, kiosk was orphaned once before and Jono was explicit
-  // about never letting that happen again).
+  // about never letting that happen again). Grid stays 6 tiles - Support Request briefly
+  // shipped as a 7th tile (Sep 10) then moved to a header icon button per Jono's device-pass
+  // design call: a 7th tile is one more tap+scan than a fixed header button mid-crisis.
   const NAV_BUTTONS = [
     { label: t('students')||'Students', icon: 'people', color: '#4CAF50', route: '/teacher/students', count: students.length },
     { label: t('classrooms')||'Classrooms', icon: 'school', color: '#5C6BC0', route: '/teacher/classrooms', count: classrooms.length },
@@ -418,7 +489,25 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
 
   return (
     <SafeAreaView style={st.container}>
-      <TranslatedHeader title={t('teacher_dashboard')||'Teacher Dashboard'} backTo="/" />
+      {(hasOpenRequest || arrivalFlash) && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFillObject,
+            { backgroundColor: pulseColor, opacity: pulseOpacity, zIndex: 0 },
+          ]}
+        />
+      )}
+      <TranslatedHeader
+        title={t('teacher_dashboard')||'Teacher Dashboard'}
+        backTo="/"
+        extraAction={supportRequestsEnabled ? {
+          icon: 'campaign',
+          color: '#FF7043',
+          onPress: () => router.push('/teacher/support-request'),
+          accessibilityLabel: t('support_request') || 'Support Request',
+        } : undefined}
+      />
 
       {/* Time filter pills — round 2 of Marisa's mockup (Sep 4): now the second element on
           screen, directly under the header. The icon grid that used to sit here moved down
@@ -733,6 +822,13 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
             </View>
           ))}
         </View>
+
+        {/* Real feature Sep 10 (build 27): pending Support Request banner, directly under
+            Today's Class Mood per Jono's spec - Uber-style collapsed trip card, inset (not
+            edge-to-edge), scrolls with the page. Minimal footprint: renders nothing at all
+            when there's no open request; flashes green/resolved briefly then removes
+            itself for good rather than lingering (Alerts already has the full history). */}
+        <SupportRequestBanner enabled={supportRequestsEnabled} />
 
         {/* Widget button removed for now — no real native OS widget exists yet, only an
             in-app preview screen (app/teacher/widget.tsx, kept intact for a future real

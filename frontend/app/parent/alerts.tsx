@@ -110,7 +110,15 @@ export default function ParentAlertsScreen() {
     const tok = await AsyncStorage.getItem('session_token') || '';
     setToken(tok);
     const data = await getAlerts(tok);
-    setAlerts(Array.isArray(data) ? data : []);
+    // Real fix Sep 11 (item 2, parent-leak audit): defense in depth - the backend already
+    // excludes alert_type "support_request" from every parent-reachable read, but this
+    // screen renders alert.message completely unconditionally (no alert_type gating at
+    // all) with no frontend-level backstop of its own. Support requests are never
+    // parent-facing by design (informing parents is a human safeguarding-communication
+    // decision, never an app push) - this filter stays even if the backend exclusion is
+    // ever accidentally weakened.
+    const safe = (Array.isArray(data) ? data : []).filter((a: any) => a.alert_type !== 'support_request');
+    setAlerts(safe);
     setLoading(false);
   }, []);
 

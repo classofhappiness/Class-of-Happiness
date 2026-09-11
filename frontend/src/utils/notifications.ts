@@ -1,9 +1,22 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+
+// Real bug fix Sep 10 (build 27 device pass): since Expo SDK 53, remote push
+// functionality was pulled from Expo Go entirely - calling getExpoPushTokenAsync (or
+// even just touching permissions) under Expo Go logs its own internal
+// "expo-notifications functionality is not fully supported in Expo Go" error to the
+// console regardless of any try/catch on our side, every single time this module's
+// functions run. Confirmed this is what device-pass testing (Expo Go, no dev client
+// yet - notifee's native code needs one) was hitting. Once notifee lands with a real
+// EAS/dev-client build, physical-device testing moves off Expo Go and this stops
+// mattering, but until then, skip remote push entirely under Expo Go rather than
+// let every dashboard mount log a scary, unactionable error.
+const IS_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -17,6 +30,7 @@ Notifications.setNotificationHandler({
 
 export async function registerForPushNotifications(): Promise<string | null> {
   if (!Device.isDevice) return null; // Simulator — skip
+  if (IS_EXPO_GO) return null; // Expo Go — remote push unsupported since SDK 53, skip silently
   const { status: existing } = await Notifications.getPermissionsAsync();
   let finalStatus = existing;
   if (existing !== 'granted') {

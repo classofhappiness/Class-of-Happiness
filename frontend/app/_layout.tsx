@@ -408,6 +408,13 @@ function AppContent() {
           }}
         />
         <Stack.Screen
+          name="teacher/support-request"
+          options={{
+            headerShown: false,
+            title: 'Support Request',
+          }}
+        />
+        <Stack.Screen
           name="kiosk/index"
           options={{
             headerShown: false,

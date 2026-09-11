@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import { EMOTION_COLOURS } from '../constants/emotionColours';
 
 // Backend URL from environment variable - required for all deployments
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
@@ -97,6 +98,12 @@ export interface ZoneLog {
   strategies_selected: string[];
   comment?: string;
   timestamp: string;
+  // Real addition Sep 11 (item 2): teacher/admin-only context - which support request
+  // type triggered this check-in (via the colour-circle write-through), and where it was
+  // logged (school vs home). Never rendered on any parent-facing surface.
+  support_request_type?: string | null;
+  logged_by?: string | null;
+  location?: string | null;
 }
 
 export interface Strategy {
@@ -332,7 +339,7 @@ export const customStrategiesApi = {
 
 // Zone Logs API
 export const zoneLogsApi = {
-  create: (data: { student_id: string; zone: string; strategies_selected: string[]; comment?: string; logged_by?: string }): Promise<ZoneLog> => 
+  create: (data: { student_id: string; zone: string; strategies_selected: string[]; comment?: string; logged_by?: string; suppress_auto_alert?: boolean; support_request_type?: string }): Promise<ZoneLog> =>
     apiRequest('/zone-logs', { method: 'POST', body: JSON.stringify(data) }),
   
   getByStudent: (studentId: string, days?: number): Promise<ZoneLog[]> => 
@@ -992,4 +999,191 @@ export const rewardsApi = {
   getCollection: (studentId: string): Promise<StudentCollection> =>
     apiRequest(`/rewards/${studentId}/collection`),
 };
+
+// School feature toggles (two-level allowed_by_superadmin/enabled_by_school system,
+// built Sep 8 for Careers Advisory - portal-only until now. Support Requests is the
+// first app-side consumer, hence this being added here rather than already existing.)
+export const featuresApi = {
+  list: (): Promise<{ feature_key: string; enabled_by_school: boolean }[]> =>
+    apiRequest('/features'),
+};
+
+// Support Request "buzz" system (build 27)
+export type SupportRequestType = 'CLASSROOM_SUPPORT' | 'STAFF_MEMBER' | 'BACK_ON_TRACK' | 'INCIDENT' | 'OTHER';
+
+export interface SupportRequest {
+  id: string;
+  student_id: string | null;
+  school_admin_id: string;
+  requested_by: string;
+  classroom_id: string | null;
+  request_type: SupportRequestType;
+  target_text: string | null;
+  is_incident: boolean;
+  checkin_colour_at_request: string | null;
+  // Real addition Sep 11 (item 8): today's classroom-wide colour distribution, auto-
+  // attached to classroom-level requests only (null for student-linked ones, which
+  // already have checkin_colour_at_request). Read-only aggregate snapshot.
+  classroom_colour_mix: { blue: number; green: number; yellow: number; red: number } | null;
+  // CANCELLED (teacher self-service) and SUPERSEDED (auto, when an INCIDENT overrides an
+  // open standard request from the same teacher) added Sep 11 - both terminal, both
+  // evidence-preserving, never deleted.
+  status: 'PENDING' | 'ACKNOWLEDGED' | 'RESOLVED' | 'CANCELLED' | 'SUPERSEDED';
+  admin_response: string | null;
+  responded_at: string | null;
+  acknowledged_at: string | null;
+  arrived_at: string | null; // teacher's own happy-path close - see markArrived()
+  cancelled_at: string | null;
+  superseded_at: string | null;
+  superseded_by_id: string | null;
+  last_rebuzz_at: string | null;
+  created_at: string;
+  // Server-enriched display fields (list endpoint only - not stored columns)
+  student_name?: string | null;
+  classroom_name?: string | null;
+  requested_by_name?: string | null;
+}
+
+export interface StaffShortcut {
+  id: string;
+  school_admin_id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+}
+
+export const supportRequestsApi = {
+  create: (data: { request_type: SupportRequestType; student_id?: string; classroom_id?: string; target_text?: string }): Promise<SupportRequest> =>
+    apiRequest('/support-requests', { method: 'POST', body: JSON.stringify(data) }),
+
+  list: (): Promise<SupportRequest[]> =>
+    apiRequest('/support-requests'),
+
+  getOne: (id: string): Promise<SupportRequest> =>
+    apiRequest(`/support-requests/${id}`),
+
+  acknowledge: (id: string): Promise<SupportRequest> =>
+    apiRequest(`/support-requests/${id}/acknowledge`, { method: 'POST' }),
+
+  respond: (id: string, response: string): Promise<SupportRequest> =>
+    apiRequest(`/support-requests/${id}/respond`, { method: 'POST', body: JSON.stringify({ response }) }),
+
+  markArrived: (id: string): Promise<SupportRequest> =>
+    apiRequest(`/support-requests/${id}/arrived`, { method: 'POST' }),
+
+  cancel: (id: string): Promise<SupportRequest> =>
+    apiRequest(`/support-requests/${id}/cancel`, { method: 'POST' }),
+
+  getShortcuts: (): Promise<StaffShortcut[]> =>
+    apiRequest('/support-requests/staff-shortcuts'),
+
+  addShortcut: (name: string): Promise<StaffShortcut> =>
+    apiRequest('/support-requests/staff-shortcuts', { method: 'POST', body: JSON.stringify({ name }) }),
+
+  deleteShortcut: (id: string): Promise<void> =>
+    apiRequest(`/support-requests/staff-shortcuts/${id}`, { method: 'DELETE' }),
+};
+
+export type ColourMix = { blue: number; green: number; yellow: number; red: number };
+
+export const classroomsColourMixApi = {
+  // Real addition Sep 11 (item 8): today's check-in colour distribution for a classroom -
+  // read-only, used to show small dots on "Support to my classroom" before sending.
+  getTodaysMix: (classroomId: string): Promise<ColourMix> =>
+    apiRequest(`/classrooms/${classroomId}/todays-colour-mix`),
+};
+
+// Real addition Sep 11: a human-readable description of a request's type + details, for
+// the dashboard's inline expand card and anywhere else that needs "what was asked for" in
+// plain words - mirrors backend's _support_request_readable_type exactly so app and any
+// future admin surface never disagree on wording.
+export function describeSupportRequest(r: SupportRequest): string {
+  switch (r.request_type) {
+    case 'CLASSROOM_SUPPORT':
+      return r.student_name ? `Classroom support (re: ${r.student_name})` : 'Classroom support';
+    case 'STAFF_MEMBER':
+      return r.target_text ? `Student to a staff member (${r.target_text})` : 'Student to a staff member';
+    case 'BACK_ON_TRACK':
+      return "Student to 'Back on Track' Space";
+    case 'INCIDENT':
+      return r.student_name ? 'Incident' : 'Incident (classroom)';
+    case 'OTHER':
+      return r.target_text ? `Other (${r.target_text})` : 'Other';
+    default:
+      return r.request_type;
+  }
+}
+
+// "Sent 9:42 · 12 min ago" - so a teacher routed to an existing request (one-open-request
+// rule) or checking the dashboard card knows which request is active and since when.
+export function formatSentLine(createdAt: string): string {
+  const d = new Date(createdAt);
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+  const ago = mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` : `${Math.floor(mins / 60)} hr ${mins % 60} min ago`;
+  return `Sent ${time} · ${ago}`;
+}
+
+// Real addition Sep 10 (build 27, design change 5): teacher-side status wording, per
+// Jono's tone spec - warm/glanceable, no "alert/incident report/dispatch" language
+// (INCIDENT alone keeps urgent language). Colours reference EMOTION_COLOURS directly
+// (not hex literals) so a future palette change propagates here automatically - Sep 10
+// correction: the earlier #FFD93D/#E05252/#4CAF73 literals were a stale-notes error.
+export const SUPPORT_REQUEST_STATUS_COLOURS = {
+  pendingYellow: EMOTION_COLOURS.yellow,
+  pendingRed: EMOTION_COLOURS.red,
+  resolvedGreen: EMOTION_COLOURS.green,
+} as const;
+
+export interface SupportRequestStatusDisplay {
+  text: string;
+  color: string;
+  pulse: boolean; // gentle pulse for "still waiting", dropped once we're honest about a stalled re-buzz
+}
+
+// Real addition Sep 11: elapsed time on PENDING states, teacher-side only (this
+// formatter has never been used by the admin queue/portal - those render their own
+// status badges straight from the raw row). Omitted under 1 minute so a just-sent
+// request doesn't read "· 0 min".
+function elapsedSuffix(createdAt: string): string {
+  const mins = Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000);
+  return mins >= 1 ? ` · ${mins} min` : '';
+}
+
+export function formatSupportRequestStatus(r: SupportRequest): SupportRequestStatusDisplay {
+  const { pendingYellow, pendingRed, resolvedGreen } = SUPPORT_REQUEST_STATUS_COLOURS;
+  if (r.status === 'PENDING') {
+    const color = r.is_incident ? pendingRed : pendingYellow;
+    const elapsed = elapsedSuffix(r.created_at);
+    if (r.last_rebuzz_at) {
+      // Honest state once the first re-buzz has already fired unanswered - so an anxious
+      // teacher can judge plan B instead of watching an endless reassuring pulse.
+      return { text: `No response yet — re-buzzing${elapsed}`, color, pulse: false };
+    }
+    return { text: `${r.is_incident ? '🚨 Sent — waiting' : 'Sent — waiting'}${elapsed}`, color, pulse: true };
+  }
+  if (r.status === 'ACKNOWLEDGED') {
+    const seenOnly = r.request_type === 'STAFF_MEMBER' || r.request_type === 'BACK_ON_TRACK';
+    return { text: seenOnly ? 'Seen' : 'Seen — on the way', color: resolvedGreen, pulse: false };
+  }
+  if (r.status === 'CANCELLED') {
+    return { text: 'Cancelled', color: resolvedGreen, pulse: false };
+  }
+  if (r.status === 'SUPERSEDED') {
+    // Should rarely if ever actually render - the banner hides SUPERSEDED rows outright
+    // (focus jumps straight to the incident that superseded it), but this keeps a sane,
+    // evidence-accurate string for any future history/log view that reads this row.
+    return { text: 'Superseded by incident', color: resolvedGreen, pulse: false };
+  }
+  // RESOLVED - a teacher's own "Support arrived" tap always wins the display, even if the
+  // admin separately said something ("On my way") before the teacher confirmed arrival -
+  // arrival is the true closer, per Jono's spec.
+  if (r.arrived_at) {
+    return { text: 'Help has arrived 💚', color: resolvedGreen, pulse: false };
+  }
+  const resp = (r.admin_response || '').trim();
+  const upper = resp.toUpperCase();
+  const text = upper === 'YES' ? 'Sorted ✓' : upper === 'NO' ? "Can't right now" : (resp || 'Resolved');
+  return { text, color: resolvedGreen, pulse: false };
+}
 
