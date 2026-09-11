@@ -28,6 +28,13 @@ from reportlab.platypus import KeepTogether, SimpleDocTemplate, Table, TableStyl
 from reportlab.graphics.shapes import Drawing
 from reportlab.graphics.charts.barcharts import VerticalBarChart
 
+# Excel / Word export (Phase 2.5 - Services Directory + Wellbeing Tracker format picker)
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
+from docx import Document
+from docx.shared import Pt, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+
 # Supabase
 from supabase import create_client, Client
 
@@ -12761,6 +12768,149 @@ async def create_school_admin(request: Request):
         "login_url": "https://www.classofhappiness.com/portal.html",
         "note": "User can log in with their email — no password needed"
     }
+
+
+# ── EXPORT FORMAT PICKER (Phase 2.5 item 4) ─────────────────────────────
+# Shared PDF/Excel/Word builders for Services Directory + Wellbeing Tracker - portal
+# only for now (neither surface exists in the admin app at all today, confirmed by the
+# Sep 11 parity audit - building export for a surface that doesn't exist yet would be
+# premature; app parity for the underlying features themselves is a separate, larger,
+# already-logged gap). Same indigo branding as the existing ReportLab PDFs elsewhere in
+# this file (colors.HexColor('#5C6BC0')/('#3949AB')), not navy, per Jono's own
+# correction on an earlier report.
+_EXPORT_INDIGO = colors.HexColor('#5C6BC0')
+_EXPORT_MEDIA_TYPES = {
+    "pdf": "application/pdf",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
+def _export_cell_value(row: dict, key: str):
+    val = row.get(key, "")
+    if isinstance(val, list):
+        return ", ".join(str(v) for v in val)
+    if val is None:
+        return ""
+    if isinstance(val, bool):
+        return "Yes" if val else "No"
+    return val
+
+def _export_to_pdf(title: str, columns: list, rows: list) -> bytes:
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=letter, topMargin=0.6*inch, bottomMargin=0.6*inch, leftMargin=0.5*inch, rightMargin=0.5*inch)
+    styles = getSampleStyleSheet()
+    cell_style = ParagraphStyle('ExportCell', parent=styles['Normal'], fontSize=8, leading=10)
+    title_style = ParagraphStyle('ExportTitle', parent=styles['Heading1'], textColor=_EXPORT_INDIGO, fontSize=16)
+    elements = [
+        Paragraph(title, title_style),
+        Paragraph(f"Exported {datetime.now(timezone.utc).strftime('%d %b %Y')}", styles['Normal']),
+        Spacer(1, 14),
+    ]
+    if not rows:
+        elements.append(Paragraph("Nothing to export yet.", styles['Normal']))
+    else:
+        data = [[Paragraph(label, cell_style) for _, label in columns]]
+        for row in rows:
+            data.append([Paragraph(str(_export_cell_value(row, key)), cell_style) for key, _ in columns])
+        # Real convention already used elsewhere in this file (Overview PDF's Class
+        # Performance/Alerts Summary tables) - repeatRows=1 so the header survives
+        # pagination on a long export, same pagination-safety discipline.
+        table = Table(data, repeatRows=1)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), _EXPORT_INDIGO),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E0E0E0')),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
+        ]))
+        elements.append(table)
+    doc.build(elements)
+    buf.seek(0)
+    return buf.read()
+
+def _export_to_xlsx(title: str, columns: list, rows: list) -> bytes:
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = (title or "Export")[:31]  # Excel sheet name hard cap
+    header_fill = PatternFill(start_color="5C6BC0", end_color="5C6BC0", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+    for col_idx, (_, label) in enumerate(columns, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=label)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="left", vertical="center")
+    for row_idx, row in enumerate(rows, start=2):
+        for col_idx, (key, _) in enumerate(columns, start=1):
+            ws.cell(row=row_idx, column=col_idx, value=_export_cell_value(row, key))
+    for col_idx, (_, label) in enumerate(columns, start=1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = max(12, min(40, len(label) + 6))
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+def _export_to_docx(title: str, columns: list, rows: list) -> bytes:
+    doc = Document()
+    heading = doc.add_heading(title, level=1)
+    for run in heading.runs:
+        run.font.color.rgb = RGBColor(0x5C, 0x6B, 0xC0)
+    meta = doc.add_paragraph(f"Exported {datetime.now(timezone.utc).strftime('%d %b %Y')}")
+    meta.runs[0].italic = True
+    if not rows:
+        doc.add_paragraph("Nothing to export yet.")
+    else:
+        table = doc.add_table(rows=1, cols=len(columns))
+        table.style = "Light Grid Accent 1"
+        for i, (_, label) in enumerate(columns):
+            table.rows[0].cells[i].text = label
+        for row in rows:
+            cells = table.add_row().cells
+            for i, (key, _) in enumerate(columns):
+                cells[i].text = str(_export_cell_value(row, key))
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+def _build_export_response(format: str, title: str, columns: list, rows: list, filename_base: str) -> StreamingResponse:
+    if format not in _EXPORT_MEDIA_TYPES:
+        raise HTTPException(status_code=400, detail="format must be pdf, xlsx, or docx")
+    builder = {"pdf": _export_to_pdf, "xlsx": _export_to_xlsx, "docx": _export_to_docx}[format]
+    content = builder(title, columns, rows)
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type=_EXPORT_MEDIA_TYPES[format],
+        headers={"Content-Disposition": f'attachment; filename="{filename_base}.{format}"'},
+    )
+
+@api_router.get("/school-admin/wellbeing-tracker/export")
+async def export_wellbeing_tracker(request: Request, format: str = "pdf"):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_feature_access(user, "wellbeing_welfare", "Wellbeing Tracker")
+    records = supabase.table("school_wellbeing_tracker").select("*").eq("school_admin_id", user["user_id"]).order("updated_at", desc=True).execute().data or []
+    columns = [
+        ("student_ref", "Student Ref"), ("year_group", "Year Group"), ("tier", "Tier"),
+        ("areas", "Areas"), ("concern_summary", "Concern Summary"), ("action", "Action"),
+        ("delegate", "Delegate"), ("review_date", "Review Date"), ("status", "Status"),
+        ("notes", "Notes"),
+    ]
+    return _build_export_response(format, "Wellbeing Tracker", columns, records, "wellbeing-tracker")
+
+@api_router.get("/school-admin/services-directory/export")
+async def export_services_directory(request: Request, format: str = "pdf"):
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    _require_feature_access(user, "services_directory", "Services Directory")
+    services = supabase.table("school_services_directory").select("*").eq("school_admin_id", user["user_id"]).order("category").execute().data or []
+    columns = [
+        ("category", "Category"), ("service_name", "Service Name"), ("contact_name", "Contact Name"),
+        ("phone", "Phone"), ("email", "Email"), ("address", "Address"),
+        ("is_emergency", "Emergency"), ("notes", "Notes"),
+    ]
+    return _build_export_response(format, "Services Directory", columns, services, "services-directory")
 
 
 # ── SCHOOL ADMIN CONFIDENTIAL ENDPOINTS ─────────────────────────────────
