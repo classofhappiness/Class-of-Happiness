@@ -5081,7 +5081,13 @@ async def _generate_family_member_pdf_bytes(fm: dict, family_member_id: str, yea
             l["_source"] = "home"
             l["zone"] = l.get("feeling_colour", l.get("zone", ""))
             l["strategies_selected"] = l.get("helpers_selected", l.get("strategies_selected", []))
-            home_logs.append(l)
+            # Real hardening Sep 11 (PDF/parent-leak audit): this parent-facing family PDF's
+            # own "Check-in Log" table only ever draws date/time/zone/strategies (verified -
+            # no comment column here, unlike the school-report PDF), so this was already
+            # proven clean by rendering code alone. Stripped explicitly anyway per Jono's
+            # "if any path selects * ... exclude the field explicitly" - belt and braces,
+            # not reliant on the rendering code never changing.
+            home_logs.append(_strip_school_only_fields(l))
 
     # Sort combined logs by timestamp
     home_logs.sort(key=lambda x: x.get("timestamp", ""))
@@ -5536,6 +5542,19 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     # Tag school logs with source
     for l in school_logs:
         l["_source"] = "school"
+    # Real hardening Sep 11 (PDF/parent-leak audit): this endpoint is shared by BOTH a
+    # linked parent and the owning teacher/school_admin/superadmin (see the authorization
+    # block above) - the "Check-in Log" table below only ever draws Date/Time/Source/
+    # Zone/Strategies/Comment (verified - no reference to support_request_type anywhere
+    # in its row-building loop), so this was already proven clean by rendering code
+    # alone regardless of caller. Stripped explicitly here too, but ONLY for a parent
+    # caller - a school-side caller (teacher/admin) keeps it, since Jono's ask is for
+    # school-side reports to eventually SHOW this context (logged as a Phase 2 PDF
+    # enhancement - adding it to this shared table needs its own small pass, not rushed
+    # into this safety fix).
+    if user.get("role") not in ("teacher", "school_admin", "superadmin"):
+        for l in school_logs:
+            _strip_school_only_fields(l)
 
     # Also fetch home check-ins via family_members link
     home_logs = []
@@ -14192,6 +14211,17 @@ async def get_family_members(request: Request):
         logger.error(f"Family members error: {e}")
         return []
 
+def _strip_school_only_fields(log: dict) -> dict:
+    """Real addition Sep 11 (PDF/parent-leak audit): fields that must never reach a
+    parent-facing surface, no matter how a feeling_logs row got there. Confirmed live
+    this audit found FOUR real parent-reachable endpoints that select("*") on
+    feeling_logs and then spread/return the raw dict verbatim - support_request_type
+    (added this session, teacher/admin-only context: which support request triggered a
+    colour-circle check-in) would have gone straight through every one of them. Mutates
+    and returns the same dict for convenient use in a list comprehension or loop."""
+    log.pop("support_request_type", None)
+    return log
+
 @api_router.get("/parent/child/{child_id}/recent-checkins")
 async def get_child_checkins(child_id: str, request: Request):
     """Get recent checkins for a linked child."""
@@ -14210,7 +14240,7 @@ async def get_child_checkins(child_id: str, request: Request):
         for c in (checkins.data or []):
             c["zone"] = c.get("feeling_colour", "blue")
             c["source"] = "home" if c.get("logged_by") == "parent" else "school"
-            result.append(c)
+            result.append(_strip_school_only_fields(c))
         return result
     except HTTPException:
         raise
@@ -14615,6 +14645,7 @@ async def get_family_member_checkins(member_id: str, request: Request, days: int
                 log["zone"] = log.get("feeling_colour", log.get("zone", ""))
                 log["strategies_selected"] = log.get("helpers_selected", log.get("strategies_selected", []))
                 log["member_id"] = member_id
+                _strip_school_only_fields(log)
         else:
             # Get from family_zone_logs
             result = supabase.table("family_zone_logs").select("*").eq("family_member_id", member_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
@@ -14935,7 +14966,7 @@ async def get_home_checkins(student_id: str, request: Request, days: int = 30):
             raise HTTPException(status_code=403, detail="Not linked to this student")
         start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         result = supabase.table("feeling_logs").select("*").eq("student_id", student_id).eq("logged_by", "parent").gte("timestamp", start_date).order("timestamp", desc=True).execute()
-        return result.data or []
+        return [_strip_school_only_fields(l) for l in (result.data or [])]
     except HTTPException:
         raise
     except Exception as e:
@@ -14963,11 +14994,11 @@ async def get_school_checkins(student_id: str, request: Request, days: int = 30)
         # School check-ins = logged by teacher OR student (not parent)
         result = supabase.table("feeling_logs").select("*").eq("student_id", student_id).not_.eq("logged_by", "parent").gte("timestamp", start_date).order("timestamp", desc=True).execute()
         logs = result.data or []
-        return {"checkins": [{
+        return {"checkins": [_strip_school_only_fields({
             **log,
             "zone": log.get("feeling_colour", log.get("zone", "")),
             "strategies_selected": log.get("helpers_selected", log.get("strategies_selected", [])),
-        } for log in logs], "sharing_disabled": False}
+        }) for log in logs], "sharing_disabled": False}
     except HTTPException:
         raise
     except Exception as e:
@@ -15183,12 +15214,12 @@ async def get_all_checkins_for_linked_child(student_id: str, request: Request, d
         start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         result = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
         logs = result.data or []
-        combined = [{
+        combined = [_strip_school_only_fields({
             **log,
             "zone": log.get("feeling_colour", log.get("zone", "")),
             "strategies_selected": log.get("helpers_selected", log.get("strategies_selected", [])),
             "location": "home" if log.get("logged_by") == "parent" else "school",
-        } for log in logs]
+        }) for log in logs]
         if school_sharing is False:
             combined = [c for c in combined if c["location"] == "home"]
         return combined
