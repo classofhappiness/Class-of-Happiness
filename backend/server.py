@@ -13828,9 +13828,25 @@ async def respond_support_request(request_id: str, request: Request):
         teacher_token = teacher_r.data[0].get("push_token") if teacher_r.data else None
     except Exception as e:
         logger.error(f"Could not look up teacher push_token for support request {request_id}: {e}")
+    # Real fix Sep 11: this push was a bare "Response: <text>" with no student/classroom
+    # context at all - confirmed live (Jono: "I got a notification that said 'Yes'.
+    # should it not address the request more specifically") - the ORIGINAL buzz push
+    # already names who it's about (see create_support_request's "who" line), the
+    # response push didn't match that. Same lookup pattern here.
+    who = None
+    try:
+        if row.get("student_id"):
+            s = supabase.table("students").select("name").eq("id", row["student_id"]).execute()
+            who = s.data[0]["name"] if s.data else None
+        elif row.get("classroom_id"):
+            c = supabase.table("classrooms").select("name").eq("id", row["classroom_id"]).execute()
+            who = c.data[0]["name"] if c.data else None
+    except Exception as e:
+        logger.warning(f"[respond_support_request] could not resolve who for push context: {e}")
     await _send_push(
         [teacher_token] if teacher_token else [],
-        "Support request update", f"Response: {response_text}",
+        f"Support request update: {who}" if who else "Support request update",
+        response_text,
         data={"type": "support_request_response", "id": request_id},
     )
     return result.data[0] if result.data else updates
