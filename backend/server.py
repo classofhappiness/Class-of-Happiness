@@ -3888,6 +3888,12 @@ async def create_resource(resource: ResourceCreate, request: Request):
     # the same fix applied to POST /teacher-resources for consistency.
     if user.get("role") not in ("teacher", "school_admin", "admin", "superadmin"):
         raise HTTPException(status_code=403, detail="Only teachers and admins can post resources here")
+    # Real fix Sep 11 (Phase 2.5 resource scoping): is_global was fully client-trusted
+    # (resource.is_global straight from the request body) - same class of issue fixed on
+    # /teacher-resources and /admin/resources. No live UI calls this endpoint today
+    # (resourcesApi.create has zero callers), same defense-in-depth reasoning as those two.
+    is_superadmin_caller = user.get("role") in ("admin", "superadmin")
+    owner_school_admin_id = None if is_superadmin_caller else user["user_id"]
     new_resource = {
         "id": str(uuid.uuid4()),
         "created_by": user["user_id"],
@@ -3897,18 +3903,43 @@ async def create_resource(resource: ResourceCreate, request: Request):
         "content": resource.content,
         "pdf_filename": resource.pdf_filename,
         "category": resource.category,
-        "is_global": resource.is_global,
+        "is_global": is_superadmin_caller,
         "is_active": True,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
-    result = supabase.table("resources").insert(new_resource).execute()
+    try:
+        result = supabase.table("resources").insert({**new_resource, "school_admin_id": owner_school_admin_id}).execute()
+    except Exception:
+        result = supabase.table("resources").insert(new_resource).execute()
     return result.data[0] if result.data else new_resource
 
 @api_router.delete("/resources/{resource_id}")
 async def delete_resource(resource_id: str, request: Request):
+    # Real fix Sep 11 (Phase 2.5 resource scoping audit) - this had NO role or ownership
+    # check at all: any authenticated user, including a parent, could delete ANY resource
+    # by id. No live UI calls this endpoint today (resourcesApi.delete has zero callers,
+    # confirmed via repo-wide grep), but it's a real, reachable, authenticated API surface
+    # regardless - exploitable with nothing but a valid session token, no UI needed. Same
+    # role gate as POST /resources, same is_global/ownership checks as the sibling
+    # DELETE /teacher-resources/{id} fixed earlier this session.
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    if user.get("role") not in ("teacher", "school_admin", "admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Only teachers and admins can delete resources")
+    existing = supabase.table("resources").select("*").eq("id", resource_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    resource = existing.data[0]
+    if resource.get("is_global") and user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Only superadmin can delete global resources")
+    is_owner = (
+        resource.get("created_by") == user.get("user_id") or
+        resource.get("user_id") == user.get("user_id")
+    )
+    is_admin = user.get("role") in ("admin", "superadmin", "school_admin")
+    if not is_owner and not is_admin:
+        raise HTTPException(status_code=403, detail="Not allowed")
     supabase.table("resources").delete().eq("id", resource_id).execute()
     return {"message": "Resource deleted"}
 
@@ -10002,6 +10033,13 @@ async def create_admin_resource(request: Request):
     content_type = body.get("content_type", "text")
     target_audience = body.get("target_audience", "both")
     topic = body.get("topic") or body.get("category") or "general"
+    # Real fix Sep 11 (Phase 2.5 resource scoping): was unconditionally is_global=True for
+    # ANY caller this role check allows, including school_admin - no live UI calls this
+    # endpoint today (adminApi.createResource has zero callers, confirmed via repo-wide
+    # grep), but it's still a reachable, authenticated API surface. Same role-resolved
+    # scoping as /teacher-resources now, for consistency/defense-in-depth.
+    is_superadmin_caller = user.get("role") in ("admin", "superadmin")
+    owner_school_admin_id = None if is_superadmin_caller else user["user_id"]
     resource_data = {
         "id": str(uuid.uuid4()),
         "user_id": user["user_id"],
@@ -10014,13 +10052,13 @@ async def create_admin_resource(request: Request):
         "category": body.get("category", topic),
         "topic": topic,
         "target_audience": target_audience,
-        "is_global": True,
+        "is_global": is_superadmin_caller,
         "is_active": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
     try:
-        result = supabase.table("resources").insert(resource_data).execute()
+        result = supabase.table("resources").insert({**resource_data, "school_admin_id": owner_school_admin_id}).execute()
     except Exception:
         # Backward-compatible fallback if new columns are missing in DB schema.
         fallback_data = {
@@ -10776,6 +10814,23 @@ async def create_teacher_resource(request: Request):
     max_b64_chars = RESOURCE_MAX_FILE_MB * 1024 * 1024 * 4 // 3
     if _content_type != 'video' and len(content) > max_b64_chars:
         raise HTTPException(status_code=413, detail=f"File too large. Please use a PDF under {RESOURCE_MAX_FILE_MB}MB.")
+    # Real fix Sep 11 (Phase 2.5 resource scoping, step 1 - schema/write-side only, read-
+    # side filtering NOT yet enforced, see plan doc): is_global used to be entirely
+    # client-trusted (bool(body.get("is_global", False))) - this is the ONE working
+    # upload path, shared identically by superadmin and school_admin, and the client
+    # (admin/dashboard.tsx's ResourceUpload) never even sends is_global, so it silently
+    # defaulted to False for every caller including superadmin. Now resolved server-side
+    # from the caller's actual role, matching the school_admin_id column added in this
+    # same migration. A teacher with no resolvable school (rare, confirmed live to exist)
+    # falls back to their own user_id rather than NULL, so their upload can never
+    # accidentally read as "global" (NULL) once read-side filtering is built.
+    is_superadmin_caller = user.get("role") in ("admin", "superadmin")
+    if is_superadmin_caller:
+        owner_school_admin_id = None
+    elif user.get("role") == "school_admin":
+        owner_school_admin_id = user["user_id"]
+    else:
+        owner_school_admin_id = _teacher_school_admin_id(user) or user["user_id"]
     resource_data = {
         "id": str(uuid.uuid4()),
         "user_id": user["user_id"],
@@ -10787,7 +10842,7 @@ async def create_teacher_resource(request: Request):
         "category": topic,
         "topic": topic,
         "target_audience": audience,
-        "is_global": bool(body.get("is_global", False)),
+        "is_global": is_superadmin_caller,
         "is_active": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
         # Real bug fix Aug 28: week_number (the field that actually gates free-tier access -
@@ -10803,7 +10858,14 @@ async def create_teacher_resource(request: Request):
         "week_number": body.get("week_number"),
     }
     try:
-        result = supabase.table("resources").insert(resource_data).execute()
+        try:
+            result = supabase.table("resources").insert({**resource_data, "school_admin_id": owner_school_admin_id}).execute()
+        except Exception as e:
+            if "school_admin_id" not in str(e):
+                raise
+            # Migration 01_add_resources_school_admin_id.sql not run yet - fall back so
+            # uploads don't start hard-failing before then.
+            result = supabase.table("resources").insert(resource_data).execute()
         return result.data[0] if result.data else resource_data
     except Exception as e:
         error_msg = str(e)
