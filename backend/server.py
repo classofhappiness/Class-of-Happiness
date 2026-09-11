@@ -12760,20 +12760,33 @@ _FEATURE_FAIL_OPEN_KEYS = {"services_directory", "wellbeing_welfare"}
 # careers_advisory, not a long-standing always-on tab like the two fail-open keys.
 
 def _get_school_feature_flags(school_admin_id: str, feature_key: str) -> dict:
+    # Real fix Sep 11: tab_visible_to_school is a NEW, separate column (this school
+    # admin's own portal display preference) - independent of enabled_by_school (the
+    # real functional switch, checked by _require_feature_access below). Selected
+    # defensively: if the migration adding this column hasn't run yet, fall back to
+    # the original 2-column select so allowed_by_superadmin/enabled_by_school keep
+    # working exactly as before - tab visibility just defaults to True until it lands.
     try:
-        r = supabase.table("school_features").select("allowed_by_superadmin,enabled_by_school") \
-            .eq("school_admin_id", school_admin_id).eq("feature_key", feature_key).execute()
+        try:
+            r = supabase.table("school_features").select(
+                "allowed_by_superadmin,enabled_by_school,tab_visible_to_school"
+            ).eq("school_admin_id", school_admin_id).eq("feature_key", feature_key).execute()
+        except Exception:
+            r = supabase.table("school_features").select("allowed_by_superadmin,enabled_by_school") \
+                .eq("school_admin_id", school_admin_id).eq("feature_key", feature_key).execute()
         if r.data:
             row = r.data[0]
+            tvs = row.get("tab_visible_to_school")
             return {
                 "allowed_by_superadmin": bool(row.get("allowed_by_superadmin")),
                 "enabled_by_school": bool(row.get("enabled_by_school", True)),
+                "tab_visible_to_school": True if tvs is None else bool(tvs),
             }
     except Exception as e:
         logger.error(f"_get_school_feature_flags error ({feature_key}): {e}")
     if feature_key in _FEATURE_FAIL_OPEN_KEYS:
-        return {"allowed_by_superadmin": True, "enabled_by_school": True}
-    return {"allowed_by_superadmin": False, "enabled_by_school": True}
+        return {"allowed_by_superadmin": True, "enabled_by_school": True, "tab_visible_to_school": True}
+    return {"allowed_by_superadmin": False, "enabled_by_school": True, "tab_visible_to_school": True}
 
 def _require_feature_access(user: dict, feature_key: str, label: str, school_admin_id: str = None) -> None:
     """403s unless feature_key is BOTH allowed by superadmin AND enabled by
@@ -12827,7 +12840,11 @@ async def get_my_school_features(request: Request):
     for key in ALL_SCHOOL_FEATURE_KEYS:
         flags = _get_school_feature_flags(school_admin_id, key)
         if flags["allowed_by_superadmin"]:
-            result.append({"feature_key": key, "enabled_by_school": flags["enabled_by_school"]})
+            result.append({
+                "feature_key": key,
+                "enabled_by_school": flags["enabled_by_school"],
+                "tab_visible_to_school": flags["tab_visible_to_school"],
+            })
     return result
 
 @api_router.put("/features/{feature_key}")
@@ -12841,15 +12858,28 @@ async def set_my_school_feature(feature_key: str, request: Request):
     if not flags["allowed_by_superadmin"]:
         raise HTTPException(status_code=403, detail="This feature is not enabled for your school")
     body = await request.json()
-    enabled = bool(body.get("enabled_by_school", True))
-    supabase.table("school_features").upsert({
+    # Real fix Sep 11: these two are independent now - the Portal Tabs panel sends only
+    # tab_visible_to_school (hide/show MY OWN portal tab), a separate "Enable X for your
+    # school" control sends only enabled_by_school (the real switch teachers depend on,
+    # checked by _require_feature_access) - whichever one isn't in the body keeps its
+    # current value rather than silently resetting to a default.
+    enabled = bool(body["enabled_by_school"]) if "enabled_by_school" in body else flags["enabled_by_school"]
+    tab_visible = bool(body["tab_visible_to_school"]) if "tab_visible_to_school" in body else flags["tab_visible_to_school"]
+    payload = {
         "school_admin_id": user["user_id"],
         "feature_key": feature_key,
         "allowed_by_superadmin": True,
         "enabled_by_school": enabled,
+        "tab_visible_to_school": tab_visible,
         "updated_at": datetime.now(timezone.utc).isoformat(),
-    }, on_conflict="school_admin_id,feature_key").execute()
-    return {"feature_key": feature_key, "enabled_by_school": enabled}
+    }
+    try:
+        supabase.table("school_features").upsert(payload, on_conflict="school_admin_id,feature_key").execute()
+    except Exception:
+        # tab_visible_to_school migration not run yet - fall back to the original shape.
+        payload.pop("tab_visible_to_school", None)
+        supabase.table("school_features").upsert(payload, on_conflict="school_admin_id,feature_key").execute()
+    return {"feature_key": feature_key, "enabled_by_school": enabled, "tab_visible_to_school": tab_visible}
 
 @api_router.get("/admin/school-features")
 async def get_all_school_features(request: Request):
