@@ -2324,6 +2324,10 @@ class FeelingLogCreate(BaseModel):
     suppress_auto_alert: bool = False  # skip the automatic zone_alert/parent_message row below -
     # the support request's own companion student_alerts row already covers it; without this,
     # an incident+red selection would create two alert rows for the same moment.
+    # Real addition Sep 11: which support request type triggered this write, for a
+    # teacher/admin-only context label ("School Support Request - Back on Track") on
+    # check-in history. Never read on any parent-facing surface by design.
+    support_request_type: Optional[str] = None
 
 class AddPointsRequest(BaseModel):
     points_type: str = "checkin"
@@ -2945,6 +2949,8 @@ async def create_feeling_log(log: FeelingLogCreate, request: Request):
     }
     if log.logged_by:
         new_log["logged_by"] = log.logged_by
+    if log.support_request_type:
+        new_log["support_request_type"] = log.support_request_type
     result = supabase.table("feeling_logs").insert(new_log).execute()
     saved = result.data[0] if result.data else new_log
 
@@ -13541,6 +13547,60 @@ async def careers_pathway_summary_pdf(student_id: str, request: Request):
 
 REQUEST_TYPES = ("CLASSROOM_SUPPORT", "STAFF_MEMBER", "BACK_ON_TRACK", "INCIDENT", "OTHER")
 
+def _support_request_readable_type(request_type: str, student_name: Optional[str] = None, target_text: Optional[str] = None) -> str:
+    """Real addition Sep 11: a human-readable type string for alert surfaces and
+    check-in context labels (Jono: alerts should carry "Support Request — Student to
+    staff member (Tom)", not a bare alert_type). CLASSROOM_SUPPORT distinguishes the
+    new student-linked sub-type ("Support in classroom" for one student, reached via
+    the type list) from the true whole-class request (reached via the top-row button) -
+    same request_type, different meaning, per Jono's log-display instruction."""
+    if request_type == "CLASSROOM_SUPPORT":
+        return f"Classroom support (re: {student_name})" if student_name else "Classroom support"
+    if request_type == "STAFF_MEMBER":
+        return f"Student to a staff member ({target_text})" if target_text else "Student to a staff member"
+    if request_type == "BACK_ON_TRACK":
+        return "Student to 'Back on Track' Space"
+    if request_type == "INCIDENT":
+        return "Incident" if student_name else "Incident (classroom)"
+    if request_type == "OTHER":
+        return f"Other ({target_text})" if target_text else "Other"
+    return request_type
+
+def _classroom_todays_colour_mix(classroom_id: str) -> dict:
+    """Real addition Sep 11 (item 8): today's check-in colour distribution for a
+    classroom - read-only aggregate, zero new writes. Used both to show small dots on
+    the "Support to my classroom" button before sending, and to auto-attach the same
+    snapshot to classroom-level requests so the responder arrives knowing the room's
+    emotional state. Counts every check-in today regardless of who logged it (student
+    self, teacher bulk, teacher individual) - it's a room-mood snapshot, not an
+    attribution record."""
+    mix = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+    try:
+        students_r = supabase.table("students").select("id").eq("classroom_id", classroom_id).execute()
+        student_ids = [s["id"] for s in (students_r.data or [])]
+        if not student_ids:
+            return mix
+        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        logs_r = supabase.table("feeling_logs").select("feeling_colour").in_("student_id", student_ids).gte("timestamp", today_start).execute()
+        for log in (logs_r.data or []):
+            colour = log.get("feeling_colour")
+            if colour in mix:
+                mix[colour] += 1
+    except Exception as e:
+        logger.warning(f"[_classroom_todays_colour_mix] could not compute mix for classroom {classroom_id}: {e}")
+    return mix
+
+@api_router.get("/classrooms/{classroom_id}/todays-colour-mix")
+async def get_classroom_todays_colour_mix(classroom_id: str, request: Request):
+    """Real addition Sep 11: backs the small colour-dot display on the "Support to my
+    classroom" button - read-only, checked before any request is created."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ("teacher", "school_admin"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if user.get("role") == "teacher" and not await _is_authorized_for_classroom(user, classroom_id):
+        raise HTTPException(status_code=403, detail="Not your classroom")
+    return _classroom_todays_colour_mix(classroom_id)
+
 def _teacher_school_admin_id(user: dict) -> Optional[str]:
     """Resolves the school_admin a teacher's requests should go to - the direct FK
     already set on their own user row (users.school_admin_id), the same field every
@@ -13572,11 +13632,15 @@ async def create_support_request(request: Request):
     target_text = (body.get("target_text") or "").strip() or None
 
     # Real fix Sep 10 (Jono's schema amendment): CLASSROOM_SUPPORT is classroom-level -
-    # no individual student. Every other type needs a student. Mirrors the DB check
-    # constraint exactly, but checked here too for a clean 400 instead of a raw DB error.
-    if request_type == "CLASSROOM_SUPPORT":
-        if not classroom_id:
-            raise HTTPException(status_code=400, detail="classroom_id is required for CLASSROOM_SUPPORT")
+    # no individual student. Every other type needs a student, EXCEPT item 7's new
+    # classroom-level INCIDENT top-row button (Sep 11) - incidents are usually
+    # classroom-level, so INCIDENT gets the same classroom-or-student flexibility
+    # CLASSROOM_SUPPORT already has. Mirrors the DB check constraint exactly (extended by
+    # 06_add_checkin_context_and_classroom_colour_mix.sql), but checked here too for a
+    # clean 400 instead of a raw DB error.
+    if request_type in ("CLASSROOM_SUPPORT", "INCIDENT"):
+        if not classroom_id and not student_id:
+            raise HTTPException(status_code=400, detail="classroom_id or student_id is required")
     elif not student_id:
         raise HTTPException(status_code=400, detail="student_id is required for this request_type")
 
@@ -13617,6 +13681,13 @@ async def create_support_request(request: Request):
         except Exception:
             pass
 
+    # Real addition Sep 11 (item 8): classroom-level requests only (no individual student
+    # attached) - the student-linked "Support in classroom" sub-type already has its own
+    # checkin_colour_at_request above and doesn't need a room-wide aggregate too.
+    classroom_colour_mix = None
+    if owner_classroom_id and not student_id:
+        classroom_colour_mix = _classroom_todays_colour_mix(owner_classroom_id)
+
     is_incident = request_type == "INCIDENT"
 
     # Real feature Sep 11 (Jono's Uber-model decision): one open (PENDING/ACKNOWLEDGED)
@@ -13644,6 +13715,19 @@ async def create_support_request(request: Request):
     if not result.data:
         raise HTTPException(status_code=500, detail="Could not create support request")
     created = result.data[0]
+
+    # Real note Sep 11: classroom_colour_mix is attached as a separate follow-up update,
+    # not part of the main insert above - the main insert must never fail just because
+    # 06_add_checkin_context_and_classroom_colour_mix.sql hasn't landed yet on every
+    # environment. A missing column here only loses the room-mood snapshot, never blocks
+    # the request itself from being created.
+    if classroom_colour_mix is not None:
+        try:
+            mix_r = supabase.table("support_requests").update({"classroom_colour_mix": classroom_colour_mix}).eq("id", created["id"]).execute()
+            if mix_r.data:
+                created = mix_r.data[0]
+        except Exception as e:
+            logger.warning(f"[create_support_request] could not attach classroom_colour_mix to {created['id']}: {e}")
 
     # Incident supersedes every open standard request from this same teacher - never
     # coexists. Terminal, evidence-preserving (never deleted): stays in the log marked
@@ -13675,7 +13759,12 @@ async def create_support_request(request: Request):
             supabase.table("student_alerts").insert({
                 "id": str(uuid.uuid4()), "student_id": student_id, "student_name": student_name,
                 "alert_type": "support_request", "context": "school", "classroom_name": classroom_name,
-                "zone": checkin_colour, "message": target_text,
+                "zone": checkin_colour,
+                # Real fix Sep 11: this used to be bare target_text (null for BACK_ON_TRACK/
+                # INCIDENT) - the teacher Alerts screen rendered every support_request row as
+                # a generic "Message" with no distinguishing label at all. Full readable type
+                # instead, matching Jono's exact example wording.
+                "message": _support_request_readable_type(request_type, student_name, target_text),
                 "created_at": datetime.now(timezone.utc).isoformat(), "resolved": False,
             }).execute()
         except Exception as e:
