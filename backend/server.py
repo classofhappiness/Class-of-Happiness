@@ -7320,8 +7320,26 @@ async def get_alerts(request: Request, limit: int = 100):
         classroom_ids = []
         student_ids = []
 
-        if role in ("teacher", "school_admin", "superadmin", "admin"):
-            # Teachers see students via their classrooms
+        if role == "school_admin":
+            # Real fix Sep 11 (Phase 2.5 parity audit): this used to scope a school_admin
+            # to classrooms.user_id == their own id, same as a teacher - a school_admin who
+            # doesn't personally teach a classroom got zero alerts, ever, regardless of how
+            # many teachers/students exist at their school. Now resolves the WHOLE school
+            # via the same teacher-linkage pattern get_school_admin_analytics already uses
+            # in production (school_admin_id OR school_name match -> their classrooms ->
+            # their students), not a second, narrower version of the same resolution.
+            school_name = user.get("school_name", "")
+            teachers_by_id = supabase.table("users").select("user_id").eq("school_admin_id", user["user_id"]).execute()
+            teachers_by_name = supabase.table("users").select("user_id").eq("school_name", school_name).eq("role", "teacher").execute() if school_name else type("R", (), {"data": []})()
+            teacher_ids = list({t["user_id"] for t in (teachers_by_id.data or []) + (teachers_by_name.data or [])})
+            classroom_owner_ids = teacher_ids + [user["user_id"]]
+            classrooms_r = supabase.table("classrooms").select("id").in_("user_id", classroom_owner_ids).execute()
+            classroom_ids = [cl["id"] for cl in (classrooms_r.data or [])]
+            if classroom_ids:
+                students_r = supabase.table("students").select("id").in_("classroom_id", classroom_ids).execute()
+                student_ids = list({s["id"] for s in (students_r.data or [])})
+        elif role in ("teacher", "superadmin", "admin"):
+            # Teachers see students via their own classrooms only (correct, unchanged).
             classrooms_r = supabase.table("classrooms").select("id").eq("user_id", user["user_id"]).execute()
             classroom_ids = [cl["id"] for cl in (classrooms_r.data or [])]
             seen_ids = set()
