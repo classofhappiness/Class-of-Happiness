@@ -27,7 +27,7 @@ import { File, Directory, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
-import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy, reportsApi, teacherApi, teacherHomeDataApi } from '../../src/utils/api';
+import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy, reportsApi, teacherApi, teacherHomeDataApi, describeSupportRequest } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
@@ -613,10 +613,25 @@ export default function StudentDetailScreen() {
                   </Text>
                 </View>
                 <View style={styles.logDetails}>
-                  <Text style={styles.logZoneName}>{getZoneLabel(log.zone, t)}</Text>
+                  <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
+                    <Text style={styles.logZoneName}>{getZoneLabel(log.zone, t)}</Text>
+                    {/* Item 2 (Sep 11), school/home distinction so staff see where a
+                        linked student's check-in happened - same 🏫/🏠 convention as the
+                        Combined Calendar view below. Teacher/admin-only, never shown to
+                        parents. */}
+                    <Text style={{fontSize:12}}>{log.logged_by === 'parent' ? '🏠' : '🏫'}</Text>
+                  </View>
                   <Text style={styles.logTime}>
                     {formatDate(log.timestamp)} at {formatTime(log.timestamp)}
                   </Text>
+                  {log.support_request_type && (
+                    <View style={styles.logStrategies}>
+                      <MaterialIcons name="campaign" size={14} color="#FF7043" />
+                      <Text style={[styles.logStrategiesText, {color:'#FF7043', fontWeight:'700'}]}>
+                        School Support Request — {describeSupportRequest({ request_type: log.support_request_type } as any)}
+                      </Text>
+                    </View>
+                  )}
                   {log.strategies_selected.length > 0 && (
                     <View style={styles.logStrategies}>
                       <MaterialIcons name="lightbulb" size={14} color="#FFC107" />

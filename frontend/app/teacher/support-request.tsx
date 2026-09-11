@@ -12,7 +12,7 @@ import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import {
   supportRequestsApi, SupportRequestType, StaffShortcut, SupportRequest,
-  zoneLogsApi, formatSupportRequestStatus,
+  zoneLogsApi, formatSupportRequestStatus, formatSentLine, ColourMix, classroomsColourMixApi,
 } from '../../src/utils/api';
 import { useSupportRequestsList } from '../../src/utils/supportRequestsPoller';
 import { EMOTION_COLOURS, EmotionZone } from '../../src/constants/emotionColours';
@@ -23,9 +23,15 @@ const COLOUR_ZONES: EmotionZone[] = ['blue', 'green', 'yellow', 'red'];
 
 type Step = 'classroom' | 'student' | 'type' | 'detail' | 'status';
 
+// Real revision Sep 11 (Jono, exact spec): reordered for a specific-student request, with
+// a new first option - "Support in classroom" (support comes TO the teacher's room for
+// THIS student, teacher stays with the class) - CLASSROOM_SUPPORT with student_id
+// attached, distinct from the whole-class "Support to my classroom" top-row button on the
+// student picker (same request_type, different meaning - see describeSupportRequest()).
 const REQUEST_TYPES: { type: SupportRequestType; icon: keyof typeof MaterialIcons.glyphMap; label: string; needsTarget?: 'staff' | 'note' }[] = [
-  { type: 'STAFF_MEMBER', icon: 'person-search', label: 'Student to a staff member', needsTarget: 'staff' },
+  { type: 'CLASSROOM_SUPPORT', icon: 'meeting-room', label: 'Support in classroom' },
   { type: 'BACK_ON_TRACK', icon: 'self-improvement', label: "Student to 'Back on Track' Space" },
+  { type: 'STAFF_MEMBER', icon: 'person-search', label: 'Student to a staff member', needsTarget: 'staff' },
   { type: 'INCIDENT', icon: 'warning', label: 'Incident — urgent' },
   { type: 'OTHER', icon: 'more-horiz', label: 'Other', needsTarget: 'note' },
 ];
@@ -66,6 +72,11 @@ export default function SupportRequestScreen() {
   const [sentRequest, setSentRequest] = useState<SupportRequest | null>(null);
   const [markingArrived, setMarkingArrived] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  // Item 5 (Sep 11): brief tap-highlight on a student row before advancing.
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  // Item 8 (Sep 11): today's classroom colour mix, shown as small dots on "Support to my
+  // classroom" - read-only, fetched once the classroom is chosen, zero new writes.
+  const [colourMix, setColourMix] = useState<ColourMix | null>(null);
 
   const classroomStudents = (students || []).filter((s: any) => s.classroom_id === classroomId);
 
@@ -118,6 +129,8 @@ export default function SupportRequestScreen() {
 
   const pickClassroom = (c: any) => {
     setClassroomId(c.id); setClassroomName(c.name); setStep('student');
+    setColourMix(null);
+    classroomsColourMixApi.getTodaysMix(c.id).then(setColourMix).catch(() => {});
   };
 
   const pickWholeClassroom = () => {
@@ -126,8 +139,23 @@ export default function SupportRequestScreen() {
     setStep('detail');
   };
 
+  // Item 7 (Sep 11): incidents are usually classroom-level - this is the fastest path in
+  // the app, a second top row alongside "Support to my classroom", same skip-to-confirm
+  // behaviour (the confirm screen is the accidental-tap guard for both).
+  const pickWholeClassroomIncident = () => {
+    setStudentId(null); setStudentName('');
+    setRequestType('INCIDENT');
+    setStep('detail');
+  };
+
+  // Item 5 (Sep 11): tapping a student shows a brief highlight (black border) before
+  // advancing, so the tap itself is legible as "selected" rather than an instant jump.
   const pickStudent = (s: any) => {
-    setStudentId(s.id); setStudentName(s.name); setStep('type');
+    setSelectedStudentId(s.id);
+    setTimeout(() => {
+      setStudentId(s.id); setStudentName(s.name); setStep('type');
+      setSelectedStudentId(null);
+    }, 180);
   };
 
   const pickType = (type: SupportRequestType) => {
@@ -165,6 +193,7 @@ export default function SupportRequestScreen() {
           await zoneLogsApi.create({
             student_id: studentId!, zone: colour, strategies_selected: [],
             logged_by: 'teacher_individual', suppress_auto_alert: true,
+            support_request_type: finalType,
           });
         } catch {}
       }
@@ -236,6 +265,9 @@ export default function SupportRequestScreen() {
           <Animated.View style={[styles.statusDot, { backgroundColor: display.color, opacity: pulseAnim }]} />
           <Text style={styles.successTitle}>{who}</Text>
           <Text style={styles.statusText}>{display.text}</Text>
+          {/* Item 1 (Sep 11): so a teacher routed here (one-open-request 409) knows which
+              request is active and since when. */}
+          <Text style={styles.sentLine}>{formatSentLine(sentRequest.created_at)}</Text>
           {isOpen && (
             <TouchableOpacity
               style={styles.arrivedBtn}
@@ -324,15 +356,47 @@ export default function SupportRequestScreen() {
           <TouchableOpacity style={[styles.rowCard, styles.wholeClassCard]} onPress={pickWholeClassroom}>
             <MaterialIcons name="groups" size={24} color="#5C6BC0" />
             <View style={{ flex: 1 }}>
-              <Text style={styles.wholeClassTitle}>🆘 Support to my classroom</Text>
+              <Text style={styles.wholeClassTitle}>Support to my classroom</Text>
               <Text style={styles.rowSub}>No specific student — support for the whole class</Text>
+              {/* Item 8 (Sep 11): today's colour mix, ambient context only - no colour
+                  step, no extra tap. Dot size reflects relative count, not exact numbers. */}
+              {colourMix && (colourMix.blue + colourMix.green + colourMix.yellow + colourMix.red) > 0 && (
+                <View style={styles.colourMixRow}>
+                  {COLOUR_ZONES.filter(z => colourMix[z] > 0).map(zone => (
+                    <View
+                      key={zone}
+                      style={{
+                        width: 8 + Math.min(colourMix[zone], 5) * 2,
+                        height: 8 + Math.min(colourMix[zone], 5) * 2,
+                        borderRadius: 999,
+                        backgroundColor: EMOTION_COLOURS[zone],
+                      }}
+                    />
+                  ))}
+                </View>
+              )}
+            </View>
+            <MaterialIcons name="chevron-right" size={20} color="#999" />
+          </TouchableOpacity>
+          {/* Item 7 (Sep 11): incidents are usually classroom-level - fastest path in the
+              app, second top row alongside "Support to my classroom", same skip-to-confirm. */}
+          <TouchableOpacity style={[styles.rowCard, styles.incidentCard]} onPress={pickWholeClassroomIncident}>
+            <MaterialIcons name="warning" size={24} color="#F44336" />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowTitle, styles.incidentText]}>🚨 Incident — urgent</Text>
+              <Text style={styles.rowSub}>Classroom-level, immediate</Text>
             </View>
             <MaterialIcons name="chevron-right" size={20} color="#999" />
           </TouchableOpacity>
           {classroomStudents.map((s: any) => (
-            <View key={s.id} style={styles.rowCard}>
-              <Avatar type={s.avatar_type || 'preset'} preset={s.avatar_preset} custom={s.avatar_custom} size={36} />
-              <Text style={[styles.rowTitle, { flex: 1 }]} numberOfLines={1}>{s.name}</Text>
+            <View key={s.id} style={[styles.rowCard, selectedStudentId === s.id && styles.rowCardSelected]}>
+              <TouchableOpacity style={styles.rowMainTap} onPress={() => pickStudent(s)}>
+                <Avatar type={s.avatar_type || 'preset'} preset={s.avatar_preset} custom={s.avatar_custom} size={36} />
+                <Text style={[styles.rowTitle, { flex: 1 }]} numberOfLines={1}>{s.name}</Text>
+              </TouchableOpacity>
+              {/* Item 6 (Sep 11, confirmed unchanged): tapping a colour circle only
+                  selects it - it never advances/submits. Only the row's own tap (above)
+                  or its arrow proceeds. */}
               <View style={styles.colourCircleRow}>
                 {COLOUR_ZONES.map(zone => (
                   <TouchableOpacity
@@ -382,15 +446,22 @@ export default function SupportRequestScreen() {
 
   // step === 'detail'
   const needsStaffPicker = requestType === 'STAFF_MEMBER';
-  const isClassroomSupport = requestType === 'CLASSROOM_SUPPORT';
+  const isClassroomSupport = requestType === 'CLASSROOM_SUPPORT' && !studentId;
+  // Item 7 (Sep 11): the new classroom-level incident top row also lands here (skip-to-
+  // confirm, same as its sibling) - needs its own urgent-styled confirm, not the calm
+  // "someone will come to help" text, and no staff/note input.
+  const isClassroomIncident = requestType === 'INCIDENT' && !studentId;
+  const isClassroomLevel = isClassroomSupport || isClassroomIncident;
   return (
     <SafeAreaView style={styles.container}>
       <TranslatedHeader
-        title={isClassroomSupport ? 'Whole classroom' : studentName}
-        onBackPress={() => setStep(isClassroomSupport ? 'student' : 'type')}
+        title={isClassroomLevel ? 'Whole classroom' : studentName}
+        onBackPress={() => setStep(isClassroomLevel ? 'student' : 'type')}
       />
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-        {isClassroomSupport ? (
+        {isClassroomIncident ? (
+          <Text style={[styles.rowSub, styles.incidentText]}>🚨 Immediate support needed in {classroomName}.</Text>
+        ) : isClassroomSupport ? (
           <Text style={styles.rowSub}>Someone will come to {classroomName} to help.</Text>
         ) : needsStaffPicker ? (
           <>
@@ -428,7 +499,11 @@ export default function SupportRequestScreen() {
             />
           </>
         )}
-        <TouchableOpacity style={styles.bottomSubmit} onPress={() => handleSubmit()} disabled={saving}>
+        <TouchableOpacity
+          style={[styles.bottomSubmit, isClassroomIncident && styles.bottomSubmitIncident]}
+          onPress={() => handleSubmit()}
+          disabled={saving}
+        >
           {saving ? <ActivityIndicator color="white" /> : <Text style={styles.bottomSubmitText}>Send Request</Text>}
         </TouchableOpacity>
       </ScrollView>
@@ -469,6 +544,7 @@ const styles = StyleSheet.create({
   },
   inputMultiline: { minHeight: 80, textAlignVertical: 'top' },
   bottomSubmit: { backgroundColor: '#4CAF50', borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 12 },
+  bottomSubmitIncident: { backgroundColor: '#F44336' },
   bottomSubmitText: { color: 'white', fontWeight: '700', fontSize: 16 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   emptyText: { fontSize: 16, color: '#999', marginTop: 12, textAlign: 'center' },
@@ -481,9 +557,14 @@ const styles = StyleSheet.create({
   colourCircleRow: { flexDirection: 'row', gap: 6 },
   colourCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: 'transparent' },
   colourCircleSelected: { borderColor: '#333' },
+  colourMixRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
   rowArrowBtn: { padding: 4 },
+  // Item 5 (Sep 11): tapping a student row highlights it (black border) before advancing.
+  rowMainTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rowCardSelected: { borderColor: '#333', borderWidth: 1.5 },
   statusDot: { width: 22, height: 22, borderRadius: 11, marginBottom: 8 },
   statusText: { fontSize: 18, fontWeight: '700', color: '#333', marginTop: 4, textAlign: 'center' },
+  sentLine: { fontSize: 12, color: '#999', marginTop: 6, textAlign: 'center' },
   arrivedBtn: {
     marginTop: 28, backgroundColor: EMOTION_COLOURS.green, borderRadius: 14,
     paddingVertical: 14, paddingHorizontal: 28, minWidth: 200, alignItems: 'center',
