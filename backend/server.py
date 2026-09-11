@@ -14861,10 +14861,22 @@ async def update_my_school(request: Request):
 
 @api_router.get("/schools/world-wall")
 async def get_schools_world_wall(request: Request):
-    """Public endpoint - returns schools for the world wall (no sensitive data)"""
+    """Public endpoint - returns schools for the world wall (no sensitive data).
+    Real fix Sep 11 (superadmin-regression investigation, school-count root cause): this
+    selected EVERY user of any role with a non-null school_name - not just school_admin
+    accounts - so a school with 5 real users (1 admin + teachers + parents) contributed up
+    to 5 raw rows for what should be ONE school. The portal's own client-side dedup (by
+    name+city) only partially masked this: city is resolved per-INDIVIDUAL-user from
+    admin_settings, and only the actual school_admin of each school has ever set their own
+    school_city - every teacher/parent at that school resolves to city="", producing a
+    second "orphan" dedup key per school. Reproduced live: 2 real schools produced 4
+    displayed entries this way. Filtering to role=='school_admin' here (one row per real
+    school, matching the pattern already used elsewhere for this exact "one row per
+    school" intent) fixes it at the source - the portal's dedup stays as harmless
+    defense-in-depth, no longer load-bearing."""
     try:
         # Get all school admins who have registered
-        school_admins = supabase.table("users").select("user_id, school_name, school_country").neq("school_name", None).execute()
+        school_admins = supabase.table("users").select("user_id, school_name, school_country").eq("role", "school_admin").neq("school_name", None).execute()
         schools = []
         for admin in (school_admins.data or []):
             if admin.get("school_name"):
