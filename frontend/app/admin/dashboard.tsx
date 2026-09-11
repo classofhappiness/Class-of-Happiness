@@ -1556,7 +1556,7 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
           <View style={s.pricingBox}>
             <Text style={s.pricingText}>{t("pricing_parent_line") || "Parent €4.99/mo (monthly only)"}</Text>
             <Text style={s.pricingText}>{t("pricing_teacher_line") || "Teacher €7.99/mo (monthly only)"}</Text>
-            <Text style={s.pricingText}>{t("pricing_school_line") || "School from €299/yr"}</Text>
+            <Text style={s.pricingText}>{t("pricing_school_line") || "School from €499/yr"}</Text>
           </View>
         </SectionCard>
 
