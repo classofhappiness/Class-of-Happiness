@@ -9,16 +9,17 @@ import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import {
   supportRequestsApi, SupportRequestType, StaffShortcut, SupportRequest,
   zoneLogsApi, formatSupportRequestStatus,
 } from '../../src/utils/api';
+import { useSupportRequestsList } from '../../src/utils/supportRequestsPoller';
 import { EMOTION_COLOURS, EmotionZone } from '../../src/constants/emotionColours';
 
 const RECENTS_KEY = 'support_request_recent_staff_names';
 const MAX_RECENTS = 5;
 const COLOUR_ZONES: EmotionZone[] = ['blue', 'green', 'yellow', 'red'];
-const STATUS_POLL_MS = 4000;
 
 type Step = 'classroom' | 'student' | 'type' | 'detail' | 'status';
 
@@ -63,6 +64,8 @@ export default function SupportRequestScreen() {
   // time; skipped falls back to the existing auto-attach-latest-checkin behaviour.
   const [studentColours, setStudentColours] = useState<Record<string, EmotionZone>>({});
   const [sentRequest, setSentRequest] = useState<SupportRequest | null>(null);
+  const [markingArrived, setMarkingArrived] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const classroomStudents = (students || []).filter((s: any) => s.classroom_id === classroomId);
 
@@ -86,17 +89,18 @@ export default function SupportRequestScreen() {
     });
   }, [viewId]);
 
-  // Design change 5 (Sep 10): "Uber-request" live status - polls this one request until
-  // resolved, so the status can flip in place instead of the screen just disappearing.
-  // Stops once RESOLVED (nothing left to change) or on unmount (teacher navigated away).
+  // Design change 5 (Sep 10): "Uber-request" live status - flips in place instead of the
+  // screen just disappearing. Real fix Sep 11 (stop-ship): this used to run its own
+  // setInterval calling getOne(id) - one more of the stacked pollers that flooded the
+  // backend (a screen left mounted-but-unfocused in the nav stack kept polling forever).
+  // Now derives from the ONE shared list poller (supportRequestsPoller.ts), which is
+  // itself focus-gated - navigating away stops this screen's contribution immediately.
+  const liveList = useSupportRequestsList(true);
   useEffect(() => {
-    if (step !== 'status' || !sentRequest || sentRequest.status === 'RESOLVED') return;
-    const id = sentRequest.id;
-    const interval = setInterval(() => {
-      supportRequestsApi.getOne(id).then(setSentRequest).catch(() => {});
-    }, STATUS_POLL_MS);
-    return () => clearInterval(interval);
-  }, [step, sentRequest?.id, sentRequest?.status]);
+    if (!sentRequest) return;
+    const updated = liveList.find(r => r.id === sentRequest.id);
+    if (updated) setSentRequest(updated);
+  }, [liveList]);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   useEffect(() => {
@@ -176,7 +180,28 @@ export default function SupportRequestScreen() {
       setSentRequest(created);
       setStep('status');
     } catch (e: any) {
-      Alert.alert(t('error') || 'Error', e.message || 'Could not send request');
+      // Real handling Sep 11 (one-open-request rule): same "type|payload" convention as
+      // free_tier_limit elsewhere in this app - don't show a raw error for a case that's
+      // actually just "you already have one open," route them to it instead.
+      const msg: string = e.message || '';
+      if (msg.startsWith('support_request_open|')) {
+        const existingId = msg.split('|')[1];
+        Alert.alert(
+          'Already in progress',
+          "You already have a request in progress.",
+          [{ text: 'View it', onPress: async () => {
+            try {
+              const existing = await supportRequestsApi.getOne(existingId);
+              setSentRequest(existing);
+              setStep('status');
+            } catch {
+              router.replace('/teacher/dashboard');
+            }
+          } }]
+        );
+      } else {
+        Alert.alert(t('error') || 'Error', msg || 'Could not send request');
+      }
     } finally {
       setSaving(false);
     }
@@ -185,6 +210,7 @@ export default function SupportRequestScreen() {
   if (viewLoading) {
     return (
       <SafeAreaView style={styles.container}>
+        <TranslatedHeader title="Support Request" backTo="/teacher/dashboard" />
         <View style={styles.successScreen}>
           <ActivityIndicator color="#5C6BC0" />
         </View>
@@ -195,12 +221,61 @@ export default function SupportRequestScreen() {
   if (step === 'status' && sentRequest) {
     const display = formatSupportRequestStatus(sentRequest);
     const who = sentRequest.student_name || studentName || sentRequest.classroom_name || classroomName || 'Classroom';
+    // Real fix Sep 11: open now means genuinely still in play - CANCELLED/SUPERSEDED are
+    // just as terminal as RESOLVED, the Arrived/Cancel actions make no sense on either.
+    const isOpen = sentRequest.status === 'PENDING' || sentRequest.status === 'ACKNOWLEDGED';
     return (
       <SafeAreaView style={styles.container}>
+        <TranslatedHeader title={who} backTo="/teacher/dashboard" />
         <View style={styles.successScreen}>
           <Animated.View style={[styles.statusDot, { backgroundColor: display.color, opacity: pulseAnim }]} />
           <Text style={styles.successTitle}>{who}</Text>
           <Text style={styles.statusText}>{display.text}</Text>
+          {isOpen && (
+            <TouchableOpacity
+              style={styles.arrivedBtn}
+              disabled={markingArrived || cancelling}
+              onPress={async () => {
+                setMarkingArrived(true);
+                try {
+                  const updated = await supportRequestsApi.markArrived(sentRequest.id);
+                  setSentRequest(updated);
+                } catch (e: any) {
+                  Alert.alert(t('error') || 'Error', e.message || 'Could not update request');
+                } finally {
+                  setMarkingArrived(false);
+                }
+              }}
+            >
+              {markingArrived ? <ActivityIndicator color="white" /> : <Text style={styles.arrivedBtnText}>Support arrived ✓</Text>}
+            </TouchableOpacity>
+          )}
+          {isOpen && (
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              disabled={markingArrived || cancelling}
+              onPress={() => Alert.alert(
+                'Cancel request?',
+                "This stops the buzzing and closes it - the admin will be told it's no longer needed.",
+                [
+                  { text: 'Keep it', style: 'cancel' },
+                  { text: 'Cancel request', style: 'destructive', onPress: async () => {
+                    setCancelling(true);
+                    try {
+                      const updated = await supportRequestsApi.cancel(sentRequest.id);
+                      setSentRequest(updated);
+                    } catch (e: any) {
+                      Alert.alert(t('error') || 'Error', e.message || 'Could not cancel request');
+                    } finally {
+                      setCancelling(false);
+                    }
+                  } },
+                ]
+              )}
+            >
+              {cancelling ? <ActivityIndicator color="#999" /> : <Text style={styles.cancelBtnText}>Cancel request</Text>}
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={styles.backToDashboardBtn} onPress={() => router.replace('/teacher/dashboard')}>
             <Text style={styles.backToDashboardText}>Back to Dashboard</Text>
           </TouchableOpacity>
@@ -212,16 +287,9 @@ export default function SupportRequestScreen() {
   if (step === 'classroom') {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <MaterialIcons name="arrow-back" size={24} color="#333" />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>🔔 Support Request</Text>
-            <Text style={styles.headerSub}>Select a classroom</Text>
-          </View>
-        </View>
+        <TranslatedHeader title="🔔 Support Request" backTo="/teacher/dashboard" />
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+          <Text style={styles.stepSubtitle}>Select a classroom</Text>
           {(classrooms || []).length === 0 ? (
             <View style={styles.empty}>
               <MaterialIcons name="school" size={48} color="#CCC" />
@@ -245,16 +313,9 @@ export default function SupportRequestScreen() {
   if (step === 'student') {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => setStep('classroom')} style={styles.backBtn}>
-            <MaterialIcons name="arrow-back" size={24} color="#333" />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle} numberOfLines={1}>{classroomName}</Text>
-            <Text style={styles.headerSub}>Select a student, or the whole classroom</Text>
-          </View>
-        </View>
+        <TranslatedHeader title={classroomName} onBackPress={() => setStep('classroom')} />
         <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
+          <Text style={styles.stepSubtitle}>Select a student, or the whole classroom</Text>
           <TouchableOpacity style={[styles.rowCard, styles.wholeClassCard]} onPress={pickWholeClassroom}>
             <MaterialIcons name="groups" size={24} color="#5C6BC0" />
             <View style={{ flex: 1 }}>
@@ -295,16 +356,9 @@ export default function SupportRequestScreen() {
   if (step === 'type') {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => setStep('student')} style={styles.backBtn}>
-            <MaterialIcons name="arrow-back" size={24} color="#333" />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle} numberOfLines={1}>{studentName}</Text>
-            <Text style={styles.headerSub}>What's needed?</Text>
-          </View>
-        </View>
+        <TranslatedHeader title={studentName} onBackPress={() => setStep('student')} />
         <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
+          <Text style={styles.stepSubtitle}>What's needed?</Text>
           {REQUEST_TYPES.map(rt => (
             <TouchableOpacity
               key={rt.type}
@@ -326,14 +380,10 @@ export default function SupportRequestScreen() {
   const isClassroomSupport = requestType === 'CLASSROOM_SUPPORT';
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => setStep(isClassroomSupport ? 'student' : 'type')} style={styles.backBtn}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>{isClassroomSupport ? 'Whole classroom' : studentName}</Text>
-        </View>
-      </View>
+      <TranslatedHeader
+        title={isClassroomSupport ? 'Whole classroom' : studentName}
+        onBackPress={() => setStep(isClassroomSupport ? 'student' : 'type')}
+      />
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
         {isClassroomSupport ? (
           <Text style={styles.rowSub}>Someone will come to {classroomName} to help.</Text>
@@ -383,15 +433,11 @@ export default function SupportRequestScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'white', paddingHorizontal: 12, paddingVertical: 10, paddingTop: 16,
-    borderBottomWidth: 1, borderBottomColor: '#F0F0F0', gap: 8,
-  },
-  backBtn: { padding: 6 },
-  headerCenter: { flex: 1 },
-  headerTitle: { fontSize: 16, fontWeight: '700', color: '#333' },
-  headerSub: { fontSize: 11, color: '#888', marginTop: 1 },
+  // Real fix Sep 11 (UI consistency): the hand-rolled header (backBtn/headerCenter/
+  // headerTitle/headerSub) is gone - every step now uses the shared TranslatedHeader
+  // (logo, standard back affordance) like every other teacher screen. stepSubtitle
+  // replaces headerSub as ordinary content just below the header, not part of it.
+  stepSubtitle: { fontSize: 12, color: '#888', marginBottom: 2 },
   rowCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: 'white', borderRadius: 12, padding: 16,
@@ -430,8 +476,15 @@ const styles = StyleSheet.create({
   rowArrowBtn: { padding: 4 },
   statusDot: { width: 22, height: 22, borderRadius: 11, marginBottom: 8 },
   statusText: { fontSize: 18, fontWeight: '700', color: '#333', marginTop: 4, textAlign: 'center' },
+  arrivedBtn: {
+    marginTop: 28, backgroundColor: EMOTION_COLOURS.green, borderRadius: 14,
+    paddingVertical: 14, paddingHorizontal: 28, minWidth: 200, alignItems: 'center',
+  },
+  arrivedBtnText: { color: 'white', fontWeight: '700', fontSize: 15 },
+  cancelBtn: { marginTop: 14, paddingVertical: 10, paddingHorizontal: 20 },
+  cancelBtnText: { color: '#999', fontWeight: '600', fontSize: 14, textDecorationLine: 'underline' },
   backToDashboardBtn: {
-    marginTop: 32, backgroundColor: '#5C6BC0', borderRadius: 14,
+    marginTop: 14, backgroundColor: '#5C6BC0', borderRadius: 14,
     paddingVertical: 14, paddingHorizontal: 28,
   },
   backToDashboardText: { color: 'white', fontWeight: '700', fontSize: 15 },
