@@ -3836,14 +3836,28 @@ async def get_resources(request: Request):
     # something intermittent. Content isn't needed for a list - the single-resource GET
     # (/resources/{id}) still returns full content unchanged, for whatever genuinely needs it
     # (e.g. viewing a text-type resource's body).
+    # Real fix Sep 11 (Phase 2.5 resource scoping): school_admin_id added, defensively -
+    # falls back to the pre-migration column list.
     try:
-        result = supabase.table("resources").select(
-            "id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,week_number"
-        ).eq("is_active", True).execute()
+        try:
+            result = supabase.table("resources").select(
+                "id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,week_number,school_admin_id"
+            ).eq("is_active", True).execute()
+        except Exception:
+            result = supabase.table("resources").select(
+                "id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,week_number"
+            ).eq("is_active", True).execute()
         items = result.data or []
     except Exception as e:
         logger.error(f"get_resources error: {e}")
         return []
+
+    # Real fix Sep 11 (Phase 2.5 resource scoping, read-side): same cross-school leak
+    # close as /teacher-resources - see that endpoint's comment for the full reasoning.
+    is_unrestricted = user.get("role") in ("admin", "superadmin")
+    caller_school_ids = set() if is_unrestricted else _resolve_caller_school_admin_ids(user)
+    if not is_unrestricted:
+        items = [r for r in items if not (r.get("school_admin_id") and r.get("school_admin_id") not in caller_school_ids)]
 
     # Real freemium gating, per Jono's explicit rule: the Emotion Program is entirely free for
     # everyone; every other program only has its first 2 weeks free. Resources are NOT hidden
@@ -4658,6 +4672,44 @@ def _parent_is_school_covered(user: dict) -> bool:
     except Exception as e:
         logger.warning(f"_parent_is_school_covered check failed for {user.get('user_id')}: {e}")
         return False
+
+def _resolve_caller_school_admin_ids(user: dict) -> set:
+    """Real addition Sep 11 (Phase 2.5 resource scoping, read-side): every school_admin_id
+    a resource-read caller is entitled to see school-scoped content from - a teacher has
+    at most one, a parent can have several (linked children at different schools), a
+    school_admin is their own. Reuses the exact same parent_links -> students ->
+    classrooms -> teacher -> school_admin_id walk _parent_is_school_covered already uses
+    (proven correct in production), rather than inventing a second version of the same
+    resolution. superadmin/admin are NOT special-cased here - callers using this for
+    visibility filtering should skip the filter entirely for those roles instead."""
+    role = user.get("role")
+    if role == "school_admin":
+        return {user["user_id"]}
+    if role == "teacher":
+        sid = _teacher_school_admin_id(user)
+        return {sid} if sid else set()
+    if role == "parent":
+        ids = set()
+        if user.get("school_admin_id"):
+            ids.add(user["school_admin_id"])
+        try:
+            links = supabase.table("parent_links").select("student_id").eq("parent_user_id", user["user_id"]).execute()
+            student_ids = [l["student_id"] for l in (links.data or [])]
+            if student_ids:
+                students = supabase.table("students").select("classroom_id").in_("id", student_ids).execute()
+                classroom_ids = list({s["classroom_id"] for s in (students.data or []) if s.get("classroom_id")})
+                if classroom_ids:
+                    classrooms = supabase.table("classrooms").select("user_id").in_("id", classroom_ids).execute()
+                    teacher_ids = list({c["user_id"] for c in (classrooms.data or []) if c.get("user_id")})
+                    if teacher_ids:
+                        teachers = supabase.table("users").select("school_admin_id").in_("user_id", teacher_ids).execute()
+                        for t in (teachers.data or []):
+                            if t.get("school_admin_id"):
+                                ids.add(t["school_admin_id"])
+        except Exception as e:
+            logger.warning(f"_resolve_caller_school_admin_ids failed for parent {user.get('user_id')}: {e}")
+        return ids
+    return set()
 
 def _can_switch_to_teacher(user: dict) -> bool:
     """Real fix Aug 26: PUT /auth/role used to just flip the role column - live-confirmed
@@ -10678,7 +10730,13 @@ async def get_teacher_resources(request: Request, topic: Optional[str] = None, a
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    resources_result = supabase.table("resources").select("id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,week_number").eq("is_active", True).execute()
+    # Real fix Sep 11 (Phase 2.5 resource scoping, read-side): school_admin_id added to
+    # the select, defensively - falls back to the pre-migration column list so this
+    # endpoint doesn't start hard-failing before resources-scoping/01_....sql has run.
+    try:
+        resources_result = supabase.table("resources").select("id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,week_number,school_admin_id").eq("is_active", True).execute()
+    except Exception:
+        resources_result = supabase.table("resources").select("id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,week_number").eq("is_active", True).execute()
     all_resources = resources_result.data or []
 
     # Real freemium gating — same rule as /resources: Emotion Program always free, other
@@ -10715,6 +10773,15 @@ async def get_teacher_resources(request: Request, topic: Optional[str] = None, a
     else:
         allowed_audiences = ["teachers", "parents", "both", None, ""]
 
+    # Real fix Sep 11 (Phase 2.5 resource scoping, read-side): closes the cross-school
+    # leak found in the parity audit - a resource with school_admin_id set is now only
+    # visible to callers at that same school (or superadmin/admin, unrestricted). A
+    # resource with school_admin_id absent/None reads as global, matching every existing
+    # row today (all 71 are_global=True, none scoped yet) - zero behavior change until a
+    # school_admin actually creates school-scoped content post-migration.
+    is_unrestricted = user.get("role") in ("admin", "superadmin")
+    caller_school_ids = set() if is_unrestricted else _resolve_caller_school_admin_ids(user)
+
     visible = []
     for r in all_resources:
         r_audience = r.get("target_audience", "both")
@@ -10722,6 +10789,9 @@ async def get_teacher_resources(request: Request, topic: Optional[str] = None, a
             continue
         resource_topic = r.get("topic") or r.get("category") or "general"
         if topic and topic != "all" and resource_topic != topic:
+            continue
+        r_school_id = r.get("school_admin_id")
+        if r_school_id and not is_unrestricted and r_school_id not in caller_school_ids:
             continue
         visible.append(r)
 
