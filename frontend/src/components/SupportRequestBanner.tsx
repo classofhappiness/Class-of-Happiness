@@ -1,9 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
-import { useRouter } from 'expo-router';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, ActivityIndicator, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { SupportRequest, formatSupportRequestStatus } from '../utils/api';
+import {
+  SupportRequest, formatSupportRequestStatus, describeSupportRequest, formatSentLine,
+  supportRequestsApi,
+} from '../utils/api';
 import { useSupportRequestsList } from '../utils/supportRequestsPoller';
+import { EMOTION_COLOURS } from '../constants/emotionColours';
 
 const FLASH_MS = 4000; // how long a just-RESOLVED request stays visible before it self-removes
 
@@ -20,13 +23,18 @@ function flipTimestamp(r: SupportRequest): number | null {
   return iso ? new Date(iso).getTime() : null;
 }
 
-// Real feature Sep 10 (build 27): the teacher-side "Uber-style" pending banner. Minimal
-// footprint per Jono's amendment - renders nothing when there's nothing to show. Modelled
-// on Uber's own collapsed trip card: one compact inline pill, not an edge-to-edge alert bar.
+// Real revision Sep 11 (Jono, live device pass): replaces the old "tap the pill, navigate
+// to a whole new screen" pattern with an inline expand/collapse card, right on the
+// dashboard - fewer pages, less confusion. The separate status screen
+// (app/teacher/support-request.tsx's ?viewId= step) stays as the deep-link target for a
+// push notification tap or anywhere the dashboard isn't on screen; both read the same
+// shared poller so they can never show conflicting state. No message/chat button here yet
+// - that's still an unscoped Phase 2 candidate, omitted rather than shipped as a dead tap.
 export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
-  const router = useRouter();
   const list = useSupportRequestsList(enabled);
   const [active, setActive] = useState<Record<string, SupportRequest>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [busy, setBusy] = useState<Record<string, 'arriving' | 'cancelling' | undefined>>({});
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // Real fix Sep 11 (stop-ship): this used to run its own setInterval + fetch. Now purely
@@ -58,12 +66,74 @@ export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
 
   useEffect(() => () => { Object.values(timers.current).forEach(clearTimeout); }, []);
 
-  const pulseAnim = useRef(new Animated.Value(1)).current;
   const items = Object.values(active).sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-  const anyPending = items.some((r) => r.status === 'PENDING');
+  if (!enabled || items.length === 0) return null;
+
+  const toggle = (id: string) => setExpanded((e) => ({ ...e, [id]: !e[id] }));
+
+  const markArrived = async (r: SupportRequest) => {
+    setBusy((b) => ({ ...b, [r.id]: 'arriving' }));
+    try {
+      const updated = await supportRequestsApi.markArrived(r.id);
+      setActive((a) => ({ ...a, [r.id]: updated }));
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not update request');
+    } finally {
+      setBusy((b) => ({ ...b, [r.id]: undefined }));
+    }
+  };
+
+  const cancelRequest = (r: SupportRequest) => Alert.alert(
+    'Cancel request?',
+    "This stops the buzzing and closes it - the admin will be told it's no longer needed.",
+    [
+      { text: 'Keep it', style: 'cancel' },
+      { text: 'Cancel request', style: 'destructive', onPress: async () => {
+        setBusy((b) => ({ ...b, [r.id]: 'cancelling' }));
+        try {
+          const updated = await supportRequestsApi.cancel(r.id);
+          setActive((a) => ({ ...a, [r.id]: updated }));
+        } catch (e: any) {
+          Alert.alert('Error', e.message || 'Could not cancel request');
+        } finally {
+          setBusy((b) => ({ ...b, [r.id]: undefined }));
+        }
+      } },
+    ]
+  );
+
+  return (
+    <View>
+      {items.map((r) => (
+        <RequestCard
+          key={r.id}
+          request={r}
+          expanded={!!expanded[r.id]}
+          busy={busy[r.id]}
+          onToggle={() => toggle(r.id)}
+          onArrived={() => markArrived(r)}
+          onCancel={() => cancelRequest(r)}
+        />
+      ))}
+    </View>
+  );
+}
+
+function RequestCard({ request, expanded, busy, onToggle, onArrived, onCancel }: {
+  request: SupportRequest;
+  expanded: boolean;
+  busy: 'arriving' | 'cancelling' | undefined;
+  onToggle: () => void;
+  onArrived: () => void;
+  onCancel: () => void;
+}) {
+  const display = formatSupportRequestStatus(request);
+  const isOpen = request.status === 'PENDING' || request.status === 'ACKNOWLEDGED';
+  const who = request.student_name || request.classroom_name || 'Classroom';
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (!anyPending) { pulseAnim.setValue(1); return; }
+    if (!display.pulse) { pulseAnim.setValue(1); return; }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 0.4, duration: 700, useNativeDriver: true }),
@@ -72,34 +142,33 @@ export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
     );
     loop.start();
     return () => loop.stop();
-  }, [anyPending]);
+  }, [display.pulse]);
 
-  if (!enabled || items.length === 0) return null;
-
-  const openRequest = (id: string) => router.push(`/teacher/support-request?viewId=${id}` as any);
-
-  if (items.length === 1) {
-    const display = formatSupportRequestStatus(items[0]);
-    return (
-      <TouchableOpacity style={styles.pill} onPress={() => openRequest(items[0].id)} activeOpacity={0.7}>
+  return (
+    <View style={styles.card}>
+      <TouchableOpacity style={styles.pill} onPress={onToggle} activeOpacity={0.7}>
         <Animated.View style={[styles.dot, { backgroundColor: display.color, opacity: display.pulse ? pulseAnim : 1 }]} />
         <Text style={styles.text} numberOfLines={1}>Support request · {display.text}</Text>
-        <MaterialIcons name="chevron-right" size={18} color="#999" />
+        <MaterialIcons name={expanded ? 'expand-less' : 'expand-more'} size={22} color="#999" />
       </TouchableOpacity>
-    );
-  }
-
-  const seenCount = items.filter((r) => r.status !== 'PENDING').length;
-  const color = anyPending ? formatSupportRequestStatus(items.find((r) => r.status === 'PENDING')!).color
-    : formatSupportRequestStatus(items[0]).color;
-  return (
-    <TouchableOpacity style={styles.pill} onPress={() => openRequest(items[0].id)} activeOpacity={0.7}>
-      <Animated.View style={[styles.dot, { backgroundColor: color, opacity: anyPending ? pulseAnim : 1 }]} />
-      <Text style={styles.text} numberOfLines={1}>
-        {items.length} support requests{seenCount > 0 ? ` · ${seenCount} seen` : ''}
-      </Text>
-      <MaterialIcons name="chevron-right" size={18} color="#999" />
-    </TouchableOpacity>
+      {expanded && (
+        <View style={styles.details}>
+          <Text style={styles.detailTitle}>{who}</Text>
+          <Text style={styles.detailLine}>{describeSupportRequest(request)}</Text>
+          <Text style={styles.detailMeta}>{formatSentLine(request.created_at)}</Text>
+          {isOpen && (
+            <View style={styles.actionRow}>
+              <TouchableOpacity style={styles.arrivedBtn} disabled={!!busy} onPress={onArrived}>
+                {busy === 'arriving' ? <ActivityIndicator color="white" /> : <Text style={styles.arrivedBtnText}>Support arrived ✓</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.cancelBtn} disabled={!!busy} onPress={onCancel}>
+                {busy === 'cancelling' ? <ActivityIndicator color="#999" /> : <Text style={styles.cancelBtnText}>Cancel</Text>}
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -108,12 +177,31 @@ const styles = StyleSheet.create({
   // teacher dashboard's ScrollView, which already has 16px horizontal padding on its
   // content container. Adding another 16px here would double-inset it relative to
   // every tile/section around it instead of sitting flush with them.
+  card: {
+    backgroundColor: 'white', borderRadius: 12, borderWidth: 1, borderColor: '#E0E0E0',
+    marginBottom: 12, overflow: 'hidden',
+  },
   pill: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'white', borderRadius: 12, borderWidth: 1, borderColor: '#E0E0E0',
     paddingVertical: 10, paddingHorizontal: 14,
-    marginBottom: 12,
   },
   dot: { width: 10, height: 10, borderRadius: 5 },
   text: { flex: 1, fontSize: 13, fontWeight: '600', color: '#333' },
+  details: {
+    paddingHorizontal: 14, paddingBottom: 14, paddingTop: 2,
+    borderTopWidth: 1, borderTopColor: '#F0F0F0',
+  },
+  detailTitle: { fontSize: 14, fontWeight: '700', color: '#333', marginTop: 8 },
+  detailLine: { fontSize: 13, color: '#555', marginTop: 2 },
+  detailMeta: { fontSize: 11, color: '#999', marginTop: 4 },
+  actionRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  arrivedBtn: {
+    flex: 1, backgroundColor: EMOTION_COLOURS.green, borderRadius: 10,
+    paddingVertical: 10, alignItems: 'center',
+  },
+  arrivedBtnText: { color: 'white', fontWeight: '700', fontSize: 13 },
+  cancelBtn: {
+    paddingVertical: 10, paddingHorizontal: 14, alignItems: 'center',
+  },
+  cancelBtnText: { color: '#999', fontWeight: '600', fontSize: 13, textDecorationLine: 'underline' },
 });
