@@ -197,10 +197,17 @@ export default function SupportRequestScreen() {
           });
         } catch {}
       }
+      // Real bug fix Sep 11: classroom_id was only ever sent when finalType ===
+      // 'CLASSROOM_SUPPORT' - item 7's new classroom-level INCIDENT button (student_id
+      // null, classroom_id set) sent NEITHER field, hitting the backend's "classroom_id
+      // or student_id is required" 400 every time (confirmed live - Jono hit this exact
+      // error). classroomId is always the right value regardless of type: the flow
+      // always picks a classroom first, then optionally a student FROM that classroom,
+      // so sending it unconditionally is correct for every path, not just this one.
       const created = await supportRequestsApi.create({
         request_type: finalType,
         student_id: studentId || undefined,
-        classroom_id: finalType === 'CLASSROOM_SUPPORT' ? classroomId : undefined,
+        classroom_id: classroomId || undefined,
         target_text: finalText.trim() || undefined,
       });
       if (finalType === 'STAFF_MEMBER' && finalText.trim()) {
