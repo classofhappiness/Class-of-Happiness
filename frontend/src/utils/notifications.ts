@@ -3,6 +3,7 @@ import * as Device from 'expo-device';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setupNotifeeChannels } from './notifeeIncidents';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
@@ -47,6 +48,11 @@ export async function registerForPushNotifications(): Promise<string | null> {
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
     });
+    // Real addition Sep 11: the notifee-specific "support_requests"/"incidents" channels,
+    // separate from expo-notifications' own "default" channel above - notifee needs its
+    // own channels created through its own API before displayNotification can use them,
+    // sharing expo-notifications' channel doesn't work across the two libraries.
+    await setupNotifeeChannels();
   }
 
   // Store token locally

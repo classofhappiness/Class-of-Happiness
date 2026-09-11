@@ -14,6 +14,8 @@ import { SecureField } from '../../src/components/SecureField';
 import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
 import { supportRequestsApi, SupportRequest } from '../../src/utils/api';
 import { useSupportRequestsList } from '../../src/utils/supportRequestsPoller';
+import { registerForPushNotifications } from '../../src/utils/notifications';
+import { dismissIncidentAlert } from '../../src/utils/notifeeIncidents';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const INDIGO = '#5C6BC0';
@@ -1988,10 +1990,10 @@ function SupportRequestsManager() {
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const onAck = async (id: string) => {
-    try { await supportRequestsApi.acknowledge(id); } catch { Alert.alert('Error', 'Could not acknowledge.'); }
+    try { await supportRequestsApi.acknowledge(id); dismissIncidentAlert(id); } catch { Alert.alert('Error', 'Could not acknowledge.'); }
   };
   const onRespond = async (id: string, response: string) => {
-    try { await supportRequestsApi.respond(id, response); } catch { Alert.alert('Error', 'Could not respond.'); }
+    try { await supportRequestsApi.respond(id, response); dismissIncidentAlert(id); } catch { Alert.alert('Error', 'Could not respond.'); }
   };
 
   return (
@@ -2197,6 +2199,21 @@ export default function AdminDashboard() {
   useEffect(() => {
     AsyncStorage.getItem('session_token').then(t => setAuthToken(t));
   }, []);
+
+  // Real fix Sep 11 (superadmin-regression / notifee incident-ring investigation): this
+  // screen never called registerForPushNotifications() at all - confirmed via repo-wide
+  // grep, unlike teacher/parent dashboards which both do. A school_admin's push_token was
+  // therefore never populated by using the app normally (the plan's own Sep 10 note about
+  // manually resetting pembrokeadmin's password "so it can register a real push token for
+  // admin-side testing - it never had before" was this exact gap, worked around rather than
+  // fixed). Without this, Support Requests/incident pushes can never reach a school_admin's
+  // device at all, regardless of any notifee work - this was the actual blocker, not
+  // missing native code. Superadmin excluded - not a support_request recipient.
+  useEffect(() => {
+    if (!isSuperAdmin && user) {
+      registerForPushNotifications().catch(() => {});
+    }
+  }, [isSuperAdmin, user]);
 
   useEffect(() => {
     if (unlocked && tab === 'analytics') loadStats();

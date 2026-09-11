@@ -10,6 +10,8 @@ import { useFonts } from 'expo-font';
 import { AppProvider, useApp } from '../src/context/AppContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SplashAnimation } from '../src/components/SplashAnimation';
+import * as Notifications from 'expo-notifications';
+import { isIncidentPushData, showIncidentAlert, registerNotifeeForegroundHandler } from '../src/utils/notifeeIncidents';
 
 // Keep splash screen visible until app is ready
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -113,6 +115,32 @@ function AppContent() {
       router.replace('/auth/set-password-required');
     }
   }, [isLoading, isAuthenticated, user, pathname]);
+
+  // Real feature Sep 11 (build 27, Phase 1 completion - the notifee incident-ring work):
+  // Notifications.addNotificationReceivedListener only fires while the app is in the
+  // FOREGROUND - this is deliberately the first, simplest case to get right and the one
+  // Jono's device ring-test should check first (see notifeeIncidents.ts's own top-of-file
+  // note on what's confirmed vs. not for a backgrounded/killed app). A normal (non-
+  // incident) push is left alone here - expo-notifications' own setNotificationHandler
+  // already shows those; this only intercepts the specific incident shape and hands it to
+  // notifee for the full-screen/looping treatment instead.
+  useEffect(() => {
+    const sub = Notifications.addNotificationReceivedListener((event) => {
+      const data = event.request.content.data as Record<string, any> | undefined;
+      if (isIncidentPushData(data)) {
+        showIncidentAlert({
+          requestId: String(data?.id || ''),
+          title: event.request.content.title || '🚨 Incident',
+          body: event.request.content.body || 'An incident needs immediate attention.',
+        });
+      }
+    });
+    const unsubscribeForeground = registerNotifeeForegroundHandler();
+    return () => {
+      sub.remove();
+      unsubscribeForeground();
+    };
+  }, []);
 
   return (
     <>
