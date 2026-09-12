@@ -3498,20 +3498,20 @@ async def add_points(student_id: str, req: AddPointsRequest):
     active_creatures = _get_active_creatures(student_data) if student_data else dict(FEELING_COLOUR_MAP)
     active_id = active_creatures.get(feeling_colour) or FEELING_COLOUR_MAP.get(feeling_colour, "aqua_buddy")
 
-    # URGENT real security/product fix Aug 23 (corrected same day - see
-    # get_eligible_creatures for why global_uses never worked as a gate): defensive check,
-    # matching get_eligible_creatures/start_creature/get_my_creatures - start_creature can no
-    # longer set an active_creatures entry to an unapproved community creature going forward,
-    # but this guards against ever progressing or displaying one regardless of how it got
-    # set. Falls back to the default per-colour creature (not an error) if ungated, and also
-    # if the migration hasn't landed yet - a check-in should never fail outright over this.
+    # Real product fix Sep 12 (tiered moderation model): a classroom/school/family-scoped
+    # creature is usable the moment its own creator-level approver signs off - only a
+    # visibility_scope=='global' creature needs superadmin's second gate too. See
+    # _passes_creature_approval_gate. Matches get_eligible_creatures/start_creature/
+    # get_my_creatures. Falls back to the default per-colour creature (not an error) if
+    # ungated, and also if the migration hasn't landed yet - a check-in should never fail
+    # outright over this.
     if active_id not in DEFAULT_CREATURE_IDS:
         try:
-            gate_r = supabase.table("creature_submissions").select("status,superadmin_approved_at").eq("id", active_id).execute()
+            gate_r = supabase.table("creature_submissions").select("status,visibility_scope,superadmin_approved_at").eq("id", active_id).execute()
             gate = gate_r.data[0] if gate_r.data else None
         except Exception:
             gate = None
-        if not gate or gate.get("status") != "approved" or not gate.get("superadmin_approved_at"):
+        if not gate or not _passes_creature_approval_gate(gate.get("status"), gate.get("visibility_scope"), gate.get("superadmin_approved_at")):
             active_id = FEELING_COLOUR_MAP.get(feeling_colour, "aqua_buddy")
 
     if active_id not in DEFAULT_CREATURE_IDS:
@@ -8644,6 +8644,18 @@ async def get_pending_creatures(request: Request):
     # which account submitted it - see _annotate_real_student_names below.
     return _annotate_real_student_names(data)
 
+def _passes_creature_approval_gate(status: str, visibility_scope: str, superadmin_approved_at) -> bool:
+    """Real product fix Sep 12: the tiered creature-moderation model (Jono, confirmed) - a
+    classroom/school/family-scoped creature is fully published the moment its own creator-level
+    approver (teacher/school_admin/parent respectively) approves it; superadmin is never
+    involved for those. Superadmin's `global-approve` second gate is required ONLY when
+    visibility_scope=='global' - a creature going worldwide, regardless of which tier it
+    originated from. One rule, keyed on visibility_scope, never on role - shared by every
+    site that decides whether a creature is genuinely visible/usable."""
+    if status != "approved":
+        return False
+    return (visibility_scope or "global") != "global" or bool(superadmin_approved_at)
+
 async def _can_approve_creature(user: dict, submission: dict) -> bool:
     """Real bug fix Aug 22 (urgent security fix): /creatures/approve and /creatures/reject had
     ZERO ownership/school-scoping - any authenticated teacher/parent/school_admin could
@@ -8795,15 +8807,15 @@ async def get_global_creatures(request: Request):
     # changing a creature's scope away from "global" via the superadmin scope-editing dropdown
     # made it vanish from the very card the dropdown lives on.
     is_superadmin = user.get("role") == "superadmin"
-    # Real bug fix Aug 23: found live during Jono's own portal testing of the safety fix -
-    # this endpoint only ever checked status=="approved" (teacher/parent gate), same gap
-    # class as get_eligible_creatures/start_creature/get_my_creatures, just missed in that
-    # earlier pass. Confirmed live: 6 real teacher/parent-approved-only submissions were
-    # showing here as "Approved Creatures" while simultaneously still sitting in
-    # "Awaiting Final Approval" - the two queues are meant to be mutually exclusive.
-    # superadmin_approved_at gates this the same way as the other surfaces; fails closed
-    # (empty) if the migration column is somehow unavailable, matching the same safety
-    # direction as everywhere else this signal is used.
+    # Real product fix Sep 12 (tiered moderation model): classroom/school-scoped approved
+    # creatures now count as "Approved" here too (previously excluded unless superadmin had
+    # also run global-approve, which they never will for these under the new model - see
+    # _passes_creature_approval_gate). Restores the original Aug 21 intent: superadmin's
+    # view includes non-global approved creatures so scope can still be edited/promoted.
+    # Non-superadmin callers are unaffected - their is_globally_available==True filter
+    # already implies visibility_scope=='global' AND superadmin-approved (the only path
+    # that ever sets is_globally_available), so this widening only reaches superadmin's own
+    # view. Fails closed (empty) if the migration column is somehow unavailable.
     try:
         query = supabase.table("creature_submissions").select(
             base_fields + ",real_student_id,classroom_id,superadmin_approved_at"
@@ -8815,7 +8827,10 @@ async def get_global_creatures(request: Request):
     except Exception:
         rows = type("R", (), {"data": []})()
         has_approval_gate = False
-    creatures = [c for c in (rows.data or []) if has_approval_gate and c.get("superadmin_approved_at")]
+    creatures = [
+        c for c in (rows.data or [])
+        if has_approval_gate and _passes_creature_approval_gate("approved", c.get("visibility_scope"), c.get("superadmin_approved_at"))
+    ]
     creature_ids = [c["id"] for c in creatures]
 
     # Resolve classroom names for whichever creatures have a real classroom_id captured
@@ -9000,27 +9015,15 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
 
     eligible = []
     for c in all_approved:
-        # URGENT real security/product fix Aug 23: this loop only ever checked
-        # status=="approved" (the teacher/parent gate, applied above via .eq("status",
-        # "approved")) - superadmin's second gate (global_approve_creature) was never
-        # actually enforced on this, the real student-facing read path. It only ever set
-        # visibility_scope/is_globally_available, which affects WHICH scope a creature shows
-        # under, not WHETHER it's visible at all - so a teacher/parent-only-approved
-        # creature was immediately eligible to every matching student, completely bypassing
-        # superadmin. Applies to every scope branch below, not just global - a
-        # classroom/school/family-scoped creature needs superadmin's sign-off exactly as
-        # much as a global one does.
-        # CORRECTED same day: the first attempt at this fix used global_uses as the gate
-        # signal, on the assumption it was NULL until superadmin acted. Live-verified false -
-        # global_uses has a DB-level default of 0, confirmed 0 on a truly-fresh, zero-approval
-        # submission - it's a pre-existing popularity counter, never a usable approval gate,
-        # and that first fix was a silent no-op. superadmin_approved_at is a genuine new
-        # column (see global_approve_creature) that only that one action ever sets. If the
-        # migration hasn't landed yet (has_approval_gate False), this fails CLOSED - nothing
-        # eligible - rather than repeat the same mistake in a new shape.
-        if not has_approval_gate or not c.get("superadmin_approved_at"):
-            continue
+        # Real product fix Sep 12 (tiered moderation model, supersedes the Aug 23 fix's
+        # blanket gate): classroom/school/family-scoped creatures are eligible the moment
+        # their own creator-level approver signs off - only visibility_scope=='global' needs
+        # superadmin's second gate too, since that's the only tier with worldwide reach. See
+        # _passes_creature_approval_gate. Still fails CLOSED for a global-scope creature if
+        # the migration hasn't landed yet (has_approval_gate False) - never silently widen.
         scope = c.get("visibility_scope") or "global"
+        if scope == "global" and (not has_approval_gate or not c.get("superadmin_approved_at")):
+            continue
         # Real feature Aug 21: student scope-preference (classroom/school/global/any) - once
         # eligibility is computed as before, further narrow to just the preferred scope unless
         # the student wants "any" (the default). A creature must still pass the real
@@ -9211,10 +9214,16 @@ async def get_featured_creatures(request: Request):
 
 @api_router.post("/creatures/feature/{submission_id}")
 async def feature_creature(submission_id: str, request: Request):
-    """Teacher or school admin features a creature for their school this month."""
+    """Superadmin features a creature worldwide this month (World Gallery spotlight).
+    Real product fix Sep 12 (tiered moderation model, Jono's confirmed sign-off): featuring
+    broadcasts to every family on the platform regardless of who triggers it - a
+    fundamentally different action from approving content into your own school/classroom
+    scope, so it belongs with the other global-tier actions (approve/reject/cancel/delete),
+    matching the sibling superadmin-only checks on cancel_creature/global_approve_creature/
+    delete_creature. Teacher/school_admin previously had this button - removed."""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["teacher","school_admin","admin","superadmin"]:
-        raise HTTPException(status_code=403, detail="Not authorised")
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
     # Get creature info
     creature = supabase.table("creature_submissions").select("*").eq("id", submission_id).execute()
     if not creature.data or creature.data[0]["status"] != "approved":
@@ -9224,7 +9233,9 @@ async def feature_creature(submission_id: str, request: Request):
     # could feature (spotlight, this school or wider, for the whole month) a creature
     # superadmin had never signed off on, same gap class as the urgent safety fix. Confirmed
     # live: "Waterman" was actively featured (through 2026-08-31) despite never being
-    # superadmin-approved. Same superadmin_approved_at gate as everywhere else.
+    # superadmin-approved. Same superadmin_approved_at gate as everywhere else - still real
+    # and still checked, now on top of the superadmin-only role check above rather than
+    # instead of it.
     if not c.get("superadmin_approved_at"):
         raise HTTPException(status_code=400, detail="This creature needs superadmin's final approval before it can be featured")
     # Deactivate existing featured for same school + colour
@@ -9239,7 +9250,11 @@ async def feature_creature(submission_id: str, request: Request):
         "creature_id": submission_id,
         "emotion_colour": c["emotion_colour"],
         "featured_by": user["user_id"],
-        "school_id": user.get("school_name",""),
+        # Real product fix Sep 12: was user.get("school_name",""), meaningless now the
+        # caller is always superadmin (no school_name of their own) - a worldwide feature
+        # isn't "this school's" pick, so the creature's own origin school is the only
+        # honest value to store here.
+        "school_id": c.get("school_name",""),
         "active_from": now.isoformat(),
         "active_until": month_end.isoformat(),
     }).execute()
@@ -9343,17 +9358,16 @@ async def start_creature(submission_id: str, request: Request):
     if not creature_r.data or creature_r.data[0].get("status") != "approved":
         raise HTTPException(status_code=404, detail="Creature not found")
     creature = creature_r.data[0]
-    # URGENT real security/product fix Aug 23 (corrected same day - see
-    # get_eligible_creatures for the full writeup on why global_uses never worked as a gate):
-    # same gap, same real fix. A student could START (create a real creature_unlocks row,
-    # appear in My Creatures/rewards) a creature the moment a teacher or parent approved it,
-    # fully bypassing superadmin. Fails CLOSED if the migration hasn't landed yet.
-    if not has_approval_gate or not creature.get("superadmin_approved_at"):
-        raise HTTPException(status_code=404, detail="Creature not found")
     colour = creature.get("emotion_colour")
-
     classroom_id, school_name = _resolve_student_classroom_school(student_data)
     scope = creature.get("visibility_scope") or "global"
+    # Real product fix Sep 12 (tiered moderation model, supersedes the Aug 23 fix's blanket
+    # gate): a classroom/school/family-scoped creature can be started the moment its own
+    # creator-level approver signs off - only visibility_scope=='global' needs superadmin's
+    # second gate too. See _passes_creature_approval_gate. Still fails CLOSED for a
+    # global-scope creature if the migration hasn't landed yet.
+    if scope == "global" and (not has_approval_gate or not creature.get("superadmin_approved_at")):
+        raise HTTPException(status_code=404, detail="Creature not found")
     is_eligible = (
         scope == "global"
         or (scope == "school" and school_name and creature.get("school_name") == school_name)
@@ -9530,9 +9544,10 @@ async def get_my_creatures(student_id: str, request: Request):
         if not cs:
             continue
         # A creature a student already started stays in creature_unlocks (real progress,
-        # never deleted), but shouldn't display in My Creatures/rewards unless superadmin
-        # has actually signed off.
-        if not cs.get("superadmin_approved_at") or cs.get("status") != "approved":
+        # never deleted). Real product fix Sep 12 (tiered moderation model): displays once
+        # its OWN creator-level approver has signed off - superadmin is only required for
+        # visibility_scope=='global'. See _passes_creature_approval_gate.
+        if not _passes_creature_approval_gate(cs.get("status"), cs.get("visibility_scope"), cs.get("superadmin_approved_at")):
             continue
         colour = cs.get("emotion_colour")
         if colour not in buckets:
@@ -16612,14 +16627,26 @@ async def get_awaiting_global_approval(request: Request):
     user = await get_current_user(request)
     if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
+    # Real product fix Sep 12 (tiered moderation model): a classroom/school/family-scoped
+    # creature never needs superadmin at all - only a visibility_scope=='global' one does
+    # (whether submitted as global from the start, or promoted to global after its own
+    # creator-level approval). Without this filter, every scoped creature would sit in this
+    # queue forever (superadmin_approved_at genuinely never gets set for them under the new
+    # model), cluttering superadmin's real global-review queue with items they never need
+    # to touch.
     try:
         result = supabase.table("creature_submissions").select("*").eq("status", "approved").is_("superadmin_approved_at", "null").execute()
     except Exception:
         result = supabase.table("creature_submissions").select("*").eq("status", "approved").eq("is_globally_available", False).execute()
+    # visibility_scope filtered in Python, not at the DB level, to correctly treat a NULL
+    # value (pre-dates the Aug 18 scope column) as "global" - the same convention used
+    # everywhere else in this file (`c.get("visibility_scope") or "global"`), rather than
+    # an `.eq()` that would silently miss those older rows.
+    rows = [r for r in (result.data or []) if (r.get("visibility_scope") or "global") == "global"]
     # Real feature Aug 23 (item 4): same real-student-name resolution as
     # /creatures/pending and /creatures/my-submissions, so superadmin's final-approval
     # decision isn't made blind to which real child a creature is for either.
-    return _annotate_real_student_names(result.data or [])
+    return _annotate_real_student_names(rows)
 
 
 
