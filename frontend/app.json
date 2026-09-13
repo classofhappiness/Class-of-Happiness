@@ -71,7 +71,8 @@
           "defaultChannel": "default",
           "sounds": ["./assets/sounds/support_buzz.wav"]
         }
-      ]
+      ],
+      "./plugins/withAbiSplits"
     ],
     "experiments": {
       "typedRoutes": true
