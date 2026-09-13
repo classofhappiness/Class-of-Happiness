@@ -14196,6 +14196,42 @@ async def create_support_request(request: Request):
     )
     return created
 
+@api_router.get("/admin/support-requests")
+async def list_all_support_requests_superadmin(request: Request):
+    """Real addition Sep 13 (item 10, cross-school buzz visibility): superadmin previously
+    had NO visibility into any school's support requests at all - GET /support-requests
+    below hard-rejects any role other than school_admin/teacher, and is scoped to a single
+    school_admin_id even for those. Deliberately read-only and on-demand per Jono's
+    decision - no acknowledge/respond/cancel wiring for superadmin (each school's own
+    school_admin stays the sole owner of acting on their queue), and no chime/push here
+    (this is a dashboard superadmin opens and checks, not another live alert channel on
+    top of the school's own admin already being alerted). school_name resolved via the
+    same role=='school_admin' one-row-per-school mapping already fixed for World Wall
+    (see get_schools_world_wall's Sep 11 comment) so this can't drift from that fix."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    try:
+        rows = supabase.table("support_requests").select("*").order("created_at", desc=True).limit(500).execute().data or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not load support requests - has support_requests_migration.sql been run? ({str(e)[:150]})")
+    rows.sort(key=lambda r: 0 if r.get("is_incident") else 1)
+
+    student_ids = list({r["student_id"] for r in rows if r.get("student_id")})
+    classroom_ids = list({r["classroom_id"] for r in rows if r.get("classroom_id")})
+    teacher_ids = list({r["requested_by"] for r in rows if r.get("requested_by")})
+    school_admin_ids = list({r["school_admin_id"] for r in rows if r.get("school_admin_id")})
+    student_names = {s["id"]: s["name"] for s in (supabase.table("students").select("id,name").in_("id", student_ids).execute().data or [])} if student_ids else {}
+    classroom_names = {c["id"]: c["name"] for c in (supabase.table("classrooms").select("id,name").in_("id", classroom_ids).execute().data or [])} if classroom_ids else {}
+    teacher_names = {u["user_id"]: (u.get("name") or u.get("email")) for u in (supabase.table("users").select("user_id,name,email").in_("user_id", teacher_ids).execute().data or [])} if teacher_ids else {}
+    school_names = {u["user_id"]: u.get("school_name") for u in (supabase.table("users").select("user_id,school_name").in_("user_id", school_admin_ids).execute().data or [])} if school_admin_ids else {}
+    for r in rows:
+        r["student_name"] = student_names.get(r.get("student_id"))
+        r["classroom_name"] = classroom_names.get(r.get("classroom_id"))
+        r["requested_by_name"] = teacher_names.get(r.get("requested_by"))
+        r["school_name"] = school_names.get(r.get("school_admin_id")) or "Unknown school"
+    return rows
+
 @api_router.get("/support-requests")
 async def list_support_requests(request: Request):
     """School admin's own queue - incidents pinned top (stable sort preserves the
