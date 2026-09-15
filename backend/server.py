@@ -171,6 +171,27 @@ POINTS_CONFIG = {
     "evolution_thresholds": [0, 25, 60, 120]
 }
 
+# Real feature Sep 15 (B1, points economy v2, Jono-approved): replaces the old flat
+# daily_streak_bonus (+5 forever, never scaling) with real tiers - a 2-day streak doubles
+# that day's check-in points, 3-day-or-longer triples them, capped there rather than
+# compounding unboundedly on a long streak. Applied to the CHECK-IN action's own point value,
+# not stacked on top of it as a separate bonus line - simpler for the reward-screen "+N
+# points" number to explain than two separate add-ons.
+def _checkin_points_for_streak(streak_days: int) -> int:
+    base = POINTS_CONFIG["checkin"]
+    if streak_days >= 3:
+        return base * 3
+    if streak_days == 2:
+        return base * 2
+    return base
+
+# Real feature Sep 15 (B1, points economy v2): a bonus item's store price is the exact same
+# number already shown to students as its unlock stage's evolution threshold (25/60/120) -
+# one scale, not a second price system to keep in sync with the first.
+def _item_price(unlocks_at_stage: int) -> int:
+    thresholds = POINTS_CONFIG["evolution_thresholds"]
+    return thresholds[unlocks_at_stage] if 0 <= unlocks_at_stage < len(thresholds) else 0
+
 # ================== CREATURES ==================
 CREATURES = [
     {
@@ -2463,7 +2484,15 @@ def _public_user(user: dict) -> dict:
     safe.pop("portal_password", None)
     safe.pop("reset_token", None)
     safe.pop("reset_token_expires", None)
+    safe.pop("email_code", None)
+    safe.pop("email_code_expires", None)
     safe["has_password"] = has_password
+    # Real product fix Sep 12: registration email verification. Defaults True for every
+    # pre-existing account (the column default - see the Sep 12 migration) since none of
+    # them ever went through a verification step; only a NEW signup gets this explicitly
+    # set False. Frontend force-redirects to /auth/verify-email-required on False, same
+    # shape as the has_password gate just above.
+    safe["email_verified"] = safe.get("email_verified", True)
     return safe
 
 def _trial_is_valid(user: dict) -> bool:
@@ -3462,6 +3491,69 @@ async def get_rewards(student_id: str):
     supabase.table("student_rewards").insert(default).execute()
     return default
 
+def _school_admin_id_for_student(student_data: dict) -> Optional[str]:
+    """Resolves the school_admin_id whose school-level feature flags should gate this
+    student - via their classroom's owning teacher's own school_admin_id field, the same FK
+    chain _teacher_school_admin_id uses for a teacher's own requests. Returns None for a
+    student with no classroom or no linked school (family-only students, or a classroom whose
+    teacher has no school link) - callers should treat that as "no school-level restriction
+    applies", not an error."""
+    classroom_id = student_data.get("classroom_id")
+    if not classroom_id:
+        return None
+    try:
+        cls = supabase.table("classrooms").select("user_id").eq("id", classroom_id).execute()
+        if not cls.data:
+            return None
+        owner_id = cls.data[0].get("user_id")
+        if not owner_id:
+            return None
+        owner_r = supabase.table("users").select("role,school_admin_id").eq("user_id", owner_id).execute()
+        if not owner_r.data:
+            return None
+        owner = owner_r.data[0]
+        return owner_id if owner.get("role") == "school_admin" else owner.get("school_admin_id")
+    except Exception:
+        return None
+
+def _is_shop_enabled_for_student(student_id: str, student_data: dict) -> bool:
+    """Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): exactly two
+    independent on/off gates, both default ON, no finer-grained controls (deliberate - Jono's
+    call, per research on parental-control design: granular/surveillance-style settings tend
+    to damage parent-child trust more than they help). School-level (school_admin, same
+    two-tier allowed_by_superadmin/enabled_by_school pattern as support_requests) and
+    family-level (a parent, for just their own child, stored on parent_links - same place/
+    pattern as the existing home_sharing_enabled toggle). Either one being off turns the whole
+    Shop off for this student; reward/evolution behaviour then reverts exactly to the
+    pre-Shop auto-unlock flow - see add_points below."""
+    school_admin_id = _school_admin_id_for_student(student_data)
+    if school_admin_id:
+        flags = _get_school_feature_flags(school_admin_id, "creature_shop")
+        if not (flags["allowed_by_superadmin"] and flags["enabled_by_school"]):
+            return False
+    try:
+        links = supabase.table("parent_links").select("shop_enabled").eq("student_id", student_id).execute()
+        for link in (links.data or []):
+            if link.get("shop_enabled") is False:
+                return False
+    except Exception:
+        pass
+    # Real fix Sep 15 (B1, "Class of Happiness Shop", Jono-approved): confirmed live
+    # (2026-09-15 data check) that 6 of 18 parent accounts have ONLY a family_members-type
+    # child (no parent_links row at all) - not a small edge case - and every one of those
+    # children already has a real student_id, meaning they were fully exposed to the Shop
+    # with no way for their parent to turn it off before this check existed. Matched by
+    # student_id since add_points/evolve/buy-item only ever have that, not the family
+    # member's own row id.
+    try:
+        fam = supabase.table("family_members").select("shop_enabled").eq("student_id", student_id).execute()
+        for m in (fam.data or []):
+            if m.get("shop_enabled") is False:
+                return False
+    except Exception:
+        pass
+    return True
+
 @api_router.post("/rewards/{student_id}/add-points")
 async def add_points(student_id: str, req: AddPointsRequest):
     rewards_result = supabase.table("student_rewards").select("*").eq("student_id", student_id).execute()
@@ -3519,10 +3611,6 @@ async def add_points(student_id: str, req: AddPointsRequest):
         # student-level and always tracked, but stage progress goes through the real
         # check-in-count mechanic (only "checkin" events count, matching the community
         # system's own real rule) instead of the default system's points thresholds.
-        points_to_add = POINTS_CONFIG["checkin"] if req.points_type == "checkin" else (
-            POINTS_CONFIG["strategy_used"] * req.strategy_count if req.points_type == "strategy"
-            else POINTS_CONFIG["comment_added"] if req.points_type == "comment" else 0
-        )
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         last_checkin = rewards.get("last_checkin_date")
         streak_days = rewards.get("streak_days", 0)
@@ -3531,11 +3619,18 @@ async def add_points(student_id: str, req: AddPointsRequest):
                 yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
                 if last_checkin == yesterday:
                     streak_days += 1
-                    points_to_add += POINTS_CONFIG["daily_streak_bonus"]
                 elif last_checkin != today:
                     streak_days = 1
             else:
                 streak_days = 1
+        # Real fix Sep 15 (B1, points economy v2): streak_days is resolved above BEFORE
+        # computing today's points, so a continuing streak's tiered bonus (see
+        # _checkin_points_for_streak) applies on the very check-in that extends it, not one
+        # day late.
+        points_to_add = _checkin_points_for_streak(streak_days) if req.points_type == "checkin" else (
+            POINTS_CONFIG["strategy_used"] * req.strategy_count if req.points_type == "strategy"
+            else POINTS_CONFIG["comment_added"] if req.points_type == "comment" else 0
+        )
         total_points = rewards.get("total_points_earned", 0) + points_to_add
         update_data = {
             "total_points_earned": total_points,
@@ -3576,7 +3671,9 @@ async def add_points(student_id: str, req: AddPointsRequest):
             "points_for_next_evolution": None,
             "evolved": progress["evolved"],
             "points_added": points_to_add,
-            "streak_bonus": POINTS_CONFIG["daily_streak_bonus"] if (req.points_type == "checkin" and last_checkin and streak_days > 1 and points_to_add > POINTS_CONFIG["checkin"]) else 0,
+            # Real fix Sep 15 (B1, points economy v2): streak_bonus is now the real tiered
+            # amount over base (0/5/10 for 1/2/3+ day streaks), not the old flat constant.
+            "streak_bonus": (points_to_add - POINTS_CONFIG["checkin"]) if req.points_type == "checkin" else 0,
             "streak_days": streak_days,
             "total_points_earned": total_points,
             "all_creatures_progress": rewards.get("creature_points") or {},
@@ -3586,16 +3683,12 @@ async def add_points(student_id: str, req: AddPointsRequest):
 
     target_creature = active_id
 
-    # Calculate points
-    points_to_add = 0
-    if req.points_type == "strategy":
-        points_to_add = POINTS_CONFIG["strategy_used"] * req.strategy_count
-    elif req.points_type == "comment":
-        points_to_add = POINTS_CONFIG["comment_added"]
-    elif req.points_type == "checkin":
-        points_to_add = POINTS_CONFIG["checkin"]
-
-    # Streak calculation
+    # Streak calculation - resolved BEFORE point value, so a continuing streak's tiered bonus
+    # (see _checkin_points_for_streak) applies on the very check-in that extends it.
+    # Real design note Sep 15 (B1, points economy v2, Jono-approved): NO loss framing anywhere
+    # in this app - a missed day resets streak_days to 1 (today's count starts over) but never
+    # touches creature_points/total_points_earned, which only ever go up. A broken streak is
+    # never a punishment or a reset of anything already earned - just today's count.
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     last_checkin = rewards.get("last_checkin_date")
     streak_days = rewards.get("streak_days", 0)
@@ -3604,11 +3697,19 @@ async def add_points(student_id: str, req: AddPointsRequest):
             yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
             if last_checkin == yesterday:
                 streak_days += 1
-                points_to_add += POINTS_CONFIG["daily_streak_bonus"]
             elif last_checkin != today:
                 streak_days = 1
         else:
             streak_days = 1
+
+    # Calculate points
+    points_to_add = 0
+    if req.points_type == "strategy":
+        points_to_add = POINTS_CONFIG["strategy_used"] * req.strategy_count
+    elif req.points_type == "comment":
+        points_to_add = POINTS_CONFIG["comment_added"]
+    elif req.points_type == "checkin":
+        points_to_add = _checkin_points_for_streak(streak_days)
 
     # Update creature points
     creature_points = rewards.get("creature_points") or {"aqua_buddy": 0, "leaf_friend": 0, "spark_pal": 0, "blaze_heart": 0}
@@ -3624,17 +3725,23 @@ async def add_points(student_id: str, req: AddPointsRequest):
     new_points = creature_points.get(target_creature, 0) + points_to_add
     creature_points[target_creature] = new_points
 
-    # Check evolution
+    # Real fix Sep 15 (B1, points economy v2, Jono-approved): evolution is no longer automatic
+    # here - crossing a threshold now only makes the student ELIGIBLE (evolution_ready below).
+    # current_stage/creature_stages are deliberately left untouched; the actual stage advance
+    # only happens when the student explicitly taps Evolve (POST /rewards/{id}/evolve), which
+    # re-does this same eligibility check before committing it. Free either way - no points
+    # are ever spent to evolve, regardless of what's been bought in the store (Jono's explicit
+    # call - a store purchase must never be able to block or delay evolving).
     thresholds = POINTS_CONFIG["evolution_thresholds"]
     current_stage = creature_stages.get(target_creature, 0)
-    evolved = False
-    new_stage = current_stage
+    eligible_stage = current_stage
     for i, threshold in enumerate(thresholds):
         if new_points >= threshold:
-            new_stage = i
-    if new_stage > current_stage:
-        evolved = True
-        creature_stages[target_creature] = new_stage
+            eligible_stage = i
+    evolution_ready = eligible_stage > current_stage
+    points_for_next_evolution = (
+        max(0, thresholds[current_stage + 1] - new_points) if current_stage + 1 < len(thresholds) else None
+    )
 
     total_points = rewards.get("total_points_earned", 0) + points_to_add
 
@@ -3643,42 +3750,242 @@ async def add_points(student_id: str, req: AddPointsRequest):
         "streak_days": streak_days,
         "last_checkin_date": today if req.points_type == "checkin" else last_checkin,
         "creature_points": creature_points,
-        "creature_stages": creature_stages,
         "current_creature_id": target_creature,
-        "current_stage": new_stage,
         "current_points": new_points
     }
+
+    # Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): when the Shop is
+    # off (school-level or family-level - see _is_shop_enabled_for_student), reward/evolution
+    # behaviour reverts EXACTLY to the pre-Shop flow: automatic evolution the instant a
+    # threshold is crossed, and every bonus item at that stage grants for free, all at once -
+    # nothing about check-ins, helpers, or evolution changes, only the Shop layer disappears.
+    shop_on = _is_shop_enabled_for_student(student_id, student_data) if student_data else True
+    newly_unlocked_auto = []
+    evolved_now = False
+    if not shop_on and evolution_ready:
+        evolved_now = True
+        target_creature_data = next((c for c in CREATURES if c["id"] == target_creature), CREATURES[0])
+        creature_stages[target_creature] = eligible_stage
+        current_stage = eligible_stage
+        evolution_ready = False
+        points_for_next_evolution = (
+            max(0, thresholds[current_stage + 1] - new_points) if current_stage + 1 < len(thresholds) else None
+        )
+        for category in ("moves", "outfits", "foods", "homes"):
+            owned_key = f"unlocked_{category}"
+            owned_now = rewards.get(owned_key) or []
+            if isinstance(owned_now, str):
+                import json
+                owned_now = json.loads(owned_now)
+            changed = False
+            for item in target_creature_data.get(category, []):
+                if item.get("unlocks_at_stage") == eligible_stage and item.get("id") not in owned_now:
+                    owned_now = owned_now + [item.get("id")]
+                    newly_unlocked_auto.append({**item, "category": category})
+                    changed = True
+            if changed:
+                update_data[owned_key] = owned_now
+        update_data["creature_stages"] = creature_stages
+        update_data["current_stage"] = current_stage
 
     if rewards_result.data:
         supabase.table("student_rewards").update(update_data).eq("student_id", student_id).execute()
     else:
         update_data["student_id"] = student_id
+        update_data["creature_stages"] = creature_stages
+        update_data["current_stage"] = current_stage
         supabase.table("student_rewards").insert(update_data).execute()
 
     creature_data = next((c for c in CREATURES if c["id"] == target_creature), CREATURES[0])
 
-    # Real feature Aug 23 (Bonus Items celebration): which items just unlocked at this exact
-    # stage transition, so the frontend can celebrate them instead of only silently updating
-    # the Bonus Items grid. Items are catalog-defined per unlocks_at_stage (see CREATURES) -
-    # a stage transition can unlock up to 4 items at once, one per category.
-    newly_unlocked = []
-    if evolved:
-        for category in ("moves", "outfits", "foods", "homes"):
-            for item in creature_data.get(category, []):
-                if item.get("unlocks_at_stage") == new_stage:
-                    newly_unlocked.append({**item, "category": category})
-
     return {
         "current_creature": creature_data,
-        "current_stage": new_stage,
+        "current_stage": current_stage,
         "current_points": new_points,
-        "evolved": evolved,
-        "newly_unlocked": newly_unlocked,
+        "points_added": points_to_add,
+        # Real fix Sep 15 (B1, points economy v2): the tiered streak bonus (0/5/10 over base,
+        # for 1/2/3+ day streaks), not the old flat constant.
+        "streak_bonus": (points_to_add - POINTS_CONFIG["checkin"]) if req.points_type == "checkin" else 0,
+        # Real fix Sep 15 (B1, points economy v2): "evolved" means the stage was actually
+        # committed just now - only possible here when the Shop is off (auto-evolve fallback,
+        # see shop_on above). With the Shop on, evolution only ever commits via the explicit
+        # POST /rewards/{id}/evolve; evolution_ready is the signal to show that button.
+        "evolved": evolved_now,
+        "evolution_ready": evolution_ready,
+        "eligible_stage": eligible_stage,
+        "shop_enabled": shop_on,
+        # Real fix Sep 15 (B1, points economy v2): this field existed in the TypeScript
+        # interface but was never actually populated here - the frontend always received
+        # undefined. Now genuinely computed: points still needed for this creature's next
+        # stage, or null once fully evolved.
+        "points_for_next_evolution": points_for_next_evolution,
+        # Real feature Sep 15 ("Class of Happiness Shop"): only non-empty when the Shop is
+        # off and this check-in just crossed a threshold - the pre-Shop auto-grant-all-items
+        # fallback (see shop_on above). With the Shop on, items become buyable, not auto-owned
+        # - see /buy-item and rewards.tsx's newly_available_items handling instead.
+        "newly_unlocked": newly_unlocked_auto,
         "streak_days": streak_days,
         "total_points_earned": total_points,
         "all_creatures_progress": creature_points,
         "feeling_colour": feeling_colour,
         "zone": feeling_colour  # backwards compat
+    }
+
+class EvolveRequest(BaseModel):
+    creature_id: str
+
+@api_router.post("/rewards/{student_id}/evolve")
+async def evolve_creature(student_id: str, req: EvolveRequest):
+    """Real feature Sep 15 (B1, points economy v2, Jono-approved): evolution is now an
+    explicit, student-initiated action instead of automatic the instant a threshold is
+    crossed - add_points only ever reports evolution_ready; this is what actually commits the
+    stage advance, when the student taps the Evolve button. Always free - never spends
+    points, regardless of what's already been bought in the Shop (see buy_bonus_item below) -
+    a purchase must never be able to delay or block evolving."""
+    result = supabase.table("student_rewards").select("*").eq("student_id", student_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="No rewards record for this student")
+    rewards = result.data[0]
+    creature_id = req.creature_id
+    if creature_id not in DEFAULT_CREATURE_IDS:
+        raise HTTPException(status_code=400, detail="Evolution is only available for default creatures")
+
+    creature_points = rewards.get("creature_points") or {}
+    creature_stages = rewards.get("creature_stages") or {}
+    if isinstance(creature_points, str):
+        import json
+        creature_points = json.loads(creature_points)
+    if isinstance(creature_stages, str):
+        import json
+        creature_stages = json.loads(creature_stages)
+
+    points = creature_points.get(creature_id, 0)
+    current_stage = creature_stages.get(creature_id, 0)
+    thresholds = POINTS_CONFIG["evolution_thresholds"]
+    eligible_stage = current_stage
+    for i, threshold in enumerate(thresholds):
+        if points >= threshold:
+            eligible_stage = i
+    if eligible_stage <= current_stage:
+        raise HTTPException(status_code=400, detail="Not eligible to evolve yet")
+
+    creature_stages[creature_id] = eligible_stage
+    supabase.table("student_rewards").update({
+        "creature_stages": creature_stages,
+        "current_stage": eligible_stage,
+        "current_creature_id": creature_id,
+    }).eq("student_id", student_id).execute()
+
+    creature_data = next((c for c in CREATURES if c["id"] == creature_id), CREATURES[0])
+    # Real feature Sep 15 (B1, points economy v2): items reaching their unlock stage are now
+    # only made BUYABLE here, not auto-granted - see buy_bonus_item for the actual purchase.
+    # newly_available (not "newly_unlocked" - deliberately renamed so a future reader doesn't
+    # mistake this for the old auto-grant behaviour) tells the frontend what to point the
+    # student toward in the Shop.
+    newly_available = []
+    for category in ("moves", "outfits", "foods", "homes"):
+        for item in creature_data.get(category, []):
+            if item.get("unlocks_at_stage") == eligible_stage:
+                newly_available.append({**item, "category": category, "price": _item_price(item.get("unlocks_at_stage"))})
+
+    return {
+        "current_creature": creature_data,
+        "current_stage": eligible_stage,
+        "current_points": points,
+        "evolved": True,
+        "newly_available_items": newly_available,
+    }
+
+class BuyItemRequest(BaseModel):
+    creature_id: str
+    category: str
+    item_id: str
+
+@api_router.post("/rewards/{student_id}/buy-item")
+async def buy_bonus_item(student_id: str, req: BuyItemRequest):
+    """Real feature Sep 15 (B1, points economy v2, Jono-approved "Class of Happiness Shop"):
+    converts what used to be an automatic "everything at this stage unlocks free" grant into
+    a real choice. An item is BUYABLE the moment its creature reaches unlocks_at_stage (the
+    same gate as before - nothing reachable earlier than it already was), but only actually
+    OWNED once bought here, spending from spendable_balance = creature_points[creature_id] -
+    creature_points_spent[creature_id] - a SEPARATE ledger from the points that already
+    unlocked evolution eligibility, so a purchase can never claw back or block evolution
+    progress (Jono's explicit call - see evolve_creature above). Reuses the
+    unlocked_moves/outfits/foods/homes columns - already existed in the schema (student_rewards
+    init dicts above), previously always empty/write-never - as the real OWNED-items list,
+    rather than adding new tables for something the schema already had a home for.
+
+    Migration (run once, by Jono, before this ships): the creature_points_spent column is new.
+    ALTER TABLE student_rewards ADD COLUMN IF NOT EXISTS creature_points_spent JSONB DEFAULT '{}'::jsonb;
+    Fails soft (defensive try/except below) if it hasn't landed yet - purchases just won't
+    persist a spend record until it does, rather than the endpoint erroring out."""
+    import json
+    result = supabase.table("student_rewards").select("*").eq("student_id", student_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="No rewards record for this student")
+    rewards = result.data[0]
+
+    # Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): defense in depth -
+    # the Shop UI shouldn't even be reachable client-side when off, but this is the real gate
+    # against a stale client or a direct call.
+    student_row = supabase.table("students").select("*").eq("id", student_id).execute()
+    student_data = student_row.data[0] if student_row.data else None
+    if not (student_data and _is_shop_enabled_for_student(student_id, student_data)):
+        raise HTTPException(status_code=403, detail="The Shop is turned off for this student")
+
+    if req.category not in ("moves", "outfits", "foods", "homes"):
+        raise HTTPException(status_code=400, detail="Invalid category")
+    creature_data = next((c for c in CREATURES if c["id"] == req.creature_id), None)
+    if not creature_data:
+        raise HTTPException(status_code=404, detail="Creature not found")
+    item = next((i for i in creature_data.get(req.category, []) if i.get("id") == req.item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    def _as_dict(v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except Exception:
+                return {}
+        return v or {}
+
+    creature_points = _as_dict(rewards.get("creature_points"))
+    creature_stages = _as_dict(rewards.get("creature_stages"))
+    points_spent = _as_dict(rewards.get("creature_points_spent"))
+    owned_key = f"unlocked_{req.category}"
+    owned = rewards.get(owned_key)
+    owned = json.loads(owned) if isinstance(owned, str) else (owned or [])
+
+    current_stage = creature_stages.get(req.creature_id, 0)
+    if current_stage < item.get("unlocks_at_stage", 999):
+        raise HTTPException(status_code=403, detail="This creature hasn't reached the stage needed for this item yet")
+    if req.item_id in owned:
+        raise HTTPException(status_code=400, detail="Already owned")
+
+    price = _item_price(item.get("unlocks_at_stage"))
+    spendable = creature_points.get(req.creature_id, 0) - points_spent.get(req.creature_id, 0)
+    if spendable < price:
+        raise HTTPException(status_code=402, detail=f"Not enough points saved up yet - need {price}, have {spendable}")
+
+    points_spent[req.creature_id] = points_spent.get(req.creature_id, 0) + price
+    new_owned = owned + [req.item_id]
+    try:
+        supabase.table("student_rewards").update({
+            "creature_points_spent": points_spent,
+            owned_key: new_owned,
+        }).eq("student_id", student_id).execute()
+    except Exception as e:
+        # creature_points_spent column migration hasn't landed yet - still record real
+        # ownership (the part that already has a schema home) rather than failing the whole
+        # purchase, but log loudly since the spendable balance won't be accurate until it does.
+        logger.error(f"[Shop] creature_points_spent write failed (migration pending?): {e}")
+        supabase.table("student_rewards").update({owned_key: new_owned}).eq("student_id", student_id).execute()
+
+    return {
+        "item": {**item, "category": req.category},
+        "spendable_balance": creature_points.get(req.creature_id, 0) - points_spent.get(req.creature_id, 0),
+        owned_key: new_owned,
     }
 
 # ================== ANALYTICS ==================
@@ -4020,6 +4327,14 @@ async def get_family_members(request: Request):
             resolved = name_to_real_student_id.get((m.get("name") or "").strip().lower())
             if resolved:
                 m["student_id"] = resolved
+        # Real fix Sep 15 (B1, "Class of Happiness Shop", Jono-approved): confirmed live
+        # (2026-09-15 data check) that 6 of 18 parent accounts have ONLY family-member
+        # children (no parent_links row at all) - not a small edge case, and every one of
+        # those children already has a real student_id, meaning they're fully exposed to the
+        # Shop today with the family-level toggle (parent_links-only) unreachable for them.
+        # Defaults True even before the migration lands (select("*") simply won't include the
+        # key yet).
+        m["shop_enabled"] = m.get("shop_enabled", True)
     return members
 
 @api_router.post("/family/members")
@@ -10579,14 +10894,15 @@ async def delete_promo_code(code: str, request: Request):
 
 @api_router.post("/auth/email-login")
 async def email_login(request: Request):
-    """Email-based login. Admin/superadmin accounts require an admin PIN."""
+    """Email-based login. Admin-tier accounts (superadmin + demo accounts) get a real,
+    password-independent second factor - a one-time code emailed at login time - not a
+    static PIN. See the Sep 12 fix below for the full reasoning."""
     try:
         body = await request.json()
         email = body.get("email", "").strip().lower()
         if not email or "@" not in email:
             raise HTTPException(status_code=400, detail="Valid email required")
-        admin_pin = body.get("admin_pin", "").strip()
-        
+
         # Find or create user
         try:
             existing = supabase.table("users").select("*").eq("email", email).execute()
@@ -10603,15 +10919,6 @@ async def email_login(request: Request):
                 # get_current_user() gate that kills an already-active session immediately.
                 if user.get("account_suspended"):
                     raise HTTPException(status_code=403, detail="This account has been suspended. Contact jono@classofhappiness.com for details.")
-                # PIN check for superadmin role (existing)
-                if user.get("role") == "superadmin":
-                    required_pin = os.environ.get("ADMIN_PIN", "")
-                    if required_pin and admin_pin != required_pin:
-                        raise HTTPException(status_code=403, detail="Admin PIN required. Contact Jono.")
-                # PIN check for the 4 permanent always-open accounts
-                elif email in ALWAYS_OPEN_PINS:
-                    if admin_pin != ALWAYS_OPEN_PINS[email]:
-                        raise HTTPException(status_code=403, detail="PIN required for this account. Contact Jono.")
                 # Real password check — if this user has ever set a password via /auth/set-password,
                 # it must now actually be required and verified. Previously portal_password was
                 # stored but never checked anywhere, meaning setting a password had zero real
@@ -10620,6 +10927,32 @@ async def email_login(request: Request):
                     password = body.get("password", "")
                     if not password or not verify_password(password, user["portal_password"]):
                         raise HTTPException(status_code=401, detail="Incorrect password")
+                # Real product fix Sep 12: the static PIN-at-login is removed here (see the
+                # "why does login need both password AND PIN" investigation - it was never
+                # designed as login 2FA to begin with; its real, still-intact purpose is
+                # /admin/verify's post-login Unlock-screen second factor, added Aug 20,
+                # completely untouched by this change since it checks an existing session
+                # first). Replaced with a genuine second factor for the same admin-tier
+                # accounts that used to require the static PIN (superadmin + the 4
+                # ALWAYS_OPEN_PINS demo accounts, never a normal teacher/parent/school_admin
+                # account) - a one-time code emailed at login time, independent of the
+                # password rather than a second copy of the same shared secret. No session is
+                # issued yet; see POST /auth/verify-login-code for the second step.
+                if user.get("role") == "superadmin" or email in ALWAYS_OPEN_PINS:
+                    login_code = f"{secrets.randbelow(1000000):06d}"
+                    try:
+                        supabase.table("users").update({
+                            "email_code": login_code,
+                            "email_code_expires": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
+                        }).eq("user_id", user["user_id"]).execute()
+                    except Exception as e:
+                        logger.error(f"[SECURITY] Could not store login code for {email}: {e}")
+                        raise HTTPException(status_code=500, detail="Could not start sign-in. Please try again.")
+                    sent, detail = _send_email_code(email, login_code, purpose="login")
+                    if not sent:
+                        logger.error(f"[SECURITY] Login code not emailed for {email}: {detail}")
+                        raise HTTPException(status_code=500, detail="Could not send your login code. Please try again or contact jono@classofhappiness.com.")
+                    return {"status": "code_required", "email": email}
             else:
                 # CRITICAL security fix Aug 26 (item 2): this used to silently create a real
                 # teacher account for ANY unrecognized email, no confirmation, no verification
@@ -10668,6 +11001,43 @@ async def email_login(request: Request):
     except Exception as e:
         logger.error(f"Email login error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/auth/verify-login-code")
+async def verify_login_code(request: Request):
+    """Real product fix Sep 12: second step of admin-tier login (see email_login's
+    code_required branch above). No session exists yet at this point, so this is looked up
+    by email, not get_current_user - the same shape as /auth/reset-password (also
+    email-keyed, also pre-session). The code is only ever valid because it could only have
+    been generated by a prior successful password check in email_login - it's never a
+    standalone credential, matching how the static PIN always required password too."""
+    body = await request.json()
+    email = (body.get("email") or "").strip().lower()
+    code = (body.get("code") or "").strip()
+    if not email or not code:
+        raise HTTPException(status_code=400, detail="Email and code are required")
+    existing = supabase.table("users").select("*").eq("email", email).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Account not found")
+    user = existing.data[0]
+    stored_code = user.get("email_code")
+    expires = user.get("email_code_expires")
+    if not stored_code or code != stored_code:
+        raise HTTPException(status_code=401, detail="Incorrect code")
+    if not expires or datetime.fromisoformat(expires.replace("Z", "+00:00")) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=401, detail="This code has expired. Please sign in again to get a new one.")
+    supabase.table("users").update({"email_code": None, "email_code_expires": None}).eq("user_id", user["user_id"]).execute()
+    session_token = str(uuid.uuid4())
+    try:
+        supabase.table("user_sessions").insert({
+            "session_token": session_token,
+            "user_id": user["user_id"],
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }).execute()
+    except Exception as e:
+        logger.warning(f"user_sessions insert failed: {e} - using token only")
+    return {"user": _public_user(user), "session_token": session_token}
 
 
 @api_router.get("/resources/{resource_id}")
@@ -11396,6 +11766,22 @@ async def get_collection(student_id: str):
     current_id = rewards.get("current_creature_id", "aqua_buddy")
     current_stage = rewards.get("current_stage", 0)
     current_points = rewards.get("current_points", 0)
+    # Real feature Sep 15 (B1, points economy v2): creature_points_spent tracks the Shop
+    # spending ledger, separate from creature_points (which only ever goes up and drives
+    # evolution eligibility) - see buy_bonus_item. Defensive default for pre-migration rows.
+    points_spent_by_creature = rewards.get("creature_points_spent") or {}
+    real_owned = {
+        "moves": rewards.get("unlocked_moves") or [],
+        "outfits": rewards.get("unlocked_outfits") or [],
+        "foods": rewards.get("unlocked_foods") or [],
+        "homes": rewards.get("unlocked_homes") or [],
+    }
+    # Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): tells the frontend
+    # whether to render the Shop at all - when off, items still show as owned/locked exactly
+    # as before (auto-granted at each stage - see add_points), just with no buy UI.
+    student_row = supabase.table("students").select("*").eq("id", student_id).execute()
+    student_data_for_shop = student_row.data[0] if student_row.data else None
+    shop_enabled = _is_shop_enabled_for_student(student_id, student_data_for_shop) if student_data_for_shop else True
 
     all_creatures = []
     for cid, cdata in creatures_map.items():
@@ -11410,6 +11796,32 @@ async def get_collection(student_id: str):
                 break
         # Total points needed across all stages
         total_points_needed = sum(s.get("required_points", 0) for s in stages if s.get("stage", 0) > 0)
+        spendable_balance = cpoints - points_spent_by_creature.get(cid, 0)
+        # Real feature Sep 15 (B1, points economy v2, "Class of Happiness Shop"): per-category
+        # item list with owned/available/price already resolved server-side, so the Shop UI
+        # doesn't need to re-derive unlock-gate logic itself. "available" = buyable right now
+        # (stage reached, not yet owned) - matches the Pokemon-style "fixed, knowable price
+        # shown up front" principle: nothing here is random or hidden.
+        shop = {}
+        category_complete = {}
+        for category in ("moves", "outfits", "foods", "homes"):
+            items = []
+            owned_ids = real_owned[category]
+            for item in cdata.get(category, []):
+                unlocks_at = item.get("unlocks_at_stage", 999)
+                owned = item.get("id") in owned_ids
+                items.append({
+                    **item,
+                    "price": _item_price(unlocks_at),
+                    "owned": owned,
+                    "available": (not owned) and cstage >= unlocks_at,
+                })
+            shop[category] = items
+            # Real feature Sep 15 (B1, "Class of Happiness Shop"): collection-completeness as
+            # its own reward, per Jono's Pokemon-inspired design brief - owning every item in a
+            # category for this creature is worth surfacing on its own, distinct from any
+            # individual purchase.
+            category_complete[category] = len(items) > 0 and all(i["owned"] for i in items)
         all_creatures.append({
             **cdata,
             "current_points": cpoints,
@@ -11417,31 +11829,13 @@ async def get_collection(student_id: str):
             "next_stage_points": next_stage_points,
             "total_points_needed": total_points_needed,
             "is_complete": cstage >= len(stages) - 1,
+            "spendable_balance": spendable_balance,
+            "shop": shop,
+            "category_complete": category_complete,
         })
 
     current_creature = creatures_map.get(current_id, CREATURES[0])
     collected_creatures = [creatures_map[c] for c in collected if c in creatures_map]
-    unlocked_moves: List[str] = []
-    unlocked_outfits: List[str] = []
-    unlocked_foods: List[str] = []
-    unlocked_homes: List[str] = []
-
-    for cid, cstage in creature_stages.items():
-        creature = creatures_map.get(cid)
-        if not creature:
-            continue
-        for move in creature.get("moves", []):
-            if cstage >= move.get("unlocks_at_stage", 999):
-                unlocked_moves.append(move.get("id"))
-        for outfit in creature.get("outfits", []):
-            if cstage >= outfit.get("unlocks_at_stage", 999):
-                unlocked_outfits.append(outfit.get("id"))
-        for food in creature.get("foods", []):
-            if cstage >= food.get("unlocks_at_stage", 999):
-                unlocked_foods.append(food.get("id"))
-        for home in creature.get("homes", []):
-            if cstage >= home.get("unlocks_at_stage", 999):
-                unlocked_homes.append(home.get("id"))
 
     return {
         "current_creature": {**current_creature, "current_points": current_points, "current_stage": current_stage},
@@ -11450,10 +11844,15 @@ async def get_collection(student_id: str):
         "collected_creatures": collected_creatures,
         "total_creatures": len(creatures_map),
         "all_creatures": all_creatures,
-        "unlocked_moves": unlocked_moves,
-        "unlocked_outfits": unlocked_outfits,
-        "unlocked_foods": unlocked_foods,
-        "unlocked_homes": unlocked_homes,
+        # Real fix Sep 15 (B1, points economy v2): these four now report REAL ownership
+        # (persisted via buy_bonus_item) instead of being re-derived from stage on every call -
+        # an item only ever appears here once actually bought. Callers that want "can this be
+        # bought right now" should use all_creatures[].shop instead.
+        "unlocked_moves": real_owned["moves"],
+        "unlocked_outfits": real_owned["outfits"],
+        "unlocked_foods": real_owned["foods"],
+        "unlocked_homes": real_owned["homes"],
+        "shop_enabled": shop_enabled,
     }
 
 # ================== WELLBEING ALERT ==================
@@ -13090,8 +13489,12 @@ async def delete_service(service_id: str, request: Request):
 # fails CLOSED - a missing row means "never allowed", same as before this
 # feature existed.
 # ============================================================
-ALL_SCHOOL_FEATURE_KEYS = ["careers_advisory", "services_directory", "wellbeing_welfare", "support_requests"]
-_FEATURE_FAIL_OPEN_KEYS = {"services_directory", "wellbeing_welfare"}
+ALL_SCHOOL_FEATURE_KEYS = ["careers_advisory", "services_directory", "wellbeing_welfare", "support_requests", "creature_shop"]
+# Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): school-level Shop
+# toggle defaults ON (fail-open) - a real parent/school concern about screen-time is
+# addressed by the toggle existing at all, not by defaulting it off before anyone's touched
+# the setting.
+_FEATURE_FAIL_OPEN_KEYS = {"services_directory", "wellbeing_welfare", "creature_shop"}
 # support_requests fails CLOSED (not added above) - it's a new feature, same as
 # careers_advisory, not a long-standing always-on tab like the two fail-open keys.
 
@@ -15331,6 +15734,11 @@ async def get_linked_children_for_parent(request: Request):
                     "home_sharing_enabled": True,
                     "school_sharing_enabled": True,
                     "is_linked_from_school": True,
+                    # Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved):
+                    # family-level Shop toggle, read from the real parent_links row (defaults
+                    # ON) - unlike home_sharing_enabled just above, which is hardcoded True
+                    # here rather than read from the link (a pre-existing gap, not touched).
+                    "shop_enabled": link.get("shop_enabled", True),
                 })
         return children
     except Exception as e:
@@ -15785,6 +16193,57 @@ async def toggle_home_sharing(student_id: str, request: Request):
         raise
     except Exception as e:
         logger.error(f"toggle_home_sharing error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.put("/parent/linked-child/{student_id}/toggle-shop")
+async def toggle_shop(student_id: str, request: Request):
+    """Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): family-level Shop
+    toggle - same place/pattern as toggle_home_sharing above (a parent's own consent setting,
+    stored on their parent_links row for this child). Defaults ON; turning it off reverts
+    this child's reward/evolution flow to the pre-Shop auto-unlock behaviour - see
+    _is_shop_enabled_for_student in add_points."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        link = supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
+        if not link.data:
+            raise HTTPException(status_code=404, detail="Link not found")
+        current = link.data[0].get("shop_enabled", True)
+        new_value = not current
+        supabase.table("parent_links").update({"shop_enabled": new_value}).eq("id", link.data[0]["id"]).execute()
+        return {"shop_enabled": new_value}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"toggle_shop error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.put("/family/members/{member_id}/toggle-shop")
+async def toggle_shop_family_member(member_id: str, request: Request):
+    """Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): same family-level
+    Shop toggle as toggle_shop above, but for a family_member-type child (no parent_links row
+    at all) rather than a school-linked one - confirmed live (2026-09-15) that 6 of 18 parent
+    accounts have ONLY this type of child, all 6 already with a real student_id and so fully
+    exposed to the Shop with no way to turn it off before this endpoint existed. Stored on
+    family_members itself (parent-owned via user_id, same ownership check every other
+    family_members endpoint uses) rather than parent_links, since that row doesn't exist for
+    this child type."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        member = supabase.table("family_members").select("*").eq("id", member_id).eq("user_id", user["user_id"]).execute()
+        if not member.data:
+            raise HTTPException(status_code=404, detail="Family member not found")
+        current = member.data[0].get("shop_enabled", True)
+        new_value = not current
+        supabase.table("family_members").update({"shop_enabled": new_value}).eq("id", member_id).execute()
+        return {"shop_enabled": new_value}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"toggle_shop_family_member error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -16789,6 +17248,14 @@ async def email_signup(request: Request):
         raise HTTPException(status_code=409, detail="An account with this email already exists. Please sign in instead.")
 
     user_id = f"user_{uuid.uuid4().hex[:12]}"
+    # Real product fix Sep 12: registration email verification - closes the "anyone can sign
+    # up claiming any email, zero proof of ownership" gap (there was previously no
+    # verification step of any kind for plain email/password signup - Google sign-in already
+    # gets this for free via Google's own OAuth-verified email). A session is still issued
+    # immediately below, same as before; the frontend force-redirects to
+    # /auth/verify-email-required until the code is confirmed, same shape as the existing
+    # has_password force-redirect.
+    verify_code = f"{secrets.randbelow(1000000):06d}"
     new_user = {
         "user_id": user_id,
         "email": email,
@@ -16798,8 +17265,24 @@ async def email_signup(request: Request):
         "subscription_status": "none",
         "portal_password": hash_password(password),
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "email_verified": False,
+        "email_code": verify_code,
+        "email_code_expires": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat(),
     }
-    supabase.table("users").insert(new_user).execute()
+    try:
+        supabase.table("users").insert(new_user).execute()
+        sent, detail = _send_email_code(email, verify_code, purpose="verify")
+        if not sent:
+            logger.warning(f"[SECURITY] Verification email not sent for new signup {email}: {detail}")
+    except Exception as e:
+        # Migration hasn't landed yet - fall back to the pre-verification behavior rather
+        # than failing signup outright. Matches the defensive-fallback standard used
+        # everywhere else in this file for migration-dependent columns.
+        logger.warning(f"[email_signup] email_verified columns not available yet, falling back: {e}")
+        new_user.pop("email_verified", None)
+        new_user.pop("email_code", None)
+        new_user.pop("email_code_expires", None)
+        supabase.table("users").insert(new_user).execute()
 
     session_token = str(uuid.uuid4())
     supabase.table("user_sessions").insert({
@@ -16860,6 +17343,92 @@ def _send_password_reset_email(email: str, token: str) -> tuple:
     except Exception as e:
         logger.error(f"[SECURITY] Password reset email send failed for {email}: {e}")
         return False, str(e)[:150]
+
+def _send_email_code(email: str, code: str, purpose: str) -> tuple:
+    """Real product fix Sep 12: shared one-time-code sender for both registration email
+    verification (see /auth/signup, /auth/verify-email) and the admin-tier login second
+    factor that replaced the old static PIN (see /auth/email-login, /auth/verify-login-code)
+    - one primitive, two call sites, same Resend pattern as _send_password_reset_email
+    above. Returns (sent: bool, detail: str). Never raises."""
+    if not RESEND_API_KEY:
+        return False, "RESEND_API_KEY not configured"
+    if purpose == "login":
+        subject = "Your Class of Happiness sign-in code"
+        heading = "Your sign-in code"
+        body_text = "Enter this code to finish signing in:"
+        expiry_text = "This code expires in 10 minutes."
+    else:
+        subject = "Verify your Class of Happiness email"
+        heading = "Verify your email"
+        body_text = "Enter this code in the app to verify your email address:"
+        expiry_text = "This code expires in 15 minutes."
+    try:
+        result = resend.Emails.send({
+            "from": RESEND_FROM_EMAIL,
+            "to": [email],
+            "subject": subject,
+            "html": f"""
+                <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+                  <h2 style="color:#1A1A2E">{heading}</h2>
+                  <p style="color:#333;font-size:15px">{body_text}</p>
+                  <div style="background:#F5F5F5;border-radius:10px;padding:16px;margin:16px 0;
+                              font-family:monospace;font-size:24px;letter-spacing:4px;text-align:center;color:#1A1A2E">
+                    {code}
+                  </div>
+                  <p style="color:#888;font-size:13px">
+                    {expiry_text} If you didn't request this, you can safely ignore this email.
+                  </p>
+                </div>
+            """,
+        })
+        email_id = result.get("id") if isinstance(result, dict) else getattr(result, "id", None)
+        return True, email_id or "sent"
+    except Exception as e:
+        logger.error(f"[SECURITY] {purpose} code email send failed for {email}: {e}")
+        return False, str(e)[:150]
+
+@api_router.post("/auth/verify-email")
+async def verify_email(request: Request):
+    """Real product fix Sep 12: second, blocking step of email/password signup (see
+    /auth/signup) - confirms the account owner actually controls the email address they
+    signed up with. Session-based (unlike verify-login-code, which runs before any session
+    exists) since signup already issues a session immediately; app/_layout.tsx
+    force-redirects to /auth/verify-email-required until this succeeds."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    code = (body.get("code") or "").strip()
+    stored_code = user.get("email_code")
+    expires = user.get("email_code_expires")
+    if not code or not stored_code or code != stored_code:
+        raise HTTPException(status_code=401, detail="Incorrect code")
+    if not expires or datetime.fromisoformat(expires.replace("Z", "+00:00")) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=401, detail="This code has expired. Please request a new one.")
+    updated = supabase.table("users").update({
+        "email_verified": True, "email_code": None, "email_code_expires": None,
+    }).eq("user_id", user["user_id"]).execute()
+    return {"user": _public_user(updated.data[0] if updated.data else user)}
+
+@api_router.post("/auth/resend-verification-email")
+async def resend_verification_email(request: Request):
+    """Real product fix Sep 12: lets a new signup get a fresh code if the first one expired
+    or never arrived, without starting signup over. Session-based, same as verify-email."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if user.get("email_verified", True):
+        return {"status": "Already verified."}
+    code = f"{secrets.randbelow(1000000):06d}"
+    supabase.table("users").update({
+        "email_code": code,
+        "email_code_expires": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat(),
+    }).eq("user_id", user["user_id"]).execute()
+    sent, detail = _send_email_code(user["email"], code, purpose="verify")
+    if not sent:
+        logger.warning(f"[SECURITY] Resend verification email failed for {user['email']}: {detail}")
+        raise HTTPException(status_code=500, detail="Could not send verification email. Please try again shortly.")
+    return {"status": "Verification code sent."}
 
 @api_router.post("/auth/reset-password-request")
 async def reset_password_request(request: Request):
