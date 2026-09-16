@@ -3658,6 +3658,7 @@ async def add_points(student_id: str, req: AddPointsRequest):
                 "stage1_url": cf.get("stage1_url"), "stage2_url": cf.get("stage2_url"),
                 "stage3_url": cf.get("stage3_url"), "stage4_url": cf.get("stage4_url"),
                 "current_stage": cur.get("stages_unlocked", 0), "evolved": False, "is_complete": cur.get("stages_unlocked", 0) >= 4,
+                "total_checkins": _rolling_checkins_30d(student_id, cf.get("emotion_colour")) if cf.get("emotion_colour") else 0,
             }
         return {
             "current_creature": {
@@ -3669,6 +3670,12 @@ async def add_points(student_id: str, req: AddPointsRequest):
             "current_stage": progress["current_stage"],
             "current_points": progress["current_stage"],
             "points_for_next_evolution": None,
+            # Real feature Sep 15 (progress bar unification): the raw rolling-30-day check-in
+            # count, so the frontend can compute the same within-stage-band percent it does for
+            # default creatures, against COMMUNITY_CREATURE_THRESHOLDS ([0,5,10,15,20]) instead
+            # of current_points (which is deliberately repurposed as the stage count here, not
+            # a points value - see current_points above).
+            "checkins_30d": progress.get("total_checkins", 0),
             "evolved": progress["evolved"],
             "points_added": points_to_add,
             # Real fix Sep 15 (B1, points economy v2): streak_bonus is now the real tiered
@@ -4730,6 +4737,19 @@ def _is_creature_fully_evolved(student_data: dict, active_id: str, real_student_
     unlocks_r = _creature_unlocks_for(real_student_id, real_student_id, [active_id])
     return bool(unlocks_r.data) and (unlocks_r.data[0].get("stages_unlocked", 0) or 0) >= 4
 
+def _rolling_checkins_30d(real_student_id: str, emotion_colour: str) -> int:
+    """Real fix Sep 15 (progress bar unification): the rolling 30-day check-in count for a
+    given colour - the real mechanic a community creature evolves on (see
+    _progress_community_creature). Was duplicated identically in that function and in
+    _creature_progress_percent; extracted here since /students/{id}/my-creatures now needs the
+    exact same count too (to drive the same threshold-table progress bar the reward screen
+    uses for default creatures - community creatures need their own raw current value since
+    their thresholds are check-in counts, not points)."""
+    checkins = supabase.table("feeling_logs").select("id").eq("student_id", real_student_id).eq(
+        "feeling_colour", emotion_colour
+    ).gte("timestamp", (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()).execute()
+    return len(checkins.data) if checkins.data else 0
+
 def _creature_progress_percent(active_id: str, real_student_id: str, emotion_colour: str = None) -> int:
     """Real feature Aug 27 (item 12, press-and-hold progress ring): single source of truth
     for "% complete" toward a creature's next evolution, computed with the exact same
@@ -4749,10 +4769,7 @@ def _creature_progress_percent(active_id: str, real_student_id: str, emotion_col
         emotion_colour = creature_r.data[0].get("emotion_colour") if creature_r.data else None
     if not emotion_colour:
         return 0
-    checkins = supabase.table("feeling_logs").select("id").eq("student_id", real_student_id).eq(
-        "feeling_colour", emotion_colour
-    ).gte("timestamp", (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()).execute()
-    total_checkins = len(checkins.data) if checkins.data else 0
+    total_checkins = _rolling_checkins_30d(real_student_id, emotion_colour)
     return max(0, min(100, round(total_checkins / 20 * 100)))
 
 def _progress_community_creature(real_student_id: str, submission_id: str):
@@ -4766,8 +4783,7 @@ def _progress_community_creature(real_student_id: str, submission_id: str):
     if not creature_r.data or creature_r.data[0].get("status") != "approved":
         return None
     creature = creature_r.data[0]
-    checkins = supabase.table("feeling_logs").select("id")        .eq("student_id", real_student_id)        .eq("feeling_colour", creature.get("emotion_colour"))        .gte("timestamp", (datetime.now(timezone.utc) - timedelta(days=30)).isoformat())        .execute()
-    total_checkins = len(checkins.data) if checkins.data else 0
+    total_checkins = _rolling_checkins_30d(real_student_id, creature.get("emotion_colour"))
     existing = _creature_unlocks_for(real_student_id, real_student_id, [submission_id])
     current_stages = existing.data[0]["stages_unlocked"] if existing.data else 0
     required = [5, 10, 15, 20]
@@ -4821,6 +4837,12 @@ def _progress_community_creature(real_student_id: str, submission_id: str):
         "evolved": evolved,
         "is_complete": current_stages >= 4,
         "needed_for_next": needed_for_next,
+        # Real feature Sep 15 (progress bar unification): the raw rolling-30-day count, so
+        # callers can compute a within-stage-band percent against the same [0,5,10,15,20]
+        # threshold table default creatures use against [0,25,60,120] - needed_for_next alone
+        # can't drive that (it's 0 both "just evolved" and "not tracked yet", same ambiguity
+        # points_for_next_evolution has for default creatures - see add_points).
+        "total_checkins": total_checkins,
     }
 
 def _creature_unlocks_for(user_id: str, real_student_id: Optional[str], creature_ids: list = None):
@@ -9891,6 +9913,11 @@ async def get_my_creatures(student_id: str, request: Request):
             # stage_emojis does - the photos already exist on the submission row, just weren't
             # threaded through this endpoint before.
             "stage_urls": [cs.get("stage1_url"), cs.get("stage2_url"), cs.get("stage3_url"), cs.get("stage4_url")],
+            # Real feature Sep 15 (progress bar unification): the raw rolling-30-day check-in
+            # count - default creature entries above already carry the equivalent "points"
+            # field; community creatures need this instead, since they evolve on check-in
+            # count against COMMUNITY_CREATURE_THRESHOLDS ([0,5,10,15,20]), not points.
+            "checkins_30d": _rolling_checkins_30d(student_id, colour),
         })
 
     return {"colours": buckets, "total_collected": total_collected}

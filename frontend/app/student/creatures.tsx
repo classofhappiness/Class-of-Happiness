@@ -26,6 +26,7 @@ import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { AnimatedCreatureVisual } from '../../src/components/AnimatedCreatureVisual';
 import { CreatureDetailModal, CreatureDetailEntry } from '../../src/components/CreatureDetailModal';
+import { EvolutionProgressBar, DEFAULT_CREATURE_THRESHOLDS, COMMUNITY_CREATURE_THRESHOLDS } from '../../src/components/EvolutionProgressBar';
 import { useDataGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
 
 const EMOTION_COLORS: Record<string, string> = {
@@ -64,6 +65,12 @@ interface CreatureEntry {
   completed_at?: string | null;
   was_featured?: boolean;
   featured_until?: string | null;
+  // Real feature Sep 15 (progress bar unification): raw current value for the colour-matched
+  // evolve-progress bar - points for a default creature, rolling 30-day check-in count for a
+  // community one (see EvolutionProgressBar for why these can't share one field/threshold
+  // table). Both come straight from GET /students/{id}/my-creatures.
+  points?: number;
+  checkins_30d?: number;
 }
 
 // Own component (not an inline render function) so it can own its own pulse animation via
@@ -152,11 +159,17 @@ function CreatureGridCard({
           {item.was_featured ? (
             <Text style={styles.limitedBadge}>{expired ? (t('limited_edition_expired') || '⭐ Limited Edition (expired)') : (t('limited_edition') || '⭐ Limited Edition')}</Text>
           ) : null}
-          <View style={styles.progressRow}>
-            {Array.from({ length: item.max_stage }, (_, i) => i + 1).map(s => (
-              <View key={s} style={[styles.progressDot, { backgroundColor: item.current_stage >= s ? EMOTION_COLORS[colour] : '#E5E5E5' }]} />
-            ))}
-          </View>
+          {/* Real fix Sep 15 (progress bar unification): replaces the old discrete stage-dots
+              row with the same colour-matched fractional bar used on the reward screen and
+              creature detail - one consistent progress element everywhere evolution progress
+              is shown, instead of a third, coarser representation just for this grid. */}
+          <EvolutionProgressBar
+            zone={colour}
+            current={item.type === 'default' ? (item.points || 0) : (item.checkins_30d || 0)}
+            stageIndex={item.current_stage}
+            thresholds={item.type === 'default' ? DEFAULT_CREATURE_THRESHOLDS : COMMUNITY_CREATURE_THRESHOLDS}
+            style={styles.progressRow}
+          />
           <Text style={item.is_complete ? styles.fullyEvolved : styles.inProgress}>
             {item.is_complete ? (t('fully_evolved') || '🏆 Fully evolved!') : `${t('stage') || 'Stage'} ${item.current_stage} / ${item.max_stage}`}
           </Text>
@@ -275,6 +288,7 @@ export default function CreatureCollectionScreen() {
         entry={detailEntry}
         colour={detailColour}
         studentId={studentId}
+        onEvolved={fetchMyCreatures}
       />
     </View>
   );
@@ -362,8 +376,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   activeBadgePillText: { fontSize: 10, fontWeight: '800', color: 'white' },
-  progressRow: { flexDirection: 'row', gap: 4, marginBottom: 6 },
-  progressDot: { width: 8, height: 8, borderRadius: 4 },
+  progressRow: { marginBottom: 6, paddingHorizontal: 4 },
   fullyEvolved: { fontSize: 11, fontWeight: '800', color: '#4CAF73', textAlign: 'center' },
   limitedBadge: { fontSize: 10, fontWeight: '800', color: '#B8860B', marginBottom: 4 },
   inProgress: { fontSize: 11, fontWeight: '700', color: '#9CA3AF', textAlign: 'center' },

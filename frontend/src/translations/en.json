@@ -1388,5 +1388,22 @@
   "year_1": "1 Year",
   "years_2": "2 Years",
   "years_3": "3 Years",
-  "zero_resources_subtitle": "0 resources"
+  "zero_resources_subtitle": "0 resources",
+  "evolve_btn": "Evolve!",
+  "evolving": "Evolving...",
+  "evolve_failed": "Could not evolve right now. Please try again.",
+  "shop_title": "🛍️ Class of Happiness Shop",
+  "shop_collection_complete": "Full set!",
+  "shop_buy_btn": "Choose",
+  "shop_buying": "Buying...",
+  "shop_cant_buy_title": "Can't buy that yet",
+  "shop_cant_buy_desc": "Something went wrong. Please try again.",
+  "shop_toggle_desc_on": "{name} can earn and spend points on rewards in the Shop.",
+  "shop_toggle_desc_off": "Turns off Shop rewards for {name} - worth talking to them about why.",
+  "shop_school_toggle_subtitle": "Reward Shop for students",
+  "shop_school_toggle_desc_on": "Students at your school can earn and spend points on rewards in the Shop.",
+  "shop_school_toggle_desc_off": "The Shop is off for your whole school - creatures still grow and unlock rewards automatically, just without a Shop to browse or spend in.",
+  "streak_praise": "You checked in {days} days in a row - that's real consistency! 🔥",
+  "evolve_skip_btn": "Skip — evolve later",
+  "evolve_ready_hint": "✨ Ready to evolve whenever you like! Find them in My Creatures."
 }

@@ -1378,5 +1378,22 @@
   "year_1": "سنة واحدة",
   "years_2": "سنتان",
   "years_3": "3 سنوات",
-  "zero_resources_subtitle": "0 مورد"
+  "zero_resources_subtitle": "0 مورد",
+  "evolve_btn": "تطوّر!",
+  "evolving": "جارٍ التطوّر...",
+  "evolve_failed": "تعذّر التطوّر الآن. حاول مرة أخرى.",
+  "shop_title": "🛍️ متجر Class of Happiness",
+  "shop_collection_complete": "مجموعة كاملة!",
+  "shop_buy_btn": "اختر",
+  "shop_buying": "جارٍ الشراء...",
+  "shop_cant_buy_title": "لا يمكن شراء هذا بعد",
+  "shop_cant_buy_desc": "حدث خطأ ما. حاول مرة أخرى.",
+  "shop_toggle_desc_on": "يمكن لـ {name} كسب النقاط وإنفاقها على المكافآت في المتجر.",
+  "shop_toggle_desc_off": "يعطّل مكافآت المتجر لـ {name} - يُستحسن التحدث معه أو معها عن السبب.",
+  "shop_school_toggle_subtitle": "متجر المكافآت للطلاب",
+  "shop_school_toggle_desc_on": "يمكن لطلاب مدرستك كسب النقاط وإنفاقها على المكافآت في المتجر.",
+  "shop_school_toggle_desc_off": "المتجر معطّل لمدرستك بأكملها - تستمر الكائنات في النمو وفتح المكافآت تلقائيًا، فقط بدون متجر للتصفح أو الإنفاق فيه.",
+  "streak_praise": "سجّلت حضورك {days} أيام متتالية - هذا التزام حقيقي! 🔥",
+  "evolve_skip_btn": "تخطي — التطور لاحقًا",
+  "evolve_ready_hint": "✨ جاهز للتطور متى شئت! ابحث عنه في مخلوقاتي."
 }

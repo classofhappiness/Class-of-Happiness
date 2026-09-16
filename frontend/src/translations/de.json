@@ -1655,5 +1655,22 @@
   "year_1": "1 Jahr",
   "years_2": "2 Jahre",
   "years_3": "3 Jahre",
-  "zero_resources_subtitle": "0 Ressourcen"
+  "zero_resources_subtitle": "0 Ressourcen",
+  "evolve_btn": "Entwickeln!",
+  "evolving": "Entwickelt sich...",
+  "evolve_failed": "Konnte gerade nicht weiterentwickelt werden. Bitte versuche es erneut.",
+  "shop_title": "🛍️ Class of Happiness Shop",
+  "shop_collection_complete": "Komplettes Set!",
+  "shop_buy_btn": "Wählen",
+  "shop_buying": "Wird gekauft...",
+  "shop_cant_buy_title": "Das kann noch nicht gekauft werden",
+  "shop_cant_buy_desc": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+  "shop_toggle_desc_on": "{name} kann Punkte sammeln und im Shop gegen Belohnungen eintauschen.",
+  "shop_toggle_desc_off": "Deaktiviert die Shop-Belohnungen für {name} - es lohnt sich, mit ihm oder ihr darüber zu sprechen.",
+  "shop_school_toggle_subtitle": "Belohnungs-Shop für Schüler",
+  "shop_school_toggle_desc_on": "Schüler deiner Schule können Punkte sammeln und im Shop gegen Belohnungen eintauschen.",
+  "shop_school_toggle_desc_off": "Der Shop ist für deine ganze Schule deaktiviert - Kreaturen wachsen und schalten Belohnungen weiterhin automatisch frei, nur ohne Shop zum Stöbern oder Ausgeben.",
+  "streak_praise": "Du hast dich {days} Tage in Folge eingecheckt - das ist echte Beständigkeit! 🔥",
+  "evolve_skip_btn": "Überspringen — später entwickeln",
+  "evolve_ready_hint": "✨ Bereit zur Entwicklung, wann immer du möchtest! Finde es in Meine Kreaturen."
 }

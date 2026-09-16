@@ -1655,5 +1655,22 @@
   "year_1": "1 An",
   "years_2": "2 Ans",
   "years_3": "3 Ans",
-  "zero_resources_subtitle": "0 ressource"
+  "zero_resources_subtitle": "0 ressource",
+  "evolve_btn": "Évoluer !",
+  "evolving": "Évolution en cours...",
+  "evolve_failed": "Impossible d'évoluer pour le moment. Réessaie.",
+  "shop_title": "🛍️ Boutique Class of Happiness",
+  "shop_collection_complete": "Collection complète !",
+  "shop_buy_btn": "Choisir",
+  "shop_buying": "Achat en cours...",
+  "shop_cant_buy_title": "Pas encore possible d'acheter ça",
+  "shop_cant_buy_desc": "Une erreur s'est produite. Réessaie.",
+  "shop_toggle_desc_on": "{name} peut gagner et dépenser des points contre des récompenses dans la Boutique.",
+  "shop_toggle_desc_off": "Désactive les récompenses de la Boutique pour {name} - ça vaut le coup d'en parler avec lui ou elle.",
+  "shop_school_toggle_subtitle": "Boutique de récompenses pour les élèves",
+  "shop_school_toggle_desc_on": "Les élèves de votre école peuvent gagner et dépenser des points contre des récompenses dans la Boutique.",
+  "shop_school_toggle_desc_off": "La Boutique est désactivée pour toute votre école - les créatures continuent de grandir et de débloquer des récompenses automatiquement, simplement sans Boutique où naviguer ou dépenser.",
+  "streak_praise": "Tu t'es enregistré {days} jours de suite - ça, c'est de la vraie régularité ! 🔥",
+  "evolve_skip_btn": "Passer — évoluer plus tard",
+  "evolve_ready_hint": "✨ Prêt à évoluer quand tu veux ! Retrouve-le dans Mes Créatures."
 }

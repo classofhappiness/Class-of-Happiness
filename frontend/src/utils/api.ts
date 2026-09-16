@@ -581,6 +581,9 @@ export interface FamilyMember {
   avatar_custom?: string;
   linked_student_id?: string;
   created_at: string;
+  student_id?: string;
+  // Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): family-level toggle.
+  shop_enabled?: boolean;
 }
 
 export interface FamilyZoneLog {
@@ -619,6 +622,12 @@ export const familyApi = {
   // Teacher link code (parent generates for teacher)
   generateTeacherCode: (studentId: string): Promise<{ link_code: string; expires_at: string }> =>
     apiRequest(`/parent/generate-teacher-code/${studentId}`, { method: 'POST' }),
+
+  // Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): family-level toggle
+  // for a family_member-type child (no parent_links row) - confirmed live that 6 of 18
+  // parent accounts have ONLY this child type, previously with no way to reach this setting.
+  toggleShop: (memberId: string): Promise<{ shop_enabled: boolean }> =>
+    apiRequest(`/family/members/${memberId}/toggle-shop`, { method: 'PUT' }),
 };
 
 // Family Strategies API
@@ -676,6 +685,8 @@ export interface LinkedChild {
   home_sharing_enabled: boolean;
   school_sharing_enabled: boolean;
   is_linked_from_school: boolean;
+  // Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): family-level toggle.
+  shop_enabled?: boolean;
 }
 
 export interface FamilyAssignedStrategy {
@@ -717,6 +728,11 @@ export const linkedChildApi = {
 
   toggleHomeSharing: (studentId: string): Promise<any> =>
     apiRequest(`/parent/linked-child/${studentId}/toggle-home-sharing`, { method: 'PUT' }),
+
+  // Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): family-level Shop
+  // toggle, same place/pattern as toggleHomeSharing above.
+  toggleShop: (studentId: string): Promise<{ shop_enabled: boolean }> =>
+    apiRequest(`/parent/linked-child/${studentId}/toggle-shop`, { method: 'PUT' }),
 
   unlink: (studentId: string): Promise<any> =>
     apiRequest(`/parent/linked-child/${studentId}/unlink`, { method: 'DELETE' }),
@@ -948,8 +964,20 @@ export interface AddPointsResponse {
   current_stage: number;
   current_creature: Creature;
   current_stage_info: CreatureStage;
+  // Real fix Sep 15 (B1, points economy v2): previously declared here but never actually
+  // returned by the backend (always undefined at runtime) - now genuinely computed.
   points_for_next_evolution: number | null;
+  // Real feature Sep 15 (progress bar unification): only present on the community-creature
+  // path - current_points is repurposed there to carry the stage count (0-4), not a points
+  // value, so this carries the real rolling-30-day check-in count needed to compute progress
+  // against COMMUNITY_CREATURE_THRESHOLDS.
+  checkins_30d?: number;
   evolved: boolean;
+  // Real feature Sep 15 (B1, points economy v2): evolution is no longer automatic - this is
+  // the new signal to show an Evolve button on. eligible_stage is the stage it would advance
+  // to if the student taps it.
+  evolution_ready?: boolean;
+  eligible_stage?: number;
   evolution_info: any;
   completed_creature: boolean;
   new_creature_started: boolean;
@@ -962,18 +990,56 @@ export interface AddPointsResponse {
   newly_unlocked?: { id: string; name: string; emoji: string; category: 'moves'|'outfits'|'foods'|'homes'; unlocks_at_stage: number }[];
 }
 
+// Real feature Sep 15 (B1, points economy v2): a Shop item as the backend now resolves it -
+// owned/available/price already computed server-side, nothing hidden or derived client-side.
+export interface ShopItem {
+  id: string;
+  name: string;
+  emoji: string;
+  unlocks_at_stage: number;
+  price: number;
+  owned: boolean;
+  available: boolean;
+}
+
+export interface CreatureWithShop extends Creature {
+  spendable_balance: number;
+  shop: { moves: ShopItem[]; outfits: ShopItem[]; foods: ShopItem[]; homes: ShopItem[] };
+  category_complete: { moves: boolean; outfits: boolean; foods: boolean; homes: boolean };
+  current_points: number;
+  current_stage: number;
+}
+
 export interface StudentCollection {
   collected_creatures: Creature[];
   current_creature: Creature;
   current_stage: number;
   current_points: number;
   total_creatures: number;
-  all_creatures: Creature[];
+  all_creatures: CreatureWithShop[];
   total_collected: number;
   unlocked_moves: string[];
   unlocked_outfits: string[];
   unlocked_foods: string[];
   unlocked_homes: string[];
+  // Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): school + family
+  // toggle, both default ON - see server.py's _is_shop_enabled_for_student. When false, the
+  // Shop UI shouldn't render at all - items still show owned/locked exactly as pre-Shop.
+  shop_enabled?: boolean;
+}
+
+export interface EvolveResponse {
+  current_creature: Creature;
+  current_stage: number;
+  current_points: number;
+  evolved: boolean;
+  newly_available_items: (ShopItem & { category: 'moves'|'outfits'|'foods'|'homes' })[];
+}
+
+export interface BuyItemResponse {
+  item: ShopItem & { category: string };
+  spendable_balance: number;
+  [key: string]: any; // owned_<category> list, key name varies by category
 }
 
 export interface PointsConfig {
@@ -998,6 +1064,22 @@ export const rewardsApi = {
   
   getCollection: (studentId: string): Promise<StudentCollection> =>
     apiRequest(`/rewards/${studentId}/collection`),
+
+  // Real feature Sep 15 (B1, points economy v2): explicit, student-initiated evolution -
+  // always free, see server.py's evolve_creature for why.
+  evolve: (studentId: string, creatureId: string): Promise<EvolveResponse> =>
+    apiRequest(`/rewards/${studentId}/evolve`, {
+      method: 'POST',
+      body: JSON.stringify({ creature_id: creatureId }),
+    }),
+
+  // Real feature Sep 15 (B1, points economy v2, "Class of Happiness Shop"): spends from
+  // spendable_balance, never touches evolution progress.
+  buyItem: (studentId: string, creatureId: string, category: 'moves'|'outfits'|'foods'|'homes', itemId: string): Promise<BuyItemResponse> =>
+    apiRequest(`/rewards/${studentId}/buy-item`, {
+      method: 'POST',
+      body: JSON.stringify({ creature_id: creatureId, category, item_id: itemId }),
+    }),
 };
 
 // School feature toggles (two-level allowed_by_superadmin/enabled_by_school system,

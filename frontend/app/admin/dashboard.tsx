@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, Linking, Pressable, Image,
+  TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, Linking, Pressable, Image, Switch,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import DraggableFlatList, { NestableScrollContainer, NestableDraggableFlatList } from 'react-native-draggable-flatlist';
@@ -1763,6 +1763,15 @@ function SchoolSettings({ authToken, user }: any) {
   const [saving, setSaving] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
   const [generatingCode, setGeneratingCode] = useState(false);
+  // Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): school-level toggle,
+  // same two-tier allowed_by_superadmin/enabled_by_school pattern as support_requests -
+  // reuses the existing generic GET /features + PUT /features/{key} endpoints rather than
+  // building new ones. Absent from the /features list entirely means a superadmin hasn't
+  // allowed it for this school at all - shopFeatureAllowed tracks that distinction so the
+  // toggle can explain itself instead of just not appearing.
+  const [shopEnabledBySchool, setShopEnabledBySchool] = useState(true);
+  const [shopFeatureAllowed, setShopFeatureAllowed] = useState(true);
+  const [shopTogglePending, setShopTogglePending] = useState(false);
 
   const generateInviteCode = async () => {
     setGeneratingCode(true);
@@ -1787,7 +1796,28 @@ function SchoolSettings({ authToken, user }: any) {
         setStudentCount(d.student_count?.toString() || '');
         setWellbeingEmail(d.wellbeing_email || '');
       }).catch(() => {});
+    apiCall('/features', authToken)
+      .then((features: any[]) => {
+        const shop = (features || []).find(f => f.feature_key === 'creature_shop');
+        setShopFeatureAllowed(!!shop);
+        setShopEnabledBySchool(shop ? shop.enabled_by_school !== false : true);
+      }).catch(() => {});
   }, [authToken]);
+
+  const toggleShopForSchool = async (next: boolean) => {
+    setShopTogglePending(true);
+    setShopEnabledBySchool(next); // optimistic - this is a simple on/off, not worth a spinner delay
+    try {
+      await apiCall('/features/creature_shop', authToken, {
+        method: 'PUT',
+        body: JSON.stringify({ enabled_by_school: next }),
+      });
+    } catch {
+      setShopEnabledBySchool(!next); // revert on failure
+      Alert.alert(t('error') || 'Error', t('could_not_save') || 'Could not save.');
+    }
+    setShopTogglePending(false);
+  };
 
   const save = async () => {
     setSaving(true);
@@ -1857,6 +1887,25 @@ function SchoolSettings({ authToken, user }: any) {
           <Text style={s.btnText}>{generatingCode ? (t('generating') || 'Generating...') : (inviteCode ? (t('generate_new_code') || 'Generate New Code') : (t('generate_invite_code') || 'Generate Invite Code'))}</Text>
         </TouchableOpacity>
       </SectionCard>
+
+      {/* Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): school-level
+          toggle - simple on/off, default ON, no finer-grained controls (deliberate). */}
+      {shopFeatureAllowed && (
+        <SectionCard title={t('shop_title') || '🛍️ Class of Happiness Shop'} subtitle={t('shop_school_toggle_subtitle') || 'Reward Shop for students'} icon="storefront" color="#4CAF73">
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1, marginRight: 12 }}>
+              <Text style={s.hint}>
+                {shopEnabledBySchool
+                  ? (t('shop_school_toggle_desc_on') || 'Students at your school can earn and spend points on rewards in the Shop.')
+                  : (t('shop_school_toggle_desc_off') || 'The Shop is off for your whole school - creatures still grow and unlock rewards automatically, just without a Shop to browse or spend in.')}
+              </Text>
+            </View>
+            <Switch value={shopEnabledBySchool} onValueChange={toggleShopForSchool} disabled={shopTogglePending}
+              trackColor={{ false: '#E0E0E0', true: '#C8E6C9' }}
+              thumbColor={shopEnabledBySchool ? '#4CAF50' : '#9E9E9E'} />
+          </View>
+        </SectionCard>
+      )}
 
       <TouchableOpacity style={s.btn} onPress={save} disabled={saving}>
         <MaterialIcons name="save" size={16} color="white" />

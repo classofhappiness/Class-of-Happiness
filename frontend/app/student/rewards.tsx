@@ -8,7 +8,8 @@ import {
   TouchableOpacity,
   Animated,
   Easing,
-  ScrollView
+  ScrollView,
+  Alert
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -23,6 +24,8 @@ import { BonusItemCelebration, CelebrationItem } from '../../src/components/Bonu
 import { playButtonFeedback, playRewardFeedback, playEvolutionSound, preloadSounds } from '../../src/utils/sounds';
 import { playPhraseFromPool } from '../../src/utils/voiceClips';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
+import { Swipeable } from 'react-native-gesture-handler';
+import { EvolutionProgressBar, DEFAULT_CREATURE_THRESHOLDS, COMMUNITY_CREATURE_THRESHOLDS } from '../../src/components/EvolutionProgressBar';
 
 
 // Zone-specific tips — research-backed, age appropriate (6-12), 3-4 words max
@@ -78,6 +81,26 @@ export default function RewardsScreen() {
   const [showBonusCelebration, setShowBonusCelebration] = useState(false);
   const [celebrationItems, setCelebrationItems] = useState<CelebrationItem[]>([]);
   const [previousStage, setPreviousStage] = useState(0);
+  // Real feature Sep 15 (B1, points economy v2, Jono-approved): evolving is now an explicit,
+  // student-initiated action (POST /evolve), not automatic the instant a threshold is crossed
+  // - the main creature display must keep showing the OLD stage until that's actually tapped
+  // and the modal's own from->to animation has played, rather than jumping straight to the new
+  // stage the moment handleEvolvePress's response updates rewardsData. visibleStage is that
+  // held-back display value, only advancing once EvolutionAnimation's onComplete fires.
+  const [visibleStage, setVisibleStage] = useState(0);
+  // Real feature Sep 15 (B1, points economy v2, Jono-approved): evolution is now explicit -
+  // this screen shows an Evolve button instead of auto-triggering the animation the instant a
+  // threshold is crossed. evolvingCreatureId doubles as the "is the evolve request in
+  // flight" flag so the button can't be double-tapped.
+  const [evolutionReady, setEvolutionReady] = useState(false);
+  const [evolvingCreatureId, setEvolvingCreatureId] = useState<string | null>(null);
+  const [isEvolving, setIsEvolving] = useState(false);
+  // Real feature Sep 15 (B1, points economy v2, Jono-approved): evolving is a genuine choice,
+  // never forced in the moment - a child can skip and evolve later from My Creatures instead
+  // (see CreatureDetailModal's own Evolve button). No persistence needed for skipping: the
+  // creature simply stays "ready" (evolution_ready keeps coming back true) until they
+  // explicitly tap Evolve somewhere, on this screen or that one - no time limit, no penalty.
+  const [evolveSkipped, setEvolveSkipped] = useState(false);
   const [tipVisible, setTipVisible] = useState(true);
   const tipOpacityAnim = useRef(new Animated.Value(1)).current;
 
@@ -156,31 +179,24 @@ export default function RewardsScreen() {
       // Start animations
       startAnimations(response);
     setTimeout(() => setShowContinue(true), 5500);
-      
-      // Play reward sound
+
+      // Real feature Sep 15 (B1, points economy v2, Jono-approved): evolution is no longer
+      // automatic - add_points never advances the stage any more (see server.py), so the
+      // background display always shows the real current stage with nothing to hold back.
+      // evolution_ready (only ever true for default creatures - community creatures have no
+      // .stages array and use a different, check-in-count progression) drives the Evolve
+      // button below instead of an auto-triggered animation.
+      setVisibleStage(response.current_stage);
+      setEvolutionReady(!!response.evolution_ready);
+      setEvolvingCreatureId(response.current_creature?.id || null);
+
+      // Real fix Sep 15 (B1, points economy v2): the evolution sound now plays only when the
+      // student actually taps Evolve (see handleEvolvePress), not automatically the instant a
+      // threshold is crossed - so this is just the plain reward sound, unconditionally.
       playRewardFeedback();
       // Real feature Aug 21, extended Aug 28 (item A): praise-phrase pool (Great_job/
       // Well_done/You_did_it/I_did_it), randomized so it's not the same line every check-in.
       playPhraseFromPool('praise', language);
-
-      // Check if evolved
-      if (response.evolved && response.current_stage > previousStage) {
-        setTimeout(() => {
-          playEvolutionSound(); // Play evolution sound
-          setShowEvolution(true);
-        }, 1500);
-      }
-
-      // Real feature Aug 23: Bonus Items celebration - triggered at the same real
-      // stage-transition event as the evolution sound above, not chained off
-      // EvolutionAnimation's onComplete. Delayed further than the evolution sound so the
-      // two don't visually stack.
-      if (response.evolved && response.newly_unlocked && response.newly_unlocked.length > 0) {
-        setTimeout(() => {
-          setCelebrationItems(response.newly_unlocked as CelebrationItem[]);
-          setShowBonusCelebration(true);
-        }, 4000);
-      }
 
     } catch (error) {
       console.error('Error fetching rewards:', error);
@@ -251,6 +267,37 @@ export default function RewardsScreen() {
       router.replace('/kiosk');
     } else {
       router.replace('/student/select');
+    }
+  };
+
+  // Real feature Sep 15 (B1, points economy v2, Jono-approved): the explicit Evolve action -
+  // always free (see server.py's evolve_creature), never gated on anything spent in the Shop.
+  const handleEvolvePress = async () => {
+    if (!evolvingCreatureId || isEvolving) return;
+    const effectiveStudentId = currentStudent ? ((currentStudent as any).student_id || currentStudent.id) : null;
+    if (!effectiveStudentId) return;
+    setIsEvolving(true);
+    playButtonFeedback();
+    try {
+      const result = await rewardsApi.evolve(effectiveStudentId, evolvingCreatureId);
+      setPreviousStage(visibleStage);
+      setEvolutionReady(false);
+      playEvolutionSound();
+      setShowEvolution(true);
+      setRewardsData(prev => prev ? { ...prev, current_stage: result.current_stage, current_creature: result.current_creature } : prev);
+      // Real feature Sep 15 ("Class of Happiness Shop"): newly-available items are announced
+      // as a Shop invitation, not an auto-grant celebration - the child still chooses whether
+      // and what to buy. No loss framing, no urgency - just letting them know what's there.
+      if (result.newly_available_items && result.newly_available_items.length > 0) {
+        setTimeout(() => {
+          setCelebrationItems(result.newly_available_items as any);
+          setShowBonusCelebration(true);
+        }, 1800);
+      }
+    } catch (e) {
+      Alert.alert(t('error') || 'Error', t('evolve_failed') || 'Could not evolve right now. Please try again.');
+    } finally {
+      setIsEvolving(false);
     }
   };
 
@@ -341,42 +388,112 @@ export default function RewardsScreen() {
             stage2_url={rewardsData.current_creature.stage2_url}
             stage3_url={rewardsData.current_creature.stage3_url}
             stage4_url={rewardsData.current_creature.stage4_url}
-            stage={rewardsData.current_stage}
+            stage={visibleStage}
             size="large"
           />
         ) : (
           <CreatureDisplay
             creature={rewardsData?.current_creature}
-            stage={rewardsData?.current_stage}
+            stage={visibleStage}
             currentPoints={rewardsData?.current_points}
             pointsForNext={rewardsData?.points_for_next_evolution}
             size="large"
-            showProgress={true}
+            showProgress={false}
+            showGrowthIndicator={false}
             animated={true}
           />
         )}
       </Animated.View>
 
+      {/* Real feature Sep 15 (B1, points economy v2, Jono-approved): colour-matched
+          evolve-progress bar, shown right here in the moment points were just earned rather
+          than only on My Creatures/creature detail - the same EvolutionProgressBar used on
+          those two screens too (one implementation, not three). Replaces CreatureDisplay's own
+          internal bar (disabled above via showProgress/showGrowthIndicator).
+          Real fix Sep 15: the first version of this block used current_points and the default
+          [0,25,60,120] thresholds for BOTH creature types - wrong for community creatures,
+          whose current_points is deliberately repurposed by add_points to carry the stage
+          count (0-4), not a points value, and whose real thresholds are a rolling 30-day
+          check-in count ([0,5,10,15,20]). checkins_30d (new backend field, same change) carries
+          the real current value for that branch. */}
+      {(() => {
+        const isCommunity = rewardsData?.current_creature?.creature_type === 'community';
+        const zone = isCommunity ? rewardsData?.current_creature?.feeling_colour : rewardsData?.current_creature?.zone;
+        const current = isCommunity ? (rewardsData?.checkins_30d || 0) : (rewardsData?.current_points || 0);
+        const thresholds = isCommunity ? COMMUNITY_CREATURE_THRESHOLDS : DEFAULT_CREATURE_THRESHOLDS;
+        return (
+          <EvolutionProgressBar
+            zone={zone}
+            current={current}
+            stageIndex={visibleStage}
+            thresholds={thresholds}
+            style={styles.evolveProgressContainer}
+          />
+        );
+      })()}
+
       {/* Points Earned */}
       {rewardsData?.points_added > 0 && (
         <Animated.View style={[styles.pointsSection, { transform: [{ scale: celebrateScale }] }]}>
           <Text style={styles.pointsEarned}>+{rewardsData?.points_added} {t('points')}!</Text>
-          {rewardsData?.streak_bonus > 0 && (
+          {/* Real fix Sep 15 (B1, points economy v2, Jono-approved tone): genuine, specific
+              praise for something the child actually did (checking in consistently) - never
+              framed as progress toward an artificial goal or at risk of being lost. No "keep
+              it up or lose your streak" pressure language anywhere. */}
+          {rewardsData?.streak_bonus > 0 && rewardsData?.streak_days >= 2 && (
             <Text style={styles.streakBonus}>
-              (+{rewardsData?.streak_bonus} {t('streak_bonus')} 🔥)
+              {(t('streak_praise') || "You checked in {days} days in a row - that's real consistency! 🔥").replace('{days}', String(rewardsData?.streak_days || 0))}
             </Text>
           )}
         </Animated.View>
       )}
 
-      {/* Evolution Progress Hint */}
-      {rewardsData?.points_for_next_evolution && (
+      {/* Real feature Sep 15 (B1, points economy v2, Jono-approved): evolution is explicit
+          now - this button only appears once genuinely eligible, replacing the old progress
+          hint for that moment. The hint itself is also fixed here: points_for_next_evolution
+          is now a real "points still needed" number from the backend (previously always
+          undefined - this whole block never actually rendered in production before today),
+          so it's shown directly rather than double-subtracting current_points from it. */}
+      {evolutionReady && !evolveSkipped ? (
+        <View style={styles.evolveActionsRow}>
+          <TouchableOpacity
+            style={styles.evolveButton}
+            onPress={handleEvolvePress}
+            disabled={isEvolving}
+            activeOpacity={0.85}
+          >
+            <MaterialIcons name="auto-awesome" size={20} color="white" />
+            <Text style={styles.evolveButtonText}>
+              {isEvolving ? (t('evolving') || 'Evolving...') : (t('evolve_btn') || 'Evolve!')}
+            </Text>
+          </TouchableOpacity>
+          {/* Real feature Sep 15 (B1, points economy v2, Jono-approved): evolving is always a
+              choice, never forced in the celebratory moment - purely a local UI dismissal, no
+              backend call and nothing persisted, since evolution_ready keeps being reported
+              true by add_points until the student actually taps Evolve (here or later in
+              My Creatures). No time limit, no penalty for skipping. */}
+          <TouchableOpacity
+            style={styles.evolveSkipButton}
+            onPress={() => setEvolveSkipped(true)}
+            disabled={isEvolving}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.evolveSkipButtonText}>{t('evolve_skip_btn') || 'Skip — evolve later'}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : evolutionReady && evolveSkipped ? (
         <View style={styles.progressHint}>
           <Text style={styles.progressHintText}>
-            {rewardsData?.points_for_next_evolution - rewardsData?.current_points} {t('more_points_until')} {rewardsData?.current_creature.name} {t('evolves')}
+            {t('evolve_ready_hint') || '✨ Ready to evolve whenever you like! Find them in My Creatures.'}
           </Text>
         </View>
-      )}
+      ) : rewardsData?.points_for_next_evolution ? (
+        <View style={styles.progressHint}>
+          <Text style={styles.progressHintText}>
+            {rewardsData.points_for_next_evolution} {t('more_points_until')} {rewardsData?.current_creature?.name} {t('evolves')}
+          </Text>
+        </View>
+      ) : null}
 
       {/* Zone-specific tip - real fix Aug 16: auto-dismisses after 5s, or tap
           the X to close immediately. Was permanently on-screen before,
@@ -406,7 +523,14 @@ export default function RewardsScreen() {
       {/* Brave Shield Badge */}
       {shield?.has_shield && !shieldDismissed && (
         <View style={styles.shieldContainer}>
-          <View style={styles.shieldCard}>
+          {/* Real fix Sep 15: swipe-to-dismiss added, matching the Swipeable pattern already
+              used for the parent/teacher dashboard tips (renderRightActions null +
+              onSwipeableOpen dismiss). The X button stays too - swipe is additive, not a
+              replacement. Explicit width:'100%' on the immediate child is required - Swipeable
+              measures it via onLayout to compute the drag threshold, and without it the same
+              gesture silently failed to register on the parent dashboard's identical card. */}
+          <Swipeable renderRightActions={() => null} onSwipeableOpen={() => setShieldDismissed(true)}>
+          <View style={[styles.shieldCard, { width: '100%' }]}>
             {/* Real feature Aug 22: lets a student dismiss the badge and just see their
                 creature without it in the way. */}
             <TouchableOpacity
@@ -442,6 +566,7 @@ export default function RewardsScreen() {
               })()}
             </View>
           </View>
+          </Swipeable>
         </View>
       )}
       </ScrollView>
@@ -512,7 +637,12 @@ export default function RewardsScreen() {
           creature={rewardsData?.current_creature}
           fromStage={previousStage}
           toStage={rewardsData?.current_stage}
-          onComplete={() => setShowEvolution(false)}
+          onComplete={() => {
+            setShowEvolution(false);
+            // Reveal the new stage on the background display now that the modal's own
+            // dolphin->shark (etc.) transition has actually finished - see visibleStage note.
+            setVisibleStage(rewardsData?.current_stage ?? 0);
+          }}
         />
       )}
 
@@ -600,6 +730,30 @@ const styles = StyleSheet.create({
     color: '#888',
     textAlign: 'center',
   },
+  // Real feature Sep 15 (B1, points economy v2, Jono-approved): the explicit Evolve button -
+  // warm, not stimulating (Jono's design note) - same visual weight as other primary actions
+  // on this screen, no flashing/pulsing.
+  evolveButton: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#5C6BC0', borderRadius: 16, paddingVertical: 12, paddingHorizontal: 24,
+  },
+  evolveButtonText: {
+    color: 'white', fontSize: 15, fontWeight: '800',
+  },
+  evolveActionsRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    marginBottom: 20,
+  },
+  // Real feature Sep 15 (B1, points economy v2, Jono-approved): deliberately lower visual
+  // weight than evolveButton (outline, not filled) - a real, easy-to-take option, but not
+  // competing with the primary joyful action.
+  evolveSkipButton: {
+    paddingVertical: 12, paddingHorizontal: 16, borderRadius: 16,
+    borderWidth: 1.5, borderColor: '#DDD',
+  },
+  evolveSkipButtonText: {
+    color: '#888', fontSize: 13, fontWeight: '700',
+  },
   buttonContainer: {
     flexDirection: 'column',
     paddingHorizontal: 20,
@@ -629,6 +783,7 @@ const styles = StyleSheet.create({
   shieldMax: { fontSize: 11, color: '#FF8F00', fontWeight: '700', marginTop: 4 },
   shieldBar: { height: 6, backgroundColor: '#FFE082', borderRadius: 3, overflow: 'hidden' },
   shieldBarFill: { height: 6, backgroundColor: '#FFA000', borderRadius: 3 },
+  evolveProgressContainer: { maxWidth: 220, alignSelf: 'center', marginTop: -8, marginBottom: 12 },
   collectionButtonText: {
     color: '#FFD700',
     fontSize: 16,

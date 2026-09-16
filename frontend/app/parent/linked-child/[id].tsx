@@ -11,7 +11,7 @@ import { BarChart } from 'react-native-gifted-charts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../../src/constants/emotionColours';
-import { linkedChildApi, LinkedChild, FamilyAssignedStrategy } from '../../../src/utils/api';
+import { linkedChildApi, LinkedChild, FamilyAssignedStrategy, familyApi } from '../../../src/utils/api';
 import { EmotionColourLoader } from '../../../src/components/EmotionColourLoader';
 import { resolveStrategyName } from '../../../src/utils/resolveStrategyName';
 
@@ -97,6 +97,10 @@ export default function LinkedChildDetailScreen() {
   const [schoolSharingPaused, setSchoolSharingPaused] = useState(false);
   const [familyStrats,   setFamilyStrats]   = useState<FamilyAssignedStrategy[]>([]);
   const [homeSharingEnabled, setHomeSharingEnabled] = useState(false);
+  // Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): family-level toggle,
+  // default ON - applies to every child (school-linked or family), unlike Home Sharing above
+  // which is school-linked-children-only.
+  const [shopEnabled, setShopEnabled] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState<1 | 7 | 14 | 30>(7);
 
   const [secEmoDistrib,     setSecEmoDistrib]     = useState(false);
@@ -165,6 +169,7 @@ export default function LinkedChildDetailScreen() {
         setChild(linkedChild);
         setChildType('school_linked');
         setHomeSharingEnabled(linkedChild.home_sharing_enabled);
+        setShopEnabled(linkedChild.shop_enabled !== false);
         const [allData, homeData, schoolData] = await Promise.all([
           linkedChildApi.getAllCheckIns(id, selectedPeriod),
           linkedChildApi.getHomeCheckIns(id, selectedPeriod),
@@ -195,6 +200,10 @@ export default function LinkedChildDetailScreen() {
         setChildType('family_member');
         setChild({ id, name: fm.name, avatar_type: fm.avatar_type, avatar_preset: fm.avatar_preset,
           avatar_custom: fm.avatar_custom, home_sharing_enabled: true, is_linked_from_school: false });
+        // Real fix Sep 15 (B1, "Class of Happiness Shop", Jono-approved): confirmed live
+        // that 6 of 18 parent accounts have ONLY this child type - this toggle needs to work
+        // here too, not just for school-linked children.
+        setShopEnabled(fm.shop_enabled !== false);
         const [checkinsRes, zoneLogsRes] = await Promise.all([
           fetch(`${BACKEND_URL}/api/family/members/${memberId}/checkins?days=${selectedPeriod}`, { headers }),
           fetch(`${BACKEND_URL}/api/family/zone-logs/${memberId}?days=${selectedPeriod}`, { headers }),
@@ -287,6 +296,23 @@ export default function LinkedChildDetailScreen() {
     catch (e: any) { Alert.alert('Error', e.message); }
   };
 
+  // Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): family-level toggle -
+  // covers BOTH child types, unlike Home Sharing above which is school-linked-only. Confirmed
+  // live (2026-09-15) that 6 of 18 parent accounts have ONLY a family_member-type child, all
+  // 6 already with a real student_id - not a small edge case, so this needed real coverage,
+  // not just the school-linked (parent_links) path.
+  const handleToggleShop = async () => {
+    try {
+      if (childType === 'school_linked' && id) {
+        const r = await linkedChildApi.toggleShop(id);
+        setShopEnabled(r.shop_enabled);
+      } else if (childType === 'family_member' && familyMemberId) {
+        const r = await familyApi.toggleShop(familyMemberId);
+        setShopEnabled(r.shop_enabled);
+      }
+    } catch (e: any) { Alert.alert('Error', e.message); }
+  };
+
   const getDistCheckins = () =>
     activeDistTab === 'home' ? homeCheckIns : activeDistTab === 'school' ? schoolCheckIns : allCheckIns;
   const getRecentCheckins = () => {
@@ -365,6 +391,29 @@ export default function LinkedChildDetailScreen() {
             </View>
           </View>
         )}
+
+        {/* Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): family-level
+            toggle - a one-line nudge toward talking with the child about it, not a silent
+            restriction, per Jono's explicit design note. Shown for BOTH child types (unlike
+            Home Sharing above) - see handleToggleShop's note on why that coverage matters. */}
+        <View style={s.card}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1, marginRight: 12 }}>
+              <Text style={[s.cardTitle, { color: '#333' }]}>
+                {t('shop_title') || '🛍️ Class of Happiness Shop'}
+              </Text>
+              <Text style={s.cardSub}>
+                {(shopEnabled
+                  ? (t('shop_toggle_desc_on') || '{name} can earn and spend points on rewards in the Shop.')
+                  : (t('shop_toggle_desc_off') || 'Turns off Shop rewards for {name} - worth talking to them about why.')
+                ).replace('{name}', child.name)}
+              </Text>
+            </View>
+            <Switch value={shopEnabled} onValueChange={handleToggleShop}
+              trackColor={{ false: '#E0E0E0', true: '#C8E6C9' }}
+              thumbColor={shopEnabled ? '#4CAF50' : '#9E9E9E'} />
+          </View>
+        </View>
 
         <View style={s.periodRow}>
           {([1, 7, 14, 30] as const).map(d => (

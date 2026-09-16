@@ -1644,5 +1644,22 @@
   "year_1": "1 Ano",
   "years_2": "2 Anos",
   "years_3": "3 Anos",
-  "zero_resources_subtitle": "0 recursos"
+  "zero_resources_subtitle": "0 recursos",
+  "evolve_btn": "Evoluir!",
+  "evolving": "Evoluindo...",
+  "evolve_failed": "Não foi possível evoluir agora. Tente novamente.",
+  "shop_title": "🛍️ Loja Class of Happiness",
+  "shop_collection_complete": "Coleção completa!",
+  "shop_buy_btn": "Escolher",
+  "shop_buying": "Comprando...",
+  "shop_cant_buy_title": "Ainda não é possível comprar isso",
+  "shop_cant_buy_desc": "Algo correu mal. Tente novamente.",
+  "shop_toggle_desc_on": "{name} pode ganhar e gastar pontos em recompensas na Loja.",
+  "shop_toggle_desc_off": "Desativa as recompensas da Loja para {name} - vale a pena conversar sobre o motivo.",
+  "shop_school_toggle_subtitle": "Loja de recompensas para os alunos",
+  "shop_school_toggle_desc_on": "Os alunos da sua escola podem ganhar e gastar pontos em recompensas na Loja.",
+  "shop_school_toggle_desc_off": "A Loja está desativada para toda a sua escola - as criaturas continuam a crescer e a desbloquear recompensas automaticamente, só sem uma Loja para explorar ou gastar.",
+  "streak_praise": "Fizeste check-in {days} dias seguidos - isso é verdadeira consistência! 🔥",
+  "evolve_skip_btn": "Saltar — evoluir mais tarde",
+  "evolve_ready_hint": "✨ Pronto para evoluir quando quiseres! Encontra-o em As Minhas Criaturas."
 }
