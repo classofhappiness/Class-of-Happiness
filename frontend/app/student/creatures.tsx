@@ -84,6 +84,16 @@ function CreatureGridCard({
   const ringPulse = useRef(new Animated.Value(1)).current;
   const expired = item.was_featured && item.featured_until && new Date(item.featured_until) < new Date();
   const imgUrl = item.type === 'community' ? item.stage_image : null;
+  // Real fix Sep 15 (Marisa build-26, S08): confirmed in server.py's /my-creatures - a
+  // DEFAULT creature's current_stage is 0-indexed with max_stage hardcoded to 3 (the max
+  // INDEX, not a count), while a COMMUNITY creature's current_stage (stages_unlocked) is
+  // already 1-indexed with max_stage as a real count of 4. Using max_stage/current_stage
+  // directly (as this card did) under-counted default creatures' progress dots (3 dots
+  // instead of 4) and mislabelled the stage text (e.g. dolphin showing "Stage 1/3" instead
+  // of "Stage 2/4"). totalStages/reachedStages below normalise both types to the same
+  // 1-indexed, real-count meaning.
+  const totalStages = item.type === 'default' ? (item.stage_emojis?.length || 4) : item.max_stage;
+  const reachedStages = item.type === 'default' ? item.current_stage + 1 : item.current_stage;
 
   useEffect(() => {
     if (!item.is_active) return;
@@ -138,6 +148,10 @@ function CreatureGridCard({
             unlocked={item.current_stage > 0 || item.is_complete}
             emoji={item.type === 'default' ? item.emoji : undefined}
             imageUrl={imgUrl || undefined}
+            // Real fix Sep 15 (Marisa build-26, S07): "Top Trumps cards" reference - a
+            // collection you're meant to read and compare, not one that's constantly
+            // moving. Bobbing stopped entirely on this screen only.
+            animated={false}
           />
         </View>
         {/* Build 26 (Sep 6): text block below the image was unbounded height, so a card with
@@ -171,7 +185,7 @@ function CreatureGridCard({
             style={styles.progressRow}
           />
           <Text style={item.is_complete ? styles.fullyEvolved : styles.inProgress}>
-            {item.is_complete ? (t('fully_evolved') || '🏆 Fully evolved!') : `${t('stage') || 'Stage'} ${item.current_stage} / ${item.max_stage}`}
+            {item.is_complete ? (t('fully_evolved') || '🏆 Fully evolved!') : `${t('stage') || 'Stage'} ${reachedStages} / ${totalStages}`}
           </Text>
         </View>
       </View>
@@ -299,7 +313,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F6FF',
   },
-  actionBtnDark: { flex: 1, backgroundColor: '#1A1A2E', borderRadius: 50, padding: 12, alignItems: 'center' },
+  // Real fix Sep 15 (Marisa build-26, S07): added justifyContent:'center' alongside the
+  // existing alignItems:'center' - these are single-Text-child buttons so it was already
+  // centred on both axes in principle, but the explicit pairing removes any doubt and
+  // matches the button style used elsewhere in the app for this same pattern.
+  actionBtnDark: { flex: 1, backgroundColor: '#1A1A2E', borderRadius: 50, padding: 12, alignItems: 'center', justifyContent: 'center' },
   // Real bug fix Aug 23 (same class as rewards.tsx's find_world_creatures overflow): a
   // longer translation in a flex:1 half-width button had no wrap/shrink safety net. This
   // pair already used a single combined Text node (emoji + label together) rather than
@@ -307,8 +325,11 @@ const styles = StyleSheet.create({
   // anyway rather than leaving it to inference, since no running app was available here to
   // visually confirm.
   actionBtnDarkText: { color: '#FFD93D', fontWeight: '900', fontSize: 13, textAlign: 'center' },
-  actionBtnGreen: { flex: 1, backgroundColor: '#4CAF73', borderRadius: 50, padding: 12, alignItems: 'center' },
-  actionBtnGreenText: { color: 'white', fontWeight: '900', fontSize: 13, textAlign: 'center' },
+  actionBtnGreen: { flex: 1, backgroundColor: '#4CAF73', borderRadius: 50, padding: 12, alignItems: 'center', justifyContent: 'center' },
+  // Real fix Sep 15 (Marisa build-26, S07): "more letter/line spacing" - the green button's
+  // longer label ("Find a New Creature") read as visually cramped next to the shorter dark
+  // button. letterSpacing plus a touch of lineHeight for when it wraps.
+  actionBtnGreenText: { color: 'white', fontWeight: '900', fontSize: 13, textAlign: 'center', letterSpacing: 0.4, lineHeight: 17 },
   countText: {
     textAlign: 'center',
     fontSize: 16,

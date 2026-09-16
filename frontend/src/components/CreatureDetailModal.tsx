@@ -299,7 +299,12 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
                     ) : url ? (
                       <AnimatedCreatureVisual zone={colour} size={32} unlocked={reached} imageUrl={url} />
                     ) : null}
-                    <Text style={s.evoName}>{t('stage') || 'Stage'} {idx}</Text>
+                    {/* Real fix Sep 15 (Marisa build-26, S08): idx is 0-indexed (fish=0,
+                        dolphin=1, shark=2, whale=3) - labelling the box with the raw index
+                        showed "Stage 0" for the very first stage. +1 for the human-facing
+                        label; idx itself stays 0-indexed everywhere else (array access,
+                        `reached` comparison) since that's genuinely correct there. */}
+                    <Text style={s.evoName}>{t('stage') || 'Stage'} {idx + 1}</Text>
                   </View>
                 );
               })}
@@ -308,7 +313,17 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
             <Text style={s.progressLine}>
               {localStage >= stageCount - 1
                 ? `🏆 ${t('fully_evolved') || 'Fully evolved!'}`
-                : `${t('stage') || 'Stage'} ${localStage} / ${entry.max_stage}`}
+                // Real fix Sep 15 (Marisa build-26, S08): confirmed in server.py's
+                // /students/{id}/my-creatures - a DEFAULT creature's current_stage is
+                // 0-indexed with max_stage hardcoded to 3 (the max INDEX, not a count), so
+                // this showed "Stage 1 / 3" for a creature with 4 real stages sitting on its
+                // 2nd one. A COMMUNITY creature's current_stage (stages_unlocked) is already
+                // 1-indexed with max_stage as a real count of 4 - correct as-is, so the +1
+                // must be type-conditional or community creatures would go from correct to
+                // off-by-one. stageCount (already the real, verified total) replaces
+                // entry.max_stage as the denominator so this can't disagree with the boxes
+                // rendered above it.
+                : `${t('stage') || 'Stage'} ${entry.type === 'default' ? localStage + 1 : localStage} / ${stageCount}`}
             </Text>
 
             {/* Real feature Sep 15 (progress bar unification): same EvolutionProgressBar as

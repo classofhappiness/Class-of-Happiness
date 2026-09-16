@@ -674,7 +674,7 @@ export default function LinkedChildDetailScreen() {
               {'\u{1F3E0}'} {isFamilyChild?t('strategy_btn') || t('strategy_btn') || 'Strategies':'Family Strategies'}
             </Text>
             {familyStrats.length===0
-              ? <Text style={s.empty}>No strategies yet — tap Add to create one</Text>
+              ? <Text style={s.empty}>No strategies yet - tap Add to create one</Text>
               : familyStrats.map((st:any) => (
                 <View key={st.id} style={s.stratCard}>
                   <MaterialIcons name={(st.icon)||'star'} size={20} color="#4CAF50" />
@@ -745,7 +745,7 @@ export default function LinkedChildDetailScreen() {
       <Modal visible={showCheckIn} animationType="slide" transparent onRequestClose={()=>setShowCheckIn(false)}>
         <View style={s.overlay}><View style={s.sheet}>
           <View style={s.sheetHeader}>
-            <Text style={s.sheetTitle}>Check-in — {child.name}</Text>
+            <Text style={s.sheetTitle}>Check-in - {child.name}</Text>
             <TouchableOpacity onPress={()=>setShowCheckIn(false)}><MaterialIcons name="close" size={24} color="#666" /></TouchableOpacity>
           </View>
           <ScrollView style={s.sheetScroll}>

@@ -68,7 +68,7 @@ function StatRow({ label, value, icon, color }: any) {
     <View style={s.statRow}>
       <MaterialIcons name={icon} size={16} color={color} />
       <Text style={s.statRowLabel}>{label}</Text>
-      <Text style={[s.statRowValue, { color }]}>{value ?? '—'}</Text>
+      <Text style={[s.statRowValue, { color }]}>{value ?? '-'}</Text>
     </View>
   );
 }
@@ -570,7 +570,7 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
       {profiles.length === 0 ? (
         <View style={{ padding: 24, alignItems: 'center' }}>
           <MaterialIcons name="business" size={40} color="#CCC" />
-          <Text style={{ marginTop: 8, color: '#999', fontSize: 13 }}>{t('no_schools_yet') || 'No schools yet — tap "+ Add School" above.'}</Text>
+          <Text style={{ marginTop: 8, color: '#999', fontSize: 13 }}>{t('no_schools_yet') || 'No schools yet - tap "+ Add School" above.'}</Text>
         </View>
       ) : (
         <>
@@ -622,7 +622,7 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
                         {!!profile.school_type && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>🏫 {t('type_label') || 'Type:'} {profile.school_type}</Text>}
                       </>
                     ) : (
-                      <Text style={{ fontSize: 12, color: '#AAA', fontStyle: 'italic', marginBottom: 6 }}>{t('no_contact_details') || 'No contact details added yet — tap Edit to add website, phone, principal or wellbeing lead.'}</Text>
+                      <Text style={{ fontSize: 12, color: '#AAA', fontStyle: 'italic', marginBottom: 6 }}>{t('no_contact_details') || 'No contact details added yet - tap Edit to add website, phone, principal or wellbeing lead.'}</Text>
                     )}
                     {!!profile.subscription_renewal_date && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>📅 {t('renewal_label') || 'Renewal:'} {profile.subscription_renewal_date}</Text>}
                     {!!profile.notes && <Text style={{ fontSize: 12, color: '#666', marginBottom: 3 }}>📝 {profile.notes}</Text>}
@@ -801,7 +801,7 @@ function DataExportCard({ authToken }: { authToken: string|null }) {
   };
 
   return (
-    <SectionCard title={t('data_export') || 'Data Export'} subtitle={t('data_export_subtitle') || 'Scoped, redacted export — school_admin sees only their own school'} icon="download" color="#4A90D9">
+    <SectionCard title={t('data_export') || 'Data Export'} subtitle={t('data_export_subtitle') || 'Scoped, redacted export - school_admin sees only their own school'} icon="download" color="#4A90D9">
       <Text style={{ fontSize: 11, fontWeight: '700', color: '#999', marginBottom: 4 }}>{t('data_type_label') || 'Data type'}</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
         {EXPORT_TYPES.map(et => (
@@ -837,7 +837,7 @@ function SuperAdminSettings({ authToken, stats }: { authToken: string|null, stat
   return (
     <View>
       <Text style={s.sectionHint}>{t('super_admin_controls_hint') || 'Super admin app controls and configuration.'}</Text>
-      <SectionCard title={t('platform_version') || 'Platform Version'} subtitle="v2.1 — May 2026" icon="info" color={INDIGO} defaultOpen>
+      <SectionCard title={t('platform_version') || 'Platform Version'} subtitle="v2.1 - May 2026" icon="info" color={INDIGO} defaultOpen>
         <StatRow label={t('version') || 'Version'} value="2.1" icon="info" color={INDIGO} />
         <StatRow label={t('total_users') || 'Total users'} value={stats?.total_users} icon="people" color="#4CAF50" />
       </SectionCard>
@@ -1347,7 +1347,7 @@ function CreatureModeration({ authToken }: { authToken: string|null }) {
             ))}
       </SectionCard>
 
-      <SectionCard title={t('approved_creatures') || 'Approved Creatures'} subtitle={t('system_wide_every_school') || 'System-wide — every school'} icon="check-circle" color="#4CAF50" defaultOpen>
+      <SectionCard title={t('approved_creatures') || 'Approved Creatures'} subtitle={t('system_wide_every_school') || 'System-wide - every school'} icon="check-circle" color="#4CAF50" defaultOpen>
         {approved.length === 0
           ? <Text style={s.hint}>{t('no_approved_creatures_yet') || 'No approved creatures yet.'}</Text>
           : (
@@ -1362,7 +1362,7 @@ function CreatureModeration({ authToken }: { authToken: string|null }) {
           )}
       </SectionCard>
 
-      <SectionCard title={t("world_creature_gallery") || "World Creature Gallery"} subtitle={t("world_creature_gallery_subtitle") || "Aggregated by country — no student data shown"} icon="public" color="#4CAF50">
+      <SectionCard title={t("world_creature_gallery") || "World Creature Gallery"} subtitle={t("world_creature_gallery_subtitle") || "Aggregated by country - no student data shown"} icon="public" color="#4CAF50">
         {countryGallery.length === 0
           ? <Text style={s.hint}>{t("world_gallery_empty") || "No countries have reached the minimum contributor threshold yet."}</Text>
           : (
@@ -1500,7 +1500,7 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
         <View style={s.modalOverlay}>
           <View style={s.modalCard}>
             <Text style={s.cardTitle}>{t('select_schools') || 'Select Schools'}</Text>
-            <Text style={[s.hint, { marginBottom: 8 }]}>{t('select_schools_desc') || 'Pick which schools to include — a single school keeps the original report layout, 2+ adds a comparison table plus a section per school.'}</Text>
+            <Text style={[s.hint, { marginBottom: 8 }]}>{t('select_schools_desc') || 'Pick which schools to include. A single school keeps the original report layout, 2+ adds a comparison table plus a section per school.'}</Text>
             <ScrollView style={{ maxHeight: 260 }}>
               {pickerSchools.map(name => {
                 const checked = selectedSchools.includes(name);
@@ -1611,10 +1611,10 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
 
         {/* App info */}
         <SectionCard title={t('app_info') || 'App Info'} subtitle={t('version_platform_details') || 'Version & platform details'} icon="info" color={INDIGO}>
-          <StatRow label={t('version') || 'Version'} value="v2.1 — May 2026" icon="info" color={INDIGO} />
+          <StatRow label={t('version') || 'Version'} value="v2.1 - May 2026" icon="info" color={INDIGO} />
           <StatRow label={t('total_users') || 'Total users'} value={stats?.total_users} icon="people" color="#4CAF50" />
-          <StatRow label={t('avg_student_session') || 'Avg student session'} value={(t('mins_suffix') || '{n} mins').replace('{n}', String(stats?.avg_student_session ?? '—'))} icon="timer" color="#FF9800" />
-          <StatRow label={t('avg_teacher_session') || 'Avg teacher session'} value={(t('mins_suffix') || '{n} mins').replace('{n}', String(stats?.avg_teacher_session ?? '—'))} icon="timer" color="#FFC107" />
+          <StatRow label={t('avg_student_session') || 'Avg student session'} value={(t('mins_suffix') || '{n} mins').replace('{n}', String(stats?.avg_student_session ?? '-'))} icon="timer" color="#FF9800" />
+          <StatRow label={t('avg_teacher_session') || 'Avg teacher session'} value={(t('mins_suffix') || '{n} mins').replace('{n}', String(stats?.avg_teacher_session ?? '-'))} icon="timer" color="#FFC107" />
         </SectionCard>
 
         {/* Unlink tool — super admin only */}

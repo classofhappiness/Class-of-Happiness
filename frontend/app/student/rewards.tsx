@@ -81,12 +81,14 @@ export default function RewardsScreen() {
   const [showBonusCelebration, setShowBonusCelebration] = useState(false);
   const [celebrationItems, setCelebrationItems] = useState<CelebrationItem[]>([]);
   const [previousStage, setPreviousStage] = useState(0);
-  // Real feature Sep 15 (B1, points economy v2, Jono-approved): evolving is now an explicit,
-  // student-initiated action (POST /evolve), not automatic the instant a threshold is crossed
-  // - the main creature display must keep showing the OLD stage until that's actually tapped
-  // and the modal's own from->to animation has played, rather than jumping straight to the new
-  // stage the moment handleEvolvePress's response updates rewardsData. visibleStage is that
-  // held-back display value, only advancing once EvolutionAnimation's onComplete fires.
+  // Real fix Sep 15 (Marisa build-26, S06 sync bug): the main creature display behind the
+  // evolution modal used to render rewardsData.current_stage directly - the NEW, already-
+  // evolved stage - from the very first render, while the modal itself still correctly
+  // starts its animation from the OLD stage 1500ms later. Result: the background screen
+  // already showed/named "shark" before the modal's own dolphin->shark transition had even
+  // started. This tracks what the main display should actually show right now - the old
+  // stage while an evolution is pending/animating, switching to the new one only once the
+  // modal's onComplete fires (see below).
   const [visibleStage, setVisibleStage] = useState(0);
   // Real feature Sep 15 (B1, points economy v2, Jono-approved): evolution is now explicit -
   // this screen shows an Evolve button instead of auto-triggering the animation the instant a
@@ -136,7 +138,13 @@ export default function RewardsScreen() {
 
   const addPointsAndFetchRewards = async () => {
     if (!currentStudent) return;
-    
+    // Real fix Sep 15 (Marisa build-26, S06): "space the reward screen out" - on a fast
+    // connection this loading state (egg + EmotionColourLoader) could flash for well under a
+    // second before the full reward screen slammed in. Floor of 900ms below gives it a
+    // deliberate minimum beat regardless of network speed; a slow/cold-start fetch is
+    // unaffected since it already takes longer than that on its own.
+    const loadStartedAt = Date.now();
+
     // For family members, use their auto-created student_id if available
     const effectiveStudentId = (currentStudent as any).student_id || currentStudent.id;
     const isFamilyMember = (currentStudent as any).is_family_member;
@@ -190,10 +198,10 @@ export default function RewardsScreen() {
       setEvolutionReady(!!response.evolution_ready);
       setEvolvingCreatureId(response.current_creature?.id || null);
 
-      // Real fix Sep 15 (B1, points economy v2): the evolution sound now plays only when the
-      // student actually taps Evolve (see handleEvolvePress), not automatically the instant a
-      // threshold is crossed - so this is just the plain reward sound, unconditionally.
-      playRewardFeedback();
+      // Real fix Sep 15 (Marisa build-26, S06): one sound effect for this moment - the plain
+      // reward sound. The evolution sound now plays only when the student actually taps
+      // Evolve (see handleEvolvePress), not blindly the instant a threshold is crossed.
+      playRewardFeedback(true);
       // Real feature Aug 21, extended Aug 28 (item A): praise-phrase pool (Great_job/
       // Well_done/You_did_it/I_did_it), randomized so it's not the same line every check-in.
       playPhraseFromPool('praise', language);
@@ -201,7 +209,12 @@ export default function RewardsScreen() {
     } catch (error) {
       console.error('Error fetching rewards:', error);
     } finally {
-      setLoading(false);
+      const elapsed = Date.now() - loadStartedAt;
+      if (elapsed < 900) {
+        setTimeout(() => setLoading(false), 900 - elapsed);
+      } else {
+        setLoading(false);
+      }
     }
   };
 
@@ -364,8 +377,16 @@ export default function RewardsScreen() {
           Shield overlap fix removed creatureSection's greedy flex:1, content could exceed
           screen height with nothing to scroll it, hiding the Continue button entirely. Action
           buttons stay pinned outside the ScrollView so the primary CTA is always reachable
-          regardless of how much scrollable content stacks above it. */}
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
+          regardless of how much scrollable content stacks above it.
+          Real fix Sep 15 (Marisa build-26 round 2, S06): flexGrow:1 here forced this content
+          container to stretch and fill the full available height whenever its natural content
+          was shorter than the screen - exactly the case once the Bronze Shield banner is
+          dismissed (its whole block unmounts). Since buttonContainer already sits pinned
+          outside the ScrollView as a fixed sibling, the scroll content never needed to fill
+          the remaining space itself - dropping flexGrow lets it size to its real content
+          height instead, so the gap above the buttons collapses when the shield is gone,
+          while still scrolling correctly when content is genuinely tall (shield showing). */}
+      <ScrollView showsVerticalScrollIndicator={false}>
       {/* Header - pushed down from top */}
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
@@ -407,9 +428,10 @@ export default function RewardsScreen() {
 
       {/* Real feature Sep 15 (B1, points economy v2, Jono-approved): colour-matched
           evolve-progress bar, shown right here in the moment points were just earned rather
-          than only on My Creatures/creature detail - the same EvolutionProgressBar used on
-          those two screens too (one implementation, not three). Replaces CreatureDisplay's own
-          internal bar (disabled above via showProgress/showGrowthIndicator).
+          than only on My Creatures/creature detail - now the same EvolutionProgressBar used on
+          those two screens too (extracted per Jono's instruction, one implementation instead
+          of three). Replaces CreatureDisplay's own internal bar (disabled above via
+          showProgress/showGrowthIndicator).
           Real fix Sep 15: the first version of this block used current_points and the default
           [0,25,60,120] thresholds for BOTH creature types - wrong for community creatures,
           whose current_points is deliberately repurposed by add_points to carry the stage
@@ -546,7 +568,7 @@ export default function RewardsScreen() {
             </Text>
             <View style={{ flex: 1 }}>
               <Text style={styles.shieldTitle}>{shield.label || 'Brave Shield'}</Text>
-              <Text style={styles.shieldSub}>You asked for help {shield.count} time{shield.count !== 1 ? 's' : ''} — that takes courage!</Text>
+              <Text style={styles.shieldSub}>You asked for help {shield.count} time{shield.count !== 1 ? 's' : ''}, that takes courage!</Text>
               {/* Progress to next level */}
               {(() => {
                 const currentIdx = SHIELD_LEVELS.findIndex(s => s.level === shield.level);

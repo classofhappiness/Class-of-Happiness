@@ -1240,13 +1240,13 @@ export function formatSupportRequestStatus(r: SupportRequest): SupportRequestSta
     if (r.last_rebuzz_at) {
       // Honest state once the first re-buzz has already fired unanswered - so an anxious
       // teacher can judge plan B instead of watching an endless reassuring pulse.
-      return { text: `No response yet — re-buzzing${elapsed}`, color, pulse: false };
+      return { text: `No response yet - re-buzzing${elapsed}`, color, pulse: false };
     }
-    return { text: `${r.is_incident ? '🚨 Sent — waiting' : 'Sent — waiting'}${elapsed}`, color, pulse: true };
+    return { text: `${r.is_incident ? '🚨 Sent - waiting' : 'Sent - waiting'}${elapsed}`, color, pulse: true };
   }
   if (r.status === 'ACKNOWLEDGED') {
     const seenOnly = r.request_type === 'STAFF_MEMBER' || r.request_type === 'BACK_ON_TRACK';
-    return { text: seenOnly ? 'Seen' : 'Seen — on the way', color: resolvedGreen, pulse: false };
+    return { text: seenOnly ? 'Seen' : 'Seen - on the way', color: resolvedGreen, pulse: false };
   }
   if (r.status === 'CANCELLED') {
     return { text: 'Cancelled', color: resolvedGreen, pulse: false };
