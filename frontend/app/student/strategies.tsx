@@ -292,7 +292,11 @@ export default function StrategiesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    // Real fix Sep 16 (status bar overlap fix): this SafeAreaView's default (all) edges already
+    // applied a real Android top inset on its own - stacking TranslatedHeader's own now-correct
+    // insets.top on top of it would double-pad. Same edges={['left','right','bottom']} pattern
+    // teacher/alerts.tsx and teacher/dashboard.tsx already use for the same reason.
+    <SafeAreaView style={styles.container} edges={['left','right','bottom']}>
       <TranslatedHeader title={t('choose_helpers') || 'Choose Helpers'} />
       <CelebrationOverlay
         visible={showCelebration}

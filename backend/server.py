@@ -2657,7 +2657,25 @@ async def get_me(request: Request):
 
 @api_router.post("/auth/logout")
 async def logout(request: Request):
+    """Real fix Sep 16 (live-test investigation, logout hang): this only ever checked
+    request.cookies for the session token - mobile clients authenticate via `Authorization:
+    Bearer` and explicitly omit credentials/cookies (see api.ts's apiRequest), so
+    session_token was always None on mobile and the user_sessions row was NEVER actually
+    deleted. Logging out on mobile cleared local storage only - the session token itself
+    stayed valid server-side indefinitely. Not the cause of the reported 15-20s hang (this
+    endpoint does at most one fast DELETE, nothing here can legitimately take that long - the
+    hang is almost certainly the same Railway cold-start/connectivity class of delay as the
+    student-select screen's slow-loading minis, hitting the network layer before this endpoint
+    is even reached), but a real, separate security-hygiene gap found while investigating it.
+    Now checks the same cookie -> Bearer header -> query-param fallback chain
+    get_current_user already uses, so a mobile logout genuinely revokes the token."""
     session_token = request.cookies.get("session_token")
+    if not session_token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            session_token = auth_header[7:]
+    if not session_token:
+        session_token = request.query_params.get("token")
     if session_token:
         supabase.table("user_sessions").delete().eq("session_token", session_token).execute()
     response = Response(content='{"message": "Logged out"}')

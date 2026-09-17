@@ -41,6 +41,10 @@ interface AppContextType {
   isLoading: boolean;
   login: () => void;
   loginWithEmail: (email: string, adminPin?: string, attempt?: number, password?: string) => Promise<void>;
+  // Real feature Sep 16 (minimal fix: superadmin login was completely broken - see
+  // loginWithEmail's code_required handling below): second step of the emailed one-time-code
+  // flow. Mirrors loginWithEmail's own session-saving tail exactly.
+  verifyLoginCode: (email: string, code: string) => Promise<void>;
   loginWithGoogle: (googleAccessToken: string) => Promise<void>;
   signupWithEmail: (email: string, password: string, name: string, role: 'teacher' | 'parent') => Promise<void>;
   logout: () => Promise<void>;
@@ -595,24 +599,43 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         throw new Error(message);
       }
 
+      // Real fix Sep 16 (minimal fix: superadmin's own login was actively broken by this -
+      // not a "someday" gap): this response has neither `user` nor `session_token` - the
+      // password check passed and a real one-time code was just emailed, but login isn't
+      // complete yet. Previously fell straight through to the destructure below, which
+      // silently produced { user: undefined, session_token: undefined } and crashed inside
+      // AsyncStorage.setItem. A distinct marker on the thrown error lets the caller
+      // (login.tsx) switch to a code-entry step instead of treating this as a failure.
+      if (data?.status === 'code_required') {
+        const codeRequiredError: any = new Error('Enter the code emailed to you to finish signing in.');
+        codeRequiredError.code_required = true;
+        codeRequiredError.email = data.email || email;
+        throw codeRequiredError;
+      }
+
       const { user, session_token } = data;
-      
+
       // Save session
       await AsyncStorage.setItem('session_token', session_token);
       await AsyncStorage.setItem('user_data', JSON.stringify(user));
-      
+
       // IMPORTANT: Set token in API module so all requests are authenticated
       await setSessionToken(session_token);
-      
+
       setUser(user);
       setIsAuthenticated(true);
-      
+
       console.log('[Login] Success:', user.email);
     } catch (error) {
-      console.error('[Login] Email login error:', error);
-      const { Alert } = require('react-native');
-      const message = error instanceof Error ? error.message : 'Could not sign in. Please try again.';
-      Alert.alert('Sign In Failed', message);
+      // Real fix Sep 16: the code-required case above isn't a failure - it's a real
+      // in-progress login, still gets re-thrown below (for login.tsx to catch and route into
+      // the code-entry step) but should not surface as a "Sign In Failed" alert.
+      if (!(error as any)?.code_required) {
+        console.error('[Login] Email login error:', error);
+        const { Alert } = require('react-native');
+        const message = error instanceof Error ? error.message : 'Could not sign in. Please try again.';
+        Alert.alert('Sign In Failed', message);
+      }
       // Real fix Sep 15: this used to swallow every login failure right here - the caller
       // (login.tsx's handleLogin) had no way to know login actually failed, so it always ran
       // router.replace('/') immediately afterward regardless of outcome. A failed login would
@@ -620,6 +643,39 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // unauthenticated home screen - indistinguishable from "login is broken" even when the
       // real cause (e.g. a wrong password) was accurately reported in the Alert. Re-throwing
       // lets the caller actually react to failure instead of always assuming success.
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Real feature Sep 16 (minimal fix for the superadmin login crash - see loginWithEmail's
+  // code_required handling above): second step of the emailed one-time-code flow. Mirrors
+  // loginWithEmail's own success tail exactly - same session-saving, same error-message
+  // extraction - since /auth/verify-login-code returns the identical {user, session_token}
+  // shape a normal password-only login does.
+  const verifyLoginCode = async (email: string, code: string) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('https://class-of-happiness-production.up.railway.app/api/auth/verify-login-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = data?.detail || data?.message || data?.error || `Server error (${response.status})`;
+        throw new Error(message);
+      }
+      const { user, session_token } = data;
+      await AsyncStorage.setItem('session_token', session_token);
+      await AsyncStorage.setItem('user_data', JSON.stringify(user));
+      await setSessionToken(session_token);
+      setUser(user);
+      setIsAuthenticated(true);
+      console.log('[Login] Code verified:', user.email);
+    } catch (error) {
+      console.error('[Login] Verify code error:', error);
       throw error;
     } finally {
       setIsLoading(false);
@@ -836,6 +892,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         isLoading: isAppLoading,
         login,
         loginWithEmail,
+        verifyLoginCode,
         loginWithGoogle,
         signupWithEmail,
         logout,

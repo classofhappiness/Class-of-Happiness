@@ -1673,5 +1673,7 @@
   "streak_praise": "Hai fatto il check-in per {days} giorni di fila, questa sì che è costanza vera! 🔥",
   "evolve_skip_btn": "Salta — evolvi più tardi",
   "evolve_ready_hint": "✨ Pronto per evolversi quando vuoi! Trovalo in Le Mie Creature.",
-  "help_request_failed": "Non è stato possibile inviare la tua richiesta di aiuto. Riprova."
+  "help_request_failed": "Non è stato possibile inviare la tua richiesta di aiuto. Riprova.",
+  "enter_code_label": "Inserisci il codice che ti abbiamo inviato via email",
+  "verify_code_btn": "Verifica Codice"
 }

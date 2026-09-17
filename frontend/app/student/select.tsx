@@ -6,6 +6,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
+import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { rewardsApi, creaturesApi, StudentCollection, StudentRewards, Creature } from '../../src/utils/api';
 import { useDataGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
@@ -47,6 +48,12 @@ export default function StudentSelectScreen() {
     fetchClassrooms();
   }, []);
   const [studentCreatures, setStudentCreatures] = useState<Record<string, StudentCreatureData>>({});
+  // Real fix Sep 16 (live-test bug: mini-creatures take ~20s with zero visible feedback,
+  // reading as stuck rather than loading) - renderCreatureIcons returned null with no
+  // indicator at all while this batch fetch was pending. The underlying delay itself is very
+  // likely Railway cold-start (no client-side caching explains why a second visit is
+  // instant), not fixable here - this only makes the wait honest.
+  const [creaturesLoading, setCreaturesLoading] = useState(true);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   // Real feature Aug 22 (item 7): the tick/completion row here only ever reflected the 4
   // default per-colour creatures - a Family/Class/School/Global creature a student actively
@@ -85,7 +92,8 @@ export default function StudentSelectScreen() {
 
   // Load ALL creatures in parallel - much faster than one by one
   useEffect(() => {
-    if (students.length === 0) return;
+    if (students.length === 0) { setCreaturesLoading(false); return; }
+    setCreaturesLoading(true);
 // Batch fetch all collections in ONE api call
     const ids = students.map(s => s.id).join(',');
     const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -118,6 +126,7 @@ export default function StudentSelectScreen() {
         }
       });
       setStudentCreatures(data);
+      setCreaturesLoading(false);
     }); }).catch(() => {
       // Fallback to parallel individual calls
       Promise.allSettled(
@@ -131,6 +140,7 @@ export default function StudentSelectScreen() {
           }
         });
         setStudentCreatures(data);
+        setCreaturesLoading(false);
       });
     });
   }, [students]);
@@ -278,7 +288,17 @@ export default function StudentSelectScreen() {
   const renderCreatureIcons = (studentId: string) => {
     const data = studentCreatures[studentId];
     const activeCommunity = studentActiveCommunity[studentId] || [];
-    if (!data) return null;
+    // Real fix Sep 16 (live-test bug): this used to return null with zero feedback while the
+    // batch fetch was pending, indistinguishable from "stuck" during a slow/cold-start load.
+    // EmotionColourLoader - the app's one canonical loading indicator - same component used
+    // on the reward screen and My Creatures, not a second/different spinner.
+    if (!data) {
+      return creaturesLoading ? (
+        <View style={styles.creatureIconsContainer}>
+          <EmotionColourLoader visible size={28} />
+        </View>
+      ) : null;
+    }
 
     const { currentCreature, currentStage, collectedCreatures } = data;
 

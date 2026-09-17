@@ -153,7 +153,12 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
   };
 
   useEffect(() => { loadShop(); }, [visible, entry?.id, entry?.type, studentId, colour]);
-  useEffect(() => { setLocalStage(entry?.current_stage ?? 0); }, [entry?.id, visible]);
+  // Real fix Sep 16 (live-test bug: "Fully Evolved" text with stale pre-evolution art): also
+  // resyncs whenever entry.current_stage itself changes, not just when the modal opens/closes
+  // on a different id - creatures.tsx now swaps in a freshly-fetched entry after an evolve
+  // (see handleEvolved), and without current_stage in this dependency array, localStage would
+  // never pick up that fresh value while the SAME creature's modal stays open.
+  useEffect(() => { setLocalStage(entry?.current_stage ?? 0); }, [entry?.id, entry?.current_stage, visible]);
 
   const handleEvolve = async () => {
     if (!studentId || !entry || isEvolving) return;

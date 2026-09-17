@@ -1673,5 +1673,7 @@
   "streak_praise": "Tu t'es enregistré {days} jours de suite - ça, c'est de la vraie régularité ! 🔥",
   "evolve_skip_btn": "Passer — évoluer plus tard",
   "evolve_ready_hint": "✨ Prêt à évoluer quand tu veux ! Retrouve-le dans Mes Créatures.",
-  "help_request_failed": "Impossible d'envoyer ta demande d'aide. Réessaie."
+  "help_request_failed": "Impossible d'envoyer ta demande d'aide. Réessaie.",
+  "enter_code_label": "Entre le code que nous t'avons envoyé par e-mail",
+  "verify_code_btn": "Vérifier le Code"
 }

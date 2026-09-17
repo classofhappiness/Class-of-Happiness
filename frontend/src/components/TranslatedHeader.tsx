@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,7 +41,25 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
   };
 
   return (
-    <View style={[styles.header, { paddingTop: (Platform.OS === "ios" ? insets.top : 12) + 4 }]}>
+    // Real fix Sep 16 (live-test bug, high priority: header rendering over the Android status
+    // bar on every screen using TranslatedHeader): Android was hardcoded to a flat 12px
+    // regardless of the device's actual status bar height, while iOS correctly used
+    // insets.top. Modern Android devices (hole-punch cameras, tall status bars) commonly have
+    // a real inset well above that, so the header content rendered partly underneath the
+    // clock/battery/signal icons. Now uses insets.top on both platforms, matching iOS's
+    // already-correct behaviour.
+    // This IS safe here, not a double-inset regression - confirmed by checking every screen
+    // that renders TranslatedHeader: the 3 screens with NO SafeAreaView at all (creatures,
+    // world-creatures, submit-creature) obviously need this. The 3 that import SafeAreaView
+    // from plain 'react-native' (family-strategies, support-request, classrooms) get a
+    // component that's iOS-only and a complete no-op on Android, so those were *also*
+    // effectively unprotected on Android despite looking safe. The 3 that import the real,
+    // cross-platform SafeAreaView from 'react-native-safe-area-context' with default (all)
+    // edges (select, parent/alerts, student/strategies) DID already apply a real Android top
+    // inset via that SafeAreaView - those three had their edges prop updated alongside this
+    // fix (edges={['left','right','bottom']}) to stop double-applying it, matching the
+    // pattern teacher/alerts.tsx and teacher/dashboard.tsx already established.
+    <View style={[styles.header, { paddingTop: insets.top + 4 }]}>
       <View style={styles.headerContent}>
         <View style={styles.backSlot}>
           {showBack && (

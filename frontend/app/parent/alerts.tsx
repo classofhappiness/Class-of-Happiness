@@ -170,8 +170,13 @@ export default function ParentAlertsScreen() {
   });
   const resolvedAlerts = alerts.filter((a:any) => a.resolved && inPeriod(a));
 
+  // Real fix Sep 16 (status bar overlap fix): this SafeAreaView's default (all) edges already
+  // applied a real Android top inset on its own (unlike the plain-'react-native' SafeAreaView
+  // some other screens use, which no-ops on Android) - stacking TranslatedHeader's own now-
+  // correct insets.top on top of it would double-pad. Same edges={['left','right','bottom']}
+  // pattern teacher/alerts.tsx and teacher/dashboard.tsx already use for the same reason.
   return (
-    <SafeAreaView style={{ flex:1, backgroundColor:'#F8F9FA' }}>
+    <SafeAreaView style={{ flex:1, backgroundColor:'#F8F9FA' }} edges={['left','right','bottom']}>
       <TranslatedHeader title={t('alerts') || 'Family Alerts'} />
 
       <View style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#E0E0E0' }}>

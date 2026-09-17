@@ -1396,5 +1396,7 @@
   "streak_praise": "你已连续 {days} 天签到，这才是真正的坚持！🔥",
   "evolve_skip_btn": "跳过——稍后进化",
   "evolve_ready_hint": "✨ 随时都可以进化！在“我的生物”中找到它。",
-  "help_request_failed": "无法发送你的求助请求。请再试一次。"
+  "help_request_failed": "无法发送你的求助请求。请再试一次。",
+  "enter_code_label": "输入我们发送到你邮箱的验证码",
+  "verify_code_btn": "验证代码"
 }

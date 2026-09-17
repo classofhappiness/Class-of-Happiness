@@ -213,19 +213,46 @@ export default function CreatureCollectionScreen() {
     fetchMyCreatures();
   }, [studentId]);
 
-  const fetchMyCreatures = async () => {
-    if (!studentId) { setLoading(false); return; }
+  // Real fix Sep 16 (live-test bug: evolved creature shows "Fully Evolved" text but stale
+  // Stage 3 art): `silent` skips the loading spinner - needed when this refetch happens while
+  // the detail modal is open ON TOP of the grid (see handleEvolved below); without it, the
+  // grid behind the modal would flash to a loading spinner and back for no visible reason.
+  // Returns the fresh colours dict so a caller (handleEvolved) can use it directly, since
+  // setColours itself is async and can't be read back synchronously.
+  const fetchMyCreatures = async (silent = false): Promise<Record<string, CreatureEntry[]> | null> => {
+    if (!studentId) { setLoading(false); return null; }
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       const data = await creaturesApi.getMyCreatures(studentId);
-      setColours(data?.colours || {});
+      const freshColours = data?.colours || {};
+      setColours(freshColours);
       setTotalCollected(data?.total_collected || 0);
+      return freshColours;
     } catch (err) {
       setError('Could not load your creatures. Please try again.');
+      return null;
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
+  };
+
+  // Real fix Sep 16: CreatureDetailModal's `entry` prop is a frozen snapshot from whenever the
+  // card was tapped - evolving commits the new stage server-side, but the OPEN modal kept
+  // showing entry.emoji/entry.stage_image (both single, current-stage-at-fetch-time values,
+  // frozen at open time) instead of the new stage's art, even though the evolution-row dots
+  // and "Fully Evolved" text correctly updated (they're driven by localStage, tracked
+  // separately). Re-fetching and swapping in the FRESH matching entry - rather than adding
+  // stage-indexing logic inside the modal to work around a stale prop - keeps one source of
+  // truth: the modal's own useEffect resyncs localStage whenever entry.current_stage changes,
+  // so a fresh entry with the new stage's emoji/image just works with no special-casing.
+  const handleEvolved = async () => {
+    const freshColours = await fetchMyCreatures(true);
+    if (!freshColours || !detailEntry) return;
+    const freshEntry = (freshColours[detailColour] || []).find(
+      e => e.type === detailEntry.type && e.id === detailEntry.id
+    );
+    if (freshEntry) setDetailEntry(freshEntry);
   };
 
   const toggleColour = (colour: string) => {
@@ -268,7 +295,7 @@ export default function CreatureCollectionScreen() {
       ) : error ? (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity onPress={fetchMyCreatures} style={styles.retryButton}>
+          <TouchableOpacity onPress={() => fetchMyCreatures()} style={styles.retryButton}>
             <Text style={styles.retryText}>{t('try_again') || 'Try Again'}</Text>
           </TouchableOpacity>
         </View>
@@ -305,7 +332,7 @@ export default function CreatureCollectionScreen() {
         entry={detailEntry}
         colour={detailColour}
         studentId={studentId}
-        onEvolved={fetchMyCreatures}
+        onEvolved={handleEvolved}
       />
     </View>
   );

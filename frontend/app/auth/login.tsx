@@ -25,15 +25,21 @@ const GOOGLE_DISCOVERY = {
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { loginWithEmail, loginWithGoogle, t } = useApp();
+  const { loginWithEmail, verifyLoginCode, loginWithGoogle, t } = useApp();
   const [email, setEmail] = useState('');
-  const [pin, setPin] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const PIN_REQUIRED_EMAILS = ['jono@classofhappiness.com','schooladmindemo@classofhappiness.com','jono@gmail.com','jono+teacher@gmail.com','pembrokeadmin@classofhappiness.com'];
-  const needsPin = PIN_REQUIRED_EMAILS.includes(email.trim().toLowerCase());
+  // Real feature Sep 16 (minimal fix: superadmin's own login was actively broken by the
+  // missing code-entry step, not a "someday" gap - see AppContext's code_required handling).
+  // Kept deliberately minimal: no resend button (tapping Sign In again re-runs the password
+  // check and emails a fresh code, reusing existing behaviour rather than adding a new path),
+  // no separate screen/route (state on this same screen is enough for "just complete login").
+  const [codeStep, setCodeStep] = useState(false);
+  const [codeRequiredEmail, setCodeRequiredEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [verifyingCode, setVerifyingCode] = useState(false);
 
   const [googleRequest, googleResponse, promptGoogleAsync] = AuthSession.useAuthRequest(
     {
@@ -71,9 +77,21 @@ export default function LoginScreen() {
     setError('');
     setLoading(true);
     try {
-      await loginWithEmail(trimmed, pin, 1, password);
+      // Real fix Sep 16 (Group A): the dead PIN field is gone (backend never read admin_pin
+      // for any account - confirmed via server.py's /auth/email-login) - '' preserves
+      // loginWithEmail's existing positional signature without touching AppContext tonight.
+      await loginWithEmail(trimmed, '', 1, password);
       router.replace('/');
     } catch (e) {
+      // Real feature Sep 16 (minimal fix): the password check succeeded and a real code was
+      // just emailed - this is progress, not a failure, so route to the code-entry step
+      // instead of showing an error.
+      if ((e as any)?.code_required) {
+        setCodeRequiredEmail((e as any).email || trimmed);
+        setCodeStep(true);
+        setError('');
+        return;
+      }
       // Real fix Sep 15: loginWithEmail used to swallow every failure internally (its own
       // Alert, no re-throw), so this catch could never actually fire - router.replace('/')
       // above ran unconditionally regardless of whether login succeeded, bouncing the user
@@ -86,6 +104,27 @@ export default function LoginScreen() {
       setError(message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Real feature Sep 16 (minimal fix): second step of the emailed one-time-code flow -
+  // completes login the same way handleLogin does on success (router.replace('/')).
+  const handleVerifyCode = async () => {
+    const trimmedCode = code.trim();
+    if (!trimmedCode) {
+      setError(t('code_required') || 'Code is required');
+      return;
+    }
+    setError('');
+    setVerifyingCode(true);
+    try {
+      await verifyLoginCode(codeRequiredEmail, trimmedCode);
+      router.replace('/');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : (t('signin_failed_error') || 'Sign in failed. Please try again.');
+      setError(message);
+    } finally {
+      setVerifyingCode(false);
     }
   };
 
@@ -112,95 +151,134 @@ export default function LoginScreen() {
             <Text style={styles.subtitle}>{t('login_subtitle') || 'Enter your email to sign in'}</Text>
           </View>
 
-          <View style={styles.form}>
-            <Text style={styles.label}>{t('email_address_label') || 'Email Address'}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="your@email.com"
-              placeholderTextColor="#BBB"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoFocus
-              onSubmitEditing={handleLogin}
-              // ✅ Ensures input stays visible above keyboard
-              returnKeyType="go"
-            />
+          {codeStep ? (
+            // Real feature Sep 16 (minimal fix): second step of the emailed one-time-code
+            // flow - only ever reached via a real code_required response from the backend
+            // (see AppContext's loginWithEmail), never a client-side guess. Deliberately
+            // minimal: no resend button (going back and signing in again re-runs the password
+            // check and emails a fresh code, reusing existing behaviour), no separate route.
+            <View style={styles.form}>
+              <Text style={styles.label}>{t('enter_code_label') || 'Enter the code we emailed you'}</Text>
+              <Text style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>{codeRequiredEmail}</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="123456"
+                placeholderTextColor="#BBB"
+                value={code}
+                onChangeText={setCode}
+                keyboardType="number-pad"
+                maxLength={6}
+                autoFocus
+                onSubmitEditing={handleVerifyCode}
+                returnKeyType="go"
+              />
 
-            {needsPin && (
-              <>
-                <Text style={styles.label}>{t('pin') || 'PIN'}</Text>
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+
+              <TouchableOpacity
+                style={[styles.button, verifyingCode && styles.buttonDisabled]}
+                onPress={handleVerifyCode}
+                disabled={verifyingCode}
+              >
+                {verifyingCode ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <>
+                    <MaterialIcons name="lock-open" size={20} color="white" />
+                    <Text style={styles.buttonText}>{t('verify_code_btn') || 'Verify Code'}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => { setCodeStep(false); setCode(''); setError(''); }}>
+                <Text style={styles.forgotPasswordLink}>{t('back_to_signin') || 'Back to sign in'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <View style={styles.form}>
+                <Text style={styles.label}>{t('email_address_label') || 'Email Address'}</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="your@email.com"
+                  placeholderTextColor="#BBB"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoFocus
+                  onSubmitEditing={handleLogin}
+                  // ✅ Ensures input stays visible above keyboard
+                  returnKeyType="go"
+                />
+
+                {/* Real fix Sep 16 (Group A): the PIN field is gone entirely - it never
+                    enforced anything server-side (confirmed: /auth/email-login never reads
+                    admin_pin for any account), and a client-side email-allowlist heuristic
+                    for showing it can't be made genuinely role-based (the frontend has no
+                    session/role info before login completes). The real, enforced second
+                    factor is superadmin's emailed one-time code (server.py's
+                    /auth/email-login code-required branch) - driven by that real backend
+                    signal (the code_required error from loginWithEmail), not a client-side
+                    guess list - see the codeStep block above. */}
+                <Text style={styles.label}>{t('password_optional_label') || 'Password (optional)'}</Text>
                 <SecureField
                   containerStyle={{ borderWidth: 2, marginBottom: 12 }}
-                  placeholder={t('enter_pin') || 'Enter PIN'}
+                  placeholder={t('password_optional_placeholder') || "Only if you've set one"}
                   placeholderTextColor="#BBB"
-                  value={pin}
-                  onChangeText={setPin}
-                  autoCapitalize="characters"
+                  value={password}
+                  onChangeText={setPassword}
+                  autoCapitalize="none"
                   autoCorrect={false}
                   onSubmitEditing={handleLogin}
                   returnKeyType="go"
                 />
-              </>
-            )}
+                <TouchableOpacity onPress={() => router.push('/auth/forgot-password')}>
+                  <Text style={styles.forgotPasswordLink}>{t('forgot_password_link') || 'Forgot password?'}</Text>
+                </TouchableOpacity>
 
-            <Text style={styles.label}>{t('password_optional_label') || 'Password (optional)'}</Text>
-            <SecureField
-              containerStyle={{ borderWidth: 2, marginBottom: 12 }}
-              placeholder={t('password_optional_placeholder') || "Only if you've set one"}
-              placeholderTextColor="#BBB"
-              value={password}
-              onChangeText={setPassword}
-              autoCapitalize="none"
-              autoCorrect={false}
-              onSubmitEditing={handleLogin}
-              returnKeyType="go"
-            />
-            <TouchableOpacity onPress={() => router.push('/auth/forgot-password')}>
-              <Text style={styles.forgotPasswordLink}>{t('forgot_password_link') || 'Forgot password?'}</Text>
-            </TouchableOpacity>
+                {error ? <Text style={styles.error}>{error}</Text> : null}
 
-            {error ? <Text style={styles.error}>{error}</Text> : null}
+                <TouchableOpacity
+                  style={[styles.button, loading && styles.buttonDisabled]}
+                  onPress={handleLogin}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="white" />
+                  ) : (
+                    <>
+                      <MaterialIcons name="login" size={20} color="white" />
+                      <Text style={styles.buttonText}>{t('sign_in_btn') || 'Sign In'}</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={handleLogin}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <>
-                  <MaterialIcons name="login" size={20} color="white" />
-                  <Text style={styles.buttonText}>{t('sign_in_btn') || 'Sign In'}</Text>
-                </>
-              )}
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.googleButton}
+                  onPress={() => promptGoogleAsync()}
+                  disabled={!googleRequest}
+                >
+                  <MaterialIcons name="g-translate" size={18} color="#4285F4" />
+                  <Text style={styles.googleButtonText}>{t('sign_in_google_btn') || 'Sign in with Google'}</Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.googleButton}
-              onPress={() => promptGoogleAsync()}
-              disabled={!googleRequest}
-            >
-              <MaterialIcons name="g-translate" size={18} color="#4285F4" />
-              <Text style={styles.googleButtonText}>{t('sign_in_google_btn') || 'Sign in with Google'}</Text>
-            </TouchableOpacity>
+                <TouchableOpacity onPress={() => router.push('/auth/signup')}>
+                  <Text style={styles.signupLink}>{t('new_here_create_account') || 'New here? Create an account'}</Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => router.push('/auth/signup')}>
-              <Text style={styles.signupLink}>{t('new_here_create_account') || 'New here? Create an account'}</Text>
-            </TouchableOpacity>
+                <Text style={styles.hint}>
+                  {t('login_hint_invite_code') || 'Already have a school invite or class link code?\nSign in first, then enter it in Settings.'}
+                </Text>
+              </View>
 
-            <Text style={styles.hint}>
-              {t('login_hint_invite_code') || 'Already have a school invite or class link code?\nSign in first, then enter it in Settings.'}
-            </Text>
-          </View>
-
-          <View style={styles.trialBox}>
-            <Text style={styles.trialTitle}>🎫 {t('have_trial_code') || 'Have a Trial Code?'}</Text>
-            <Text style={styles.trialText}>{t('trial_code_signin_hint') || 'Sign in first, then enter your code in Settings.'}</Text>
-          </View>
+              <View style={styles.trialBox}>
+                <Text style={styles.trialTitle}>🎫 {t('have_trial_code') || 'Have a Trial Code?'}</Text>
+                <Text style={styles.trialText}>{t('trial_code_signin_hint') || 'Sign in first, then enter your code in Settings.'}</Text>
+              </View>
+            </>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

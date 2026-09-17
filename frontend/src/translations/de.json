@@ -1673,5 +1673,7 @@
   "streak_praise": "Du hast dich {days} Tage in Folge eingecheckt - das ist echte Beständigkeit! 🔥",
   "evolve_skip_btn": "Überspringen — später entwickeln",
   "evolve_ready_hint": "✨ Bereit zur Entwicklung, wann immer du möchtest! Finde es in Meine Kreaturen.",
-  "help_request_failed": "Deine Hilfeanfrage konnte nicht gesendet werden. Bitte versuche es erneut."
+  "help_request_failed": "Deine Hilfeanfrage konnte nicht gesendet werden. Bitte versuche es erneut.",
+  "enter_code_label": "Gib den Code ein, den wir dir per E-Mail geschickt haben",
+  "verify_code_btn": "Code bestätigen"
 }

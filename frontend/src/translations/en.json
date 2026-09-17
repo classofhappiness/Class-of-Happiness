@@ -1410,5 +1410,7 @@
   "streak_praise": "You checked in {days} days in a row - that's real consistency! 🔥",
   "evolve_skip_btn": "Skip — evolve later",
   "evolve_ready_hint": "✨ Ready to evolve whenever you like! Find them in My Creatures.",
-  "help_request_failed": "Could not send your help request. Please try again."
+  "help_request_failed": "Could not send your help request. Please try again.",
+  "enter_code_label": "Enter the code we emailed you",
+  "verify_code_btn": "Verify Code"
 }

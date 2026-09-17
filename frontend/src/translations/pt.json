@@ -1662,5 +1662,7 @@
   "streak_praise": "Fizeste check-in {days} dias seguidos - isso é verdadeira consistência! 🔥",
   "evolve_skip_btn": "Saltar — evoluir mais tarde",
   "evolve_ready_hint": "✨ Pronto para evoluir quando quiseres! Encontra-o em As Minhas Criaturas.",
-  "help_request_failed": "Não foi possível enviar o teu pedido de ajuda. Tenta novamente."
+  "help_request_failed": "Não foi possível enviar o teu pedido de ajuda. Tenta novamente.",
+  "enter_code_label": "Introduz o código que te enviámos por email",
+  "verify_code_btn": "Verificar Código"
 }
