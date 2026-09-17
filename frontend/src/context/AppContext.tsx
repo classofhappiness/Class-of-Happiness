@@ -45,6 +45,19 @@ interface AppContextType {
   // loginWithEmail's code_required handling below): second step of the emailed one-time-code
   // flow. Mirrors loginWithEmail's own session-saving tail exactly.
   verifyLoginCode: (email: string, code: string) => Promise<void>;
+  // Real feature Sep 16 (admin login: self-set persistent PIN): "every login after the
+  // first" path once an ADMIN_PIN_ROLES account has set a PIN - mirrors verifyLoginCode's
+  // session-saving tail exactly, since /auth/verify-login-pin returns the same shape.
+  verifyLoginPin: (email: string, pin: string) => Promise<void>;
+  // Real feature Sep 16: the explicit "Forgot PIN?" escape hatch - re-verifies password,
+  // deliberately re-emails a code even though a PIN already exists, landing back on the
+  // same verify-code -> set-PIN screens first-time setup uses. Throws on failure; on
+  // success the caller (login.tsx) should treat this exactly like a code_required response.
+  requestAdminPinReset: (email: string, password: string) => Promise<void>;
+  // Real feature Sep 16: sets/resets the PIN for the currently-authenticated session -
+  // reached right after verifyLoginCode succeeds (first-time setup or post-reset). Updates
+  // the local user object's has_admin_pin flag so the UI reflects it immediately.
+  setAdminPin: (pin: string) => Promise<void>;
   loginWithGoogle: (googleAccessToken: string) => Promise<void>;
   signupWithEmail: (email: string, password: string, name: string, role: 'teacher' | 'parent') => Promise<void>;
   logout: () => Promise<void>;
@@ -613,6 +626,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         throw codeRequiredError;
       }
 
+      // Real feature Sep 16 (admin login: self-set persistent PIN): same shape/reasoning as
+      // code_required just above - this account already has a PIN set, so it needs
+      // password + PIN instead of an emailed code. Without this, it would hit the exact same
+      // undefined-destructure crash the original superadmin bug did.
+      if (data?.status === 'pin_required') {
+        const pinRequiredError: any = new Error('Enter your PIN to finish signing in.');
+        pinRequiredError.pin_required = true;
+        pinRequiredError.email = data.email || email;
+        throw pinRequiredError;
+      }
+
       const { user, session_token } = data;
 
       // Save session
@@ -627,10 +651,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       console.log('[Login] Success:', user.email);
     } catch (error) {
-      // Real fix Sep 16: the code-required case above isn't a failure - it's a real
-      // in-progress login, still gets re-thrown below (for login.tsx to catch and route into
-      // the code-entry step) but should not surface as a "Sign In Failed" alert.
-      if (!(error as any)?.code_required) {
+      // Real fix Sep 16: the code-required/pin-required cases above aren't failures - they're
+      // real in-progress logins, still get re-thrown below (for login.tsx to catch and route
+      // into the code-entry/PIN-entry step) but shouldn't surface as a "Sign In Failed" alert.
+      if (!(error as any)?.code_required && !(error as any)?.pin_required) {
         console.error('[Login] Email login error:', error);
         const { Alert } = require('react-native');
         const message = error instanceof Error ? error.message : 'Could not sign in. Please try again.';
@@ -680,6 +704,65 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Real feature Sep 16 (admin login: self-set persistent PIN): mirrors verifyLoginCode
+  // exactly - /auth/verify-login-pin returns the identical {user, session_token} shape.
+  const verifyLoginPin = async (email: string, pin: string) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('https://class-of-happiness-production.up.railway.app/api/auth/verify-login-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, pin }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = data?.detail || data?.message || data?.error || `Server error (${response.status})`;
+        throw new Error(message);
+      }
+      const { user, session_token } = data;
+      await AsyncStorage.setItem('session_token', session_token);
+      await AsyncStorage.setItem('user_data', JSON.stringify(user));
+      await setSessionToken(session_token);
+      setUser(user);
+      setIsAuthenticated(true);
+      console.log('[Login] PIN verified:', user.email);
+    } catch (error) {
+      console.error('[Login] Verify PIN error:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Real feature Sep 16: the "Forgot PIN?" escape hatch - no session-saving tail at all,
+  // since a successful call just means "a fresh code has been emailed" (identical to
+  // email_login's code_required outcome), not a completed login.
+  const requestAdminPinReset = async (email: string, password: string) => {
+    const response = await fetch('https://class-of-happiness-production.up.railway.app/api/auth/reset-admin-pin-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      const message = data?.detail || data?.message || data?.error || `Server error (${response.status})`;
+      throw new Error(message);
+    }
+  };
+
+  // Real feature Sep 16: authenticated (uses the session verifyLoginCode/verifyLoginPin just
+  // issued) - updates the local user object's has_admin_pin flag immediately so the UI
+  // reflects it without a refetch.
+  const setAdminPin = async (pin: string) => {
+    await authApi.setAdminPin(pin);
+    setUser(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, has_admin_pin: true } as any;
+      AsyncStorage.setItem('user_data', JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
   };
 
   const loginWithGoogle = async (googleAccessToken: string) => {
@@ -893,6 +976,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         login,
         loginWithEmail,
         verifyLoginCode,
+        verifyLoginPin,
+        requestAdminPinReset,
+        setAdminPin,
         loginWithGoogle,
         signupWithEmail,
         logout,

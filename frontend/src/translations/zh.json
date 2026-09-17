@@ -1398,5 +1398,13 @@
   "evolve_ready_hint": "✨ 随时都可以进化！在“我的生物”中找到它。",
   "help_request_failed": "无法发送你的求助请求。请再试一次。",
   "enter_code_label": "输入我们发送到你邮箱的验证码",
-  "verify_code_btn": "验证代码"
+  "verify_code_btn": "验证代码",
+  "enter_pin_label": "输入你的PIN码",
+  "verify_pin_btn": "验证PIN码",
+  "pin_required_error": "请输入你的PIN码",
+  "forgot_pin_link": "忘记PIN码？",
+  "set_pin_label": "设置你的PIN码",
+  "set_pin_hint": "选择一个6位数字的PIN码。从现在起，你将使用它和密码一起登录。",
+  "set_pin_btn": "设置PIN码",
+  "pin_format_error": "PIN码必须正好是6位数字"
 }

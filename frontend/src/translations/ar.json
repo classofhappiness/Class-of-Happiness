@@ -1398,5 +1398,13 @@
   "evolve_ready_hint": "✨ جاهز للتطور متى شئت! ابحث عنه في مخلوقاتي.",
   "help_request_failed": "تعذر إرسال طلب المساعدة. يرجى المحاولة مرة أخرى.",
   "enter_code_label": "أدخل الرمز الذي أرسلناه إلى بريدك الإلكتروني",
-  "verify_code_btn": "تحقق من الرمز"
+  "verify_code_btn": "تحقق من الرمز",
+  "enter_pin_label": "أدخل رمز PIN الخاص بك",
+  "verify_pin_btn": "تحقق من رمز PIN",
+  "pin_required_error": "يرجى إدخال رمز PIN الخاص بك",
+  "forgot_pin_link": "هل نسيت رمز PIN؟",
+  "set_pin_label": "عيّن رمز PIN الخاص بك",
+  "set_pin_hint": "اختر رمز PIN مكونًا من 6 أرقام. ستستخدمه مع كلمة المرور لتسجيل الدخول من الآن فصاعدًا.",
+  "set_pin_btn": "تعيين رمز PIN",
+  "pin_format_error": "يجب أن يتكون رمز PIN من 6 أرقام بالضبط"
 }

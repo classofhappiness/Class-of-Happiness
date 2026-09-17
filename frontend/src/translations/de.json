@@ -1675,5 +1675,13 @@
   "evolve_ready_hint": "✨ Bereit zur Entwicklung, wann immer du möchtest! Finde es in Meine Kreaturen.",
   "help_request_failed": "Deine Hilfeanfrage konnte nicht gesendet werden. Bitte versuche es erneut.",
   "enter_code_label": "Gib den Code ein, den wir dir per E-Mail geschickt haben",
-  "verify_code_btn": "Code bestätigen"
+  "verify_code_btn": "Code bestätigen",
+  "enter_pin_label": "Gib deine PIN ein",
+  "verify_pin_btn": "PIN bestätigen",
+  "pin_required_error": "Bitte gib deine PIN ein",
+  "forgot_pin_link": "PIN vergessen?",
+  "set_pin_label": "Lege deine PIN fest",
+  "set_pin_hint": "Wähle eine 6-stellige PIN. Du verwendest sie ab jetzt zusammen mit deinem Passwort zur Anmeldung.",
+  "set_pin_btn": "PIN festlegen",
+  "pin_format_error": "Die PIN muss genau 6 Ziffern haben"
 }

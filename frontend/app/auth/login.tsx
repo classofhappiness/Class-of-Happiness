@@ -25,7 +25,7 @@ const GOOGLE_DISCOVERY = {
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { loginWithEmail, verifyLoginCode, loginWithGoogle, t } = useApp();
+  const { loginWithEmail, verifyLoginCode, verifyLoginPin, requestAdminPinReset, setAdminPin, loginWithGoogle, t } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,13 +33,21 @@ export default function LoginScreen() {
 
   // Real feature Sep 16 (minimal fix: superadmin's own login was actively broken by the
   // missing code-entry step, not a "someday" gap - see AppContext's code_required handling).
-  // Kept deliberately minimal: no resend button (tapping Sign In again re-runs the password
-  // check and emails a fresh code, reusing existing behaviour rather than adding a new path),
-  // no separate screen/route (state on this same screen is enough for "just complete login").
-  const [codeStep, setCodeStep] = useState(false);
-  const [codeRequiredEmail, setCodeRequiredEmail] = useState('');
+  // Extended same day for the self-set persistent PIN work (role-widening + PIN roles):
+  // 'code' = emailed one-time code (first-time identity check, or after a PIN reset request),
+  // 'pin' = password+PIN login once a PIN is already set (no email round-trip),
+  // 'setPin' = choose/replace a PIN, reached right after a successful code verification -
+  // this is the SAME screen for first-time setup and "Forgot PIN?" reset, since
+  // code_required is only ever returned for these two reasons (see AppContext's comment).
+  // Kept deliberately minimal: no resend button anywhere (re-submitting re-runs the
+  // relevant check and reuses existing behaviour), no separate route - state on this one
+  // screen is enough to complete any of these flows.
+  const [step, setStep] = useState<'form' | 'code' | 'pin' | 'setPin'>('form');
+  const [activeEmail, setActiveEmail] = useState('');
   const [code, setCode] = useState('');
-  const [verifyingCode, setVerifyingCode] = useState(false);
+  const [pin, setPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [verifying, setVerifying] = useState(false);
 
   const [googleRequest, googleResponse, promptGoogleAsync] = AuthSession.useAuthRequest(
     {
@@ -83,12 +91,21 @@ export default function LoginScreen() {
       await loginWithEmail(trimmed, '', 1, password);
       router.replace('/');
     } catch (e) {
-      // Real feature Sep 16 (minimal fix): the password check succeeded and a real code was
-      // just emailed - this is progress, not a failure, so route to the code-entry step
-      // instead of showing an error.
+      // Real feature Sep 16: the password check succeeded and a real code was just emailed -
+      // this is progress, not a failure, so route to the code-entry step instead of showing
+      // an error. This account has no PIN set yet (or one is being reset) - the code screen
+      // always leads to "set your PIN" next, see the code step below.
       if ((e as any)?.code_required) {
-        setCodeRequiredEmail((e as any).email || trimmed);
-        setCodeStep(true);
+        setActiveEmail((e as any).email || trimmed);
+        setStep('code');
+        setError('');
+        return;
+      }
+      // Real feature Sep 16 (self-set persistent PIN): this account already has a PIN -
+      // route to the PIN-entry step instead of an emailed code.
+      if ((e as any)?.pin_required) {
+        setActiveEmail((e as any).email || trimmed);
+        setStep('pin');
         setError('');
         return;
       }
@@ -107,8 +124,9 @@ export default function LoginScreen() {
     }
   };
 
-  // Real feature Sep 16 (minimal fix): second step of the emailed one-time-code flow -
-  // completes login the same way handleLogin does on success (router.replace('/')).
+  // Real feature Sep 16: second step of the emailed one-time-code flow. Success here always
+  // means "now choose/replace a PIN" (see the step comment above for why) - never completes
+  // login directly, unlike handleVerifyPin below.
   const handleVerifyCode = async () => {
     const trimmedCode = code.trim();
     if (!trimmedCode) {
@@ -116,15 +134,77 @@ export default function LoginScreen() {
       return;
     }
     setError('');
-    setVerifyingCode(true);
+    setVerifying(true);
     try {
-      await verifyLoginCode(codeRequiredEmail, trimmedCode);
+      await verifyLoginCode(activeEmail, trimmedCode);
+      setCode('');
+      setStep('setPin');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : (t('signin_failed_error') || 'Sign in failed. Please try again.');
+      setError(message);
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  // Real feature Sep 16 (self-set persistent PIN): "every login after the first" - completes
+  // login directly, no set-PIN step (the PIN already exists).
+  const handleVerifyPin = async () => {
+    const trimmedPin = pin.trim();
+    if (!trimmedPin) {
+      setError(t('pin_required_error') || 'Please enter your PIN');
+      return;
+    }
+    setError('');
+    setVerifying(true);
+    try {
+      await verifyLoginPin(activeEmail, trimmedPin);
       router.replace('/');
     } catch (e) {
       const message = e instanceof Error ? e.message : (t('signin_failed_error') || 'Sign in failed. Please try again.');
       setError(message);
     } finally {
-      setVerifyingCode(false);
+      setVerifying(false);
+    }
+  };
+
+  // Real feature Sep 16: "Forgot PIN?" - deliberately re-emails a code even though a PIN
+  // already exists (see AppContext's requestAdminPinReset), landing on the same code-entry
+  // step first-time setup uses. Reuses the password already typed on the form step - never
+  // cleared when routing to the PIN step, so no need to ask for it again here.
+  const handleForgotPin = async () => {
+    setError('');
+    setVerifying(true);
+    try {
+      await requestAdminPinReset(activeEmail, password);
+      setStep('code');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : (t('signin_failed_error') || 'Sign in failed. Please try again.');
+      setError(message);
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  // Real feature Sep 16 (self-set persistent PIN): the account already has a real session at
+  // this point (verifyLoginCode just issued one) - this just sets the PIN and completes the
+  // whole flow, same as any other successful login.
+  const handleSetPin = async () => {
+    const trimmedPin = newPin.trim();
+    if (!/^\d{6}$/.test(trimmedPin)) {
+      setError(t('pin_format_error') || 'PIN must be exactly 6 digits');
+      return;
+    }
+    setError('');
+    setVerifying(true);
+    try {
+      await setAdminPin(trimmedPin);
+      router.replace('/');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : (t('signin_failed_error') || 'Sign in failed. Please try again.');
+      setError(message);
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -151,15 +231,17 @@ export default function LoginScreen() {
             <Text style={styles.subtitle}>{t('login_subtitle') || 'Enter your email to sign in'}</Text>
           </View>
 
-          {codeStep ? (
-            // Real feature Sep 16 (minimal fix): second step of the emailed one-time-code
-            // flow - only ever reached via a real code_required response from the backend
-            // (see AppContext's loginWithEmail), never a client-side guess. Deliberately
-            // minimal: no resend button (going back and signing in again re-runs the password
-            // check and emails a fresh code, reusing existing behaviour), no separate route.
+          {step === 'code' ? (
+            // Real feature Sep 16: second step of the emailed one-time-code flow - only ever
+            // reached via a real code_required response from the backend (see AppContext's
+            // loginWithEmail), never a client-side guess. Always leads to the setPin step
+            // next (see handleVerifyCode) - first-time setup and "Forgot PIN?" reset share
+            // this exact same screen and flow, code_required only ever means one or the
+            // other. No resend button (going back re-runs the relevant check and emails a
+            // fresh code via existing behaviour), no separate route.
             <View style={styles.form}>
               <Text style={styles.label}>{t('enter_code_label') || 'Enter the code we emailed you'}</Text>
-              <Text style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>{codeRequiredEmail}</Text>
+              <Text style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>{activeEmail}</Text>
               <TextInput
                 style={styles.input}
                 placeholder="123456"
@@ -176,11 +258,11 @@ export default function LoginScreen() {
               {error ? <Text style={styles.error}>{error}</Text> : null}
 
               <TouchableOpacity
-                style={[styles.button, verifyingCode && styles.buttonDisabled]}
+                style={[styles.button, verifying && styles.buttonDisabled]}
                 onPress={handleVerifyCode}
-                disabled={verifyingCode}
+                disabled={verifying}
               >
-                {verifyingCode ? (
+                {verifying ? (
                   <ActivityIndicator color="white" />
                 ) : (
                   <>
@@ -190,8 +272,99 @@ export default function LoginScreen() {
                 )}
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => { setCodeStep(false); setCode(''); setError(''); }}>
+              <TouchableOpacity onPress={() => { setStep('form'); setCode(''); setError(''); }}>
                 <Text style={styles.forgotPasswordLink}>{t('back_to_signin') || 'Back to sign in'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : step === 'pin' ? (
+            // Real feature Sep 16 (self-set persistent PIN): "every login after the first" -
+            // only ever reached via a real pin_required response, meaning this account
+            // already has a PIN set. Completes login directly on success, no further step.
+            <View style={styles.form}>
+              <Text style={styles.label}>{t('enter_pin_label') || 'Enter your PIN'}</Text>
+              <Text style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>{activeEmail}</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="123456"
+                placeholderTextColor="#BBB"
+                value={pin}
+                onChangeText={setPin}
+                keyboardType="number-pad"
+                maxLength={6}
+                secureTextEntry
+                autoFocus
+                onSubmitEditing={handleVerifyPin}
+                returnKeyType="go"
+              />
+
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+
+              <TouchableOpacity
+                style={[styles.button, verifying && styles.buttonDisabled]}
+                onPress={handleVerifyPin}
+                disabled={verifying}
+              >
+                {verifying ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <>
+                    <MaterialIcons name="lock-open" size={20} color="white" />
+                    <Text style={styles.buttonText}>{t('verify_pin_btn') || 'Verify PIN'}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {/* Real feature Sep 16: the explicit "Forgot PIN?" escape hatch - re-verifying
+                  password alone would just return pin_required again (the account still has
+                  a PIN, that's exactly why this screen is showing), so this calls a
+                  deliberately separate reset-request action instead. */}
+              <TouchableOpacity onPress={handleForgotPin} disabled={verifying}>
+                <Text style={styles.forgotPasswordLink}>{t('forgot_pin_link') || 'Forgot PIN?'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => { setStep('form'); setPin(''); setError(''); }}>
+                <Text style={styles.forgotPasswordLink}>{t('back_to_signin') || 'Back to sign in'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : step === 'setPin' ? (
+            // Real feature Sep 16 (self-set persistent PIN): reached right after a successful
+            // code verification - the account already has a real session at this point, this
+            // is a mandatory interstitial before treating login as fully complete. Same
+            // screen for first-time setup and post-reset (see the step comment above).
+            <View style={styles.form}>
+              <Text style={styles.label}>{t('set_pin_label') || 'Set your PIN'}</Text>
+              <Text style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>
+                {t('set_pin_hint') || "Choose a 6-digit PIN. You'll use it with your password to sign in from now on."}
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="123456"
+                placeholderTextColor="#BBB"
+                value={newPin}
+                onChangeText={setNewPin}
+                keyboardType="number-pad"
+                maxLength={6}
+                secureTextEntry
+                autoFocus
+                onSubmitEditing={handleSetPin}
+                returnKeyType="go"
+              />
+
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+
+              <TouchableOpacity
+                style={[styles.button, verifying && styles.buttonDisabled]}
+                onPress={handleSetPin}
+                disabled={verifying}
+              >
+                {verifying ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <>
+                    <MaterialIcons name="lock" size={20} color="white" />
+                    <Text style={styles.buttonText}>{t('set_pin_btn') || 'Set PIN'}</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           ) : (

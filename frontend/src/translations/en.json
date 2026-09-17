@@ -1412,5 +1412,13 @@
   "evolve_ready_hint": "✨ Ready to evolve whenever you like! Find them in My Creatures.",
   "help_request_failed": "Could not send your help request. Please try again.",
   "enter_code_label": "Enter the code we emailed you",
-  "verify_code_btn": "Verify Code"
+  "verify_code_btn": "Verify Code",
+  "enter_pin_label": "Enter your PIN",
+  "verify_pin_btn": "Verify PIN",
+  "pin_required_error": "Please enter your PIN",
+  "forgot_pin_link": "Forgot PIN?",
+  "set_pin_label": "Set your PIN",
+  "set_pin_hint": "Choose a 6-digit PIN. You'll use it with your password to sign in from now on.",
+  "set_pin_btn": "Set PIN",
+  "pin_format_error": "PIN must be exactly 6 digits"
 }

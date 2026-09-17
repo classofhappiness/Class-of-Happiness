@@ -221,6 +221,12 @@ export const authApi = {
   
   updateLanguage: (language: string): Promise<{ language: string }> =>
     apiRequest('/auth/update-language', { method: 'POST', body: JSON.stringify({ language }) }),
+
+  // Real feature Sep 16 (admin login: self-set persistent PIN): authenticated (uses the
+  // session just issued by verify-login-code/verify-login-pin) - same pattern as
+  // /auth/set-password, just for the new admin_pin_hash column instead of portal_password.
+  setAdminPin: (pin: string): Promise<{ status: string }> =>
+    apiRequest('/auth/set-admin-pin', { method: 'POST', body: JSON.stringify({ pin }) }),
 };
 
 // Subscription API

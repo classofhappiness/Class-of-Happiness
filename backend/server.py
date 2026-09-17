@@ -146,6 +146,13 @@ ALWAYS_OPEN_PINS = {
     "pembrokeadmin@classofhappiness.com": "COH2026PEMBROKE",
 }
 
+# Real feature Sep 16 (admin login: role-widening + self-set persistent PIN): the two roles
+# that get a real second factor at login - a one-time emailed code until a PIN is set, then
+# password + that self-set PIN, no email round-trip, on every login after. Teachers/parents/
+# school-linked accounts never see either mechanism - this tuple is the single place that
+# decides who does.
+ADMIN_PIN_ROLES = ("superadmin", "school_admin")
+
 PROMO_CODES = {
     "HAPPYCLASS2026": {"type": "trial", "days": 30},
     "CLASSOFHAPPINESS2026": {"type": "trial", "days": 30},
@@ -2487,6 +2494,10 @@ def _public_user(user: dict) -> dict:
     safe.pop("email_code", None)
     safe.pop("email_code_expires", None)
     safe["has_password"] = has_password
+    # Real feature Sep 16 (admin login: self-set persistent PIN): same pattern as
+    # has_password just above - strip the real hash, expose only a safe boolean.
+    safe["has_admin_pin"] = bool(safe.get("admin_pin_hash"))
+    safe.pop("admin_pin_hash", None)
     # Real product fix Sep 12: registration email verification. Defaults True for every
     # pre-existing account (the column default - see the Sep 12 migration) since none of
     # them ever went through a verification step; only a NEW signup gets this explicitly
@@ -11053,6 +11064,25 @@ async def delete_promo_code(code: str, request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not delete promo code: {str(e)[:150]}")
 
+def _issue_login_code(user: dict, email: str):
+    """Real feature Sep 16 (admin login: self-set persistent PIN): extracted from
+    email_login's code_required branch so /auth/reset-admin-pin-request can send the exact
+    same one-time code by the exact same mechanism, rather than duplicating the generate/
+    store/email logic. Raises HTTPException on failure; returns nothing on success."""
+    login_code = f"{secrets.randbelow(1000000):06d}"
+    try:
+        supabase.table("users").update({
+            "email_code": login_code,
+            "email_code_expires": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
+        }).eq("user_id", user["user_id"]).execute()
+    except Exception as e:
+        logger.error(f"[SECURITY] Could not store login code for {email}: {e}")
+        raise HTTPException(status_code=500, detail="Could not start sign-in. Please try again.")
+    sent, detail = _send_email_code(email, login_code, purpose="login")
+    if not sent:
+        logger.error(f"[SECURITY] Login code not emailed for {email}: {detail}")
+        raise HTTPException(status_code=500, detail="Could not send your login code. Please try again or contact jono@classofhappiness.com.")
+
 @api_router.post("/auth/email-login")
 async def email_login(request: Request):
     """Email-based login. Admin-tier accounts (superadmin + demo accounts) get a real,
@@ -11105,23 +11135,24 @@ async def email_login(request: Request):
                 # accounts) could not log in AT ALL, even with the correct password, because
                 # AppContext.loginWithEmail destructured {user, session_token} off a response
                 # that had neither, then threw trying to persist `undefined`. Scoped back to
-                # superadmin only (the one tier that already has this working, presumably
-                # exercised less often / by Jono himself) until the frontend code-entry screen
-                # is actually built - a real future session's work, not a revert-in-place fix.
-                if user.get("role") == "superadmin":
-                    login_code = f"{secrets.randbelow(1000000):06d}"
-                    try:
-                        supabase.table("users").update({
-                            "email_code": login_code,
-                            "email_code_expires": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
-                        }).eq("user_id", user["user_id"]).execute()
-                    except Exception as e:
-                        logger.error(f"[SECURITY] Could not store login code for {email}: {e}")
-                        raise HTTPException(status_code=500, detail="Could not start sign-in. Please try again.")
-                    sent, detail = _send_email_code(email, login_code, purpose="login")
-                    if not sent:
-                        logger.error(f"[SECURITY] Login code not emailed for {email}: {detail}")
-                        raise HTTPException(status_code=500, detail="Could not send your login code. Please try again or contact jono@classofhappiness.com.")
+                # superadmin only until the frontend code-entry screen was built (2026-09-16).
+                #
+                # Real feature Sep 16 (role-widening + self-set persistent PIN): now covers
+                # school_admin too (ADMIN_PIN_ROLES), matching the original two-tier admin
+                # design intent - safe now that the code-entry screen actually exists and was
+                # live-tested end-to-end. Also no longer unconditionally emails a fresh code
+                # every single login: once an account has set its own PIN (admin_pin_hash),
+                # every login after that asks for password + PIN instead - no email round-
+                # trip. The emailed code is now only used for identity verification the FIRST
+                # time (no PIN set yet) or for an explicit "Forgot PIN?" reset
+                # (/auth/reset-admin-pin-request) - either way, successfully verifying the
+                # code always leads to the same "set/reset your PIN" step (POST
+                # /auth/set-admin-pin), since code_required is never returned for any other
+                # reason than these two roles needing to prove identity before touching a PIN.
+                if user.get("role") in ADMIN_PIN_ROLES:
+                    if user.get("admin_pin_hash"):
+                        return {"status": "pin_required", "email": email}
+                    _issue_login_code(user, email)
                     return {"status": "code_required", "email": email}
             else:
                 # CRITICAL security fix Aug 26 (item 2): this used to silently create a real
@@ -11209,6 +11240,90 @@ async def verify_login_code(request: Request):
         logger.warning(f"user_sessions insert failed: {e} - using token only")
     return {"user": _public_user(user), "session_token": session_token}
 
+
+PIN_PATTERN = re.compile(r"^\d{6}$")
+
+@api_router.post("/auth/verify-login-pin")
+async def verify_login_pin(request: Request):
+    """Real feature Sep 16 (admin login: self-set persistent PIN): the "every login after the
+    first" path for ADMIN_PIN_ROLES accounts once they've set a PIN (see email_login's
+    pin_required branch) - password + this PIN, no email round-trip. Same pre-session,
+    email-keyed shape as verify_login_code, since no session exists yet either."""
+    body = await request.json()
+    email = (body.get("email") or "").strip().lower()
+    pin = (body.get("pin") or "").strip()
+    if not email or not pin:
+        raise HTTPException(status_code=400, detail="Email and PIN are required")
+    existing = supabase.table("users").select("*").eq("email", email).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Account not found")
+    user = existing.data[0]
+    if user.get("role") not in ADMIN_PIN_ROLES or not user.get("admin_pin_hash"):
+        raise HTTPException(status_code=400, detail="No PIN is set for this account")
+    if not verify_password(pin, user["admin_pin_hash"]):
+        raise HTTPException(status_code=401, detail="Incorrect PIN")
+    session_token = str(uuid.uuid4())
+    try:
+        supabase.table("user_sessions").insert({
+            "session_token": session_token,
+            "user_id": user["user_id"],
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }).execute()
+    except Exception as e:
+        logger.warning(f"user_sessions insert failed: {e} - using token only")
+    return {"user": _public_user(user), "session_token": session_token}
+
+@api_router.post("/auth/set-admin-pin")
+async def set_admin_pin(request: Request):
+    """Real feature Sep 16 (admin login: self-set persistent PIN): mirrors /auth/set-password
+    exactly (a logged-in user setting their own credential) - reached right after a successful
+    /auth/verify-login-code, whether that was this account's first-ever code verification (no
+    PIN existed yet) or an explicit /auth/reset-admin-pin-request ("Forgot PIN?") - either way
+    the account already has a real session at this point, and the UI step is identical: choose
+    a new PIN. Scoped to ADMIN_PIN_ROLES only - a teacher/parent session calling this directly
+    would set a hash nothing ever reads, but the explicit role check keeps intent honest."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if user.get("role") not in ADMIN_PIN_ROLES:
+        raise HTTPException(status_code=403, detail="PINs are only available for admin accounts")
+    body = await request.json()
+    pin = (body.get("pin") or "").strip()
+    if not PIN_PATTERN.match(pin):
+        raise HTTPException(status_code=400, detail="PIN must be exactly 6 digits")
+    hashed = hash_password(pin)
+    supabase.table("users").update({"admin_pin_hash": hashed}).eq("user_id", user["user_id"]).execute()
+    return {"status": "pin set successfully"}
+
+@api_router.post("/auth/reset-admin-pin-request")
+async def reset_admin_pin_request(request: Request):
+    """Real feature Sep 16 (admin login: self-set persistent PIN, "Forgot PIN?"): re-verifying
+    password alone at /auth/email-login would just return pin_required again (the account
+    still has a PIN, that's exactly why it's stuck) - this is the deliberate escape hatch,
+    re-checking identity via password then explicitly emailing a fresh code regardless of
+    admin_pin_hash, landing on the exact same verify-code -> set-PIN screens first-time setup
+    already uses. Same password-check pattern as email_login, kept separate rather than
+    folded into it so a normal login attempt never accidentally re-triggers a PIN reset."""
+    body = await request.json()
+    email = (body.get("email") or "").strip().lower()
+    password = body.get("password", "")
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+    existing = supabase.table("users").select("*").eq("email", email).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Account not found")
+    user = existing.data[0]
+    if user.get("deletion_requested_at"):
+        raise HTTPException(status_code=403, detail="This account is scheduled for deletion. Contact jono@classofhappiness.com if this wasn't you or you'd like to cancel.")
+    if user.get("account_suspended"):
+        raise HTTPException(status_code=403, detail="This account has been suspended. Contact jono@classofhappiness.com for details.")
+    if user.get("role") not in ADMIN_PIN_ROLES:
+        raise HTTPException(status_code=400, detail="PIN reset is only available for admin accounts")
+    if not user.get("portal_password") or not verify_password(password, user["portal_password"]):
+        raise HTTPException(status_code=401, detail="Incorrect password")
+    _issue_login_code(user, email)
+    return {"status": "code_required", "email": email}
 
 @api_router.get("/resources/{resource_id}")
 async def get_resource(resource_id: str, request: Request):

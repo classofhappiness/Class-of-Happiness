@@ -1664,5 +1664,13 @@
   "evolve_ready_hint": "✨ ¡Listo para evolucionar cuando quieras! Búscalo en Mis Criaturas.",
   "help_request_failed": "No se pudo enviar tu solicitud de ayuda. Inténtalo de nuevo.",
   "enter_code_label": "Introduce el código que te enviamos por correo",
-  "verify_code_btn": "Verificar Código"
+  "verify_code_btn": "Verificar Código",
+  "enter_pin_label": "Introduce tu PIN",
+  "verify_pin_btn": "Verificar PIN",
+  "pin_required_error": "Introduce tu PIN",
+  "forgot_pin_link": "¿Olvidaste tu PIN?",
+  "set_pin_label": "Establece tu PIN",
+  "set_pin_hint": "Elige un PIN de 6 dígitos. Lo usarás junto con tu contraseña para iniciar sesión a partir de ahora.",
+  "set_pin_btn": "Establecer PIN",
+  "pin_format_error": "El PIN debe tener exactamente 6 dígitos"
 }

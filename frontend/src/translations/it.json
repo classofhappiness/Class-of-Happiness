@@ -1675,5 +1675,13 @@
   "evolve_ready_hint": "✨ Pronto per evolversi quando vuoi! Trovalo in Le Mie Creature.",
   "help_request_failed": "Non è stato possibile inviare la tua richiesta di aiuto. Riprova.",
   "enter_code_label": "Inserisci il codice che ti abbiamo inviato via email",
-  "verify_code_btn": "Verifica Codice"
+  "verify_code_btn": "Verifica Codice",
+  "enter_pin_label": "Inserisci il tuo PIN",
+  "verify_pin_btn": "Verifica PIN",
+  "pin_required_error": "Inserisci il tuo PIN",
+  "forgot_pin_link": "PIN dimenticato?",
+  "set_pin_label": "Imposta il tuo PIN",
+  "set_pin_hint": "Scegli un PIN di 6 cifre. Lo userai insieme alla password per accedere da ora in poi.",
+  "set_pin_btn": "Imposta PIN",
+  "pin_format_error": "Il PIN deve avere esattamente 6 cifre"
 }
