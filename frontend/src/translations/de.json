@@ -1672,5 +1672,6 @@
   "shop_school_toggle_desc_off": "Der Shop ist für deine ganze Schule deaktiviert - Kreaturen wachsen und schalten Belohnungen weiterhin automatisch frei, nur ohne Shop zum Stöbern oder Ausgeben.",
   "streak_praise": "Du hast dich {days} Tage in Folge eingecheckt - das ist echte Beständigkeit! 🔥",
   "evolve_skip_btn": "Überspringen — später entwickeln",
-  "evolve_ready_hint": "✨ Bereit zur Entwicklung, wann immer du möchtest! Finde es in Meine Kreaturen."
+  "evolve_ready_hint": "✨ Bereit zur Entwicklung, wann immer du möchtest! Finde es in Meine Kreaturen.",
+  "help_request_failed": "Deine Hilfeanfrage konnte nicht gesendet werden. Bitte versuche es erneut."
 }

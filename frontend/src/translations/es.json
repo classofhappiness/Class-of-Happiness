@@ -1661,5 +1661,6 @@
   "shop_school_toggle_desc_off": "La Tienda está desactivada para toda tu escuela, las criaturas siguen creciendo y desbloqueando recompensas automáticamente, solo que sin una Tienda donde explorar o gastar.",
   "streak_praise": "Hiciste check-in {days} días seguidos, ¡eso es verdadera constancia! 🔥",
   "evolve_skip_btn": "Omitir — evolucionar más tarde",
-  "evolve_ready_hint": "✨ ¡Listo para evolucionar cuando quieras! Búscalo en Mis Criaturas."
+  "evolve_ready_hint": "✨ ¡Listo para evolucionar cuando quieras! Búscalo en Mis Criaturas.",
+  "help_request_failed": "No se pudo enviar tu solicitud de ayuda. Inténtalo de nuevo."
 }

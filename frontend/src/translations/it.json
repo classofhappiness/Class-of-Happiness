@@ -1672,5 +1672,6 @@
   "shop_school_toggle_desc_off": "Il Negozio è disattivato per tutta la tua scuola, le creature continuano a crescere e sbloccare ricompense automaticamente, solo senza un Negozio in cui sfogliare o spendere.",
   "streak_praise": "Hai fatto il check-in per {days} giorni di fila, questa sì che è costanza vera! 🔥",
   "evolve_skip_btn": "Salta — evolvi più tardi",
-  "evolve_ready_hint": "✨ Pronto per evolversi quando vuoi! Trovalo in Le Mie Creature."
+  "evolve_ready_hint": "✨ Pronto per evolversi quando vuoi! Trovalo in Le Mie Creature.",
+  "help_request_failed": "Non è stato possibile inviare la tua richiesta di aiuto. Riprova."
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
@@ -188,13 +188,28 @@ export default function StrategiesScreen() {
     if (!selectedStrategies.includes(strategyId)) {
       setSelectedStrategies(prev => [...prev, strategyId]);
     }
+    // Real fix Sep 15 (Bronze Shield bug): this used to send the FAMILY MEMBER's own id for a
+    // family-member-type child, not the real students.id the shield-award write (and every
+    // other rewards-related call in this app) actually keys on - same identifier duality bug
+    // as tonight's B1 Shop-toggle gap. send_help_request's students lookup 404'd on that id,
+    // silently failing before the shield could ever be awarded - the "help count" the parent
+    // saw was always reading the correct (untouched) row, just never the one being written to.
+    const helpRequestStudentId = (currentStudent as any).student_id || currentStudent.id;
     const result = await sendHelpRequest({
-      student_id: currentStudent.id,
+      student_id: helpRequestStudentId,
       strategy_id: strategyId,
       strategy_name: strategyName,
       zone: zone || '',
       context: checkInLocation === 'home' ? 'home' : 'school', // school → teacher only, home → family only
     });
+    if (!result.ok) {
+      // Real fix Sep 15: sendHelpRequest used to silently swallow any failure (backend 404/
+      // 500, network error) - the shield-award write could fail with zero visible sign to
+      // anyone. A real error now surfaces instead of a quietly-wrong shield count.
+      Alert.alert(t('error') || 'Error', t('help_request_failed') || 'Could not send your help request. Please try again.');
+      setHelpRequested(prev => { const n = new Set(prev); n.delete(strategyId); return n; });
+      return;
+    }
     if (result.shield_awarded) {
       setShieldJustAwarded(true);
       setTimeout(() => setShieldJustAwarded(false), 3000);

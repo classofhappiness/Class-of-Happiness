@@ -3643,23 +3643,40 @@ async def add_points(student_id: str, req: AddPointsRequest):
             update_data["student_id"] = student_id
             supabase.table("student_rewards").insert(update_data).execute()
 
-        progress = _progress_community_creature(student_id, active_id) if req.points_type == "checkin" else None
+        # Real fix Sep 15 (B1 core-loop bug): _progress_community_creature is now read-only
+        # (see its docstring) so it's safe to call unconditionally - previously gated behind
+        # `if req.points_type == "checkin"` only to avoid re-triggering the old auto-advance
+        # for a strategy/comment event, which duplicated this whole branch's fallback logic
+        # for the non-checkin case. That duplication is gone; every call now gets the same,
+        # up-to-date eligibility read regardless of event type.
+        progress = _progress_community_creature(student_id, active_id)
         if progress is None:
-            # Not a check-in event, or the active community creature vanished - report current
-            # state without attempting to progress it.
-            unlocks_r = _creature_unlocks_for(student_id, student_id, [active_id])
-            cur = unlocks_r.data[0] if unlocks_r.data else {"stages_unlocked": 0}
-            creature_full = supabase.table("creature_submissions").select(
-                "creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url"
-            ).eq("id", active_id).execute()
-            cf = creature_full.data[0] if creature_full.data else {}
+            # The active community creature vanished (deleted/unapproved) between selection
+            # and this check-in - report a safe, empty state rather than erroring the whole
+            # check-in out.
             progress = {
-                "id": active_id, "name": cf.get("creature_name"), "emotion_colour": cf.get("emotion_colour"),
-                "stage1_url": cf.get("stage1_url"), "stage2_url": cf.get("stage2_url"),
-                "stage3_url": cf.get("stage3_url"), "stage4_url": cf.get("stage4_url"),
-                "current_stage": cur.get("stages_unlocked", 0), "evolved": False, "is_complete": cur.get("stages_unlocked", 0) >= 4,
-                "total_checkins": _rolling_checkins_30d(student_id, cf.get("emotion_colour")) if cf.get("emotion_colour") else 0,
+                "id": active_id, "name": None, "emotion_colour": feeling_colour,
+                "stage1_url": None, "stage2_url": None, "stage3_url": None, "stage4_url": None,
+                "current_stage": 0, "eligible_stage": 0, "evolution_ready": False,
+                "evolved": False, "is_complete": False, "total_checkins": 0,
             }
+
+        # Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): when the Shop is
+        # off, community creatures revert to the exact pre-B1 flow too - auto-evolve the
+        # instant a threshold is crossed, same principle already applied to default creatures
+        # (see shop_on below in the default-creature branch). With the Shop on (default),
+        # community creatures now get the same explicit-evolve model as default creatures -
+        # this was the actual bug: they'd been left on the old auto-evolve behaviour
+        # regardless of the Shop setting, with no evolution_ready ever reported and no
+        # "you just evolved!" moment, live-confirmed via real creature_unlocks rows already
+        # sitting at stages_unlocked 1 and 3 with no explicit evolve having ever happened.
+        shop_on = _is_shop_enabled_for_student(student_id, student_data) if student_data else True
+        if not shop_on and progress.get("evolution_ready"):
+            _commit_community_evolution(student_id, active_id, progress["eligible_stage"])
+            progress["current_stage"] = progress["eligible_stage"]
+            progress["evolution_ready"] = False
+            progress["evolved"] = True
+
         return {
             "current_creature": {
                 "id": progress["id"], "name": progress["name"], "feeling_colour": progress["emotion_colour"],
@@ -3677,6 +3694,13 @@ async def add_points(student_id: str, req: AddPointsRequest):
             # a points value - see current_points above).
             "checkins_30d": progress.get("total_checkins", 0),
             "evolved": progress["evolved"],
+            # Real fix Sep 15 (B1 core-loop bug): community creatures now report these too -
+            # previously entirely absent from this branch's response, which is exactly why the
+            # Evolve button never appeared for them (evolution_ready was always undefined,
+            # never explicitly false).
+            "evolution_ready": progress.get("evolution_ready", False),
+            "eligible_stage": progress.get("eligible_stage", progress["current_stage"]),
+            "shop_enabled": shop_on,
             "points_added": points_to_add,
             # Real fix Sep 15 (B1, points economy v2): streak_bonus is now the real tiered
             # amount over base (0/5/10 for 1/2/3+ day streaks), not the old flat constant.
@@ -3848,14 +3872,43 @@ async def evolve_creature(student_id: str, req: EvolveRequest):
     crossed - add_points only ever reports evolution_ready; this is what actually commits the
     stage advance, when the student taps the Evolve button. Always free - never spends
     points, regardless of what's already been bought in the Shop (see buy_bonus_item below) -
-    a purchase must never be able to delay or block evolving."""
+    a purchase must never be able to delay or block evolving.
+
+    Real fix Sep 15 (B1 core-loop bug): now also handles community/submitted creatures, which
+    were entirely unable to reach this endpoint before (any non-default id 400'd) - they'd
+    been silently auto-evolving via _progress_community_creature instead, live-confirmed via
+    real creature_unlocks rows already at stages_unlocked 1/3 with no explicit evolve ever
+    having happened. See _progress_community_creature's docstring for the full history."""
+    creature_id = req.creature_id
+
+    if creature_id not in DEFAULT_CREATURE_IDS:
+        progress = _progress_community_creature(student_id, creature_id)
+        if progress is None:
+            raise HTTPException(status_code=404, detail="Creature not found")
+        if not progress.get("evolution_ready"):
+            raise HTTPException(status_code=400, detail="Not eligible to evolve yet")
+        eligible_stage = progress["eligible_stage"]
+        _commit_community_evolution(student_id, creature_id, eligible_stage)
+        return {
+            "current_creature": {
+                "id": progress["id"], "name": progress["name"], "feeling_colour": progress["emotion_colour"],
+                "creature_type": "community",
+                "stage1_url": progress.get("stage1_url"), "stage2_url": progress.get("stage2_url"),
+                "stage3_url": progress.get("stage3_url"), "stage4_url": progress.get("stage4_url"),
+            },
+            "current_stage": eligible_stage,
+            "current_points": progress.get("total_checkins", 0),
+            "evolved": True,
+            # Real note: community creatures have no items catalog of their own - bonus items
+            # are colour-linked to the colour's default creature (see CreatureDetailModal's
+            # COLOUR_TO_DEFAULT_ID), unaffected by which creature is actively evolving.
+            "newly_available_items": [],
+        }
+
     result = supabase.table("student_rewards").select("*").eq("student_id", student_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="No rewards record for this student")
     rewards = result.data[0]
-    creature_id = req.creature_id
-    if creature_id not in DEFAULT_CREATURE_IDS:
-        raise HTTPException(status_code=400, detail="Evolution is only available for default creatures")
 
     creature_points = rewards.get("creature_points") or {}
     creature_stages = rewards.get("creature_stages") or {}
@@ -4772,11 +4825,25 @@ def _creature_progress_percent(active_id: str, real_student_id: str, emotion_col
     total_checkins = _rolling_checkins_30d(real_student_id, emotion_colour)
     return max(0, min(100, round(total_checkins / 20 * 100)))
 
+COMMUNITY_STAGE_REQUIREMENTS = [5, 10, 15, 20]
+
 def _progress_community_creature(real_student_id: str, submission_id: str):
-    """Real bug fix Aug 21: extracted from unlock_creature_stage so both the direct endpoint
-    and the check-in-driven path (add_points) share one real implementation - no duplicated
-    threshold/snapshot logic. real_student_id here is always a real students.id (this function
-    is only ever called once a creature is a student's genuine active pursuit for its colour)."""
+    """Real fix Sep 15 (B1 core-loop bug, live-confirmed via "Waterman"): this used to
+    auto-advance stages_unlocked the INSTANT a rolling-checkin threshold was crossed - the
+    pre-B1 behaviour, never migrated when default creatures got the new eligible/explicit-
+    evolve model. Live data check (2026-09-15) found real creature_unlocks rows already
+    sitting at stages_unlocked 1 and 3 with completed_at null, proving this had been silently
+    auto-evolving students' creatures with no Evolve button ever shown (evolution_ready/
+    eligible_stage were never even in this function's old return shape) and no "you just
+    evolved!" moment (the old auto-advance-on-checkin flow had no animation trigger of its
+    own - it relied on add_points' response, which stopped announcing "evolved" the same
+    moment this function's caller changed). Now READ-ONLY, exactly mirroring the default-
+    creature computation in add_points: reports current_stage (the real, committed value),
+    eligible_stage (highest stage total_checkins qualifies for), and evolution_ready - the
+    actual stage advance now only happens via _commit_community_evolution, called solely
+    from the explicit POST /rewards/{id}/evolve, same as default creatures. real_student_id
+    here is always a real students.id (this function is only ever called once a creature is a
+    student's genuine active pursuit for its colour)."""
     creature_r = supabase.table("creature_submissions").select(
         "emotion_colour,creature_name,stage1_url,stage2_url,stage3_url,stage4_url,status"
     ).eq("id", submission_id).execute()
@@ -4785,45 +4852,15 @@ def _progress_community_creature(real_student_id: str, submission_id: str):
     creature = creature_r.data[0]
     total_checkins = _rolling_checkins_30d(real_student_id, creature.get("emotion_colour"))
     existing = _creature_unlocks_for(real_student_id, real_student_id, [submission_id])
-    current_stages = existing.data[0]["stages_unlocked"] if existing.data else 0
-    required = [5, 10, 15, 20]
-    next_stage = current_stages + 1
-    evolved = False
-    if next_stage <= 4 and total_checkins >= required[current_stages]:
-        evolved = True
-        snapshot_fields = {}
-        if next_stage == 4:
-            now_iso = datetime.now(timezone.utc).isoformat()
-            featured_now = supabase.table("featured_creatures").select("active_until")                .eq("creature_id", submission_id).lte("active_from", now_iso).gte("active_until", now_iso).execute()
-            was_featured = bool(featured_now.data)
-            snapshot_fields = {
-                "creature_name_snapshot": creature.get("creature_name"),
-                "emotion_colour_snapshot": creature.get("emotion_colour"),
-                "stage_image_snapshot": creature.get("stage4_url"),
-                "was_featured": was_featured,
-                "featured_until_snapshot": featured_now.data[0]["active_until"] if was_featured else None,
-            }
-        if existing.data:
-            completed = datetime.now(timezone.utc).isoformat() if next_stage == 4 else None
-            update_body = {"stages_unlocked": next_stage, "completed_at": completed}
-            try:
-                supabase.table("creature_unlocks").update({**update_body, **snapshot_fields}).eq("id", existing.data[0]["id"]).execute()
-            except Exception:
-                supabase.table("creature_unlocks").update(update_body).eq("id", existing.data[0]["id"]).execute()
-        else:
-            new_row = {"student_id": real_student_id, "creature_id": submission_id, "stages_unlocked": next_stage, "real_student_id": real_student_id}
-            try:
-                supabase.table("creature_unlocks").insert(new_row).execute()
-            except Exception:
-                supabase.table("creature_unlocks").insert({"student_id": real_student_id, "creature_id": submission_id, "stages_unlocked": next_stage}).execute()
-        current_stages = next_stage
-        if next_stage == 4:
-            supabase.table("creature_submissions").update({
-                "global_uses": supabase.table("creature_submissions").select("global_uses")                    .eq("id", submission_id).execute().data[0]["global_uses"] + 1
-            }).eq("id", submission_id).execute()
+    current_stage = existing.data[0]["stages_unlocked"] if existing.data else 0
+    eligible_stage = current_stage
+    for i, needed in enumerate(COMMUNITY_STAGE_REQUIREMENTS):
+        if total_checkins >= needed:
+            eligible_stage = i + 1
+    evolution_ready = eligible_stage > current_stage
     needed_for_next = 0
-    if current_stages < 4 and not evolved:
-        needed_for_next = max(0, required[current_stages] - total_checkins)
+    if current_stage < 4 and not evolution_ready:
+        needed_for_next = max(0, COMMUNITY_STAGE_REQUIREMENTS[current_stage] - total_checkins)
     return {
         "type": "community",
         "id": submission_id,
@@ -4833,9 +4870,15 @@ def _progress_community_creature(real_student_id: str, submission_id: str):
         "stage2_url": creature.get("stage2_url"),
         "stage3_url": creature.get("stage3_url"),
         "stage4_url": creature.get("stage4_url"),
-        "current_stage": current_stages,
-        "evolved": evolved,
-        "is_complete": current_stages >= 4,
+        "current_stage": current_stage,
+        "eligible_stage": eligible_stage,
+        "evolution_ready": evolution_ready,
+        # Real fix Sep 15: "evolved" now means the stage was actually committed just now -
+        # only possible here via the Shop-off auto-evolve fallback (see add_points), matching
+        # the default-creature "evolved_now" semantics exactly. Callers that just want
+        # eligibility should read evolution_ready instead.
+        "evolved": False,
+        "is_complete": current_stage >= 4,
         "needed_for_next": needed_for_next,
         # Real feature Sep 15 (progress bar unification): the raw rolling-30-day count, so
         # callers can compute a within-stage-band percent against the same [0,5,10,15,20]
@@ -4844,6 +4887,52 @@ def _progress_community_creature(real_student_id: str, submission_id: str):
         # points_for_next_evolution has for default creatures - see add_points).
         "total_checkins": total_checkins,
     }
+
+def _commit_community_evolution(real_student_id: str, submission_id: str, eligible_stage: int):
+    """Real feature Sep 15 (B1 core-loop fix): actually advances stages_unlocked to
+    eligible_stage - only ever called from the explicit POST /rewards/{id}/evolve, once
+    _progress_community_creature has confirmed real eligibility (or from add_points' Shop-off
+    auto-evolve fallback, matching default creatures). Same snapshot/global_uses logic that
+    used to run inline inside the old auto-advancing _progress_community_creature, just gated
+    behind an explicit call now instead of firing on every check-in."""
+    creature_r = supabase.table("creature_submissions").select(
+        "creature_name,emotion_colour,stage4_url"
+    ).eq("id", submission_id).execute()
+    creature = creature_r.data[0] if creature_r.data else {}
+    existing = _creature_unlocks_for(real_student_id, real_student_id, [submission_id])
+    snapshot_fields = {}
+    if eligible_stage == 4:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        featured_now = supabase.table("featured_creatures").select("active_until").eq("creature_id", submission_id).lte("active_from", now_iso).gte("active_until", now_iso).execute()
+        was_featured = bool(featured_now.data)
+        snapshot_fields = {
+            "creature_name_snapshot": creature.get("creature_name"),
+            "emotion_colour_snapshot": creature.get("emotion_colour"),
+            "stage_image_snapshot": creature.get("stage4_url"),
+            "was_featured": was_featured,
+            "featured_until_snapshot": featured_now.data[0]["active_until"] if was_featured else None,
+        }
+    if existing.data:
+        completed = datetime.now(timezone.utc).isoformat() if eligible_stage == 4 else None
+        update_body = {"stages_unlocked": eligible_stage, "completed_at": completed}
+        try:
+            supabase.table("creature_unlocks").update({**update_body, **snapshot_fields}).eq("id", existing.data[0]["id"]).execute()
+        except Exception:
+            supabase.table("creature_unlocks").update(update_body).eq("id", existing.data[0]["id"]).execute()
+    else:
+        new_row = {"student_id": real_student_id, "creature_id": submission_id, "stages_unlocked": eligible_stage, "real_student_id": real_student_id}
+        try:
+            supabase.table("creature_unlocks").insert(new_row).execute()
+        except Exception:
+            supabase.table("creature_unlocks").insert({"student_id": real_student_id, "creature_id": submission_id, "stages_unlocked": eligible_stage}).execute()
+    if eligible_stage == 4:
+        try:
+            cur = supabase.table("creature_submissions").select("global_uses").eq("id", submission_id).execute()
+            supabase.table("creature_submissions").update({
+                "global_uses": (cur.data[0].get("global_uses") or 0) + 1
+            }).eq("id", submission_id).execute()
+        except Exception:
+            pass
 
 def _creature_unlocks_for(user_id: str, real_student_id: Optional[str], creature_ids: list = None):
     """Real feature Aug 21: creature_unlocks was keyed only by the SUBMITTING ACCOUNT's user_id
@@ -7605,16 +7694,33 @@ def _shield_level(count: int) -> str:
 # ── Get student shield badge ─────────────────────────────
 @api_router.get("/notifications/shield/{student_id}")
 async def get_student_shield(student_id: str):
-    """Get brave shield badge for a student."""
+    """Get brave shield badge for a student.
+    Real fix Sep 15 (Bronze Shield bug): `level` used to be read from a separately-stored
+    `level` column that can legitimately drift from `count` - exactly what was observed live
+    (a "Bronze Shield I" label next to a silver-coloured icon, with count reading 0 right
+    after a genuine help request). count and level were only ever written together in one
+    place (the shield-award write in send_help_request), but a broken write there (see the
+    student_id mismatch fixed in strategies.tsx/sendHelpRequest) or any stale/manually-seeded
+    data leaves the two free to disagree, since nothing here re-derives one from the other.
+    level is now ALWAYS computed from count via _shield_level() - the same function the
+    award-time write already uses - so they can never drift apart again.
+    has_shield is now also genuinely `count > 0`, not just "a student_rewards row exists" -
+    that row exists for virtually every student (points/streak tracking creates it on its
+    own), so the old check would show a "Brave Shield" banner (0 times) even for a student
+    who had never once asked for help."""
     try:
         result = supabase.table("student_rewards").select("*").eq("student_id", student_id).execute()
         if result.data:
             r = result.data[0]
+            count = r.get("count") or 0
+            if count <= 0:
+                return {"has_shield": False, "level": None, "count": 0}
+            level = _shield_level(count)
             return {
                 "has_shield": True,
-                "level": r.get("level", "bronze_1"),
-                "count": r.get("count", 0),
-                "label": _shield_label(r.get("level", "bronze_1")),
+                "level": level,
+                "count": count,
+                "label": _shield_label(level),
             }
         return {"has_shield": False, "level": None, "count": 0}
     except Exception as e:
@@ -9895,6 +10001,15 @@ async def get_my_creatures(student_id: str, request: Request):
             total_collected += 1
         name = (is_complete and u.get("creature_name_snapshot")) or cs.get("creature_name")
         stage_img = (is_complete and u.get("stage_image_snapshot")) or cs.get(f"stage{max(1, min(stages_unlocked, 4))}_url") or cs.get("stage1_url")
+        checkins_30d = _rolling_checkins_30d(student_id, colour)
+        # Real fix Sep 15 (B1 core-loop bug): My Creatures needs the same eligible_stage
+        # signal as the reward screen, so CreatureDetailModal can show its Evolve button for
+        # an eligible community creature here too - see _progress_community_creature's
+        # docstring for the full history of why this was missing entirely before.
+        eligible_stage = stages_unlocked
+        for i, needed in enumerate(COMMUNITY_STAGE_REQUIREMENTS):
+            if checkins_30d >= needed:
+                eligible_stage = i + 1
         buckets[colour].append({
             "type": "community",
             "id": cs["id"],
@@ -9917,7 +10032,8 @@ async def get_my_creatures(student_id: str, request: Request):
             # count - default creature entries above already carry the equivalent "points"
             # field; community creatures need this instead, since they evolve on check-in
             # count against COMMUNITY_CREATURE_THRESHOLDS ([0,5,10,15,20]), not points.
-            "checkins_30d": _rolling_checkins_30d(student_id, colour),
+            "checkins_30d": checkins_30d,
+            "eligible_stage": eligible_stage,
         })
 
     return {"colours": buckets, "total_collected": total_collected}
@@ -10959,13 +11075,22 @@ async def email_login(request: Request):
                 # designed as login 2FA to begin with; its real, still-intact purpose is
                 # /admin/verify's post-login Unlock-screen second factor, added Aug 20,
                 # completely untouched by this change since it checks an existing session
-                # first). Replaced with a genuine second factor for the same admin-tier
-                # accounts that used to require the static PIN (superadmin + the 4
-                # ALWAYS_OPEN_PINS demo accounts, never a normal teacher/parent/school_admin
-                # account) - a one-time code emailed at login time, independent of the
-                # password rather than a second copy of the same shared secret. No session is
-                # issued yet; see POST /auth/verify-login-code for the second step.
-                if user.get("role") == "superadmin" or email in ALWAYS_OPEN_PINS:
+                # first). Replaced with a genuine second factor - a one-time code emailed at
+                # login time, independent of the password rather than a second copy of the
+                # same shared secret. No session is issued yet; see POST
+                # /auth/verify-login-code for the second step.
+                #
+                # Real revert Sep 15: this originally also covered the 4 ALWAYS_OPEN_PINS demo/
+                # parent-tier accounts, but the frontend's login screen was never built to
+                # handle the {"status": "code_required"} response at all (no code-entry step
+                # exists anywhere in the app) - confirmed live, jono@gmail.com (one of these
+                # accounts) could not log in AT ALL, even with the correct password, because
+                # AppContext.loginWithEmail destructured {user, session_token} off a response
+                # that had neither, then threw trying to persist `undefined`. Scoped back to
+                # superadmin only (the one tier that already has this working, presumably
+                # exercised less often / by Jono himself) until the frontend code-entry screen
+                # is actually built - a real future session's work, not a revert-in-place fix.
+                if user.get("role") == "superadmin":
                     login_code = f"{secrets.randbelow(1000000):06d}"
                     try:
                         supabase.table("users").update({

@@ -573,7 +573,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             'The server is starting. Trying again in 5 seconds...',
             [{ text: 'OK' }]
           );
-          setTimeout(() => loginWithEmail(email, adminPin, 2, password), 5000);
+          // Real fix Sep 15: this retry call is fire-and-forget (nothing awaits it) - now that
+          // loginWithEmail re-throws on failure (see below), an eventual failure on the retry
+          // would otherwise become an unhandled promise rejection. Its own internal Alert
+          // already tells the user what happened either way.
+          setTimeout(() => { loginWithEmail(email, adminPin, 2, password).catch(() => {}); }, 5000);
           return;
         }
         throw new Error('Could not reach server. Please check your connection and try again.');
@@ -609,6 +613,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const { Alert } = require('react-native');
       const message = error instanceof Error ? error.message : 'Could not sign in. Please try again.';
       Alert.alert('Sign In Failed', message);
+      // Real fix Sep 15: this used to swallow every login failure right here - the caller
+      // (login.tsx's handleLogin) had no way to know login actually failed, so it always ran
+      // router.replace('/') immediately afterward regardless of outcome. A failed login would
+      // show this Alert and then ALSO bounce the user off the login screen into an
+      // unauthenticated home screen - indistinguishable from "login is broken" even when the
+      // real cause (e.g. a wrong password) was accurately reported in the Alert. Re-throwing
+      // lets the caller actually react to failure instead of always assuming success.
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -635,10 +647,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setIsAuthenticated(true);
       console.log('[Login] Google success:', user.email);
     } catch (error) {
-      console.error('[Login] Email login error:', error);
+      console.error('[Login] Google login error:', error);
       const { Alert } = require('react-native');
       const message = error instanceof Error ? error.message : 'Could not sign in. Please try again.';
       Alert.alert('Sign In Failed', message);
+      // Real fix Sep 15: same swallow-and-bounce bug as loginWithEmail just above (see its
+      // comment) - login.tsx's own Google-response useEffect has the identical
+      // try { await loginWithGoogle(...); router.replace('/'); } catch {...} pattern, which
+      // could never actually reach its catch before this re-throw, always navigating away
+      // regardless of whether Google sign-in genuinely succeeded.
+      throw error;
     } finally {
       setIsLoading(false);
     }

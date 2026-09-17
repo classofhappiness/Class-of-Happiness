@@ -74,7 +74,16 @@ export default function LoginScreen() {
       await loginWithEmail(trimmed, pin, 1, password);
       router.replace('/');
     } catch (e) {
-      setError(t('signin_failed_error') || 'Sign in failed. Please try again.');
+      // Real fix Sep 15: loginWithEmail used to swallow every failure internally (its own
+      // Alert, no re-throw), so this catch could never actually fire - router.replace('/')
+      // above ran unconditionally regardless of whether login succeeded, bouncing the user
+      // off the login screen into an unauthenticated home screen on any failure (wrong
+      // password, 2FA response the app couldn't handle, etc.) with no persistent visible
+      // reason why. Now that loginWithEmail re-throws, this genuinely only runs on failure -
+      // the specific reason (e.g. "Incorrect password") is used here too, not just in the
+      // transient Alert, so it stays visible on-screen after the Alert is dismissed.
+      const message = e instanceof Error ? e.message : (t('signin_failed_error') || 'Sign in failed. Please try again.');
+      setError(message);
     } finally {
       setLoading(false);
     }

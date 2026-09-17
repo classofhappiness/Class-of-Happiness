@@ -1395,5 +1395,6 @@
   "shop_school_toggle_desc_off": "整个学校的商店已关闭。生物仍会自动成长并解锁奖励，只是没有商店可供浏览或消费。",
   "streak_praise": "你已连续 {days} 天签到，这才是真正的坚持！🔥",
   "evolve_skip_btn": "跳过——稍后进化",
-  "evolve_ready_hint": "✨ 随时都可以进化！在“我的生物”中找到它。"
+  "evolve_ready_hint": "✨ 随时都可以进化！在“我的生物”中找到它。",
+  "help_request_failed": "无法发送你的求助请求。请再试一次。"
 }

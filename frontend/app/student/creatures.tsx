@@ -71,6 +71,9 @@ interface CreatureEntry {
   // table). Both come straight from GET /students/{id}/my-creatures.
   points?: number;
   checkins_30d?: number;
+  // Real fix Sep 15 (B1 core-loop bug): a community creature's real evolve-eligibility
+  // signal - see CreatureDetailModal's CreatureDetailEntry for the full context.
+  eligible_stage?: number;
 }
 
 // Own component (not an inline render function) so it can own its own pulse animation via

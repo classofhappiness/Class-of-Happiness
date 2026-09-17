@@ -47,6 +47,12 @@ export interface CreatureDetailEntry {
   // CreatureEntry (same object, passed in as `entry` unchanged), no separate fetch needed here.
   points?: number;
   checkins_30d?: number;
+  // Real fix Sep 15 (B1 core-loop bug): a community creature's real evolve-eligibility signal,
+  // computed server-side (GET /students/{id}/my-creatures) the same way default creatures'
+  // eligibility comes from /collection's next_stage_points - previously entirely absent, which
+  // is exactly why community creatures never showed an Evolve button here (see
+  // _progress_community_creature's docstring in server.py for the full history).
+  eligible_stage?: number;
 }
 
 interface Props {
@@ -341,11 +347,16 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
             {/* Real feature Sep 15 (B1, points economy v2, Jono-approved): the other half of
                 rewards.tsx's Skip button - a student who skipped evolving in the celebratory
                 moment can come here whenever they choose and finish it, no time limit, no
-                penalty. Community creatures never reach this (they auto-evolve on check-in -
-                see server.py's add_points community branch - so creatureRecord is always null
-                for them). Always free, same as the reward screen. */}
-            {entry.type === 'default' && creatureRecord && creatureRecord.next_stage_points != null &&
-              creatureRecord.current_points >= creatureRecord.next_stage_points && (
+                penalty. Always free, same as the reward screen.
+                Real fix Sep 15 (B1 core-loop bug): community creatures now reach this too -
+                they used to silently auto-evolve on check-in with no explicit-evolve step at
+                all (see server.py's _progress_community_creature docstring for the live-
+                confirmed evidence), which is exactly why this used to be gated to
+                entry.type === 'default' only. eligible_stage (new, from GET /my-creatures)
+                carries the same signal creatureRecord.next_stage_points does for defaults. */}
+            {((entry.type === 'default' && creatureRecord && creatureRecord.next_stage_points != null &&
+                creatureRecord.current_points >= creatureRecord.next_stage_points) ||
+              (entry.type === 'community' && (entry.eligible_stage ?? localStage) > localStage)) && (
               <TouchableOpacity
                 style={[s.evolveBtn, { backgroundColor: color }]}
                 onPress={handleEvolve}

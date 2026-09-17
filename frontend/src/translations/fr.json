@@ -1672,5 +1672,6 @@
   "shop_school_toggle_desc_off": "La Boutique est désactivée pour toute votre école - les créatures continuent de grandir et de débloquer des récompenses automatiquement, simplement sans Boutique où naviguer ou dépenser.",
   "streak_praise": "Tu t'es enregistré {days} jours de suite - ça, c'est de la vraie régularité ! 🔥",
   "evolve_skip_btn": "Passer — évoluer plus tard",
-  "evolve_ready_hint": "✨ Prêt à évoluer quand tu veux ! Retrouve-le dans Mes Créatures."
+  "evolve_ready_hint": "✨ Prêt à évoluer quand tu veux ! Retrouve-le dans Mes Créatures.",
+  "help_request_failed": "Impossible d'envoyer ta demande d'aide. Réessaie."
 }

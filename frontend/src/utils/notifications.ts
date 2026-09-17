@@ -90,7 +90,17 @@ export async function sendHelpRequest(params: {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(params),
     });
-    return await res.json();
+    const data = await res.json().catch(() => null);
+    // Real fix Sep 15 (Bronze Shield bug): this used to return whatever JSON came back
+    // regardless of HTTP status - a 404 "Student not found" (e.g. the wrong student_id being
+    // sent, see strategies.tsx's fix) parsed fine and looked like a normal response with no
+    // `ok`/`shield_awarded` fields, silently swallowed by the caller. res.ok is now the real
+    // source of truth for success, independent of whatever shape the body happens to have.
+    if (!res.ok) {
+      console.error('[sendHelpRequest] failed:', res.status, data);
+      return { ok: false, shield_awarded: false };
+    }
+    return data || { ok: false, shield_awarded: false };
   } catch (e) {
     console.error('[sendHelpRequest] error:', e);
     return { ok: false, shield_awarded: false };

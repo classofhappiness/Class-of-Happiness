@@ -20,6 +20,7 @@ import { getStudentShield, SHIELD_LEVELS } from '../../src/utils/notifications';
 import { CreatureDisplay } from '../../src/components/CreatureDisplay';
 import { CommunityCreatureDisplay } from '../../src/components/CommunityCreatureDisplay';
 import { EvolutionAnimation } from '../../src/components/EvolutionAnimation';
+import { CommunityEvolutionAnimation } from '../../src/components/CommunityEvolutionAnimation';
 import { BonusItemCelebration, CelebrationItem } from '../../src/components/BonusItemCelebration';
 import { playButtonFeedback, playRewardFeedback, playEvolutionSound, preloadSounds } from '../../src/utils/sounds';
 import { playPhraseFromPool } from '../../src/utils/voiceClips';
@@ -78,6 +79,12 @@ export default function RewardsScreen() {
   const [loading, setLoading] = useState(true);
   const [showContinue, setShowContinue] = useState(false);
   const [showEvolution, setShowEvolution] = useState(false);
+  // Real fix Sep 15 (B1 core-loop bug): community creatures need their own "you just
+  // evolved!" moment - the default showEvolution modal is hard-gated to creatures with a
+  // .stages array (community creatures don't have one, and would crash it), so it silently
+  // never rendered for them, and worse, visibleStage never advanced either since nothing ever
+  // called its onComplete. See CommunityEvolutionAnimation for the full context.
+  const [showCommunityEvolution, setShowCommunityEvolution] = useState(false);
   const [showBonusCelebration, setShowBonusCelebration] = useState(false);
   const [celebrationItems, setCelebrationItems] = useState<CelebrationItem[]>([]);
   const [previousStage, setPreviousStage] = useState(0);
@@ -293,10 +300,18 @@ export default function RewardsScreen() {
     playButtonFeedback();
     try {
       const result = await rewardsApi.evolve(effectiveStudentId, evolvingCreatureId);
+      const isCommunity = rewardsData?.current_creature?.creature_type === 'community';
       setPreviousStage(visibleStage);
       setEvolutionReady(false);
       playEvolutionSound();
-      setShowEvolution(true);
+      // Real fix Sep 15 (B1 core-loop bug): community creatures get their own animation
+      // instead of the default one, which is hard-gated to creatures with a .stages array
+      // and would never render for them - see CommunityEvolutionAnimation.
+      if (isCommunity) {
+        setShowCommunityEvolution(true);
+      } else {
+        setShowEvolution(true);
+      }
       setRewardsData(prev => prev ? { ...prev, current_stage: result.current_stage, current_creature: result.current_creature } : prev);
       // Real feature Sep 15 ("Class of Happiness Shop"): newly-available items are announced
       // as a Shop invitation, not an auto-grant celebration - the child still chooses whether
@@ -663,6 +678,27 @@ export default function RewardsScreen() {
             setShowEvolution(false);
             // Reveal the new stage on the background display now that the modal's own
             // dolphin->shark (etc.) transition has actually finished - see visibleStage note.
+            setVisibleStage(rewardsData?.current_stage ?? 0);
+          }}
+        />
+      )}
+
+      {/* Real fix Sep 15 (B1 core-loop bug): the community-creature equivalent of the modal
+          above - see CommunityEvolutionAnimation and handleEvolvePress for the full context.
+          Same onComplete contract (reveal the new stage only once the animation finishes). */}
+      {showCommunityEvolution && rewardsData?.current_creature?.creature_type === 'community' && (
+        <CommunityEvolutionAnimation
+          visible={showCommunityEvolution}
+          name={rewardsData?.current_creature?.name}
+          color={EMOTION_COLOURS[(rewardsData?.current_creature?.feeling_colour as keyof typeof EMOTION_COLOURS)] || EMOTION_COLOURS.blue}
+          stage1_url={rewardsData?.current_creature?.stage1_url}
+          stage2_url={rewardsData?.current_creature?.stage2_url}
+          stage3_url={rewardsData?.current_creature?.stage3_url}
+          stage4_url={rewardsData?.current_creature?.stage4_url}
+          fromStage={previousStage}
+          toStage={rewardsData?.current_stage ?? 0}
+          onComplete={() => {
+            setShowCommunityEvolution(false);
             setVisibleStage(rewardsData?.current_stage ?? 0);
           }}
         />
