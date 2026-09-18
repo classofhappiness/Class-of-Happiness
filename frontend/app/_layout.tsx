@@ -116,6 +116,17 @@ function AppContent() {
     }
   }, [isLoading, isAuthenticated, user, pathname]);
 
+  // Real product fix Sep 12: registration email verification - same shape as the
+  // has_password gate just above. Every existing account defaults email_verified=true (see
+  // _public_user's backend docstring), so this only ever fires for a NEW email/password
+  // signup that hasn't confirmed its code yet.
+  useEffect(() => {
+    if (isLoading || !isAuthenticated || !user) return;
+    if ((user as any).email_verified === false && pathname !== '/auth/verify-email-required') {
+      router.replace('/auth/verify-email-required' as any);
+    }
+  }, [isLoading, isAuthenticated, user, pathname]);
+
   // Real feature Sep 11 (build 27, Phase 1 completion - the notifee incident-ring work):
   // Notifications.addNotificationReceivedListener only fires while the app is in the
   // FOREGROUND - this is deliberately the first, simplest case to get right and the one
@@ -201,6 +212,14 @@ function AppContent() {
           options={{
             headerShown: false,
             title: 'Set Password',
+            gestureEnabled: false,
+          }}
+        />
+        <Stack.Screen
+          name="auth/verify-email-required"
+          options={{
+            headerShown: false,
+            title: 'Verify Email',
             gestureEnabled: false,
           }}
         />

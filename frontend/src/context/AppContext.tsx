@@ -62,6 +62,8 @@ interface AppContextType {
   setAdminPin: (pin: string) => Promise<void>;
   loginWithGoogle: (googleAccessToken: string) => Promise<void>;
   signupWithEmail: (email: string, password: string, name: string, role: 'teacher' | 'parent') => Promise<void>;
+  verifyEmail: (code: string) => Promise<void>;
+  resendVerificationEmail: () => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   
@@ -837,6 +839,36 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  // Real product fix Sep 12: registration email verification, second step of signupWithEmail
+  // above - see /auth/verify-email. Session already exists (signup issues one immediately),
+  // so this just needs the stored token, same pattern as auth/verify-email-required.tsx.
+  const verifyEmail = async (code: string) => {
+    const token = await AsyncStorage.getItem('session_token');
+    const response = await fetch('https://class-of-happiness-production.up.railway.app/api/auth/verify-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ code }),
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(data?.detail || data?.message || `Server error (${response.status})`);
+    }
+    setUser(data.user);
+    await AsyncStorage.setItem('user_data', JSON.stringify(data.user));
+  };
+
+  const resendVerificationEmail = async () => {
+    const token = await AsyncStorage.getItem('session_token');
+    const response = await fetch('https://class-of-happiness-production.up.railway.app/api/auth/resend-verification-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(data?.detail || data?.message || `Server error (${response.status})`);
+    }
+  };
+
   const logout = async () => {
     try {
       await authApi.logout();
@@ -987,6 +1019,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setAdminPin,
         loginWithGoogle,
         signupWithEmail,
+        verifyEmail,
+        resendVerificationEmail,
         logout,
         checkAuth,
         
