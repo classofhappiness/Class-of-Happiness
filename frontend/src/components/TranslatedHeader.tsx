@@ -92,20 +92,21 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
             </TouchableOpacity>
           )}
           {/* Real fix Sep 18: black ring at the exact back/home button size and colour
-              (#1A1A2E, 36x36), matching the header-consistency work already done. The logo
-              art itself (black ring outline + black wordmark) can't sit directly on that -
-              checked the actual source PNGs at small size and the outline/text are black,
-              so they'd disappear into a black circle, leaving only a floating coloured blob
-              with no visible ring or "Class of Happiness" text. A white disc inside the black
-              ring keeps the real logo art legible unchanged; a true dark-mode export (white
-              outline + white wordmark) is the fully "correct" version but needs new art -
-              logged as a future task, not buildable today. Colour-cycling animation reuses
-              ColourCycleLogo (extracted from SplashAnimation's own S01 fix) so this is
-              genuinely the same tuned animation, looping, not a second separately-tuned one. */}
+              (#1A1A2E, 36x36), matching the header-consistency work already done. Originally
+              shipped with a white disc backing (the logo art's outline/wordmark are black,
+              invisible directly on a black circle) - superseded same day by a real inverted
+              asset (see ColourCycleLogo's CYCLE_PHASES_INVERTED): a Pillow flood-fill script
+              flips the near-black ring/wordmark to white while leaving the coloured blob
+              untouched, so the logo now sits directly on #1A1A2E, no disc needed. Displayed
+              at 48.4px (134.5% of the 36px ring) - the geometric maximum where the ring's own
+              outer edge (measured directly from the source art: 211.3px of a 620px canvas)
+              still clears the ring's inside edge by a real 1.5px margin, clipped by the
+              ring's own overflow:hidden exactly like this render was verified against.
+              Colour-cycling animation reuses ColourCycleLogo (extracted from
+              SplashAnimation's own S01 fix) so this is genuinely the same tuned animation,
+              looping, not a second separately-tuned one. */}
           <View style={styles.logoRing}>
-            <View style={styles.logoDisc}>
-              <ColourCycleLogo size={24} loop />
-            </View>
+            <ColourCycleLogo size={48.4} loop variant="inverted" />
           </View>
           {showHome && (
             <TouchableOpacity onPress={() => router.replace('/')} style={styles.homeButton}>
@@ -169,8 +170,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Real fix Sep 18: matches backButton/homeButton exactly (36x36, #1A1A2E) - see the
-  // comment at the logo's usage above for why a white disc sits inside it.
+  // Real fix Sep 18: matches backButton/homeButton exactly (36x36, #1A1A2E). overflow:
+  // hidden is load-bearing now - the inverted logo renders at 48.4px (134.5%, see usage
+  // comment above), deliberately larger than this circle, and this is what clips it back
+  // down to a circle instead of a square overflowing the header row.
   logoRing: {
     width: 36,
     height: 36,
@@ -178,14 +181,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A1A2E',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  logoDisc: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
   },
   title: {
     fontSize: 17,

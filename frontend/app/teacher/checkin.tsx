@@ -513,9 +513,7 @@ export default function TeacherCheckInScreen() {
           <Text style={styles.alertBtnText}>{t('support') || 'Support'}</Text>
         </TouchableOpacity>
         <View style={styles.logoRing}>
-          <View style={styles.logoDisc}>
-            <ColourCycleLogo size={24} loop />
-          </View>
+          <ColourCycleLogo size={48.4} loop variant="inverted" />
         </View>
         <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={styles.homeBtn}>
           <MaterialIcons name="home" size={20} color="#FFFFFF" />
@@ -875,8 +873,10 @@ const styles = StyleSheet.create({
   // (36x36, #1A1A2E) - was a plain, no-background padded icon before.
   backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' },
   homeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' },
-  logoRing: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' },
-  logoDisc: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  // Real fix Sep 18 (same day, later): dropped the white disc backing for a real inverted
+  // asset - see TranslatedHeader's matching logoRing comment. overflow:hidden is
+  // load-bearing (the logo renders at 48.4px, deliberately larger than this 36px circle).
+  logoRing: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   headerTitle: { flex: 1, fontSize: 18, fontWeight: 'bold', color: '#333' },
   alertBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#555', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, gap: 6 },
   alertBtnText: { color: 'white', fontWeight: '700', fontSize: 13 },

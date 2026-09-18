@@ -17,6 +17,19 @@ export const CYCLE_PHASES = [
   { colour: 'yellow', hex: '#F2BA41', source: require('../../assets/images/splash_yellow.png') },
 ];
 
+// Real feature Sep 18: the header's black-circle treatment (see TranslatedHeader/_layout's
+// HomeToStudents/HomeToDashboard) - near-black ring/wordmark pixels inverted to white via a
+// flood-fill script (v2: fixes a v1 bug where the "A" counter in "CLASS" stayed opaque
+// near-white instead of becoming a transparent hole), coloured blob pixels untouched. Only
+// for the header's use, on its #1A1A2E circle - SplashAnimation keeps the original
+// black-on-transparent art on its own light background, unaffected by this.
+export const CYCLE_PHASES_INVERTED = [
+  { colour: 'green', hex: '#5FA252', source: require('../../assets/images/logo_inverted_green.png') },
+  { colour: 'blue', hex: '#5182CE', source: require('../../assets/images/logo_inverted_blue.png') },
+  { colour: 'red', hex: '#DD4C3B', source: require('../../assets/images/logo_inverted_red.png') },
+  { colour: 'yellow', hex: '#F2BA41', source: require('../../assets/images/logo_inverted_yellow.png') },
+];
+
 interface Props {
   size: number;
   // false (SplashAnimation's use): run the sequence once, ending on yellow, then call
@@ -25,9 +38,14 @@ interface Props {
   loop?: boolean;
   onCycleComplete?: () => void;
   style?: ViewStyle;
+  // Real feature Sep 18: 'inverted' is the header's black-circle treatment (see
+  // CYCLE_PHASES_INVERTED above) - default 'original' keeps SplashAnimation's existing
+  // black-on-transparent art unchanged.
+  variant?: 'original' | 'inverted';
 }
 
-export const ColourCycleLogo: React.FC<Props> = ({ size, loop = false, onCycleComplete, style }) => {
+export const ColourCycleLogo: React.FC<Props> = ({ size, loop = false, onCycleComplete, style, variant = 'original' }) => {
+  const phases = variant === 'inverted' ? CYCLE_PHASES_INVERTED : CYCLE_PHASES;
   const [frontIndex, setFrontIndex] = useState(0);
   const [backIndex, setBackIndex] = useState(1);
   const frontOpacity = useRef(new Animated.Value(1)).current;
@@ -41,7 +59,7 @@ export const ColourCycleLogo: React.FC<Props> = ({ size, loop = false, onCycleCo
 
     const runNextTransition = () => {
       if (cancelled) return;
-      const nextPhase = (phase + 1) % CYCLE_PHASES.length;
+      const nextPhase = (phase + 1) % phases.length;
       const completedFullCycle = nextPhase === 0;
       if (completedFullCycle && !loop) {
         onCycleComplete?.();
@@ -74,12 +92,12 @@ export const ColourCycleLogo: React.FC<Props> = ({ size, loop = false, onCycleCo
   return (
     <View style={[{ width: size, height: size }, style]}>
       <Animated.Image
-        source={CYCLE_PHASES[frontIndex].source}
+        source={phases[frontIndex].source}
         style={{ width: size, height: size, position: 'absolute', opacity: frontOpacity }}
         resizeMode="contain"
       />
       <Animated.Image
-        source={CYCLE_PHASES[backIndex].source}
+        source={phases[backIndex].source}
         style={{ width: size, height: size, position: 'absolute', opacity: backOpacity }}
         resizeMode="contain"
       />

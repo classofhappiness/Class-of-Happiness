@@ -529,11 +529,16 @@ const styles = StyleSheet.create({
     height: 30,
     marginRight: 8,
   },
-  // Real fix Sep 18: matches TranslatedHeader's logoRing/logoDisc exactly (36x36 #1A1A2E
-  // ring, 30x30 white disc) - HomeToStudents/HomeToDashboard (the native header's own
-  // logo+home unit, settings/student/zone/parent/dashboard) still had the plain static
-  // logo_coh.png parent/dashboard.tsx confirmed pointed this out - never touched by the
-  // header/nav pass, since that pass was scoped to TranslatedHeader-based screens only.
+  // Real fix Sep 18: matches TranslatedHeader's logoRing exactly (36x36 #1A1A2E ring).
+  // HomeToStudents/HomeToDashboard (the native header's own logo+home unit,
+  // settings/student/zone/parent/dashboard) still had the plain static logo_coh.png -
+  // parent/dashboard.tsx confirmed pointed this out - never touched by the header/nav pass,
+  // since that pass was scoped to TranslatedHeader-based screens only.
+  // Real fix Sep 18 (same day, later): dropped the white disc backing in favour of a real
+  // inverted asset (see ColourCycleLogo's CYCLE_PHASES_INVERTED and TranslatedHeader's
+  // matching logoRing comment for the full rationale/measurements) - overflow:hidden is
+  // load-bearing, the logo now renders at 48.4px (134.5%), deliberately larger than this
+  // 36px circle, clipped back down to round by this property.
   logoRing: {
     width: 36,
     height: 36,
@@ -541,14 +546,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A1A2E',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  logoDisc: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
   },
   // Real fix Sep 15 (Marisa build-26 round 2, Group A): was 32x32 - a different size from
   // backButton's 36x36, so back and home read as two different-sized buttons despite being
@@ -576,9 +574,7 @@ function HomeToStudents() {
   return (
     <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginRight:12 }}>
       <View style={styles.logoRing}>
-        <View style={styles.logoDisc}>
-          <ColourCycleLogo size={24} loop />
-        </View>
+        <ColourCycleLogo size={48.4} loop variant="inverted" />
       </View>
       <TouchableOpacity onPress={() => r.replace('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <MaterialIcons name="home" size={20} color="#FFFFFF" />
@@ -592,9 +588,7 @@ function HomeToDashboard() {
   return (
     <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginRight:12 }}>
       <View style={styles.logoRing}>
-        <View style={styles.logoDisc}>
-          <ColourCycleLogo size={24} loop />
-        </View>
+        <ColourCycleLogo size={48.4} loop variant="inverted" />
       </View>
       <TouchableOpacity onPress={() => r.replace('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <MaterialIcons name="home" size={20} color="#FFFFFF" />
