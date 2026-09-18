@@ -144,6 +144,30 @@ function AppContent() {
   // incident) push is left alone here - expo-notifications' own setNotificationHandler
   // already shows those; this only intercepts the specific incident shape and hands it to
   // notifee for the full-screen/looping treatment instead.
+  // Real bug fix Sep 18 (live-test: tapping a real incident notification opened the app
+  // but never navigated to Support Requests). Root cause, confirmed via a full read of
+  // every notification-handling code path: neither this file nor notifeeIncidents.ts had
+  // ANY navigation logic at all - addNotificationReceivedListener only fires on RECEIPT
+  // (foreground only) and never on tap; notifee's own onForegroundEvent PRESS handler only
+  // cancelled the notification. The one API that actually handles a tap regardless of
+  // foreground/background/killed state - addNotificationResponseReceivedListener - was
+  // simply never registered. Routes by the CURRENT logged-in user's role (not guessed from
+  // the payload), matching where each role's own Support Requests view actually lives:
+  // teacher sent it (support-request.tsx already supports ?viewId= to jump straight to a
+  // specific request's status); school_admin/admin/superadmin receive it (admin/dashboard's
+  // support_requests tab, now deep-linkable via ?tab= - see that screen's own fix).
+  const navigateToSupportRequest = (requestId: string) => {
+    if (!requestId) return;
+    const role = user?.role;
+    if (role === 'teacher') {
+      router.push(`/teacher/support-request?viewId=${requestId}` as any);
+    } else if (role === 'school_admin' || role === 'admin' || role === 'superadmin') {
+      router.push('/admin/dashboard?tab=support_requests' as any);
+    }
+    // Other roles (parent, student, kiosk) are never a support_request recipient/sender
+    // today - no destination to send them to, so no-op rather than a wrong guess.
+  };
+
   useEffect(() => {
     const sub = Notifications.addNotificationReceivedListener((event) => {
       const data = event.request.content.data as Record<string, any> | undefined;
@@ -155,12 +179,25 @@ function AppContent() {
         });
       }
     });
-    const unsubscribeForeground = registerNotifeeForegroundHandler();
+    // Real addition Sep 18: THE actual tap handler - fires on a genuine user tap on any
+    // support_request push (standard buzz or incident alike), independent of whether the
+    // app was foregrounded, backgrounded, or killed when it arrived - unlike
+    // addNotificationReceivedListener above, which only ever covers receipt while
+    // foregrounded.
+    const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as Record<string, any> | undefined;
+      if (data?.type === 'support_request' && data?.id) {
+        navigateToSupportRequest(String(data.id));
+      }
+    });
+    const unsubscribeForeground = registerNotifeeForegroundHandler(navigateToSupportRequest);
     return () => {
       sub.remove();
+      responseSub.remove();
       unsubscribeForeground();
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role]);
 
   return (
     <>

@@ -7,7 +7,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import DraggableFlatList, { NestableScrollContainer, NestableDraggableFlatList } from 'react-native-draggable-flatlist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { SecureField } from '../../src/components/SecureField';
@@ -2438,14 +2438,25 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
+const VALID_ADMIN_TABS = ['analytics','support_requests','strategies','resources','creatures','schools','users','settings'] as const;
+type AdminTab = typeof VALID_ADMIN_TABS[number];
+
 export default function AdminDashboard() {
   const { user, logout, t } = useApp();
   const router = useRouter();
+  // Real fix Sep 18 (notification tap-to-navigate): lets a push notification deep-link
+  // straight into a specific tab (support_requests, for an incident/support-request tap)
+  // instead of just opening the app to whatever this screen's own default is. Validated
+  // against VALID_ADMIN_TABS rather than trusted as-is - a malformed/unknown ?tab= value
+  // falls back to the normal 'analytics' default instead of producing a blank tab.
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const [authToken, setAuthToken] = useState<string|null>(null);
   const [adminCode, setAdminCode] = useState('');
   const [unlocked, setUnlocked] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [tab, setTab] = useState<'analytics'|'support_requests'|'strategies'|'resources'|'creatures'|'schools'|'users'|'settings'>('analytics');
+  const [tab, setTab] = useState<AdminTab>(
+    (VALID_ADMIN_TABS as readonly string[]).includes(tabParam || '') ? (tabParam as AdminTab) : 'analytics'
+  );
   const [stats, setStats] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsPeriod, setStatsPeriod] = useState<1|7|30|90|180|365|730|1095>(7);

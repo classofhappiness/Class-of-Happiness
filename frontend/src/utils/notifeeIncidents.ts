@@ -134,10 +134,19 @@ export async function dismissIncidentAlert(requestId: string): Promise<void> {
 // app/_layout.tsx; deliberately does not stop the ring on DISMISSED (a swipe should not
 // silently clear an unacknowledged incident - ongoing:true above should prevent the swipe
 // itself, this is a second layer in case it doesn't).
-export function registerNotifeeForegroundHandler(): () => void {
+//
+// Real bug fix Sep 18 (live-test: tapping a real incident notification opened the app but
+// never navigated to Support Requests - confirmed via full code read that NO navigation
+// logic existed anywhere in this flow, "opens the app on its own" above only ever meant
+// "launches the main activity", never "goes to the right screen"). Now takes an onPress
+// callback so app/_layout.tsx (which has router/user in scope, neither of which belongs in
+// this notification-behaviour-only module) can supply the actual navigation.
+export function registerNotifeeForegroundHandler(onPress: (requestId: string) => void): () => void {
   return notifee.onForegroundEvent(({ type, detail }) => {
     if (type === EventType.PRESS && detail.notification?.id) {
       notifee.cancelNotification(detail.notification.id).catch(() => {});
+      const requestId = detail.notification.id.replace(/^incident-/, '');
+      if (requestId) onPress(requestId);
     }
   });
 }
