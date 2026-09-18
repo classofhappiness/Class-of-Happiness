@@ -9092,15 +9092,23 @@ async def _run_ai_moderation(image_urls: list) -> str:
             logger.warning(f"[ai_moderation] Vision API returned {resp.status_code}: {resp.text[:300]}")
             return "error"
         data = resp.json()
+        analyzed = 0
         for r in data.get("responses", []):
             if r.get("error"):
                 logger.warning(f"[ai_moderation] Vision API per-image error: {r['error']}")
                 continue
+            analyzed += 1
             annotation = r.get("safeSearchAnnotation", {})
             for category in SAFE_SEARCH_CATEGORIES:
                 if annotation.get(category) in SAFE_SEARCH_FLAG_LEVELS:
                     return "flagged"
-        return "clean"
+        # Real bug fix Sep 18, found live-testing this exact function: a per-image error (e.g.
+        # Vision couldn't fetch a URL) was silently `continue`d, and if EVERY image errored
+        # this way, the loop fell through to "clean" having never actually analyzed anything -
+        # "clean" must mean "checked, nothing found", not "nothing was checked". Only real
+        # zero-image submissions (the `if not urls` case above) return "clean" without analysis;
+        # here, zero *successful* analyses out of 1+ real images is a genuine check failure.
+        return "clean" if analyzed > 0 else "error"
     except Exception as e:
         logger.warning(f"[ai_moderation] SafeSearch check failed, treating as unreviewed (never blocks submission): {e}")
         return "error"
