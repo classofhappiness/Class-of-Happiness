@@ -14,6 +14,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
+import { ColourCycleLogo } from '../../src/components/ColourCycleLogo';
 import { customStrategiesApi, strategiesApi, CustomStrategy, Strategy } from '../../src/utils/api';
 
 export default function ParentStrategiesScreen() {
@@ -168,12 +169,16 @@ export default function ParentStrategiesScreen() {
             title with a dynamic subtitle below, which TranslatedHeader's plain string
             title can't represent. */}
         <View style={styles.header}>
-          <View style={{flexDirection:'row',alignItems:'center',marginBottom:8}}>
+          {/* Real fix Sep 18 (spacing-pass gap audit): this screen had no logo at all -
+              found while verifying every screen actually matches the final logo treatment.
+              Same 48.4px ColourCycleLogo and 8px gap already standardized everywhere else. */}
+          <View style={{flexDirection:'row',alignItems:'center',gap:8,marginBottom:8}}>
             <TouchableOpacity onPress={() => router.back()} style={{flexDirection:'row',alignItems:'center',gap:4}}>
               <MaterialIcons name="arrow-back" size={24} color="#333" />
               <Text style={{color:'#333',fontSize:14,fontWeight:'500'}}>{t('back') || 'Back'}</Text>
             </TouchableOpacity>
             <View style={{flex:1}} />
+            <ColourCycleLogo size={48.4} loop />
             <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={{width:36,height:36,borderRadius:18,backgroundColor:'#1A1A2E',alignItems:'center',justifyContent:'center'}}>
               <MaterialIcons name="home" size={20} color="#FFFFFF" />
             </TouchableOpacity>

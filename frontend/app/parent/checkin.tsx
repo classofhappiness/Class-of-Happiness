@@ -16,6 +16,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
+import { ColourCycleLogo } from '../../src/components/ColourCycleLogo';
 import { familyApi, FamilyMember, strategiesApi, Strategy } from '../../src/utils/api';
 import { useDataGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
 
@@ -338,11 +339,16 @@ export default function FamilyCheckInScreen() {
         {/* Real fix Sep 18: restyled to the app-wide black-circle standard - not converted
             to TranslatedHeader wholesale, since this header carries a two-line title (main
             title + "Check-in for {memberName}" subtitle), not a plain string. */}
+        {/* Real fix Sep 18 (later, spacing-pass gap audit): the static logo_coh.png here was
+            never updated to the animated ColourCycleLogo used everywhere else in the app -
+            found while verifying every screen actually matches the final logo treatment,
+            not just the ones that were checked at the time. Matches the same 48.4px size
+            and 8px gap already standardized across TranslatedHeader/_layout/teacher/checkin. */}
         <View style={[styles.header, { marginTop: 8, gap: 8 }]}>
           <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
             <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
           </TouchableOpacity>
-          <Image source={require('../../assets/images/logo_coh.png')} style={{ width: 28, height: 28 }} resizeMode="contain" />
+          <ColourCycleLogo size={48.4} loop />
           <View style={{ flex: 1, alignItems: 'center' }}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: '#333' }}>{step === 'zone' ? (t('how_are_you_feeling') || 'How are you feeling?') : (t('choose_helpful_strategies') || 'Choose a Strategy')}</Text>
             <Text style={{ fontSize: 11, color: '#888', marginTop: 1 }}>{t('checkin_for') || 'Check-in for'} {memberName}</Text>

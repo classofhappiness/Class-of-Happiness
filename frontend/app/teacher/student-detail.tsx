@@ -28,6 +28,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy, reportsApi, teacherApi, teacherHomeDataApi, describeSupportRequest } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
+import { ColourCycleLogo } from '../../src/components/ColourCycleLogo';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
 
@@ -362,8 +363,13 @@ export default function StudentDetailScreen() {
         <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
           <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
         </TouchableOpacity>
+        {/* Real fix Sep 18 (spacing-pass gap audit): the static logo_coh.png here was never
+            updated to the animated ColourCycleLogo used everywhere else - found while
+            verifying every screen actually matches the final logo treatment. Same 48.4px
+            size as the rest of the app; nested inline with the student identity cluster
+            here (not flanked directly by back/home) since that's this screen's own layout. */}
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          <Image source={require('../../assets/images/logo_coh.png')} style={{ width: 24, height: 24 }} resizeMode="contain" />
+          <ColourCycleLogo size={48.4} loop />
           <View style={{ alignItems: 'center' }}>
             <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
               {student.avatar_type === 'custom' && student.avatar_custom ? (
