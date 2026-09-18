@@ -146,12 +146,20 @@ ALWAYS_OPEN_PINS = {
     "pembrokeadmin@classofhappiness.com": "COH2026PEMBROKE",
 }
 
-# Real feature Sep 16 (admin login: role-widening + self-set persistent PIN): the two roles
+# Real feature Sep 16 (admin login: role-widening + self-set persistent PIN): the roles
 # that get a real second factor at login - a one-time emailed code until a PIN is set, then
 # password + that self-set PIN, no email round-trip, on every login after. Teachers/parents/
 # school-linked accounts never see either mechanism - this tuple is the single place that
 # decides who does.
-ADMIN_PIN_ROLES = ("superadmin", "school_admin")
+#
+# Real narrowing Sep 18: school_admin removed again. Widening it earlier tonight broke
+# schooladmindemo/pembrokeadmin login outright - both are school_admin with no admin_pin_hash
+# set and no real inbox behind their (reverted-to-short) email addresses, so they'd land on
+# code_required and then never receive the code. School_admin PIN support needs a dedicated
+# session that also sorts out a real email solution for these two demo accounts first -
+# logged, not built. Until then every school_admin account, these two included, is
+# password-only, matching pre-Sep-16 behavior.
+ADMIN_PIN_ROLES = ("superadmin",)
 
 PROMO_CODES = {
     "HAPPYCLASS2026": {"type": "trial", "days": 30},
