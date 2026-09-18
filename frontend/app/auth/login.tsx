@@ -158,7 +158,7 @@ export default function LoginScreen() {
     setError('');
     setVerifying(true);
     try {
-      await verifyLoginPin(activeEmail, trimmedPin);
+      await verifyLoginPin(activeEmail, password, trimmedPin);
       router.replace('/');
     } catch (e) {
       const message = e instanceof Error ? e.message : (t('signin_failed_error') || 'Sign in failed. Please try again.');

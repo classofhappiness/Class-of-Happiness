@@ -48,7 +48,9 @@ interface AppContextType {
   // Real feature Sep 16 (admin login: self-set persistent PIN): "every login after the
   // first" path once an ADMIN_PIN_ROLES account has set a PIN - mirrors verifyLoginCode's
   // session-saving tail exactly, since /auth/verify-login-pin returns the same shape.
-  verifyLoginPin: (email: string, pin: string) => Promise<void>;
+  // Real security fix Sep 18: password is now required too (see AppContext's verifyLoginPin
+  // docstring below) - signature widened to match the backend's new requirement.
+  verifyLoginPin: (email: string, password: string, pin: string) => Promise<void>;
   // Real feature Sep 16: the explicit "Forgot PIN?" escape hatch - re-verifies password,
   // deliberately re-emails a code even though a PIN already exists, landing back on the
   // same verify-code -> set-PIN screens first-time setup uses. Throws on failure; on
@@ -708,13 +710,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Real feature Sep 16 (admin login: self-set persistent PIN): mirrors verifyLoginCode
   // exactly - /auth/verify-login-pin returns the identical {user, session_token} shape.
-  const verifyLoginPin = async (email: string, pin: string) => {
+  // Real security fix Sep 18: the backend now requires password too (it never checked it
+  // before - PIN alone was enough to get a session). Caller (login.tsx) already has the
+  // password in state from the form step, never cleared when routing to the PIN step - same
+  // reuse as requestAdminPinReset already does, no new UI needed.
+  const verifyLoginPin = async (email: string, password: string, pin: string) => {
     try {
       setIsLoading(true);
       const response = await fetch('https://class-of-happiness-production.up.railway.app/api/auth/verify-login-pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, pin }),
+        body: JSON.stringify({ email, password, pin }),
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {

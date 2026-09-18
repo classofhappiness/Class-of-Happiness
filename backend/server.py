@@ -3009,6 +3009,15 @@ async def delete_classroom(classroom_id: str, request: Request):
 # ================== FEELING LOGS (was zone_logs) ==================
 @api_router.post("/feeling-logs")
 async def create_feeling_log(log: FeelingLogCreate, request: Request):
+    # Real security fix Sep 18: had NO auth check at all - anyone who knew or guessed a
+    # student_id could write a fake check-in (including one that auto-generates a real
+    # student_alerts row) for any child, no login required. Same shared ownership check
+    # already used by GET /feeling-logs/{student_id} and /analytics/student/{id}.
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not await _is_authorized_for_student(user, log.student_id):
+        raise HTTPException(status_code=403, detail="Not authorized to check in this student")
     feeling_colour = log.feeling_colour or log.zone or "blue"
     selected_helpers = log.helpers_selected or log.strategies_selected or []
     new_log = {
@@ -3504,7 +3513,14 @@ async def get_creatures():
     return {"creatures": CREATURES, "count": len(CREATURES)}
 
 @api_router.get("/rewards/{student_id}")
-async def get_rewards(student_id: str):
+async def get_rewards(student_id: str, request: Request):
+    # Real security fix Sep 18: no auth/ownership check at all - anyone with a student_id
+    # could read (and, via the sibling endpoints below, manipulate) any child's Shop economy.
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     result = supabase.table("student_rewards").select("*").eq("student_id", student_id).execute()
     if result.data:
         return result.data[0]
@@ -3592,7 +3608,14 @@ def _is_shop_enabled_for_student(student_id: str, student_data: dict) -> bool:
     return True
 
 @api_router.post("/rewards/{student_id}/add-points")
-async def add_points(student_id: str, req: AddPointsRequest):
+async def add_points(student_id: str, req: AddPointsRequest, request: Request):
+    # Real security fix Sep 18: no auth/ownership check at all - anyone with a student_id
+    # could grant points to (or otherwise manipulate) any child's Shop economy.
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     rewards_result = supabase.table("student_rewards").select("*").eq("student_id", student_id).execute()
 
     if rewards_result.data:
@@ -3903,8 +3926,11 @@ class EvolveRequest(BaseModel):
     creature_id: str
 
 @api_router.post("/rewards/{student_id}/evolve")
-async def evolve_creature(student_id: str, req: EvolveRequest):
-    """Real feature Sep 15 (B1, points economy v2, Jono-approved): evolution is now an
+async def evolve_creature(student_id: str, req: EvolveRequest, request: Request):
+    """Real security fix Sep 18: no auth/ownership check at all - anyone with a student_id
+    could trigger an evolution for any child. Checked first, before anything else below.
+
+    Real feature Sep 15 (B1, points economy v2, Jono-approved): evolution is now an
     explicit, student-initiated action instead of automatic the instant a threshold is
     crossed - add_points only ever reports evolution_ready; this is what actually commits the
     stage advance, when the student taps the Evolve button. Always free - never spends
@@ -3916,6 +3942,11 @@ async def evolve_creature(student_id: str, req: EvolveRequest):
     been silently auto-evolving via _progress_community_creature instead, live-confirmed via
     real creature_unlocks rows already at stages_unlocked 1/3 with no explicit evolve ever
     having happened. See _progress_community_creature's docstring for the full history."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     creature_id = req.creature_id
 
     if creature_id not in DEFAULT_CREATURE_IDS:
@@ -3999,8 +4030,11 @@ class BuyItemRequest(BaseModel):
     item_id: str
 
 @api_router.post("/rewards/{student_id}/buy-item")
-async def buy_bonus_item(student_id: str, req: BuyItemRequest):
-    """Real feature Sep 15 (B1, points economy v2, Jono-approved "Class of Happiness Shop"):
+async def buy_bonus_item(student_id: str, req: BuyItemRequest, request: Request):
+    """Real security fix Sep 18: no auth/ownership check at all - anyone with a student_id
+    could spend any child's Shop points. Checked first, before anything else below.
+
+    Real feature Sep 15 (B1, points economy v2, Jono-approved "Class of Happiness Shop"):
     converts what used to be an automatic "everything at this stage unlocks free" grant into
     a real choice. An item is BUYABLE the moment its creature reaches unlocks_at_stage (the
     same gate as before - nothing reachable earlier than it already was), but only actually
@@ -4016,6 +4050,11 @@ async def buy_bonus_item(student_id: str, req: BuyItemRequest):
     ALTER TABLE student_rewards ADD COLUMN IF NOT EXISTS creature_points_spent JSONB DEFAULT '{}'::jsonb;
     Fails soft (defensive try/except below) if it hasn't landed yet - purchases just won't
     persist a spend record until it does, rather than the endpoint erroring out."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     import json
     result = supabase.table("student_rewards").select("*").eq("student_id", student_id).execute()
     if not result.data:
@@ -4587,6 +4626,16 @@ async def _is_authorized_for_student(user: dict, student_id: str, student_data: 
         student_data = student_r.data[0]
     if user.get("role") == "superadmin":
         return True
+    # Real security-fix addendum Sep 18: a kiosk identity (get_current_user's synthetic
+    # role="kiosk" dict, see KIOSK DEVICE PAIRING) has a deliberately non-matching user_id -
+    # it was never going to satisfy any check below by accident, but that also means it was
+    # never actually authorized for ANY student, including its own paired classroom's real
+    # students. Discovered while adding auth to /feeling-logs and /zone-logs (this same
+    # helper) - a standalone paired kiosk device's real check-in flow would have 403'd
+    # outright without this. Scoped exactly like the kiosk branches already used for
+    # GET /students and GET /feeling-logs's classroom-list path: paired classroom only.
+    if user.get("role") == "kiosk":
+        return student_data.get("classroom_id") == user.get("kiosk_classroom_id")
     if student_data.get("user_id") == user["user_id"]:
         return True
     classroom_id = student_data.get("classroom_id")
@@ -7412,6 +7461,14 @@ async def send_help_request(request: Request):
     if not student_id:
         raise HTTPException(status_code=400, detail="student_id required")
 
+    # Real security fix Sep 18: had no auth check at all - anyone who supplied a student_id
+    # could trigger a real push notification to that student's teacher/parent.
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
+
     # Get student info
     student_r = supabase.table("students").select("*").eq("id", student_id).execute()
     if not student_r.data:
@@ -7569,6 +7626,14 @@ async def send_zone_alert(request: Request):
     if not student_id or not zone:
         raise HTTPException(status_code=400, detail="student_id and zone required")
 
+    # Real security fix Sep 18: had no auth check at all - anyone who supplied a student_id
+    # could trigger a real push notification to that student's teacher/parent.
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
+
     student_r = supabase.table("students").select("*").eq("id", student_id).execute()
     if not student_r.data:
         return {"ok": False, "reason": "student not found"}
@@ -7655,6 +7720,14 @@ async def send_parent_message(request: Request):
 
     if not student_id or not message:
         raise HTTPException(status_code=400, detail="student_id and message required")
+
+    # Real security fix Sep 18: had no auth check at all - anyone who supplied a student_id
+    # could push a fake "message" alert to that student's teacher/parent.
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
 
     student_r = supabase.table("students").select("*").eq("id", student_id).execute()
     if not student_r.data:
@@ -11250,26 +11323,80 @@ async def verify_login_code(request: Request):
 
 
 PIN_PATTERN = re.compile(r"^\d{6}$")
+PIN_MAX_ATTEMPTS = 5
+PIN_LOCKOUT_MINUTES = 15
+
+# Migration (run once, by Jono, before rate limiting is actually enforced - the endpoint
+# fails soft without it, see _register_pin_failure below):
+#   ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_failed_attempts INTEGER DEFAULT 0;
+#   ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_locked_until TIMESTAMPTZ;
 
 @api_router.post("/auth/verify-login-pin")
 async def verify_login_pin(request: Request):
     """Real feature Sep 16 (admin login: self-set persistent PIN): the "every login after the
     first" path for ADMIN_PIN_ROLES accounts once they've set a PIN (see email_login's
     pin_required branch) - password + this PIN, no email round-trip. Same pre-session,
-    email-keyed shape as verify_login_code, since no session exists yet either."""
+    email-keyed shape as verify_login_code, since no session exists yet either.
+
+    Real security fix Sep 18: this used to verify the PIN alone - `password` was never even
+    read from the request body, so anyone who knew an admin's email and either guessed or
+    brute-forced the 6-digit PIN (1M combinations, nothing throttling attempts) got a full
+    session, password never entering into it at all. Now requires BOTH the account's real
+    password (same `portal_password`/`verify_password` check `/auth/email-login` and
+    `/auth/reset-admin-pin-request` already use) AND the PIN, plus a real per-account lockout
+    (5 failed attempts - either factor - locks the account out for 15 minutes) so even a
+    correct password can't be paired with brute-forced PIN guesses."""
     body = await request.json()
     email = (body.get("email") or "").strip().lower()
+    password = body.get("password", "")
     pin = (body.get("pin") or "").strip()
-    if not email or not pin:
-        raise HTTPException(status_code=400, detail="Email and PIN are required")
+    if not email or not password or not pin:
+        raise HTTPException(status_code=400, detail="Email, password, and PIN are required")
     existing = supabase.table("users").select("*").eq("email", email).execute()
     if not existing.data:
         raise HTTPException(status_code=404, detail="Account not found")
     user = existing.data[0]
     if user.get("role") not in ADMIN_PIN_ROLES or not user.get("admin_pin_hash"):
         raise HTTPException(status_code=400, detail="No PIN is set for this account")
+
+    locked_until = user.get("pin_locked_until")
+    if locked_until:
+        try:
+            if datetime.fromisoformat(locked_until.replace("Z", "+00:00")) > datetime.now(timezone.utc):
+                raise HTTPException(status_code=429, detail="Too many failed attempts. Please try again in a few minutes.")
+        except HTTPException:
+            raise
+        except Exception:
+            pass  # unparsable/stale value - don't let it block a real login
+
+    def _register_pin_failure():
+        # Fails soft (defensive try/except, same pattern as buy_bonus_item's
+        # creature_points_spent handling): the password+PIN check above is the real security
+        # boundary and already enforced regardless of whether this persists - if the migration
+        # above hasn't landed yet, lockout just silently doesn't engage rather than 500ing
+        # every login attempt.
+        try:
+            attempts = (user.get("pin_failed_attempts") or 0) + 1
+            update = {"pin_failed_attempts": attempts}
+            if attempts >= PIN_MAX_ATTEMPTS:
+                update["pin_failed_attempts"] = 0
+                update["pin_locked_until"] = (datetime.now(timezone.utc) + timedelta(minutes=PIN_LOCKOUT_MINUTES)).isoformat()
+            supabase.table("users").update(update).eq("user_id", user["user_id"]).execute()
+        except Exception as e:
+            logger.warning(f"[SECURITY] Could not persist PIN failure count for {email}: {e}")
+
+    if not user.get("portal_password") or not verify_password(password, user["portal_password"]):
+        _register_pin_failure()
+        raise HTTPException(status_code=401, detail="Incorrect password")
     if not verify_password(pin, user["admin_pin_hash"]):
+        _register_pin_failure()
         raise HTTPException(status_code=401, detail="Incorrect PIN")
+
+    try:
+        supabase.table("users").update({"pin_failed_attempts": 0, "pin_locked_until": None}).eq("user_id", user["user_id"]).execute()
+    except Exception:
+        pass
+
     session_token = str(uuid.uuid4())
     try:
         supabase.table("user_sessions").insert({
@@ -11985,13 +12112,25 @@ async def get_family_analytics(member_id: str, request: Request, days: int = 7):
 # ================== REWARDS COLLECTION ==================
 @api_router.get("/rewards/batch/collections")
 async def get_batch_collections(student_ids: str, request: Request):
-    """Get collections for multiple students in one call. student_ids = comma-separated IDs."""
+    """Get collections for multiple students in one call. student_ids = comma-separated IDs.
+
+    Real security fix Sep 18: had no auth/ownership check at all - anyone could read any set
+    of children's Shop collections by guessing/enumerating student_ids. Requires login, then
+    filters per-id (not a single all-or-nothing check) - unauthorized ids just come back None,
+    same shape as "no rewards record yet", so one bad id in a batch can't break the rest of a
+    legitimate caller's own real students."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     ids = [s.strip() for s in student_ids.split(',') if s.strip()][:20]
     results = {}
     creatures_map = {c["id"]: c for c in CREATURES}
-    
+
     for sid in ids:
         try:
+            if not await _is_authorized_for_student(user, sid):
+                results[sid] = None
+                continue
             r = supabase.table("student_rewards").select("*").eq("student_id", sid).execute()
             if not r.data:
                 results[sid] = None
@@ -12034,7 +12173,14 @@ async def get_batch_collections(student_ids: str, request: Request):
     return results
 
 @api_router.get("/rewards/{student_id}/collection")
-async def get_collection(student_id: str):
+async def get_collection(student_id: str, request: Request):
+    # Real security fix Sep 18: no auth/ownership check at all - anyone with a student_id
+    # could read any child's full Shop collection.
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     result = supabase.table("student_rewards").select("*").eq("student_id", student_id).execute()
     if result.data:
         rewards = result.data[0]
