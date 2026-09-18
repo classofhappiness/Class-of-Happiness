@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Stack, useRouter, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Image, View, StyleSheet, Platform, TouchableOpacity, Text, TextInput, I18nManager } from 'react-native';
+import { View, StyleSheet, Platform, TouchableOpacity, Text, TextInput, I18nManager } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
@@ -10,6 +10,7 @@ import { useFonts } from 'expo-font';
 import { AppProvider, useApp } from '../src/context/AppContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SplashAnimation } from '../src/components/SplashAnimation';
+import { ColourCycleLogo } from '../src/components/ColourCycleLogo';
 import * as Notifications from 'expo-notifications';
 import { isIncidentPushData, showIncidentAlert, registerNotifeeForegroundHandler } from '../src/utils/notifeeIncidents';
 
@@ -528,6 +529,27 @@ const styles = StyleSheet.create({
     height: 30,
     marginRight: 8,
   },
+  // Real fix Sep 18: matches TranslatedHeader's logoRing/logoDisc exactly (36x36 #1A1A2E
+  // ring, 30x30 white disc) - HomeToStudents/HomeToDashboard (the native header's own
+  // logo+home unit, settings/student/zone/parent/dashboard) still had the plain static
+  // logo_coh.png parent/dashboard.tsx confirmed pointed this out - never touched by the
+  // header/nav pass, since that pass was scoped to TranslatedHeader-based screens only.
+  logoRing: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#1A1A2E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoDisc: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   // Real fix Sep 15 (Marisa build-26 round 2, Group A): was 32x32 - a different size from
   // backButton's 36x36, so back and home read as two different-sized buttons despite being
   // the same visual pattern. Unified to match.
@@ -553,7 +575,11 @@ function HomeToStudents() {
   const r = useRouter();
   return (
     <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginRight:12 }}>
-      <Image source={require('../assets/images/logo_coh.png')} style={{ width:32, height:32 }} resizeMode="contain" />
+      <View style={styles.logoRing}>
+        <View style={styles.logoDisc}>
+          <ColourCycleLogo size={24} loop />
+        </View>
+      </View>
       <TouchableOpacity onPress={() => r.replace('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <MaterialIcons name="home" size={20} color="#FFFFFF" />
       </TouchableOpacity>
@@ -565,7 +591,11 @@ function HomeToDashboard() {
   const r = useRouter();
   return (
     <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginRight:12 }}>
-      <Image source={require('../assets/images/logo_coh.png')} style={{ width:32, height:32 }} resizeMode="contain" />
+      <View style={styles.logoRing}>
+        <View style={styles.logoDisc}>
+          <ColourCycleLogo size={24} loop />
+        </View>
+      </View>
       <TouchableOpacity onPress={() => r.replace('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <MaterialIcons name="home" size={20} color="#FFFFFF" />
       </TouchableOpacity>
