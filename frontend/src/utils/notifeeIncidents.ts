@@ -44,6 +44,15 @@ export const INCIDENT_CHANNEL_ID = 'incidents';
 // created reactively on the first push).
 export async function setupNotifeeChannels(): Promise<void> {
   if (Platform.OS !== 'android') return; // notifee channels are an Android-only concept
+  // Real bug fix Sep 18 (live-test, first real push token ever obtained): notifee's own
+  // validator (validators/validate.js's isValidVibratePattern) requires EVERY element
+  // strictly positive - `ms <= 0` fails - not just an even count, which both patterns
+  // already had (4 and 6 elements). The leading 0 (a completely standard "no initial
+  // delay" value on Android's own Vibrator/VibrationEffect API) is what notifee itself
+  // rejects. 1ms is imperceptible, satisfies the validator, and preserves the intended
+  // rhythm. This was a compounding bug, not just a cosmetic warning: both createChannel
+  // calls shared one try block, so the first one throwing meant INCIDENT_CHANNEL_ID -
+  // the channel the whole incident-ring feature depends on - was never actually created.
   try {
     await notifee.createChannel({
       id: SUPPORT_REQUEST_CHANNEL_ID,
@@ -51,7 +60,7 @@ export async function setupNotifeeChannels(): Promise<void> {
       description: 'A teacher needs support - classroom help, a staff member, or Back on Track supervision.',
       importance: AndroidImportance.HIGH,
       visibility: AndroidVisibility.PUBLIC,
-      vibrationPattern: [0, 250, 250, 250],
+      vibrationPattern: [1, 250, 250, 250],
     });
     await notifee.createChannel({
       id: INCIDENT_CHANNEL_ID,
@@ -59,7 +68,7 @@ export async function setupNotifeeChannels(): Promise<void> {
       description: 'An urgent incident needs immediate attention. Rings until acknowledged.',
       importance: AndroidImportance.HIGH,
       visibility: AndroidVisibility.PUBLIC,
-      vibrationPattern: [0, 500, 250, 500, 250, 500],
+      vibrationPattern: [1, 500, 250, 500, 250, 500],
       bypassDnd: true,
     });
   } catch (e) {

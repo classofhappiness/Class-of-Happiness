@@ -26,6 +26,7 @@
     "android": {
       "package": "com.classofhappiness.app",
       "versionCode": 9,
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"

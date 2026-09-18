@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "588761028435",
+    "project_id": "class-of-happiness-8c81d",
+    "storage_bucket": "class-of-happiness-8c81d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:588761028435:android:c86d7531fbce646e03b3a6",
+        "android_client_info": {
+          "package_name": "com.classofhappiness.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBp1AMA8YA0R4WbJBRTGQEHFoRvbSnMLaY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
