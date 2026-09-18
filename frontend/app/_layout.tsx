@@ -162,7 +162,11 @@ function AppContent() {
     if (role === 'teacher') {
       router.push(`/teacher/support-request?viewId=${requestId}` as any);
     } else if (role === 'school_admin' || role === 'admin' || role === 'superadmin') {
-      router.push('/admin/dashboard?tab=support_requests' as any);
+      // Real feature Sep 18 (Jono's explicit call): fromIncident=1 skips admin/dashboard's
+      // own local admin-code re-entry screen for this one deep-link, urgency outweighing
+      // that local factor - see that screen's own matching comment for exactly what this
+      // does and doesn't affect (server-side auth is untouched either way).
+      router.push('/admin/dashboard?tab=support_requests&fromIncident=1' as any);
     }
     // Other roles (parent, student, kiosk) are never a support_request recipient/sender
     // today - no destination to send them to, so no-op rather than a wrong guess.

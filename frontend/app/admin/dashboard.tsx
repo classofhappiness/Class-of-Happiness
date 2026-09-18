@@ -2449,10 +2449,21 @@ export default function AdminDashboard() {
   // instead of just opening the app to whatever this screen's own default is. Validated
   // against VALID_ADMIN_TABS rather than trusted as-is - a malformed/unknown ?tab= value
   // falls back to the normal 'analytics' default instead of producing a blank tab.
-  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const { tab: tabParam, fromIncident } = useLocalSearchParams<{ tab?: string; fromIncident?: string }>();
   const [authToken, setAuthToken] = useState<string|null>(null);
   const [adminCode, setAdminCode] = useState('');
-  const [unlocked, setUnlocked] = useState(false);
+  // Real feature Sep 18 (Jono's explicit call, live-testing a real incident): skips the
+  // local admin-code re-entry screen ONLY when arriving via ?fromIncident=1 - the exact
+  // deep-link _layout.tsx's navigateToSupportRequest generates for a genuine incident
+  // notification tap, urgency deliberately outweighing this one local factor here. This
+  // does NOT touch real security: the account-level login/session (a real Authorization
+  // header, checked server-side on every single API call this screen makes) is completely
+  // unaffected - this only skips /admin/verify's own SEPARATE, local, in-app re-entry
+  // screen, which exists to protect an already-logged-in-but-unattended device, not to
+  // gate server-side authorization. isSuperAdmin correctly stays false in this path since
+  // incidents are only ever addressed to a school_admin (server.py's create_support_request
+  // always targets school_admin_id, never a superadmin) - never bypassed for that role.
+  const [unlocked, setUnlocked] = useState(fromIncident === '1');
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [tab, setTab] = useState<AdminTab>(
     (VALID_ADMIN_TABS as readonly string[]).includes(tabParam || '') ? (tabParam as AdminTab) : 'analytics'
