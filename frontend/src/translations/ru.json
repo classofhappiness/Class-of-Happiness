@@ -1599,5 +1599,6 @@
   "no_schools_match_search": "Нет школ, соответствующих \"{query}\"",
   "feature_access_label": "Доступ к функциям",
   "feature_access_no_admin": "Пока не привязано к аккаунту school_admin - разрешения применятся, как только будет привязано.",
-  "school_has_it_off": "школа отключила это"
+  "school_has_it_off": "школа отключила это",
+  "ai_flagged_badge": "Отмечено ИИ"
 }

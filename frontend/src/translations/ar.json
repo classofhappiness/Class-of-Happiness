@@ -1599,5 +1599,6 @@
   "no_schools_match_search": "لا توجد مدارس تطابق \"{query}\"",
   "feature_access_label": "الوصول إلى الميزات",
   "feature_access_no_admin": "غير مرتبطة بحساب مسؤول مدرسة بعد - ستُطبَّق الأذونات بمجرد ربطها.",
-  "school_has_it_off": "المدرسة أوقفتها"
+  "school_has_it_off": "المدرسة أوقفتها",
+  "ai_flagged_badge": "مُعلَّم بواسطة الذكاء الاصطناعي"
 }

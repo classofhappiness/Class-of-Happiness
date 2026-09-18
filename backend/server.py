@@ -3659,11 +3659,11 @@ async def add_points(student_id: str, req: AddPointsRequest, request: Request):
     # outright over this.
     if active_id not in DEFAULT_CREATURE_IDS:
         try:
-            gate_r = supabase.table("creature_submissions").select("status,visibility_scope,superadmin_approved_at").eq("id", active_id).execute()
+            gate_r = supabase.table("creature_submissions").select("status,visibility_scope,superadmin_approved_at,ai_moderation_flag").eq("id", active_id).execute()
             gate = gate_r.data[0] if gate_r.data else None
         except Exception:
             gate = None
-        if not gate or not _passes_creature_approval_gate(gate.get("status"), gate.get("visibility_scope"), gate.get("superadmin_approved_at")):
+        if not gate or not _passes_creature_approval_gate(gate.get("status"), gate.get("visibility_scope"), gate.get("superadmin_approved_at"), gate.get("ai_moderation_flag")):
             active_id = FEELING_COLOUR_MAP.get(feeling_colour, "aqua_buddy")
 
     if active_id not in DEFAULT_CREATURE_IDS:
@@ -9041,6 +9041,70 @@ async def get_creature_submission_options(request: Request, real_student_id: Opt
         "default_country": user.get("country") or "PT",
     }
 
+# Real feature Sep 18 (B3, AI moderation - approved as flag-only, Google Cloud Vision
+# SafeSearch as the provider). Set on Railway; leave unset in any environment where AI
+# moderation shouldn't run (e.g. local dev without billing set up) - _run_ai_moderation
+# fails soft to "error" rather than blocking submission when it's missing.
+GOOGLE_VISION_API_KEY = os.environ.get("GOOGLE_VISION_API_KEY", "")
+# Real product call (Jono, Sep 18): flag at POSSIBLE and up, not just LIKELY/VERY_LIKELY -
+# this is a children's platform and the flag never blocks or auto-rejects anything, it only
+# asks a human (superadmin) to look closer, so erring toward more false positives costs
+# nothing but a superadmin's glance, while a false negative reaches a child unmoderated.
+SAFE_SEARCH_FLAG_LEVELS = {"POSSIBLE", "LIKELY", "VERY_LIKELY"}
+SAFE_SEARCH_CATEGORIES = ("adult", "violence", "racy")
+
+async def _run_ai_moderation(image_urls: list) -> str:
+    """Real feature Sep 18 (B3): Google Cloud Vision SafeSearch, flag-only by explicit
+    design (Jono, approved Sep 18) - this NEVER auto-approves or auto-rejects a submission.
+    It only sets ai_moderation_flag ("clean"/"flagged"/"error") so a human reviewer can
+    prioritise what to look at; every submission still goes through the exact same
+    teacher/parent/school_admin -> (for global scope) superadmin pipeline it always has.
+    See _passes_creature_approval_gate and /creatures/awaiting-global-approval for how a
+    "flagged" result routes a submission to superadmin's review queue regardless of its
+    requested visibility_scope - the one real behavioural effect of a flag, still a human
+    decision at the end of it, never an automatic one.
+
+    Uses the plain REST API with an API key (GOOGLE_VISION_API_KEY), not the google-cloud-
+    vision SDK - no service-account JSON to provision on Railway, and the 4 images are
+    already public Supabase Storage URLs Vision can fetch directly (imageUri), so no
+    base64 upload round-trip either. Fails soft ("error") on any problem - a missing key,
+    a network error, a malformed response - since a moderation-check failure must never
+    block a child's actual submission."""
+    if not GOOGLE_VISION_API_KEY:
+        logger.warning("[ai_moderation] GOOGLE_VISION_API_KEY not set - skipping SafeSearch check")
+        return "error"
+    urls = [u for u in image_urls if u]
+    if not urls:
+        return "clean"
+    try:
+        payload = {
+            "requests": [
+                {"image": {"source": {"imageUri": url}}, "features": [{"type": "SAFE_SEARCH_DETECTION"}]}
+                for url in urls
+            ]
+        }
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                f"https://vision.googleapis.com/v1/images:annotate?key={GOOGLE_VISION_API_KEY}",
+                json=payload,
+            )
+        if resp.status_code != 200:
+            logger.warning(f"[ai_moderation] Vision API returned {resp.status_code}: {resp.text[:300]}")
+            return "error"
+        data = resp.json()
+        for r in data.get("responses", []):
+            if r.get("error"):
+                logger.warning(f"[ai_moderation] Vision API per-image error: {r['error']}")
+                continue
+            annotation = r.get("safeSearchAnnotation", {})
+            for category in SAFE_SEARCH_CATEGORIES:
+                if annotation.get(category) in SAFE_SEARCH_FLAG_LEVELS:
+                    return "flagged"
+        return "clean"
+    except Exception as e:
+        logger.warning(f"[ai_moderation] SafeSearch check failed, treating as unreviewed (never blocks submission): {e}")
+        return "error"
+
 @api_router.post("/creatures/submit")
 async def submit_creature(request: Request):
     """Student submits a creature using 4 Supabase Storage URLs + a code."""
@@ -9130,20 +9194,28 @@ async def submit_creature(request: Request):
         "status": "pending",
         "visibility_scope": requested_scope,
     }
-    # Requires a migration this environment can't run (no DDL access) - see COH-REVIEW-PLAN.md.
-    # Old submissions are NOT backfilled, by design - defensive fallback below means the
-    # feature just silently doesn't capture this until the migration runs, without breaking
-    # submission for anyone in the meantime.
-    if real_student_id:
+    # Real feature Sep 18 (B3, AI moderation): runs before the insert so the flag is present
+    # from the first moment a submission exists, not a fixup pass after the fact. See
+    # _run_ai_moderation's own docstring - flag-only, never blocks or alters this submission.
+    submission["ai_moderation_flag"] = await _run_ai_moderation([
+        submission["stage1_url"], submission["stage2_url"], submission["stage3_url"], submission["stage4_url"],
+    ])
+    # Requires migrations this environment can't run (no DDL access) - real_student_id/
+    # classroom_id per COH-REVIEW-PLAN.md, ai_moderation_flag per the migration noted above
+    # _run_ai_moderation. Old submissions are NOT backfilled, by design - each fallback below
+    # means a feature just silently doesn't capture until its own migration runs, without
+    # ever breaking submission itself.
+    extra = {"real_student_id": real_student_id, "classroom_id": classroom_id} if real_student_id else {}
+    try:
+        result = supabase.table("creature_submissions").insert({**submission, **extra}).execute()
+    except Exception as e:
+        logger.warning(f"[creatures/submit] insert failed with ai_moderation_flag, retrying without it: {e}")
+        fallback = {k: v for k, v in submission.items() if k != "ai_moderation_flag"}
         try:
-            result = supabase.table("creature_submissions").insert({
-                **submission, "real_student_id": real_student_id, "classroom_id": classroom_id
-            }).execute()
-        except Exception as e:
-            logger.warning(f"[creatures/submit] real_student_id/classroom_id columns not available yet, falling back: {e}")
-            result = supabase.table("creature_submissions").insert(submission).execute()
-    else:
-        result = supabase.table("creature_submissions").insert(submission).execute()
+            result = supabase.table("creature_submissions").insert({**fallback, **extra}).execute()
+        except Exception as e2:
+            logger.warning(f"[creatures/submit] real_student_id/classroom_id columns not available yet either, falling back further: {e2}")
+            result = supabase.table("creature_submissions").insert(fallback).execute()
     # Increment code usage
     supabase.table("submission_codes").update({"used_count": c["used_count"]+1}).eq("code", code).execute()
     return {"status": "submitted", "id": result.data[0]["id"], "message": "Your creature is under review!"}
@@ -9209,16 +9281,27 @@ async def get_pending_creatures(request: Request):
     # which account submitted it - see _annotate_real_student_names below.
     return _annotate_real_student_names(data)
 
-def _passes_creature_approval_gate(status: str, visibility_scope: str, superadmin_approved_at) -> bool:
+def _passes_creature_approval_gate(status: str, visibility_scope: str, superadmin_approved_at, ai_moderation_flag: str = None) -> bool:
     """Real product fix Sep 12: the tiered creature-moderation model (Jono, confirmed) - a
     classroom/school/family-scoped creature is fully published the moment its own creator-level
     approver (teacher/school_admin/parent respectively) approves it; superadmin is never
     involved for those. Superadmin's `global-approve` second gate is required ONLY when
     visibility_scope=='global' - a creature going worldwide, regardless of which tier it
     originated from. One rule, keyed on visibility_scope, never on role - shared by every
-    site that decides whether a creature is genuinely visible/usable."""
+    site that decides whether a creature is genuinely visible/usable.
+
+    Real feature Sep 18 (B3, AI moderation - flag-only): a genuine second exception to the
+    "scope decides everything" rule above - ai_moderation_flag=='flagged' now requires
+    superadmin's sign-off regardless of visibility_scope, same as a global-scoped creature
+    always has. This is the one real behavioural effect of a flag (see _run_ai_moderation) -
+    it still doesn't approve or reject anything itself, it just means a classroom/school/
+    family creature can no longer fully publish on a teacher/parent/school_admin's approval
+    alone; a human (superadmin) still makes the actual call, same as they always have for
+    global creatures."""
     if status != "approved":
         return False
+    if ai_moderation_flag == "flagged":
+        return bool(superadmin_approved_at)
     return (visibility_scope or "global") != "global" or bool(superadmin_approved_at)
 
 async def _can_approve_creature(user: dict, submission: dict) -> bool:
@@ -9383,7 +9466,7 @@ async def get_global_creatures(request: Request):
     # view. Fails closed (empty) if the migration column is somehow unavailable.
     try:
         query = supabase.table("creature_submissions").select(
-            base_fields + ",real_student_id,classroom_id,superadmin_approved_at"
+            base_fields + ",real_student_id,classroom_id,superadmin_approved_at,ai_moderation_flag"
         ).eq("status","approved")
         if not is_superadmin:
             query = query.eq("is_globally_available", True)
@@ -9394,7 +9477,7 @@ async def get_global_creatures(request: Request):
         has_approval_gate = False
     creatures = [
         c for c in (rows.data or [])
-        if has_approval_gate and _passes_creature_approval_gate("approved", c.get("visibility_scope"), c.get("superadmin_approved_at"))
+        if has_approval_gate and _passes_creature_approval_gate("approved", c.get("visibility_scope"), c.get("superadmin_approved_at"), c.get("ai_moderation_flag"))
     ]
     creature_ids = [c["id"] for c in creatures]
 
@@ -10099,7 +10182,7 @@ async def get_my_creatures(student_id: str, request: Request):
     # attempt which looked gated but never actually was.
     try:
         unlocks_r = supabase.table("creature_unlocks").select(
-            "*, creature_submissions(id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,visibility_scope,status,superadmin_approved_at)"
+            "*, creature_submissions(id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,visibility_scope,status,superadmin_approved_at,ai_moderation_flag)"
         ).eq("real_student_id", student_id).execute()
         unlock_rows = unlocks_r.data or []
     except Exception:
@@ -10111,8 +10194,9 @@ async def get_my_creatures(student_id: str, request: Request):
         # A creature a student already started stays in creature_unlocks (real progress,
         # never deleted). Real product fix Sep 12 (tiered moderation model): displays once
         # its OWN creator-level approver has signed off - superadmin is only required for
-        # visibility_scope=='global'. See _passes_creature_approval_gate.
-        if not _passes_creature_approval_gate(cs.get("status"), cs.get("visibility_scope"), cs.get("superadmin_approved_at")):
+        # visibility_scope=='global' (or, since Sep 18, a flagged submission). See
+        # _passes_creature_approval_gate.
+        if not _passes_creature_approval_gate(cs.get("status"), cs.get("visibility_scope"), cs.get("superadmin_approved_at"), cs.get("ai_moderation_flag")):
             continue
         colour = cs.get("emotion_colour")
         if colour not in buckets:
@@ -17588,7 +17672,17 @@ async def get_awaiting_global_approval(request: Request):
     # value (pre-dates the Aug 18 scope column) as "global" - the same convention used
     # everywhere else in this file (`c.get("visibility_scope") or "global"`), rather than
     # an `.eq()` that would silently miss those older rows.
-    rows = [r for r in (result.data or []) if (r.get("visibility_scope") or "global") == "global"]
+    #
+    # Real feature Sep 18 (B3, AI moderation): a flagged classroom/school/family-scoped
+    # submission also lands in this exact queue, regardless of its own scope - reusing
+    # superadmin's existing global-review surface rather than building a second one. See
+    # _passes_creature_approval_gate for the matching publish-gate change; this is what
+    # actually lets superadmin CLEAR that gate (approve here still stores whatever scope
+    # the admin picks, same as it always has - a flagged item is never forced to "global").
+    rows = [
+        r for r in (result.data or [])
+        if (r.get("visibility_scope") or "global") == "global" or r.get("ai_moderation_flag") == "flagged"
+    ]
     # Real feature Aug 23 (item 4): same real-student-name resolution as
     # /creatures/pending and /creatures/my-submissions, so superadmin's final-approval
     # decision isn't made blind to which real child a creature is for either.

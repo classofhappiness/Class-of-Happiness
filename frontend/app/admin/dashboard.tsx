@@ -1305,11 +1305,22 @@ function CreaturePendingCard({ c, onApprove, onReject, onDelete, busy }: any) {
   const { t } = useApp();
   const hasClassroom = !!c.classroom_id;
   const stages = [c.stage1_url, c.stage2_url, c.stage3_url, c.stage4_url].filter(Boolean);
+  // Real feature Sep 18 (B3, AI moderation - flag only): Google Cloud Vision SafeSearch
+  // never approves/rejects anything itself - it only sets this flag, which is the reason a
+  // classroom/school-scoped submission can even land in this superadmin queue at all (see
+  // _passes_creature_approval_gate/backend's awaiting-global-approval). Shown here so
+  // superadmin knows WHY they're seeing it - a global-scope item legitimately has no flag.
+  const flagged = c.ai_moderation_flag === 'flagged';
   return (
     <View style={s.creatureCard}>
       <View style={s.creatureTopRow}>
         <View style={[s.creatureDot, { backgroundColor: ZONE_COLORS[c.emotion_colour] || '#999' }]} />
         <Text style={s.creatureName}>{c.creature_name || (t('unnamed') || 'Unnamed')}</Text>
+        {flagged && (
+          <View style={s.flaggedBadge}>
+            <Text style={s.flaggedBadgeText}>⚠️ {t('ai_flagged_badge') || 'AI flagged'}</Text>
+          </View>
+        )}
       </View>
       <Text style={s.creatureMeta}>
         {c.real_student_name ? `👦 ${t('for_label') || 'For:'} ${c.real_student_name} · ` : ''}{c.school_name || ''}{c.school_name && c.country ? ' · ' : ''}{c.country || ''}
@@ -1322,7 +1333,12 @@ function CreaturePendingCard({ c, onApprove, onReject, onDelete, busy }: any) {
           ))}
         </ScrollView>
       )}
-      <Text style={s.creatureRequested}>📋 {t('requested_label') || 'Requested:'} {scopeLabel('classroom', hasClassroom, t)}</Text>
+      {/* Real bug fix Sep 18: was hardcoded to 'classroom' regardless of what was actually
+          requested - meant every item in this queue (including genuinely global-scope ones,
+          the only kind this queue could contain before B3) always displayed "Requested:
+          Classroom", never the real scope. Found while adding B3's flagged items here, which
+          made the mislabeling far more visible (classroom/school/global now all appear). */}
+      <Text style={s.creatureRequested}>📋 {t('requested_label') || 'Requested:'} {scopeLabel(c.visibility_scope || 'global', hasClassroom, t)}</Text>
       <View style={s.creatureActionsRow}>
         <TouchableOpacity disabled={busy} style={[s.creatureActionBtn, { backgroundColor: '#4CAF50' }]} onPress={() => onApprove(c.id, 'classroom')}>
           <Text style={s.creatureActionBtnText}>✅ {hasClassroom ? (t('classroom_only') || 'Classroom only') : (t('family_only_private') || 'Family only (private)')}</Text>
@@ -2707,6 +2723,8 @@ const s = StyleSheet.create({
   creatureTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   creatureDot: { width: 8, height: 8, borderRadius: 4 },
   creatureName: { fontSize: 14, fontWeight: '800', color: '#333' },
+  flaggedBadge: { backgroundColor: '#FFF3E0', borderWidth: 1, borderColor: '#FFB74D', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 4 },
+  flaggedBadgeText: { fontSize: 10.5, fontWeight: '800', color: '#E65100' },
   creatureMeta: { fontSize: 11, color: '#888', marginTop: 3 },
   creatureDesc: { fontSize: 12, color: '#555', marginTop: 6 },
   stageThumb: { width: 64, height: 64, borderRadius: 8, marginRight: 6, backgroundColor: '#EEE' },

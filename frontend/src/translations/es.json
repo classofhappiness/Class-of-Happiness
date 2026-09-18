@@ -1753,5 +1753,6 @@
   "no_schools_match_search": "Ninguna escuela coincide con \"{query}\"",
   "feature_access_label": "Acceso a funciones",
   "feature_access_no_admin": "Aún no está vinculada a una cuenta de school_admin - los permisos se aplicarán cuando lo esté.",
-  "school_has_it_off": "la escuela lo tiene desactivado"
+  "school_has_it_off": "la escuela lo tiene desactivado",
+  "ai_flagged_badge": "Marcado por IA"
 }
