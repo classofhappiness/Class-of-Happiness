@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -28,7 +28,6 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://class-of-hap
 
 export default function StrategiesScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const { zone, location, fromFamily, returnTo } = useLocalSearchParams<{ zone: string; location?: string; fromFamily?: string; returnTo?: string }>();
   const checkInLocation = (location as string) || 'school';
   const { currentStudent, t, language, translations } = useApp();
@@ -66,10 +65,6 @@ export default function StrategiesScreen() {
     };
     return zone ? (labels[zone] || zone) : (t('feelings') || 'Feelings');
   };
-
-  useLayoutEffect(() => {
-    navigation.setOptions({ headerShown: false });
-  }, [navigation, language, translations]);
 
   useEffect(() => {
     preloadSounds();
@@ -264,11 +259,14 @@ export default function StrategiesScreen() {
           context: checkInLocation === 'home' ? 'home' : 'school',
         }).catch(() => {});
       }
+      // Real fix Sep 15 (Marisa build-26, S06): this used to force-navigate away at a flat
+      // 1800ms regardless of the celebration overlay's own animation, which runs ~4.3s
+      // (fade/scale in, star sparkle loop, hold, fade out) - cutting it off well before the
+      // "Well done for owning your emotions" message had time to be read, and mid-animation.
+      // Navigation now happens from CelebrationOverlay's own onComplete instead of a guessed
+      // timeout, so it always plays its full ~3-5s sequence naturally, never gets cut early,
+      // and never drifts out of sync if that component's own timing changes later.
       setShowCelebration(true);
-      setTimeout(() => {
-        setShowCelebration(false);
-        router.replace({ pathname: '/student/rewards', params: { strategiesUsed: selectedStrategies.length.toString(), hasComment: comment.trim() ? 'true' : 'false', zone, fromFamily: fromFamily || '', location: location || '', returnTo: returnTo || '' } });
-      }, 1800);
     } catch (error) {
       console.error('Error saving:', error);
       router.replace({ pathname: '/student/rewards', params: { strategiesUsed: '0', hasComment: 'false', zone, fromFamily: fromFamily || '', location: location || '', returnTo: returnTo || '' } });
@@ -291,11 +289,11 @@ export default function StrategiesScreen() {
     router.replace({ pathname: '/student/rewards', params: { strategiesUsed: '0', hasComment: 'false', zone, fromFamily: fromFamily || '', returnTo: returnTo || '' } });
   };
 
+  // Real fix Sep 16 (status bar overlap fix): this SafeAreaView's default (all) edges already
+  // applied a real Android top inset on its own - stacking TranslatedHeader's own now-correct
+  // insets.top on top of it would double-pad. Same edges={['left','right','bottom']} pattern
+  // teacher/alerts.tsx and teacher/dashboard.tsx already use for the same reason.
   return (
-    // Real fix Sep 16 (status bar overlap fix): this SafeAreaView's default (all) edges already
-    // applied a real Android top inset on its own - stacking TranslatedHeader's own now-correct
-    // insets.top on top of it would double-pad. Same edges={['left','right','bottom']} pattern
-    // teacher/alerts.tsx and teacher/dashboard.tsx already use for the same reason.
     <SafeAreaView style={styles.container} edges={['left','right','bottom']}>
       <TranslatedHeader title={t('choose_helpers') || 'Choose Helpers'} />
       <CelebrationOverlay
@@ -304,13 +302,16 @@ export default function StrategiesScreen() {
         avatarType={currentStudent?.avatar_type || 'preset'}
         avatarPreset={currentStudent?.avatar_preset}
         avatarCustom={currentStudent?.avatar_custom}
-        onComplete={() => setShowCelebration(false)}
+        onComplete={() => {
+          setShowCelebration(false);
+          router.replace({ pathname: '/student/rewards', params: { strategiesUsed: selectedStrategies.length.toString(), hasComment: comment.trim() ? 'true' : 'false', zone, fromFamily: fromFamily || '', location: location || '', returnTo: returnTo || '' } });
+        }}
         translations={{
           well_done: t('well_done') || t('well_done')||'Well Done',
           support_message: customSupportMessage || (() => {
             const GENERIC_MESSAGES = [
               t('generic_support_1') || 'Well done for owning your emotions! 🌟',
-              t('generic_support_2') || 'Excellent — you are a leader in your life! 👑',
+              t('generic_support_2') || 'Excellent, you are a leader in your life! 👑',
               t('generic_support_3') || 'Always tell an adult or a trusted friend 💙',
             ];
             return GENERIC_MESSAGES[Math.floor(Date.now() / 1000) % 3];
@@ -428,46 +429,53 @@ export default function StrategiesScreen() {
             </View>
           )}
 
-          <View style={styles.commentSection}>
-            <TouchableOpacity style={[styles.commentToggle, { justifyContent:'space-between' }]} onPress={() => { playButtonFeedback(); setShowCommentInput(!showCommentInput); }}>
-              <MaterialIcons name="chat-bubble-outline" size={20} color={showCommentInput || comment ? zoneColor : '#999'} />
-              <Text style={[styles.commentToggleText, (showCommentInput || comment) && { color: zoneColor }]}>
-                {comment ? `💬 ${comment.slice(0,30)}${comment.length>30?'...':''}` : t('want_to_say') || 'Want to say something?'}
-              </Text>
-              <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
-                <TouchableOpacity
-                  style={[styles.helpBtn, helpRequested.has('comment_support') && styles.helpBtnDone]}
-                  onPress={() => { 
-                    if (helpRequested.has('comment_support')) {
-                      setShowCommentInput(false);
-                    } else {
-                      setShowCommentInput(true);
-                    }
-                    handleHelpRequest('comment_support', t('personal_support_request') || 'Personal Support Request');
-                  }}
-                >
-                  <MaterialIcons name="front-hand" size={18}
-                    color={helpRequested.has('comment_support') ? '#333' : '#BBB'}
-                    style={{ opacity: helpRequested.has('comment_support') ? 1 : 0.4 }} />
-                </TouchableOpacity>
-                <MaterialIcons name={showCommentInput ? 'expand-less' : 'expand-more'} size={22} color="#CCC" />
-              </View>
-            </TouchableOpacity>
-            {showCommentInput && (
-              <View style={styles.commentInputWrapper}>
-                <TextInput
-                  style={[styles.commentInput, { borderColor: zoneColor }]}
-                  placeholder={t('write_sentence') || 'Write one sentence...'}
-                  placeholderTextColor="#BBB"
-                  value={comment}
-                  onChangeText={(text) => setComment(text.slice(0, MAX_COMMENT_LENGTH))}
-                  multiline
-                />
-                <Text style={styles.charCount}>{comment.length}/{MAX_COMMENT_LENGTH}</Text>
-              </View>
-            )}
-          </View>
         </ScrollView>
+        {/* Real fix Sep 15 (Marisa build-26, S05): this used to be the last item INSIDE the
+            scrollable strategies list - below Skip/Done in practice, since reaching it meant
+            scrolling all the way down, and it sat right against the screen edge next to the
+            fixed bottom bar, easily clipped (especially once expanded). Moved out of the
+            ScrollView entirely into this persistent position between the list and Skip/Done,
+            so it's always visible without scrolling - still the same plain optional comment
+            box, no new prompt. */}
+        <View style={styles.commentSection}>
+          <TouchableOpacity style={[styles.commentToggle, { justifyContent:'space-between' }]} onPress={() => { playButtonFeedback(); setShowCommentInput(!showCommentInput); }}>
+            <MaterialIcons name="chat-bubble-outline" size={20} color={showCommentInput || comment ? zoneColor : '#999'} />
+            <Text style={[styles.commentToggleText, (showCommentInput || comment) && { color: zoneColor }]}>
+              {comment ? `💬 ${comment.slice(0,30)}${comment.length>30?'...':''}` : t('want_to_say') || 'Want to say something?'}
+            </Text>
+            <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+              <TouchableOpacity
+                style={[styles.helpBtn, helpRequested.has('comment_support') && styles.helpBtnDone]}
+                onPress={() => {
+                  if (helpRequested.has('comment_support')) {
+                    setShowCommentInput(false);
+                  } else {
+                    setShowCommentInput(true);
+                  }
+                  handleHelpRequest('comment_support', t('personal_support_request') || 'Personal Support Request');
+                }}
+              >
+                <MaterialIcons name="front-hand" size={18}
+                  color={helpRequested.has('comment_support') ? '#333' : '#BBB'}
+                  style={{ opacity: helpRequested.has('comment_support') ? 1 : 0.4 }} />
+              </TouchableOpacity>
+              <MaterialIcons name={showCommentInput ? 'expand-less' : 'expand-more'} size={22} color="#CCC" />
+            </View>
+          </TouchableOpacity>
+          {showCommentInput && (
+            <View style={styles.commentInputWrapper}>
+              <TextInput
+                style={[styles.commentInput, { borderColor: zoneColor }]}
+                placeholder={t('write_sentence') || 'Write one sentence...'}
+                placeholderTextColor="#BBB"
+                value={comment}
+                onChangeText={(text) => setComment(text.slice(0, MAX_COMMENT_LENGTH))}
+                multiline
+              />
+              <Text style={styles.charCount}>{comment.length}/{MAX_COMMENT_LENGTH}</Text>
+            </View>
+          )}
+        </View>
         <View style={styles.bottomBar}>
           <TouchableOpacity style={styles.skipButton} onPress={handleSkip} disabled={saving}>
             <Text style={styles.skipButtonText}>{t('skip') || 'Skip'}</Text>
@@ -492,7 +500,12 @@ const styles = StyleSheet.create({
   instruction: { fontSize: 11, color: '#666', marginBottom: 8, fontStyle: 'italic' },
   loadingContainer: { padding: 40, alignItems: 'center', gap: 12 },
   loadingText: { fontSize: 16, color: '#888' },
-  commentSection: { marginTop: 14, backgroundColor: 'white', borderRadius: 12, overflow: 'hidden', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
+  // Real fix Sep 15 (Marisa build-26, S05): marginHorizontal added now that this sits outside
+  // scrollContent's own padding (it moved from being the ScrollView's last child to a fixed
+  // sibling between the list and the bottom bar) - matches bottomBar's own 14px inset below it.
+  // Real fix Sep 15 (Marisa build-26 round 2, S05): sat flush against the Skip/Done bar
+  // below it - marginBottom adds a small real gap between the two.
+  commentSection: { marginTop: 10, marginBottom: 8, marginHorizontal: 14, backgroundColor: 'white', borderRadius: 12, overflow: 'hidden', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
   commentToggle: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 10 },
   commentToggleText: { flex: 1, fontSize: 14, color: '#999' },
   commentInputWrapper: { padding: 14, paddingTop: 0 },

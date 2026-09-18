@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -27,16 +26,6 @@ const STRAT: Record<string,string> = {
   yellow_1:'Bubble Breathing',yellow_2:'Body Shake',yellow_3:'Count to 10',yellow_4:'5 Senses',yellow_5:'Squeeze & Release',yellow_6:'Talk About It',
   red_1:'Freeze',red_2:'Big Breaths',red_3:'Count Backwards',red_4:'Safe Space',red_5:'Ask for Help',red_6:'Self Hug',
 };
-
-const Pill = ({ label, active, onPress, color='#5C6BC0' }: { label:string, active:boolean, onPress:()=>void, color?:string }) => (
-  <TouchableOpacity onPress={onPress} style={{
-    paddingHorizontal:12, paddingVertical:6, borderRadius:16, marginRight:8,
-    backgroundColor: active ? color : '#EEEEEE',
-    borderWidth:1, borderColor: active ? color : '#DDD'
-  }}>
-    <Text style={{ fontSize:12, fontWeight:'600', color: active ? 'white' : '#555' }}>{label}</Text>
-  </TouchableOpacity>
-);
 
 const AlertCard = ({ alert, onResolve, selected, selectMode, onLongPress, onPress }: any) => {
   const { t } = useApp();
@@ -91,7 +80,15 @@ const AlertCard = ({ alert, onResolve, selected, selectMode, onLongPress, onPres
               </View>
             ) : null}
           </View>
-          {!selectMode && (
+          {/* Real fix Sep 15 (Marisa build-26, S12): a PAST alert is already resolved - the
+              "mark resolved" button read as a live action on something historical. Shown as a
+              plain, non-interactive check instead, same as the old read-only resolved-list
+              treatment this replaced. */}
+          {alert.resolved ? (
+            <View style={{ padding:6, marginLeft:8 }}>
+              <MaterialIcons name="check-circle" size={26} color="#4CAF50" />
+            </View>
+          ) : !selectMode && (
             <TouchableOpacity onPress={onResolve} style={{ padding:6, marginLeft:8 }}>
               <MaterialIcons name="check-circle-outline" size={26} color="#4CAF50" />
             </TouchableOpacity>
@@ -103,8 +100,6 @@ const AlertCard = ({ alert, onResolve, selected, selectMode, onLongPress, onPres
 };
 
 export default function TeacherAlertsScreen() {
-  const navigation = useNavigation();
-  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { t, classrooms, students } = useApp();
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,8 +108,12 @@ export default function TeacherAlertsScreen() {
   const [period, setPeriod] = useState<'today'|'7'|'14'|'30'>('30');
   const [classroom, setClassroom] = useState('all');
   const [alertType, setAlertType] = useState<string|null>(null);
-  const [expanded, setExpanded] = useState<Record<string,boolean>>({}); 
-  const [showResolved, setShowResolved] = useState(false);
+  const [expanded, setExpanded] = useState<Record<string,boolean>>({});
+  // Real fix Sep 15 (Marisa build-26, S12): NEW vs PAST is now the primary top-level split
+  // (her sketch: "NEW | PAST" tabs with a vertical divider), replacing the old design where
+  // unresolved alerts were the only thing shown and resolved ones hid behind a small,
+  // easy-to-miss "Resolved" toggle at the very bottom of the list.
+  const [tab, setTab] = useState<'new'|'past'>('new');
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -168,8 +167,7 @@ export default function TeacherAlertsScreen() {
     ...alerts.map((a:any) => a.classroom_name).filter(Boolean),
   ])) as string[];
 
-  const filtered = alerts.filter((a:any) => {
-    if (a.resolved) return false;
+  const matchesClassroomAndType = (a: any) => {
     if (!inPeriod(a)) return false;
     if (alertType && a.alert_type !== alertType) return false;
     if (classroom !== 'all') {
@@ -179,47 +177,102 @@ export default function TeacherAlertsScreen() {
       if (!byName && !byStudent) return false;
     }
     return true;
-  });
+  };
 
-  const resolvedAlerts = alerts.filter((a:any) => a.resolved && inPeriod(a));
+  // Real fix Sep 15 (Marisa build-26, S12): tab replaces the old hardcoded `!a.resolved`
+  // filter - the same period/classroom/type filters above the tabs apply to whichever one
+  // is selected (matches her sketch: time filter sits under the tabs, not per-tab).
+  const newCount = alerts.filter((a:any) => !a.resolved && matchesClassroomAndType(a)).length;
+  const filtered = alerts.filter((a:any) => (tab === 'new' ? !a.resolved : a.resolved) && matchesClassroomAndType(a));
+
+  // Real fix Sep 15 (Marisa build-26, S12): "new alerts always visible on top, never buried
+  // by a frequent requester" - alerts were grouped by student in whatever order the API
+  // happened to return them, so a fresh alert from a rarely-alerting student could render
+  // BELOW a large, older group from a frequent one. Sorting by most-recent activity first
+  // (before grouping) means Object.entries below naturally lists each student's group in
+  // the order their most recent alert arrived, not insertion order.
+  const sortedFiltered = [...filtered].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   const grouped: Record<string,any[]> = {};
-  filtered.forEach((a:any) => {
+  sortedFiltered.forEach((a:any) => {
     const k = a.student_name || (t('unknown') || 'Unknown');
     if (!grouped[k]) grouped[k] = [];
     grouped[k].push(a);
   });
   const toggleExpand = (name: string) => setExpanded(p => ({...p, [name]: !p[name]}));
 
+  // Charts/graphs deliberately NOT built here (Jono's call, Marisa build-26 review, S12) -
+  // logged for the Phase 3 analytics work instead. This section stays simple/list-based.
+
   return (
-    <SafeAreaView style={{ flex:1, backgroundColor:'#F8F9FA' }}>
+    // Real fix Sep 15 (Marisa build-26, S12): this screen's SafeAreaView (from
+    // react-native-safe-area-context, default edges) was stacking its own top inset with
+    // TranslatedHeader's own manual insets.top calculation below - the same double-count bug
+    // found and fixed on teacher/dashboard.tsx (S10), producing the "top border too large"
+    // complaint here too. TranslatedHeader is the single source of truth for top inset.
+    <SafeAreaView style={{ flex:1, backgroundColor:'#F8F9FA' }} edges={['left','right','bottom']}>
       <TranslatedHeader title={t('alerts') || 'Student Alerts'} />
 
+      {/* Real restructure Sep 15 (Marisa build-26, S12, her sketch): NEW | PAST as the primary
+          two-tab split (vertical divider between them) replaces the old flat list where
+          resolved alerts hid behind a small "Resolved" toggle at the bottom. Class icons and
+          the time filter moved below the tabs, collapsing what used to be three separate pill
+          rows plus a "34 pending" + Select row into this one hierarchy. */}
       <View style={{ backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#E0E0E0' }}>
-        <View style={{ flexDirection:'row', padding:10, gap:8 }}>
+        <View style={{ flexDirection:'row' }}>
+          <TouchableOpacity onPress={() => setTab('new')} style={{ flex:1, alignItems:'center', paddingVertical:14,
+            borderBottomWidth:3, borderBottomColor: tab==='new' ? '#5C6BC0' : 'transparent' }}>
+            <Text style={{ fontSize:14, fontWeight:'800', color: tab==='new' ? '#5C6BC0' : '#999' }}>
+              {t('new') || 'NEW'}{newCount > 0 ? ` (${newCount})` : ''}
+            </Text>
+          </TouchableOpacity>
+          <View style={{ width:1, backgroundColor:'#E0E0E0' }} />
+          <TouchableOpacity onPress={() => setTab('past')} style={{ flex:1, alignItems:'center', paddingVertical:14,
+            borderBottomWidth:3, borderBottomColor: tab==='past' ? '#5C6BC0' : 'transparent' }}>
+            <Text style={{ fontSize:14, fontWeight:'800', color: tab==='past' ? '#5C6BC0' : '#999' }}>
+              {t('past') || 'PAST'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Classes as icons - tap one to filter either tab to just that class. */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal:12, paddingTop:10, paddingBottom:2, gap:14 }}>
+          <TouchableOpacity onPress={() => setClassroom('all')} style={{ alignItems:'center', width:52 }}>
+            <View style={{ width:42, height:42, borderRadius:21, alignItems:'center', justifyContent:'center',
+              backgroundColor: classroom==='all' ? '#5C6BC0' : '#EEEEEE' }}>
+              <MaterialIcons name="apps" size={20} color={classroom==='all' ? 'white' : '#888'} />
+            </View>
+            <Text numberOfLines={1} style={{ fontSize:10, fontWeight:'700', marginTop:4,
+              color: classroom==='all' ? '#5C6BC0' : '#888' }}>{t('all_classes') || 'All'}</Text>
+          </TouchableOpacity>
+          {classroomNames.map(n => (
+            <TouchableOpacity key={n} onPress={() => setClassroom(n)} style={{ alignItems:'center', width:52 }}>
+              <View style={{ width:42, height:42, borderRadius:21, alignItems:'center', justifyContent:'center',
+                backgroundColor: classroom===n ? '#5C6BC0' : '#EEEEEE' }}>
+                <Text style={{ fontSize:16, fontWeight:'800', color: classroom===n ? 'white' : '#888' }}>
+                  {n.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+              <Text numberOfLines={1} style={{ fontSize:10, fontWeight:'700', marginTop:4,
+                color: classroom===n ? '#5C6BC0' : '#888' }}>{n}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Time filter - third tier, per Marisa's sketch order (tabs, then class, then time). */}
+        <View style={{ flexDirection:'row', paddingHorizontal:10, paddingTop:8, paddingBottom:8, gap:8 }}>
           {(['today','7','14','30'] as const).map(p => (
-            <TouchableOpacity key={p} onPress={() => setPeriod(p)} style={{ flex:1, paddingVertical:7,
+            <TouchableOpacity key={p} onPress={() => setPeriod(p)} style={{ flex:1, paddingVertical:6,
               borderRadius:8, alignItems:'center', backgroundColor: period===p ? '#5C6BC0' : '#F0F0F0' }}>
-              <Text style={{ fontSize:12, fontWeight:'700', color: period===p ? 'white' : '#888' }}>
+              <Text style={{ fontSize:11, fontWeight:'700', color: period===p ? 'white' : '#888' }}>
                 {p==='today'?(t('today')||'Today'):p==='7'?(t('week')||'Week'):p==='14'?(t('fortnight')||'Fortnight'):(t('month')||'Month')}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal:12, paddingBottom:8, flexDirection:'row' }}>
-          <Pill label={t('all_classes') || 'All Classes'} active={classroom==='all'} onPress={() => setClassroom('all')} />
-          {classroomNames.map(n => <Pill key={n} label={n} active={classroom===n} onPress={() => setClassroom(n)} />)}
-        </ScrollView>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal:12, paddingBottom:8, flexDirection:'row' }}>
-          <Pill label={t('all') || 'All'} active={alertType===null} onPress={() => setAlertType(null)} />
-          <Pill label={t('help_request') || 'Help Request'} active={alertType==='help_request'} onPress={() => setAlertType('help_request')} color="#E65100" />
-          <Pill label={t('check_in_short') || 'Check-in'} active={alertType==='zone_alert'} onPress={() => setAlertType('zone_alert')} color="#2E7D32" />
-          <Pill label={t('message_label') || 'Message'} active={alertType==='parent_message'} onPress={() => setAlertType('parent_message')} color="#5C6BC0" />
-        </ScrollView>
-        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:14, paddingBottom:8 }}>
-          <Text style={{ fontSize:12, color:'#999', fontWeight:'600' }}>{filtered.length} {t('pending') || 'pending'}</Text>
-          <View style={{ flexDirection:'row', gap:8 }}>
+
+        {tab === 'new' && (
+          <View style={{ flexDirection:'row', justifyContent:'flex-end', alignItems:'center', paddingHorizontal:14, paddingBottom:8, gap:8 }}>
             {selectMode && selected.size > 0 && (
               <TouchableOpacity onPress={handleBulkResolve}
                 style={{ backgroundColor:'#4CAF50', paddingHorizontal:12, paddingVertical:5, borderRadius:8, flexDirection:'row', alignItems:'center', gap:4 }}>
@@ -232,15 +285,17 @@ export default function TeacherAlertsScreen() {
               <Text style={{ fontSize:12, color: selectMode ? 'white' : '#666', fontWeight:'700' }}>{selectMode ? (t('cancel') || 'Cancel') : (t('select') || 'Select')}</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        )}
       </View>
       <ScrollView contentContainerStyle={{ padding:14 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#5C6BC0" colors={['#5C6BC0']} />}>
         {loading && <View style={{ alignItems:'center', marginTop:30 }}><EmotionColourLoader visible size={48} /></View>}
         {!loading && filtered.length === 0 && (
           <View style={{ alignItems:'center', marginTop:50 }}>
-            <Text style={{ fontSize:40 }}>✅</Text>
-            <Text style={{ color:'#999', fontSize:14, marginTop:8 }}>{t('no_alerts') || 'No pending alerts'}</Text>
+            <Text style={{ fontSize:40 }}>{tab === 'new' ? '✅' : '📭'}</Text>
+            <Text style={{ color:'#999', fontSize:14, marginTop:8 }}>
+              {tab === 'new' ? (t('no_alerts') || 'No pending alerts') : (t('no_past_alerts') || 'No past alerts in this range')}
+            </Text>
           </View>
         )}
         {Object.entries(grouped).map(([name, items]) => (
@@ -266,38 +321,13 @@ export default function TeacherAlertsScreen() {
               <AlertCard key={alert.id} alert={alert}
                 onResolve={() => handleResolve(alert.id)}
                 selected={selected.has(alert.id)}
-                selectMode={selectMode}
-                onLongPress={() => { setSelectMode(true); toggleSelect(alert.id); }}
-                onPress={() => selectMode && toggleSelect(alert.id)}
+                selectMode={tab === 'new' && selectMode}
+                onLongPress={() => { if (tab === 'new') { setSelectMode(true); toggleSelect(alert.id); } }}
+                onPress={() => tab === 'new' && selectMode && toggleSelect(alert.id)}
               />
             ))}
           </View>
         ))}
-
-        {resolvedAlerts.length > 0 && (
-          <View style={{ marginTop:8 }}>
-            <TouchableOpacity onPress={() => setShowResolved(v => !v)}
-              style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center',
-                paddingVertical:12, paddingHorizontal:4 }}>
-              <Text style={{ fontSize:14, color:'#999', fontWeight:'600' }}>{t('resolved') || 'Resolved'} ({resolvedAlerts.length})</Text>
-              <MaterialIcons name={showResolved ? 'expand-less' : 'expand-more'} size={22} color="#CCC" />
-            </TouchableOpacity>
-            {showResolved ? resolvedAlerts.slice(0,10).map((a:any) => (
-              <View key={a.id} style={{ flexDirection:'row', alignItems:'center', padding:12,
-                backgroundColor:'white', borderRadius:10, marginBottom:8, opacity:0.6,
-                borderLeftWidth:4, borderLeftColor: ZONE_COLOR[a.zone]||'#CCC' }}>
-                <View style={{ width:10, height:10, borderRadius:5, marginRight:10,
-                  backgroundColor: ZONE_COLOR[a.zone] || '#CCC' }} />
-                <Text style={{ flex:1, fontSize:13, color:'#666' }}>
-                  {a.student_name} · {a.alert_type === 'help_request' ? (t('help_request') || 'Help Request') :
-                  a.alert_type === 'zone_alert' ? (t('check_in_short') || 'Check-in') :
-                  a.alert_type === 'support_request' ? `Support Request — ${a.message}` : (t('message_label') || 'Message')}
-                </Text>
-                <MaterialIcons name="check-circle" size={18} color="#4CAF50" />
-              </View>
-            )) : null}
-          </View>
-        )}
       </ScrollView>
     </SafeAreaView>
   );

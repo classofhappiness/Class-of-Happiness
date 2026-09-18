@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity,
   ScrollView, RefreshControl, useWindowDimensions, Alert, Animated,
 } from 'react-native';
-import { useRouter, useNavigation, useFocusEffect } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Swipeable } from 'react-native-gesture-handler';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
@@ -38,7 +39,7 @@ const COLOUR_TIPS_TEACHER: Record<string, {tip: string, action: string, tipKey: 
     { tip: 'Anxiety may be present', action: 'Lower stimulation, offer quiet corners', tipKey: 'tip_teacher_yellow_3', actionKey: 'tip_teacher_yellow_3_action' },
   ],
   red: [
-    { tip: 'Big feelings in the room', action: 'Stay calm — your calm regulates theirs', tipKey: 'tip_teacher_red_1', actionKey: 'tip_teacher_red_1_action' },
+    { tip: 'Big feelings in the room', action: 'Stay calm - your calm regulates theirs', tipKey: 'tip_teacher_red_1', actionKey: 'tip_teacher_red_1_action' },
     { tip: 'Students need safety first', action: 'Reconnect before you redirect behaviour', tipKey: 'tip_teacher_red_2', actionKey: 'tip_teacher_red_2_action' },
     { tip: 'High emotion detected', action: 'Give space, stay close, avoid confrontation', tipKey: 'tip_teacher_red_3', actionKey: 'tip_teacher_red_3_action' },
   ],
@@ -103,7 +104,6 @@ type Period = 1|7|14|30;
 export default function TeacherDashboardScreen() {
   const { width } = useWindowDimensions();
   const router = useRouter();
-  const navigation = useNavigation() as any;
   const { user, students, classrooms, presetAvatars, refreshStudents, refreshClassrooms, t, hasActiveSubscription } = useApp();
 
   // CRITICAL security fix Aug 26 (item 3): role-gating - confirmed live that ANY
@@ -229,9 +229,8 @@ export default function TeacherDashboardScreen() {
   }, []);
 
   useLayoutEffect(() => {
-    navigation.setOptions({ headerShown: false });
     registerForPushNotifications().catch(() => {});
-  }, [navigation]);
+  }, []);
 
   // STRATEGY_NAMES_LOCAL removed — was redundant with and conflicted with the comprehensive STRATEGY_NAMES above (e.g. B1='Slow Breathing' vs local b1='Gentle Stretch', same conceptual code, different wrong-in-context values). resolveStrategy() + strategyNames (custom, fetched) now cover everything.
     const loadData = useCallback(async () => {
@@ -320,73 +319,13 @@ export default function TeacherDashboardScreen() {
   useFocusEffect(useCallback(() => {
     loadData(); refreshStudents(); refreshClassrooms();
     const interval = setInterval(() => { refreshAlertCount(); }, 30000);
-    const handleShowClassCode = async (classroomId: string, classroomName: string) => {
-    setClassCodeLoading(classroomId);
-    try {
-      const AsyncStorage2 = (await import('@react-native-async-storage/async-storage')).default;
-      const token = await AsyncStorage2.getItem('session_token');
-      const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-      const res = await fetch(`${BURL}/api/classrooms/${classroomId}/join-code`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        Alert.alert(
-          `${classroomName}`,
-          `${t('share_code_with_students') || 'Share this code with your students:'}
-
-${data.join_code}
-
-${t('students_enter_code_join_class') || 'Students enter this when creating their profile to join your class automatically.'}`,
-          [{ text: t('ok') || 'OK' }]
-        );
-      } else {
-        Alert.alert(t('error') || 'Error', t('could_not_get_class_code_retry') || 'Could not get class code. Please try again.');
-      }
-    } catch (e) {
-      Alert.alert(t('error') || 'Error', t('could_not_get_class_code') || 'Could not get class code.');
-    } finally {
-      setClassCodeLoading(null);
-    }
-  };
-
-  return () => clearInterval(interval);
+    return () => clearInterval(interval);
   }, [loadData, refreshAlertCount]));
 
   // Reload when period or classroom filter changes (debounced)
   useEffect(() => {
     const timer = setTimeout(() => { loadData(); }, 150);
-    const handleShowClassCode = async (classroomId: string, classroomName: string) => {
-    setClassCodeLoading(classroomId);
-    try {
-      const AsyncStorage2 = (await import('@react-native-async-storage/async-storage')).default;
-      const token = await AsyncStorage2.getItem('session_token');
-      const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-      const res = await fetch(`${BURL}/api/classrooms/${classroomId}/join-code`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        Alert.alert(
-          `${classroomName}`,
-          `${t('share_code_with_students') || 'Share this code with your students:'}
-
-${data.join_code}
-
-${t('students_enter_code_join_class') || 'Students enter this when creating their profile to join your class automatically.'}`,
-          [{ text: t('ok') || 'OK' }]
-        );
-      } else {
-        Alert.alert(t('error') || 'Error', t('could_not_get_class_code_retry') || 'Could not get class code. Please try again.');
-      }
-    } catch (e) {
-      Alert.alert(t('error') || 'Error', t('could_not_get_class_code') || 'Could not get class code.');
-    } finally {
-      setClassCodeLoading(null);
-    }
-  };
-
-  return () => clearTimeout(timer);
+    return () => clearTimeout(timer);
   }, [period, selectedClassroom]);
 
   const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
@@ -446,10 +385,15 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
           [{ text: t('ok') || 'OK' }]
         );
       } else {
-        Alert.alert(t('error') || 'Error', t('could_not_get_class_code_retry') || 'Could not get class code. Please try again.');
+        // Real fix Sep 14 (Marisa build-26, S10): every failure - wrong-account 403, deleted
+        // classroom 404, a real 500 - used to collapse into the same generic "please try
+        // again" text, so a genuine bug (like Saint Antonio Room's reported failure) left no
+        // trace of what actually went wrong. Now surfaces the real status + backend detail.
+        const detail = await res.json().catch(() => null);
+        Alert.alert(t('error') || 'Error', `${t('could_not_get_class_code_retry') || 'Could not get class code.'} (${res.status}${detail?.detail ? ': ' + detail.detail : ''})`);
       }
-    } catch (e) {
-      Alert.alert(t('error') || 'Error', t('could_not_get_class_code') || 'Could not get class code.');
+    } catch (e: any) {
+      Alert.alert(t('error') || 'Error', `${t('could_not_get_class_code') || 'Could not get class code.'} ${e?.message ? '(' + e.message + ')' : ''}`);
     } finally {
       setClassCodeLoading(null);
     }
@@ -473,10 +417,11 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
         await Clipboard.setStringAsync(data.join_code);
         Alert.alert('✅ ' + (t('copied') || 'Copied'), `${classroomName}: ${data.join_code}`);
       } else {
-        Alert.alert(t('error') || 'Error', t('could_not_get_class_code_retry') || 'Could not get class code. Please try again.');
+        const detail = await res.json().catch(() => null);
+        Alert.alert(t('error') || 'Error', `${t('could_not_get_class_code_retry') || 'Could not get class code.'} (${res.status}${detail?.detail ? ': ' + detail.detail : ''})`);
       }
-    } catch (e) {
-      Alert.alert(t('error') || 'Error', t('could_not_get_class_code') || 'Could not get class code.');
+    } catch (e: any) {
+      Alert.alert(t('error') || 'Error', `${t('could_not_get_class_code') || 'Could not get class code.'} ${e?.message ? '(' + e.message + ')' : ''}`);
     } finally {
       setClassCodeCopying(null);
     }
@@ -488,7 +433,13 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
   if (user && user.role === 'parent') return null;
 
   return (
-    <SafeAreaView style={st.container}>
+    // Real fix Sep 14 (Marisa build-26, S10): this screen's own SafeAreaView (react-native's
+    // built-in one, iOS-only auto top inset) was stacking with TranslatedHeader's own manual
+    // `insets.top` padding below - two top-safe-area paddings applied back to back, showing
+    // as a large dead gap above the header, with the doubled region's edge reading as a
+    // colour seam against the header's #F8F9FA fill. TranslatedHeader is the single source
+    // of truth for top inset now (excluded here via `edges`); bottom/left/right are untouched.
+    <SafeAreaView style={st.container} edges={['left', 'right', 'bottom']}>
       {(hasOpenRequest || arrivalFlash) && (
         <Animated.View
           pointerEvents="none"
@@ -500,7 +451,7 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
       )}
       <TranslatedHeader
         title={t('teacher_dashboard')||'Teacher Dashboard'}
-        backTo="/"
+        showBack={false}
         extraAction={supportRequestsEnabled ? {
           icon: 'campaign',
           color: '#FF7043',
@@ -581,37 +532,7 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
           recentLogs.slice(0,12).map(log => {
             const student = getStudent(log.student_id);
             const zone = (log as any).zone||(log as any).feeling_colour||'';
-            const handleShowClassCode = async (classroomId: string, classroomName: string) => {
-    setClassCodeLoading(classroomId);
-    try {
-      const AsyncStorage2 = (await import('@react-native-async-storage/async-storage')).default;
-      const token = await AsyncStorage2.getItem('session_token');
-      const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-      const res = await fetch(`${BURL}/api/classrooms/${classroomId}/join-code`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        Alert.alert(
-          `${classroomName}`,
-          `${t('share_code_with_students') || 'Share this code with your students:'}
-
-${data.join_code}
-
-${t('students_enter_code_join_class') || 'Students enter this when creating their profile to join your class automatically.'}`,
-          [{ text: t('ok') || 'OK' }]
-        );
-      } else {
-        Alert.alert(t('error') || 'Error', t('could_not_get_class_code_retry') || 'Could not get class code. Please try again.');
-      }
-    } catch (e) {
-      Alert.alert(t('error') || 'Error', t('could_not_get_class_code') || 'Could not get class code.');
-    } finally {
-      setClassCodeLoading(null);
-    }
-  };
-
-  return (
+            return (
               <TouchableOpacity key={log.id} style={st.logCard}
                 onPress={() => router.push({pathname:'/teacher/student-detail',params:{studentId:log.student_id}})}>
                 <Avatar type={student?.avatar_type||'preset'} preset={student?.avatar_preset}
