@@ -1498,5 +1498,6 @@
   "feature_access_label": "Feature Access",
   "feature_access_no_admin": "Not linked to a school_admin account yet - grants apply once it is.",
   "school_has_it_off": "school has it off",
-  "ai_flagged_badge": "AI flagged"
+  "ai_flagged_badge": "AI flagged",
+  "incident_waiting_banner": "An incident needs your attention"
 }

@@ -1754,5 +1754,6 @@
   "feature_access_label": "Acceso a funciones",
   "feature_access_no_admin": "Aún no está vinculada a una cuenta de school_admin - los permisos se aplicarán cuando lo esté.",
   "school_has_it_off": "la escuela lo tiene desactivado",
-  "ai_flagged_badge": "Marcado por IA"
+  "ai_flagged_badge": "Marcado por IA",
+  "incident_waiting_banner": "Un incidente necesita tu atención"
 }

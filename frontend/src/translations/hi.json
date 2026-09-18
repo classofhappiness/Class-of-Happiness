@@ -1600,5 +1600,6 @@
   "feature_access_label": "सुविधा पहुंच",
   "feature_access_no_admin": "अभी तक किसी school_admin खाते से जुड़ा नहीं है - जुड़ने पर अनुमतियां लागू होंगी।",
   "school_has_it_off": "स्कूल ने इसे बंद कर रखा है",
-  "ai_flagged_badge": "AI द्वारा फ़्लैग किया गया"
+  "ai_flagged_badge": "AI द्वारा फ़्लैग किया गया",
+  "incident_waiting_banner": "एक घटना पर आपका ध्यान चाहिए"
 }

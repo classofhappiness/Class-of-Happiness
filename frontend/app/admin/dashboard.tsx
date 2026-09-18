@@ -2452,18 +2452,19 @@ export default function AdminDashboard() {
   const { tab: tabParam, fromIncident } = useLocalSearchParams<{ tab?: string; fromIncident?: string }>();
   const [authToken, setAuthToken] = useState<string|null>(null);
   const [adminCode, setAdminCode] = useState('');
-  // Real feature Sep 18 (Jono's explicit call, live-testing a real incident): skips the
-  // local admin-code re-entry screen ONLY when arriving via ?fromIncident=1 - the exact
-  // deep-link _layout.tsx's navigateToSupportRequest generates for a genuine incident
-  // notification tap, urgency deliberately outweighing this one local factor here. This
-  // does NOT touch real security: the account-level login/session (a real Authorization
-  // header, checked server-side on every single API call this screen makes) is completely
-  // unaffected - this only skips /admin/verify's own SEPARATE, local, in-app re-entry
-  // screen, which exists to protect an already-logged-in-but-unattended device, not to
-  // gate server-side authorization. isSuperAdmin correctly stays false in this path since
-  // incidents are only ever addressed to a school_admin (server.py's create_support_request
-  // always targets school_admin_id, never a superadmin) - never bypassed for that role.
-  const [unlocked, setUnlocked] = useState(fromIncident === '1');
+  // Real feature Sep 18 (Jono's explicit call, revised after walking through the actual
+  // exposure): a first version of this skipped the admin-code screen entirely for
+  // ?fromIncident=1. Reverted the same day once the real cost was spelled out precisely -
+  // the Support Requests card doesn't just show a name, it renders live Acknowledge/Yes/
+  // No/custom-message actions with no further confirmation, so skipping the code meant
+  // anyone holding the phone could actually respond to a real incident as the school admin,
+  // not just read about it. The code screen ALWAYS shows now, no bypass - fromIncident=1
+  // only adds a content-free urgency banner to it (see the lock-screen JSX below: no
+  // classroom/student/teacher name, just "an incident needs your attention") so whoever's
+  // holding the phone knows something urgent exists without learning what or being able to
+  // act on it, and the real admin still lands straight on the right tab once they actually
+  // enter their code.
+  const [unlocked, setUnlocked] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [tab, setTab] = useState<AdminTab>(
     (VALID_ADMIN_TABS as readonly string[]).includes(tabParam || '') ? (tabParam as AdminTab) : 'analytics'
@@ -2553,6 +2554,15 @@ export default function AdminDashboard() {
             <Text style={s.logoTitle}>Class of Happiness</Text>
             <Text style={s.logoSub}>{isSuperAdmin ? (t('super_admin') || 'Super Admin') : (t('school_admin_label') || 'School Admin')}</Text>
           </View>
+          {/* Real feature Sep 18: deliberately content-free - no classroom/student/teacher
+              name, no request detail, no action of any kind. Signals urgency to whoever is
+              holding the phone (hand it to the real admin now) without disclosing what the
+              incident is about or letting anyone act on it before the real code is entered. */}
+          {fromIncident === '1' && (
+            <View style={s.incidentBanner}>
+              <Text style={s.incidentBannerText}>🚨 {t('incident_waiting_banner') || 'An incident needs your attention'}</Text>
+            </View>
+          )}
           <Text style={s.lockHint}>{t("unlock_admin") || "Enter your admin code to unlock"}</Text>
           <SecureField
             variant="code"
@@ -2658,6 +2668,8 @@ const s = StyleSheet.create({
   logoEmoji: { fontSize: 56 },
   logoTitle: { fontSize: 22, fontWeight: '800', color: INDIGO },
   logoSub: { fontSize: 13, color: '#888' },
+  incidentBanner: { backgroundColor: '#FFEBEE', borderWidth: 1, borderColor: '#E05252', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, marginBottom: 8 },
+  incidentBannerText: { fontSize: 14, fontWeight: '800', color: '#C62828', textAlign: 'center' },
   lockHint: { fontSize: 14, color: '#666', textAlign: 'center' },
   // Header
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },

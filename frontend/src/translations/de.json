@@ -1765,5 +1765,6 @@
   "feature_access_label": "Funktionszugriff",
   "feature_access_no_admin": "Noch nicht mit einem Schuladmin-Konto verknüpft - Freigaben gelten, sobald es verknüpft ist.",
   "school_has_it_off": "Schule hat es deaktiviert",
-  "ai_flagged_badge": "KI-markiert"
+  "ai_flagged_badge": "KI-markiert",
+  "incident_waiting_banner": "Ein Vorfall benötigt Ihre Aufmerksamkeit"
 }
