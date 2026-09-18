@@ -15,10 +15,10 @@ import { EMOTION_COLOURS } from '../constants/emotionColours';
 
 const ZONE_COLORS: Record<string, string> = EMOTION_COLOURS;
 
-const STATUS_INFO: Record<string, { label: string; bg: string; color: string }> = {
-  pending: { label: 'Pending', bg: '#FFF3E0', color: '#E65100' },
-  approved: { label: 'Approved', bg: '#E8F5E9', color: '#2E7D32' },
-  rejected: { label: 'Rejected', bg: '#FFEBEE', color: '#C62828' },
+const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
+  pending: { bg: '#FFF3E0', color: '#E65100' },
+  approved: { bg: '#E8F5E9', color: '#2E7D32' },
+  rejected: { bg: '#FFEBEE', color: '#C62828' },
 };
 
 // Real feature Aug 23 (item 4): reviewers need to know which real child a submission is
@@ -37,6 +37,14 @@ interface Props {
 export const CreatureManagement: React.FC<Props> = ({ role }) => {
   const { t } = useApp();
   const router = useRouter();
+  // Real fix Sep 18: this screen had zero i18n anywhere - every string was hardcoded
+  // English. STATUS_LABELS resolved here (not as a module constant like STATUS_COLORS)
+  // since it needs the useApp() t() hook.
+  const STATUS_LABELS: Record<string, string> = {
+    pending: t('pending') || 'Pending',
+    approved: t('creature_status_approved') || 'Approved',
+    rejected: t('creature_status_rejected') || 'Rejected',
+  };
   const [code, setCode] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [pending, setPending] = useState<any[]>([]);
@@ -75,7 +83,7 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
         : await parentApi.generateCreatureCode();
       setCode(result.code);
     } catch {
-      Alert.alert(t('error') || 'Error', 'Could not generate a code right now.');
+      Alert.alert(t('error') || 'Error', t('creature_gen_code_error') || 'Could not generate a code right now.');
     }
     setGenerating(false);
   };
@@ -83,7 +91,7 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
   const shareCode = () => {
     if (!code) return;
     Share.share({
-      message: `Class of Happiness creature code: ${code}\n\nUse this code in "Submit a Creature" to send in your creature drawing. Code expires in 30 days.`,
+      message: (t('creature_share_message') || 'Class of Happiness creature code: {code}\n\nUse this code in "Submit a Creature" to send in your creature drawing. Code expires in 30 days.').replace('{code}', code),
     });
   };
 
@@ -93,9 +101,9 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
       await creaturesApi.approve(submission.id);
       setPending(prev => prev.filter(p => p.id !== submission.id));
       loadMySubmissions();
-      Alert.alert('✅', `${submission.creature_name} approved! Awaiting final review.`);
+      Alert.alert('✅', (t('creature_approved_alert') || '{name} approved! Awaiting final review.').replace('{name}', submission.creature_name));
     } catch {
-      Alert.alert(t('error') || 'Error', 'Could not approve this submission.');
+      Alert.alert(t('error') || 'Error', t('creature_approve_error') || 'Could not approve this submission.');
     }
     setActioningId(null);
   };
@@ -104,11 +112,11 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
     if (!rejectTarget) return;
     setActioningId(rejectTarget.id);
     try {
-      await creaturesApi.reject(rejectTarget.id, rejectReason.trim() || 'Does not meet the Class of Happiness standards');
+      await creaturesApi.reject(rejectTarget.id, rejectReason.trim() || (t('creature_default_rejection_reason') || 'Does not meet the Class of Happiness standards'));
       setPending(prev => prev.filter(p => p.id !== rejectTarget.id));
       loadMySubmissions();
     } catch {
-      Alert.alert(t('error') || 'Error', 'Could not reject this submission.');
+      Alert.alert(t('error') || 'Error', t('creature_reject_error') || 'Could not reject this submission.');
     }
     setActioningId(null);
     setRejectTarget(null);
@@ -121,29 +129,29 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
       <View style={s.card}>
         <View style={s.cardHeader}>
           <MaterialIcons name="pets" size={24} color="#9C27B0" />
-          <Text style={s.cardTitle}>Creature Submission Code</Text>
+          <Text style={s.cardTitle}>{t('creature_submission_code_title') || 'Creature Submission Code'}</Text>
         </View>
         <Text style={s.cardHint}>
           {role === 'teacher'
-            ? "Generate a code for your class. Students enter it in \"Submit a Creature\" to send in their drawing."
-            : "Generate a code for your family. Your child enters it in \"Submit a Creature\" to send in their drawing."}
+            ? (t('creature_code_hint_teacher') || 'Generate a code for your class. Students enter it in "Submit a Creature" to send in their drawing.')
+            : (t('creature_code_hint_parent') || 'Generate a code for your family. Your child enters it in "Submit a Creature" to send in their drawing.')}
         </Text>
         <TouchableOpacity style={[s.btn, { marginBottom: 14 }]} onPress={() => router.push('/student/submit-creature')}>
           <MaterialIcons name="palette" size={18} color="white" />
-          <Text style={s.btnText}>Submit a Creature</Text>
+          <Text style={s.btnText}>{t('submit_a_creature_btn') || 'Submit a Creature'}</Text>
         </TouchableOpacity>
         {!code ? (
           <TouchableOpacity style={[s.btn, generating && s.btnDisabled]} onPress={generateCode} disabled={generating}>
             {generating ? <ActivityIndicator color="white" size="small" /> : <MaterialIcons name="vpn-key" size={18} color="white" />}
-            <Text style={s.btnText}>{generating ? 'Generating…' : 'Generate Code'}</Text>
+            <Text style={s.btnText}>{generating ? (t('creature_generating') || 'Generating…') : (t('creature_generate_code_btn') || 'Generate Code')}</Text>
           </TouchableOpacity>
         ) : (
           <View>
             <Text style={s.codeValue}>{code}</Text>
-            <Text style={s.codeNote}>Expires in 30 days · up to 10 students can use it</Text>
+            <Text style={s.codeNote}>{t('creature_code_expiry_note') || 'Expires in 30 days · up to 10 students can use it'}</Text>
             <TouchableOpacity style={[s.btn, { backgroundColor: '#4CAF50' }]} onPress={shareCode}>
               <MaterialIcons name="share" size={18} color="white" />
-              <Text style={s.btnText}>Share Code</Text>
+              <Text style={s.btnText}>{t('creature_share_code_btn') || 'Share Code'}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -153,12 +161,12 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
       <View style={[s.card, { marginTop: 16 }]}>
         <View style={s.cardHeader}>
           <MaterialIcons name="pending-actions" size={24} color="#9C27B0" />
-          <Text style={s.cardTitle}>Pending Creatures</Text>
+          <Text style={s.cardTitle}>{t('creature_pending_title') || 'Pending Creatures'}</Text>
         </View>
         {loadingPending ? (
           <View style={{ marginVertical: 20 }}><EmotionColourLoader visible size={40} /></View>
         ) : pending.length === 0 ? (
-          <Text style={s.emptyText}>No creatures waiting for review right now.</Text>
+          <Text style={s.emptyText}>{t('creature_none_pending') || 'No creatures waiting for review right now.'}</Text>
         ) : (
           pending.map((sub) => (
             <View key={sub.id} style={s.subRow}>
@@ -175,7 +183,7 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
                   <Text style={s.subName}>{sub.creature_name}</Text>
                 </View>
                 <Text style={s.subMeta}>
-                  {sub.real_student_name ? `For: ${sub.real_student_name}` : sub.student_name}
+                  {sub.real_student_name ? `${t('for_label') || 'For:'} ${sub.real_student_name}` : sub.student_name}
                   {formatSubDate(sub.created_at) ? ` · ${formatSubDate(sub.created_at)}` : ''}
                 </Text>
                 {sub.description ? <Text style={s.subMeta}>{sub.description}</Text> : null}
@@ -208,15 +216,16 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
       <View style={[s.card, { marginTop: 16 }]}>
         <View style={s.cardHeader}>
           <MaterialIcons name="checklist" size={24} color="#9C27B0" />
-          <Text style={s.cardTitle}>{role === 'teacher' ? "My Classroom's Submissions" : 'My Submissions'}</Text>
+          <Text style={s.cardTitle}>{role === 'teacher' ? (t('creature_my_classroom_submissions_title') || "My Classroom's Submissions") : (t('creature_my_submissions_title') || 'My Submissions')}</Text>
         </View>
         {loadingMySubmissions ? (
           <View style={{ marginVertical: 20 }}><EmotionColourLoader visible size={40} /></View>
         ) : mySubmissions.length === 0 ? (
-          <Text style={s.emptyText}>No creatures submitted yet.</Text>
+          <Text style={s.emptyText}>{t('creature_none_submitted') || 'No creatures submitted yet.'}</Text>
         ) : (
           mySubmissions.map((sub) => {
-            const statusInfo = STATUS_INFO[sub.status] || STATUS_INFO.pending;
+            const statusColor = STATUS_COLORS[sub.status] || STATUS_COLORS.pending;
+            const statusLabel = STATUS_LABELS[sub.status] || STATUS_LABELS.pending;
             return (
               <View key={sub.id} style={s.subRow}>
                 {sub.stage4_url ? (
@@ -232,15 +241,15 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
                     <Text style={s.subName}>{sub.creature_name}</Text>
                   </View>
                   <Text style={s.subMeta}>
-                    {sub.real_student_name ? `For: ${sub.real_student_name}` : sub.student_name}
+                    {sub.real_student_name ? `${t('for_label') || 'For:'} ${sub.real_student_name}` : sub.student_name}
                     {formatSubDate(sub.created_at) ? ` · ${formatSubDate(sub.created_at)}` : ''}
                   </Text>
                   {sub.status === 'rejected' && sub.rejection_reason ? (
                     <Text style={s.subMeta}>{sub.rejection_reason}</Text>
                   ) : null}
                 </View>
-                <View style={[s.statusBadge, { backgroundColor: statusInfo.bg }]}>
-                  <Text style={[s.statusBadgeText, { color: statusInfo.color }]}>{statusInfo.label}</Text>
+                <View style={[s.statusBadge, { backgroundColor: statusColor.bg }]}>
+                  <Text style={[s.statusBadgeText, { color: statusColor.color }]}>{statusLabel}</Text>
                 </View>
               </View>
             );
@@ -252,21 +261,21 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
       <Modal visible={!!rejectTarget} transparent animationType="fade">
         <View style={s.modalOverlay}>
           <View style={s.modalCard}>
-            <Text style={s.modalTitle}>Reject "{rejectTarget?.creature_name}"?</Text>
-            <Text style={s.modalHint}>Give a short reason - the student will see this.</Text>
+            <Text style={s.modalTitle}>{(t('creature_reject_modal_title') || 'Reject "{name}"?').replace('{name}', rejectTarget?.creature_name || '')}</Text>
+            <Text style={s.modalHint}>{t('creature_reject_modal_hint') || 'Give a short reason - the student will see this.'}</Text>
             <TextInput
               style={s.modalInput}
-              placeholder="e.g. Please keep drawings kind and friendly"
+              placeholder={t('creature_reject_placeholder') || 'e.g. Please keep drawings kind and friendly'}
               value={rejectReason}
               onChangeText={setRejectReason}
               multiline
             />
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
               <TouchableOpacity style={[s.btn, { flex: 1, backgroundColor: '#999' }]} onPress={() => { setRejectTarget(null); setRejectReason(''); }}>
-                <Text style={s.btnText}>Cancel</Text>
+                <Text style={s.btnText}>{t('cancel') || 'Cancel'}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[s.btn, { flex: 1, backgroundColor: '#F44336' }]} onPress={confirmReject}>
-                <Text style={s.btnText}>Reject</Text>
+                <Text style={s.btnText}>{t('creature_reject_btn') || 'Reject'}</Text>
               </TouchableOpacity>
             </View>
           </View>
