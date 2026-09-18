@@ -1,4 +1,4 @@
-import React, { useState, useLayoutEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,} from 'react-native';
-import { useRouter, useNavigation } from 'expo-router';
+import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -51,7 +51,6 @@ const BULK_STRATEGIES = {
 
 export default function ManageClassroomsScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const { classrooms, students, refreshClassrooms, refreshStudents, t, language, translations, user } = useApp();
 
   // Redesign round 2 (Sep 4, Marisa's mockup): relocated from teacher/dashboard.tsx's nav
@@ -115,10 +114,6 @@ export default function ManageClassroomsScreen() {
   const [addingStrategy, setAddingStrategy] = useState(false);
 
   React.useEffect(() => { refreshClassrooms(); refreshStudents(); }, []);
-
-  useLayoutEffect(() => {
-    navigation.setOptions({ headerShown: false });
-  }, [navigation, language, translations]);
 
   const getClassroomStudents = (classroomId: string) =>
     students.filter(s => s.classroom_id === classroomId);
@@ -392,7 +387,7 @@ export default function ManageClassroomsScreen() {
               {/* Current students */}
               <Text style={styles.sectionLabel}>{t('students_in_class') || 'Students in This Class'} ({classroomStudents.length})</Text>
               {classroomStudents.length === 0 && (
-                <Text style={styles.emptySubtext}>No students yet — add from below</Text>
+                <Text style={styles.emptySubtext}>No students yet - add from below</Text>
               )}
               {classroomStudents.map(s => (
                 <View key={s.id} style={styles.studentRow}>

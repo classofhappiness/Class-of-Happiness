@@ -4,7 +4,6 @@ import {
   TextInput, Alert, KeyboardAvoidingView, Platform, Share, Linking, useWindowDimensions,
 } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
-import { useNavigation } from '@react-navigation/native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -51,8 +50,6 @@ type RangeKey = '1' | '7' | '14' | '30';
 
 export default function MyWellbeingScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
-  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { t } = useApp();
   const [strategyNames, setStrategyNames] = useState<Record<string,string>>({});
   useEffect(() => {
@@ -384,7 +381,7 @@ export default function MyWellbeingScreen() {
     📝 ${journals[e.id]}` : '';
         const strats = (e as any).strategies_selected?.length ? `
     🎯 ${((e as any).strategies_selected).slice(0,3).map((id: string) => resolveName(id, strategyNames, t)).join(', ')}` : '';
-        return `${zoneEmoji[e.zone]||'•'} ${d} ${time} — ${zoneLabel[e.zone]||e.zone}${note}${strats}${journal}`;
+        return `${zoneEmoji[e.zone]||'•'} ${d} ${time} - ${zoneLabel[e.zone]||e.zone}${note}${strats}${journal}`;
       }),
       '',
       '─────────────────────────────────────',
@@ -392,7 +389,7 @@ export default function MyWellbeingScreen() {
       '  This report is private and confidential.',
     ];
     try {
-      await Share.share({ title: `Wellbeing Report — ${memberName}`, message: lines.join('\n') });
+      await Share.share({ title: `Wellbeing Report - ${memberName}`, message: lines.join('\n') });
     } catch(e) { console.log('Export error:', e); }
   };
 
@@ -402,7 +399,7 @@ export default function MyWellbeingScreen() {
         <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={st.headerTitle}>🔒 {memberName} — {t('my_wellbeing') || 'My Wellbeing'}</Text>
+        <Text style={st.headerTitle}>🔒 {memberName} - {t('my_wellbeing') || 'My Wellbeing'}</Text>
         <TouchableOpacity onPress={() => { setPinUnlocked(false); setPinInput(''); }}>
           <MaterialIcons name="lock" size={22} color="#AAA" />
         </TouchableOpacity>

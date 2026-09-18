@@ -86,8 +86,11 @@ export default function TeacherWidgetScreen() {
     <SafeAreaView style={st.container}>
       {/* Header */}
       <View style={st.header}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
+        {/* Real fix Sep 18: restyled to the app-wide black-circle standard. This screen is
+            deliberately minimal (kiosk-style classroom display) - no home button, no logo,
+            same as before, only the back button's own styling changed. */}
+        <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
+          <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={st.headerTitle}>😊 {t('classroom_widget') || 'Classroom Widget'}</Text>
@@ -213,7 +216,7 @@ export default function TeacherWidgetScreen() {
                     {log ? (
                       <Text style={[st.studentTime, { color }]}>{timeAgo(log.timestamp)}</Text>
                     ) : (
-                      <Text style={st.studentNotIn}>—</Text>
+                      <Text style={st.studentNotIn}>-</Text>
                     )}
                   </TouchableOpacity>
                 );

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigation } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -62,8 +61,6 @@ const STUDENT_COLOUR_MESSAGE: Record<string, string> = {
 
 export default function RewardsScreen() {
   const router = useRouter();
-  const navigation = useNavigation() as any;
-  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { currentStudent, t, language } = useApp();
   const params = useLocalSearchParams<{ 
     strategiesUsed?: string; 

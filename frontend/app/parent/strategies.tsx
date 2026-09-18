@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigation } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -19,8 +18,6 @@ import { customStrategiesApi, strategiesApi, CustomStrategy, Strategy } from '..
 
 export default function ParentStrategiesScreen() {
   const router = useRouter();
-  const navigation = useNavigation() as any;
-  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
   const { user, students, presetAvatars, t, language } = useApp();
   
@@ -164,7 +161,12 @@ export default function ParentStrategiesScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#5C6BC0" colors={['#5C6BC0']} />
         }
       >
-        {/* Header */}
+        {/* Header. Real fix Sep 18: home button restyled to the app-wide black-circle
+            standard. The back button is left as its existing icon+"Back"-label combo
+            rather than forced into an icon-only circle, which would drop the text - not
+            converted to TranslatedHeader wholesale for the same reason plus the two-line
+            title with a dynamic subtitle below, which TranslatedHeader's plain string
+            title can't represent. */}
         <View style={styles.header}>
           <View style={{flexDirection:'row',alignItems:'center',marginBottom:8}}>
             <TouchableOpacity onPress={() => router.back()} style={{flexDirection:'row',alignItems:'center',gap:4}}>
@@ -172,8 +174,8 @@ export default function ParentStrategiesScreen() {
               <Text style={{color:'#333',fontSize:14,fontWeight:'500'}}>{t('back') || 'Back'}</Text>
             </TouchableOpacity>
             <View style={{flex:1}} />
-            <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={{padding:4}}>
-              <MaterialIcons name="home" size={22} color="#333" />
+            <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={{width:36,height:36,borderRadius:18,backgroundColor:'#1A1A2E',alignItems:'center',justifyContent:'center'}}>
+              <MaterialIcons name="home" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
           <Text style={styles.headerTitle}>

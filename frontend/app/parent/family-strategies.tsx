@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigation } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, KeyboardAvoidingView, Platform,
   TouchableOpacity, RefreshControl, Modal, TextInput, Alert, Switch,
@@ -29,10 +28,10 @@ const ZONE_BG: Record<string, string> = {
   blue: '#EBF3FB', green: '#E8F5E9', yellow: '#FFF8E1', red: '#FFEBEE',
 };
 const ZONE_NAMES: Record<string, string> = {
-  blue: 'Blue Emotions — Quiet Energy',
-  green: 'Green Emotions — Balanced Energy',
-  yellow: 'Yellow Emotions — Fizzing Energy',
-  red: 'Red Emotions — Big Energy',
+  blue: 'Blue Emotions - Quiet Energy',
+  green: 'Green Emotions - Balanced Energy',
+  yellow: 'Yellow Emotions - Fizzing Energy',
+  red: 'Red Emotions - Big Energy',
 };
 const ZONE_DESC: Record<string, string> = {
   blue: 'Sad, tired, withdrawn, low motivation',
@@ -43,10 +42,10 @@ const ZONE_DESC: Record<string, string> = {
 
 const FAMILY_STRATEGIES = [
   // BLUE
-  { zone:'blue', nameKey:'strat_side_by_side_name', descKey:'strat_side_by_side_desc', name:'Side-by-Side Presence', description:'Sit quietly next to your child without expectation. No screens, no fixing — just presence. Research shows co-regulation starts with felt safety.', icon:'people', research:'Attachment theory' },
+  { zone:'blue', nameKey:'strat_side_by_side_name', descKey:'strat_side_by_side_desc', name:'Side-by-Side Presence', description:'Sit quietly next to your child without expectation. No screens, no fixing, just presence. Research shows co-regulation starts with felt safety.', icon:'people', research:'Attachment theory' },
   { zone:'blue', nameKey:'strat_warm_drink_name', descKey:'strat_warm_drink_desc', name:'Warm Drink Ritual', description:'Make a warm drink together. The act of preparing something nourishing activates the caregiving system and signals safety.', icon:'local-cafe', research:'Gottman Emotion Coaching' },
   { zone:'blue', nameKey:'strat_name_it_name', descKey:'strat_name_it_desc', name:'Name It to Tame It', description:'Gently name what you see: "You seem really low today." Labelling emotions reduces amygdala activation by up to 50%.', icon:'chat-bubble', research:'Siegel & Bryson (2012)' },
-  { zone:'blue', nameKey:'strat_movement_name', descKey:'strat_movement_desc', name:'Movement Invitation', description:'Suggest a 5-minute walk outside. Even slow movement increases serotonin and dopamine. Invite — never force.', icon:'directions-walk', research:'Exercise & mood regulation' },
+  { zone:'blue', nameKey:'strat_movement_name', descKey:'strat_movement_desc', name:'Movement Invitation', description:'Suggest a 5-minute walk outside. Even slow movement increases serotonin and dopamine. Invite, never force.', icon:'directions-walk', research:'Exercise & mood regulation' },
   { zone:'blue', nameKey:'strat_comfort_name', descKey:'strat_comfort_desc', name:'Comfort Object or Pet', description:'Encourage connection with a pet, soft toy or blanket. Physical comfort activates the parasympathetic nervous system.', icon:'pets', research:'Polyvagal Theory (Porges)' },
   { zone:'blue', nameKey:'strat_lowered_name', descKey:'strat_lowered_desc', name:'Lowered Expectations Day', description:'Explicitly say "Today we can take it easy." Removing performance pressure allows natural energy to return without shame.', icon:'hotel', research:'Positive Discipline (Nelsen)' },
   // GREEN
@@ -55,27 +54,25 @@ const FAMILY_STRATEGIES = [
   { zone:'green', nameKey:'strat_strength_name', descKey:'strat_strength_desc', name:'Strength Spotting', description:'Point out a specific strength: "I noticed how patient you were today." Specific praise builds a secure self-concept.', icon:'star', research:'Growth mindset (Dweck)' },
   { zone:'green', nameKey:'strat_creative_name', descKey:'strat_creative_desc', name:'Creative Together Time', description:'Draw, build, cook or make something with no goal in mind. Open-ended play activates curiosity and strengthens connection.', icon:'palette', research:'Play therapy research' },
   { zone:'green', nameKey:'strat_calm_problem_name', descKey:'strat_calm_problem_desc', name:'Calm Problem-Solving', description:'When things are calm, solve problems together: "What could we do differently next time?" Green zone is ideal for collaborative planning.', icon:'lightbulb', research:'Collaborative Problem Solving (Greene)' },
-  { zone:'green', nameKey:'strat_one_on_one_name', descKey:'strat_one_on_one_desc', name:'Special One-on-One Time', description:'10-15 minutes of undivided attention where your child leads. Non-negotiable — significantly reduces attention-seeking behaviour.', icon:'child-care', research:'Attachment-based parenting' },
+  { zone:'green', nameKey:'strat_one_on_one_name', descKey:'strat_one_on_one_desc', name:'Special One-on-One Time', description:'10-15 minutes of undivided attention where your child leads. Non-negotiable. Significantly reduces attention-seeking behaviour.', icon:'child-care', research:'Attachment-based parenting' },
   // YELLOW
-  { zone:'yellow', nameKey:'strat_box_breathing_name', descKey:'strat_box_breathing_desc', name:'Box Breathing Together', description:'Breathe in 4, hold 4, out 4, hold 4. Do it WITH your child — modelling is more powerful than instruction.', icon:'air', research:'HRV & vagal tone research' },
+  { zone:'yellow', nameKey:'strat_box_breathing_name', descKey:'strat_box_breathing_desc', name:'Box Breathing Together', description:'Breathe in 4, hold 4, out 4, hold 4. Do it WITH your child. Modelling is more powerful than instruction.', icon:'air', research:'HRV & vagal tone research' },
   { zone:'yellow', nameKey:'strat_validate_name', descKey:'strat_validate_desc', name:'Validate First Always', description:'Before solving, say "That makes sense you\'d feel that way." Validation reduces emotional intensity within 90 seconds.', icon:'volunteer-activism', research:'DBT validation (Linehan)' },
   { zone:'yellow', nameKey:'strat_body_checkin_name', descKey:'strat_body_checkin_desc', name:'Body Check-In', description:'Ask "Where do you feel this in your body?" Noticing physical sensations interrupts the spiral and increases interoceptive awareness.', icon:'accessibility', research:'Somatic therapy (Levine)' },
   { zone:'yellow', nameKey:'strat_journal_name', descKey:'strat_journal_desc', name:'Feelings Journal or Drawing', description:'Offer a notebook to write or draw feelings. Externalising emotions reduces intensity and builds long-term emotional literacy.', icon:'edit', research:'Expressive writing research' },
   { zone:'yellow', nameKey:'strat_space_name', descKey:'strat_space_desc', name:'Space with Check-Back', description:'Say "I\'ll give you 5 minutes and come back to check on you." Respects autonomy while maintaining warm connection.', icon:'timer', research:'Autonomy-supportive parenting' },
-  { zone:'yellow', nameKey:'strat_playful_name', descKey:'strat_playful_desc', name:'Playful Interruption', description:'For younger children — a funny face or ridiculous sound can work. Laughter physically downregulates the stress response.', icon:'mood', research:'Playful parenting (Cohen)' },
+  { zone:'yellow', nameKey:'strat_playful_name', descKey:'strat_playful_desc', name:'Playful Interruption', description:'For younger children, a funny face or ridiculous sound can work. Laughter physically downregulates the stress response.', icon:'mood', research:'Playful parenting (Cohen)' },
   // RED
-  { zone:'red', nameKey:'strat_regulate_name', descKey:'strat_regulate_desc', name:'Regulate Yourself First', description:'Your nervous system regulates theirs. Take one slow breath before responding. Children co-regulate through adult calm — not words.', icon:'self-improvement', research:'Polyvagal Theory (Porges)' },
-  { zone:'red', nameKey:'strat_safe_space_name', descKey:'strat_safe_space_desc', name:'Safe Space — Not Isolation', description:'Guide your child to a quiet corner WITH you nearby. Isolation increases shame; proximity while calm reduces it.', icon:'home', research:'Attachment-based discipline' },
+  { zone:'red', nameKey:'strat_regulate_name', descKey:'strat_regulate_desc', name:'Regulate Yourself First', description:'Your nervous system regulates theirs. Take one slow breath before responding. Children co-regulate through adult calm, not words.', icon:'self-improvement', research:'Polyvagal Theory (Porges)' },
+  { zone:'red', nameKey:'strat_safe_space_name', descKey:'strat_safe_space_desc', name:'Safe Space - Not Isolation', description:'Guide your child to a quiet corner WITH you nearby. Isolation increases shame; proximity while calm reduces it.', icon:'home', research:'Attachment-based discipline' },
   { zone:'red', nameKey:'strat_cold_water_name', descKey:'strat_cold_water_desc', name:'Cold Water Reset', description:'Splash cold water on the face or hold a cold drink. This activates the dive reflex, rapidly reducing heart rate.', icon:'water', research:'Physiological self-regulation' },
-  { zone:'red', nameKey:'strat_no_teaching_name', descKey:'strat_no_teaching_desc', name:'No Teaching in the Storm', description:'Wait until the red zone passes before discussing what happened. The reasoning brain goes offline during high arousal.', icon:'do-not-disturb', research:'Siegel — Window of Tolerance' },
-  { zone:'red', nameKey:'strat_reconnect_name', descKey:'strat_reconnect_desc', name:'Reconnect Before Redirect', description:'After the storm, reconnect with warmth first: a hug, eye contact, soft voice. Only then address behaviour — calmly.', icon:'favorite-border', research:'Gottman Emotion Coaching' },
+  { zone:'red', nameKey:'strat_no_teaching_name', descKey:'strat_no_teaching_desc', name:'No Teaching in the Storm', description:'Wait until the red zone passes before discussing what happened. The reasoning brain goes offline during high arousal.', icon:'do-not-disturb', research:'Siegel - Window of Tolerance' },
+  { zone:'red', nameKey:'strat_reconnect_name', descKey:'strat_reconnect_desc', name:'Reconnect Before Redirect', description:'After the storm, reconnect with warmth first: a hug, eye contact, soft voice. Only then address behaviour, calmly.', icon:'favorite-border', research:'Gottman Emotion Coaching' },
   { zone:'red', nameKey:'strat_repair_name', descKey:'strat_repair_desc', name:'Model Repair', description:'If you lost your cool, model repair: "I\'m sorry I raised my voice. Let\'s try again." Repair is more powerful than perfection.', icon:'handshake', research:'Rupture-repair cycle (Tronick)' },
 ];
 
 export default function FamilyStrategiesScreen() {
   const router = useRouter();
-  const navigation = useNavigation() as any;
-  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { t, user } = useApp();
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
   const [expandedStrategy, setExpandedStrategy] = useState<string | null>(null);
@@ -234,7 +231,7 @@ export default function FamilyStrategiesScreen() {
         <Text style={styles.subtitle}>
           {activeTab === 'parent'
             ? (t('parent_strategies_subtitle') || 'Evidence-based co-regulation strategies for parents. Tap any card to read more.')
-            : (t('emotion_strategies_children') || 'Emotion strategies for children — the same ones used at school.')}
+            : (t('emotion_strategies_children') || 'Emotion strategies for children, the same ones used at school.')}
         </Text>
         <View style={styles.infoNote}>
           <MaterialIcons name="info" size={14} color="#5C6BC0" />

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigation } from '@react-navigation/native';
 import { 
   View, 
   Text, 
@@ -85,8 +84,6 @@ export default function StudentDetailScreen() {
   const [secCalendar, setSecCalendar] = React.useState(false);
   const [secStrategies, setSecStrategies] = React.useState(false);
   const [creatureEmoji, setCreatureEmoji] = React.useState('🥚');
-  const navigation = useNavigation() as any;
-  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
   const { students, presetAvatars, classrooms, t, language } = useApp();
   
@@ -313,7 +310,7 @@ export default function StudentDetailScreen() {
             { text: 'See Plans', onPress: () => router.push('/subscription') },
           ]);
         } else {
-          Alert.alert('Error', 'Cannot generate PDF — no data may exist for this month yet');
+          Alert.alert('Error', 'Cannot generate PDF - no data may exist for this month yet');
         }
         return;
       }
@@ -357,9 +354,13 @@ export default function StudentDetailScreen() {
   return (
     <SafeAreaView style={styles.container}>
       {/* Top nav bar */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', minHeight: 52 }}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', minHeight: 52, gap: 8 }}>
+        {/* Real fix Sep 18: restyled to the app-wide black-circle standard - not converted
+            to TranslatedHeader wholesale, since this header carries the student's own
+            avatar+name+classroom (not a plain string title, which is all TranslatedHeader's
+            title prop can take) - forcing it in would drop real identifying content. */}
+        <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
+          <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
         </TouchableOpacity>
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           <Image source={require('../../assets/images/logo_coh.png')} style={{ width: 24, height: 24 }} resizeMode="contain" />
@@ -375,8 +376,8 @@ export default function StudentDetailScreen() {
             <Text style={{ fontSize: 11, color: '#888' }} numberOfLines={1}>{getClassroomName(student.classroom_id)}</Text>
           </View>
         </View>
-        <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ padding: 6 }}>
-          <MaterialIcons name="home" size={24} color="#333" />
+        <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
+          <MaterialIcons name="home" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
       <ScrollView
@@ -628,7 +629,7 @@ export default function StudentDetailScreen() {
                     <View style={styles.logStrategies}>
                       <MaterialIcons name="campaign" size={14} color="#FF7043" />
                       <Text style={[styles.logStrategiesText, {color:'#FF7043', fontWeight:'700'}]}>
-                        School Support Request — {describeSupportRequest({ request_type: log.support_request_type } as any)}
+                        School Support Request - {describeSupportRequest({ request_type: log.support_request_type } as any)}
                       </Text>
                     </View>
                   )}
@@ -720,7 +721,7 @@ export default function StudentDetailScreen() {
               style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
               <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
                 <MaterialIcons name="pie-chart" size={20} color="#5C6BC0" />
-                <Text style={styles.sectionTitle}>{t('emotion_distribution') || 'Emotion Distribution — Linked Student'}</Text>
+                <Text style={styles.sectionTitle}>{t('emotion_distribution') || 'Emotion Distribution - Linked Student'}</Text>
               </View>
               <MaterialIcons name={secEmoDistrib ? 'expand-less' : 'expand-more'} size={20} color="#666" />
             </TouchableOpacity>

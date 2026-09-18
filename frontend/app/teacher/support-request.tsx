@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigation } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, Alert, ActivityIndicator, TextInput, Animated,
@@ -45,8 +44,6 @@ const REQUEST_TYPES: { type: SupportRequestType; icon: keyof typeof MaterialIcon
 // type requires picking a real student first.
 export default function SupportRequestScreen() {
   const router = useRouter();
-  const navigation = useNavigation() as any;
-  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { classrooms, students, t } = useApp();
   // Real fix Sep 18: this screen (build 27's buzz feature) had zero i18n anywhere -
   // every string below was hardcoded English. REQUEST_TYPES is a module-level constant so
@@ -370,7 +367,7 @@ export default function SupportRequestScreen() {
   if (step === 'student') {
     return (
       <SafeAreaView style={styles.container}>
-        <TranslatedHeader title={classroomName} onBackPress={() => setStep('classroom')} />
+        <TranslatedHeader title={classroomName} onBackPress={() => setStep('classroom')} showHome />
         <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
           <Text style={styles.stepSubtitle}>{t('support_request_select_student') || 'Select a student, or the whole classroom'}</Text>
           <TouchableOpacity style={[styles.rowCard, styles.wholeClassCard]} onPress={pickWholeClassroom}>
@@ -445,7 +442,7 @@ export default function SupportRequestScreen() {
   if (step === 'type') {
     return (
       <SafeAreaView style={styles.container}>
-        <TranslatedHeader title={studentName} onBackPress={() => setStep('student')} />
+        <TranslatedHeader title={studentName} onBackPress={() => setStep('student')} showHome />
         <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
           <Text style={styles.stepSubtitle}>{t('support_request_whats_needed_title') || "What's needed?"}</Text>
           {REQUEST_TYPES.map(rt => (
@@ -477,6 +474,7 @@ export default function SupportRequestScreen() {
       <TranslatedHeader
         title={isClassroomLevel ? (t('support_request_whole_classroom_header') || 'Whole classroom') : studentName}
         onBackPress={() => setStep(isClassroomLevel ? 'student' : 'type')}
+        showHome
       />
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
         {isClassroomIncident ? (

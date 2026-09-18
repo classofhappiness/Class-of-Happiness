@@ -146,8 +146,11 @@ export default function ParentWidgetScreen() {
     <SafeAreaView style={st.container}>
       {/* Header */}
       <View style={st.header}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
+        {/* Real fix Sep 18: restyled to the app-wide black-circle standard. This screen is
+            deliberately minimal (kiosk-style family display) - no home button, no logo,
+            same as before, only the back button's own styling changed. */}
+        <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
+          <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={st.headerTitle}>😊 {t('family_widget') || 'Family Widget'}</Text>

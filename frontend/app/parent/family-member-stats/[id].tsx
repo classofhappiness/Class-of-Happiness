@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Image, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Linking } from 'react-native';
 import { EmotionColourLoader } from '../../../src/components/EmotionColourLoader';
+import { TranslatedHeader } from '../../../src/components/TranslatedHeader';
 
 // Fallback for old-format strategy codes
 const STRATEGY_NAMES_LOCAL: Record<string,string> = {
@@ -209,32 +210,14 @@ export default function FamilyMemberStatsScreen() {
 
   if (loading) return (
     <SafeAreaView style={s.container}>
-      <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.headerBtn}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <View style={s.headerCenter}>
-          <Image source={require('../../../assets/images/logo_coh.png')} style={s.headerLogo} resizeMode="contain" />
-          <Text style={s.headerTitle}>{decodeURIComponent(name||'')} — {t('statistics_title')||'Statistics'}</Text>
-        </View>
-        <View style={{width:40}} />
-      </View>
+      <TranslatedHeader title={`${decodeURIComponent(name||'')} - ${t('statistics_title')||'Statistics'}`} />
       <View style={{marginTop:60}}><EmotionColourLoader visible size={64} /></View>
     </SafeAreaView>
   );
 
   return (
     <SafeAreaView style={s.container}>
-      <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.headerBtn}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <View style={s.headerCenter}>
-          <Image source={require('../../../assets/images/logo_coh.png')} style={s.headerLogo} resizeMode="contain" />
-          <Text style={s.headerTitle}>{decodeURIComponent(name||'')} — {t('statistics_title')||'Statistics'}</Text>
-        </View>
-        <View style={{width:40}} />
-      </View>
+      <TranslatedHeader title={`${decodeURIComponent(name||'')} - ${t('statistics_title')||'Statistics'}`} />
 
       {/* Real fix Aug 26 (item 5): same period pills as a linked child's detail screen
           (parent/linked-child/[id].tsx) - was missing here entirely, a real inconsistency. */}
@@ -256,8 +239,8 @@ export default function FamilyMemberStatsScreen() {
         <View style={{flexDirection:'row', alignItems:'center', justifyContent:'center', gap:12, marginBottom:12}}>
           <Text style={{fontSize:13, color:'#888', textAlign:'center'}}>
             {total > 0
-              ? `${total} ${t('wellbeing_total')||'total check-ins'} · ${t('last_checkin')||'Last'}: ${(() => { const last = filteredLogs.slice().sort((a:any,b:any)=>new Date(b.timestamp).getTime()-new Date(a.timestamp).getTime())[0]; if(!last) return '—'; const d = new Date(last.timestamp); const diff = Math.floor((Date.now()-d.getTime())/(1000*60*60*24)); return diff === 0 ? (t('just_now')||'Today') : diff === 1 ? (t('yesterday')||'Yesterday') : `${diff} ${t('days_ago')||'days ago'}`; })()}`
-              : t('no_checkin_yet')||'No check-ins yet — tap the card to start!'
+              ? `${total} ${t('wellbeing_total')||'total check-ins'} · ${t('last_checkin')||'Last'}: ${(() => { const last = filteredLogs.slice().sort((a:any,b:any)=>new Date(b.timestamp).getTime()-new Date(a.timestamp).getTime())[0]; if(!last) return '-'; const d = new Date(last.timestamp); const diff = Math.floor((Date.now()-d.getTime())/(1000*60*60*24)); return diff === 0 ? (t('just_now')||'Today') : diff === 1 ? (t('yesterday')||'Yesterday') : `${diff} ${t('days_ago')||'days ago'}`; })()}`
+              : t('no_checkin_yet')||'No check-ins yet - tap the card to start!'
             }
           </Text>
         </View>
@@ -422,13 +405,8 @@ export default function FamilyMemberStatsScreen() {
 
 const s = StyleSheet.create({
   container: { flex:1, backgroundColor:'#F8F9FA' },
-  header: { flexDirection:'row', alignItems:'center', padding:16, backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0', gap:8 },
   headerName: { fontSize:18, fontWeight:'700', color:'#333' },
   headerSub: { fontSize:12, color:'#888', marginTop:2 },
-  headerBtn: { padding:8, width:40 },
-  headerCenter: { flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8 },
-  headerLogo: { width:28, height:28 },
-  headerTitle: { fontSize:16, fontWeight:'700', color:'#333' },
   // Period pills (item 5) - same styling as parent/linked-child/[id].tsx's periodRow
   periodRow:           { flexDirection:'row', gap:6, paddingHorizontal:16, paddingBottom:8, paddingTop:8, backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0' },
   periodBtn:           { flex:1, paddingVertical:7, borderRadius:8, alignItems:'center', backgroundColor:'#F0F0F0' },

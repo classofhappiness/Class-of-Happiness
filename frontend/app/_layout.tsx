@@ -270,6 +270,7 @@ function AppContent() {
         <Stack.Screen
           name="student/select"
           options={{
+            headerShown: false,
             title: 'Select Your Profile',
             headerBackTitle: 'Home',
           }}
@@ -349,8 +350,16 @@ function AppContent() {
         <Stack.Screen
           name="teacher/dashboard"
           options={{
+            headerShown: false,
             title: 'Teacher Dashboard',
             headerBackTitle: 'Home',
+          }}
+        />
+        <Stack.Screen
+          name="teacher/alerts"
+          options={{
+            headerShown: false,
+            title: 'Student Alerts',
           }}
         />
         <Stack.Screen
@@ -405,6 +414,20 @@ function AppContent() {
             title: 'Family Dashboard',
             headerTitleStyle: { fontWeight: '700' },
             headerRight: () => <HomeToDashboard />,
+          }}
+        />
+        <Stack.Screen
+          name="parent/alerts"
+          options={{
+            headerShown: false,
+            title: 'Family Alerts',
+          }}
+        />
+        <Stack.Screen
+          name="parent/my-wellbeing"
+          options={{
+            headerShown: false,
+            title: 'My Wellbeing',
           }}
         />
         <Stack.Screen

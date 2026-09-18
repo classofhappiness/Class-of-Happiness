@@ -4,7 +4,7 @@ import {
   ScrollView, KeyboardAvoidingView, Platform, Alert, TextInput, Modal, Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter, useNavigation } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ColourCycleLogo } from '../../src/components/ColourCycleLogo';
 import { useApp } from '../../src/context/AppContext';
@@ -62,7 +62,6 @@ export default function TeacherCheckInScreen() {
   const zoneCardWidth = gridCardWidth(useFixedGridColumns(ZONES.length));
   const router = useRouter();
   const { user , t} = useApp();
-  const navigation = useNavigation();
   const [selectedZone, setSelectedZone] = useState<FeelingZone | null>(null);
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
@@ -101,7 +100,6 @@ export default function TeacherCheckInScreen() {
   const [zoneCounts, setZoneCounts] = useState({blue:0,green:0,yellow:0,red:0});
   const [stratCounts, setStratCounts] = useState<Record<string,number>>({});
 
-  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   useEffect(() => {
     if (user?.name) { setDisplayName(user.name); setNameInput(user.name); }
     else if (user?.email) { const n = user.email.split('@')[0].replace(/\./g,' ').replace(/\w/g,(c:string)=>c.toUpperCase()); setDisplayName(n); setNameInput(n); }

@@ -13,7 +13,6 @@ import {
   Image
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
@@ -33,8 +32,6 @@ const PRESET_AVATARS = [
 
 export default function CreateProfileScreen() {
   const router = useRouter();
-  const navigation = useNavigation() as any;
-  React.useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { refreshStudents, classrooms, t, user } = useApp();
   // Jono's decision (Sep 6): gate by ACTIVE role, Google Classroom/ClassDojo convention -
   // a teacher-tier account sees only the classroom dropdown (they assign directly). The

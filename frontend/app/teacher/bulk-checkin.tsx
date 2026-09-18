@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigation } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, Alert, ActivityIndicator, Platform,
@@ -26,8 +25,6 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 export default function BulkCheckinScreen() {
   const router = useRouter();
-  const navigation = useNavigation() as any;
-  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { classroomId, classroomName } = useLocalSearchParams<{ classroomId: string; classroomName: string }>();
   const { students, presetAvatars, t, language } = useApp();
 
@@ -170,9 +167,12 @@ export default function BulkCheckinScreen() {
   if (!selectedClassroomId) {
     return (
       <SafeAreaView style={styles.container}>
+        {/* Real fix Sep 18: back button restyled to the app-wide black-circle standard - not
+            converted to TranslatedHeader wholesale (two-line title+subtitle, no logo ever
+            present here). */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <MaterialIcons name="arrow-back" size={24} color="#333" />
+          <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
+            <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>{t('classroom_widget')||'Class Check-In'}</Text>
@@ -183,7 +183,7 @@ export default function BulkCheckinScreen() {
           {(classrooms||[]).length === 0 ? (
             <View style={{alignItems:'center', padding:40}}>
               <MaterialIcons name="school" size={48} color="#CCC" />
-              <Text style={{color:'#999', marginTop:12, fontSize:14}}>No classrooms yet — create one first</Text>
+              <Text style={{color:'#999', marginTop:12, fontSize:14}}>No classrooms yet - create one first</Text>
             </View>
           ) : (classrooms||[]).map((c:any) => (
             <TouchableOpacity key={c.id}
@@ -205,12 +205,15 @@ export default function BulkCheckinScreen() {
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
+      {/* Real fix Sep 18: back/home buttons restyled to the app-wide black-circle standard -
+          not converted to TranslatedHeader wholesale (two-line title+subtitle, no logo ever
+          present here, and a Submit button also lives in this same header row). */}
+      <View style={[styles.header, { gap: 8 }]}>
+        <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
+          <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ padding: 4, marginRight: 4 }}>
-          <MaterialIcons name="home" size={20} color="#333" />
+        <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
+          <MaterialIcons name="home" size={20} color="#FFFFFF" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle} numberOfLines={1}>

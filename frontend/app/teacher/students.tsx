@@ -1,4 +1,4 @@
-import React, { useState, useLayoutEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   View, 
   Text, 
@@ -6,23 +6,22 @@ import {
   SafeAreaView, 
   ScrollView, 
   TouchableOpacity,
-  Image,
   Alert,
   TextInput,
   Modal,
   Pressable
 } from 'react-native';
-import { useRouter, useNavigation } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { studentsApi, rewardsApi } from '../../src/utils/api';
 import { getStudentShield, SHIELD_LEVELS } from '../../src/utils/notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ManageStudentsScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const { students, classrooms, presetAvatars, refreshStudents, t, language, translations } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterClassroom, setFilterClassroom] = useState<string | null>(null);
@@ -33,13 +32,6 @@ export default function ManageStudentsScreen() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [showClassroomPicker, setShowClassroomPicker] = useState(false);
-
-  // Set translated header title - depend on language/translations to trigger updates
-  useLayoutEffect(() => {
-    navigation.setOptions({ headerShown: false,
-      title: t('students'),
-    });
-  }, [navigation, language, translations]);
 
   const filteredStudents = students
     .filter(student => {
@@ -137,18 +129,7 @@ export default function ManageStudentsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.pageHeader}>
-        <TouchableOpacity onPress={() => router.back()} style={{padding:4}}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          <Image source={require('../../assets/images/logo_coh.png')} style={{ width: 28, height: 28 }} resizeMode="contain" />
-          <Text style={styles.pageHeaderTitle}>{t('students') || 'Students'}</Text>
-        </View>
-        <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ padding: 8 }}>
-          <MaterialIcons name="home" size={24} color="#333" />
-        </TouchableOpacity>
-      </View>
+      <TranslatedHeader title={t('students') || 'Students'} showHome />
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <MaterialIcons name="search" size={24} color="#999" />
@@ -425,8 +406,6 @@ export default function ManageStudentsScreen() {
 }
 
 const styles = StyleSheet.create({
-  pageHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 16, backgroundColor: "#F8F9FA" },
-  pageHeaderTitle: { flex: 1, fontSize: 17, fontWeight: "bold", color: "#333", textAlign: "center" },
   container: {
     flex: 1,
     backgroundColor: '#F8F9FA',

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigation } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -21,10 +20,10 @@ import { familyApi, FamilyMember, strategiesApi, Strategy } from '../../src/util
 import { useDataGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
 
 const getZones = (t: (key: string) => string) => [
-  { id: 'blue', name: t('blue_zone')||'Blue Zone', color: '#4A90D9', desc: t('blue_feeling_desc')||'Quiet Energy — Sad, Tired, Bored', face: '😢', emoji: '😢' },
-  { id: 'green', name: t('green_zone')||'Green Zone', color: '#4CAF50', desc: t('green_feeling_desc')||'Balanced Energy — Calm, Happy, Focused', face: '😊', emoji: '😊' },
-  { id: 'yellow', name: t('yellow_zone')||'Yellow Zone', color: '#FFC107', desc: t('yellow_feeling_desc')||'Fizzing Energy — Worried, Silly, Frustrated', face: '😟', emoji: '😟' },
-  { id: 'red', name: t('red_zone')||'Red Zone', color: '#F44336', desc: t('red_feeling_desc')||'Big Energy — Angry, Scared, Overwhelmed', face: '😣', emoji: '😣' },
+  { id: 'blue', name: t('blue_zone')||'Blue Zone', color: '#4A90D9', desc: t('blue_feeling_desc')||'Quiet Energy - Sad, Tired, Bored', face: '😢', emoji: '😢' },
+  { id: 'green', name: t('green_zone')||'Green Zone', color: '#4CAF50', desc: t('green_feeling_desc')||'Balanced Energy - Calm, Happy, Focused', face: '😊', emoji: '😊' },
+  { id: 'yellow', name: t('yellow_zone')||'Yellow Zone', color: '#FFC107', desc: t('yellow_feeling_desc')||'Fizzing Energy - Worried, Silly, Frustrated', face: '😟', emoji: '😟' },
+  { id: 'red', name: t('red_zone')||'Red Zone', color: '#F44336', desc: t('red_feeling_desc')||'Big Energy - Angry, Scared, Overwhelmed', face: '😣', emoji: '😣' },
 ];
 
 const MAX_COMMENT_LENGTH = 100;
@@ -40,7 +39,7 @@ const CHILD_STRATEGIES: Record<string, Array<{id:string; name:string; descriptio
     {id:'b4', name:'Slow Breathing', description:'Breathe in slowly, hold, breathe out', icon:'air'},
   ],
   green: [
-    {id:'g1', name:'Keep Going!', description:'You are in a great zone — keep it up!', icon:'thumb-up'},
+    {id:'g1', name:'Keep Going!', description:'You are in a great zone - keep it up!', icon:'thumb-up'},
     {id:'g2', name:'Help a Friend', description:'Use your good energy to help someone else', icon:'favorite'},
     {id:'g3', name:'Set a Goal', description:'Plan something you want to achieve today', icon:'lightbulb'},
     {id:'g4', name:'Gratitude', description:'Think of three things you are grateful for', icon:'star'},
@@ -75,14 +74,14 @@ const PARENT_STRATEGIES: Record<string, Array<{id:string; name:string; descripti
     {id:'p_g5', name:'Calm Problem Solving', description:'Plan and solve a challenge together', icon:'lightbulb'},
   ],
   yellow: [
-    {id:'p_y1', name:'Box Breathing Together', description:'In 4, hold 4, out 4 — do it together', icon:'air'},
+    {id:'p_y1', name:'Box Breathing Together', description:'In 4, hold 4, out 4 - do it together', icon:'air'},
     {id:'p_y2', name:'Validate First', description:'Say "that makes sense" before solving', icon:'volunteer-activism'},
     {id:'p_y3', name:'Body Check-In', description:'Where do you feel this in your body?', icon:'accessibility'},
     {id:'p_y4', name:'Feelings Journal', description:'Write or draw the feeling', icon:'edit'},
     {id:'p_y5', name:'Give Space with Love', description:'5 mins space, then check back warmly', icon:'timer'},
   ],
   red: [
-    {id:'p_r1', name:'Stay Calm Yourself', description:'Your calm regulates theirs — breathe first', icon:'self-improvement'},
+    {id:'p_r1', name:'Stay Calm Yourself', description:'Your calm regulates theirs - breathe first', icon:'self-improvement'},
     {id:'p_r2', name:'Safe Space Together', description:'Move to a quieter place together', icon:'home'},
     {id:'p_r3', name:'Cold Water Reset', description:'Cold water on face reduces heart rate fast', icon:'water'},
     {id:'p_r4', name:'No Teaching Now', description:'Wait for calm before discussing behaviour', icon:'do-not-disturb'},
@@ -94,8 +93,6 @@ const PARENT_STRATEGIES: Record<string, Array<{id:string; name:string; descripti
 export default function FamilyCheckInScreen() {
   const gridColumns = useDataGridColumns();
   const router = useRouter();
-  const navigation = useNavigation() as any;
-  useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const [checkedIn, setCheckedIn] = useState(false);
   const { memberId, memberName, studentId, relationship } = useLocalSearchParams<{ memberId: string; memberName: string; studentId?: string; relationship?: string }>();
   const memberRelationship = (relationship as string) || 'adult';
@@ -338,17 +335,20 @@ export default function FamilyCheckInScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         {/* Header */}
-        <View style={[styles.header, { marginTop: 8 }]}>
-          <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
-            <MaterialIcons name="arrow-back" size={24} color="#333" />
+        {/* Real fix Sep 18: restyled to the app-wide black-circle standard - not converted
+            to TranslatedHeader wholesale, since this header carries a two-line title (main
+            title + "Check-in for {memberName}" subtitle), not a plain string. */}
+        <View style={[styles.header, { marginTop: 8, gap: 8 }]}>
+          <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
+            <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <Image source={require('../../assets/images/logo_coh.png')} style={{ width: 28, height: 28 }} resizeMode="contain" />
           <View style={{ flex: 1, alignItems: 'center' }}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: '#333' }}>{step === 'zone' ? (t('how_are_you_feeling') || 'How are you feeling?') : (t('choose_helpful_strategies') || 'Choose a Strategy')}</Text>
             <Text style={{ fontSize: 11, color: '#888', marginTop: 1 }}>{t('checkin_for') || 'Check-in for'} {memberName}</Text>
           </View>
-          <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={{ padding: 6 }}>
-            <MaterialIcons name="home" size={22} color="#333" />
+          <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
+            <MaterialIcons name="home" size={20} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
@@ -492,7 +492,7 @@ export default function FamilyCheckInScreen() {
                   color={photoUri ? zoneConfig?.color : '#999'}
                 />
                 <Text style={[styles.photoButtonText, photoUri && { color: zoneConfig?.color }]}>
-                  {photoUri ? `📷 ${t('photo_added_tap_change') || 'Photo added — tap to change'}` : `📷 ${t('add_photo_optional_label') || 'Add a photo (optional)'}`}
+                  {photoUri ? `📷 ${t('photo_added_tap_change') || 'Photo added - tap to change'}` : `📷 ${t('add_photo_optional_label') || 'Add a photo (optional)'}`}
                 </Text>
                 {photoUri && (
                   <TouchableOpacity onPress={() => setPhotoUri(null)} hitSlop={{top:10,bottom:10,left:10,right:10}}>

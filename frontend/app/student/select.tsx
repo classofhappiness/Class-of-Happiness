@@ -1,7 +1,7 @@
-import React, { useLayoutEffect, useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Pressable, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useNavigation, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
@@ -27,7 +27,6 @@ export default function StudentSelectScreen() {
   const gridColumns = useDataGridColumns();
   const cardWidth = gridCardWidth(gridColumns);
   const router = useRouter();
-  const navigation = useNavigation();
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const { students, classrooms, presetAvatars, setCurrentStudent, currentStudent, refreshStudents, t, language, translations, user } = useApp();
   const isAdult = user && (user.role === 'teacher' || user.role === 'parent' || user.role === 'admin' || user.role === 'school_admin');
@@ -74,13 +73,6 @@ export default function StudentSelectScreen() {
   // (per /creatures/eligible, same real scope/classroom/school matching the browse screen
   // uses) with zero progress so far.
   const [studentNewEligibleCount, setStudentNewEligibleCount] = useState<Record<string, number>>({});
-
-  // Hide default header and use custom translated header
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerShown: false,
-    });
-  }, [navigation]);
 
   // Refresh students every time this screen loads
   useEffect(() => {
