@@ -1742,5 +1742,18 @@
   "creature_reject_modal_title": "Refuser « {name} » ?",
   "creature_reject_modal_hint": "Indiquez une brève raison - l'élève la verra.",
   "creature_reject_placeholder": "p. ex. Merci de garder des dessins bienveillants et amicaux",
-  "creature_reject_btn": "Refuser"
+  "creature_reject_btn": "Refuser",
+  "notif_title": "🔔 Notifications pour {name}",
+  "notif_sub": "Vous recevrez des notifications push sur votre téléphone.",
+  "notif_enable_label": "Activer les notifications",
+  "notif_help_requests_label": "Demandes d'aide",
+  "notif_help_requests_desc": "Notifier lorsque l'élève appuie sur « Demander de l'aide »",
+  "notif_zone_alerts_label": "Alertes de zone - notifier lors d'un enregistrement :",
+  "notif_zone_blue": "Bleu",
+  "notif_zone_green": "Vert",
+  "notif_zone_yellow": "Jaune",
+  "notif_zone_red": "Rouge",
+  "notif_save_btn": "Enregistrer les paramètres",
+  "notif_saving": "Enregistrement...",
+  "notif_saved_message": "Paramètres de notification mis à jour pour {name}."
 }

@@ -1479,5 +1479,18 @@
   "creature_reject_modal_title": "Reject \"{name}\"?",
   "creature_reject_modal_hint": "Give a short reason - the student will see this.",
   "creature_reject_placeholder": "e.g. Please keep drawings kind and friendly",
-  "creature_reject_btn": "Reject"
+  "creature_reject_btn": "Reject",
+  "notif_title": "🔔 Notifications for {name}",
+  "notif_sub": "You will receive push notifications on your phone.",
+  "notif_enable_label": "Enable notifications",
+  "notif_help_requests_label": "Help requests",
+  "notif_help_requests_desc": "Notify when student taps \"Ask for help\"",
+  "notif_zone_alerts_label": "Zone alerts - notify when checks in:",
+  "notif_zone_blue": "Blue",
+  "notif_zone_green": "Green",
+  "notif_zone_yellow": "Yellow",
+  "notif_zone_red": "Red",
+  "notif_save_btn": "Save Settings",
+  "notif_saving": "Saving...",
+  "notif_saved_message": "Notification settings updated for {name}."
 }

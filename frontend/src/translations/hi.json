@@ -1465,5 +1465,18 @@
   "creature_reject_modal_title": "\"{name}\" अस्वीकार करें?",
   "creature_reject_modal_hint": "एक संक्षिप्त कारण दें - छात्र इसे देखेगा।",
   "creature_reject_placeholder": "जैसे कृपया चित्र दयालु और मित्रवत रखें",
-  "creature_reject_btn": "अस्वीकार करें"
+  "creature_reject_btn": "अस्वीकार करें",
+  "notif_title": "🔔 {name} के लिए सूचनाएं",
+  "notif_sub": "आपको अपने फ़ोन पर पुश सूचनाएं प्राप्त होंगी।",
+  "notif_enable_label": "सूचनाएं सक्षम करें",
+  "notif_help_requests_label": "सहायता अनुरोध",
+  "notif_help_requests_desc": "सूचित करें जब छात्र \"मदद मांगें\" पर टैप करे",
+  "notif_zone_alerts_label": "ज़ोन अलर्ट - चेक-इन पर सूचित करें:",
+  "notif_zone_blue": "नीला",
+  "notif_zone_green": "हरा",
+  "notif_zone_yellow": "पीला",
+  "notif_zone_red": "लाल",
+  "notif_save_btn": "सेटिंग्स सहेजें",
+  "notif_saving": "सहेजा जा रहा है...",
+  "notif_saved_message": "{name} के लिए सूचना सेटिंग्स अपडेट की गईं।"
 }

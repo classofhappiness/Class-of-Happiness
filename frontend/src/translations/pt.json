@@ -1731,5 +1731,18 @@
   "creature_reject_modal_title": "Rejeitar \"{name}\"?",
   "creature_reject_modal_hint": "Indique um motivo breve - o aluno irá vê-lo.",
   "creature_reject_placeholder": "ex.: Mantenha os desenhos simpáticos e amigáveis",
-  "creature_reject_btn": "Rejeitar"
+  "creature_reject_btn": "Rejeitar",
+  "notif_title": "🔔 Notificações para {name}",
+  "notif_sub": "Irá receber notificações push no seu telemóvel.",
+  "notif_enable_label": "Ativar notificações",
+  "notif_help_requests_label": "Pedidos de ajuda",
+  "notif_help_requests_desc": "Notificar quando o aluno tocar em \"Pedir ajuda\"",
+  "notif_zone_alerts_label": "Alertas de zona - notificar ao fazer check-in em:",
+  "notif_zone_blue": "Azul",
+  "notif_zone_green": "Verde",
+  "notif_zone_yellow": "Amarelo",
+  "notif_zone_red": "Vermelho",
+  "notif_save_btn": "Guardar definições",
+  "notif_saving": "A guardar...",
+  "notif_saved_message": "Definições de notificação atualizadas para {name}."
 }

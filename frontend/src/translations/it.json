@@ -1742,5 +1742,18 @@
   "creature_reject_modal_title": "Rifiutare \"{name}\"?",
   "creature_reject_modal_hint": "Indica un breve motivo: lo studente lo vedrà.",
   "creature_reject_placeholder": "ad es. Mantieni i disegni gentili e amichevoli",
-  "creature_reject_btn": "Rifiuta"
+  "creature_reject_btn": "Rifiuta",
+  "notif_title": "🔔 Notifiche per {name}",
+  "notif_sub": "Riceverai notifiche push sul tuo telefono.",
+  "notif_enable_label": "Attiva notifiche",
+  "notif_help_requests_label": "Richieste di aiuto",
+  "notif_help_requests_desc": "Notifica quando lo studente tocca \"Chiedi aiuto\"",
+  "notif_zone_alerts_label": "Avvisi di zona - notifica quando effettua il check-in:",
+  "notif_zone_blue": "Blu",
+  "notif_zone_green": "Verde",
+  "notif_zone_yellow": "Giallo",
+  "notif_zone_red": "Rosso",
+  "notif_save_btn": "Salva impostazioni",
+  "notif_saving": "Salvataggio...",
+  "notif_saved_message": "Impostazioni di notifica aggiornate per {name}."
 }

@@ -2,10 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Switch, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { updateStudentNotifSettings, getStudentNotifSettings } from '../utils/notifications';
+import { useApp } from '../context/AppContext';
 
 const ZONES = ['blue', 'green', 'yellow', 'red'];
 const ZONE_EMOJI: Record<string, string> = { blue: '🔵', green: '🟢', yellow: '🟡', red: '🔴' };
-const ZONE_LABEL: Record<string, string> = { blue: 'Blue', green: 'Green', yellow: 'Yellow', red: 'Red' };
 
 interface Props {
   student_id: string;
@@ -14,6 +14,15 @@ interface Props {
 }
 
 export default function NotificationSettings({ student_id, student_name, onClose }: Props) {
+  const { t } = useApp();
+  // Real fix Sep 18: this component had zero i18n - every string was hardcoded English.
+  // Resolved here (needs the useApp() t() hook, a module constant can't call it).
+  const ZONE_LABEL: Record<string, string> = {
+    blue: t('notif_zone_blue') || 'Blue',
+    green: t('notif_zone_green') || 'Green',
+    yellow: t('notif_zone_yellow') || 'Yellow',
+    red: t('notif_zone_red') || 'Red',
+  };
   const [token, setToken] = useState('');
   const [enabled, setEnabled] = useState(false);
   const [helpRequest, setHelpRequest] = useState(true);
@@ -47,17 +56,17 @@ export default function NotificationSettings({ student_id, student_name, onClose
       zone_alerts: zoneAlerts,
     });
     setSaving(false);
-    Alert.alert('Saved', `Notification settings updated for ${student_name}.`);
+    Alert.alert(t('saved') || 'Saved', (t('notif_saved_message') || 'Notification settings updated for {name}.').replace('{name}', student_name));
     onClose?.();
   };
 
   return (
     <View style={st.container}>
-      <Text style={st.title}>🔔 Notifications for {student_name}</Text>
-      <Text style={st.sub}>You will receive push notifications on your phone.</Text>
+      <Text style={st.title}>{(t('notif_title') || '🔔 Notifications for {name}').replace('{name}', student_name)}</Text>
+      <Text style={st.sub}>{t('notif_sub') || 'You will receive push notifications on your phone.'}</Text>
 
       <View style={st.row}>
-        <Text style={st.label}>Enable notifications</Text>
+        <Text style={st.label}>{t('notif_enable_label') || 'Enable notifications'}</Text>
         <Switch value={enabled} onValueChange={setEnabled} trackColor={{ true: '#5C6BC0' }} />
       </View>
 
@@ -65,13 +74,13 @@ export default function NotificationSettings({ student_id, student_name, onClose
         <>
           <View style={st.row}>
             <View style={{ flex: 1 }}>
-              <Text style={st.label}>Help requests</Text>
-              <Text style={st.desc}>Notify when student taps "Ask for help"</Text>
+              <Text style={st.label}>{t('notif_help_requests_label') || 'Help requests'}</Text>
+              <Text style={st.desc}>{t('notif_help_requests_desc') || 'Notify when student taps "Ask for help"'}</Text>
             </View>
             <Switch value={helpRequest} onValueChange={setHelpRequest} trackColor={{ true: '#5C6BC0' }} />
           </View>
 
-          <Text style={[st.label, { marginTop: 12, marginBottom: 6 }]}>Zone alerts — notify when checks in:</Text>
+          <Text style={[st.label, { marginTop: 12, marginBottom: 6 }]}>{t('notif_zone_alerts_label') || 'Zone alerts - notify when checks in:'}</Text>
           <View style={st.zones}>
             {ZONES.map(zone => (
               <TouchableOpacity
@@ -89,7 +98,7 @@ export default function NotificationSettings({ student_id, student_name, onClose
       )}
 
       <TouchableOpacity style={st.saveBtn} onPress={save} disabled={saving}>
-        <Text style={st.saveTxt}>{saving ? 'Saving...' : 'Save Settings'}</Text>
+        <Text style={st.saveTxt}>{saving ? (t('notif_saving') || 'Saving...') : (t('notif_save_btn') || 'Save Settings')}</Text>
       </TouchableOpacity>
     </View>
   );

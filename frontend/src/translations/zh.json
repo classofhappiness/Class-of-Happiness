@@ -1465,5 +1465,18 @@
   "creature_reject_modal_title": "拒绝\"{name}\"？",
   "creature_reject_modal_hint": "请简要说明原因——学生将会看到此内容。",
   "creature_reject_placeholder": "例如：请保持画作友善温和",
-  "creature_reject_btn": "拒绝"
+  "creature_reject_btn": "拒绝",
+  "notif_title": "🔔 {name} 的通知",
+  "notif_sub": "您将在手机上收到推送通知。",
+  "notif_enable_label": "启用通知",
+  "notif_help_requests_label": "求助请求",
+  "notif_help_requests_desc": "当学生点击\"寻求帮助\"时通知我",
+  "notif_zone_alerts_label": "区域提醒 - 签到时通知：",
+  "notif_zone_blue": "蓝色",
+  "notif_zone_green": "绿色",
+  "notif_zone_yellow": "黄色",
+  "notif_zone_red": "红色",
+  "notif_save_btn": "保存设置",
+  "notif_saving": "保存中…",
+  "notif_saved_message": "已为 {name} 更新通知设置。"
 }

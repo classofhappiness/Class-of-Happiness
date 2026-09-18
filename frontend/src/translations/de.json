@@ -1742,5 +1742,18 @@
   "creature_reject_modal_title": "\"{name}\" ablehnen?",
   "creature_reject_modal_hint": "Gib einen kurzen Grund an - der Schüler sieht diesen.",
   "creature_reject_placeholder": "z. B. Bitte halte Zeichnungen freundlich und respektvoll",
-  "creature_reject_btn": "Ablehnen"
+  "creature_reject_btn": "Ablehnen",
+  "notif_title": "🔔 Benachrichtigungen für {name}",
+  "notif_sub": "Du erhältst Push-Benachrichtigungen auf deinem Handy.",
+  "notif_enable_label": "Benachrichtigungen aktivieren",
+  "notif_help_requests_label": "Hilfeanfragen",
+  "notif_help_requests_desc": "Benachrichtigen, wenn der Schüler auf \"Um Hilfe bitten\" tippt",
+  "notif_zone_alerts_label": "Zonen-Benachrichtigungen - bei Check-in benachrichtigen:",
+  "notif_zone_blue": "Blau",
+  "notif_zone_green": "Grün",
+  "notif_zone_yellow": "Gelb",
+  "notif_zone_red": "Rot",
+  "notif_save_btn": "Einstellungen speichern",
+  "notif_saving": "Wird gespeichert...",
+  "notif_saved_message": "Benachrichtigungseinstellungen für {name} aktualisiert."
 }

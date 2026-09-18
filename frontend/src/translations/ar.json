@@ -1465,5 +1465,18 @@
   "creature_reject_modal_title": "رفض \"{name}\"؟",
   "creature_reject_modal_hint": "اذكر سبباً موجزاً - سيراه الطالب.",
   "creature_reject_placeholder": "مثال: يرجى أن تكون الرسومات لطيفة وودية",
-  "creature_reject_btn": "رفض"
+  "creature_reject_btn": "رفض",
+  "notif_title": "🔔 إشعارات لـ {name}",
+  "notif_sub": "ستتلقى إشعارات فورية على هاتفك.",
+  "notif_enable_label": "تفعيل الإشعارات",
+  "notif_help_requests_label": "طلبات المساعدة",
+  "notif_help_requests_desc": "أرسل إشعاراً عندما ينقر الطالب على \"طلب المساعدة\"",
+  "notif_zone_alerts_label": "تنبيهات المنطقة - أرسل إشعاراً عند تسجيل الدخول في:",
+  "notif_zone_blue": "أزرق",
+  "notif_zone_green": "أخضر",
+  "notif_zone_yellow": "أصفر",
+  "notif_zone_red": "أحمر",
+  "notif_save_btn": "حفظ الإعدادات",
+  "notif_saving": "جارٍ الحفظ...",
+  "notif_saved_message": "تم تحديث إعدادات الإشعارات لـ {name}."
 }

@@ -1465,5 +1465,18 @@
   "creature_reject_modal_title": "Отклонить «{name}»?",
   "creature_reject_modal_hint": "Укажите краткую причину - ученик её увидит.",
   "creature_reject_placeholder": "например, пожалуйста, делайте рисунки добрыми и дружелюбными",
-  "creature_reject_btn": "Отклонить"
+  "creature_reject_btn": "Отклонить",
+  "notif_title": "🔔 Уведомления для {name}",
+  "notif_sub": "Вы будете получать push-уведомления на телефон.",
+  "notif_enable_label": "Включить уведомления",
+  "notif_help_requests_label": "Запросы помощи",
+  "notif_help_requests_desc": "Уведомлять, когда ученик нажимает «Попросить помощь»",
+  "notif_zone_alerts_label": "Оповещения по зонам - уведомлять при отметке:",
+  "notif_zone_blue": "Синий",
+  "notif_zone_green": "Зелёный",
+  "notif_zone_yellow": "Жёлтый",
+  "notif_zone_red": "Красный",
+  "notif_save_btn": "Сохранить настройки",
+  "notif_saving": "Сохранение...",
+  "notif_saved_message": "Настройки уведомлений для {name} обновлены."
 }
