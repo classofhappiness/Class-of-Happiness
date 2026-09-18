@@ -390,27 +390,19 @@ export default function TeacherResourcesScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <SafeAreaView style={styles.container}>
-      {/* Header with back button */}
-      {/* Real bug fix Aug 28 (item 3): this screen imported TranslatedHeader (which is where
-          the COH logo actually comes from - see its own logo Image) but never once rendered
-          it - it has always used this separate, custom-built top bar instead, which never had
-          a logo of its own. Added directly here rather than swapping in TranslatedHeader
-          wholesale, to avoid changing this bar's existing back/title/home layout - same real
-          asset and sizing TranslatedHeader itself uses, for visual consistency. */}
-      <View style={styles.resourcesTopBar}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.resourcesBackBtn}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Image
-          source={require('../../assets/images/logo_coh.png')}
-          style={{ width: 24, height: 24, marginRight: 8 }}
-          resizeMode="contain"
-        />
-        <Text style={styles.resourcesTopBarTitle}>{t('teacher_resources') || 'Teacher Resources'}</Text>
-        <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ padding: 6, width: 40, alignItems: 'center' }}>
-          <MaterialIcons name="home" size={22} color="#333" />
-        </TouchableOpacity>
-      </View>
+      {/* Real fix Sep 18: this screen imported TranslatedHeader (which is where the COH logo
+          actually comes from) but never once rendered it - it always used a separate,
+          custom-built top bar instead, with its own plain back/home icons and a hardcoded
+          static, non-animated logo Image that never picked up the header-consistency work
+          (black-circle back/home buttons, then the colour-cycling logo circle) done
+          everywhere else. A comment on this exact gap has sat here since Aug 28 without
+          being fixed - actually wiring in the shared component now, rather than patching
+          the custom bar a second time. Home target changes from an explicit
+          router.replace('/teacher/dashboard') to TranslatedHeader's own showHome (which
+          goes to '/', the same target every other showHome screen already uses and which
+          role-based routing at the root resolves back to this same dashboard for a
+          teacher). */}
+      <TranslatedHeader title={t('teacher_resources') || 'Teacher Resources'} showHome />
 
       {/* Topic Tabs */}
       <View style={styles.tabsWrapper}>
@@ -476,7 +468,7 @@ export default function TeacherResourcesScreen() {
           <View style={{ backgroundColor: '#FFF8E1', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#FFE082', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <MaterialIcons name="info" size={20} color="#F9A825" />
             <Text style={{ flex: 1, fontSize: 12, color: '#5D4037', lineHeight: 17 }}>
-              {t('freemium_banner_desc') || "The Emotion Program is completely free! Every other program's first 2 weeks are free too — subscribe to unlock everything."}
+              {t('freemium_banner_desc') || "The Emotion Program is completely free! Every other program's first 2 weeks are free too. Subscribe to unlock everything."}
             </Text>
             <TouchableOpacity onPress={() => setBannerDismissed(true)} style={{ padding: 4 }}>
               <MaterialIcons name="close" size={18} color="#8D6E63" />
@@ -513,7 +505,7 @@ export default function TeacherResourcesScreen() {
                 if ((resource as any).is_locked) {
                   Alert.alert(
                     '🔒 ' + (t('subscribe_to_unlock_title') || 'Subscribe to Unlock'),
-                    t('freemium_banner_desc') || "The Emotion Program is completely free! Every other program's first 2 weeks are free too — subscribe to unlock everything.",
+                    t('freemium_banner_desc') || "The Emotion Program is completely free! Every other program's first 2 weeks are free too. Subscribe to unlock everything.",
                     [
                       { text: t('not_now') || 'Not Now', style: 'cancel' },
                       { text: t('see_plans') || 'See Plans', onPress: () => router.push('/subscription') },
@@ -843,13 +835,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FA',
   },
-  resourcesTopBar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12, paddingTop: 20,
-    backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
-  },
-  resourcesBackBtn: { padding: 4 },
-  resourcesTopBarTitle: { fontSize: 17, fontWeight: '600', color: '#333' },
   tabsWrapper: {
     backgroundColor: 'white',
     borderBottomWidth: 1,

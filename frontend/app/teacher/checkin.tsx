@@ -6,7 +6,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { TranslatedHeader } from '../../src/components/TranslatedHeader';
+import { ColourCycleLogo } from '../../src/components/ColourCycleLogo';
 import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { useFixedGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
@@ -492,19 +492,35 @@ export default function TeacherCheckInScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <SafeAreaView style={styles.container}>
-      {/* Header */}
+      {/* Real fix Sep 18: this screen had its own hand-rolled back/home buttons (plain grey
+          icons, no background) that never picked up the app-wide black-circle standard
+          (back/home buttons, then the colour-cycling logo circle) - it also had a dead
+          _layout.tsx headerRight (HomeToDashboard, never rendered since this route sets
+          headerShown:false) and an unused TranslatedHeader import sitting here, doing
+          nothing. Not swapped to the shared TranslatedHeader component wholesale - it can't
+          accommodate this screen's own "Support" pill (a distinct, coloured, labelled call-
+          to-action, not a generic single-icon extraAction) without flattening it down to a
+          bare icon. Restyled the back/home buttons to match TranslatedHeader's exact
+          treatment instead, and added the same animated logo circle, so this screen now
+          looks consistent with the rest of the app while keeping the Support button exactly
+          as it was. */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
+          <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('teacher_checkin') || 'Teacher Check-In'}</Text>
         <View style={{ flex: 1 }} />
-        <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ padding: 6, marginRight: 4 }}>
-          <MaterialIcons name="home" size={22} color="#333" />
-        </TouchableOpacity>
         <TouchableOpacity style={styles.alertBtn} onPress={() => setShowAlertModal(true)}>
           <MaterialIcons name="support-agent" size={18} color="white" />
           <Text style={styles.alertBtnText}>{t('support') || 'Support'}</Text>
+        </TouchableOpacity>
+        <View style={styles.logoRing}>
+          <View style={styles.logoDisc}>
+            <ColourCycleLogo size={24} loop />
+          </View>
+        </View>
+        <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={styles.homeBtn}>
+          <MaterialIcons name="home" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
@@ -560,7 +576,7 @@ export default function TeacherCheckInScreen() {
         {/* STEP 2: Strategies (only after colour selected) */}
         {selectedZone && (
           <>
-            <Text style={styles.sectionLabel}>{t('helpful_strategies_tap_select') || 'Helpful strategies — tap to select'}</Text>
+            <Text style={styles.sectionLabel}>{t('helpful_strategies_tap_select') || 'Helpful strategies - tap to select'}</Text>
             {strategiesForZone.map(s => (
               <TouchableOpacity
                 key={s.id}
@@ -856,8 +872,13 @@ export default function TeacherCheckInScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, paddingTop: 20, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  backBtn: { padding: 8, marginRight: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, paddingTop: 20, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0', gap: 8 },
+  // Real fix Sep 18: matches TranslatedHeader's backButton/homeButton/logoRing exactly
+  // (36x36, #1A1A2E) - was a plain, no-background padded icon before.
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' },
+  homeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' },
+  logoRing: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' },
+  logoDisc: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, fontSize: 18, fontWeight: 'bold', color: '#333' },
   alertBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#555', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, gap: 6 },
   alertBtnText: { color: 'white', fontWeight: '700', fontSize: 13 },

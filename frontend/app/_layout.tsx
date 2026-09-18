@@ -391,7 +391,6 @@ function AppContent() {
         <Stack.Screen
           name="teacher/checkin"
           options={{
-            headerRight: () => <HomeToDashboard />,
             headerShown: false,
             title: 'Teacher Check-in',
           }}
