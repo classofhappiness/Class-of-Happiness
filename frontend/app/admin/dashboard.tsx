@@ -1772,6 +1772,15 @@ function SchoolSettings({ authToken, user }: any) {
   const [shopEnabledBySchool, setShopEnabledBySchool] = useState(true);
   const [shopFeatureAllowed, setShopFeatureAllowed] = useState(true);
   const [shopTogglePending, setShopTogglePending] = useState(false);
+  // Real feature Sep 18: Support Requests ("buzz") school-level toggle - same
+  // allowed_by_superadmin/enabled_by_school pattern and same generic GET /features +
+  // PUT /features/{key} endpoints as the Shop toggle above (this was the actual first
+  // app-side consumer the api.ts featuresApi comment anticipated). Until now this toggle
+  // only existed on the portal - school_admin had no way to turn buzz off for their
+  // teachers from the app itself.
+  const [buzzEnabledBySchool, setBuzzEnabledBySchool] = useState(true);
+  const [buzzFeatureAllowed, setBuzzFeatureAllowed] = useState(true);
+  const [buzzTogglePending, setBuzzTogglePending] = useState(false);
 
   const generateInviteCode = async () => {
     setGeneratingCode(true);
@@ -1801,6 +1810,9 @@ function SchoolSettings({ authToken, user }: any) {
         const shop = (features || []).find(f => f.feature_key === 'creature_shop');
         setShopFeatureAllowed(!!shop);
         setShopEnabledBySchool(shop ? shop.enabled_by_school !== false : true);
+        const buzz = (features || []).find(f => f.feature_key === 'support_requests');
+        setBuzzFeatureAllowed(!!buzz);
+        setBuzzEnabledBySchool(buzz ? buzz.enabled_by_school !== false : true);
       }).catch(() => {});
   }, [authToken]);
 
@@ -1817,6 +1829,21 @@ function SchoolSettings({ authToken, user }: any) {
       Alert.alert(t('error') || 'Error', t('could_not_save') || 'Could not save.');
     }
     setShopTogglePending(false);
+  };
+
+  const toggleBuzzForSchool = async (next: boolean) => {
+    setBuzzTogglePending(true);
+    setBuzzEnabledBySchool(next); // optimistic - this is a simple on/off, not worth a spinner delay
+    try {
+      await apiCall('/features/support_requests', authToken, {
+        method: 'PUT',
+        body: JSON.stringify({ enabled_by_school: next }),
+      });
+    } catch {
+      setBuzzEnabledBySchool(!next); // revert on failure
+      Alert.alert(t('error') || 'Error', t('could_not_save') || 'Could not save.');
+    }
+    setBuzzTogglePending(false);
   };
 
   const save = async () => {
@@ -1903,6 +1930,27 @@ function SchoolSettings({ authToken, user }: any) {
             <Switch value={shopEnabledBySchool} onValueChange={toggleShopForSchool} disabled={shopTogglePending}
               trackColor={{ false: '#E0E0E0', true: '#C8E6C9' }}
               thumbColor={shopEnabledBySchool ? '#4CAF50' : '#9E9E9E'} />
+          </View>
+        </SectionCard>
+      )}
+
+      {/* Real feature Sep 18: Support Requests ("buzz") school-level toggle - simple on/off,
+          same pattern as the Shop toggle above. Only shown once a superadmin has allowed the
+          feature for this school at all (buzzFeatureAllowed) - a school that hasn't been
+          granted buzz access just doesn't see this card, same as Shop. */}
+      {buzzFeatureAllowed && (
+        <SectionCard title={t('buzz_title') || '🔔 Support Requests'} subtitle={t('buzz_school_toggle_subtitle') || 'Let teachers buzz you for support'} icon="notifications" color="#F4511E">
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1, marginRight: 12 }}>
+              <Text style={s.hint}>
+                {buzzEnabledBySchool
+                  ? (t('buzz_school_toggle_desc_on') || 'Teachers at your school can send you a Support Request when they need help.')
+                  : (t('buzz_school_toggle_desc_off') || 'Support Requests are off for your whole school - teachers cannot buzz you for support until you turn this back on.')}
+              </Text>
+            </View>
+            <Switch value={buzzEnabledBySchool} onValueChange={toggleBuzzForSchool} disabled={buzzTogglePending}
+              trackColor={{ false: '#E0E0E0', true: '#FFCCBC' }}
+              thumbColor={buzzEnabledBySchool ? '#F4511E' : '#9E9E9E'} />
           </View>
         </SectionCard>
       )}
