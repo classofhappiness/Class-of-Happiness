@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -52,6 +52,14 @@ export default function CreateProfileScreen() {
   const params = useLocalSearchParams<{ classroomId?: string }>();
   const [selectedClassroom, setSelectedClassroom] = useState<string | null>(params.classroomId || null);
   const [saving, setSaving] = useState(false);
+  // Real fix Sep 18: `disabled={saving}` on the button alone doesn't reliably stop a fast
+  // double-tap - the native touch can land, and this function can start running again,
+  // before React's re-render actually disables the button (a state update is async relative
+  // to the touch responder). Confirmed live: two real "Beatriz" profiles created 1.49s
+  // apart, and a second unrelated account with two "Buddy" profiles 90s apart, both same
+  // parent/name/avatar - the exact signature of this race, not two different real children.
+  // A ref is checked/set synchronously, independent of render timing, so it can't race.
+  const savingRef = useRef(false);
 
   const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -101,6 +109,8 @@ export default function CreateProfileScreen() {
       Alert.alert('Name Required', 'Please enter a name for this profile.');
       return;
     }
+    if (savingRef.current) return;
+    savingRef.current = true;
 
     setSaving(true);
     try {
@@ -175,6 +185,7 @@ export default function CreateProfileScreen() {
         Alert.alert('Error', 'Failed to create profile. Please try again.');
       }
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };

@@ -4486,6 +4486,18 @@ async def add_family_member(member: FamilyMemberCreate, request: Request):
     # access-category one.
     if user.get("role") not in ("parent", "teacher", "superadmin"):
         raise HTTPException(status_code=403, detail="Parent access required")
+    # Real fix Sep 18: defense-in-depth against a client-side double-submit - confirmed live,
+    # two real children created 1.49s and 90s apart under the same parent, same name, same
+    # avatar (the client-side fix is a synchronous re-entrancy guard in profiles/create.tsx's
+    # handleSave, which closes the actual race, but a client guard alone can't cover every
+    # path - e.g. the user backing out and re-submitting on a fresh screen mount - so this is
+    # a second, independent layer). If an identical member (same name + relationship) was
+    # created by this same account in the last 10 seconds, treat it as the same submission
+    # landing twice and hand back the existing row instead of creating a second one.
+    recent_cutoff = (datetime.now(timezone.utc) - timedelta(seconds=10)).isoformat()
+    dup = supabase.table("family_members").select("*").eq("user_id", user["user_id"]).eq("name", member.name).eq("relationship", member.relationship).gte("created_at", recent_cutoff).order("created_at", desc=True).execute()
+    if dup.data:
+        return dup.data[0]
     # Free tier: limit to 2 children (mirrors the same real pattern used for classrooms/students —
     # only counts relationship=="child", adult family members like partners aren't capped).
     # Real fix Aug 18: this never checked school-package coverage, only the parent's own
