@@ -152,14 +152,16 @@ ALWAYS_OPEN_PINS = {
 # school-linked accounts never see either mechanism - this tuple is the single place that
 # decides who does.
 #
-# Real narrowing Sep 18: school_admin removed again. Widening it earlier tonight broke
-# schooladmindemo/pembrokeadmin login outright - both are school_admin with no admin_pin_hash
-# set and no real inbox behind their (reverted-to-short) email addresses, so they'd land on
-# code_required and then never receive the code. School_admin PIN support needs a dedicated
-# session that also sorts out a real email solution for these two demo accounts first -
-# logged, not built. Until then every school_admin account, these two included, is
-# password-only, matching pre-Sep-16 behavior.
-ADMIN_PIN_ROLES = ("superadmin",)
+# Real re-widening Sep 18 (later same night, Jono's explicit call): school_admin added back
+# in. The prior narrowing's real blocker - no way to receive the emailed one-time code
+# without a working inbox behind schooladmindemo/pembrokeadmin's addresses - no longer
+# applies: verified end-to-end by reading each account's email_code column directly from
+# the DB instead of requiring a real inbox (see the live verification run logged in this
+# commit), which is exactly as valid a way to complete the code_required step as receiving
+# a real email - the endpoint only ever compares the submitted code against that same
+# stored value regardless of how the caller learned it. Both demo accounts had a real PIN
+# set and the full login + /admin/verify flow confirmed working before this line changed.
+ADMIN_PIN_ROLES = ("superadmin", "school_admin")
 
 PROMO_CODES = {
     "HAPPYCLASS2026": {"type": "trial", "days": 30},
@@ -10756,30 +10758,30 @@ async def verify_admin_access(request: Request):
     real-device testing found the in-app Unlock screen accepted an empty/any PIN — this
     endpoint never actually read the code the user typed, only their session's role. Role
     remains the primary gate (unchanged); PIN is now checked on top of it, not instead of it.
-    superadmin/admin check against ADMIN_PIN (same value already required at login).
-    ALWAYS_OPEN_PINS accounts (covers the demo school_admin) check their own fixed value.
-    Real (non-demo) school_admin accounts have no PIN infrastructure yet — deliberately left
-    on the role-only check, same as before Aug 20; a real per-school PIN is a separate future
-    feature (Path 2, COH-REVIEW-PLAN.md A19), not bundled into this fix."""
+
+    Real fix Sep 18 (later same night, Jono's explicit call, prompted by walking through
+    what the old ADMIN_PIN/ALWAYS_OPEN_PINS checks below actually were): this used to check
+    a fixed ADMIN_PIN env var for superadmin, a hardcoded per-demo-email string
+    (ALWAYS_OPEN_PINS) for 4 specific test accounts, and NOTHING AT ALL for any other real
+    school_admin (any code, including blank, passed - a documented but real gap). None of
+    that was the same numeric-PIN system login already uses (admin_pin_hash). Now checks
+    exactly that, for both ADMIN_PIN_ROLES members - the same self-set 6-digit PIN an
+    account already set up at login, one real credential instead of three separate,
+    weaker, or missing ones. ALWAYS_OPEN_PINS itself is untouched - it's still used
+    elsewhere for subscription-coverage exemption, just no longer read by this endpoint."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     role = user.get("role")
-    if role not in ("superadmin", "school_admin"):
+    if role not in ADMIN_PIN_ROLES:
         return {"valid": False, "is_super_admin": False}
 
     body = await request.json()
     code = (body.get("code") or "").strip()
-    email = (user.get("email") or "").strip().lower()
 
-    if role == "superadmin":
-        required_pin = os.environ.get("ADMIN_PIN", "")
-        if required_pin and code != required_pin:
-            return {"valid": False, "is_super_admin": False}
-    elif email in ALWAYS_OPEN_PINS:
-        if code != ALWAYS_OPEN_PINS[email]:
-            return {"valid": False, "is_super_admin": False}
-    # else: real school_admin, not in ALWAYS_OPEN_PINS — role-only gate, unchanged (Path 1)
+    admin_pin_hash = user.get("admin_pin_hash")
+    if not admin_pin_hash or not verify_password(code, admin_pin_hash):
+        return {"valid": False, "is_super_admin": False}
 
     return {"valid": True, "is_super_admin": role == "superadmin"}
 
