@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ColourCycleLogo } from './ColourCycleLogo';
 
 interface TranslatedHeaderProps {
   title: string;
@@ -63,12 +64,23 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
       <View style={styles.headerContent}>
         <View style={styles.backSlot}>
           {showBack && (
+            // Real fix Sep 15 (Marisa build-26 round 2, Group A): standardized to match the
+            // native-header back/home buttons elsewhere in the app (S04's black circle
+            // treatment) - this component previously had plain, background-less icons, one
+            // of the inconsistencies she flagged sweeping every TranslatedHeader screen.
             <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-              <MaterialIcons name="arrow-back" size={24} color="#333" />
+              <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           )}
         </View>
-        <Text style={styles.title} numberOfLines={1}>{title}</Text>
+        {/* Real fix Sep 15 (Marisa build-26, S09): a longer title ("How to make your
+            creature") truncated with an ellipsis at fixed fontSize 17 - this shared header is
+            used by dozens of screens with titles of very different lengths, so rather than a
+            per-screen special case, adjustsFontSizeToFit lets any title that doesn't fit
+            shrink down to fill the space instead of clipping; short titles are unaffected
+            since they already fit at the full size. minimumFontScale floors how far it can
+            shrink so an extreme case still stays legible rather than shrinking to nothing. */}
+        <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{title}</Text>
         <View style={styles.rightSlot}>
           {extraAction && (
             <TouchableOpacity
@@ -79,14 +91,25 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
               <MaterialIcons name={extraAction.icon} size={26} color={extraAction.color || '#333'} />
             </TouchableOpacity>
           )}
-          <Image
-            source={require('../../assets/images/logo_coh.png')}
-            style={styles.logo}
-            resizeMode="contain"
-          />
+          {/* Real fix Sep 18: black ring at the exact back/home button size and colour
+              (#1A1A2E, 36x36), matching the header-consistency work already done. The logo
+              art itself (black ring outline + black wordmark) can't sit directly on that -
+              checked the actual source PNGs at small size and the outline/text are black,
+              so they'd disappear into a black circle, leaving only a floating coloured blob
+              with no visible ring or "Class of Happiness" text. A white disc inside the black
+              ring keeps the real logo art legible unchanged; a true dark-mode export (white
+              outline + white wordmark) is the fully "correct" version but needs new art -
+              logged as a future task, not buildable today. Colour-cycling animation reuses
+              ColourCycleLogo (extracted from SplashAnimation's own S01 fix) so this is
+              genuinely the same tuned animation, looping, not a second separately-tuned one. */}
+          <View style={styles.logoRing}>
+            <View style={styles.logoDisc}>
+              <ColourCycleLogo size={24} loop />
+            </View>
+          </View>
           {showHome && (
             <TouchableOpacity onPress={() => router.replace('/')} style={styles.homeButton}>
-              <MaterialIcons name="home" size={24} color="#333" />
+              <MaterialIcons name="home" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           )}
         </View>
@@ -110,21 +133,35 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
   },
   backSlot: {
-    width: 40,
+    width: 44,
     alignItems: 'flex-start',
   },
   rightSlot: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    minWidth: 40,
+    minWidth: 44,
     justifyContent: 'flex-end',
   },
+  // Real fix Sep 15 (Marisa build-26 round 2, Group A): standardized to the same 36x36 black
+  // circle used by the native-header back/home buttons (_layout.tsx) - was a plain, no-
+  // background 24px icon before. backSlot/rightSlot widths above bumped from 40 to 44 to
+  // actually fit this size with a little breathing room either side.
   backButton: {
-    padding: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#1A1A2E',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   homeButton: {
-    padding: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#1A1A2E',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   extraActionButton: {
     width: 32,
@@ -132,9 +169,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logo: {
-    width: 32,
-    height: 32,
+  // Real fix Sep 18: matches backButton/homeButton exactly (36x36, #1A1A2E) - see the
+  // comment at the logo's usage above for why a white disc sits inside it.
+  logoRing: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#1A1A2E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoDisc: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 17,
