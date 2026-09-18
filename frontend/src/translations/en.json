@@ -1492,5 +1492,10 @@
   "notif_zone_red": "Red",
   "notif_save_btn": "Save Settings",
   "notif_saving": "Saving...",
-  "notif_saved_message": "Notification settings updated for {name}."
+  "notif_saved_message": "Notification settings updated for {name}.",
+  "search_schools_placeholder": "Search schools by name, city, or country",
+  "no_schools_match_search": "No schools match \"{query}\"",
+  "feature_access_label": "Feature Access",
+  "feature_access_no_admin": "Not linked to a school_admin account yet - grants apply once it is.",
+  "school_has_it_off": "school has it off"
 }

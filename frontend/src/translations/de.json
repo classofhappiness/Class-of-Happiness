@@ -1759,5 +1759,10 @@
   "countries_joined_teaser_singular": "1 Land ist bereits dabei. Reiche weiter ein, um die Karte freizuschalten!",
   "new": "NEU",
   "no_past_alerts": "Keine vergangenen Benachrichtigungen in diesem Zeitraum",
-  "past": "VERGANGEN"
+  "past": "VERGANGEN",
+  "search_schools_placeholder": "Schulen nach Name, Stadt oder Land suchen",
+  "no_schools_match_search": "Keine Schulen entsprechen \"{query}\"",
+  "feature_access_label": "Funktionszugriff",
+  "feature_access_no_admin": "Noch nicht mit einem Schuladmin-Konto verknüpft - Freigaben gelten, sobald es verknüpft ist.",
+  "school_has_it_off": "Schule hat es deaktiviert"
 }

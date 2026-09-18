@@ -95,6 +95,20 @@ function periodLabel(period: number, t: (k: string) => string): string {
   return t(PERIOD_KEYS[period] || '') || PERIOD_LABELS[period] || `${period} days`;
 }
 
+// Real feature Sep 18: superadmin per-school feature grant screen. The two-tier
+// allowed_by_superadmin/enabled_by_school system (school_features table) has existed on the
+// backend and the portal since Sep 8/11, but had no app-side management UI at all - the only
+// way to grant a school one of these features was a direct Supabase edit. Labels match the
+// wording each feature already uses in its own SectionCard elsewhere in this file/screen.
+const FEATURE_LABELS: Record<string, { label: string; icon: keyof typeof MaterialIcons.glyphMap }> = {
+  support_requests: { label: 'Support Requests (Buzz)', icon: 'notifications-active' },
+  creature_shop: { label: 'Class of Happiness Shop', icon: 'storefront' },
+  careers_advisory: { label: 'Careers Advisory', icon: 'work' },
+  services_directory: { label: 'Services Directory', icon: 'folder-shared' },
+  wellbeing_welfare: { label: 'Wellbeing Tracker', icon: 'favorite' },
+};
+const SCHOOL_FEATURE_KEYS = ['support_requests', 'creature_shop', 'careers_advisory', 'services_directory', 'wellbeing_welfare'];
+
 const ROLE_COLORS: any = { teacher: '#4CAF73', parent: '#4A90D9', school_admin: '#FFD93D', student: '#9C27B0', superadmin: '#E05252' };
 const ROLE_EMOJI: any = { teacher: '👩‍🏫', parent: '👨‍👩‍👧', school_admin: '🏫' };
 
@@ -419,6 +433,14 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<any>({ status: 'active' });
+  // Real feature Sep 18: per-school feature grants (allowed_by_superadmin), keyed by
+  // school_admin_id to match GET /admin/school-features' own shape. Fetched once alongside
+  // the school profiles list, not per-card, since a superadmin scanning the list is the
+  // common case this screen exists for.
+  const [schoolFeatures, setSchoolFeatures] = useState<Record<string, Record<string, { allowed_by_superadmin: boolean; enabled_by_school: boolean }>>>({});
+  const [featuresLoading, setFeaturesLoading] = useState(true);
+  const [featureTogglePending, setFeatureTogglePending] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadProfiles = useCallback(() => {
     setProfilesLoading(true);
@@ -428,7 +450,58 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
       .finally(() => setProfilesLoading(false));
   }, [authToken]);
 
-  useEffect(() => { loadProfiles(); }, [loadProfiles]);
+  const loadSchoolFeatures = useCallback(() => {
+    setFeaturesLoading(true);
+    apiCall('/admin/school-features', authToken)
+      .then((rows: any[]) => {
+        const byAdmin: Record<string, any> = {};
+        (rows || []).forEach(r => { byAdmin[r.school_admin_id] = r.features; });
+        setSchoolFeatures(byAdmin);
+      })
+      .catch(() => setSchoolFeatures({}))
+      .finally(() => setFeaturesLoading(false));
+  }, [authToken]);
+
+  useEffect(() => { loadProfiles(); loadSchoolFeatures(); }, [loadProfiles, loadSchoolFeatures]);
+
+  const toggleFeatureAllowed = async (schoolAdminId: string, featureKey: string, next: boolean) => {
+    const pendingKey = `${schoolAdminId}:${featureKey}`;
+    setFeatureTogglePending(pendingKey);
+    // Optimistic - same pattern as the school_admin-side buzz/Shop toggles.
+    setSchoolFeatures(prev => ({
+      ...prev,
+      [schoolAdminId]: {
+        ...prev[schoolAdminId],
+        [featureKey]: { ...(prev[schoolAdminId]?.[featureKey] || { enabled_by_school: true }), allowed_by_superadmin: next },
+      },
+    }));
+    try {
+      await apiCall(`/admin/school-features/${schoolAdminId}/${featureKey}`, authToken, {
+        method: 'PUT',
+        body: JSON.stringify({ allowed_by_superadmin: next }),
+      });
+    } catch {
+      setSchoolFeatures(prev => ({
+        ...prev,
+        [schoolAdminId]: {
+          ...prev[schoolAdminId],
+          [featureKey]: { ...(prev[schoolAdminId]?.[featureKey] || { enabled_by_school: true }), allowed_by_superadmin: !next },
+        },
+      }));
+      Alert.alert(t('error') || 'Error', t('could_not_save') || 'Could not save.');
+    }
+    setFeatureTogglePending(null);
+  };
+
+  // Real feature Sep 18: client-side search - the school list isn't large enough yet to need
+  // real server-side pagination (GET /admin/school-features/-profiles have no page params to
+  // begin with), but a superadmin scanning dozens of schools for one still needs to filter,
+  // not scroll. Revisit with real pagination if the school count grows enough to matter.
+  const filteredProfiles = profiles.filter((p: any) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.trim().toLowerCase();
+    return [p.school_name, p.city, p.country].some((v: any) => (v || '').toLowerCase().includes(q));
+  });
 
   const field = (key: string, opts: { keyboardType?: any } = {}) => (
     <TextInput
@@ -507,6 +580,26 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
         <Text style={{ color: '#FFD93D', fontWeight: '800', fontSize: 13 }}>{showForm ? `✕ ${t('cancel') || 'Cancel'}` : `+ ${t('add_school') || 'Add School'}`}</Text>
       </TouchableOpacity>
 
+      {/* Real feature Sep 18: search - the list has no server-side pagination to page
+          through, so this is a client-side filter over the already-fetched profiles list. */}
+      {!showForm && profiles.length > 5 && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 10, paddingHorizontal: 12, marginBottom: 10 }}>
+          <MaterialIcons name="search" size={18} color="#999" />
+          <TextInput
+            style={{ flex: 1, paddingVertical: 9, paddingHorizontal: 8, fontSize: 13, color: '#333' }}
+            placeholder={t('search_schools_placeholder') || 'Search schools by name, city, or country'}
+            placeholderTextColor="#AAA"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {!!searchQuery && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <MaterialIcons name="close" size={18} color="#999" />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
       {showForm && (
         <View style={{ backgroundColor: '#FAFAFA', borderRadius: 12, padding: 12, marginBottom: 14 }}>
           <Text style={{ fontSize: 13, fontWeight: '800', color: '#1A1A2E', marginBottom: 8 }}>{editingId ? `✏️ ${t('edit_school') || 'Edit School'}` : `➕ ${t('add_school') || 'Add School'}`}</Text>
@@ -577,7 +670,12 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
           <Text style={{ fontSize: 11, color: '#999', marginBottom: 8, textAlign: 'center' }}>
             {t('check_in_counts_for') || 'Check-in counts for:'} {periodLabel(statsPeriod, t)}
           </Text>
-          {profiles.map((profile: any) => {
+          {searchQuery.trim() && filteredProfiles.length === 0 && (
+            <Text style={{ fontSize: 13, color: '#999', textAlign: 'center', paddingVertical: 20 }}>
+              {(t('no_schools_match_search') || 'No schools match "{query}"').replace('{query}', searchQuery.trim())}
+            </Text>
+          )}
+          {filteredProfiles.map((profile: any) => {
             const name = profile.school_name || (t('unnamed_school') || 'Unnamed School');
             const bd = breakdown.find((b: any) => (b.name || '').trim().toLowerCase() === name.trim().toLowerCase());
             const zc = bd?.zone_counts || {};
@@ -633,6 +731,49 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
                       <MaterialIcons name="edit" size={13} color="#5C6BC0" />
                       <Text style={{ fontSize: 12, fontWeight: '700', color: '#5C6BC0' }}>{t('edit') || 'Edit'}</Text>
                     </TouchableOpacity>
+
+                    {/* Real feature Sep 18: per-school feature grants - the first app-side UI
+                        for allowed_by_superadmin (previously Supabase-only). Requires a real
+                        school_admin_user_id link on this profile - a school added here but
+                        never linked to a real admin account has nothing to key the grant by,
+                        matching GET /admin/school-features' own `if not admin_id: continue`. */}
+                    <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F0F0F0' }}>
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                        {t('feature_access_label') || 'Feature Access'}
+                      </Text>
+                      {!profile.school_admin_user_id ? (
+                        <Text style={{ fontSize: 12, color: '#AAA', fontStyle: 'italic' }}>
+                          {t('feature_access_no_admin') || 'Not linked to a school_admin account yet - grants apply once it is.'}
+                        </Text>
+                      ) : featuresLoading ? (
+                        <ActivityIndicator size="small" color="#5C6BC0" />
+                      ) : (
+                        SCHOOL_FEATURE_KEYS.map(key => {
+                          const flags = schoolFeatures[profile.school_admin_user_id]?.[key];
+                          const allowed = flags?.allowed_by_superadmin ?? false;
+                          const pending = featureTogglePending === `${profile.school_admin_user_id}:${key}`;
+                          const meta = FEATURE_LABELS[key];
+                          return (
+                            <View key={key} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                                <MaterialIcons name={meta.icon} size={16} color={allowed ? '#4CAF73' : '#BBB'} />
+                                <Text style={{ fontSize: 13, color: '#333', flex: 1 }}>{meta.label}</Text>
+                                {allowed && flags?.enabled_by_school === false && (
+                                  <Text style={{ fontSize: 10, color: '#999', fontStyle: 'italic' }}>{t('school_has_it_off') || 'school has it off'}</Text>
+                                )}
+                              </View>
+                              <Switch
+                                value={allowed}
+                                disabled={pending}
+                                onValueChange={(next) => toggleFeatureAllowed(profile.school_admin_user_id, key, next)}
+                                trackColor={{ false: '#E0E0E0', true: '#C8E6C9' }}
+                                thumbColor={allowed ? '#4CAF50' : '#9E9E9E'}
+                              />
+                            </View>
+                          );
+                        })
+                      )}
+                    </View>
                   </View>
                 )}
               </View>

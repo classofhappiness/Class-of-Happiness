@@ -1748,5 +1748,10 @@
   "countries_joined_teaser_singular": "1 país se ha unido. ¡Sigue enviando para desbloquear el mapa!",
   "new": "NUEVO",
   "no_past_alerts": "No hay alertas anteriores en este rango",
-  "past": "PASADO"
+  "past": "PASADO",
+  "search_schools_placeholder": "Buscar escuelas por nombre, ciudad o país",
+  "no_schools_match_search": "Ninguna escuela coincide con \"{query}\"",
+  "feature_access_label": "Acceso a funciones",
+  "feature_access_no_admin": "Aún no está vinculada a una cuenta de school_admin - los permisos se aplicarán cuando lo esté.",
+  "school_has_it_off": "la escuela lo tiene desactivado"
 }

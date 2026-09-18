@@ -1594,5 +1594,10 @@
   "wellness_strategies": "त्वरित सहायता",
   "wellness_streak": "दिन की लगातार गिनती",
   "wellness_stressed": "😟 तनावग्रस्त",
-  "your_family_emotions": "पारिवारिक चेक-इन"
+  "your_family_emotions": "पारिवारिक चेक-इन",
+  "search_schools_placeholder": "स्कूलों को नाम, शहर या देश से खोजें",
+  "no_schools_match_search": "\"{query}\" से कोई स्कूल मेल नहीं खाता",
+  "feature_access_label": "सुविधा पहुंच",
+  "feature_access_no_admin": "अभी तक किसी school_admin खाते से जुड़ा नहीं है - जुड़ने पर अनुमतियां लागू होंगी।",
+  "school_has_it_off": "स्कूल ने इसे बंद कर रखा है"
 }

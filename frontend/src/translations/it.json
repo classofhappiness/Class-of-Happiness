@@ -1759,5 +1759,10 @@
   "countries_joined_teaser_singular": "1 paese si è unito. Continua a inviare per sbloccare la mappa!",
   "new": "NUOVO",
   "no_past_alerts": "Nessun avviso passato in questo intervallo",
-  "past": "PASSATO"
+  "past": "PASSATO",
+  "search_schools_placeholder": "Cerca scuole per nome, città o paese",
+  "no_schools_match_search": "Nessuna scuola corrisponde a \"{query}\"",
+  "feature_access_label": "Accesso alle funzionalità",
+  "feature_access_no_admin": "Non ancora collegata a un account school_admin - le autorizzazioni si applicheranno una volta collegata.",
+  "school_has_it_off": "la scuola lo ha disattivato"
 }

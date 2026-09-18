@@ -1594,5 +1594,10 @@
   "wellness_strategies": "快速支持",
   "wellness_streak": "天连续记录",
   "wellness_stressed": "😟 有压力",
-  "your_family_emotions": "家庭签到"
+  "your_family_emotions": "家庭签到",
+  "search_schools_placeholder": "按名称、城市或国家搜索学校",
+  "no_schools_match_search": "没有学校匹配\"{query}\"",
+  "feature_access_label": "功能访问权限",
+  "feature_access_no_admin": "尚未关联到school_admin账户 - 关联后授权才会生效。",
+  "school_has_it_off": "学校已将其关闭"
 }
