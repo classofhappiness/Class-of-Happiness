@@ -288,7 +288,6 @@ function AppContent() {
             headerShown: false,
             title: 'Helpful Strategies',
             headerBackTitle: 'Back',
-            headerRight: () => <HomeToStudents />,
           }}
         />
         <Stack.Screen
@@ -335,7 +334,6 @@ function AppContent() {
           name="profiles/create"
           options={{
             headerShown: false,
-            headerRight: () => <HomeToDashboard />,
             title: 'Create Profile',
             headerBackTitle: 'Back',
           }}
@@ -344,7 +342,6 @@ function AppContent() {
           name="profiles/edit"
           options={{
             headerShown: false,
-            headerRight: () => <HomeToDashboard />,
             title: 'Edit Profile',
             headerBackTitle: 'Back',
           }}
