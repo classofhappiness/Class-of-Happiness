@@ -18,6 +18,12 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# Firebase Admin SDK service-account keys (real secret - full admin access to the Firebase
+# project - unlike google-services.json, which IS committed on purpose, see app.json's
+# googleServicesFile: that one's a client identifier extractable from any installed APK,
+# this one is not). Matches the exact filename Firebase Console generates.
+*firebase-adminsdk*.json
+
 # Metro
 .metro-health-check*
 
