@@ -51,6 +51,14 @@ const NON_LATIN_LANGS = ['hi', 'zh', 'ar', 'ru'];
 WebBrowser.maybeCompleteAuthSession();
 
 // Header component with back button and logo
+//
+// Real fix Sep 14 (Marisa build-26, S04, confirmed against her actual screenshots): the
+// top-left back pill and top-right home pill are dark, and the icons inside them were the
+// same dark tone as the pill itself (near-invisible) plus slightly off-centre. Icons now
+// white for real contrast against the dark fill; switched "arrow-back-ios" (an icon drawn
+// with built-in asymmetric padding for sitting next to a text label) to plain "arrow-back",
+// which is visually symmetric and centres cleanly with no manual offset needed. The logo
+// itself and the phone's own status bar/status island are untouched - not part of this fix.
 const HeaderWithBackAndLogo = ({ canGoBack }: { canGoBack?: boolean }) => {
   const router = useRouter();
 
@@ -62,7 +70,7 @@ const HeaderWithBackAndLogo = ({ canGoBack }: { canGoBack?: boolean }) => {
           style={styles.backButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <MaterialIcons name="arrow-back-ios" size={22} color="#333" />
+          <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       )}
 
@@ -162,6 +170,13 @@ function AppContent() {
             backgroundColor: '#F8F9FA',
           },
           headerTintColor: '#333',
+          // Real fix Sep 15 (Marisa build-26 round 2, Group A): native-stack defaults
+          // headerTitleAlign to 'left' on Android (iOS already centers) - only
+          // parent/dashboard had this set individually, so every other native-header screen
+          // (Settings included) rendered its title crammed left, right next to the header
+          // button, reading as "misaligned" once that button became a larger black circle.
+          // Set once, globally, instead of per-screen.
+          headerTitleAlign: 'center',
           headerTitleStyle: {
             fontWeight: 'bold',
             // ✅ iOS fix: prevent title from being cut off
@@ -392,7 +407,6 @@ function AppContent() {
           name="parent/dashboard"
           options={{
             title: 'Family Dashboard',
-            headerTitleAlign: 'center',
             headerTitleStyle: { fontWeight: '700' },
             headerRight: () => <HomeToDashboard />,
           }}
@@ -482,25 +496,47 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 4 : 8,
   },
   backButton: {
-    padding: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     marginRight: 6,
+    backgroundColor: '#1A1A2E',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerLogo: {
     width: 30,
     height: 30,
     marginRight: 8,
   },
+  // Real fix Sep 15 (Marisa build-26 round 2, Group A): was 32x32 - a different size from
+  // backButton's 36x36, so back and home read as two different-sized buttons despite being
+  // the same visual pattern. Unified to match.
+  headerCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#1A1A2E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
 
 
 // HomeButton component - uses its own router hook so it works in Stack options
+//
+// Real fix Sep 14 (Marisa build-26, S04, confirmed against her actual screenshots) - see
+// HeaderWithBackAndLogo's note above. Home icon sits in a dark pill matching the back button.
+// Real fix Sep 15 (Marisa build-26 round 2, Group A): logo was a plain 22x22 image, visually
+// tiny next to a 36x36 button circle - enlarged to 32x32 (contain-fit, so it doesn't distort)
+// to actually read as comparable weight next to the button beside it, per her explicit ask.
 function HomeToStudents() {
   const r = useRouter();
   return (
-    <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginRight:12 }}>
-      <Image source={require('../assets/images/logo_coh.png')} style={{ width:22, height:22 }} resizeMode="contain" />
-      <TouchableOpacity onPress={() => r.replace('/')}>
-        <MaterialIcons name="home" size={22} color="#000" />
+    <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginRight:12 }}>
+      <Image source={require('../assets/images/logo_coh.png')} style={{ width:32, height:32 }} resizeMode="contain" />
+      <TouchableOpacity onPress={() => r.replace('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <MaterialIcons name="home" size={20} color="#FFFFFF" />
       </TouchableOpacity>
     </View>
   );
@@ -509,10 +545,10 @@ function HomeToStudents() {
 function HomeToDashboard() {
   const r = useRouter();
   return (
-    <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginRight:12 }}>
-      <Image source={require('../assets/images/logo_coh.png')} style={{ width:22, height:22 }} resizeMode="contain" />
-      <TouchableOpacity onPress={() => r.replace('/')}>
-        <MaterialIcons name="home" size={22} color="#000" />
+    <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginRight:12 }}>
+      <Image source={require('../assets/images/logo_coh.png')} style={{ width:32, height:32 }} resizeMode="contain" />
+      <TouchableOpacity onPress={() => r.replace('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <MaterialIcons name="home" size={20} color="#FFFFFF" />
       </TouchableOpacity>
     </View>
   );
