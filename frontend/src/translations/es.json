@@ -1744,5 +1744,9 @@
   "notif_zone_red": "Rojo",
   "notif_save_btn": "Guardar configuración",
   "notif_saving": "Guardando...",
-  "notif_saved_message": "Configuración de notificaciones actualizada para {name}."
+  "notif_saved_message": "Configuración de notificaciones actualizada para {name}.",
+  "countries_joined_teaser_singular": "1 país se ha unido. ¡Sigue enviando para desbloquear el mapa!",
+  "new": "NUEVO",
+  "no_past_alerts": "No hay alertas anteriores en este rango",
+  "past": "PASADO"
 }

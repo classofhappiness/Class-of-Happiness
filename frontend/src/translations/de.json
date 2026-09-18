@@ -1755,5 +1755,9 @@
   "notif_zone_red": "Rot",
   "notif_save_btn": "Einstellungen speichern",
   "notif_saving": "Wird gespeichert...",
-  "notif_saved_message": "Benachrichtigungseinstellungen für {name} aktualisiert."
+  "notif_saved_message": "Benachrichtigungseinstellungen für {name} aktualisiert.",
+  "countries_joined_teaser_singular": "1 Land ist bereits dabei. Reiche weiter ein, um die Karte freizuschalten!",
+  "new": "NEU",
+  "no_past_alerts": "Keine vergangenen Benachrichtigungen in diesem Zeitraum",
+  "past": "VERGANGEN"
 }

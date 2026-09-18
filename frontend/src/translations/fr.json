@@ -1755,5 +1755,9 @@
   "notif_zone_red": "Rouge",
   "notif_save_btn": "Enregistrer les paramètres",
   "notif_saving": "Enregistrement...",
-  "notif_saved_message": "Paramètres de notification mis à jour pour {name}."
+  "notif_saved_message": "Paramètres de notification mis à jour pour {name}.",
+  "countries_joined_teaser_singular": "1 pays a rejoint. Continue à soumettre pour débloquer la carte !",
+  "new": "NOUVEAU",
+  "no_past_alerts": "Aucune alerte passée dans cette période",
+  "past": "PASSÉ"
 }

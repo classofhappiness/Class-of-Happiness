@@ -1744,5 +1744,9 @@
   "notif_zone_red": "Vermelho",
   "notif_save_btn": "Guardar definições",
   "notif_saving": "A guardar...",
-  "notif_saved_message": "Definições de notificação atualizadas para {name}."
+  "notif_saved_message": "Definições de notificação atualizadas para {name}.",
+  "countries_joined_teaser_singular": "1 país já aderiu. Continua a submeter para desbloquear o mapa!",
+  "new": "NOVO",
+  "no_past_alerts": "Sem alertas anteriores neste intervalo",
+  "past": "PASSADO"
 }
