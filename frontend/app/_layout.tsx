@@ -199,6 +199,32 @@ function AppContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.role]);
 
+  // Real bug fix Sep 18 (live-test, immediately after the tap-navigation fix above):
+  // tapping a notification that COLD-LAUNCHES a fully killed app doesn't navigate either -
+  // confirmed live (Jono's dev-client had been killed while the phone was locked; unlocking
+  // restarted it, and the tap that triggered that restart went nowhere). This is a real,
+  // documented expo-notifications gap, not a mistake in the fix above:
+  // addNotificationResponseReceivedListener only catches responses that occur AFTER it's
+  // registered - a tap that launches the app from fully killed happens before any JS has
+  // booted, so that listener structurally cannot see it. getLastNotificationResponseAsync()
+  // is Expo's own answer to exactly this - the response that caused THIS launch, checked
+  // once on startup. Deliberately only clears it after a successful navigate (role
+  // resolved to a real destination) - if `user` isn't loaded yet on the very first check,
+  // this effect re-runs once `user?.role` settles and gets the same cached response again,
+  // rather than racing app startup and silently dropping a real cold-launch tap.
+  useEffect(() => {
+    if (!user?.role) return;
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!response) return;
+      const data = response.notification.request.content.data as Record<string, any> | undefined;
+      if (data?.type === 'support_request' && data?.id) {
+        navigateToSupportRequest(String(data.id));
+        Notifications.clearLastNotificationResponseAsync().catch(() => {});
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role]);
+
   return (
     <>
       <StatusBar style="dark" />
