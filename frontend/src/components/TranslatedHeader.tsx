@@ -91,23 +91,18 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
               <MaterialIcons name={extraAction.icon} size={26} color={extraAction.color || '#333'} />
             </TouchableOpacity>
           )}
-          {/* Real fix Sep 18: black ring at the exact back/home button size and colour
-              (#1A1A2E, 36x36), matching the header-consistency work already done. Originally
-              shipped with a white disc backing (the logo art's outline/wordmark are black,
-              invisible directly on a black circle) - superseded same day by a real inverted
-              asset (see ColourCycleLogo's CYCLE_PHASES_INVERTED): a Pillow flood-fill script
-              flips the near-black ring/wordmark to white while leaving the coloured blob
-              untouched, so the logo now sits directly on #1A1A2E, no disc needed. Displayed
-              at 48.4px (134.5% of the 36px ring) - the geometric maximum where the ring's own
-              outer edge (measured directly from the source art: 211.3px of a 620px canvas)
-              still clears the ring's inside edge by a real 1.5px margin, clipped by the
-              ring's own overflow:hidden exactly like this render was verified against.
-              Colour-cycling animation reuses ColourCycleLogo (extracted from
-              SplashAnimation's own S01 fix) so this is genuinely the same tuned animation,
-              looping, not a second separately-tuned one. */}
-          <View style={styles.logoRing}>
-            <ColourCycleLogo size={48.4} loop variant="inverted" />
-          </View>
+          {/* Real fix Sep 18 (Marisa design feedback - reverted same day): went through a
+              black-circle-backed treatment (white disc, then a real inverted asset) and
+              back out again per Marisa's call - the black ring read as visually heavier
+              than intended and didn't match the logo's own natural presentation elsewhere
+              in the app. Back to the original, non-inverted art (its own natural black ring
+              + wordmark) directly on the header's plain background, no circle/backing of
+              any kind - but KEEPING the 48.4px size (134.5% of the old 36px ring) reached
+              during that detour, since that's a real, kept improvement: legibly bigger,
+              "CLASS of Happiness" actually reads now. Colour-cycling animation reuses
+              ColourCycleLogo (extracted from SplashAnimation's own S01 fix) so this is
+              genuinely the same tuned animation, looping, not a second separately-tuned one. */}
+          <ColourCycleLogo size={48.4} loop />
           {showHome && (
             <TouchableOpacity onPress={() => router.replace('/')} style={styles.homeButton}>
               <MaterialIcons name="home" size={20} color="#FFFFFF" />
@@ -137,10 +132,18 @@ const styles = StyleSheet.create({
     width: 44,
     alignItems: 'flex-start',
   },
+  // Real fix Sep 18 (Marisa design feedback - spacing pass): was 6px, standardized to 8px
+  // to match the other 3 places this same back/logo/home cluster appears (_layout.tsx's
+  // HomeToStudents/HomeToDashboard, teacher/checkin.tsx's restyled-in-place header) -
+  // visually verified against the real logo art at 48.4px (composited render, not just
+  // matched by number): the logo asset itself has ~8px of built-in transparent padding on
+  // each side even at this larger size (its circular composition leaves the canvas corners
+  // empty), so 8px of explicit gap here reads as generously - not excessively - spaced next
+  // to the two solid 36px back/home circles, which have no such padding of their own.
   rightSlot: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     minWidth: 44,
     justifyContent: 'flex-end',
   },
@@ -169,19 +172,6 @@ const styles = StyleSheet.create({
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  // Real fix Sep 18: matches backButton/homeButton exactly (36x36, #1A1A2E). overflow:
-  // hidden is load-bearing now - the inverted logo renders at 48.4px (134.5%, see usage
-  // comment above), deliberately larger than this circle, and this is what clips it back
-  // down to a circle instead of a square overflowing the header row.
-  logoRing: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#1A1A2E',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
   },
   title: {
     fontSize: 17,

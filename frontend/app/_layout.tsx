@@ -529,25 +529,6 @@ const styles = StyleSheet.create({
     height: 30,
     marginRight: 8,
   },
-  // Real fix Sep 18: matches TranslatedHeader's logoRing exactly (36x36 #1A1A2E ring).
-  // HomeToStudents/HomeToDashboard (the native header's own logo+home unit,
-  // settings/student/zone/parent/dashboard) still had the plain static logo_coh.png -
-  // parent/dashboard.tsx confirmed pointed this out - never touched by the header/nav pass,
-  // since that pass was scoped to TranslatedHeader-based screens only.
-  // Real fix Sep 18 (same day, later): dropped the white disc backing in favour of a real
-  // inverted asset (see ColourCycleLogo's CYCLE_PHASES_INVERTED and TranslatedHeader's
-  // matching logoRing comment for the full rationale/measurements) - overflow:hidden is
-  // load-bearing, the logo now renders at 48.4px (134.5%), deliberately larger than this
-  // 36px circle, clipped back down to round by this property.
-  logoRing: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#1A1A2E',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
   // Real fix Sep 15 (Marisa build-26 round 2, Group A): was 32x32 - a different size from
   // backButton's 36x36, so back and home read as two different-sized buttons despite being
   // the same visual pattern. Unified to match.
@@ -569,13 +550,14 @@ const styles = StyleSheet.create({
 // Real fix Sep 15 (Marisa build-26 round 2, Group A): logo was a plain 22x22 image, visually
 // tiny next to a 36x36 button circle - enlarged to 32x32 (contain-fit, so it doesn't distort)
 // to actually read as comparable weight next to the button beside it, per her explicit ask.
+// Real fix Sep 18 (Marisa design feedback - reverted same day): back to the original,
+// non-inverted logo art, no black circle backing (see TranslatedHeader's matching comment
+// for the full rationale) - keeps the 48.4px size (134.5%) reached during that detour.
 function HomeToStudents() {
   const r = useRouter();
   return (
     <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginRight:12 }}>
-      <View style={styles.logoRing}>
-        <ColourCycleLogo size={48.4} loop variant="inverted" />
-      </View>
+      <ColourCycleLogo size={48.4} loop />
       <TouchableOpacity onPress={() => r.replace('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <MaterialIcons name="home" size={20} color="#FFFFFF" />
       </TouchableOpacity>
@@ -587,9 +569,7 @@ function HomeToDashboard() {
   const r = useRouter();
   return (
     <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginRight:12 }}>
-      <View style={styles.logoRing}>
-        <ColourCycleLogo size={48.4} loop variant="inverted" />
-      </View>
+      <ColourCycleLogo size={48.4} loop />
       <TouchableOpacity onPress={() => r.replace('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <MaterialIcons name="home" size={20} color="#FFFFFF" />
       </TouchableOpacity>
