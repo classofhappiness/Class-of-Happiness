@@ -32,7 +32,7 @@ const REQUEST_TYPES: { type: SupportRequestType; icon: keyof typeof MaterialIcon
   { type: 'CLASSROOM_SUPPORT', icon: 'meeting-room', label: 'Support in classroom' },
   { type: 'BACK_ON_TRACK', icon: 'self-improvement', label: "Student to 'Back on Track' Space" },
   { type: 'STAFF_MEMBER', icon: 'person-search', label: 'Student to a staff member', needsTarget: 'staff' },
-  { type: 'INCIDENT', icon: 'warning', label: 'Incident — urgent' },
+  { type: 'INCIDENT', icon: 'warning', label: 'Incident - urgent' },
   { type: 'OTHER', icon: 'more-horiz', label: 'Other', needsTarget: 'note' },
 ];
 
@@ -48,6 +48,17 @@ export default function SupportRequestScreen() {
   const navigation = useNavigation() as any;
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { classrooms, students, t } = useApp();
+  // Real fix Sep 18: this screen (build 27's buzz feature) had zero i18n anywhere -
+  // every string below was hardcoded English. REQUEST_TYPES is a module-level constant so
+  // its labels can't call the useApp() t() hook directly - resolved here, inside the
+  // component, into a plain lookup keyed by request type.
+  const REQUEST_TYPE_LABELS: Record<SupportRequestType, string> = {
+    CLASSROOM_SUPPORT: t('support_request_type_classroom') || 'Support in classroom',
+    BACK_ON_TRACK: t('support_request_type_back_on_track') || "Student to 'Back on Track' Space",
+    STAFF_MEMBER: t('support_request_type_staff') || 'Student to a staff member',
+    INCIDENT: t('support_request_type_incident') || 'Incident - urgent',
+    OTHER: t('support_request_type_other') || 'Other',
+  };
   // Real addition Sep 10 (dashboard pending banner): tapping the banner reopens THIS
   // specific request's live status, deep-linked via ?viewId= rather than a new screen -
   // reuses the exact same status step/polling this screen already has.
@@ -97,7 +108,7 @@ export default function SupportRequestScreen() {
       setViewLoading(false);
     }).catch(() => {
       setViewLoading(false);
-      Alert.alert(t('error') || 'Error', 'Could not load this request');
+      Alert.alert(t('error') || 'Error', t('support_request_load_error') || 'Could not load this request');
       router.replace('/teacher/dashboard');
     });
   }, [viewId]);
@@ -178,7 +189,7 @@ export default function SupportRequestScreen() {
     const finalText = textOverride !== undefined ? textOverride : targetText;
     if (!finalType) return;
     if (finalType === 'STAFF_MEMBER' && !finalText.trim()) {
-      Alert.alert(t('error') || 'Error', 'Enter a staff member name');
+      Alert.alert(t('error') || 'Error', t('support_request_enter_staff_name') || 'Enter a staff member name');
       return;
     }
     setSaving(true);
@@ -225,9 +236,9 @@ export default function SupportRequestScreen() {
       if (msg.startsWith('support_request_open|')) {
         const existingId = msg.split('|')[1];
         Alert.alert(
-          'Already in progress',
-          "You already have a request in progress.",
-          [{ text: 'View it', onPress: async () => {
+          t('support_request_already_in_progress_title') || 'Already in progress',
+          t('support_request_already_in_progress_message') || 'You already have a request in progress.',
+          [{ text: t('support_request_view_it_btn') || 'View it', onPress: async () => {
             try {
               const existing = await supportRequestsApi.getOne(existingId);
               setSentRequest(existing);
@@ -238,7 +249,7 @@ export default function SupportRequestScreen() {
           } }]
         );
       } else {
-        Alert.alert(t('error') || 'Error', msg || 'Could not send request');
+        Alert.alert(t('error') || 'Error', msg || (t('support_request_send_error') || 'Could not send request'));
       }
     } finally {
       setSaving(false);
@@ -248,7 +259,7 @@ export default function SupportRequestScreen() {
   if (viewLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <TranslatedHeader title="Support Request" backTo="/teacher/dashboard" />
+        <TranslatedHeader title={t('support_request_header_title') || '🔔 Support Request'} backTo="/teacher/dashboard" />
         <View style={styles.successScreen}>
           <ActivityIndicator color="#5C6BC0" />
         </View>
@@ -258,7 +269,7 @@ export default function SupportRequestScreen() {
 
   if (step === 'status' && sentRequest) {
     const display = formatSupportRequestStatus(sentRequest);
-    const who = sentRequest.student_name || studentName || sentRequest.classroom_name || classroomName || 'Classroom';
+    const who = sentRequest.student_name || studentName || sentRequest.classroom_name || classroomName || (t('classroom') || 'Classroom');
     // Real fix Sep 11: open now means genuinely still in play - CANCELLED/SUPERSEDED are
     // just as terminal as RESOLVED, the Arrived/Cancel actions make no sense on either.
     const isOpen = sentRequest.status === 'PENDING' || sentRequest.status === 'ACKNOWLEDGED';
@@ -287,13 +298,13 @@ export default function SupportRequestScreen() {
                   const updated = await supportRequestsApi.markArrived(sentRequest.id);
                   setSentRequest(updated);
                 } catch (e: any) {
-                  Alert.alert(t('error') || 'Error', e.message || 'Could not update request');
+                  Alert.alert(t('error') || 'Error', e.message || (t('support_request_update_error') || 'Could not update request'));
                 } finally {
                   setMarkingArrived(false);
                 }
               }}
             >
-              {markingArrived ? <ActivityIndicator color="white" /> : <Text style={styles.arrivedBtnText}>Support arrived ✓</Text>}
+              {markingArrived ? <ActivityIndicator color="white" /> : <Text style={styles.arrivedBtnText}>{t('support_request_arrived_btn') || 'Support arrived ✓'}</Text>}
             </TouchableOpacity>
           )}
           {isOpen && (
@@ -301,17 +312,17 @@ export default function SupportRequestScreen() {
               style={styles.cancelBtn}
               disabled={markingArrived || cancelling}
               onPress={() => Alert.alert(
-                'Cancel request?',
-                "This stops the buzzing and closes it - the admin will be told it's no longer needed.",
+                t('support_request_cancel_confirm_title') || 'Cancel request?',
+                t('support_request_cancel_confirm_message') || "This stops the buzzing and closes it - the admin will be told it's no longer needed.",
                 [
-                  { text: 'Keep it', style: 'cancel' },
-                  { text: 'Cancel request', style: 'destructive', onPress: async () => {
+                  { text: t('support_request_keep_it_btn') || 'Keep it', style: 'cancel' },
+                  { text: t('support_request_cancel_btn') || 'Cancel request', style: 'destructive', onPress: async () => {
                     setCancelling(true);
                     try {
                       const updated = await supportRequestsApi.cancel(sentRequest.id);
                       setSentRequest(updated);
                     } catch (e: any) {
-                      Alert.alert(t('error') || 'Error', e.message || 'Could not cancel request');
+                      Alert.alert(t('error') || 'Error', e.message || (t('support_request_cancel_error') || 'Could not cancel request'));
                     } finally {
                       setCancelling(false);
                     }
@@ -319,11 +330,11 @@ export default function SupportRequestScreen() {
                 ]
               )}
             >
-              {cancelling ? <ActivityIndicator color="#999" /> : <Text style={styles.cancelBtnText}>Cancel request</Text>}
+              {cancelling ? <ActivityIndicator color="#999" /> : <Text style={styles.cancelBtnText}>{t('support_request_cancel_btn') || 'Cancel request'}</Text>}
             </TouchableOpacity>
           )}
           <TouchableOpacity style={styles.backToDashboardBtn} onPress={() => router.replace('/teacher/dashboard')}>
-            <Text style={styles.backToDashboardText}>Back to Dashboard</Text>
+            <Text style={styles.backToDashboardText}>{t('support_request_back_to_dashboard_btn') || 'Back to Dashboard'}</Text>
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
@@ -333,20 +344,20 @@ export default function SupportRequestScreen() {
   if (step === 'classroom') {
     return (
       <SafeAreaView style={styles.container}>
-        <TranslatedHeader title="🔔 Support Request" backTo="/teacher/dashboard" />
+        <TranslatedHeader title={t('support_request_header_title') || '🔔 Support Request'} backTo="/teacher/dashboard" />
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-          <Text style={styles.stepSubtitle}>Select a classroom</Text>
+          <Text style={styles.stepSubtitle}>{t('support_request_select_classroom') || 'Select a classroom'}</Text>
           {(classrooms || []).length === 0 ? (
             <View style={styles.empty}>
               <MaterialIcons name="school" size={48} color="#CCC" />
-              <Text style={styles.emptyText}>No classrooms yet</Text>
+              <Text style={styles.emptyText}>{t('no_classrooms_yet') || 'No classrooms yet'}</Text>
             </View>
           ) : (classrooms || []).map((c: any) => (
             <TouchableOpacity key={c.id} style={styles.rowCard} onPress={() => pickClassroom(c)}>
               <MaterialIcons name="school" size={24} color="#5C6BC0" />
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowTitle}>{c.name}</Text>
-                <Text style={styles.rowSub}>{(students || []).filter((s: any) => s.classroom_id === c.id).length} students</Text>
+                <Text style={styles.rowSub}>{(t('support_request_student_count') || '{count} students').replace('{count}', String((students || []).filter((s: any) => s.classroom_id === c.id).length))}</Text>
               </View>
               <MaterialIcons name="chevron-right" size={20} color="#999" />
             </TouchableOpacity>
@@ -361,12 +372,12 @@ export default function SupportRequestScreen() {
       <SafeAreaView style={styles.container}>
         <TranslatedHeader title={classroomName} onBackPress={() => setStep('classroom')} />
         <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
-          <Text style={styles.stepSubtitle}>Select a student, or the whole classroom</Text>
+          <Text style={styles.stepSubtitle}>{t('support_request_select_student') || 'Select a student, or the whole classroom'}</Text>
           <TouchableOpacity style={[styles.rowCard, styles.wholeClassCard]} onPress={pickWholeClassroom}>
             <MaterialIcons name="groups" size={24} color="#5C6BC0" />
             <View style={{ flex: 1 }}>
-              <Text style={styles.wholeClassTitle}>Support to my classroom</Text>
-              <Text style={styles.rowSub}>No specific student — support for the whole class</Text>
+              <Text style={styles.wholeClassTitle}>{t('support_request_whole_classroom_title') || 'Support to my classroom'}</Text>
+              <Text style={styles.rowSub}>{t('support_request_whole_classroom_sub') || 'No specific student - support for the whole class'}</Text>
               {/* Item 8 (Sep 11): today's colour mix, ambient context only - no colour
                   step, no extra tap. Dot size reflects relative count, not exact numbers. */}
               {colourMix && (colourMix.blue + colourMix.green + colourMix.yellow + colourMix.red) > 0 && (
@@ -392,8 +403,8 @@ export default function SupportRequestScreen() {
           <TouchableOpacity style={[styles.rowCard, styles.incidentCard]} onPress={pickWholeClassroomIncident}>
             <MaterialIcons name="warning" size={24} color="#F44336" />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.rowTitle, styles.incidentText]}>🚨 Incident — urgent</Text>
-              <Text style={styles.rowSub}>Classroom-level, immediate</Text>
+              <Text style={[styles.rowTitle, styles.incidentText]}>{'🚨 ' + (t('support_request_type_incident') || 'Incident - urgent')}</Text>
+              <Text style={styles.rowSub}>{t('support_request_incident_sub') || 'Classroom-level, immediate'}</Text>
             </View>
             <MaterialIcons name="chevron-right" size={20} color="#999" />
           </TouchableOpacity>
@@ -436,7 +447,7 @@ export default function SupportRequestScreen() {
       <SafeAreaView style={styles.container}>
         <TranslatedHeader title={studentName} onBackPress={() => setStep('student')} />
         <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
-          <Text style={styles.stepSubtitle}>What's needed?</Text>
+          <Text style={styles.stepSubtitle}>{t('support_request_whats_needed_title') || "What's needed?"}</Text>
           {REQUEST_TYPES.map(rt => (
             <TouchableOpacity
               key={rt.type}
@@ -444,7 +455,7 @@ export default function SupportRequestScreen() {
               onPress={() => pickType(rt.type)}
             >
               <MaterialIcons name={rt.icon} size={24} color={rt.type === 'INCIDENT' ? '#F44336' : '#5C6BC0'} />
-              <Text style={[styles.rowTitle, { flex: 1 }, rt.type === 'INCIDENT' && styles.incidentText]}>{rt.label}</Text>
+              <Text style={[styles.rowTitle, { flex: 1 }, rt.type === 'INCIDENT' && styles.incidentText]}>{REQUEST_TYPE_LABELS[rt.type]}</Text>
               <MaterialIcons name="chevron-right" size={20} color="#999" />
             </TouchableOpacity>
           ))}
@@ -464,17 +475,17 @@ export default function SupportRequestScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <TranslatedHeader
-        title={isClassroomLevel ? 'Whole classroom' : studentName}
+        title={isClassroomLevel ? (t('support_request_whole_classroom_header') || 'Whole classroom') : studentName}
         onBackPress={() => setStep(isClassroomLevel ? 'student' : 'type')}
       />
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
         {isClassroomIncident ? (
-          <Text style={[styles.rowSub, styles.incidentText]}>🚨 Immediate support needed in {classroomName}.</Text>
+          <Text style={[styles.rowSub, styles.incidentText]}>{(t('support_request_incident_confirm') || '🚨 Immediate support needed in {classroom}.').replace('{classroom}', classroomName)}</Text>
         ) : isClassroomSupport ? (
-          <Text style={styles.rowSub}>Someone will come to {classroomName} to help.</Text>
+          <Text style={styles.rowSub}>{(t('support_request_classroom_confirm') || 'Someone will come to {classroom} to help.').replace('{classroom}', classroomName)}</Text>
         ) : needsStaffPicker ? (
           <>
-            <Text style={styles.sectionLabel}>Who?</Text>
+            <Text style={styles.sectionLabel}>{t('support_request_who_label') || 'Who?'}</Text>
             {(recents.length > 0 || shortcuts.length > 0) && (
               <View style={styles.chipRow}>
                 {shortcuts.map(sc => (
@@ -491,17 +502,17 @@ export default function SupportRequestScreen() {
             )}
             <TextInput
               style={styles.input}
-              placeholder="Staff member's name"
+              placeholder={t('support_request_staff_name_placeholder') || "Staff member's name"}
               value={targetText}
               onChangeText={setTargetText}
             />
           </>
         ) : (
           <>
-            <Text style={styles.sectionLabel}>Note (optional)</Text>
+            <Text style={styles.sectionLabel}>{t('support_request_note_label') || 'Note (optional)'}</Text>
             <TextInput
               style={[styles.input, styles.inputMultiline]}
-              placeholder="What's needed?"
+              placeholder={t('support_request_whats_needed_title') || "What's needed?"}
               value={targetText}
               onChangeText={setTargetText}
               multiline
@@ -513,7 +524,7 @@ export default function SupportRequestScreen() {
           onPress={() => handleSubmit()}
           disabled={saving}
         >
-          {saving ? <ActivityIndicator color="white" /> : <Text style={styles.bottomSubmitText}>Send Request</Text>}
+          {saving ? <ActivityIndicator color="white" /> : <Text style={styles.bottomSubmitText}>{t('support_request_send_btn') || 'Send Request'}</Text>}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
