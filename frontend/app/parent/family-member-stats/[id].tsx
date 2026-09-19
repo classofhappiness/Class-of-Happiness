@@ -209,14 +209,20 @@ export default function FamilyMemberStatsScreen() {
   );
 
   if (loading) return (
-    <SafeAreaView style={s.container}>
+    // Real fix Sep 19 (live device report): this screen's SafeAreaView (the real,
+    // cross-platform one from react-native-safe-area-context, default all-edges) was
+    // ALSO reserving top inset space while TranslatedHeader adds its own insets.top + 4
+    // internally - the exact double-inset bug the Sep 16 TranslatedHeader fix explicitly
+    // checked for and fixed on select.tsx/parent/alerts.tsx/student/strategies.tsx, just
+    // missed here. Same fix: edges excludes 'top' since TranslatedHeader already owns it.
+    <SafeAreaView style={s.container} edges={['left','right','bottom']}>
       <TranslatedHeader title={`${decodeURIComponent(name||'')} - ${t('statistics_title')||'Statistics'}`} />
       <View style={{marginTop:60}}><EmotionColourLoader visible size={64} /></View>
     </SafeAreaView>
   );
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={s.container} edges={['left','right','bottom']}>
       <TranslatedHeader title={`${decodeURIComponent(name||'')} - ${t('statistics_title')||'Statistics'}`} />
 
       {/* Real fix Aug 26 (item 5): same period pills as a linked child's detail screen
@@ -243,6 +249,38 @@ export default function FamilyMemberStatsScreen() {
               : t('no_checkin_yet')||'No check-ins yet - tap the card to start!'
             }
           </Text>
+        </View>
+
+        {/* Real feature Sep 19 (parity request, live device report): same 3-button action
+            row as the teacher's individual-student screen (Edit / Family Strategies /
+            School-Family Link), same position relative to layout (between the period pills
+            and the Emotion Distribution card) and same styling (s.actionBtn/s.actionBtnLabel
+            below are copied verbatim from teacher/student-detail.tsx's actionBtn/
+            iconBtnLabel, not reinvented). Family Strategies routes to the existing
+            /parent/family-strategies screen - the only entry point that already exists, and
+            it isn't per-child scoped (it lists all family members' strategies with its own
+            in-page "assigned to" picker), unlike the teacher version's per-student route -
+            so this can't be a true 1:1 deep link, just the closest existing equivalent.
+            Edit and School-Family Link are NOT wired yet - see report before this diff for
+            why (Edit has no route today, only local modal state on parent/dashboard.tsx;
+            School-Family Link has two real, different candidate actions - entering a code vs
+            generating one for a teacher - and this ties into the still-open consent-wording
+            question). Reserved here as disabled placeholders rather than left out entirely,
+            so the row's real layout/spacing is visible now instead of arriving as a second,
+            separate change. */}
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+          <TouchableOpacity style={[s.actionBtn, { opacity: 0.4 }]} disabled>
+            <MaterialIcons name="edit" size={20} color="#5C6BC0" />
+            <Text style={s.actionBtnLabel}>{t('edit') || 'Edit'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.actionBtn} onPress={() => router.push('/parent/family-strategies')}>
+            <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
+            <Text style={s.actionBtnLabel}>{t('family_strategies') || 'Family Strategies'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.actionBtn, { opacity: 0.4 }]} disabled>
+            <MaterialIcons name="family-restroom" size={20} color="#4A90D9" />
+            <Text style={s.actionBtnLabel}>{t('family') || 'School-Family Link'}</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Emotion Distribution */}
@@ -407,6 +445,10 @@ const s = StyleSheet.create({
   container: { flex:1, backgroundColor:'#F8F9FA' },
   headerName: { fontSize:18, fontWeight:'700', color:'#333' },
   headerSub: { fontSize:12, color:'#888', marginTop:2 },
+  // Copied verbatim from teacher/student-detail.tsx's actionBtn/iconBtnLabel (Sep 19 parity
+  // request) - not reinvented, same styling as the teacher's Edit/Strategies/Family row.
+  actionBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 4, borderRadius: 10, backgroundColor: '#F5F5F5' },
+  actionBtnLabel: { fontSize: 9, color: '#5C6BC0', marginTop: 2, fontWeight: '600', textAlign: 'center' },
   // Period pills (item 5) - same styling as parent/linked-child/[id].tsx's periodRow
   periodRow:           { flexDirection:'row', gap:6, paddingHorizontal:16, paddingBottom:8, paddingTop:8, backgroundColor:'white', borderBottomWidth:1, borderBottomColor:'#F0F0F0' },
   periodBtn:           { flex:1, paddingVertical:7, borderRadius:8, alignItems:'center', backgroundColor:'#F0F0F0' },
