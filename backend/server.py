@@ -12702,14 +12702,28 @@ async def unlink_user(request: Request):
             raise HTTPException(status_code=404, detail=f"No user found with email: {email}")
         target_user = user_result.data[0]
         target_id = target_user["user_id"]
-        # Remove parent-teacher links
+        # Real fix Sep 19: this deleted from parent_teacher_links, a table that does not exist
+        # in the database, so every call threw and returned a 500 (the dashboard's Unlink
+        # tool never worked). The real link table is parent_links, and the app's own unlink
+        # endpoints just delete rows from it. A parent's links are matched by
+        # parent_user_id; a teacher's are the links to students in that teacher's classrooms.
+        removed = 0
         if link_type == "parent":
-            supabase.table("parent_teacher_links").delete().eq("parent_id", target_id).execute()
+            res = supabase.table("parent_links").delete().eq("parent_user_id", target_id).execute()
+            removed = len(res.data or [])
         else:
-            supabase.table("parent_teacher_links").delete().eq("teacher_id", target_id).execute()
+            classrooms = supabase.table("classrooms").select("id").eq("user_id", target_id).execute().data or []
+            classroom_ids = [c["id"] for c in classrooms]
+            student_ids = []
+            if classroom_ids:
+                studs = supabase.table("students").select("id").in_("classroom_id", classroom_ids).execute().data or []
+                student_ids = [s["id"] for s in studs]
+            if student_ids:
+                res = supabase.table("parent_links").delete().in_("student_id", student_ids).execute()
+                removed = len(res.data or [])
         # Log the action
-        logger.info(f"Admin {user['user_id']} unlinked {link_type} {email}")
-        return {"status": "unlinked", "email": email, "type": link_type}
+        logger.info(f"Admin {user['user_id']} unlinked {link_type} {email} ({removed} parent_links removed)")
+        return {"status": "unlinked", "email": email, "type": link_type, "removed": removed}
     except HTTPException:
         raise
     except Exception as e:
