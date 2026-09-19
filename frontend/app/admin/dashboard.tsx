@@ -2682,7 +2682,11 @@ const s = StyleSheet.create({
   tabBar: { flexDirection: 'row', backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#EEEEEE' },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 10, gap: 3 },
   tabActive: { borderBottomWidth: 2, borderBottomColor: INDIGO },
-  tabLabel: { fontSize: 10, color: '#AAA', fontWeight: '600' },
+  // Real fix Sep 19 (live device report): "Support Requests" - the longest label among a
+  // school_admin's 5 tabs - wraps to 2 lines with no textAlign/lineHeight set, reading as
+  // squashed/cramped rather than a clean "Support" over "Requests". Explicit centre-align +
+  // lineHeight gives wrapped labels real breathing room without affecting single-line ones.
+  tabLabel: { fontSize: 10, color: '#AAA', fontWeight: '600', textAlign: 'center', lineHeight: 13 },
   tabLabelActive: { color: INDIGO },
   // Scroll
   scroll: { padding: 16, paddingBottom: 48, gap: 0 },
