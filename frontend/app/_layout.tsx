@@ -519,12 +519,6 @@ function AppContent() {
           }}
         />
         <Stack.Screen
-          name="parent/strategies"
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
           name="parent/family-strategies"
           options={{
             headerShown: false,
