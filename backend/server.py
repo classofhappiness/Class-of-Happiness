@@ -5364,14 +5364,23 @@ async def link_child(body: LinkChildRequest, request: Request):
             detail="free_tier_limit|Home-school linking requires either you or your child's teacher to have a subscription, or a school plan covering your child's class. Upgrade to link your account."
         )
 
-    # Link parent to student
-    supabase.table("parent_links").insert({
-        "id": str(uuid.uuid4()),
-        "parent_user_id": user["user_id"],
-        "student_id": student["id"],
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "expires_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
-    }).execute()
+    # Link parent to student. Real fix Sep 19: this used to insert unconditionally, so
+    # re-entering the same code created a second identical parent_links row (found in
+    # production, Samantha - two rows for one student, 5 minutes apart). Now idempotent: an
+    # existing row for this parent+student just gets its expiry refreshed, which is what the
+    # duplicate row was effectively doing.
+    new_expiry = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+    existing_link = supabase.table("parent_links").select("id").eq("parent_user_id", user["user_id"]).eq("student_id", student["id"]).execute()
+    if existing_link.data:
+        supabase.table("parent_links").update({"expires_at": new_expiry}).eq("parent_user_id", user["user_id"]).eq("student_id", student["id"]).execute()
+    else:
+        supabase.table("parent_links").insert({
+            "id": str(uuid.uuid4()),
+            "parent_user_id": user["user_id"],
+            "student_id": student["id"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "expires_at": new_expiry
+        }).execute()
 
     # Real fix Sep 19 (live incident, real family - traced via a genuine dangling reference
     # found in production, Samantha): a parent who already had a home-only family_members
