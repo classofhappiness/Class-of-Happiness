@@ -129,7 +129,10 @@ export default function ManageStudentsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <TranslatedHeader title={t('students') || 'Students'} showHome />
+      {/* Header rule (Sep 18/19): home only when back doesn't reach the dashboard in one tap.
+          This screen's only entry is the teacher dashboard's Students tile (traced Sep 19,
+          no other call site, notification route or deep link), so back already does that. */}
+      <TranslatedHeader title={t('students') || 'Students'} />
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <MaterialIcons name="search" size={24} color="#999" />

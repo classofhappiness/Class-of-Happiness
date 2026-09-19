@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import {
-  View, Image, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Modal, Alert, ActivityIndicator, RefreshControl, Switch, useWindowDimensions, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,6 +13,7 @@ import { useApp } from '../../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../../src/constants/emotionColours';
 import { linkedChildApi, LinkedChild, FamilyAssignedStrategy, familyApi } from '../../../src/utils/api';
 import { EmotionColourLoader } from '../../../src/components/EmotionColourLoader';
+import { TranslatedHeader } from '../../../src/components/TranslatedHeader';
 import { resolveStrategyName } from '../../../src/utils/resolveStrategyName';
 
 const ZONE_COLORS: Record<string, string> = EMOTION_COLOURS;
@@ -345,20 +346,13 @@ export default function LinkedChildDetailScreen() {
   const isFamilyChild = childType === 'family_member';
 
   return (
-    <SafeAreaView style={s.container}>
-      <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.headerBtn}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <View style={s.headerCenter}>
-          <Image source={require('../../../assets/images/logo_coh.png')} style={s.headerLogo} resizeMode="contain" />
-          <Text style={s.headerTitle}>{child.name}</Text>
-          {isFamilyChild && <View style={s.typeBadge}><Text style={s.typeBadgeText}>{t('family') || 'Family'}</Text></View>}
-        </View>
-        <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={s.headerBtn}>
-          <MaterialIcons name="home" size={22} color="#333" />
-        </TouchableOpacity>
-      </View>
+    // Real fix Sep 19 (header/nav remainder): converted to the shared TranslatedHeader - the
+    // conditional "Family" tag that blocked this is now its titleBadge prop. No home button:
+    // this screen is exactly one step from parent/dashboard (traced Sep 18), so back already
+    // gets there, per the app-wide rule. edges omit 'top' because TranslatedHeader applies
+    // the top inset itself (same fix as parent/family-member-stats/[id]).
+    <SafeAreaView style={s.container} edges={['left', 'right', 'bottom']}>
+      <TranslatedHeader title={child.name} titleBadge={isFamilyChild ? (t('family') || 'Family') : undefined} />
 
       <ScrollView style={s.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#5C6BC0" colors={['#5C6BC0']} />}>
 
@@ -833,14 +827,7 @@ const s = StyleSheet.create({
   errorText:           { marginTop:12, fontSize:15, color:'#666', textAlign:'center' },
   backBtn:             { marginTop:16, padding:12, backgroundColor:'#4CAF50', borderRadius:8 },
   backBtnText:         { color:'#fff', fontWeight:'600' },
-  header:              { flexDirection:'row', alignItems:'center', backgroundColor:'#fff', paddingHorizontal:12, paddingVertical:10, borderBottomWidth:1, borderBottomColor:'#eee' },
-  headerBtn:           { padding:4 },
-  headerCenter:        { flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6 },
-  headerLogo:          { width:26, height:26 },
-  headerTitle:         { fontSize:16, fontWeight:'700', color:'#333' },
-  typeBadge:           { backgroundColor:'#E8F5E9', paddingHorizontal:8, paddingVertical:3, borderRadius:10 },
-  typeBadgeText:       { fontSize:10, color:'#4CAF50', fontWeight:'700' },
-  childCard:           { flexDirection:'row', alignItems:'center', backgroundColor:'#fff', margin:16, marginBottom:8, padding:14, borderRadius:14 },
+  childCard:          { flexDirection:'row', alignItems:'center', backgroundColor:'#fff', margin:16, marginBottom:8, padding:14, borderRadius:14 },
   childAvatar:         { width:52, height:52, borderRadius:26, backgroundColor:'#E8F5E9', justifyContent:'center', alignItems:'center' },
   childName:           { fontSize:16, fontWeight:'700', color:'#333' },
   childSub:            { fontSize:12, color:'#666', marginTop:3 },

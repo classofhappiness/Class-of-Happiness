@@ -18,6 +18,10 @@ interface TranslatedHeaderProps {
   // shortcut). Generic on purpose - this is a shared header used by many screens, so the
   // feature-specific gating (toggle check, icon choice, route) stays in the caller.
   extraAction?: { icon: keyof typeof MaterialIcons.glyphMap; onPress: () => void; color?: string; accessibilityLabel?: string };
+  // Real addition Sep 19: a small pill shown right after the title (e.g. parent/linked-child's
+  // "Family" tag). Optional and absent everywhere else, in which case the title renders exactly
+  // as before - this is what kept that screen from being converted to this shared header.
+  titleBadge?: string;
 }
 
 export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
@@ -27,6 +31,7 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
   showHome = false,
   onBackPress,
   extraAction,
+  titleBadge,
 }) => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -80,7 +85,14 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
             shrink down to fill the space instead of clipping; short titles are unaffected
             since they already fit at the full size. minimumFontScale floors how far it can
             shrink so an extreme case still stays legible rather than shrinking to nothing. */}
-        <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{title}</Text>
+        {titleBadge ? (
+          <View style={styles.titleWithBadge}>
+            <Text style={[styles.title, styles.titleBesideBadge]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{title}</Text>
+            <View style={styles.titleBadge}><Text style={styles.titleBadgeText}>{titleBadge}</Text></View>
+          </View>
+        ) : (
+          <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{title}</Text>
+        )}
         <View style={styles.rightSlot}>
           {extraAction && (
             <TouchableOpacity
@@ -180,5 +192,29 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     flex: 1,
     textAlign: 'center',
+  },
+  // titleBadge layout: the title hugs its text (flex 0, still shrinkable) instead of filling
+  // the row, so the pill sits right beside it; the pair is centred as a group.
+  titleWithBadge: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  titleBesideBadge: {
+    flex: 0,
+    flexShrink: 1,
+  },
+  titleBadge: {
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  titleBadgeText: {
+    fontSize: 10,
+    color: '#4CAF50',
+    fontWeight: '700',
   },
 });
