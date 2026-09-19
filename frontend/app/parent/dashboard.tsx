@@ -1256,7 +1256,23 @@ export default function ParentDashboard() {
                 const creatureEmoji = childCreatures[member.id]?.emoji || creature?.emoji || '🥚';
                 const isChild = member.relationship === 'child';
                 const cardColor = getRelationshipColor(member.relationship);
-                const isLinked = linkedChildren.some((lc: any) => lc.name === member.name || lc.id === (member as any).student_id);
+                // Real fix Sep 19 (live incident, real family - Samantha): this used to
+                // re-derive "is this child linked" itself by matching member.name against
+                // linkedChildren (a separately-fetched array), racy against that fetch's own
+                // timing and fragile to name spelling/casing - and member.student_id could
+                // itself be stale (see server.py's link_child fix, same incident: a family
+                // member created BEFORE a school code existed keeps student_id pointing at
+                // its old home-only record forever unless something corrects it). GET
+                // /family/members already computes school_linked authoritatively server-side
+                // (checks both a real classroom via student_id AND a parent_links match by
+                // name, with its own read-time student_id repair) - trust that single
+                // already-computed flag instead of re-deriving a second, independently
+                // fragile version of the same answer here. Falls back to the old computation
+                // only if school_linked is missing entirely (e.g. briefly, before the first
+                // fetch completes), so this never regresses to something worse than before.
+                const isLinked = (member as any).school_linked !== undefined
+                  ? !!(member as any).school_linked
+                  : linkedChildren.some((lc: any) => lc.name === member.name || lc.id === (member as any).student_id);
                 const isLinkedChild = !!(member as any).classroom_id || (!member.relationship && !!(member as any).avatar_type);
                 const linkedChildId = (member as any).student_id || (isLinkedChild ? member.id : null);
                 return (

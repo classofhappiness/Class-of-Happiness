@@ -5372,6 +5372,31 @@ async def link_child(body: LinkChildRequest, request: Request):
         "created_at": datetime.now(timezone.utc).isoformat(),
         "expires_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
     }).execute()
+
+    # Real fix Sep 19 (live incident, real family - traced via a genuine dangling reference
+    # found in production, Samantha): a parent who already had a home-only family_members
+    # row for this child (created before the code existed) keeps that row's student_id
+    # pointing at the OLD home-only student record forever - this insert only ever creates a
+    # NEW, separate parent_links + school student pairing, it never corrects the pre-existing
+    # family_members row to point at it. That stale reference is what made the parent-side
+    # dashboard misclassify this child as "not linked" (routing to the wrong stats screen,
+    # hiding the sharing toggle) and, once the old home-only student row was later deleted as
+    # a duplicate, left family_members.student_id pointing at a row that no longer exists at
+    # all. Matched by name (case/whitespace-insensitive - the same best-available correlator
+    # get_family_members already uses for its own read-time repair) since nothing else ties a
+    # pre-existing home-only profile to the school record a code just linked; only touches a
+    # row with NO relationship-conflicting match (i.e. this parent's own family_members, by
+    # name) so this can't misattribute a child. Explicitly OVERWRITES a stale student_id, not
+    # just fills a null one - get_family_members' own repair only ever does the latter.
+    try:
+        fm_match = supabase.table("family_members").select("id,student_id").eq("user_id", user["user_id"]).ilike("name", student.get("name", "").strip()).execute()
+        if fm_match.data:
+            for fm in fm_match.data:
+                if fm.get("student_id") != student["id"]:
+                    supabase.table("family_members").update({"student_id": student["id"]}).eq("id", fm["id"]).execute()
+    except Exception as e:
+        logger.warning(f"link_child family_members student_id repair failed: {e}")
+
     return {"message": "Child linked successfully", "student": student}
 
 @api_router.post("/students/link")
