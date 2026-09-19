@@ -235,7 +235,15 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
             return (
               <CardWrapper
                 key={item.id}
-                style={[s.itemCard, !item.owned && s.itemLocked, isReplaying && { borderColor: color, borderWidth: 2.5 }]}
+                // Real feature Sep 19 (live device report): owned items only ever had a
+                // plain light-gray border, identical to every other card - the small
+                // checkmark pill at the bottom was the ONLY "you own this" signal, easy to
+                // miss at a glance. Adds the creature's own zone colour as a real border on
+                // every owned card - the same colour system used everywhere else in the app
+                // (ZONE_COLORS/`color` above), not a new one. isReplaying's existing
+                // temporary border (same colour, briefly thicker during the 2.2s replay
+                // animation) stays last in this array so it still wins during that moment.
+                style={[s.itemCard, !item.owned && s.itemLocked, item.owned && { borderColor: color, borderWidth: 2 }, isReplaying && { borderColor: color, borderWidth: 2.5 }]}
                 {...(item.owned ? {
                   onPress: () => {
                     setReplayingId(item.id);
