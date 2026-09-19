@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Text, Image, StyleSheet } from 'react-native';
+import { Animated, Easing, Text, Image, View, StyleSheet } from 'react-native';
 
 // Real feature Aug 22 (item 2): the old CreatureCollection.tsx modal (retired when the
 // creature system was unified) gave each colour zone its own distinct idle movement -
@@ -65,6 +65,18 @@ interface Props {
   unlocked?: boolean;
   emoji?: string | null;
   imageUrl?: string | null;
+  // Real feature Sep 19: a bundled/require()'d local asset (e.g. a pre-generated silhouette
+  // PNG) rather than a remote uri - Image needs `source={require(...)}` (a module number) for
+  // these, not `source={{uri}}`, so this is a distinct prop rather than overloading imageUrl.
+  localSource?: any;
+  // Real feature Sep 19 (Jono correction to Sep 19 stage-navigation build): community
+  // creatures are real uploaded photos with no alpha transparency around the subject, so
+  // there's no clean way to derive a true shape-accurate silhouette from them (that needs
+  // background removal, out of scope here). This draws a plain solid-black rounded overlay
+  // on top of the real photo instead - mysterious/withholding like the default-creature
+  // silhouette, just not shape-accurate to that specific photo. A known, deliberate
+  // simplification for this one creature type, not an oversight.
+  maskSilhouette?: boolean;
   // Real fix Sep 15 (Marisa build-26, S07): My Creatures ("Top Trumps cards" - static,
   // readable) wants the idle bobbing stopped entirely, while World Creatures keeps it (just
   // at a uniform speed now, see useZoneMovement's blue case above) - one shared visual
@@ -72,13 +84,24 @@ interface Props {
   animated?: boolean;
 }
 
-export const AnimatedCreatureVisual: React.FC<Props> = ({ zone, size = 52, unlocked = true, emoji, imageUrl, animated = true }) => {
+export const AnimatedCreatureVisual: React.FC<Props> = ({ zone, size = 52, unlocked = true, emoji, imageUrl, localSource, maskSilhouette = false, animated = true }) => {
   const { transform } = useZoneMovement(zone, unlocked && animated);
+
+  if (localSource) {
+    return (
+      <Animated.View style={{ transform, width: size, height: size }}>
+        <Image source={localSource} style={[styles.image, { width: size, height: size, borderRadius: size / 6 }]} resizeMode="contain" />
+      </Animated.View>
+    );
+  }
 
   if (imageUrl) {
     return (
-      <Animated.View style={{ transform, opacity: unlocked ? 1 : 0.3, width: size, height: size }}>
+      <Animated.View style={{ transform, opacity: maskSilhouette ? 1 : (unlocked ? 1 : 0.3), width: size, height: size }}>
         <Image source={{ uri: imageUrl }} style={[styles.image, { width: size, height: size, borderRadius: size / 6 }]} />
+        {maskSilhouette && (
+          <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: '#000', borderRadius: size / 6 }]} />
+        )}
       </Animated.View>
     );
   }

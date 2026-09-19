@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Animated, Alert } from 'react-native';
+import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity, Modal, Animated, Alert } from 'react-native';
 import { AnimatedCreatureVisual } from './AnimatedCreatureVisual';
 import { EmotionColourLoader } from './EmotionColourLoader';
 import { BonusItemCelebration, CelebrationItem } from './BonusItemCelebration';
@@ -28,6 +28,35 @@ const COLOUR_TO_DEFAULT_ID: Record<string, string> = {
 
 const ZONE_COLORS: Record<string, string> = {
   blue: '#4A90D9', green: '#4CAF73', yellow: '#FFC107', red: '#E05252',
+};
+
+// Real fix Sep 19 (Jono correction to the Sep 19 stage-navigation build): a future/unreached
+// stage previewing in full colour made a child feel they already had something they hadn't
+// earned - the opposite of the "genuine encouragement, not gaming" principle from B1. Default
+// creatures render via unicode colour emoji (stage_emojis), which RN cannot tint/recolour via
+// any style prop (colour emoji glyphs ignore `color`/tintColor entirely - an OS font-rendering
+// limitation, not a library gap) - so a real silhouette needs separate pre-generated assets,
+// not a runtime filter. These 16 (4 creatures x 4 stages) were rasterised from the exact same
+// Apple Color Emoji glyphs server.py's CREATURES.emoji_stages already uses, then every non-
+// transparent pixel was flattened to solid black, preserving the real alpha shape - a true,
+// recognisable silhouette of that exact stage, not a generic placeholder.
+const SILHOUETTE_ASSETS: Record<string, any> = {
+  aqua_buddy_0: require('../../assets/images/creature-silhouettes/aqua_buddy_stage0_silhouette.png'),
+  aqua_buddy_1: require('../../assets/images/creature-silhouettes/aqua_buddy_stage1_silhouette.png'),
+  aqua_buddy_2: require('../../assets/images/creature-silhouettes/aqua_buddy_stage2_silhouette.png'),
+  aqua_buddy_3: require('../../assets/images/creature-silhouettes/aqua_buddy_stage3_silhouette.png'),
+  leaf_friend_0: require('../../assets/images/creature-silhouettes/leaf_friend_stage0_silhouette.png'),
+  leaf_friend_1: require('../../assets/images/creature-silhouettes/leaf_friend_stage1_silhouette.png'),
+  leaf_friend_2: require('../../assets/images/creature-silhouettes/leaf_friend_stage2_silhouette.png'),
+  leaf_friend_3: require('../../assets/images/creature-silhouettes/leaf_friend_stage3_silhouette.png'),
+  spark_pal_0: require('../../assets/images/creature-silhouettes/spark_pal_stage0_silhouette.png'),
+  spark_pal_1: require('../../assets/images/creature-silhouettes/spark_pal_stage1_silhouette.png'),
+  spark_pal_2: require('../../assets/images/creature-silhouettes/spark_pal_stage2_silhouette.png'),
+  spark_pal_3: require('../../assets/images/creature-silhouettes/spark_pal_stage3_silhouette.png'),
+  blaze_heart_0: require('../../assets/images/creature-silhouettes/blaze_heart_stage0_silhouette.png'),
+  blaze_heart_1: require('../../assets/images/creature-silhouettes/blaze_heart_stage1_silhouette.png'),
+  blaze_heart_2: require('../../assets/images/creature-silhouettes/blaze_heart_stage2_silhouette.png'),
+  blaze_heart_3: require('../../assets/images/creature-silhouettes/blaze_heart_stage3_silhouette.png'),
 };
 
 export interface CreatureDetailEntry {
@@ -224,6 +253,7 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
   // more (or less) real progress than the child actually has.
   const displayStage = previewStage ?? localStage;
   const previewingOther = previewStage !== null && previewStage !== localStage;
+  const displayReached = displayStage <= localStage;
 
   // Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): three real states per
   // item now instead of two - owned (✓, tap to replay), available (real Buy button, fixed
@@ -311,28 +341,35 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={s.scrollPad} showsVerticalScrollIndicator={false}>
-            <View style={[s.visualBox, { backgroundColor: color + '20' }]}>
-              <AnimatedCreatureVisual
-                zone={colour}
-                size={110}
-                unlocked
-                emoji={entry.type === 'default' ? (entry.stage_emojis?.[displayStage] ?? entry.emoji) : undefined}
-                imageUrl={entry.type === 'community' ? (entry.stage_urls?.[displayStage] ?? entry.stage_image ?? undefined) : undefined}
-              />
+            <View style={{ position: 'relative' }}>
+              <View style={[s.visualBox, { backgroundColor: color + '20' }]}>
+                <AnimatedCreatureVisual
+                  zone={colour}
+                  size={110}
+                  unlocked
+                  emoji={entry.type === 'default' && displayReached ? (entry.stage_emojis?.[displayStage] ?? entry.emoji) : undefined}
+                  localSource={entry.type === 'default' && !displayReached ? SILHOUETTE_ASSETS[`${entry.id}_${displayStage}`] : undefined}
+                  imageUrl={entry.type === 'community' ? (entry.stage_urls?.[displayStage] ?? entry.stage_image ?? undefined) : undefined}
+                  maskSilhouette={entry.type === 'community' && !displayReached}
+                />
+              </View>
+              {entry.is_active && <Text style={[s.activeBadge, { color }]}>{t('active_badge') || '★ Active'}</Text>}
+              {/* Real fix Sep 19 (Jono correction #2): this banner used to mount/unmount
+                  directly in document flow, so appearing/disappearing pushed the "Evolution"
+                  title, evoRow and progress line up/down beneath it. It now lives inside a
+                  fixed-height reserved slot that always occupies the same space whether or
+                  not a preview is active - toggling the preview only changes what's drawn
+                  inside that slot, never the slot's own height, so nothing below it moves. */}
+              <View style={s.previewSlot}>
+                {previewingOther && (
+                  <TouchableOpacity onPress={() => setPreviewStage(null)} style={[s.previewBanner, { backgroundColor: color + '20' }]}>
+                    <Text style={[s.previewBannerText, { color }]}>
+                      👁️ {(t('previewing_stage') || 'Previewing Stage {n}').replace('{n}', String(displayStage + 1))} · {t('back_to_current') || 'tap to return'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
-            {entry.is_active && <Text style={[s.activeBadge, { color }]}>{t('active_badge') || '★ Active'}</Text>}
-            {/* Real feature Sep 19 (live device report, Jono's explicit approval): the only
-                UI change previewing makes outside the evoRow itself - a clear, honest label
-                so a child (or a parent watching) never mistakes "browsing an old/future
-                stage" for "this is my creature's real progress right now". Tapping either
-                clears the preview back to the real current stage. */}
-            {previewingOther && (
-              <TouchableOpacity onPress={() => setPreviewStage(null)} style={[s.previewBanner, { backgroundColor: color + '20' }]}>
-                <Text style={[s.previewBannerText, { color }]}>
-                  👁️ {(t('previewing_stage') || 'Previewing Stage {n}').replace('{n}', String(displayStage + 1))} · {t('back_to_current') || 'tap to return'}
-                </Text>
-              </TouchableOpacity>
-            )}
 
             <Text style={s.sectionTitle}>{t('creature_collection') || 'Evolution'}</Text>
             <View style={s.evoRow}>
@@ -359,9 +396,17 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
                     ]}
                   >
                     {entry.type === 'default' ? (
-                      <Text style={{ fontSize: 22, opacity: reached ? 1 : 0.3 }}>{label || '🥚'}</Text>
+                      reached ? (
+                        <Text style={{ fontSize: 22 }}>{label || '🥚'}</Text>
+                      ) : (
+                        <Image
+                          source={SILHOUETTE_ASSETS[`${entry.id}_${idx}`]}
+                          style={{ width: 26, height: 26 }}
+                          resizeMode="contain"
+                        />
+                      )
                     ) : url ? (
-                      <AnimatedCreatureVisual zone={colour} size={32} unlocked={reached} imageUrl={url} />
+                      <AnimatedCreatureVisual zone={colour} size={32} unlocked={reached} imageUrl={url} maskSilhouette={!reached} />
                     ) : null}
                     {!reached && <Text style={s.evoLockBadge}>🔒</Text>}
                     {/* Real fix Sep 15 (Marisa build-26, S08): idx is 0-indexed (fish=0,
@@ -491,7 +536,8 @@ const s = StyleSheet.create({
   // Real feature Sep 19: the "you're looking at a stage other than your real current one"
   // banner - tappable itself (returns to current), deliberately using the creature's own
   // zone colour rather than a neutral/warning colour, since previewing isn't an error state.
-  previewBanner: { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 8 },
+  previewSlot: { height: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  previewBanner: { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
   previewBannerText: { fontSize: 11.5, fontWeight: '800' },
   sectionTitle: { alignSelf: 'flex-start', fontSize: 15, fontWeight: '900', color: '#1A1A2E', marginBottom: 10 },
   evoRow: { flexDirection: 'row', gap: 8, width: '100%' },
