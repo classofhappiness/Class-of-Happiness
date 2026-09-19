@@ -5,13 +5,16 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../src/context/AppContext';
 import { SecureField } from '../../src/components/SecureField';
+import { ColourCycleLogo } from '../../src/components/ColourCycleLogo';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { t } = useApp();
   const [step, setStep] = useState<'request' | 'reset'>('request');
   const [email, setEmail] = useState('');
@@ -89,6 +92,9 @@ export default function ForgotPasswordScreen() {
   if (success) {
     return (
       <SafeAreaView style={styles.container}>
+        <View style={[styles.headerRow, { marginTop: insets.top, paddingHorizontal: 24, justifyContent: 'flex-end' }]}>
+          <ColourCycleLogo size={48.4} loop />
+        </View>
         <View style={styles.centered}>
           <MaterialIcons name="check-circle" size={64} color="#4CAF50" />
           <Text style={styles.successTitle}>{t('password_reset_success_title') || 'Password Reset!'}</Text>
@@ -108,9 +114,17 @@ export default function ForgotPasswordScreen() {
         style={styles.inner}
       >
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <MaterialIcons name="arrow-back" size={24} color="#333" />
-          </TouchableOpacity>
+          {/* Real fix Sep 19 (live device report): was a plain, no-background back icon with
+              no logo at all - the screen now had no native header (see _layout.tsx) providing
+              either. Matches the standard 36x36 #1A1A2E back button + animated logo circle
+              used everywhere else in the app; insets.top keeps it clear of the Android status
+              bar, same fix as login.tsx's own back button. */}
+          <View style={[styles.headerRow, { marginTop: insets.top }]}>
+            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+              <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+            <ColourCycleLogo size={48.4} loop />
+          </View>
 
           <Text style={styles.title}>{t('reset_password_title') || 'Reset Password'}</Text>
 
@@ -201,7 +215,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
   inner: { flex: 1 },
   scrollContent: { flexGrow: 1, padding: 24, paddingTop: 16 },
-  backButton: { marginBottom: 16, width: 40 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  backButton: {
+    width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E',
+    alignItems: 'center', justifyContent: 'center',
+  },
   title: { fontSize: 24, fontWeight: '900', color: '#1A1A2E', marginBottom: 8, fontFamily: 'Nunito' },
   subtitle: { fontSize: 14, color: '#666', marginBottom: 20 },
   label: { fontSize: 13, fontWeight: '700', color: '#333', marginBottom: 6, marginTop: 12 },

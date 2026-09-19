@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../src/context/AppContext';
 import { SecureField } from '../../src/components/SecureField';
 import * as AuthSession from 'expo-auth-session';
@@ -25,6 +26,7 @@ const GOOGLE_DISCOVERY = {
 
 export default function LoginScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { loginWithEmail, verifyLoginCode, verifyLoginPin, requestAdminPinReset, setAdminPin, loginWithGoogle, t } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -213,8 +215,14 @@ export default function LoginScreen() {
       {/* Real fix Sep 15 (Marisa build-26, S03): this screen had no header at all (Stack.Screen
           sets headerShown:false in _layout.tsx) and no back button of its own - the only way
           back was the OS gesture/hardware back button. Same dark-pill treatment as the
-          header back button elsewhere in the app (S04) for visual consistency. */}
-      <TouchableOpacity onPress={() => router.back()} style={styles.backButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          header back button elsewhere in the app (S04) for visual consistency.
+          Real fix Sep 19 (live device report): was a flat top:12, overlapping the Android
+          status bar's clock/battery icons on devices with a tall status bar - same root
+          cause TranslatedHeader was already fixed for (Sep 16: Android needs insets.top,
+          not a hardcoded constant; this screen's SafeAreaView import is from plain
+          'react-native', which is an iOS-only no-op on Android, so it gave zero real
+          protection here despite looking safe). */}
+      <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { top: insets.top + 12 }]} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
       </TouchableOpacity>
       <KeyboardAvoidingView
@@ -477,7 +485,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
   backButton: {
-    position: 'absolute', top: 12, left: 12, zIndex: 10,
+    position: 'absolute', left: 12, zIndex: 10,
     width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E',
     alignItems: 'center', justifyContent: 'center',
   },

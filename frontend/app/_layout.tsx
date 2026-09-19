@@ -290,6 +290,19 @@ function AppContent() {
             title: 'Sign Up',
           }}
         />
+        {/* Real fix Sep 19 (live device report): this screen had no Stack.Screen entry at
+            all, so it fell through to Expo Router's default native header - an
+            auto-generated title from the raw route ("auth forgot-password"), plus a native
+            back button stacked on top of the screen's own custom one (two back buttons).
+            headerShown:false here, matching every other custom-header auth screen, fixes
+            both at once. */}
+        <Stack.Screen
+          name="auth/forgot-password"
+          options={{
+            headerShown: false,
+            title: 'Reset Password',
+          }}
+        />
         <Stack.Screen
           name="auth/set-password-required"
           options={{
