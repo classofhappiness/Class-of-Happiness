@@ -1540,7 +1540,23 @@ export default function ParentDashboard() {
               </View>
                 ) : null;
             })()}
-            
+
+            {/* Real fix Sep 19: the Link Child modal (school link-code entry) existed with no
+                discoverable entry point anywhere in the app - setShowLinkModal(true) had no
+                caller. Placed here, inside the modal a parent already opens to add a child,
+                as a clearly separate path from "add a home-only child" below. */}
+            <TouchableOpacity
+              style={{flexDirection:'row',alignItems:'center',gap:8,paddingVertical:10,paddingHorizontal:10,backgroundColor:'#FFF3E0',borderRadius:8,marginBottom:12,borderWidth:1,borderColor:'#FFCC80'}}
+              onPress={() => { setShowAddFamilyModal(false); setShowLinkModal(true); }}
+            >
+              <MaterialIcons name="school" size={18} color="#F57C00"/>
+              <Text style={{fontSize:13,fontWeight:'700',color:'#333',flex:1}}>
+                🏫 {t('have_school_code') || "Have a code from your child's school?"}
+              </Text>
+              <MaterialIcons name="chevron-right" size={16} color="#F57C00"/>
+            </TouchableOpacity>
+            <View style={{height:1,backgroundColor:'#EEE',marginBottom:12}}/>
+
             {/* Avatar Selection */}
             <Text style={styles.inputLabel}>{t('photo') || 'Photo'}</Text>
             <View style={styles.avatarSelection}>

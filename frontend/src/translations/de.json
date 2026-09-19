@@ -1773,5 +1773,6 @@
   "change_pin_success": "Ihre PIN wurde geändert.",
   "change_pin_error": "PIN konnte nicht geändert werden.",
   "previewing_stage": "Vorschau Stufe {n}",
-  "back_to_current": "zum Zurückkehren tippen"
+  "back_to_current": "zum Zurückkehren tippen",
+  "have_school_code": "Hast du einen Code von der Schule deines Kindes?"
 }

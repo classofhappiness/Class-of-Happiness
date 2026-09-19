@@ -1608,5 +1608,6 @@
   "change_pin_success": "您的PIN码已更改。",
   "change_pin_error": "无法更改PIN码。",
   "previewing_stage": "预览第{n}阶段",
-  "back_to_current": "点击返回"
+  "back_to_current": "点击返回",
+  "have_school_code": "你有孩子学校提供的代码吗？"
 }

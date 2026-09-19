@@ -1608,5 +1608,6 @@
   "change_pin_success": "Ваш PIN-код изменён.",
   "change_pin_error": "Не удалось изменить PIN-код.",
   "previewing_stage": "Предпросмотр этапа {n}",
-  "back_to_current": "нажмите, чтобы вернуться"
+  "back_to_current": "нажмите, чтобы вернуться",
+  "have_school_code": "Есть код от школы вашего ребёнка?"
 }

@@ -1506,5 +1506,6 @@
   "change_pin_success": "Your PIN has been changed.",
   "change_pin_error": "Could not change PIN.",
   "previewing_stage": "Previewing Stage {n}",
-  "back_to_current": "tap to return"
+  "back_to_current": "tap to return",
+  "have_school_code": "Have a code from your child's school?"
 }

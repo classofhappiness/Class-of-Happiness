@@ -1608,5 +1608,6 @@
   "change_pin_success": "आपका पिन बदल दिया गया है।",
   "change_pin_error": "पिन नहीं बदला जा सका।",
   "previewing_stage": "चरण {n} का पूर्वावलोकन",
-  "back_to_current": "वापस जाने के लिए टैप करें"
+  "back_to_current": "वापस जाने के लिए टैप करें",
+  "have_school_code": "क्या आपके पास अपने बच्चे के स्कूल का कोड है?"
 }

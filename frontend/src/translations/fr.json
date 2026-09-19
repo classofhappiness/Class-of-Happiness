@@ -1773,5 +1773,6 @@
   "change_pin_success": "Votre code PIN a été modifié.",
   "change_pin_error": "Impossible de modifier le code PIN.",
   "previewing_stage": "Aperçu de l'étape {n}",
-  "back_to_current": "toucher pour revenir"
+  "back_to_current": "toucher pour revenir",
+  "have_school_code": "Avez-vous un code de l'école de votre enfant ?"
 }

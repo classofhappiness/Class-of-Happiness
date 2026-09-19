@@ -1762,5 +1762,6 @@
   "change_pin_success": "O seu PIN foi alterado.",
   "change_pin_error": "Não foi possível alterar o PIN.",
   "previewing_stage": "Pré-visualização da Fase {n}",
-  "back_to_current": "toque para voltar"
+  "back_to_current": "toque para voltar",
+  "have_school_code": "Tem um código da escola do seu filho?"
 }
