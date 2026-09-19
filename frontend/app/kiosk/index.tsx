@@ -11,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Avatar } from '../../src/components/Avatar';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { useApp } from '../../src/context/AppContext';
+import { ColourCycleLogo } from '../../src/components/ColourCycleLogo';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
@@ -36,8 +37,15 @@ function KioskHeader() {
     <View style={[kh.header, { paddingTop: (Platform.OS === 'ios' ? insets.top : 12) + 4 }]}>
       <View style={kh.headerContent}>
         <View style={kh.backSlot}>
+          {/* Real fix Sep 19 (Jono's explicit call: restyle only, keep Kiosk's own custom
+              header structure - it stays a deliberate exception to TranslatedHeader per
+              yesterday's audit, this is a visual-treatment match only). Back/home now the
+              same 36x36 black-circle standard used everywhere else; logo swapped from the
+              static logo_coh.png to the animated ColourCycleLogo at the same 48.4px size. No
+              home button existed here before - added one, routing to '/' like every other
+              screen's home button (resolves to the right role dashboard). */}
           <TouchableOpacity onPress={() => router.back()} style={kh.backButton}>
-            <MaterialIcons name="arrow-back" size={24} color="#333" />
+            <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
         <View style={kh.titleBlock}>
@@ -45,7 +53,10 @@ function KioskHeader() {
           {!!line2 && <Text style={kh.titleLine2} numberOfLines={1}>{line2}</Text>}
         </View>
         <View style={kh.rightSlot}>
-          <Image source={require('../../assets/images/logo_coh.png')} style={kh.logo} resizeMode="contain" />
+          <ColourCycleLogo size={48.4} loop />
+          <TouchableOpacity onPress={() => router.replace('/')} style={kh.homeButton}>
+            <MaterialIcons name="home" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -55,13 +66,13 @@ function KioskHeader() {
 const kh = StyleSheet.create({
   header: { backgroundColor: '#F8F9FA', paddingBottom: 0, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
   headerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 6 },
-  backSlot: { width: 40, alignItems: 'flex-start' },
-  backButton: { padding: 4 },
+  backSlot: { width: 44, alignItems: 'flex-start' },
+  backButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' },
   titleBlock: { flex: 1, alignItems: 'center' },
   titleLine1: { fontSize: 17, fontWeight: 'bold', color: '#333' },
   titleLine2: { fontSize: 11, color: '#888', marginTop: 1 },
-  rightSlot: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 40, justifyContent: 'flex-end' },
-  logo: { width: 32, height: 32 },
+  rightSlot: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 44, justifyContent: 'flex-end' },
+  homeButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' },
 });
 const INDIGO = '#5C6BC0';
 const ZONE_COLORS: Record<string,string> = EMOTION_COLOURS;
