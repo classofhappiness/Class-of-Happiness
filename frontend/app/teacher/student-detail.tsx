@@ -356,35 +356,37 @@ export default function StudentDetailScreen() {
     <SafeAreaView style={styles.container}>
       {/* Top nav bar */}
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', minHeight: 52, gap: 8 }}>
-        {/* Real fix Sep 18: restyled to the app-wide black-circle standard - not converted
-            to TranslatedHeader wholesale, since this header carries the student's own
-            avatar+name+classroom (not a plain string title, which is all TranslatedHeader's
-            title prop can take) - forcing it in would drop real identifying content. */}
+        {/* Real fix Sep 19 (live device report): was grouping the logo together with the
+            student identity as one jointly-centred block (back, logo, identity, home) - that
+            put the logo left of the identity text instead of the actual app-wide standard
+            (confirmed against TranslatedHeader.tsx: back | title independently centred |
+            logo, then home, right slot) and left the identity text off-centre (shifted right
+            by the logo's own width, since it shared centring with the logo instead of owning
+            its own flex:1 centred slot). Restructured to the real pattern: middle slot is
+            flex:1/centred and holds ONLY the identity block now, logo moved into the right
+            slot immediately before the home button, matching every other screen exactly. Not
+            converted to TranslatedHeader wholesale since this header's centre content is the
+            student's own avatar+name+classroom, not a plain string title. */}
         <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
           <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
         </TouchableOpacity>
-        {/* Real fix Sep 18 (spacing-pass gap audit): the static logo_coh.png here was never
-            updated to the animated ColourCycleLogo used everywhere else - found while
-            verifying every screen actually matches the final logo treatment. Same 48.4px
-            size as the rest of the app; nested inline with the student identity cluster
-            here (not flanked directly by back/home) since that's this screen's own layout. */}
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          <ColourCycleLogo size={48.4} loop />
-          <View style={{ alignItems: 'center' }}>
-            <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
-              {student.avatar_type === 'custom' && student.avatar_custom ? (
-                <Image source={{ uri: student.avatar_custom }} style={{ width:28, height:28, borderRadius:14 }} />
-              ) : (
-                <Text style={{fontSize:20}}>{presetAvatars?.find((a:any)=>a.id===student.avatar_preset)?.emoji || '👤'}</Text>
-              )}
-              <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }} numberOfLines={1}>{student.name}</Text>
-            </View>
-            <Text style={{ fontSize: 11, color: '#888' }} numberOfLines={1}>{getClassroomName(student.classroom_id)}</Text>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
+            {student.avatar_type === 'custom' && student.avatar_custom ? (
+              <Image source={{ uri: student.avatar_custom }} style={{ width:28, height:28, borderRadius:14 }} />
+            ) : (
+              <Text style={{fontSize:20}}>{presetAvatars?.find((a:any)=>a.id===student.avatar_preset)?.emoji || '👤'}</Text>
+            )}
+            <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }} numberOfLines={1}>{student.name}</Text>
           </View>
+          <Text style={{ fontSize: 11, color: '#888' }} numberOfLines={1}>{getClassroomName(student.classroom_id)}</Text>
         </View>
-        <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
-          <MaterialIcons name="home" size={20} color="#FFFFFF" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <ColourCycleLogo size={48.4} loop />
+          <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
+            <MaterialIcons name="home" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       </View>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
