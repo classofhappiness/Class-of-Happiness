@@ -16248,6 +16248,20 @@ async def link_family_member_to_student(member_id: str, request: Request):
         if not student.data:
             raise HTTPException(status_code=404, detail="Student not found")
 
+        # Real fix Sep 19 (security review): the member_id ownership check above still let a
+        # parent point their own row at ANY existing student UUID, and family_members.student_id
+        # is itself an access grant elsewhere (e.g. the fm+student_id checks that gate a
+        # student's data). Now the parent must already have a real relationship to the student:
+        # they own it, or are linked to it via parent_links. Returns 404, same as a missing
+        # student, so this doesn't confirm that a given UUID exists.
+        target = student.data[0]
+        allowed = target.get("user_id") == user["user_id"]
+        if not allowed:
+            pl = supabase.table("parent_links").select("id").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
+            allowed = bool(pl.data)
+        if not allowed:
+            raise HTTPException(status_code=404, detail="Student not found")
+
         # Update family member with student_id
         supabase.table("family_members").update({"student_id": student_id}).eq("id", member_id).execute()
 
