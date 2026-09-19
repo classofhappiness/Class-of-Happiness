@@ -13219,6 +13219,17 @@ async def get_school_admin_analytics(request: Request, period: int = 30, classro
         top_id = max(strategy_counts, key=strategy_counts.get)
         top_strategy_name = resolve_strategy_name(top_id)
 
+    # Real fix Sep 19: the portal's "Top strategies" card read a per-classroom top_strategies
+    # field that classroom_breakdown never had, so it always fell back to invented numbers.
+    # strategy_counts is keyed by raw ids (built-in codes or custom-strategy UUIDs), which the
+    # portal can't turn into names, so send the real top 5 already resolved. Ids that resolve
+    # to the same name are merged so one strategy can't appear twice.
+    _by_name = {}
+    for _sid, _n in strategy_counts.items():
+        _nm = resolve_strategy_name(_sid)
+        _by_name[_nm] = _by_name.get(_nm, 0) + _n
+    top_strategies = [{"name": _nm, "count": _n} for _nm, _n in sorted(_by_name.items(), key=lambda kv: kv[1], reverse=True)[:5]]
+
     return {
         "school_name": user.get("school_name", "My School"),
         "total_teachers": len(teacher_ids),
@@ -13229,6 +13240,7 @@ async def get_school_admin_analytics(request: Request, period: int = 30, classro
         "daily_counts": daily_counts,
         "hourly_distribution": hourly,
         "strategy_counts": strategy_counts,
+        "top_strategies": top_strategies,
         "classroom_breakdown": classroom_breakdown,
         "teachers": [{"name": t.get("name",""), "email": t.get("email","")} for t in teacher_list],
         "alert_volume": alert_volume,
