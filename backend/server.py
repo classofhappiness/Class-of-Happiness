@@ -2915,6 +2915,16 @@ async def update_student(student_id: str, update: StudentUpdate, request: Reques
     if not await _is_authorized_for_student(user, student_id):
         raise HTTPException(status_code=403, detail="Not authorized for this student")
     update_data = {k: v for k, v in update.dict().items() if v is not None}
+    # Real fix Sep 19: the None filter above made "clear this field" impossible - unassigning
+    # a student's classroom ("No Classroom") was a silent no-op. Pydantic tracks which fields
+    # the client actually sent, so an explicit classroom_id: null clears it while an omitted
+    # field still means "leave unchanged". Scoped to classroom_id only: other fields (name,
+    # avatar_type) are required, so a null there should stay ignored, not written.
+    if "classroom_id" in update.model_fields_set and update.classroom_id is None:
+        update_data["classroom_id"] = None
+    if not update_data:
+        result = supabase.table("students").select("*").eq("id", student_id).execute()
+        return result.data[0] if result.data else {}
     supabase.table("students").update(update_data).eq("id", student_id).execute()
     result = supabase.table("students").select("*").eq("id", student_id).execute()
     return result.data[0] if result.data else {}

@@ -47,7 +47,7 @@ export default function ManageStudentsScreen() {
       return bLinked - aLinked;
     });
 
-  const getClassroomName = (classroomId?: string) => {
+  const getClassroomName = (classroomId?: string | null) => {
     if (!classroomId) return t('no_classroom') || 'No Classroom';
     const classroom = classrooms.find(c => c.id === classroomId);
     return classroom?.name || 'Unknown';
@@ -111,7 +111,7 @@ export default function ManageStudentsScreen() {
     
     try {
       const updates = Array.from(selectedStudents).map(studentId => 
-        studentsApi.update(studentId, { classroom_id: classroomId || undefined })
+        studentsApi.update(studentId, { classroom_id: classroomId })
       );
       await Promise.all(updates);
       await refreshStudents();

@@ -78,7 +78,7 @@ export interface Student {
   avatar_type: 'preset' | 'custom';
   avatar_preset?: string;
   avatar_custom?: string;
-  classroom_id?: string;
+  classroom_id?: string | null;
   user_id?: string;
   created_at: string;
 }

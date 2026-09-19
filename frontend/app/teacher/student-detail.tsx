@@ -247,7 +247,7 @@ export default function StudentDetailScreen() {
     setRefreshing(false);
   };
 
-  const getClassroomName = (classroomId?: string) => {
+  const getClassroomName = (classroomId?: string | null) => {
     if (!classroomId) return 'No Classroom';
     const classroom = classrooms.find(c => c.id === classroomId);
     return classroom?.name || 'Unknown';

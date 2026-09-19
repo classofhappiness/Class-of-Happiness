@@ -113,7 +113,7 @@ export default function EditProfileScreen() {
         avatar_type: avatarType,
         avatar_preset: avatarType === 'preset' ? selectedPreset : undefined,
         avatar_custom: avatarType === 'custom' ? customImage || undefined : undefined,
-        classroom_id: selectedClassroom || undefined,
+        classroom_id: selectedClassroom,
       });
       
       await refreshStudents();
