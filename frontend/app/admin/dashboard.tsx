@@ -1875,6 +1875,9 @@ function SchoolAdminDashboard({ authToken, stats, statsLoading, statsPeriod, set
           </View>
         </SectionCard>
 
+        {/* Classroom comparison - Real feature Sep 19 (app parity with the portal Overview) */}
+        <ClassroomBreakdown authToken={authToken} statsPeriod={statsPeriod} />
+
         {/* Teacher wellbeing */}
         <SectionCard title={t("teacher_wellbeing") || "Teacher Wellbeing"} subtitle={t("teacher_checkin_private") || "Anonymised data"} icon="spa" color="#4CAF50">
           <StatRow label={t('support_requests_plural') || 'Support Requests'} value={stats?.support_requests} icon="notifications-active" color="#F44336" />
@@ -1893,6 +1896,71 @@ function SchoolAdminDashboard({ authToken, stats, statsLoading, statsPeriod, set
 
       </>
     </>
+  );
+}
+
+// ── Classroom Breakdown ───────────────────────────────────────────────────────
+// Real feature Sep 19 (school_admin classroom stats, app parity with the portal Overview's
+// class-comparison chart): per-classroom zone mix from GET /school-admin/analytics, whose
+// classroom_breakdown is aggregate-only (no student names). The Analytics tab otherwise uses
+// /admin/stats, which has no per-classroom data. That endpoint clamps its period to 1-90 days.
+function ClassroomBreakdown({ authToken, statsPeriod }: any) {
+  const { t } = useApp();
+  const [rows, setRows] = useState<any[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const period = Math.min(statsPeriod || 30, 90);
+
+  useEffect(() => {
+    if (!authToken) return;
+    let cancelled = false;
+    setRows(null);
+    setFailed(false);
+    apiCall(`/school-admin/analytics?period=${period}`, authToken)
+      .then((d: any) => { if (!cancelled) setRows(Array.isArray(d?.classroom_breakdown) ? d.classroom_breakdown : []); })
+      .catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; };
+  }, [authToken, period]);
+
+  return (
+    <SectionCard title={t('classroom_comparison') || 'Classroom Comparison'} subtitle={t('no_names_shown') || 'No names shown'} icon="groups" color="#26A69A">
+      {failed ? (
+        <Text style={s.hint}>{t('could_not_load_classroom_data') || 'Could not load classroom data right now.'}</Text>
+      ) : rows === null ? (
+        <ActivityIndicator color={INDIGO} />
+      ) : rows.length === 0 ? (
+        <Text style={s.hint}>{t('no_classrooms_yet_admin') || 'No classrooms yet. Once your teachers create classes, each one appears here.'}</Text>
+      ) : rows.map((c: any) => {
+        const z = c.zone_distribution || {};
+        const total = ZONES.reduce((a, k) => a + (z[k] || 0), 0);
+        return (
+          <View key={c.classroom_id} style={s.classroomRow}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <Text style={s.classroomName} numberOfLines={1}>{c.classroom_name}</Text>
+              <Text style={s.classroomMeta}>{c.student_count ?? 0} {t('students') || 'Students'} · {c.checkin_count ?? 0} {t('checkins') || 'check-ins'}</Text>
+            </View>
+            {!!c.teacher_name && <Text style={s.classroomMeta}>{c.teacher_name}</Text>}
+            {total > 0 ? (
+              <>
+                <View style={s.classroomBar}>
+                  {ZONES.map(k => (z[k] ? <View key={k} style={{ flex: z[k], backgroundColor: ZONE_COLORS[k] }} /> : null))}
+                </View>
+                <View style={s.classroomLegend}>
+                  {ZONES.map(k => (
+                    <View key={k} style={s.classroomLegendItem}>
+                      <View style={[s.colourDot, { backgroundColor: ZONE_COLORS[k] }]} />
+                      <Text style={s.classroomMeta}>{z[k] || 0}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            ) : (
+              <Text style={[s.hint, { marginTop: 4 }]}>{t('no_checkins_this_period') || 'No check-ins in this period.'}</Text>
+            )}
+          </View>
+        );
+      })}
+      {statsPeriod > 90 && <Text style={[s.hint, { marginTop: 8 }]}>{t('classroom_max_90_days') || 'Showing the last 90 days, the maximum for this view.'}</Text>}
+    </SectionCard>
   );
 }
 
@@ -2735,6 +2803,13 @@ const s = StyleSheet.create({
   colourBarBg: { flex: 1, height: 8, backgroundColor: '#F0F0F0', borderRadius: 4, overflow: 'hidden' },
   colourBar: { height: 8, borderRadius: 4 },
   colourPct: { fontSize: 11, color: '#888', width: 70, textAlign: 'right' },
+  // Classroom breakdown
+  classroomRow: { paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#EEE' },
+  classroomName: { fontSize: 13, fontWeight: '700', color: '#333', flex: 1, marginRight: 8 },
+  classroomMeta: { fontSize: 11, color: '#888' },
+  classroomBar: { flexDirection: 'row', height: 8, borderRadius: 4, overflow: 'hidden', backgroundColor: '#F0F0F0', marginTop: 6 },
+  classroomLegend: { flexDirection: 'row', gap: 12, marginTop: 6 },
+  classroomLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   // Chips
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F0F0F0' },
