@@ -732,8 +732,16 @@ export const linkedChildApi = {
       method: 'PUT'
     }),
 
-  toggleHomeSharing: (studentId: string): Promise<any> =>
-    apiRequest(`/parent/linked-child/${studentId}/toggle-home-sharing`, { method: 'PUT' }),
+  // Real fix Sep 19 (live incident): optional explicit `value` - the post-link "Keep
+  // Private"/"Share with Teacher" prompt needs to SET a specific value, not blindly flip
+  // whatever the current value happens to be (see the endpoint's own docstring). Omitting
+  // it keeps the original toggle-from-current behaviour for callers that already know the
+  // real current state (the persistent Switch on linked-child/[id].tsx).
+  toggleHomeSharing: (studentId: string, value?: boolean): Promise<any> =>
+    apiRequest(`/parent/linked-child/${studentId}/toggle-home-sharing`, {
+      method: 'PUT',
+      ...(value !== undefined ? { body: JSON.stringify({ value }) } : {}),
+    }),
 
   // Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): family-level Shop
   // toggle, same place/pattern as toggleHomeSharing above.

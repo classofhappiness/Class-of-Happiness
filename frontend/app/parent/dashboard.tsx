@@ -799,12 +799,28 @@ export default function ParentDashboard() {
           `✅ ${childName} ${t('linked_exclaim') || 'Linked!'}`,
           `${childName} ${t('connected_home_school_desc') || 'is now connected between home and school.'}\n\n📋 ${t('sharing_label') || 'SHARING:'}\n\n🏫→🏠 ${t('already_see_school_checkins') || 'You can already see school check-ins here.'}\n\n🏠→🏫 ${t('choose_share_home_checkins') || 'You can choose to share home check-ins with the teacher.'}\n\n${t('home_sharing_off_default') || 'Home sharing is OFF by default for privacy.'}`,
           [
-            { text: t('keep_private') || '🔒 Keep Private', style: 'cancel' },
+            {
+              // Real fix Sep 19 (live incident, real family): this button had NO onPress at
+              // all - tapping it just dismissed the alert and did nothing, relying entirely
+              // on a fresh link's real server-side default already being private (true after
+              // the same-day fix to GET /teacher/student/{id}/home-data and
+              // GET /parent/linked-children, but still an implicit, unverified assumption
+              // rather than this button actually doing what it claims). Now makes a real,
+              // explicit call setting sharing to false - matches "Share with Teacher" below,
+              // just in the other direction, instead of silently trusting a default.
+              text: t('keep_private') || '🔒 Keep Private',
+              style: 'cancel',
+              onPress: async () => {
+                try {
+                  await linkedChildApi.toggleHomeSharing(result.student_id, false);
+                } catch (e) { console.log('Sharing toggle error:', e); }
+              }
+            },
             {
               text: `📤 ${t('share_with_teacher') || 'Share with Teacher'}`,
               onPress: async () => {
                 try {
-                  await linkedChildApi.toggleHomeSharing(result.student_id);
+                  await linkedChildApi.toggleHomeSharing(result.student_id, true);
                   Alert.alert(`✅ ${t('sharing_on') || 'Sharing On'}`, t('teacher_sees_home_checkins_desc') || 'Teacher can now see home check-ins. Turn off anytime in the linked student section.');
                 } catch (e) { console.log('Sharing toggle error:', e); }
               }

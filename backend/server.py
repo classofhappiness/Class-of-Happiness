@@ -2409,6 +2409,12 @@ class FamilyMemberCreate(BaseModel):
 class LinkChildRequest(BaseModel):
     link_code: str
 
+class ToggleHomeSharingRequest(BaseModel):
+    # Real fix Sep 19 (live incident): optional explicit value for toggle-home-sharing, see
+    # that endpoint's own docstring for why a blind toggle-from-current isn't safe for the
+    # post-link "Keep Private"/"Share with Teacher" prompt specifically.
+    value: Optional[bool] = None
+
 # ================== AUTH HELPERS ==================
 def _parse_supabase_timestamp(ts: str) -> datetime:
     """Real bug fix Sep 10: Postgres/PostgREST serializes timestamptz with variable
@@ -16276,13 +16282,19 @@ async def get_linked_children_for_parent(request: Request):
                     "avatar_custom": student.get("avatar_custom", ""),
                     "classroom_id": student.get("classroom_id"),
                     "classroom_name": classroom_name,
-                    "home_sharing_enabled": True,
+                    # CRITICAL privacy fix Sep 19 (live incident, real family): was hardcoded
+                    # True regardless of the parent's real choice - this is the parent's own
+                    # view of their own consent setting (linked-child/[id].tsx's sharing
+                    # Switch reads this directly), so a parent who chose "Keep Private" was
+                    # shown their own toggle as ON. Same root bug as, and fixed alongside,
+                    # GET /teacher/student/{id}/home-data's identical hardcoding - that was
+                    # the actual data-exposure half of this; this half just lied to the parent
+                    # about their own setting. Defaults False (private) with no explicit value
+                    # yet, matching "OFF by default for privacy" and the toggle endpoint's own
+                    # default just below.
+                    "home_sharing_enabled": link.get("home_sharing_enabled", False),
                     "school_sharing_enabled": True,
                     "is_linked_from_school": True,
-                    # Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved):
-                    # family-level Shop toggle, read from the real parent_links row (defaults
-                    # ON) - unlike home_sharing_enabled just above, which is hardcoded True
-                    # here rather than read from the link (a pre-existing gap, not touched).
                     "shop_enabled": link.get("shop_enabled", True),
                 })
         return children
@@ -16721,8 +16733,17 @@ async def toggle_strategy_sharing(student_id: str, strategy_id: str, request: Re
 
 
 @api_router.put("/parent/linked-child/{student_id}/toggle-home-sharing")
-async def toggle_home_sharing(student_id: str, request: Request):
-    """Toggle whether home check-ins are shared with teacher."""
+async def toggle_home_sharing(student_id: str, request: Request, body: Optional[ToggleHomeSharingRequest] = None):
+    """Toggle whether home check-ins are shared with teacher.
+
+    Real fix Sep 19 (live incident, real family): the post-link "Keep Private" / "Share with
+    Teacher" prompt (parent/dashboard.tsx) needs to set an EXPLICIT value, not flip whatever
+    the current value happens to be - a fresh link's real current value isn't reliably known
+    client-side, and blindly toggling risks flipping the wrong direction (e.g. "Keep Private"
+    accidentally turning sharing ON if the assumed starting state was wrong). Optional `value`
+    in the body sets it directly; omitting it keeps the original toggle-from-current behaviour
+    for callers that already know the real current state (the persistent Switch on
+    linked-child/[id].tsx, which reads it from the server first)."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -16730,8 +16751,11 @@ async def toggle_home_sharing(student_id: str, request: Request):
         link = supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
         if not link.data:
             raise HTTPException(status_code=404, detail="Link not found")
-        current = link.data[0].get("home_sharing_enabled", False)
-        new_value = not current
+        if body is not None and body.value is not None:
+            new_value = body.value
+        else:
+            current = link.data[0].get("home_sharing_enabled", False)
+            new_value = not current
         supabase.table("parent_links").update({"home_sharing_enabled": new_value}).eq("id", link.data[0]["id"]).execute()
         return {"home_sharing_enabled": new_value}
     except HTTPException:
@@ -16960,6 +16984,23 @@ async def get_student_home_data(student_id: str, request: Request, days: int = 3
         if not await _is_authorized_for_student(user, student_id, student.data[0]):
             raise HTTPException(status_code=403, detail="Not authorized for this student")
 
+        # CRITICAL privacy fix Sep 19 (live incident, real family): this endpoint queried and
+        # returned real home check-in data unconditionally, and hardcoded "sharing_enabled":
+        # True in its response - the parent's home_sharing_enabled consent flag on their
+        # parent_links row (correctly written by the toggle endpoint below) was never read or
+        # enforced anywhere on this read path. A parent who chose "Keep Private" (or never saw
+        # the prompt) had their child's real home data fully visible to the teacher regardless.
+        # Sharing is treated as enabled if ANY linked parent has explicitly turned it on -
+        # defaults closed (no parent_links row, or none with it explicitly True, means no
+        # data), matching the "OFF by default for privacy" promise shown to parents. Returns a
+        # normal 200 with an empty result when sharing is off/absent, not an error - a paused
+        # or private link must look identical to "no home data yet" from the teacher's side,
+        # never reveal that a hidden link exists.
+        links = supabase.table("parent_links").select("home_sharing_enabled").eq("student_id", student_id).execute()
+        sharing_enabled = any(l.get("home_sharing_enabled") is True for l in (links.data or []))
+        if not sharing_enabled:
+            return {"sharing_enabled": False, "home_checkins": [], "family_strategies": [], "total_home_checkins": 0}
+
         start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
         # Home check-ins - check feeling_logs (logged_by=parent) AND family_zone_logs
@@ -17001,6 +17042,8 @@ async def get_student_home_data(student_id: str, request: Request, days: int = 3
             "strategies_selected": log.get("helpers_selected", log.get("strategies_selected", [])),
         } for log in (home_logs.data or [])]
 
+        # sharing_enabled is genuinely True by this point - the early return above already
+        # handled every case where it's False.
         return {
             "sharing_enabled": True,
             "home_checkins": home_checkins,
