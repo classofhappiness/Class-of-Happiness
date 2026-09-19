@@ -1,5 +1,6 @@
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setSoundEnabled } from './sounds';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const VOICE_ENABLED_KEY = 'voice_enabled';
@@ -28,14 +29,28 @@ export const loadVoiceEnabled = async (): Promise<boolean> => {
     voiceEnabled = stored === null ? true : stored === 'true';
   } catch {}
   voiceEnabledLoaded = true;
+  // Real fix Sep 15 (Marisa build-26, S05) - see setVoiceEnabled's note below: a mute
+  // persisted from a previous session must silence sound effects too, not just voice, from
+  // the moment this loads (not only the next time the user actively toggles it).
+  setSoundEnabled(voiceEnabled);
   return voiceEnabled;
 };
 
 export const isVoiceEnabled = () => voiceEnabled;
 
+// Real fix Sep 15 (Marisa build-26, S05): "with audio off, tapping a helper still plays the
+// ding" - traced to two entirely separate mute systems that never talked to each other.
+// voiceEnabled here gates spoken phrase clips (playVoiceClip/playPhraseFromPool) and is what
+// the visible VoiceToggleButton on the check-in screens actually controls. Sound EFFECTS
+// (button taps, the helper-select "ding", reward/evolution sounds - sounds.ts's
+// soundEnabled) are a completely independent flag - and setSoundEnabled/isSoundEnabled were
+// never called from anywhere in the app, so sound effects could never actually be muted by
+// any control a user could reach. The one visible toggle now drives both, matching what a
+// user actually expects "audio off" to mean.
 export const setVoiceEnabled = async (enabled: boolean) => {
   voiceEnabled = enabled;
   voiceEnabledLoaded = true;
+  setSoundEnabled(enabled);
   try { await AsyncStorage.setItem(VOICE_ENABLED_KEY, enabled ? 'true' : 'false'); } catch {}
 };
 
@@ -124,19 +139,23 @@ const loadPhrasePool = async (moment: VoicePhraseMoment, language: string): Prom
   return phrasePoolPromises[cacheKey];
 };
 
-export const playPhraseFromPool = (moment: VoicePhraseMoment, language: string) => {
+// Real fix Sep 14 (Marisa build-26, S04): now returns a Promise, resolving once playback has
+// actually started (or has genuinely given up - voice off, no clips, network failure) -
+// callers that need to gate a loading screen on real audio readiness (zone.tsx) can await
+// it; existing fire-and-forget callers (rewards.tsx) are unaffected since they never awaited
+// it before either. Dropped the old setTimeout(...,0) wrapper - it only deferred to the next
+// tick for no real reason and made this impossible to await.
+export const playPhraseFromPool = async (moment: VoicePhraseMoment, language: string): Promise<void> => {
   if (!voiceEnabled) return;
-  setTimeout(async () => {
-    try {
-      const urls = await loadPhrasePool(moment, language);
-      if (!urls.length) return;
-      const url = urls[Math.floor(Math.random() * urls.length)];
-      const { sound } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: true, volume: 1.0 });
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          sound.unloadAsync().catch(() => {});
-        }
-      });
-    } catch {}
-  }, 0);
+  try {
+    const urls = await loadPhrasePool(moment, language);
+    if (!urls.length) return;
+    const url = urls[Math.floor(Math.random() * urls.length)];
+    const { sound } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: true, volume: 1.0 });
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (status.isLoaded && status.didJustFinish) {
+        sound.unloadAsync().catch(() => {});
+      }
+    });
+  } catch {}
 };

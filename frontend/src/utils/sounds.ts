@@ -86,4 +86,7 @@ const playHaptic = (type: 'light' | 'medium' | 'heavy' = 'light') => {
 
 export const playButtonFeedback  = () => { playButtonSound();  playHaptic('light'); };
 export const playSelectFeedback  = () => { playSelectSound();  playHaptic('medium'); };
-export const playRewardFeedback  = () => { playRewardSound();  playHaptic('heavy'); };
+// Real fix Sep 15 (Marisa build-26, S06): playSound param lets a caller skip the audible
+// reward sound while still getting the haptic - used by rewards.tsx to avoid stacking this
+// sound on top of playEvolutionSound when a check-in also triggers an evolution.
+export const playRewardFeedback  = (playSound: boolean = true) => { if (playSound) playRewardSound(); playHaptic('heavy'); };

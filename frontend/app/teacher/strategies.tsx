@@ -103,7 +103,7 @@ export default function ManageStrategiesScreen() {
       {id:'b4', name:'Slow Breathing', description:'Breathe in slowly, hold, breathe out', icon:'air', zone:'blue'},
     ],
     green: [
-      {id:'g1', name:'Keep Going!', description:'You are in a great zone — keep it up!', icon:'thumb-up', zone:'green'},
+      {id:'g1', name:'Keep Going!', description:'You are in a great zone - keep it up!', icon:'thumb-up', zone:'green'},
       {id:'g2', name:'Help a Friend', description:'Use your good energy to help someone else', icon:'favorite', zone:'green'},
       {id:'g3', name:'Set a Goal', description:'Plan something you want to achieve today', icon:'lightbulb', zone:'green'},
       {id:'g4', name:'Gratitude', description:'Think of three things you are grateful for', icon:'star', zone:'green'},

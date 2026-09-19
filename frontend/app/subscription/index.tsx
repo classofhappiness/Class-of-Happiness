@@ -29,7 +29,7 @@ const PARENT_FEATURE_FALLBACKS = [
   'Home check-ins for all family',
   'Family strategies & wellbeing',
   'My Wellbeing private journal',
-  'Link to school — see school data',
+  'Link to school - see school data',
   'Monthly PDF wellbeing reports',
   'Creature reward system',
   '6 languages supported',
@@ -305,7 +305,7 @@ export default function SubscriptionScreen() {
         <View style={[st.statusCard, { backgroundColor: '#E8F5E9', alignItems: 'flex-start' }]}>
           <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
           <View style={{ flex: 1 }}>
-            <Text style={[st.statusText, { color: '#2E7D32' }]}>✅ {t('parent_school_covered_msg') || "Free — your child's school has a Class of Happiness package"}</Text>
+            <Text style={[st.statusText, { color: '#2E7D32' }]}>✅ {t('parent_school_covered_msg') || "Free - your child's school has a Class of Happiness package"}</Text>
             <Text style={{ fontSize: 12, color: '#388E3C', marginTop: 4 }}>{t('parent_school_covered_desc') || 'No subscription needed. All parent features are included.'}</Text>
           </View>
         </View>
@@ -353,7 +353,7 @@ export default function SubscriptionScreen() {
             <TouchableOpacity style={st.subscribeBtn} onPress={handleSubscribe} disabled={loading}>
               {loading
                 ? <ActivityIndicator color="white" />
-                : <Text style={st.subscribeBtnText}>{t('subscribe_btn_prefix') || 'Subscribe'} — {selectedPrice}</Text>}
+                : <Text style={st.subscribeBtnText}>{t('subscribe_btn_prefix') || 'Subscribe'} - {selectedPrice}</Text>}
             </TouchableOpacity>
           )}
         </>
@@ -416,7 +416,7 @@ export default function SubscriptionScreen() {
                   style={[st.enquiryInput, st.enquiryTextarea]}
                   value={enquiryMessage}
                   onChangeText={setEnquiryMessage}
-                  placeholder={t('school_enquiry_message_placeholder') || 'Tell us about your school — number of teachers, timeline, questions...'}
+                  placeholder={t('school_enquiry_message_placeholder') || 'Tell us about your school - number of teachers, timeline, questions...'}
                   multiline
                   editable={!enquirySubmitting}
                 />

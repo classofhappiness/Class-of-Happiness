@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Image, useWindowDimensions } from 'react-native';
-import { Audio } from 'expo-av';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Avatar } from './Avatar';
 
@@ -32,13 +31,16 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
   const starAnim = useRef(new Animated.Value(0)).current;
-  const soundRef = useRef<Audio.Sound | null>(null);
 
   useEffect(() => {
     if (visible) {
-      // Play celebration sound
-      playSound();
-      
+      // Real fix Sep 15 (Marisa build-26, S06): this used to fetch and play its own
+      // hardcoded external MP3 (assets.mixkit.co) on top of whatever rewards.tsx plays
+      // moments later (praise voice line, reward/evolution sound) - one of the ~4 overlapping
+      // sounds confirmed live, made worse by this screen previously being cut short at 1800ms
+      // (see strategies.tsx) before this sound had even finished. Removed entirely rather
+      // than replaced - the app's own reward/praise sounds already cover this moment.
+
       // Start animations
       Animated.sequence([
         // Fade in and scale up
@@ -86,33 +88,6 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
       });
     }
   }, [visible]);
-
-  const playSound = async () => {
-    try {
-      // Set audio mode for playback
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-      });
-      
-      // Use a royalty-free celebration/success sound
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3' }, // Success chime
-        { shouldPlay: true, volume: 0.8 }
-      );
-      soundRef.current = sound;
-      
-      // Cleanup sound after playing
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if ('didJustFinish' in status && status.didJustFinish) {
-          sound.unloadAsync();
-        }
-      });
-    } catch (error) {
-      console.log('Could not play sound:', error);
-      // Fallback - continue without sound (app won't crash)
-    }
-  };
 
   if (!visible) return null;
 

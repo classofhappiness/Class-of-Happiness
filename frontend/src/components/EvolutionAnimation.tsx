@@ -131,26 +131,6 @@ export const EvolutionAnimation: React.FC<EvolutionAnimationProps> = ({
     >
       <View style={styles.overlay}>
         <View style={styles.container}>
-          {/* Sparkles Background */}
-          <View style={styles.sparklesContainer}>
-            {[...Array(20)].map((_, i) => (
-              <Text
-                key={i}
-                style={[
-                  styles.sparkle,
-                  {
-                    top: `${Math.random() * 100}%`,
-                    left: `${Math.random() * 100}%`,
-                    fontSize: 12 + Math.random() * 16,
-                    opacity: 0.6 + Math.random() * 0.4,
-                  },
-                ]}
-              >
-                ✨
-              </Text>
-            ))}
-          </View>
-
           {/* Evolution Title */}
           <Text style={styles.evolutionTitle}>
             {showNewForm ? '🎉 EVOLVED! 🎉' : '✨ EVOLVING... ✨'}
@@ -236,16 +216,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
   },
-  sparklesContainer: {
-    position: 'absolute',
-    top: 0,
-    start: 0,
-    end: 0,
-    bottom: 0,
-  },
-  sparkle: {
-    position: 'absolute',
-  },
   evolutionTitle: {
     fontSize: 24,
     fontWeight: 'bold',
@@ -274,8 +244,15 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: 'white',
   },
+  // Real fix Sep 15 (Marisa build-26, S06): a lone emoji Text wasn't centring inside the
+  // circle - Android's default font padding adds asymmetric space above/below a glyph that
+  // textAlign alone doesn't fix. includeFontPadding:false (Android-only prop, harmless
+  // no-op on iOS) plus an explicit lineHeight matching the circle gets it centred on both.
   emoji: {
     fontSize: 80,
+    lineHeight: 96,
+    textAlign: 'center',
+    includeFontPadding: false,
   },
   creatureName: {
     fontSize: 28,

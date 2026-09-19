@@ -39,7 +39,7 @@ interface ActiveInfo { active_id: string; is_default: boolean; is_fully_evolved:
 
 const PREVIEW_INTERVAL_MS = 1400;
 // Real feature Aug 28: stronger visual cue for "this is your active creature", requested
-// after live testing - the only previous signal was text ("★ Active — check in to grow!"
+// after live testing - the only previous signal was text ("★ Active - check in to grow!"
 // vs a "Set as Active" button), too easy for a young kid to miss while scanning a grid.
 // Deliberately NOT red - red already means the Red Emotions zone elsewhere in the app, so
 // reusing it here would teach the wrong colour association. Uses the app's existing brand
@@ -222,7 +222,7 @@ function CreatureCard({
         <View style={styles.cardBody}>
           <Text style={[styles.creatureName, locked && styles.textLocked]} numberOfLines={1}>{item.creature_name}</Text>
           {locked ? (
-            <Text style={styles.lockedHint} numberOfLines={2}>Free plan limit reached for {item.emotion_colour} — tap to learn more</Text>
+            <Text style={styles.lockedHint} numberOfLines={2}>Free plan limit reached for {item.emotion_colour} - tap to learn more</Text>
           ) : (
             <>
               <View style={styles.metaRow}>
@@ -249,7 +249,7 @@ function CreatureCard({
                   <View style={[styles.activeBadgePill, { backgroundColor: EMOTION_COLORS[item.emotion_colour] || ACTIVE_RING_COLOUR }]}>
                     <Text style={styles.activeBadgePillText} numberOfLines={1}>{t('active_badge') || '★ Active'}</Text>
                   </View>
-                  <Text style={styles.activeHint} numberOfLines={1}>{t('active_checkin_hint') || '★ Active — check in to grow!'}</Text>
+                  <Text style={styles.activeHint} numberOfLines={1}>{t('active_checkin_hint') || '★ Active - check in to grow!'}</Text>
                   <Text style={{ fontSize: 9, color: '#AAA', marginTop: 1 }} numberOfLines={1}>👆 {t('hold_to_see_progress') || 'Hold the picture to see progress'}</Text>
                 </>
               ) : canStart ? (
@@ -384,16 +384,6 @@ export default function GlobalCreaturesScreen() {
 
   const filtered = filter === 'all' ? creatures : creatures.filter(c => c.emotion_colour === filter);
 
-  // Real fix Aug 26 (Phase 3, iPad): page size was hardcoded to the phone's 2-column grid
-  // (PAGE_SIZE=4 = 2 rows x 2 cols). Kept the same "2 rows per page" design (see the Aug 22
-  // redesign note at the top of this file) but made the column count - and so the page
-  // size - reactive, so a tablet's 3rd/4th column doesn't leave an orphaned partial row.
-  const PAGE_SIZE = gridColumns * 2;
-  const pages: any[][] = [];
-  for (let i = 0; i < filtered.length; i += PAGE_SIZE) {
-    pages.push(filtered.slice(i, i + PAGE_SIZE));
-  }
-
   const handleSetActive = async (item: any) => {
     if (!studentId) return;
     setStartingId(item.id);
@@ -420,27 +410,11 @@ export default function GlobalCreaturesScreen() {
   const gridWidth = screenWidth - 24; // matches horizontal page padding below
   const cardWidth = (gridWidth - 12 * (gridColumns - 1)) / gridColumns; // N columns, 12px gaps between them
 
-  const renderPage = ({ item: page }: { item: any[] }) => (
-    <View style={{ width: screenWidth, paddingHorizontal: 12 }}>
-      <View style={styles.grid}>
-        {page.map(item => {
-          const colourActive = active[item.emotion_colour];
-          return (
-            <CreatureCard
-              key={item.id}
-              item={item}
-              isActive={colourActive?.active_id === item.id}
-              canStart={!!colourActive?.is_fully_evolved}
-              starting={startingId === item.id}
-              onStart={() => handleSetActive(item)}
-              cardWidth={cardWidth}
-              progressPercent={colourActive?.progress_percent}
-            />
-          );
-        })}
-      </View>
-    </View>
-  );
+  // Real fix Sep 15 (Marisa build-26, S07): the Aug 22 redesign deliberately introduced
+  // horizontal per-colour paging (2 rows per page, swipe for more) - confirmed live it cuts
+  // cards off at the screen edges and "Swipe for more (N pages)" wasn't a clear enough
+  // affordance. Reverted to one vertically-scrolling FlatList (numColumns, below) - no pages,
+  // no swipe hint needed, every card just as reachable by scrolling down instead of sideways.
 
   return (
     <View style={styles.container}>
@@ -449,7 +423,13 @@ export default function GlobalCreaturesScreen() {
       {countriesJoined > 0 && (
         <TouchableOpacity onPress={toggleCountryBoard} activeOpacity={0.7}>
           <Text style={styles.countryTeaser}>
-            🌍 {(t('countries_joined_teaser') || '{count} countries have joined — keep submitting to unlock the map!').replace('{count}', String(countriesJoined))} {countryBoardOpen ? '▲' : '▼'}
+            {/* Real fix Sep 15 (Marisa build-26, S07): "1 countries have joined" - the
+                template only ever had a plural form. Singular gets its own real sentence
+                rather than a naive "1 country(ies)" patch. */}
+            🌍 {countriesJoined === 1
+              ? (t('countries_joined_teaser_singular') || '1 country has joined. Keep submitting to unlock the map!')
+              : (t('countries_joined_teaser') || '{count} countries have joined. Keep submitting to unlock the map!').replace('{count}', String(countriesJoined))
+            } {countryBoardOpen ? '▲' : '▼'}
           </Text>
         </TouchableOpacity>
       )}
@@ -509,24 +489,33 @@ export default function GlobalCreaturesScreen() {
         // covers the initial mount - tab bar and filter row above stay fully visible/tappable
         // (not gated on this condition), only the grid area shows the loader.
         <View style={{ marginTop: 60, alignItems: 'center' }}><EmotionColourLoader visible size={64} /></View>
-      ) : pages.length === 0 ? (
-        <Text style={styles.empty}>No creatures available to you yet — be the first to submit one! 🦕</Text>
+      ) : filtered.length === 0 ? (
+        <Text style={styles.empty}>No creatures available to you yet - be the first to submit one! 🦕</Text>
       ) : (
-        <>
-          <FlatList
-            data={pages}
-            keyExtractor={(_, idx) => `page-${idx}`}
-            renderItem={renderPage}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor="#5C6BC0" colors={['#5C6BC0']} />}
-            contentContainerStyle={{ paddingTop: 12 }}
-          />
-          {pages.length > 1 && (
-            <Text style={styles.pageHint}>👉 {(t('more_creatures_swipe') || 'Swipe for more ({count} pages)').replace('{count}', String(pages.length))}</Text>
-          )}
-        </>
+        <FlatList
+          data={filtered}
+          keyExtractor={item => item.id}
+          numColumns={gridColumns}
+          key={gridColumns}
+          columnWrapperStyle={gridColumns > 1 ? { gap: 12 } : undefined}
+          renderItem={({ item }) => {
+            const colourActive = active[item.emotion_colour];
+            return (
+              <CreatureCard
+                item={item}
+                isActive={colourActive?.active_id === item.id}
+                canStart={!!colourActive?.is_fully_evolved}
+                starting={startingId === item.id}
+                onStart={() => handleSetActive(item)}
+                cardWidth={cardWidth}
+                progressPercent={colourActive?.progress_percent}
+              />
+            );
+          }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor="#5C6BC0" colors={['#5C6BC0']} />}
+          contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 24 }}
+        />
       )}
     </View>
   );
@@ -553,7 +542,6 @@ const styles = StyleSheet.create({
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 14, paddingTop: 6, paddingBottom: 10, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   filterBtn: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 50, backgroundColor: '#F0F0F0' },
   filterText: { fontSize: 12, fontWeight: '800', color: '#666' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' },
   card: { backgroundColor: 'white', borderRadius: 14, overflow: 'hidden', marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   cardLocked: { opacity: 0.6 },
   imgWrap: { width: '100%', aspectRatio: 1.1, backgroundColor: '#F5F5F5' },
@@ -594,5 +582,4 @@ const styles = StyleSheet.create({
   unlockBtn: { paddingVertical: 6, borderRadius: 50, alignItems: 'center' },
   unlockBtnText: { color: 'white', fontWeight: '800', fontSize: 10 },
   empty: { textAlign: 'center', color: '#9CA3AF', fontSize: 15, fontWeight: '700', marginTop: 80, padding: 20 },
-  pageHint: { textAlign: 'center', color: '#9CA3AF', fontSize: 11, fontWeight: '700', paddingVertical: 8 },
 });

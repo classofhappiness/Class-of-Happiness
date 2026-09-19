@@ -449,7 +449,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (!String(error).includes('401') && !String(error).includes('authenticated')) {
         console.error('Error fetching classrooms:', error);
       }
-      setClassrooms([]);
+      // Real fix Sep 14 (Marisa build-26, S10): this used to wipe classrooms to [] on ANY
+      // fetch failure, including a transient one (Railway cold start, a brief network blip).
+      // teacher/dashboard.tsx's classroom-chip banner only renders while classrooms.length >
+      // 0 and re-fetches via useFocusEffect - so one bad fetch hid the banner for the rest of
+      // that visit, only recovering on a full navigate-away-and-back (the next focus event) -
+      // exactly the "disappears until the user fully exits the page" bug reported. Keep the
+      // last-known-good list on a transient failure instead; only the isParentUser branch
+      // above should ever legitimately clear it.
     }
   };
 

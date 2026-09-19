@@ -8,6 +8,7 @@ import { Avatar } from '../../src/components/Avatar';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../../src/utils/sounds';
 import { loadVoiceEnabled, loadVoiceManifest, playVoiceClip, playPhraseFromPool } from '../../src/utils/voiceClips';
 import { VoiceToggleButton } from '../../src/components/VoiceToggleButton';
+import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 
 const getColourInfo = (t: (key: string) => string) => ({
   blue: {
@@ -70,15 +71,26 @@ export default function ColourSelectionScreen() {
   const { fromFamily, location: locationParam, returnTo } = useLocalSearchParams<{ fromFamily?: string; location?: string; returnTo?: string }>();
   const { currentStudent, presetAvatars, t, language, translations } = useApp();
   const [showHelp, setShowHelp] = useState(false);
+  const [audioReady, setAudioReady] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    setAudioReady(false);
     preloadSounds();
     loadVoiceEnabled();
     loadVoiceManifest(language);
-    // Real feature Aug 28 (item A): opening-greeting phrase, played once when this screen
-    // (the actual "how are you feeling" moment) is reached - not on every re-render, since
-    // this effect is gated on [language] same as the lines above it.
-    playPhraseFromPool('opening', language);
+    // Real fix Sep 14 (Marisa build-26, S04): opening-greeting phrase used to fire-and-forget
+    // while the full screen rendered immediately underneath it - the phrase pool fetch plus
+    // sound setup took long enough to produce a glitch and ~2/3s silent gap before it
+    // actually started playing, with the screen already fully interactive. Now the loader
+    // (below) stays up until playback has genuinely started or the attempt has genuinely
+    // given up (voice off, no clips, network failure), so audio and content land together.
+    // The 2.5s timeout is a safety net only, for a hung/slow fetch - not the normal path.
+    const timeout = setTimeout(() => { if (!cancelled) setAudioReady(true); }, 2500);
+    playPhraseFromPool('opening', language).finally(() => {
+      if (!cancelled) { clearTimeout(timeout); setAudioReady(true); }
+    });
+    return () => { cancelled = true; clearTimeout(timeout); };
   }, [language]);
 
   useLayoutEffect(() => {
@@ -98,6 +110,16 @@ export default function ColourSelectionScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{t('select_profile') || 'Select Your Profile'}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!audioReady) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loaderContainer}>
+          <EmotionColourLoader visible size={72} />
         </View>
       </SafeAreaView>
     );
@@ -244,6 +266,7 @@ const styles = StyleSheet.create({
   helpButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 14, alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 22, backgroundColor: 'white', borderRadius: 24, borderWidth: 2, borderColor: '#1A1A2E' },
   helpButtonText: { fontSize: 13, color: '#1A1A2E', fontWeight: '700' },
   errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   errorText: { fontSize: 18, color: '#666' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', alignItems: 'center' },
   modalContainer: { backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%', width: '100%', maxWidth: 480 },

@@ -134,11 +134,11 @@ const getRelationshipColor = (relationship: string) => {
 const COLOUR_TIPS_PARENT: Record<string, {tip: string, action: string, tipKey: string, actionKey: string}[]> = {
   blue: [
     { tip: 'Your child needs warmth', action: 'A hug and quiet time together goes a long way', tipKey: 'tip_parent_blue_1', actionKey: 'tip_parent_blue_1_action' },
-    { tip: 'Low energy at home', action: 'Let them rest — avoid pressure or demands', tipKey: 'tip_parent_blue_2', actionKey: 'tip_parent_blue_2_action' },
-    { tip: 'Sadness or tiredness showing', action: 'Listen without trying to fix — presence helps', tipKey: 'tip_parent_blue_3', actionKey: 'tip_parent_blue_3_action' },
+    { tip: 'Low energy at home', action: 'Let them rest - avoid pressure or demands', tipKey: 'tip_parent_blue_2', actionKey: 'tip_parent_blue_2_action' },
+    { tip: 'Sadness or tiredness showing', action: 'Listen without trying to fix - presence helps', tipKey: 'tip_parent_blue_3', actionKey: 'tip_parent_blue_3_action' },
   ],
   green: [
-    { tip: 'Your child is thriving', action: "Celebrate with them — name what's going well", tipKey: 'tip_parent_green_1', actionKey: 'tip_parent_green_1_action' },
+    { tip: 'Your child is thriving', action: "Celebrate with them - name what's going well", tipKey: 'tip_parent_green_1', actionKey: 'tip_parent_green_1_action' },
     { tip: 'Great emotional balance', action: 'Build connection through play or shared activity', tipKey: 'tip_parent_green_2', actionKey: 'tip_parent_green_2_action' },
     { tip: 'Strong and settled today', action: 'Perfect time for family conversations', tipKey: 'tip_parent_green_3', actionKey: 'tip_parent_green_3_action' },
   ],
@@ -148,7 +148,7 @@ const COLOUR_TIPS_PARENT: Record<string, {tip: string, action: string, tipKey: s
     { tip: 'Energy feels scattered', action: 'Outdoor movement or creative play can help', tipKey: 'tip_parent_yellow_3', actionKey: 'tip_parent_yellow_3_action' },
   ],
   red: [
-    { tip: 'Big feelings at home', action: 'Stay regulated yourself — your calm is contagious', tipKey: 'tip_parent_red_1', actionKey: 'tip_parent_red_1_action' },
+    { tip: 'Big feelings at home', action: 'Stay regulated yourself - your calm is contagious', tipKey: 'tip_parent_red_1', actionKey: 'tip_parent_red_1_action' },
     { tip: 'Your child needs safety', action: 'Reconnect with warmth before setting limits', tipKey: 'tip_parent_red_2', actionKey: 'tip_parent_red_2_action' },
     { tip: 'High emotion showing', action: 'Give space, then gently check in with them', tipKey: 'tip_parent_red_3', actionKey: 'tip_parent_red_3_action' },
   ],

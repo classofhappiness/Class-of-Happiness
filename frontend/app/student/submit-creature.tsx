@@ -24,19 +24,23 @@ const EMOTION_KEYS = [
 
 const STAGE_KEYS = ['stage_1_label', 'stage_2_label', 'stage_3_label', 'stage_4_label'];
 const STAGE_FALLBACKS = [
-  'Stage 1 — Egg or seed',
-  'Stage 2 — Hatching or sprouting',
-  'Stage 3 — Growing',
-  'Stage 4 — Full creature',
+  'Stage 1 - Egg or seed',
+  'Stage 2 - Hatching or sprouting',
+  'Stage 3 - Growing',
+  'Stage 4 - Full creature',
 ];
 
 const TIP_KEYS = ['creature_tip_1', 'creature_tip_2', 'creature_tip_3', 'creature_tip_4', 'creature_tip_5'];
+// Real fix Sep 15 (Marisa build-26, S09): these fallbacks only ever render if a translation
+// key is genuinely missing (t(key) || TIP_FALLBACKS[i]) - en.json's real values already had
+// no emoji prefix by the time this was checked, so kept these in sync rather than leaving a
+// stale ✅/❌ version that could resurface if a translation ever goes missing.
 const TIP_FALLBACKS = [
-  '✅ Use white paper or card as your background',
-  '✅ Draw or craft with clear colours',
-  '✅ Good lighting — near a window works great',
-  '✅ Show the creature growing across all 4 stages',
-  '❌ No rude, violent or unkind content',
+  'Use white paper or card as your background',
+  'Draw or craft with clear colours',
+  'Good lighting - near a window works great',
+  'Show the creature growing across all 4 stages',
+  'No rude, violent or unkind content',
 ];
 
 export default function SubmitCreatureScreen() {
@@ -239,11 +243,11 @@ export default function SubmitCreatureScreen() {
         </View>
       ))}
       <View style={s.exampleBox}>
-        <Text style={s.exampleTitle}>{t('creature_submit_4_stages_title') || '📸 The 4 stages'}</Text>
-        <Text style={s.exampleText}>{t('creature_submit_4_stages_desc') || "Stage 1: Just an egg or blob shape\nStage 2: Starting to hatch or sprout\nStage 3: Half grown — details appearing\nStage 4: The full creature in all its glory!"}</Text>
+        <Text style={s.exampleTitle}>{t('creature_submit_4_stages_title') || 'The 4 stages'}</Text>
+        <Text style={s.exampleText}>{t('creature_submit_4_stages_desc') || "Stage 1: Just an egg or blob shape\nStage 2: Starting to hatch or sprout\nStage 3: Half grown, details appearing\nStage 4: The full creature in all its glory!"}</Text>
       </View>
       <TouchableOpacity style={s.btn} onPress={() => setStep('code')}>
-        <Text style={s.btnTxt}>{t('creature_submit_ready_btn') || "I'm ready — let's go! →"}</Text>
+        <Text style={s.btnTxt}>{t('creature_submit_ready_btn') || "I'm ready, let's go! →"}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -421,7 +425,7 @@ export default function SubmitCreatureScreen() {
         <Text style={s.label}>{t('review_emotion_label') || 'Emotion:'} <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{emotion}</Text></Text>
         <Text style={s.label}>{t('review_code_label') || 'Code:'} <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{code}</Text></Text>
         <Text style={s.label}>{t('review_visible_to_label') || 'Visible to:'} <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{visibleToText}</Text></Text>
-        <Text style={s.label}>{t('review_country_label') || 'Country:'} <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{country ? `${countryFlagEmoji(country)} ${COUNTRIES.find(c => c.code === country)?.name || country}` : '—'}</Text></Text>
+        <Text style={s.label}>{t('review_country_label') || 'Country:'} <Text style={{ color:'#4CAF73',fontWeight:'900' }}>{country ? `${countryFlagEmoji(country)} ${COUNTRIES.find(c => c.code === country)?.name || country}` : '-'}</Text></Text>
         <View style={s.stageGrid}>
           {photos.map((p,i) => p && <Image key={i} source={{ uri:p }} style={[s.reviewPhoto, { width: reviewPhotoWidth }]} />)}
         </View>
@@ -442,7 +446,11 @@ const s = StyleSheet.create({
   container: { flex:1, backgroundColor:'#F7F8FA' },
   content: { padding:20, paddingBottom:50 },
   title: { fontSize:22, fontWeight:'900', color:'#1A1A2E', marginBottom:8, textAlign:'center' },
-  subtitle: { fontSize:14, color:'#6B7280', textAlign:'center', marginBottom:20 },
+  // Real fix Sep 15 (Marisa build-26 round 2, S09 a+c): this one shared style sits right
+  // under the header on both the tutorial screen ("Read these tips...") and the code screen
+  // ("Get a code from your teacher..."), both flagged with the same complaint (too close to
+  // the header, wants italics) - one shared fix covers both rather than forking the style.
+  subtitle: { fontSize:14, color:'#6B7280', textAlign:'center', fontStyle:'italic', marginTop:14, marginBottom:20 },
   backBtn: { marginBottom:16 },
   backTxt: { fontSize:14, fontWeight:'700', color:'#6B7280' },
   card: { backgroundColor:'white', borderRadius:16, padding:20, shadowColor:'#000', shadowOpacity:0.07, shadowRadius:10, elevation:3 },

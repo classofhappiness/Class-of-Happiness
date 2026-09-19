@@ -19,9 +19,14 @@ export function useZoneMovement(zone: CreatureZone | string, active: boolean = t
     let animation: Animated.CompositeAnimation;
     switch (zone) {
       case 'blue':
+        // Real fix Sep 15 (Marisa build-26, S07): was 800+800=1600ms - noticeably slower than
+        // every other zone's ~1000ms cycle (green 400+400+200, yellow 100+100+200+600,
+        // default 300+300+400), so blue crept along next to the others' snappier pace.
+        // Halved to match their cycle length while keeping the same distinct slow-sine-sway
+        // character (movement style stays zone-specific, only the tempo is now uniform).
         animation = Animated.loop(Animated.sequence([
-          Animated.timing(moveAnim, { toValue: 12, duration: 800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-          Animated.timing(moveAnim, { toValue: -12, duration: 800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(moveAnim, { toValue: 12, duration: 500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(moveAnim, { toValue: -12, duration: 500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
         ]));
         break;
       case 'green':
@@ -60,10 +65,15 @@ interface Props {
   unlocked?: boolean;
   emoji?: string | null;
   imageUrl?: string | null;
+  // Real fix Sep 15 (Marisa build-26, S07): My Creatures ("Top Trumps cards" - static,
+  // readable) wants the idle bobbing stopped entirely, while World Creatures keeps it (just
+  // at a uniform speed now, see useZoneMovement's blue case above) - one shared visual
+  // component, per-screen opt-out rather than forking it.
+  animated?: boolean;
 }
 
-export const AnimatedCreatureVisual: React.FC<Props> = ({ zone, size = 52, unlocked = true, emoji, imageUrl }) => {
-  const { transform } = useZoneMovement(zone, unlocked);
+export const AnimatedCreatureVisual: React.FC<Props> = ({ zone, size = 52, unlocked = true, emoji, imageUrl, animated = true }) => {
+  const { transform } = useZoneMovement(zone, unlocked && animated);
 
   if (imageUrl) {
     return (
@@ -74,7 +84,12 @@ export const AnimatedCreatureVisual: React.FC<Props> = ({ zone, size = 52, unloc
   }
   return (
     <Animated.View style={{ transform, opacity: unlocked ? 1 : 0.3 }}>
-      <Text style={{ fontSize: size }}>{emoji || '🥚'}</Text>
+      {/* Real fix Sep 15 (Marisa build-26, S08): lone emoji Text wasn't centring in its
+          circle - Android's default font padding, not a layout/alignment bug - same root
+          cause and fix as CreatureDisplay.tsx and EvolutionAnimation.tsx. This is the shared
+          component both of those use elsewhere, so this instance was the one still missing
+          it (CreatureDetailModal's big evolution-stage circle, this screen's dolphin). */}
+      <Text style={{ fontSize: size, lineHeight: size * 1.2, textAlign: 'center', includeFontPadding: false }}>{emoji || '🥚'}</Text>
     </Animated.View>
   );
 };

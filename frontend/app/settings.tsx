@@ -86,7 +86,7 @@ function trialDaysLeftLabel(user: any): string {
   }
   if (!expiresAt) return 'Trial active';
   const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-  return daysLeft === 1 ? 'Trial active — 1 day left' : `Trial active — ${daysLeft} days left`;
+  return daysLeft === 1 ? 'Trial active, 1 day left' : `Trial active, ${daysLeft} days left`;
 }
 
 export default function SettingsScreen() {
@@ -1032,7 +1032,7 @@ export default function SettingsScreen() {
                 <View style={[styles.settingText, { flex: 1 }]}>
                   <Text style={styles.settingLabel}>{t('share_with_school_admin') || 'Share With My School Admin'}</Text>
                   <Text style={styles.settingValue}>
-                    {t('share_wellbeing_desc') || 'When on, your school admin can see your individual wellbeing check-ins. Off by default — you can turn this on or off any time.'}
+                    {t('share_wellbeing_desc') || 'When on, your school admin can see your individual wellbeing check-ins. Off by default. You can turn this on or off any time.'}
                   </Text>
                 </View>
               </View>
@@ -1131,7 +1131,7 @@ export default function SettingsScreen() {
               <View style={styles.trialCodeContainer}>
                 <Text style={{ fontSize: 12, color: '#666', marginBottom: 10, lineHeight: 18 }}>
                   {t('delete_account_warning_1') || 'Deleting your account deactivates it immediately and permanently removes your personal data after a 30-day grace period.'}
-                  {user?.role === 'teacher' ? ' ' + (t('delete_account_warning_teacher') || 'Your classrooms and students will be reassigned to your school (requires a linked school account — contact support if you\'re not linked to one).') : ''}
+                  {user?.role === 'teacher' ? ' ' + (t('delete_account_warning_teacher') || 'Your classrooms and students will be reassigned to your school (requires a linked school account - contact support if you\'re not linked to one).') : ''}
                   {' '}{t('delete_account_warning_2') || 'Confirm with your password, or with Google if that\'s how you sign in.'}
                 </Text>
                 <SecureField

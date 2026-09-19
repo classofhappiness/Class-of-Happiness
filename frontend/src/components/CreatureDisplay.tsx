@@ -563,7 +563,12 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
             },
           ]}
         >
-          <Text style={[styles.emoji, { fontSize: dynamicEmojiSize }]}>
+          {/* Real fix Sep 15 (Marisa build-26, S06): lone emoji Text wasn't centring inside
+              its circle - Android's default font padding adds asymmetric space a plain
+              textAlign:'center' doesn't fix. includeFontPadding:false (Android-only, no-op on
+              iOS) plus a lineHeight matching this instance's dynamic size gets it centred on
+              both platforms, same fix as EvolutionAnimation's modal circle. */}
+          <Text style={[styles.emoji, { fontSize: dynamicEmojiSize, lineHeight: dynamicEmojiSize * 1.2, includeFontPadding: false }]}>
             {stageInfo.emoji}
           </Text>
         </Animated.View>
