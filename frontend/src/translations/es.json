@@ -1755,5 +1755,10 @@
   "feature_access_no_admin": "Aún no está vinculada a una cuenta de school_admin - los permisos se aplicarán cuando lo esté.",
   "school_has_it_off": "la escuela lo tiene desactivado",
   "ai_flagged_badge": "Marcado por IA",
-  "incident_waiting_banner": "Un incidente necesita tu atención"
+  "incident_waiting_banner": "Un incidente necesita tu atención",
+  "change_pin_desc": "Establece un nuevo PIN de 6 dígitos para el inicio de sesión de administrador y la pantalla de desbloqueo",
+  "new_pin_placeholder": "PIN de 6 dígitos",
+  "change_pin_btn": "Cambiar PIN",
+  "change_pin_success": "Tu PIN ha sido cambiado.",
+  "change_pin_error": "No se pudo cambiar el PIN."
 }

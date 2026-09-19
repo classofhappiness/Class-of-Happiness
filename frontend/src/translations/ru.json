@@ -1601,5 +1601,10 @@
   "feature_access_no_admin": "Пока не привязано к аккаунту school_admin - разрешения применятся, как только будет привязано.",
   "school_has_it_off": "школа отключила это",
   "ai_flagged_badge": "Отмечено ИИ",
-  "incident_waiting_banner": "Требуется ваше внимание к инциденту"
+  "incident_waiting_banner": "Требуется ваше внимание к инциденту",
+  "change_pin_desc": "Установите новый 6-значный PIN-код для входа администратора и экрана разблокировки",
+  "new_pin_placeholder": "6-значный PIN-код",
+  "change_pin_btn": "Изменить PIN",
+  "change_pin_success": "Ваш PIN-код изменён.",
+  "change_pin_error": "Не удалось изменить PIN-код."
 }

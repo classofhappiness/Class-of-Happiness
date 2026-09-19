@@ -1601,5 +1601,10 @@
   "feature_access_no_admin": "غير مرتبطة بحساب مسؤول مدرسة بعد - ستُطبَّق الأذونات بمجرد ربطها.",
   "school_has_it_off": "المدرسة أوقفتها",
   "ai_flagged_badge": "مُعلَّم بواسطة الذكاء الاصطناعي",
-  "incident_waiting_banner": "هناك حادث يحتاج إلى انتباهك"
+  "incident_waiting_banner": "هناك حادث يحتاج إلى انتباهك",
+  "change_pin_desc": "عيّن رمزًا سريًا جديدًا من 6 أرقام لتسجيل دخول المسؤول وشاشة إلغاء القفل",
+  "new_pin_placeholder": "رمز سري من 6 أرقام",
+  "change_pin_btn": "تغيير الرمز السري",
+  "change_pin_success": "تم تغيير رمزك السري.",
+  "change_pin_error": "تعذر تغيير الرمز السري."
 }

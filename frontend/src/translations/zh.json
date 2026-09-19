@@ -1601,5 +1601,10 @@
   "feature_access_no_admin": "尚未关联到school_admin账户 - 关联后授权才会生效。",
   "school_has_it_off": "学校已将其关闭",
   "ai_flagged_badge": "AI 标记",
-  "incident_waiting_banner": "有一起事件需要您的关注"
+  "incident_waiting_banner": "有一起事件需要您的关注",
+  "change_pin_desc": "为管理员登录和管理员解锁屏幕设置新的6位PIN码",
+  "new_pin_placeholder": "6位PIN码",
+  "change_pin_btn": "更改PIN码",
+  "change_pin_success": "您的PIN码已更改。",
+  "change_pin_error": "无法更改PIN码。"
 }

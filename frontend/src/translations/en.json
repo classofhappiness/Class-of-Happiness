@@ -1499,5 +1499,10 @@
   "feature_access_no_admin": "Not linked to a school_admin account yet - grants apply once it is.",
   "school_has_it_off": "school has it off",
   "ai_flagged_badge": "AI flagged",
-  "incident_waiting_banner": "An incident needs your attention"
+  "incident_waiting_banner": "An incident needs your attention",
+  "change_pin_desc": "Set a new 6-digit PIN for admin login and the admin unlock screen",
+  "new_pin_placeholder": "6-digit PIN",
+  "change_pin_btn": "Change PIN",
+  "change_pin_success": "Your PIN has been changed.",
+  "change_pin_error": "Could not change PIN."
 }

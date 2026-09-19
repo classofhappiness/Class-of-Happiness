@@ -93,7 +93,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { user, language, setLanguage, logout, t, hasActiveSubscription, translations, checkAuth, isAuthenticated } = useApp();
+  const { user, language, setLanguage, logout, t, hasActiveSubscription, translations, checkAuth, isAuthenticated, setAdminPin } = useApp();
   const [showLanguages, setShowLanguages] = useState(false);
   const [voiceEnabled, setVoiceEnabledState] = useState(true);
 
@@ -111,6 +111,14 @@ export default function SettingsScreen() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [settingPassword, setSettingPassword] = useState(false);
+  // Real feature Sep 19 (live device report + Jono's own question: "would I be able to
+  // change this PIN through the app?"): /auth/set-admin-pin already existed and needed no
+  // current-PIN confirmation - it was purely a missing UI. The only prior path was
+  // login.tsx's "Forgot PIN?" flow (a full emailed-code round trip), even for someone who
+  // already knows their current PIN and just wants a new one.
+  const [showChangePin, setShowChangePin] = useState(false);
+  const [newPin, setNewPin] = useState('');
+  const [changingPin, setChangingPin] = useState(false);
 
   // Account Type / role switch (Aug 25 fix: role used to be silently rewritten by
   // PUT /auth/role every time parent/dashboard.tsx or teacher/resources.tsx mounted -
@@ -513,6 +521,28 @@ export default function SettingsScreen() {
     }
   };
 
+  // Real feature Sep 19: reuses AppContext's setAdminPin (the same call login.tsx's
+  // mandatory post-code-verification "set your PIN" step already uses) - the backend
+  // endpoint itself needs no current-PIN confirmation, so this is a straight overwrite,
+  // same as that first-time-setup screen.
+  const handleChangePin = async () => {
+    if (!/^\d{6}$/.test(newPin)) {
+      Alert.alert(t('error') || 'Error', t('pin_format_error') || 'PIN must be exactly 6 digits');
+      return;
+    }
+    setChangingPin(true);
+    try {
+      await setAdminPin(newPin);
+      Alert.alert('✅ ' + (t('success') || 'Success'), t('change_pin_success') || 'Your PIN has been changed.');
+      setNewPin('');
+      setShowChangePin(false);
+    } catch (e) {
+      Alert.alert(t('error') || 'Error', e instanceof Error ? e.message : (t('change_pin_error') || 'Could not change PIN.'));
+    } finally {
+      setChangingPin(false);
+    }
+  };
+
   const handleSwitchRole = () => {
     if (!user || (user.role !== 'teacher' && user.role !== 'parent')) return;
     const newRole: 'teacher' | 'parent' = user.role === 'teacher' ? 'parent' : 'teacher';
@@ -758,6 +788,53 @@ export default function SettingsScreen() {
             >
               <Text style={styles.redeemButtonText}>
                 {settingPassword ? (t('loading') || 'Setting...') : (t('set_password_btn') || 'Set Password')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Real feature Sep 19 (live device report + Jono's own question: "would I be able
+            to change this PIN through the app?"): superadmin/school_admin only, matching
+            ADMIN_PIN_ROLES exactly - the same two roles the login-time PIN system already
+            covers. Direct change, no current-PIN confirmation needed (matches the backend
+            endpoint's own contract) - the only prior path was the "Forgot PIN?" emailed-code
+            round trip at login, even for someone who already knows their PIN. */}
+        {(user?.role === 'superadmin' || user?.role === 'school_admin') && (
+          <TouchableOpacity
+            style={styles.settingItem}
+            onPress={() => setShowChangePin(!showChangePin)}
+          >
+            <View style={styles.settingLeft}>
+              <MaterialIcons name="pin" size={24} color="#5C6BC0" />
+              <View style={styles.settingText}>
+                <Text style={styles.settingLabel}>{t('change_pin') || 'Change PIN'}</Text>
+                <Text style={styles.settingValue}>{t('change_pin_desc') || 'Set a new 6-digit PIN for admin login and the admin unlock screen'}</Text>
+              </View>
+            </View>
+            <MaterialIcons
+              name={showChangePin ? "expand-less" : "expand-more"}
+              size={24}
+              color="#CCC"
+            />
+          </TouchableOpacity>
+        )}
+        {(user?.role === 'superadmin' || user?.role === 'school_admin') && showChangePin && (
+          <View style={styles.trialCodeContainer}>
+            <SecureField
+              placeholder={t('new_pin_placeholder') || '6-digit PIN'}
+              placeholderTextColor="#999"
+              value={newPin}
+              onChangeText={(v: string) => setNewPin(v.replace(/[^0-9]/g, '').slice(0, 6))}
+              keyboardType="number-pad"
+              maxLength={6}
+            />
+            <TouchableOpacity
+              style={[styles.redeemButton, changingPin && styles.redeemButtonDisabled]}
+              onPress={handleChangePin}
+              disabled={changingPin}
+            >
+              <Text style={styles.redeemButtonText}>
+                {changingPin ? (t('loading') || 'Setting...') : (t('change_pin_btn') || 'Change PIN')}
               </Text>
             </TouchableOpacity>
           </View>

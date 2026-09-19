@@ -1766,5 +1766,10 @@
   "feature_access_no_admin": "Noch nicht mit einem Schuladmin-Konto verknüpft - Freigaben gelten, sobald es verknüpft ist.",
   "school_has_it_off": "Schule hat es deaktiviert",
   "ai_flagged_badge": "KI-markiert",
-  "incident_waiting_banner": "Ein Vorfall benötigt Ihre Aufmerksamkeit"
+  "incident_waiting_banner": "Ein Vorfall benötigt Ihre Aufmerksamkeit",
+  "change_pin_desc": "Legen Sie eine neue 6-stellige PIN für die Admin-Anmeldung und den Admin-Entsperrbildschirm fest",
+  "new_pin_placeholder": "6-stellige PIN",
+  "change_pin_btn": "PIN ändern",
+  "change_pin_success": "Ihre PIN wurde geändert.",
+  "change_pin_error": "PIN konnte nicht geändert werden."
 }

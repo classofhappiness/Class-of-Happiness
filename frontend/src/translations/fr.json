@@ -1766,5 +1766,10 @@
   "feature_access_no_admin": "Pas encore lié à un compte school_admin - les autorisations s'appliqueront une fois que ce sera le cas.",
   "school_has_it_off": "l'école l'a désactivé",
   "ai_flagged_badge": "Signalé par l'IA",
-  "incident_waiting_banner": "Un incident nécessite votre attention"
+  "incident_waiting_banner": "Un incident nécessite votre attention",
+  "change_pin_desc": "Définissez un nouveau code PIN à 6 chiffres pour la connexion admin et l'écran de déverrouillage",
+  "new_pin_placeholder": "Code PIN à 6 chiffres",
+  "change_pin_btn": "Changer le code PIN",
+  "change_pin_success": "Votre code PIN a été modifié.",
+  "change_pin_error": "Impossible de modifier le code PIN."
 }
