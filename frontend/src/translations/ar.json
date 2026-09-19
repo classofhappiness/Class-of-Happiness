@@ -1606,5 +1606,7 @@
   "new_pin_placeholder": "رمز سري من 6 أرقام",
   "change_pin_btn": "تغيير الرمز السري",
   "change_pin_success": "تم تغيير رمزك السري.",
-  "change_pin_error": "تعذر تغيير الرمز السري."
+  "change_pin_error": "تعذر تغيير الرمز السري.",
+  "previewing_stage": "معاينة المرحلة {n}",
+  "back_to_current": "اضغط للعودة"
 }

@@ -1606,5 +1606,7 @@
   "new_pin_placeholder": "6-значный PIN-код",
   "change_pin_btn": "Изменить PIN",
   "change_pin_success": "Ваш PIN-код изменён.",
-  "change_pin_error": "Не удалось изменить PIN-код."
+  "change_pin_error": "Не удалось изменить PIN-код.",
+  "previewing_stage": "Предпросмотр этапа {n}",
+  "back_to_current": "нажмите, чтобы вернуться"
 }

@@ -1771,5 +1771,7 @@
   "new_pin_placeholder": "Code PIN à 6 chiffres",
   "change_pin_btn": "Changer le code PIN",
   "change_pin_success": "Votre code PIN a été modifié.",
-  "change_pin_error": "Impossible de modifier le code PIN."
+  "change_pin_error": "Impossible de modifier le code PIN.",
+  "previewing_stage": "Aperçu de l'étape {n}",
+  "back_to_current": "toucher pour revenir"
 }

@@ -83,6 +83,15 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
   // no explicit Evolve step at all, see server.py's add_points community branch).
   const [creatureRecord, setCreatureRecord] = useState<{ current_points: number; next_stage_points: number | null } | null>(null);
   const [localStage, setLocalStage] = useState(entry?.current_stage ?? 0);
+  // Real feature Sep 19 (live device report, Jono's explicit approval): bidirectional stage
+  // navigation. null means "showing the real current stage" (localStage, unchanged
+  // behaviour); a real index means the child tapped a specific stage box to preview it - past
+  // stages they've actually reached, or future ones not yet reached (still previewable, just
+  // visually locked - see the evoStage render below). Deliberately separate from localStage:
+  // the progress bar, Evolve button, and "Stage X / Y" text all keep reflecting REAL progress
+  // regardless of what's being previewed, so a child can browse their creature's history/
+  // future without the UI ever implying they've evolved further than they actually have.
+  const [previewStage, setPreviewStage] = useState<number | null>(null);
   const [isEvolving, setIsEvolving] = useState(false);
   // Real feature Sep 15 (B1, points economy v2, "Class of Happiness Shop"): shopEnabled comes
   // from the backend (school + family toggle, both default ON - see
@@ -158,7 +167,7 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
   // on a different id - creatures.tsx now swaps in a freshly-fetched entry after an evolve
   // (see handleEvolved), and without current_stage in this dependency array, localStage would
   // never pick up that fresh value while the SAME creature's modal stays open.
-  useEffect(() => { setLocalStage(entry?.current_stage ?? 0); }, [entry?.id, entry?.current_stage, visible]);
+  useEffect(() => { setLocalStage(entry?.current_stage ?? 0); setPreviewStage(null); }, [entry?.id, entry?.current_stage, visible]);
 
   const handleEvolve = async () => {
     if (!studentId || !entry || isEvolving) return;
@@ -167,6 +176,7 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
     try {
       const result = await rewardsApi.evolve(studentId, entry.id);
       setLocalStage(result.current_stage);
+      setPreviewStage(null);
       loadShop();
       onEvolved?.();
       if (result.newly_available_items && result.newly_available_items.length > 0) {
@@ -207,6 +217,13 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
   if (!entry) return null;
   const color = ZONE_COLORS[colour] || '#4A90D9';
   const stageCount = entry.type === 'default' ? (entry.stage_emojis?.length || 4) : 4;
+  // Real feature Sep 19: whichever stage is actually being shown right now - the real
+  // current one by default, or whatever the child tapped to preview. Only ever drives the
+  // main visual box and the evoRow's own selection ring below; progress bar/Evolve button/
+  // "Stage X / Y" text all read localStage directly, never this, so previewing never implies
+  // more (or less) real progress than the child actually has.
+  const displayStage = previewStage ?? localStage;
+  const previewingOther = previewStage !== null && previewStage !== localStage;
 
   // Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): three real states per
   // item now instead of two - owned (✓, tap to replay), available (real Buy button, fixed
@@ -299,32 +316,61 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
                 zone={colour}
                 size={110}
                 unlocked
-                emoji={entry.type === 'default' ? entry.emoji : undefined}
-                imageUrl={entry.type === 'community' ? (entry.stage_image || undefined) : undefined}
+                emoji={entry.type === 'default' ? (entry.stage_emojis?.[displayStage] ?? entry.emoji) : undefined}
+                imageUrl={entry.type === 'community' ? (entry.stage_urls?.[displayStage] ?? entry.stage_image ?? undefined) : undefined}
               />
             </View>
             {entry.is_active && <Text style={[s.activeBadge, { color }]}>{t('active_badge') || '★ Active'}</Text>}
+            {/* Real feature Sep 19 (live device report, Jono's explicit approval): the only
+                UI change previewing makes outside the evoRow itself - a clear, honest label
+                so a child (or a parent watching) never mistakes "browsing an old/future
+                stage" for "this is my creature's real progress right now". Tapping either
+                clears the preview back to the real current stage. */}
+            {previewingOther && (
+              <TouchableOpacity onPress={() => setPreviewStage(null)} style={[s.previewBanner, { backgroundColor: color + '20' }]}>
+                <Text style={[s.previewBannerText, { color }]}>
+                  👁️ {(t('previewing_stage') || 'Previewing Stage {n}').replace('{n}', String(displayStage + 1))} · {t('back_to_current') || 'tap to return'}
+                </Text>
+              </TouchableOpacity>
+            )}
 
             <Text style={s.sectionTitle}>{t('creature_collection') || 'Evolution'}</Text>
             <View style={s.evoRow}>
               {Array.from({ length: stageCount }, (_, idx) => {
                 const reached = idx <= localStage;
+                const isSelected = idx === displayStage;
                 const label = entry.type === 'default' ? entry.stage_emojis?.[idx] : null;
                 const url = entry.type === 'community' ? entry.stage_urls?.[idx] : null;
                 return (
-                  <View key={idx} style={[s.evoStage, reached && { backgroundColor: color + '30' }]}>
+                  // Real feature Sep 19 (live device report, Jono's explicit approval):
+                  // bidirectional tap navigation - EVERY stage box is now tappable, reached
+                  // or not. Past/current stages are a real, full-opacity look back at
+                  // something the child actually achieved; future ones stay visually locked
+                  // (dimmed + 🔒, same "not yet reached" signal as before) but are still
+                  // previewable, per Jono's explicit spec - tapping shows what's coming, it
+                  // just never pretends it's already unlocked.
+                  <TouchableOpacity
+                    key={idx}
+                    onPress={() => setPreviewStage(idx)}
+                    style={[
+                      s.evoStage,
+                      reached && { backgroundColor: color + '30' },
+                      isSelected && { borderWidth: 2, borderColor: color },
+                    ]}
+                  >
                     {entry.type === 'default' ? (
                       <Text style={{ fontSize: 22, opacity: reached ? 1 : 0.3 }}>{label || '🥚'}</Text>
                     ) : url ? (
                       <AnimatedCreatureVisual zone={colour} size={32} unlocked={reached} imageUrl={url} />
                     ) : null}
+                    {!reached && <Text style={s.evoLockBadge}>🔒</Text>}
                     {/* Real fix Sep 15 (Marisa build-26, S08): idx is 0-indexed (fish=0,
                         dolphin=1, shark=2, whale=3) - labelling the box with the raw index
                         showed "Stage 0" for the very first stage. +1 for the human-facing
                         label; idx itself stays 0-indexed everywhere else (array access,
                         `reached` comparison) since that's genuinely correct there. */}
                     <Text style={s.evoName}>{t('stage') || 'Stage'} {idx + 1}</Text>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
@@ -442,9 +488,15 @@ const s = StyleSheet.create({
   scrollPad: { padding: 18, paddingBottom: 40, alignItems: 'center' },
   visualBox: { width: 150, height: 150, borderRadius: 75, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   activeBadge: { fontSize: 13, fontWeight: '900', marginBottom: 8 },
+  // Real feature Sep 19: the "you're looking at a stage other than your real current one"
+  // banner - tappable itself (returns to current), deliberately using the creature's own
+  // zone colour rather than a neutral/warning colour, since previewing isn't an error state.
+  previewBanner: { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 8 },
+  previewBannerText: { fontSize: 11.5, fontWeight: '800' },
   sectionTitle: { alignSelf: 'flex-start', fontSize: 15, fontWeight: '900', color: '#1A1A2E', marginBottom: 10 },
   evoRow: { flexDirection: 'row', gap: 8, width: '100%' },
-  evoStage: { flex: 1, alignItems: 'center', padding: 8, borderRadius: 12, backgroundColor: '#F0F0F0' },
+  evoStage: { flex: 1, alignItems: 'center', padding: 8, borderRadius: 12, backgroundColor: '#F0F0F0', position: 'relative', borderWidth: 2, borderColor: 'transparent' },
+  evoLockBadge: { position: 'absolute', top: 4, right: 4, fontSize: 10 },
   evoName: { fontSize: 9, color: '#666', marginTop: 4 },
   progressLine: { fontSize: 13, fontWeight: '800', color: '#4CAF73', marginTop: 12, marginBottom: 4 },
   // Real feature Sep 15 (B1, points economy v2, Jono-approved): "evolve later, from My

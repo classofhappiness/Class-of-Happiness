@@ -1760,5 +1760,7 @@
   "new_pin_placeholder": "PIN de 6 dígitos",
   "change_pin_btn": "Alterar PIN",
   "change_pin_success": "O seu PIN foi alterado.",
-  "change_pin_error": "Não foi possível alterar o PIN."
+  "change_pin_error": "Não foi possível alterar o PIN.",
+  "previewing_stage": "Pré-visualização da Fase {n}",
+  "back_to_current": "toque para voltar"
 }

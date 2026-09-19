@@ -1606,5 +1606,7 @@
   "new_pin_placeholder": "6 अंकों का पिन",
   "change_pin_btn": "पिन बदलें",
   "change_pin_success": "आपका पिन बदल दिया गया है।",
-  "change_pin_error": "पिन नहीं बदला जा सका।"
+  "change_pin_error": "पिन नहीं बदला जा सका।",
+  "previewing_stage": "चरण {n} का पूर्वावलोकन",
+  "back_to_current": "वापस जाने के लिए टैप करें"
 }
