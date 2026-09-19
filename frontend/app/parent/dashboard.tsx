@@ -13,7 +13,7 @@ import {
   Share,
   Image,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -156,6 +156,7 @@ const COLOUR_TIPS_PARENT: Record<string, {tip: string, action: string, tipKey: s
 
 export default function ParentDashboard() {
   const router = useRouter();
+  const { editMember: editMemberParam, openLinkModal: openLinkModalParam } = useLocalSearchParams<{ editMember?: string; openLinkModal?: string }>();
   const { user, presetAvatars, t, language, setCurrentStudent, hasActiveSubscription, students, refreshStudents } = useApp();
 
   // Real bug fix Sep 4: the Aug 28 guard here was unconditional on role !== 'parent',
@@ -280,6 +281,30 @@ export default function ParentDashboard() {
     });
     setShowEditFamilyModal(true);
   };
+
+  // Real feature Sep 19 (child stats screen parity request): Edit and School-Family Link
+  // have no dedicated routes of their own - both are local modal state here on the
+  // dashboard. Rather than duplicate that state/UI on family-member-stats/[id].tsx, that
+  // screen deep-links back here with a param and this effect opens the right modal once it
+  // arrives. editMember waits for familyMembers to actually contain the member (it may not
+  // be loaded yet on a fresh navigation) before opening; openLinkModal has no such
+  // dependency since Link Child doesn't need member data to be ready first.
+  useEffect(() => {
+    if (openLinkModalParam) {
+      setShowLinkModal(true);
+      router.setParams({ openLinkModal: undefined });
+    }
+  }, [openLinkModalParam]);
+
+  useEffect(() => {
+    if (editMemberParam && familyMembers.length) {
+      const member = familyMembers.find(m => m.id === editMemberParam);
+      if (member) {
+        handleEditFamilyMember(member);
+        router.setParams({ editMember: undefined });
+      }
+    }
+  }, [editMemberParam, familyMembers]);
 
   // Update family member
   const handleUpdateFamilyMember = async () => {

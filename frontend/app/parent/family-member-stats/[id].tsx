@@ -262,14 +262,15 @@ export default function FamilyMemberStatsScreen() {
             in-page "assigned to" picker), unlike the teacher version's per-student route -
             so this can't be a true 1:1 deep link, just the closest existing equivalent.
             Edit and School-Family Link are NOT wired yet - see report before this diff for
-            why (Edit has no route today, only local modal state on parent/dashboard.tsx;
-            School-Family Link has two real, different candidate actions - entering a code vs
-            generating one for a teacher - and this ties into the still-open consent-wording
-            question). Reserved here as disabled placeholders rather than left out entirely,
-            so the row's real layout/spacing is visible now instead of arriving as a second,
-            separate change. */}
+            why (Edit and School-Family Link both have no route of their own today - only
+            local modal state on parent/dashboard.tsx). Jono's call: Edit deep-links back to
+            the dashboard with ?editMember=<id>, which auto-opens the existing edit modal
+            once that member is loaded there; School-Family Link deep-links with
+            ?openLinkModal=1 to open the "enter a code" modal specifically (not the reverse
+            generate-a-code-for-teacher flow) - the natural fit from a child's own stats
+            page. Both params are cleared by dashboard.tsx once consumed. */}
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-          <TouchableOpacity style={[s.actionBtn, { opacity: 0.4 }]} disabled>
+          <TouchableOpacity style={s.actionBtn} onPress={() => router.push({ pathname: '/parent/dashboard', params: { editMember: String(id) } })}>
             <MaterialIcons name="edit" size={20} color="#5C6BC0" />
             <Text style={s.actionBtnLabel}>{t('edit') || 'Edit'}</Text>
           </TouchableOpacity>
@@ -277,7 +278,7 @@ export default function FamilyMemberStatsScreen() {
             <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
             <Text style={s.actionBtnLabel}>{t('family_strategies') || 'Family Strategies'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[s.actionBtn, { opacity: 0.4 }]} disabled>
+          <TouchableOpacity style={s.actionBtn} onPress={() => router.push({ pathname: '/parent/dashboard', params: { openLinkModal: '1' } })}>
             <MaterialIcons name="family-restroom" size={20} color="#4A90D9" />
             <Text style={s.actionBtnLabel}>{t('family') || 'School-Family Link'}</Text>
           </TouchableOpacity>

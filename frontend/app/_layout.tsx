@@ -494,7 +494,7 @@ function AppContent() {
           options={{
             title: 'Family Dashboard',
             headerTitleStyle: { fontWeight: '700' },
-            headerRight: () => <HomeToDashboard />,
+            headerRight: () => <DashboardLogoOnly />,
           }}
         />
         <Stack.Screen
@@ -653,6 +653,20 @@ function HomeToDashboard() {
       <TouchableOpacity onPress={() => r.replace('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <MaterialIcons name="home" size={20} color="#FFFFFF" />
       </TouchableOpacity>
+    </View>
+  );
+}
+
+// Real fix Sep 19 (Jono's explicit call): on a role DASHBOARD screen specifically (the
+// landing screen the native back button already returns to in practice), a separate home
+// button is redundant - removed for parent/dashboard's headerRight below, logo alone now
+// sits where home used to be (the far right). Deliberately a new component rather than
+// editing HomeToDashboard in place - that one is also used by the plain 'settings' screen
+// (line ~327 below), which is not a dashboard and keeps its home button.
+function DashboardLogoOnly() {
+  return (
+    <View style={{ marginRight: 12 }}>
+      <ColourCycleLogo size={48.4} loop />
     </View>
   );
 }
