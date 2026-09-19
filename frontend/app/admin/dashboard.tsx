@@ -16,6 +16,8 @@ import { supportRequestsApi, SupportRequest } from '../../src/utils/api';
 import { useSupportRequestsList } from '../../src/utils/supportRequestsPoller';
 import { registerForPushNotifications } from '../../src/utils/notifications';
 import { dismissIncidentAlert } from '../../src/utils/notifeeIncidents';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ColourCycleLogo } from '../../src/components/ColourCycleLogo';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const INDIGO = '#5C6BC0';
@@ -2444,6 +2446,7 @@ type AdminTab = typeof VALID_ADMIN_TABS[number];
 export default function AdminDashboard() {
   const { user, logout, t } = useApp();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   // Real fix Sep 18 (notification tap-to-navigate): lets a push notification deep-link
   // straight into a specific tab (support_requests, for an incident/support-request tap)
   // instead of just opening the app to whatever this screen's own default is. Validated
@@ -2588,8 +2591,17 @@ export default function AdminDashboard() {
 
   return (
     <SafeAreaView style={s.container}>
-      {/* Header */}
-      <View style={s.header}>
+      {/* Real fix Sep 19 (Jono's header refinement, role dashboards): Admin Dashboard had no
+          app-wide header treatment at all - no back/home (correctly, per the new dashboard
+          rule: a role landing screen doesn't need either), but also no colour-cycling logo,
+          and its plain SafeAreaView import (from 'react-native', an iOS-only no-op on
+          Android) left this header with no real top-inset handling on Android - the same
+          class of status-bar-overlap bug fixed on several other screens this session. Added
+          insets.top here directly since converting the whole screen's SafeAreaView import
+          would be a much larger change than this header warrants. Logo added to the right,
+          before the existing logout button (logout is a distinct, necessary action - not
+          the removed "home" this rule targets - so it stays, logo just joins it). */}
+      <View style={[s.header, { paddingTop: 16 + insets.top }]}>
         <View style={s.headerLeft}>
           <Text style={s.headerEmoji}>😊</Text>
           <View>
@@ -2597,9 +2609,12 @@ export default function AdminDashboard() {
             <Text style={s.headerRole}>{isSuperAdmin ? `⭐ ${t('super_admin') || 'Super Admin'}` : `🏫 ${t('school_admin_label') || 'School Admin'}`}</Text>
           </View>
         </View>
-        <TouchableOpacity onPress={async () => { await logout(); router.replace('/'); }} style={s.logoutBtn}>
-          <MaterialIcons name="logout" size={18} color="#F44336" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <ColourCycleLogo size={48.4} loop />
+          <TouchableOpacity onPress={async () => { await logout(); router.replace('/'); }} style={s.logoutBtn}>
+            <MaterialIcons name="logout" size={18} color="#F44336" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Tab bar — no scroll, fixed at top */}
