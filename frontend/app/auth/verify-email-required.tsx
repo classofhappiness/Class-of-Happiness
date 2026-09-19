@@ -5,15 +5,39 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../src/context/AppContext';
 
 // Real product fix Sep 12: registration email verification. app/_layout.tsx redirects any
 // authenticated session with email_verified === false here, on every navigation, until this
 // is completed - same shape as set-password-required.tsx's has_password gate, deliberately
-// no back button and no way to reach the rest of the app first.
+// no way to reach the rest of the app first.
+//
+// Real fix Sep 19 (live device report, researched against documented industry precedent -
+// e.g. GitLab added exactly this reactively after support was overwhelmed by "I mistyped my
+// email and now I'm stuck" reports): a dead end with no way to correct a mistyped email is a
+// known, real failure pattern, not a stylistic nice-to-have. "Not you? Sign out" already
+// existed as an escape hatch, but it's a full account sign-out with no clear next step -
+// this adds a real back button that explicitly returns to signup (via the same logout()
+// this screen's own sign-out link already used, just landing on signup specifically instead
+// of wherever a generic sign-out lands) so a mistyped email can actually be corrected, not
+// just abandoned into. Resend-code already existed (handleResend below) - only the
+// go-back/correct-the-email path was missing.
 export default function VerifyEmailRequiredScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { verifyEmail, resendVerificationEmail, logout, user } = useApp();
+  const [goingBack, setGoingBack] = useState(false);
+
+  const handleBackToSignup = async () => {
+    setGoingBack(true);
+    try {
+      await logout();
+      router.replace('/auth/signup');
+    } catch {
+      setGoingBack(false);
+    }
+  };
   const [code, setCode] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
@@ -55,6 +79,10 @@ export default function VerifyEmailRequiredScreen() {
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.inner}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <TouchableOpacity style={[styles.backButton, { marginTop: insets.top }]} onPress={handleBackToSignup} disabled={goingBack}>
+            <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+
           <View style={styles.iconWrap}>
             <MaterialIcons name="mark-email-read" size={48} color="#5C6BC0" />
           </View>
@@ -63,6 +91,9 @@ export default function VerifyEmailRequiredScreen() {
             We sent a 6-digit code to {user?.email ? user.email : 'your email address'}. Enter it below to
             continue.
           </Text>
+          <TouchableOpacity onPress={handleBackToSignup} disabled={goingBack}>
+            <Text style={styles.changeEmailLink}>Wrong email? Go back and fix it</Text>
+          </TouchableOpacity>
 
           <Text style={styles.label}>Verification Code</Text>
           <TextInput
@@ -105,7 +136,11 @@ export default function VerifyEmailRequiredScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
   inner: { flex: 1 },
-  scrollContent: { flexGrow: 1, padding: 24, paddingTop: 48, alignItems: 'stretch' },
+  scrollContent: { flexGrow: 1, padding: 24, paddingTop: 16, alignItems: 'stretch' },
+  backButton: {
+    width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+  },
   iconWrap: { alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '900', color: '#1A1A2E', textAlign: 'center', marginBottom: 8 },
   subtitle: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 28, lineHeight: 20 },
@@ -116,6 +151,7 @@ const styles = StyleSheet.create({
   },
   error: { color: '#E53935', fontSize: 13, marginTop: 8 },
   resentText: { color: '#4CAF50', fontSize: 13, marginTop: 8, textAlign: 'center' },
+  changeEmailLink: { color: '#5C6BC0', fontSize: 13, fontWeight: '600', textAlign: 'center', marginTop: 4 },
   button: {
     backgroundColor: '#5C6BC0', borderRadius: 14, padding: 16,
     alignItems: 'center', justifyContent: 'center', marginTop: 24,
