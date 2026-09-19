@@ -449,9 +449,13 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
           ]}
         />
       )}
+      {/* Real fix Sep 19 (Jono's corrected header rule for role dashboards): back button
+          YES (a dashboard isn't necessarily the true app entry point, and back provides a
+          real way out), home button NO (redundant with back) - showBack={false} was hiding
+          the back button entirely; removed so it falls back to TranslatedHeader's own
+          default (true). showHome was never passed here, so home already correctly absent. */}
       <TranslatedHeader
         title={t('teacher_dashboard')||'Teacher Dashboard'}
-        showBack={false}
         extraAction={supportRequestsEnabled ? {
           icon: 'campaign',
           color: '#FF7043',

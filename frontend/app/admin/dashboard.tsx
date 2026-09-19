@@ -2591,18 +2591,23 @@ export default function AdminDashboard() {
 
   return (
     <SafeAreaView style={s.container}>
-      {/* Real fix Sep 19 (Jono's header refinement, role dashboards): Admin Dashboard had no
-          app-wide header treatment at all - no back/home (correctly, per the new dashboard
-          rule: a role landing screen doesn't need either), but also no colour-cycling logo,
-          and its plain SafeAreaView import (from 'react-native', an iOS-only no-op on
-          Android) left this header with no real top-inset handling on Android - the same
-          class of status-bar-overlap bug fixed on several other screens this session. Added
+      {/* Real fix Sep 19 (Jono's header rule for role dashboards, corrected same day): a
+          dashboard gets a BACK button (it isn't necessarily the true app entry point, and
+          back provides a real way out) but NO home button (redundant with back) - the
+          initial pass here had it backwards (no back, since a first version of this rule
+          said dashboards need neither). Admin Dashboard also had no colour-cycling logo, and
+          its plain SafeAreaView import (from 'react-native', an iOS-only no-op on Android)
+          left this header with no real top-inset handling on Android - the same class of
+          status-bar-overlap bug fixed on several other screens this session. Added
           insets.top here directly since converting the whole screen's SafeAreaView import
           would be a much larger change than this header warrants. Logo added to the right,
-          before the existing logout button (logout is a distinct, necessary action - not
-          the removed "home" this rule targets - so it stays, logo just joins it). */}
+          before the existing logout button (logout is a distinct, necessary action, not the
+          "home" this rule targets - so it stays, logo just joins it). */}
       <View style={[s.header, { paddingTop: 16 + insets.top }]}>
         <View style={s.headerLeft}>
+          <TouchableOpacity onPress={() => router.back()} style={s.headerBackBtn}>
+            <MaterialIcons name="arrow-back" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
           <Text style={s.headerEmoji}>😊</Text>
           <View>
             <Text style={s.headerTitle}>Class of Happiness</Text>
@@ -2689,6 +2694,7 @@ const s = StyleSheet.create({
   // Header
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerBackBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' },
   headerEmoji: { fontSize: 28 },
   headerTitle: { fontSize: 16, fontWeight: '800', color: INDIGO },
   headerRole: { fontSize: 11, color: '#888', marginTop: 1 },
