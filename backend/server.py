@@ -5401,7 +5401,19 @@ async def link_child(body: LinkChildRequest, request: Request):
         fm_match = supabase.table("family_members").select("id,student_id").eq("user_id", user["user_id"]).ilike("name", student.get("name", "").strip()).execute()
         if fm_match.data:
             for fm in fm_match.data:
-                if fm.get("student_id") != student["id"]:
+                if fm.get("student_id") == student["id"]:
+                    continue
+                # Only replace a value that is genuinely stale: null, dangling, or this
+                # parent's own home-only student (no classroom). A row already pointing at a
+                # different school-linked child (e.g. two same-named children) is left alone.
+                replace = not fm.get("student_id")
+                if not replace:
+                    cur = supabase.table("students").select("user_id,classroom_id").eq("id", fm["student_id"]).execute()
+                    if not cur.data:
+                        replace = True
+                    else:
+                        replace = not cur.data[0].get("classroom_id") and cur.data[0].get("user_id") == user["user_id"]
+                if replace:
                     supabase.table("family_members").update({"student_id": student["id"]}).eq("id", fm["id"]).execute()
     except Exception as e:
         logger.warning(f"link_child family_members student_id repair failed: {e}")
