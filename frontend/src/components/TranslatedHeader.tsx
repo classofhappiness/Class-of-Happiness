@@ -22,6 +22,18 @@ interface TranslatedHeaderProps {
   // "Family" tag). Optional and absent everywhere else, in which case the title renders exactly
   // as before - this is what kept that screen from being converted to this shared header.
   titleBadge?: string;
+  // Real addition Sep 19 (header/nav remainder - the screens that kept hand-rolled headers
+  // because a plain string title couldn't hold their content). All optional and additive:
+  // a screen passing none of them renders exactly as before.
+  //   subtitle      - small second line under the title (e.g. "Check-in for Maya")
+  //   titleContent  - replaces the title text entirely, centred (e.g. a student's avatar+name+class)
+  //   rightContent  - rendered at the start of the right cluster, before the logo (e.g. a Support pill)
+  //   homeTo        - where the home button goes; defaults to '/' (screens that used to send the
+  //                   user straight to their own role dashboard keep doing so)
+  subtitle?: string;
+  titleContent?: React.ReactNode;
+  rightContent?: React.ReactNode;
+  homeTo?: string;
 }
 
 export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
@@ -32,6 +44,10 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
   onBackPress,
   extraAction,
   titleBadge,
+  subtitle,
+  titleContent,
+  rightContent,
+  homeTo,
 }) => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -85,7 +101,14 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
             shrink down to fill the space instead of clipping; short titles are unaffected
             since they already fit at the full size. minimumFontScale floors how far it can
             shrink so an extreme case still stays legible rather than shrinking to nothing. */}
-        {titleBadge ? (
+        {titleContent ? (
+          <View style={styles.titleStack}>{titleContent}</View>
+        ) : subtitle ? (
+          <View style={styles.titleStack}>
+            <Text style={[styles.title, styles.titleBesideBadge]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{title}</Text>
+            <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>
+          </View>
+        ) : titleBadge ? (
           <View style={styles.titleWithBadge}>
             <Text style={[styles.title, styles.titleBesideBadge]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{title}</Text>
             <View style={styles.titleBadge}><Text style={styles.titleBadgeText}>{titleBadge}</Text></View>
@@ -94,6 +117,7 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
           <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{title}</Text>
         )}
         <View style={styles.rightSlot}>
+          {rightContent}
           {extraAction && (
             <TouchableOpacity
               onPress={extraAction.onPress}
@@ -116,7 +140,7 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
               genuinely the same tuned animation, looping, not a second separately-tuned one. */}
           <ColourCycleLogo size={48.4} loop />
           {showHome && (
-            <TouchableOpacity onPress={() => router.replace('/')} style={styles.homeButton}>
+            <TouchableOpacity onPress={() => router.replace((homeTo || '/') as any)} style={styles.homeButton}>
               <MaterialIcons name="home" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           )}
@@ -205,6 +229,18 @@ const styles = StyleSheet.create({
   titleBesideBadge: {
     flex: 0,
     flexShrink: 1,
+  },
+  // subtitle / titleContent: a centred column that owns the middle slot, like title does.
+  titleStack: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subtitle: {
+    fontSize: 11,
+    color: '#888',
+    marginTop: 1,
+    textAlign: 'center',
   },
   titleBadge: {
     backgroundColor: '#E8F5E9',

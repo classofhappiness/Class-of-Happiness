@@ -16,7 +16,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
-import { ColourCycleLogo } from '../../src/components/ColourCycleLogo';
+import { SafeAreaView as EdgeSafeAreaView } from 'react-native-safe-area-context';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { familyApi, FamilyMember, strategiesApi, Strategy } from '../../src/utils/api';
 import { useDataGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
 
@@ -329,34 +330,24 @@ export default function FamilyCheckInScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    // Real fix Sep 19 (header/nav remainder): converted to the shared TranslatedHeader (two-line
+    // title = its title + subtitle; homeTo keeps the home button on parent/dashboard). That also
+    // fixes this screen having the logo LEFT of the title instead of the app-wide right-hand
+    // cluster. The main return switches to the cross-platform SafeAreaView with no 'top' edge,
+    // because TranslatedHeader applies the top inset itself and React Native's own SafeAreaView
+    // (still used by the loading state above) is iOS-only, which would double it there.
+    <EdgeSafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        {/* Header */}
-        {/* Real fix Sep 18: restyled to the app-wide black-circle standard - not converted
-            to TranslatedHeader wholesale, since this header carries a two-line title (main
-            title + "Check-in for {memberName}" subtitle), not a plain string. */}
-        {/* Real fix Sep 18 (later, spacing-pass gap audit): the static logo_coh.png here was
-            never updated to the animated ColourCycleLogo used everywhere else in the app -
-            found while verifying every screen actually matches the final logo treatment,
-            not just the ones that were checked at the time. Matches the same 48.4px size
-            and 8px gap already standardized across TranslatedHeader/_layout/teacher/checkin. */}
-        <View style={[styles.header, { marginTop: 8, gap: 8 }]}>
-          <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
-            <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-          <ColourCycleLogo size={48.4} loop />
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: '#333' }}>{step === 'zone' ? (t('how_are_you_feeling') || 'How are you feeling?') : (t('choose_helpful_strategies') || 'Choose a Strategy')}</Text>
-            <Text style={{ fontSize: 11, color: '#888', marginTop: 1 }}>{t('checkin_for') || 'Check-in for'} {memberName}</Text>
-          </View>
-          <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
-            <MaterialIcons name="home" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
+        <TranslatedHeader
+          title={step === 'zone' ? (t('how_are_you_feeling') || 'How are you feeling?') : (t('choose_helpful_strategies') || 'Choose a Strategy')}
+          subtitle={`${t('checkin_for') || 'Check-in for'} ${memberName}`}
+          showHome
+          homeTo="/parent/dashboard"
+        />
 
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps='handled'>
           {step === 'zone' ? (
@@ -539,7 +530,7 @@ export default function FamilyCheckInScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </EdgeSafeAreaView>
   );
 }
 
@@ -548,7 +539,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FA',
   },
-  header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F0F0F0', gap: 8 },
   backButton: {
     padding: 8,
     marginRight: 8,

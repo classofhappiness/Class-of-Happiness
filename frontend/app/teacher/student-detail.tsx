@@ -28,7 +28,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy, reportsApi, teacherApi, teacherHomeDataApi, describeSupportRequest } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
-import { ColourCycleLogo } from '../../src/components/ColourCycleLogo';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
 
@@ -353,41 +353,31 @@ export default function StudentDetailScreen() {
   ] : [];
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Top nav bar */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', minHeight: 52, gap: 8 }}>
-        {/* Real fix Sep 19 (live device report): was grouping the logo together with the
-            student identity as one jointly-centred block (back, logo, identity, home) - that
-            put the logo left of the identity text instead of the actual app-wide standard
-            (confirmed against TranslatedHeader.tsx: back | title independently centred |
-            logo, then home, right slot) and left the identity text off-centre (shifted right
-            by the logo's own width, since it shared centring with the logo instead of owning
-            its own flex:1 centred slot). Restructured to the real pattern: middle slot is
-            flex:1/centred and holds ONLY the identity block now, logo moved into the right
-            slot immediately before the home button, matching every other screen exactly. Not
-            converted to TranslatedHeader wholesale since this header's centre content is the
-            student's own avatar+name+classroom, not a plain string title. */}
-        <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
-          <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
-        </TouchableOpacity>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
-            {student.avatar_type === 'custom' && student.avatar_custom ? (
-              <Image source={{ uri: student.avatar_custom }} style={{ width:28, height:28, borderRadius:14 }} />
-            ) : (
-              <Text style={{fontSize:20}}>{presetAvatars?.find((a:any)=>a.id===student.avatar_preset)?.emoji || '👤'}</Text>
-            )}
-            <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }} numberOfLines={1}>{student.name}</Text>
-          </View>
-          <Text style={{ fontSize: 11, color: '#888' }} numberOfLines={1}>{getClassroomName(student.classroom_id)}</Text>
-        </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <ColourCycleLogo size={48.4} loop />
-          <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
-            <MaterialIcons name="home" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-      </View>
+    // Real fix Sep 19 (header/nav remainder): now the shared TranslatedHeader - the student's
+    // avatar+name+classroom identity block goes in its titleContent slot, and homeTo keeps the
+    // home button going to the teacher dashboard as before. edges omit 'top' because
+    // TranslatedHeader applies the top inset itself (this SafeAreaView is the cross-platform
+    // one, so leaving the default edges would double the top gap - same fix as
+    // parent/family-member-stats/[id]).
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+      <TranslatedHeader
+        title={student.name}
+        showHome
+        homeTo="/teacher/dashboard"
+        titleContent={
+          <>
+            <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
+              {student.avatar_type === 'custom' && student.avatar_custom ? (
+                <Image source={{ uri: student.avatar_custom }} style={{ width:28, height:28, borderRadius:14 }} />
+              ) : (
+                <Text style={{fontSize:20}}>{presetAvatars?.find((a:any)=>a.id===student.avatar_preset)?.emoji || '👤'}</Text>
+              )}
+              <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }} numberOfLines={1}>{student.name}</Text>
+            </View>
+            <Text style={{ fontSize: 11, color: '#888' }} numberOfLines={1}>{getClassroomName(student.classroom_id)}</Text>
+          </>
+        }
+      />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={

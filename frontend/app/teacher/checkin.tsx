@@ -6,7 +6,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { ColourCycleLogo } from '../../src/components/ColourCycleLogo';
+import { SafeAreaView as EdgeSafeAreaView } from 'react-native-safe-area-context';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { useFixedGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
@@ -489,34 +490,24 @@ export default function TeacherCheckInScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-    <SafeAreaView style={styles.container}>
-      {/* Real fix Sep 18: this screen had its own hand-rolled back/home buttons (plain grey
-          icons, no background) that never picked up the app-wide black-circle standard
-          (back/home buttons, then the colour-cycling logo circle) - it also had a dead
-          _layout.tsx headerRight (HomeToDashboard, never rendered since this route sets
-          headerShown:false) and an unused TranslatedHeader import sitting here, doing
-          nothing. Not swapped to the shared TranslatedHeader component wholesale - it can't
-          accommodate this screen's own "Support" pill (a distinct, coloured, labelled call-
-          to-action, not a generic single-icon extraAction) without flattening it down to a
-          bare icon. Restyled the back/home buttons to match TranslatedHeader's exact
-          treatment instead, and added the same animated logo circle, so this screen now
-          looks consistent with the rest of the app while keeping the Support button exactly
-          as it was. */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('teacher_checkin') || 'Teacher Check-In'}</Text>
-        <View style={{ flex: 1 }} />
-        <TouchableOpacity style={styles.alertBtn} onPress={() => setShowAlertModal(true)}>
-          <MaterialIcons name="support-agent" size={18} color="white" />
-          <Text style={styles.alertBtnText}>{t('support') || 'Support'}</Text>
-        </TouchableOpacity>
-        <ColourCycleLogo size={48.4} loop />
-        <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={styles.homeBtn}>
-          <MaterialIcons name="home" size={20} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
+    // Real fix Sep 19 (header/nav remainder): converted to the shared TranslatedHeader - the
+    // coloured "Support" pill goes in its rightContent slot (kept exactly as it was, not
+    // flattened to an icon), homeTo keeps the home button on the teacher dashboard. The title
+    // is now centred like every other screen instead of left-aligned. The SafeAreaView becomes
+    // the cross-platform one with no 'top' edge since TranslatedHeader applies the top inset
+    // itself and React Native's own is iOS-only (the loading state above keeps it).
+    <EdgeSafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+      <TranslatedHeader
+        title={t('teacher_checkin') || 'Teacher Check-In'}
+        showHome
+        homeTo="/teacher/dashboard"
+        rightContent={
+          <TouchableOpacity style={styles.alertBtn} onPress={() => setShowAlertModal(true)}>
+            <MaterialIcons name="support-agent" size={18} color="white" />
+            <Text style={styles.alertBtnText}>{t('support') || 'Support'}</Text>
+          </TouchableOpacity>
+        }
+      />
 
       {/* Name row */}
       <View style={{backgroundColor:'#F8F9FA',paddingHorizontal:16,paddingVertical:8,flexDirection:'row',alignItems:'center',borderBottomWidth:1,borderBottomColor:'#EEEEEE'}}>
@@ -859,19 +850,13 @@ export default function TeacherCheckInScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </EdgeSafeAreaView>
   </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, paddingTop: 20, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0', gap: 8 },
-  // Real fix Sep 18: matches TranslatedHeader's backButton/homeButton/logoRing exactly
-  // (36x36, #1A1A2E) - was a plain, no-background padded icon before.
-  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' },
-  homeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, fontSize: 18, fontWeight: 'bold', color: '#333' },
   alertBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#555', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, gap: 6 },
   alertBtnText: { color: 'white', fontWeight: '700', fontSize: 13 },
   scroll: { padding: 16, paddingBottom: 40 },
