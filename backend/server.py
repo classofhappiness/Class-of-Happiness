@@ -16217,36 +16217,6 @@ async def family_member_checkin(member_id: str, request: Request):
         logger.error(f"Family checkin error: {e}")
         raise HTTPException(status_code=500, detail=f"Could not save check-in: {str(e)}")
 
-@api_router.get("/family/students")
-async def get_linkable_students(request: Request):
-    """Get students that parent can link to family - from linked teacher"""
-    user = await get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    try:
-        # Get students from parent-teacher links
-        links = supabase.table("parent_teacher_links").select("*").eq("parent_id", user["user_id"]).execute()
-        
-        students = []
-        for link in (links.data or []):
-            teacher_id = link.get("teacher_id")
-            if teacher_id:
-                # Get students from this teacher
-                teacher_students = supabase.table("students").select("*").eq("user_id", teacher_id).execute()
-                for s in (teacher_students.data or []):
-                    students.append({
-                        "id": s["id"],
-                        "name": s["name"],
-                        "teacher_id": teacher_id,
-                        "avatar_preset": s.get("avatar_preset", ""),
-                    })
-        
-        return students
-    except Exception as e:
-        logger.error(f"Get linkable students error: {e}")
-        return []
-
 
 # ================== STUDENT-FAMILY LINK SYSTEM ==================
 
@@ -16297,34 +16267,6 @@ async def link_family_member_to_student(member_id: str, request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not link: {str(e)}")
 
-@api_router.get("/family/linkable-students")
-async def get_linkable_students(request: Request):
-    """Get students that this parent can link to - via teacher link codes"""
-    user = await get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    try:
-        # Get students from parent-teacher links
-        links = supabase.table("parent_teacher_links").select("*").eq("parent_id", user["user_id"]).execute()
-        
-        all_students = []
-        for link in (links.data or []):
-            teacher_id = link.get("teacher_id")
-            if teacher_id:
-                students = supabase.table("students").select("id, name, avatar_preset, avatar_type").eq("user_id", teacher_id).execute()
-                for s in (students.data or []):
-                    all_students.append({
-                        "id": s["id"],
-                        "name": s["name"],
-                        "avatar_preset": s.get("avatar_preset", ""),
-                        "avatar_type": s.get("avatar_type", "preset"),
-                    })
-        
-        return all_students
-    except Exception as e:
-        logger.error(f"Linkable students error: {e}")
-        return []
 
 
 # ================== LINKED CHILD ENDPOINTS (parent <-> school) ==================
