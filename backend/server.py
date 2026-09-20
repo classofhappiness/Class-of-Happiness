@@ -2939,6 +2939,17 @@ async def delete_student(student_id: str, request: Request):
     # by id.
     if user.get("role") not in ("teacher", "school_admin", "superadmin"):
         raise HTTPException(status_code=403, detail="Teacher access required")
+    # Real fix Sep 20 (found live, real incident): _is_authorized_for_student returns False
+    # both when the student isn't yours AND when it doesn't exist at all (it can't check
+    # ownership on nothing) - this endpoint then raised the same 403 "Not authorized" for
+    # both cases. Confirmed live: a genuine double-delete (two DELETE requests for the same
+    # id landing close together, e.g. a double-tap) always 200s on the first and 403s on the
+    # second - the row really is gone, but the error read as if the delete had failed. Now
+    # checks existence first so an already-deleted student gets a clear, honest 404 instead
+    # of a misleading "not authorized".
+    student_check = supabase.table("students").select("id").eq("id", student_id).execute()
+    if not student_check.data:
+        raise HTTPException(status_code=404, detail="Student not found (already deleted)")
     if not await _is_authorized_for_student(user, student_id):
         raise HTTPException(status_code=403, detail="Not authorized for this student")
     supabase.table("feeling_logs").delete().eq("student_id", student_id).execute()
