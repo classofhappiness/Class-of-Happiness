@@ -13501,6 +13501,59 @@ async def export_school_analytics_pdf(school_admin_id: str, request: Request, pe
     safe_name = re.sub(r"[^A-Za-z0-9_-]+", "_", school_name).strip("_") or "school"
     return _build_export_response(format, f"{school_name} - Analytics Snapshot", columns, rows, f"{safe_name}_analytics")
 
+async def _gather_school_comparison_data(school_admin_ids: str, period: int) -> list:
+    ids = [s.strip() for s in school_admin_ids.split(",") if s.strip()]
+    if len(ids) < 2:
+        raise HTTPException(status_code=400, detail="Select at least 2 schools to compare")
+    school_data = []
+    for sid in ids:
+        try:
+            name, d = await _resolve_school_admin_analytics(sid, period)
+        except HTTPException:
+            continue
+        school_data.append((sid, name, _school_analytics_metric_rows(d)))
+    if len(school_data) < 2:
+        raise HTTPException(status_code=404, detail="Not enough valid schools found to compare")
+    return school_data
+
+@api_router.get("/admin/school-analytics-comparison")
+async def get_school_analytics_comparison(request: Request, school_admin_ids: str, period: int = 30):
+    """Real feature Sep 20 (analytics extension 2c): cross-school comparison, superadmin
+    only. Same table shape Jono picked for the portal (rows=metrics, columns=schools) -
+    metric labels/values come straight from the same _school_analytics_metric_rows()
+    helper as the single-school card/PDF, so all three surfaces can never disagree."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    school_data = await _gather_school_comparison_data(school_admin_ids, period)
+    return {
+        "period_days": period,
+        "schools": [
+            {"school_admin_id": sid, "school_name": name, "metrics": [{"label": l, "value": v} for l, v in metrics]}
+            for sid, name, metrics in school_data
+        ],
+    }
+
+@api_router.get("/admin/school-analytics-comparison/pdf")
+async def export_school_analytics_comparison_pdf(request: Request, school_admin_ids: str, period: int = 30, format: str = "pdf"):
+    """PDF twin of get_school_analytics_comparison - same rows=metrics/columns=schools
+    table shape, via the generic _build_export_response so branding matches every other
+    export in the app."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    school_data = await _gather_school_comparison_data(school_admin_ids, period)
+    metric_labels = [label for label, _ in school_data[0][2]]
+    columns = [("metric", "Metric")] + [(f"school_{i}", name) for i, (_, name, _) in enumerate(school_data)]
+    rows = []
+    for label in metric_labels:
+        row = {"metric": label}
+        for i, (_, _, metrics) in enumerate(school_data):
+            row[f"school_{i}"] = dict(metrics).get(label, "")
+        rows.append(row)
+    title = f"School Comparison - {len(school_data)} Schools"
+    return _build_export_response(format, title, columns, rows, f"school_comparison_{len(school_data)}")
+
 @api_router.get("/school-admin/users")
 async def get_school_admin_users(request: Request, limit: int = 200):
     """School admin's own scoped user list - teachers/parents linked via school_admin_id.
