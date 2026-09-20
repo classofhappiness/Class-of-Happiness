@@ -2415,6 +2415,13 @@ class ToggleHomeSharingRequest(BaseModel):
     # post-link "Keep Private"/"Share with Teacher" prompt specifically.
     value: Optional[bool] = None
 
+class GenerateSchoolCodeRequest(BaseModel):
+    school_name: str
+    tier: str
+
+class RedeemSchoolCodeRequest(BaseModel):
+    code: str
+
 # ================== AUTH HELPERS ==================
 def _parse_supabase_timestamp(ts: str) -> datetime:
     """Real bug fix Sep 10: Postgres/PostgREST serializes timestamptz with variable
@@ -13950,6 +13957,125 @@ async def create_school_admin(request: Request):
         "login_url": "https://www.classofhappiness.com/portal.html",
         "note": "User can log in with their email — no password needed"
     }
+
+# ================== SCHOOL-PROVISIONING CODES (Sep 20) ==================
+# Real feature Sep 20 (fully scoped and logged 2026-09-19/20 before build): a genuinely new,
+# separate code system from invite_codes (teacher-joins-a-school) and parent_links (parent
+# code-entry linking) - neither of those is touched by any of this. A superadmin generates a
+# code tied to one school + one tier; an ALREADY-SIGNED-UP user (any current role) enters it
+# in Settings and it converts their own account to school_admin, links/creates that school's
+# record, and records the tier - immediately, with no Stripe/billing gate of any kind. Jono's
+# explicit decision: the code alone grants access; billing is handled separately, per-school,
+# through whatever process he runs outside the app (invoice, a Stripe link sent independently,
+# etc.) - this matches real B2B SaaS admin-provisioning patterns (Auth0/WorkOS-style org
+# invitations), appropriate since he personally onboards each school rather than building
+# self-serve signup. New dedicated table rather than reusing invite_codes: confirmed live that
+# GET /school/join's own lookup (`select("*").eq("code", code)`) has no `type` filter, so a
+# provisioning code sitting in that same table could be redeemed by a teacher through the
+# WRONG endpoint and get incorrectly attached as a teacher instead of converting them to
+# school_admin - a real safety risk, avoided entirely by a separate table.
+SCHOOL_CODE_TIERS = ("school_starter", "school_standard", "school_plus")
+
+def _generate_school_provisioning_code() -> str:
+    # Real fix Sep 20: deliberately a different visual shape (SCHOOL-XXXXXX) from the
+    # existing "SCH-XXXX-XXXX" invite_codes format, so the two systems are never confused by
+    # sight even though they're already structurally separate.
+    return "SCHOOL-" + str(uuid.uuid4())[:6].upper()
+
+@api_router.post("/admin/generate-school-code")
+async def generate_school_provisioning_code(body: GenerateSchoolCodeRequest, request: Request):
+    """Superadmin generates a school-provisioning code tied to one school name + tier.
+    Real decision Sep 20: 90-day validity, not a short-lived session-style token - this may
+    sit unsent/unused for a while before a school actually enters it, unlike e.g. a password-
+    reset token which is used within minutes of being generated."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    school_name = body.school_name.strip()
+    if not school_name:
+        raise HTTPException(status_code=400, detail="School name is required")
+    if body.tier not in SCHOOL_CODE_TIERS:
+        raise HTTPException(status_code=400, detail=f"tier must be one of {', '.join(SCHOOL_CODE_TIERS)}")
+    code = _generate_school_provisioning_code()
+    expires_at = (datetime.now(timezone.utc) + timedelta(days=90)).isoformat()
+    row = {
+        "id": str(uuid.uuid4()),
+        "code": code,
+        "school_name": school_name,
+        "tier": body.tier,
+        "created_by": user["user_id"],
+        "expires_at": expires_at,
+        "used_at": None,
+        "used_by_user_id": None,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    supabase.table("school_provisioning_codes").insert(row).execute()
+    return {"code": code, "school_name": school_name, "tier": body.tier, "expires_at": expires_at}
+
+@api_router.get("/admin/school-codes")
+async def list_school_provisioning_codes(request: Request, school_name: Optional[str] = None):
+    """Superadmin's own view of codes it has generated - the portal uses this to show/copy a
+    school's existing code(s) under that school's entry in the Schools tab, rather than only
+    ever showing a code once at generation time."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    q = supabase.table("school_provisioning_codes").select("*").order("created_at", desc=True)
+    if school_name:
+        q = q.eq("school_name", school_name)
+    result = q.execute()
+    return result.data or []
+
+@api_router.post("/school/redeem-provisioning-code")
+async def redeem_school_provisioning_code(body: RedeemSchoolCodeRequest, request: Request):
+    """An already-logged-in user (any current role) enters a school-provisioning code in
+    Settings. Converts their own account to school_admin, links/creates the school record by
+    name, and records the tier on it - immediately, no billing gate. Deliberately separate
+    from GET /school/join (teacher-joins-existing-school, invite_codes table) - see the
+    module comment above this section for why these must never share a table."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    code = (body.code or "").strip().upper()
+    if not code:
+        raise HTTPException(status_code=400, detail="Code required")
+    result = supabase.table("school_provisioning_codes").select("*").eq("code", code).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Invalid code. Check the code and try again.")
+    row = result.data[0]
+    if row.get("used_at"):
+        raise HTTPException(status_code=400, detail="This code has already been used.")
+    expires = datetime.fromisoformat(row["expires_at"].replace("Z", "+00:00"))
+    if datetime.now(timezone.utc) > expires:
+        raise HTTPException(status_code=400, detail="This code has expired. Ask Class of Happiness for a new one.")
+
+    school_name = row["school_name"]
+    tier = row["tier"]
+    user_id = user["user_id"]
+
+    supabase.table("users").update({
+        "role": "school_admin",
+        "school_name": school_name,
+        "subscription_status": "active",
+    }).eq("user_id", user_id).execute()
+
+    # Real reuse Sep 20: same idempotent helper /admin/create-school-admin already uses -
+    # creates the school_profiles row if this user doesn't have one yet (a genuinely new
+    # school), or leaves an existing one alone (a school_admin re-entering/upgrading via a
+    # new code for their already-linked school).
+    _ensure_school_profile(user_id, school_name)
+    supabase.table("school_profiles").update({
+        "subscription_package": tier,
+        "status": "active",
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("school_admin_user_id", user_id).execute()
+
+    supabase.table("school_provisioning_codes").update({
+        "used_at": datetime.now(timezone.utc).isoformat(),
+        "used_by_user_id": user_id,
+    }).eq("id", row["id"]).execute()
+
+    return {"status": "provisioned", "school_name": school_name, "tier": tier}
 
 
 # ── EXPORT FORMAT PICKER (Phase 2.5 item 4) ─────────────────────────────

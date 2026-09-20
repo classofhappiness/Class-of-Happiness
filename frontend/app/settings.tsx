@@ -405,6 +405,44 @@ export default function SettingsScreen() {
   const [schoolInviteCode, setSchoolInviteCode] = useState('');
   const [joiningSchool, setJoiningSchool] = useState(false);
 
+  // Real feature Sep 20 (school-provisioning codes, fully scoped and logged 2026-09-19/20
+  // before build): deliberately separate state/handler/endpoint from Join School above -
+  // that one only ever attaches a teacher to an existing school_admin's org
+  // (POST /school/join, invite_codes table); this one converts the caller's OWN account to
+  // school_admin and links/creates the school itself (POST /school/redeem-provisioning-code,
+  // a new dedicated table) - a genuinely different action, not a variant of the same one.
+  const [schoolProvisioningCode, setSchoolProvisioningCode] = useState('');
+  const [redeemingSchoolCode, setRedeemingSchoolCode] = useState(false);
+
+  const handleRedeemSchoolCode = async () => {
+    if (!schoolProvisioningCode.trim()) {
+      Alert.alert(t('enter_school_code_title') || 'Enter school code', t('enter_school_code_body') || 'Please enter the school code Class of Happiness gave you.');
+      return;
+    }
+    setRedeemingSchoolCode(true);
+    try {
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const token = await AsyncStorage.getItem('session_token');
+      const res = await fetch(`${BACKEND_URL}/api/school/redeem-provisioning-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ code: schoolProvisioningCode.trim().toUpperCase() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        Alert.alert(`🎉 ${t('welcome') || 'Welcome!'}`, (t('school_code_redeemed_success') || 'Your account is now the School Admin for {school}.').replace('{school}', data.school_name));
+        setSchoolProvisioningCode('');
+        await checkAuth();
+      } else {
+        Alert.alert(t('error') || 'Error', data.detail || (t('invalid_school_code') || 'Invalid school code'));
+      }
+    } catch {
+      Alert.alert(t('error') || 'Error', t('school_code_redeem_error') || 'Could not redeem code. Please try again.');
+    } finally {
+      setRedeemingSchoolCode(false);
+    }
+  };
+
   const handleJoinSchool = async () => {
     if (!schoolInviteCode.trim()) {
       Alert.alert(t('enter_invite_code_title') || 'Enter invite code', t('enter_invite_code_body') || 'Please enter the invite code from your school admin.');
@@ -1072,6 +1110,42 @@ export default function SettingsScreen() {
               >
                 <Text style={{ color: 'white', fontWeight: 'bold', textAlign: 'center' }}>
                   {joiningSchool ? (t('joining') || 'Joining...') : (t('join_school_btn') || '🏫 Join School')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Real feature Sep 20 (school-provisioning codes): visible next to Join School for
+            a familiar, consistent pattern, but a fully separate action - this converts the
+            signed-in account itself to School Admin (not "join as a teacher"), so it's
+            hidden for anyone already school_admin/superadmin (no reason to re-provision). */}
+        {isAuthenticated && user?.role !== 'school_admin' && user?.role !== 'superadmin' && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <MaterialIcons name="stars" size={20} color="#5C6BC0" />
+              <Text style={styles.sectionTitle}>{t('have_school_provisioning_code') || 'Have a School Code?'}</Text>
+            </View>
+            <View style={[styles.settingItem, { flexDirection: 'column', padding: 16 }]}>
+              <Text style={[styles.settingValue, { marginBottom: 8 }]}>
+                {t('school_code_desc') || 'If Class of Happiness gave your school a code, enter it here to become that school\'s Admin.'}
+              </Text>
+              <TextInput
+                style={[styles.trialCodeInputWithIcon, { borderRadius: 10, padding: 12, backgroundColor: '#F5F5F5', marginBottom: 8 }]}
+                placeholder={t('school_code_placeholder') || 'e.g. SCHOOL-A1B2C3'}
+                value={schoolProvisioningCode}
+                onChangeText={setSchoolProvisioningCode}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                placeholderTextColor="#999"
+              />
+              <TouchableOpacity
+                style={[styles.settingItem, { backgroundColor: '#5C6BC0', borderRadius: 10, justifyContent: 'center', padding: 12 }]}
+                onPress={handleRedeemSchoolCode}
+                disabled={redeemingSchoolCode}
+              >
+                <Text style={{ color: 'white', fontWeight: 'bold', textAlign: 'center' }}>
+                  {redeemingSchoolCode ? (t('redeeming') || 'Redeeming...') : (t('redeem_school_code_btn') || '⭐ Become School Admin')}
                 </Text>
               </TouchableOpacity>
             </View>

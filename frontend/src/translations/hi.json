@@ -1620,5 +1620,14 @@
   "real_data_current_period": "चयनित अवधि के लिए वास्तविक डेटा",
   "daily_checkins": "दैनिक चेक-इन",
   "new_users": "नए उपयोगकर्ता",
-  "no_checkin_data_period": "इस अवधि के लिए कोई चेक-इन डेटा नहीं है।"
+  "no_checkin_data_period": "इस अवधि के लिए कोई चेक-इन डेटा नहीं है।",
+  "enter_school_code_title": "स्कूल कोड दर्ज करें",
+  "enter_school_code_body": "कृपया वह स्कूल कोड दर्ज करें जो Class of Happiness ने आपको दिया है।",
+  "school_code_redeemed_success": "अब आपका खाता {school} का स्कूल एडमिन है।",
+  "invalid_school_code": "अमान्य स्कूल कोड",
+  "school_code_redeem_error": "कोड रिडीम नहीं किया जा सका। कृपया पुनः प्रयास करें।",
+  "have_school_provisioning_code": "क्या आपके पास स्कूल कोड है?",
+  "school_code_desc": "यदि Class of Happiness ने आपके स्कूल को एक कोड दिया है, तो उस स्कूल का एडमिन बनने के लिए इसे यहाँ दर्ज करें।",
+  "school_code_placeholder": "जैसे SCHOOL-A1B2C3",
+  "redeem_school_code_btn": "स्कूल एडमिन बनें"
 }

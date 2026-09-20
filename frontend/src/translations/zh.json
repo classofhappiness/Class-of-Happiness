@@ -1620,5 +1620,14 @@
   "real_data_current_period": "所选时段的真实数据",
   "daily_checkins": "每日打卡",
   "new_users": "新用户",
-  "no_checkin_data_period": "该时段没有打卡数据。"
+  "no_checkin_data_period": "该时段没有打卡数据。",
+  "enter_school_code_title": "输入学校代码",
+  "enter_school_code_body": "请输入 Class of Happiness 提供给您的学校代码。",
+  "school_code_redeemed_success": "您的账户现在是 {school} 的学校管理员。",
+  "invalid_school_code": "学校代码无效",
+  "school_code_redeem_error": "无法兑换代码，请重试。",
+  "have_school_provisioning_code": "有学校代码吗？",
+  "school_code_desc": "如果 Class of Happiness 给您的学校提供了代码，请在此输入以成为该校的管理员。",
+  "school_code_placeholder": "例如 SCHOOL-A1B2C3",
+  "redeem_school_code_btn": "成为学校管理员"
 }

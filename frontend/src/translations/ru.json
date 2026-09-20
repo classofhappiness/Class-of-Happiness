@@ -1620,5 +1620,14 @@
   "real_data_current_period": "Реальные данные за выбранный период",
   "daily_checkins": "Ежедневные отметки",
   "new_users": "Новые пользователи",
-  "no_checkin_data_period": "Нет данных об отметках за этот период."
+  "no_checkin_data_period": "Нет данных об отметках за этот период.",
+  "enter_school_code_title": "Введите код школы",
+  "enter_school_code_body": "Пожалуйста, введите код школы, который вам предоставил Class of Happiness.",
+  "school_code_redeemed_success": "Теперь ваш аккаунт - администратор школы {school}.",
+  "invalid_school_code": "Неверный код школы",
+  "school_code_redeem_error": "Не удалось активировать код. Попробуйте снова.",
+  "have_school_provisioning_code": "Есть код школы?",
+  "school_code_desc": "Если Class of Happiness выдал вашей школе код, введите его здесь, чтобы стать администратором этой школы.",
+  "school_code_placeholder": "напр. SCHOOL-A1B2C3",
+  "redeem_school_code_btn": "Стать администратором школы"
 }

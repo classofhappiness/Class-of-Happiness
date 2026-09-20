@@ -1518,5 +1518,14 @@
   "real_data_current_period": "Real data for the selected period",
   "daily_checkins": "Daily Check-ins",
   "new_users": "New Users",
-  "no_checkin_data_period": "No check-in data for this period."
+  "no_checkin_data_period": "No check-in data for this period.",
+  "enter_school_code_title": "Enter school code",
+  "enter_school_code_body": "Please enter the school code Class of Happiness gave you.",
+  "school_code_redeemed_success": "Your account is now the School Admin for {school}.",
+  "invalid_school_code": "Invalid school code",
+  "school_code_redeem_error": "Could not redeem code. Please try again.",
+  "have_school_provisioning_code": "Have a School Code?",
+  "school_code_desc": "If Class of Happiness gave your school a code, enter it here to become that school's Admin.",
+  "school_code_placeholder": "e.g. SCHOOL-A1B2C3",
+  "redeem_school_code_btn": "Become School Admin"
 }

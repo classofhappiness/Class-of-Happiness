@@ -1785,5 +1785,14 @@
   "real_data_current_period": "Echte Daten für den ausgewählten Zeitraum",
   "daily_checkins": "Tägliche Check-ins",
   "new_users": "Neue Nutzer",
-  "no_checkin_data_period": "Keine Check-in-Daten für diesen Zeitraum."
+  "no_checkin_data_period": "Keine Check-in-Daten für diesen Zeitraum.",
+  "enter_school_code_title": "Schulcode eingeben",
+  "enter_school_code_body": "Bitte gib den Schulcode ein, den dir Class of Happiness gegeben hat.",
+  "school_code_redeemed_success": "Dein Konto ist jetzt der Schulverwalter für {school}.",
+  "invalid_school_code": "Ungültiger Schulcode",
+  "school_code_redeem_error": "Code konnte nicht eingelöst werden. Bitte versuche es erneut.",
+  "have_school_provisioning_code": "Hast du einen Schulcode?",
+  "school_code_desc": "Wenn Class of Happiness deiner Schule einen Code gegeben hat, gib ihn hier ein, um Schulverwalter zu werden.",
+  "school_code_placeholder": "z.B. SCHOOL-A1B2C3",
+  "redeem_school_code_btn": "Schulverwalter werden"
 }

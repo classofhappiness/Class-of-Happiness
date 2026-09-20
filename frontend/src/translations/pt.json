@@ -1774,5 +1774,14 @@
   "real_data_current_period": "Dados reais do período selecionado",
   "daily_checkins": "Check-ins Diários",
   "new_users": "Novos Utilizadores",
-  "no_checkin_data_period": "Sem dados de check-in para este período."
+  "no_checkin_data_period": "Sem dados de check-in para este período.",
+  "enter_school_code_title": "Introduza o código da escola",
+  "enter_school_code_body": "Introduza o código da escola que a Class of Happiness lhe deu.",
+  "school_code_redeemed_success": "A sua conta é agora o Administrador Escolar de {school}.",
+  "invalid_school_code": "Código da escola inválido",
+  "school_code_redeem_error": "Não foi possível resgatar o código. Tente novamente.",
+  "have_school_provisioning_code": "Tem um código da escola?",
+  "school_code_desc": "Se a Class of Happiness deu um código à sua escola, introduza-o aqui para se tornar Administrador dessa escola.",
+  "school_code_placeholder": "ex. SCHOOL-A1B2C3",
+  "redeem_school_code_btn": "Tornar-me Administrador Escolar"
 }

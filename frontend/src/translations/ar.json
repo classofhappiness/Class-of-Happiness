@@ -1620,5 +1620,14 @@
   "real_data_current_period": "بيانات حقيقية للفترة المحددة",
   "daily_checkins": "تسجيلات الحضور اليومية",
   "new_users": "مستخدمون جدد",
-  "no_checkin_data_period": "لا توجد بيانات تسجيل حضور لهذه الفترة."
+  "no_checkin_data_period": "لا توجد بيانات تسجيل حضور لهذه الفترة.",
+  "enter_school_code_title": "أدخل رمز المدرسة",
+  "enter_school_code_body": "يرجى إدخال رمز المدرسة الذي قدمته لك Class of Happiness.",
+  "school_code_redeemed_success": "أصبح حسابك الآن مسؤول مدرسة {school}.",
+  "invalid_school_code": "رمز المدرسة غير صالح",
+  "school_code_redeem_error": "تعذر استخدام الرمز. يرجى المحاولة مرة أخرى.",
+  "have_school_provisioning_code": "هل لديك رمز مدرسة؟",
+  "school_code_desc": "إذا زودت Class of Happiness مدرستك برمز، أدخله هنا لتصبح مسؤول تلك المدرسة.",
+  "school_code_placeholder": "مثال: SCHOOL-A1B2C3",
+  "redeem_school_code_btn": "كن مسؤول المدرسة"
 }
