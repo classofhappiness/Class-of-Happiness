@@ -13051,24 +13051,18 @@ def _fetch_all_paginated(table: str, select_fields: str, filters_fn, page_size: 
     return all_rows
 
 
-@api_router.get("/school-admin/analytics")
-async def get_school_admin_analytics(request: Request, period: int = 30, classroom_id: str = None):
-    """Rich emotional wellbeing analytics for school admin — no individual student data.
-    Real feature Sep 9 (Overview classroom filter pills): an optional classroom_id scopes
-    zone_distribution/engagement/top-strategies/alerts/participation to one classroom -
-    classroom_breakdown itself always stays the FULL comparison across every classroom
-    regardless (computed from the unfiltered student/log set before any narrowing) so the
-    portal can highlight the selected pill's own bar within a chart that still shows every
-    class, rather than the chart losing all its other bars the moment a pill is picked."""
-    user = await get_current_user(request)
-    if not user or user.get("role") not in ["school_admin", "admin", "superadmin"]:
-        raise HTTPException(status_code=403, detail="School admin access required")
-    user_id = user["user_id"]
+async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_display_name: str, period: int = 30, classroom_id: str = None) -> dict:
+    """Real refactor Sep 20: extracted verbatim from get_school_admin_analytics (below) so a
+    new superadmin-facing per-school endpoint can reuse the exact same aggregation instead of
+    duplicating it - this function's logic is unchanged from before the split, just
+    parameterised on whose school to compute (user_id/school_name/admin_display_name) instead
+    of always reading them off the currently-authenticated caller. admin_display_name is only
+    used for the one spot that names a classroom owned by the school_admin directly (was
+    `user.get("name")`)."""
     days = max(1, min(period, 90))
     start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
     # Get all teachers in this school — by school_admin_id OR school_name
-    school_name = user.get("school_name", "")
     teachers_by_id = supabase.table("users").select("user_id,name,email").eq("school_admin_id", user_id).execute()
     teachers_by_name = supabase.table("users").select("user_id,name,email").eq("school_name", school_name).eq("role", "teacher").execute() if school_name else type('obj', (object,), {'data': []})()
     # Merge and deduplicate
@@ -13152,7 +13146,7 @@ async def get_school_admin_analytics(request: Request, period: int = 30, classro
     for c in classrooms:
         owner_id = c.get("user_id")
         if owner_id == user_id:
-            teacher_name = user.get("name") or "School Admin"
+            teacher_name = admin_display_name or "School Admin"
         else:
             teacher = next((t for t in teacher_list if t["user_id"] == owner_id), {})
             teacher_name = teacher.get("name", "Teacher")
@@ -13212,10 +13206,22 @@ async def get_school_admin_analytics(request: Request, period: int = 30, classro
     # Real teacher adoption — % of this school's teachers who have logged their own wellbeing
     # check-in within the period (teacher_checkins table, same one the teacher-wellbeing PDF uses)
     teachers_checked_in = 0
+    # Real feature Sep 20 (per-school superadmin dashboard, item 3): the mood/zone breakdown
+    # of teacher self-check-ins, not just whether they checked in at all - same
+    # teacher_checkins table and the same "aggregate only, no individual identifiers" rule
+    # this whole endpoint already follows. Genuinely tracked data (confirmed live above), just
+    # never surfaced by this endpoint before - the global superadmin stats.teacher_zone_counts
+    # computes the equivalent thing platform-wide, this is the same concept scoped per school.
+    teacher_zone_dist = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
     if teacher_ids:
         try:
-            tc_res = supabase.table("teacher_checkins").select("user_id").in_("user_id", teacher_ids).gte("timestamp", start_date).execute()
-            teachers_checked_in = len(set(r["user_id"] for r in (tc_res.data or []) if r.get("user_id")))
+            tc_res = supabase.table("teacher_checkins").select("user_id,zone").in_("user_id", teacher_ids).gte("timestamp", start_date).execute()
+            tc_rows = tc_res.data or []
+            teachers_checked_in = len(set(r["user_id"] for r in tc_rows if r.get("user_id")))
+            for r in tc_rows:
+                z = r.get("zone")
+                if z in teacher_zone_dist:
+                    teacher_zone_dist[z] += 1
         except Exception as e:
             logger.warning(f"[school-admin/analytics] teacher_checkins query failed: {e}")
     teacher_checkin_rate = round((teachers_checked_in / len(teacher_ids)) * 100) if teacher_ids else 0
@@ -13253,8 +13259,61 @@ async def get_school_admin_analytics(request: Request, period: int = 30, classro
         _by_name[_nm] = _by_name.get(_nm, 0) + _n
     top_strategies = [{"name": _nm, "count": _n} for _nm, _n in sorted(_by_name.items(), key=lambda kv: kv[1], reverse=True)[:5]]
 
+    # Real feature Sep 20 (per-school superadmin dashboard, item 2): home check-ins for this
+    # school's own students, same two-table pattern already used by
+    # GET /teacher/student/{id}/home-data (feeling_logs logged_by parent/family + the
+    # separate family_zone_logs table), scoped to this school's student_ids and the same
+    # period window as everything else here for consistency with the rest of this endpoint.
+    home_checkins_total = 0
+    if student_ids:
+        home_logs = [l for l in logs if l.get("logged_by") in ("parent", "family")]
+        try:
+            fam_logs_res = supabase.table("family_zone_logs").select("id").in_("student_id", student_ids).gte("timestamp", start_date).execute()
+            fam_logs_count = len(fam_logs_res.data or [])
+        except Exception as e:
+            logger.warning(f"[school-admin/analytics] family_zone_logs query failed: {e}")
+            fam_logs_count = 0
+        home_checkins_total = len(home_logs) + fam_logs_count
+
+    # Real feature Sep 20 (item 2): distinct parents/families linked to any of this school's
+    # own students - a current-state snapshot (not period-scoped, matching how "linked
+    # families" reads elsewhere as a standing count, not an activity-in-window number).
+    linked_families = 0
+    if student_ids:
+        try:
+            pl_res = supabase.table("parent_links").select("parent_user_id").in_("student_id", student_ids).execute()
+            linked_families = len(set(r["parent_user_id"] for r in (pl_res.data or []) if r.get("parent_user_id")))
+        except Exception as e:
+            logger.warning(f"[school-admin/analytics] parent_links query failed: {e}")
+
+    # Real feature Sep 20 (item 2): creature/engagement summary for this school's own
+    # students. Two creature systems exist (see server.py's CREATURES constant docs) -
+    # community/submitted creatures via creature_unlocks (real unlocked_at/completed_at
+    # timestamps) and the 4 default creatures via student_rewards (current-state snapshot
+    # only, no per-stage history - see the engagement-analytics investigation from earlier
+    # tonight for why average current stage is the honest ceiling on what's computable here
+    # today, not a time-based metric like "avg days to evolve").
+    creatures_obtained = 0
+    creatures_fully_evolved = 0
+    default_creatures_avg_stage = 0
+    if student_ids:
+        try:
+            cu_res = supabase.table("creature_unlocks").select("completed_at").in_("real_student_id", student_ids).execute()
+            cu_rows = cu_res.data or []
+            creatures_obtained = len(cu_rows)
+            creatures_fully_evolved = len([r for r in cu_rows if r.get("completed_at")])
+        except Exception as e:
+            logger.warning(f"[school-admin/analytics] creature_unlocks query failed: {e}")
+        try:
+            sr_res = supabase.table("student_rewards").select("current_stage").in_("student_id", student_ids).execute()
+            sr_rows = sr_res.data or []
+            if sr_rows:
+                default_creatures_avg_stage = round(sum(r.get("current_stage") or 0 for r in sr_rows) / len(sr_rows), 1)
+        except Exception as e:
+            logger.warning(f"[school-admin/analytics] student_rewards query failed: {e}")
+
     return {
-        "school_name": user.get("school_name", "My School"),
+        "school_name": school_name or "My School",
         "total_teachers": len(teacher_ids),
         "total_classrooms": len(classrooms),
         "total_students": len(students),
@@ -13274,12 +13333,65 @@ async def get_school_admin_analytics(request: Request, period: int = 30, classro
         "avg_resolution_hours": avg_resolution_hours,
         "teacher_checkin_rate": teacher_checkin_rate,
         "teachers_checked_in": teachers_checked_in,
+        "teacher_zone_distribution": teacher_zone_dist,
         "students_needing_support": students_needing_support,
         "participation_rate": participation_rate,
         "participation_rate_prev": prev_participation_rate,
         "students_needing_support_prev": prev_students_needing_support,
         "top_strategy_name": top_strategy_name,
+        "home_checkins_total": home_checkins_total,
+        "linked_families": linked_families,
+        "creatures_obtained": creatures_obtained,
+        "creatures_fully_evolved": creatures_fully_evolved,
+        "default_creatures_avg_stage": default_creatures_avg_stage,
     }
+
+@api_router.get("/school-admin/analytics")
+async def get_school_admin_analytics(request: Request, period: int = 30, classroom_id: str = None):
+    """Rich emotional wellbeing analytics for school admin — no individual student data.
+    Real feature Sep 9 (Overview classroom filter pills): an optional classroom_id scopes
+    zone_distribution/engagement/top-strategies/alerts/participation to one classroom -
+    classroom_breakdown itself always stays the FULL comparison across every classroom
+    regardless (computed from the unfiltered student/log set before any narrowing) so the
+    portal can highlight the selected pill's own bar within a chart that still shows every
+    class, rather than the chart losing all its other bars the moment a pill is picked.
+    Real refactor Sep 20: thin wrapper over _compute_school_admin_analytics - unchanged
+    behaviour, just resolves this endpoint's own identity (the caller's own user_id/
+    school_name/name) and hands it to the shared helper, so a superadmin-facing per-school
+    variant (below) can reuse the exact same aggregation instead of duplicating it."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin", "admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    return await _compute_school_admin_analytics(
+        user_id=user["user_id"],
+        school_name=user.get("school_name", ""),
+        admin_display_name=user.get("name"),
+        period=period,
+        classroom_id=classroom_id,
+    )
+
+@api_router.get("/admin/school-analytics/{school_admin_id}")
+async def get_superadmin_school_analytics(school_admin_id: str, request: Request, period: int = 30, classroom_id: str = None):
+    """Real feature Sep 20: superadmin-facing per-school variant of /school-admin/analytics,
+    for the portal's per-school expandable Schools-tab cards. Reuses the exact same
+    aggregation as a school_admin viewing their own school (_compute_school_admin_analytics)
+    rather than a second, parallel implementation - school_admin_id is exactly the id already
+    present on every /admin/school-profiles row (school_admin_user_id), so the portal's
+    existing school list can call this directly with no extra lookup."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    target = supabase.table("users").select("user_id,name,school_name").eq("user_id", school_admin_id).execute()
+    if not target.data:
+        raise HTTPException(status_code=404, detail="School admin not found")
+    t = target.data[0]
+    return await _compute_school_admin_analytics(
+        user_id=t["user_id"],
+        school_name=t.get("school_name", ""),
+        admin_display_name=t.get("name"),
+        period=period,
+        classroom_id=classroom_id,
+    )
 
 @api_router.get("/school-admin/users")
 async def get_school_admin_users(request: Request, limit: int = 200):
