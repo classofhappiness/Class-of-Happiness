@@ -30,6 +30,17 @@ const ZONE_COLORS: Record<string, string> = {
   blue: '#4A90D9', green: '#4CAF73', yellow: '#FFC107', red: '#E05252',
 };
 
+// Real feature Sep 21: picks the community creature's description in the app's current
+// language, falling back to English - the DB has genuinely no description at all for 'en'
+// itself (that's just the plain `description` column), so 'en' and "column missing/empty"
+// both fall through to the same base field, not a special case.
+function localizedDescription(entry: CreatureDetailEntry | null, language: string): string | undefined {
+  if (!entry) return undefined;
+  const key = `description_${language}` as keyof CreatureDetailEntry;
+  const localized = entry[key] as string | null | undefined;
+  return (localized && localized.trim()) ? localized : (entry.description || undefined);
+}
+
 // Real fix Sep 19 (Jono correction to the Sep 19 stage-navigation build): a future/unreached
 // stage previewing in full colour made a child feel they already had something they hadn't
 // earned - the opposite of the "genuine encouragement, not gaming" principle from B1. Default
@@ -67,6 +78,21 @@ export interface CreatureDetailEntry {
   stage_image?: string | null;
   stage_emojis?: string[];
   stage_urls?: (string | null)[];
+  // Real feature Sep 21: community creatures only (creature_submissions has no per-language
+  // columns for default creatures' own `stages[].description`, a separate, pre-existing,
+  // unrelated gap - out of scope here). All 10 variants sent through flat, same
+  // send-everything-let-the-client-pick pattern GET /students/{id}/my-creatures already uses
+  // for stage_urls - see localizedDescription() below.
+  description?: string | null;
+  description_ar?: string | null;
+  description_de?: string | null;
+  description_es?: string | null;
+  description_fr?: string | null;
+  description_hi?: string | null;
+  description_it?: string | null;
+  description_pt?: string | null;
+  description_ru?: string | null;
+  description_zh?: string | null;
   current_stage: number;
   max_stage: number;
   is_complete: boolean;
@@ -103,7 +129,7 @@ interface Props {
 type ShopCategory = 'moves' | 'outfits' | 'foods' | 'homes';
 
 export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, colour, studentId, onEvolved }) => {
-  const { t } = useApp();
+  const { t, language } = useApp();
   // Real feature Sep 15 (B1, points economy v2, Jono-approved): "evolve later, from My
   // Creatures" only means something if evolving is actually possible here too - this is the
   // other half of rewards.tsx's Skip button, not a separate feature. current_points/
@@ -384,6 +410,10 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
               </View>
             </View>
 
+            {entry.type === 'community' && !!localizedDescription(entry, language) && (
+              <Text style={s.communityDescription}>{localizedDescription(entry, language)}</Text>
+            )}
+
             <Text style={s.sectionTitle}>{t('creature_collection') || 'Evolution'}</Text>
             <View style={s.evoRow}>
               {Array.from({ length: stageCount }, (_, idx) => {
@@ -553,6 +583,7 @@ const s = StyleSheet.create({
   previewBanner: { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
   previewBannerText: { fontSize: 11.5, fontWeight: '800' },
   sectionTitle: { alignSelf: 'flex-start', fontSize: 15, fontWeight: '900', color: '#1A1A2E', marginBottom: 10 },
+  communityDescription: { alignSelf: 'stretch', textAlign: 'center', fontSize: 13, lineHeight: 18, color: '#555', marginBottom: 14 },
   evoRow: { flexDirection: 'row', gap: 8, width: '100%' },
   evoStage: { flex: 1, alignItems: 'center', padding: 8, borderRadius: 12, backgroundColor: '#F0F0F0', position: 'relative', borderWidth: 2, borderColor: 'transparent' },
   evoLockBadge: { position: 'absolute', top: 4, right: 4, fontSize: 10 },

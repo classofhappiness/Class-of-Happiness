@@ -65,6 +65,18 @@ interface CreatureEntry {
   completed_at?: string | null;
   was_featured?: boolean;
   featured_until?: string | null;
+  // Real feature Sep 21: community creature description, all 10 language variants flat -
+  // see CreatureDetailModal's CreatureDetailEntry/localizedDescription for the full context.
+  description?: string | null;
+  description_ar?: string | null;
+  description_de?: string | null;
+  description_es?: string | null;
+  description_fr?: string | null;
+  description_hi?: string | null;
+  description_it?: string | null;
+  description_pt?: string | null;
+  description_ru?: string | null;
+  description_zh?: string | null;
   // Real feature Sep 15 (progress bar unification): raw current value for the colour-matched
   // evolve-progress bar - points for a default creature, rolling 30-day check-in count for a
   // community one (see EvolutionProgressBar for why these can't share one field/threshold

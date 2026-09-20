@@ -10312,7 +10312,8 @@ async def get_my_creatures(student_id: str, request: Request):
     # attempt which looked gated but never actually was.
     try:
         unlocks_r = supabase.table("creature_unlocks").select(
-            "*, creature_submissions(id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,visibility_scope,status,superadmin_approved_at,ai_moderation_flag)"
+            "*, creature_submissions(id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,visibility_scope,status,superadmin_approved_at,ai_moderation_flag,"
+            "description,description_ar,description_de,description_es,description_fr,description_hi,description_it,description_pt,description_ru,description_zh)"
         ).eq("real_student_id", student_id).execute()
         unlock_rows = unlocks_r.data or []
     except Exception:
@@ -10364,6 +10365,20 @@ async def get_my_creatures(student_id: str, request: Request):
             # stage_emojis does - the photos already exist on the submission row, just weren't
             # threaded through this endpoint before.
             "stage_urls": [cs.get("stage1_url"), cs.get("stage2_url"), cs.get("stage3_url"), cs.get("stage4_url")],
+            # Real feature Sep 21: all 10 language variants passed through flat (same
+            # send-everything-let-the-client-pick pattern as the default CREATURES constant's
+            # own description_pt/es/fr/de/it, just newly actually consumed - see
+            # CreatureDetailModal's localizedDescription()).
+            "description": cs.get("description"),
+            "description_ar": cs.get("description_ar"),
+            "description_de": cs.get("description_de"),
+            "description_es": cs.get("description_es"),
+            "description_fr": cs.get("description_fr"),
+            "description_hi": cs.get("description_hi"),
+            "description_it": cs.get("description_it"),
+            "description_pt": cs.get("description_pt"),
+            "description_ru": cs.get("description_ru"),
+            "description_zh": cs.get("description_zh"),
             # Real feature Sep 15 (progress bar unification): the raw rolling-30-day check-in
             # count - default creature entries above already carry the equivalent "points"
             # field; community creatures need this instead, since they evolve on check-in
