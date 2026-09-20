@@ -1513,5 +1513,10 @@
   "link_consent_line2": "Once connected, you'll be able to see your child's school check-ins here at home.",
   "link_consent_line3": "Sharing your home check-ins with the teacher is a separate choice you make after linking - it's OFF by default, and you can turn it on or off at any time.",
   "link_consent_attestation": "You confirm you are this child's parent or guardian and have the authority to link them.",
-  "link_consent_unlink_note": "You can unlink at any time."
+  "link_consent_unlink_note": "You can unlink at any time.",
+  "activity_over_time": "Activity Over Time",
+  "real_data_current_period": "Real data for the selected period",
+  "daily_checkins": "Daily Check-ins",
+  "new_users": "New Users",
+  "no_checkin_data_period": "No check-in data for this period."
 }

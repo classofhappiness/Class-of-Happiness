@@ -1615,5 +1615,10 @@
   "link_consent_line2": "连接后，您将能在家中查看孩子在学校的打卡记录。",
   "link_consent_line3": "与老师分享您在家的打卡记录是连接后的另一项独立选择——默认关闭，您可以随时开启或关闭。",
   "link_consent_attestation": "您确认您是该孩子的父母或监护人，并有权将其连接。",
-  "link_consent_unlink_note": "您可以随时取消连接。"
+  "link_consent_unlink_note": "您可以随时取消连接。",
+  "activity_over_time": "活动趋势",
+  "real_data_current_period": "所选时段的真实数据",
+  "daily_checkins": "每日打卡",
+  "new_users": "新用户",
+  "no_checkin_data_period": "该时段没有打卡数据。"
 }

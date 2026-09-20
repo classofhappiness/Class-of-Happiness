@@ -1769,5 +1769,10 @@
   "link_consent_line2": "Una vez conectado, podrás ver los check-ins escolares de tu hijo/a aquí en casa.",
   "link_consent_line3": "Compartir tus check-ins de casa con el profesor es una decisión separada que tomas después de vincular - está DESACTIVADA por defecto, y puedes activarla o desactivarla en cualquier momento.",
   "link_consent_attestation": "Confirmas que eres el padre, madre o tutor/a de este niño/a y tienes autoridad para vincularlo.",
-  "link_consent_unlink_note": "Puedes desvincular en cualquier momento."
+  "link_consent_unlink_note": "Puedes desvincular en cualquier momento.",
+  "activity_over_time": "Actividad a lo Largo del Tiempo",
+  "real_data_current_period": "Datos reales del período seleccionado",
+  "daily_checkins": "Check-ins Diarios",
+  "new_users": "Nuevos Usuarios",
+  "no_checkin_data_period": "No hay datos de check-in para este período."
 }

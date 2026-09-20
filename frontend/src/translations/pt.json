@@ -1769,5 +1769,10 @@
   "link_consent_line2": "Depois de ligado, poderá ver os check-ins escolares do seu filho/a aqui em casa.",
   "link_consent_line3": "Partilhar os seus check-ins de casa com o professor é uma escolha separada feita após a ligação - está DESLIGADA por predefinição, e pode ativá-la ou desativá-la a qualquer momento.",
   "link_consent_attestation": "Confirma que é o pai, mãe ou encarregado de educação desta criança e tem autoridade para a ligar.",
-  "link_consent_unlink_note": "Pode desligar a qualquer momento."
+  "link_consent_unlink_note": "Pode desligar a qualquer momento.",
+  "activity_over_time": "Atividade ao Longo do Tempo",
+  "real_data_current_period": "Dados reais do período selecionado",
+  "daily_checkins": "Check-ins Diários",
+  "new_users": "Novos Utilizadores",
+  "no_checkin_data_period": "Sem dados de check-in para este período."
 }

@@ -18,6 +18,7 @@ import { registerForPushNotifications } from '../../src/utils/notifications';
 import { dismissIncidentAlert } from '../../src/utils/notifeeIncidents';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ColourCycleLogo } from '../../src/components/ColourCycleLogo';
+import { BarChart } from 'react-native-gifted-charts';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const INDIGO = '#5C6BC0';
@@ -1584,6 +1585,27 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
   const tzc = Object.values(zc).reduce((a: any, b: any) => a + b, 0) as number;
   const tc = stats?.teacher_zone_counts || {};
   const ttc = Object.values(tc).reduce((a: any, b: any) => a + b, 0) as number;
+
+  // Real fix Sep 20 (confirmed genuine regression, not "never built" - see commit ffc7e0b4,
+  // 2026-04-19, "Fix PDF upload, wellbeing alerts, admin dashboard..."): that commit rewrote
+  // this whole Overview tab and dropped two real BarCharts (daily check-ins, new user
+  // growth) along with everything else it replaced. The backend endpoint they read from -
+  // GET /admin/analytics, via adminApi.getAnalytics() - was never touched and still returns
+  // both series correctly (confirmed live); only the frontend chart + its fetch call were
+  // ever deleted, and nothing has called this endpoint since. Rebuilt using
+  // react-native-gifted-charts (the same library and usage pattern already proven on
+  // teacher/student-detail.tsx's PieChart/BarChart - matching the app's existing charting
+  // approach rather than introducing a second one), fed by the exact same real data the
+  // endpoint has always returned - not the old component's code verbatim, since its data
+  // shape mostly survived but the surrounding dashboard has changed completely since April.
+  const [analytics, setAnalytics] = useState<any>(null);
+  useEffect(() => {
+    if (!authToken) return;
+    apiCall(`/admin/analytics?period=${statsPeriod}`, authToken)
+      .then(setAnalytics)
+      .catch(() => setAnalytics(null));
+  }, [authToken, statsPeriod]);
+
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   // Real feature Aug 28 (item 6): multi-school PDF picker - the backend now genuinely
   // breaks out a comparison + per-school sections instead of one flat total, so the app
@@ -1702,6 +1724,64 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
           <StatRow label={t('checkins_today') || 'Check-ins today'} value={stats?.checkins_today} icon="favorite" color="#4A90D9" />
           <StatRow label={t('home_checkins_total') || 'Home check-ins total'} value={stats?.home_checkins_total} icon="home" color="#5C6BC0" />
           <StatRow label={t('linked_families') || 'Linked families'} value={stats?.linked_families} icon="family-restroom" color="#4CAF50" />
+        </SectionCard>
+
+        {/* Real fix Sep 20 (restored regression, see the analytics fetch above for the full
+            story): daily check-ins and new-user-growth bar charts, both real data from
+            GET /admin/analytics, neither shown anywhere on this dashboard since April. */}
+        <SectionCard title={t('activity_over_time') || 'Activity Over Time'} subtitle={t('real_data_current_period') || 'Real data for the selected period'} icon="show-chart" color="#4A90D9">
+          {analytics?.daily_checkins?.length > 0 ? (
+            <>
+              <Text style={s.chartLabel}>{t('daily_checkins') || 'Daily Check-ins'}</Text>
+              <BarChart
+                data={analytics.daily_checkins.slice(-14).map((d: any) => ({
+                  label: d.date.slice(5),
+                  value: d.count,
+                }))}
+                barWidth={18}
+                spacing={10}
+                roundedTop
+                roundedBottom
+                xAxisThickness={0}
+                yAxisThickness={0}
+                yAxisTextStyle={{ color: '#666', fontSize: 10 }}
+                xAxisLabelTextStyle={{ color: '#999', fontSize: 8 }}
+                noOfSections={4}
+                maxValue={Math.max(1, ...analytics.daily_checkins.map((d: any) => d.count)) + 1}
+                frontColor="#4CAF50"
+                isAnimated
+                barBorderRadius={4}
+                height={140}
+              />
+            </>
+          ) : (
+            <Text style={s.hint}>{t('no_checkin_data_period') || 'No check-in data for this period.'}</Text>
+          )}
+          {analytics?.user_growth?.length > 0 && (
+            <>
+              <Text style={[s.chartLabel, { marginTop: 16 }]}>{t('new_users') || 'New Users'}</Text>
+              <BarChart
+                data={analytics.user_growth.slice(-14).map((d: any) => ({
+                  label: d.date.slice(5),
+                  value: d.new_users,
+                }))}
+                barWidth={18}
+                spacing={10}
+                roundedTop
+                roundedBottom
+                xAxisThickness={0}
+                yAxisThickness={0}
+                yAxisTextStyle={{ color: '#666', fontSize: 10 }}
+                xAxisLabelTextStyle={{ color: '#999', fontSize: 8 }}
+                noOfSections={4}
+                maxValue={Math.max(1, ...analytics.user_growth.map((d: any) => d.new_users)) + 1}
+                frontColor="#2196F3"
+                isAnimated
+                barBorderRadius={4}
+                height={140}
+              />
+            </>
+          )}
         </SectionCard>
 
         {/* Subscriptions — real feature Aug 26 (item 10): active_parents/active_teachers/
@@ -2842,6 +2922,7 @@ const s = StyleSheet.create({
   galleryPillCount: { fontSize: 11, color: '#888', marginTop: 2 },
   // Misc
   hint: { fontSize: 12, color: '#888', lineHeight: 18 },
+  chartLabel: { fontSize: 12, fontWeight: '700', color: '#333', marginBottom: 8 },
   sectionHint: { fontSize: 12, color: '#888', marginBottom: 12 },
   zonePill: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   zonePillText: { fontSize: 11, fontWeight: '600' },

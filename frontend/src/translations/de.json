@@ -1780,5 +1780,10 @@
   "link_consent_line2": "Nach der Verbindung kannst du die Schul-Check-ins deines Kindes hier zu Hause sehen.",
   "link_consent_line3": "Das Teilen deiner Check-ins von zu Hause mit der Lehrkraft ist eine separate Entscheidung, die du nach der Verknüpfung triffst - standardmäßig deaktiviert, jederzeit ein- oder ausschaltbar.",
   "link_consent_attestation": "Du bestätigst, dass du Elternteil oder Erziehungsberechtigter dieses Kindes bist und befugt bist, es zu verknüpfen.",
-  "link_consent_unlink_note": "Du kannst die Verknüpfung jederzeit aufheben."
+  "link_consent_unlink_note": "Du kannst die Verknüpfung jederzeit aufheben.",
+  "activity_over_time": "Aktivität im Zeitverlauf",
+  "real_data_current_period": "Echte Daten für den ausgewählten Zeitraum",
+  "daily_checkins": "Tägliche Check-ins",
+  "new_users": "Neue Nutzer",
+  "no_checkin_data_period": "Keine Check-in-Daten für diesen Zeitraum."
 }
