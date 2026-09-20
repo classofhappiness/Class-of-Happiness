@@ -14075,7 +14075,46 @@ async def redeem_school_provisioning_code(body: RedeemSchoolCodeRequest, request
         "used_by_user_id": user_id,
     }).eq("id", row["id"]).execute()
 
+    # Real feature Sep 20: notify Jono the moment a school activates, so he knows exactly
+    # when without having to check the portal. Same defensive pattern as every other Resend
+    # send in this file (_send_password_reset_email etc.) - never raises, a broken/unconfigured
+    # email provider must not break the redemption itself, which has already fully succeeded
+    # by this point.
+    _send_school_activation_notification(school_name, tier, user.get("email", ""))
+
     return {"status": "provisioned", "school_name": school_name, "tier": tier}
+
+def _send_school_activation_notification(school_name: str, tier: str, redeemed_by_email: str) -> tuple:
+    """Notify Jono when a school-provisioning code is redeemed - see
+    redeem_school_provisioning_code above. Never raises. Hardcoded recipient (Jono's own
+    inbox) rather than a configurable list - there is exactly one person who needs this today,
+    matching the "small, contained" scope this was asked for."""
+    if not RESEND_API_KEY:
+        return False, "RESEND_API_KEY not configured"
+    tier_label = {"school_starter": "Starter", "school_standard": "Standard", "school_plus": "Plus"}.get(tier, tier)
+    try:
+        result = resend.Emails.send({
+            "from": RESEND_FROM_EMAIL,
+            "to": ["jono@classofhappiness.com"],
+            "subject": f"🎉 {school_name} just activated ({tier_label})",
+            "html": f"""
+                <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+                  <h2 style="color:#1A1A2E">A school just activated</h2>
+                  <p style="color:#333;font-size:15px">
+                    <b>{school_name}</b> redeemed a provisioning code and is now live at the
+                    <b>{tier_label}</b> tier.
+                  </p>
+                  <p style="color:#888;font-size:13px">
+                    Redeemed by: {redeemed_by_email or 'unknown email'}
+                  </p>
+                </div>
+            """,
+        })
+        email_id = result.get("id") if isinstance(result, dict) else getattr(result, "id", None)
+        return True, email_id or "sent"
+    except Exception as e:
+        logger.error(f"[school-activation-notify] send failed for {school_name}: {e}")
+        return False, str(e)[:150]
 
 
 # ── EXPORT FORMAT PICKER (Phase 2.5 item 4) ─────────────────────────────
