@@ -393,6 +393,7 @@
   "link_children_school": "关联孩子的学校，即可在此查看他们的打卡记录",
   "linked_exclaim": "已关联！",
   "linked_students_filter": "已关联",
+  "select_filter_linked": "已关联",
   "linking": "关联中...",
   "loading": "加载中...",
   "loading_creature": "正在加载你的生物……",
