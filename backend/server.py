@@ -5151,8 +5151,40 @@ def _admin_is_active(admin_id: str) -> bool:
         return False
     exp = admin.get("subscription_expires_at")
     if exp:
-        return datetime.fromisoformat(exp.replace("Z", "+00:00")) > datetime.now(timezone.utc)
+        if datetime.fromisoformat(exp.replace("Z", "+00:00")) <= datetime.now(timezone.utc):
+            return False
+    # Real feature Sep 20 (subscription renewal system, Jono-approved policy): a school
+    # whose renewal date has passed by more than the grace period loses school-wide coverage
+    # here - the ONE shared choke point _parent_is_school_covered/_teacher_is_school_covered
+    # both already call, so this applies everywhere school coverage is checked with no
+    # duplicate logic. Deliberately narrow in effect: this function only ever answers "is
+    # this school's plan active" for the free-tier-cap-waiving checks - it does not touch
+    # login, does not delete or hide any data, and a fresh provisioning code redemption
+    # clears it instantly (see _school_grace_period_expired below for the exact rule).
+    if _school_grace_period_expired(admin_id):
+        return False
     return True
+
+# Real feature Sep 20 (subscription renewal system, Jono-approved policy: 10-day grace
+# period past school_profiles.subscription_renewal_date before school coverage lapses - long
+# enough to cover a slow real-world renewal process given Jono's personally-managed sales
+# relationship with each school, short enough to keep real commercial pressure). A school
+# with no renewal_date set (every school today, including both real ones) is never
+# considered expired by this check - only a school that HAD a real date and passed it by
+# more than the grace period.
+SCHOOL_RENEWAL_GRACE_DAYS = 10
+
+def _school_grace_period_expired(school_admin_id: str) -> bool:
+    try:
+        r = supabase.table("school_profiles").select("subscription_renewal_date").eq("school_admin_user_id", school_admin_id).execute()
+        if not r.data or not r.data[0].get("subscription_renewal_date"):
+            return False
+        renewal = datetime.fromisoformat(r.data[0]["subscription_renewal_date"].replace("Z", "+00:00"))
+        grace_end = renewal + timedelta(days=SCHOOL_RENEWAL_GRACE_DAYS)
+        return datetime.now(timezone.utc) > grace_end
+    except Exception as e:
+        logger.warning(f"_school_grace_period_expired check failed for {school_admin_id}: {e}")
+        return False
 
 def _any_school_admin_active_by_name(school_name: str) -> bool:
     """Same expiry-aware check as _admin_is_active, for the school_name dual-match fallback
@@ -13853,7 +13885,21 @@ async def update_school_profile(profile_id: str, request: Request):
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
     try:
         result = supabase.table("school_profiles").update(updates).eq("id", profile_id).execute()
-        return result.data[0] if result.data else updates
+        row = result.data[0] if result.data else updates
+        # Real fix Sep 20 (subscription renewal system): school_profiles.subscription_renewal_date
+        # is the source of truth for a school's renewal date, but the actual coverage-gating
+        # checks (_admin_is_active, called by both _parent_is_school_covered and
+        # _teacher_is_school_covered) also read users.subscription_expires_at on the school
+        # admin's own row - a real, live-confirmed gap where editing the renewal date here
+        # never touched that field, so a real renewal via the portal wouldn't actually extend
+        # anyone's access. Kept in lockstep here: any edit that sets a renewal date also syncs
+        # subscription_expires_at on that school's admin account to match. Skipped if this
+        # profile has no linked school_admin_user_id yet - nothing to sync to.
+        if "subscription_renewal_date" in updates and updates["subscription_renewal_date"] and row.get("school_admin_user_id"):
+            supabase.table("users").update({
+                "subscription_expires_at": updates["subscription_renewal_date"],
+            }).eq("user_id", row["school_admin_user_id"]).execute()
+        return row
     except Exception as e:
         logger.error(f"update_school_profile error: {e}")
         raise HTTPException(status_code=500, detail=f"Could not update school profile: {str(e)[:150]}")
@@ -14053,10 +14099,21 @@ async def redeem_school_provisioning_code(body: RedeemSchoolCodeRequest, request
     tier = row["tier"]
     user_id = user["user_id"]
 
+    # Real fix Sep 20 (subscription renewal system, found live while building the grace-
+    # period check): this used to leave both users.subscription_expires_at and
+    # school_profiles.subscription_renewal_date unset at redemption - since _admin_is_active
+    # treats a null subscription_expires_at as "active forever" when subscription_status is
+    # active, a freshly-provisioned school_admin was granted permanent coverage regardless of
+    # any renewal date, and the two fields could never be in sync from day one. Default term:
+    # 1 year from redemption, set on BOTH fields together so they start in lockstep - see
+    # update_school_profile's own sync logic for how they're kept that way afterward.
+    default_expiry = (datetime.now(timezone.utc) + timedelta(days=365)).isoformat()
+
     supabase.table("users").update({
         "role": "school_admin",
         "school_name": school_name,
         "subscription_status": "active",
+        "subscription_expires_at": default_expiry,
     }).eq("user_id", user_id).execute()
 
     # Real reuse Sep 20: same idempotent helper /admin/create-school-admin already uses -
@@ -14066,6 +14123,7 @@ async def redeem_school_provisioning_code(body: RedeemSchoolCodeRequest, request
     _ensure_school_profile(user_id, school_name)
     supabase.table("school_profiles").update({
         "subscription_package": tier,
+        "subscription_renewal_date": default_expiry,
         "status": "active",
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }).eq("school_admin_user_id", user_id).execute()
