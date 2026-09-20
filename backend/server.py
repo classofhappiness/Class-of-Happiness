@@ -13441,6 +13441,66 @@ async def get_superadmin_school_analytics(school_admin_id: str, request: Request
         classroom_id=classroom_id,
     )
 
+def _school_analytics_metric_rows(d: dict) -> list:
+    """Flattens a _compute_school_admin_analytics result into the same label/value pairs
+    the portal's per-school card already shows (renderSchoolAnalyticsHTML) - shared by both
+    the single-school PDF export and the cross-school comparison export below, so the two
+    exports and the on-screen card can never silently drift apart."""
+    def zone_pct(dist, key):
+        total = sum((dist or {}).get(k, 0) for k in ("blue", "green", "yellow", "red"))
+        count = (dist or {}).get(key, 0)
+        pct = round((count / total) * 100) if total else 0
+        return f"{pct}% ({count})"
+    zd = d.get("zone_distribution") or {}
+    tzd = d.get("teacher_zone_distribution") or {}
+    return [
+        ("Students", d.get("total_students", 0)),
+        ("Teachers", d.get("total_teachers", 0)),
+        (f"Check-ins ({d.get('period_days', 30)}d)", d.get("total_checkins", 0)),
+        ("Student Mood - Blue", zone_pct(zd, "blue")),
+        ("Student Mood - Green", zone_pct(zd, "green")),
+        ("Student Mood - Yellow", zone_pct(zd, "yellow")),
+        ("Student Mood - Red", zone_pct(zd, "red")),
+        ("Teacher Check-in Rate", f"{d.get('teacher_checkin_rate', 0)}%"),
+        ("Teacher Mood - Blue", zone_pct(tzd, "blue")),
+        ("Teacher Mood - Green", zone_pct(tzd, "green")),
+        ("Teacher Mood - Yellow", zone_pct(tzd, "yellow")),
+        ("Teacher Mood - Red", zone_pct(tzd, "red")),
+        ("Home Check-ins", d.get("home_checkins_total", 0)),
+        ("Linked Families", d.get("linked_families", 0)),
+        ("Creatures Obtained", d.get("creatures_obtained", 0)),
+        ("Creatures Fully Evolved", d.get("creatures_fully_evolved", 0)),
+        ("Avg. Default-Creature Stage", d.get("default_creatures_avg_stage", 0)),
+    ]
+
+async def _resolve_school_admin_analytics(school_admin_id: str, period: int, classroom_id: str = None) -> tuple:
+    target = supabase.table("users").select("user_id,name,school_name").eq("user_id", school_admin_id).execute()
+    if not target.data:
+        raise HTTPException(status_code=404, detail="School admin not found")
+    t = target.data[0]
+    school_name = t.get("school_name") or "School"
+    d = await _compute_school_admin_analytics(
+        user_id=t["user_id"], school_name=school_name, admin_display_name=t.get("name"),
+        period=period, classroom_id=classroom_id,
+    )
+    return school_name, d
+
+@api_router.get("/admin/school-analytics/{school_admin_id}/pdf")
+async def export_school_analytics_pdf(school_admin_id: str, request: Request, period: int = 30, format: str = "pdf"):
+    """Real feature Sep 20 (analytics extension 2b): single-school PDF export of the same
+    7-metric snapshot the portal's per-school card shows. Deliberately reuses the generic
+    _build_export_response/_export_to_pdf machinery (indigo branding, repeatRows table)
+    already proven by /school-admin/wellbeing-tracker/export, rather than hand-rolling a
+    second bespoke ReportLab layout alongside the older /reports/pdf/school-overview one."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    school_name, d = await _resolve_school_admin_analytics(school_admin_id, period)
+    rows = [{"metric": label, "value": value} for label, value in _school_analytics_metric_rows(d)]
+    columns = [("metric", "Metric"), ("value", "Value")]
+    safe_name = re.sub(r"[^A-Za-z0-9_-]+", "_", school_name).strip("_") or "school"
+    return _build_export_response(format, f"{school_name} - Analytics Snapshot", columns, rows, f"{safe_name}_analytics")
+
 @api_router.get("/school-admin/users")
 async def get_school_admin_users(request: Request, limit: int = 200):
     """School admin's own scoped user list - teachers/parents linked via school_admin_id.
