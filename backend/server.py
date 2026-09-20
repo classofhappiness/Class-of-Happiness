@@ -10951,7 +10951,16 @@ async def get_admin_analytics(request: Request, period: int = 30, classroom_id: 
     users_result = supabase.table("users").select("*").execute()
     students_result = supabase.table("students").select("*").execute()
     classrooms_result = supabase.table("classrooms").select("*").execute()
-    resources_result = supabase.table("resources").select("*").execute()
+    # Real fix Sep 20 (live incident, found while restoring the dashboard charts this
+    # endpoint feeds): only title/download_count are ever read below (resource_engagement) -
+    # select("*") was also pulling the `content` column, confirmed live at ~1.7MB of base64
+    # PDF data for a single row. Across 71 real rows that's enough to blow a Postgres
+    # statement timeout outright ("canceling statement due to statement timeout") - this
+    # endpoint has been silently 500ing since at least whenever `content` grew this large,
+    # unnoticed because nothing has called it since the chart that used it was removed in
+    # April. Same scoped-select pattern already used elsewhere for this exact reason (see
+    # GET /teacher-resources below).
+    resources_result = supabase.table("resources").select("title,download_count").execute()
 
     logs = logs_result.data or []
     users = users_result.data or []
