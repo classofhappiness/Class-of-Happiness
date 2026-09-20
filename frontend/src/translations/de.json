@@ -1774,5 +1774,11 @@
   "change_pin_error": "PIN konnte nicht geändert werden.",
   "previewing_stage": "Vorschau Stufe {n}",
   "back_to_current": "zum Zurückkehren tippen",
-  "have_school_code": "Hast du einen Code von der Schule deines Kindes?"
+  "have_school_code": "Hast du einen Code von der Schule deines Kindes?",
+  "link_consent_title": "Emotionale Verfolgung deines Kindes teilen?",
+  "link_consent_line1": "Die Eingabe eines Codes von der Schule deines Kindes verbindet sein Konto hier mit dem Schuldatensatz.",
+  "link_consent_line2": "Nach der Verbindung kannst du die Schul-Check-ins deines Kindes hier zu Hause sehen.",
+  "link_consent_line3": "Das Teilen deiner Check-ins von zu Hause mit der Lehrkraft ist eine separate Entscheidung, die du nach der Verknüpfung triffst - standardmäßig deaktiviert, jederzeit ein- oder ausschaltbar.",
+  "link_consent_attestation": "Du bestätigst, dass du Elternteil oder Erziehungsberechtigter dieses Kindes bist und befugt bist, es zu verknüpfen.",
+  "link_consent_unlink_note": "Du kannst die Verknüpfung jederzeit aufheben."
 }

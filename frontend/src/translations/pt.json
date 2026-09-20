@@ -1763,5 +1763,11 @@
   "change_pin_error": "Não foi possível alterar o PIN.",
   "previewing_stage": "Pré-visualização da Fase {n}",
   "back_to_current": "toque para voltar",
-  "have_school_code": "Tem um código da escola do seu filho?"
+  "have_school_code": "Tem um código da escola do seu filho?",
+  "link_consent_title": "Partilhar a monitorização emocional do seu filho/a?",
+  "link_consent_line1": "Introduzir um código da escola do seu filho/a irá ligar a conta dele/a aqui ao registo escolar.",
+  "link_consent_line2": "Depois de ligado, poderá ver os check-ins escolares do seu filho/a aqui em casa.",
+  "link_consent_line3": "Partilhar os seus check-ins de casa com o professor é uma escolha separada feita após a ligação - está DESLIGADA por predefinição, e pode ativá-la ou desativá-la a qualquer momento.",
+  "link_consent_attestation": "Confirma que é o pai, mãe ou encarregado de educação desta criança e tem autoridade para a ligar.",
+  "link_consent_unlink_note": "Pode desligar a qualquer momento."
 }

@@ -1763,5 +1763,11 @@
   "change_pin_error": "No se pudo cambiar el PIN.",
   "previewing_stage": "Vista previa de la Etapa {n}",
   "back_to_current": "toca para volver",
-  "have_school_code": "¿Tienes un código de la escuela de tu hijo?"
+  "have_school_code": "¿Tienes un código de la escuela de tu hijo?",
+  "link_consent_title": "¿Compartir el seguimiento emocional de tu hijo/a?",
+  "link_consent_line1": "Introducir un código de la escuela de tu hijo/a conectará su cuenta aquí con su registro escolar.",
+  "link_consent_line2": "Una vez conectado, podrás ver los check-ins escolares de tu hijo/a aquí en casa.",
+  "link_consent_line3": "Compartir tus check-ins de casa con el profesor es una decisión separada que tomas después de vincular - está DESACTIVADA por defecto, y puedes activarla o desactivarla en cualquier momento.",
+  "link_consent_attestation": "Confirmas que eres el padre, madre o tutor/a de este niño/a y tienes autoridad para vincularlo.",
+  "link_consent_unlink_note": "Puedes desvincular en cualquier momento."
 }

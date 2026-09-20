@@ -1507,5 +1507,11 @@
   "change_pin_error": "Could not change PIN.",
   "previewing_stage": "Previewing Stage {n}",
   "back_to_current": "tap to return",
-  "have_school_code": "Have a code from your child's school?"
+  "have_school_code": "Have a code from your child's school?",
+  "link_consent_title": "Share Your Child's Emotion Tracking?",
+  "link_consent_line1": "Entering a code from your child's school will connect their account here to their school record.",
+  "link_consent_line2": "Once connected, you'll be able to see your child's school check-ins here at home.",
+  "link_consent_line3": "Sharing your home check-ins with the teacher is a separate choice you make after linking - it's OFF by default, and you can turn it on or off at any time.",
+  "link_consent_attestation": "You confirm you are this child's parent or guardian and have the authority to link them.",
+  "link_consent_unlink_note": "You can unlink at any time."
 }

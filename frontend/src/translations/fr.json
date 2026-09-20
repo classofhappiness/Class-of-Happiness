@@ -1774,5 +1774,11 @@
   "change_pin_error": "Impossible de modifier le code PIN.",
   "previewing_stage": "Aperçu de l'étape {n}",
   "back_to_current": "toucher pour revenir",
-  "have_school_code": "Avez-vous un code de l'école de votre enfant ?"
+  "have_school_code": "Avez-vous un code de l'école de votre enfant ?",
+  "link_consent_title": "Partager le suivi émotionnel de votre enfant ?",
+  "link_consent_line1": "Saisir un code de l'école de votre enfant connectera son compte ici à son dossier scolaire.",
+  "link_consent_line2": "Une fois connecté, vous pourrez voir les check-ins scolaires de votre enfant ici, à la maison.",
+  "link_consent_line3": "Partager vos check-ins à domicile avec l'enseignant est un choix distinct que vous faites après la liaison - désactivé par défaut, et modifiable à tout moment.",
+  "link_consent_attestation": "Vous confirmez être le parent ou tuteur de cet enfant et avoir l'autorité de le lier.",
+  "link_consent_unlink_note": "Vous pouvez dissocier à tout moment."
 }

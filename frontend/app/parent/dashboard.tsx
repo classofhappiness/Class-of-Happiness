@@ -238,6 +238,11 @@ export default function ParentDashboard() {
   
   // Modals
   const [showLinkModal, setShowLinkModal] = useState(false);
+  // Real feature Sep 20 (Jono-approved wording, real pre-link consent gate): separate from
+  // the OTHER two modals' own `disclaimerAccepted` state - reusing that one would leak
+  // acceptance across unrelated flows (e.g. accepting the Share-to-Teacher disclaimer would
+  // silently pre-accept this one too, or vice versa).
+  const [linkConsentAccepted, setLinkConsentAccepted] = useState(false);
   const [showAddFamilyModal, setShowAddFamilyModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
@@ -784,13 +789,15 @@ export default function ParentDashboard() {
 
   const handleLinkChild = async () => {
     if (!linkCode.trim()) return;
-    // Consent is shown after linking via the sharing prompt
-    // No gate needed here
+    // Real fix Sep 20: this function is now only reachable after linkConsentAccepted is
+    // true (the modal doesn't render the code field or this button otherwise) - real,
+    // required, pre-link consent, not the post-hoc-only setup this comment used to describe.
     setLinking(true);
     try {
       const result = await parentApi.linkChild(linkCode.trim());
       const childName = result.student_name || t('child') || 'Child';
       setShowLinkModal(false);
+      setLinkConsentAccepted(false);
       setLinkCode('');
       fetchData();
       // Show sharing consent after linking
@@ -1488,36 +1495,77 @@ export default function ParentDashboard() {
 
 
       {/* Link Child Modal */}
-      <Modal visible={showLinkModal} transparent animationType="slide" onRequestClose={() => setShowLinkModal(false)}>
+      {/* Real feature Sep 20 (Jono-approved wording): a real pre-link consent step, shown
+          BEFORE the code-entry field and required before /parent/link-child can be called at
+          all - the previous only consent-adjacent UI was a post-hoc Alert shown AFTER the
+          link had already completed. Same two-step disclaimer pattern already used by the
+          other two link-related modals (Share to Teacher, teacher's generate-code screen),
+          own separate linkConsentAccepted state so accepting one can't silently pre-accept
+          another. The existing post-link "Keep Private"/"Share with Teacher" Alert
+          (handleLinkChild below) is untouched by this - Jono's explicit scope call: that's a
+          separate, already-correct ongoing sharing-direction toggle, not a consent gate, and
+          this new screen is additive, not a replacement for it. */}
+      <Modal visible={showLinkModal} transparent animationType="slide" onRequestClose={() => { setShowLinkModal(false); setLinkConsentAccepted(false); }}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { maxHeight: '85%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('link_child_school') || 'Link Child from School'}</Text>
-              <TouchableOpacity onPress={() => setShowLinkModal(false)}>
+              <TouchableOpacity onPress={() => { setShowLinkModal(false); setLinkConsentAccepted(false); }}>
                 <MaterialIcons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalText}>
-              {t('enter_code') || "Enter the 6-character code that your child's teacher provided. This will let you see your child's emotion check-ins from school."}
-            </Text>
-            <TextInput
-              style={styles.codeInput}
-              value={linkCode}
-              onChangeText={(text) => setLinkCode(text.toUpperCase())}
-              placeholder="ABC123"
-              placeholderTextColor="#999"
-              autoCapitalize="characters"
-              maxLength={6}
-            />
-            <TouchableOpacity
-              style={[styles.submitButton, linking && styles.submitButtonDisabled]}
-              onPress={handleLinkChild}
-              disabled={linking || linkCode.length !== 6}
-            >
-              <Text style={styles.submitButtonText}>
-                {linking ? (t('linking') || 'Linking...') : (t('link_child') || t('link_child')||'Link Child')}
-              </Text>
-            </TouchableOpacity>
+            {!linkConsentAccepted ? (
+              <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={true}>
+                <Text style={styles.disclaimerTitle}>{t('link_consent_title') || "Share Your Child's Emotion Tracking?"}</Text>
+                <Text style={styles.disclaimerText}>{t('link_consent_line1') || "Entering a code from your child's school will connect their account here to their school record."}</Text>
+                <Text style={styles.disclaimerText}>{t('link_consent_line2') || "Once connected, you'll be able to see your child's school check-ins here at home."}</Text>
+                <Text style={styles.disclaimerText}>{t('link_consent_line3') || "Sharing your home check-ins with the teacher is a separate choice you make after linking - it's OFF by default, and you can turn it on or off at any time."}</Text>
+                {/* Tweak 1 (Jono): the legal attestation gets its own visually distinct line,
+                    not buried inside a longer paragraph where it could be skimmed past. */}
+                <Text style={[styles.disclaimerText, { fontWeight: '800', color: '#1A1A2E', marginTop: 10 }]}>
+                  {t('link_consent_attestation') || 'You confirm you are this child\'s parent or guardian and have the authority to link them.'}
+                </Text>
+                <Text style={styles.disclaimerText}>{t('link_consent_unlink_note') || 'You can unlink at any time.'}</Text>
+                <View style={styles.disclaimerButtons}>
+                  <TouchableOpacity
+                    style={[styles.submitButton, { backgroundColor: '#999', flex: 1, marginRight: 8 }]}
+                    onPress={() => { setShowLinkModal(false); setLinkConsentAccepted(false); }}
+                  >
+                    <Text style={styles.submitButtonText}>{t('cancel') || 'Cancel'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.submitButton, { flex: 1.5 }]}
+                    onPress={() => setLinkConsentAccepted(true)}
+                  >
+                    <Text style={styles.submitButtonText}>{t('i_agree_and_continue') || 'I Agree & Continue'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            ) : (
+              <>
+                <Text style={styles.modalText}>
+                  {t('enter_code') || "Enter the 6-character code that your child's teacher provided. This will let you see your child's emotion check-ins from school."}
+                </Text>
+                <TextInput
+                  style={styles.codeInput}
+                  value={linkCode}
+                  onChangeText={(text) => setLinkCode(text.toUpperCase())}
+                  placeholder="ABC123"
+                  placeholderTextColor="#999"
+                  autoCapitalize="characters"
+                  maxLength={6}
+                />
+                <TouchableOpacity
+                  style={[styles.submitButton, linking && styles.submitButtonDisabled]}
+                  onPress={handleLinkChild}
+                  disabled={linking || linkCode.length !== 6}
+                >
+                  <Text style={styles.submitButtonText}>
+                    {linking ? (t('linking') || 'Linking...') : (t('link_child') || t('link_child')||'Link Child')}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Modal>

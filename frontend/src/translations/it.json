@@ -1774,5 +1774,11 @@
   "change_pin_error": "Impossibile modificare il PIN.",
   "previewing_stage": "Anteprima Fase {n}",
   "back_to_current": "tocca per tornare",
-  "have_school_code": "Hai un codice dalla scuola di tuo figlio?"
+  "have_school_code": "Hai un codice dalla scuola di tuo figlio?",
+  "link_consent_title": "Condividere il monitoraggio emotivo di tuo figlio/a?",
+  "link_consent_line1": "Inserendo un codice della scuola di tuo figlio/a collegherai il suo account qui al suo record scolastico.",
+  "link_consent_line2": "Una volta collegato, potrai vedere i check-in scolastici di tuo figlio/a qui a casa.",
+  "link_consent_line3": "Condividere i tuoi check-in di casa con l'insegnante è una scelta separata che fai dopo il collegamento - è disattivata per impostazione predefinita e puoi attivarla o disattivarla in qualsiasi momento.",
+  "link_consent_attestation": "Confermi di essere il genitore o tutore di questo bambino/a e di avere l'autorità per collegarlo.",
+  "link_consent_unlink_note": "Puoi scollegare in qualsiasi momento."
 }

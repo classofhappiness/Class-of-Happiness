@@ -1609,5 +1609,11 @@
   "change_pin_error": "无法更改PIN码。",
   "previewing_stage": "预览第{n}阶段",
   "back_to_current": "点击返回",
-  "have_school_code": "你有孩子学校提供的代码吗？"
+  "have_school_code": "你有孩子学校提供的代码吗？",
+  "link_consent_title": "要分享您孩子的情绪追踪吗？",
+  "link_consent_line1": "输入孩子学校提供的代码，将把他们的账户与学校记录连接起来。",
+  "link_consent_line2": "连接后，您将能在家中查看孩子在学校的打卡记录。",
+  "link_consent_line3": "与老师分享您在家的打卡记录是连接后的另一项独立选择——默认关闭，您可以随时开启或关闭。",
+  "link_consent_attestation": "您确认您是该孩子的父母或监护人，并有权将其连接。",
+  "link_consent_unlink_note": "您可以随时取消连接。"
 }
