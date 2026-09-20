@@ -15913,6 +15913,120 @@ async def _support_requests_rebuzz_loop():
         except Exception as e:
             logger.error(f"[support_requests rebuzz] loop error: {e}")
 
+# Real feature Sep 20 (subscription renewal system, Jono-approved policy): 30-day and 7-day
+# reminder emails to Jono before a school's renewal_date, and a 14-day post-activation
+# check-in nudge. Deliberately once-per-day granularity, not new tracking columns to record
+# "has this reminder already been sent" - an exact integer day-count match (days_left == 30,
+# not a range) checked once per day means each threshold is only ever crossed once per school
+# in practice. Small, honest residual risk: a service restart landing in the exact ~24h
+# window a threshold is true could in theory cause one duplicate email - accepted rather than
+# adding schema (no direct DB/DDL access from this environment - see the
+# school_provisioning_codes table note from earlier the same night) for a low-stakes,
+# recoverable-by-just-ignoring-it duplicate.
+SCHOOL_RENEWAL_LOOP_SECONDS = 86400
+
+async def _school_renewal_reminder_loop():
+    while True:
+        try:
+            await asyncio.sleep(SCHOOL_RENEWAL_LOOP_SECONDS)
+            await _check_school_renewal_reminders()
+        except Exception as e:
+            logger.error(f"[school-renewal-reminders] loop error: {e}")
+
+async def _check_school_renewal_reminders():
+    now = datetime.now(timezone.utc)
+    profiles = supabase.table("school_profiles").select("school_name,subscription_renewal_date").execute().data or []
+    for p in profiles:
+        renewal_str = p.get("subscription_renewal_date")
+        if not renewal_str:
+            continue
+        try:
+            renewal = datetime.fromisoformat(renewal_str.replace("Z", "+00:00"))
+        except Exception:
+            continue
+        days_left = (renewal.date() - now.date()).days
+        if days_left in (30, 7):
+            _send_school_renewal_reminder(p.get("school_name", "Unknown school"), days_left, renewal)
+
+def _send_school_renewal_reminder(school_name: str, days_left: int, renewal_date) -> tuple:
+    """Never raises - see _send_school_activation_notification's own docstring for why."""
+    if not RESEND_API_KEY:
+        return False, "RESEND_API_KEY not configured"
+    try:
+        result = resend.Emails.send({
+            "from": RESEND_FROM_EMAIL,
+            "to": ["jono@classofhappiness.com"],
+            "subject": f"⏰ {school_name} renews in {days_left} days",
+            "html": f"""
+                <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+                  <h2 style="color:#1A1A2E">Renewal coming up</h2>
+                  <p style="color:#333;font-size:15px">
+                    <b>{school_name}</b>'s subscription renews on <b>{renewal_date.strftime('%d %b %Y')}</b>
+                    - {days_left} days from now.
+                  </p>
+                  <p style="color:#888;font-size:13px">
+                    Consider sending them a fresh activation code before it lapses.
+                  </p>
+                </div>
+            """,
+        })
+        email_id = result.get("id") if isinstance(result, dict) else getattr(result, "id", None)
+        return True, email_id or "sent"
+    except Exception as e:
+        logger.error(f"[school-renewal-reminder] send failed for {school_name}: {e}")
+        return False, str(e)[:150]
+
+async def _school_checkin_nudge_loop():
+    while True:
+        try:
+            await asyncio.sleep(SCHOOL_RENEWAL_LOOP_SECONDS)
+            await _check_school_checkin_nudges()
+        except Exception as e:
+            logger.error(f"[school-checkin-nudge] loop error: {e}")
+
+async def _check_school_checkin_nudges():
+    now = datetime.now(timezone.utc)
+    codes = supabase.table("school_provisioning_codes").select("school_name,tier,used_at").not_.is_("used_at", "null").execute().data or []
+    for c in codes:
+        used_str = c.get("used_at")
+        if not used_str:
+            continue
+        try:
+            used = datetime.fromisoformat(used_str.replace("Z", "+00:00"))
+        except Exception:
+            continue
+        days_since = (now.date() - used.date()).days
+        if days_since == 14:
+            _send_school_checkin_nudge(c.get("school_name", "Unknown school"), c.get("tier", ""))
+
+def _send_school_checkin_nudge(school_name: str, tier: str) -> tuple:
+    """Never raises - see _send_school_activation_notification's own docstring for why."""
+    if not RESEND_API_KEY:
+        return False, "RESEND_API_KEY not configured"
+    tier_label = {"school_starter": "Starter", "school_standard": "Standard", "school_plus": "Plus"}.get(tier, tier)
+    try:
+        result = resend.Emails.send({
+            "from": RESEND_FROM_EMAIL,
+            "to": ["jono@classofhappiness.com"],
+            "subject": f"👋 Time to check in with {school_name}",
+            "html": f"""
+                <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+                  <h2 style="color:#1A1A2E">Two weeks in - how's it going?</h2>
+                  <p style="color:#333;font-size:15px">
+                    <b>{school_name}</b> ({tier_label}) activated two weeks ago. Worth reaching
+                    out for feedback, or offering them their own usage report - open the
+                    portal's Schools tab and expand their Analytics card to see how they're
+                    doing.
+                  </p>
+                </div>
+            """,
+        })
+        email_id = result.get("id") if isinstance(result, dict) else getattr(result, "id", None)
+        return True, email_id or "sent"
+    except Exception as e:
+        logger.error(f"[school-checkin-nudge] send failed for {school_name}: {e}")
+        return False, str(e)[:150]
+
 
 @api_router.get("/school-admin/school-strategies")
 async def get_school_strategies(request: Request, strategy_type: str = None):
@@ -18549,6 +18663,8 @@ async def _start_support_requests_rebuzz():
     that ever changes, multiple workers would each run their own loop and double-send
     re-buzzes, so this assumption needs re-checking before scaling this service out."""
     asyncio.create_task(_support_requests_rebuzz_loop())
+    asyncio.create_task(_school_renewal_reminder_loop())
+    asyncio.create_task(_school_checkin_nudge_loop())
 
 # Real fix Aug 18: moved to the true end of the file. Was previously
 # called mid-file, silently orphaning every route defined after that
