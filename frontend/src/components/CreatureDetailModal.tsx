@@ -5,7 +5,7 @@ import { EmotionColourLoader } from './EmotionColourLoader';
 import { BonusItemCelebration, CelebrationItem } from './BonusItemCelebration';
 import { BonusItemCategory } from '../utils/sounds';
 import { playButtonFeedback } from '../utils/sounds';
-import { rewardsApi, ShopItem } from '../utils/api';
+import { rewardsApi, analyticsApi, ShopItem } from '../utils/api';
 import { useApp } from '../context/AppContext';
 import { EvolutionProgressBar, DEFAULT_CREATURE_THRESHOLDS, COMMUNITY_CREATURE_THRESHOLDS } from './EvolutionProgressBar';
 
@@ -191,6 +191,14 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
   };
 
   useEffect(() => { loadShop(); }, [visible, entry?.id, entry?.type, studentId, colour]);
+  // Real feature Sep 20 (engagement analytics, view-counts only - explicit scope decision,
+  // no duration tracking): fire-and-forget, deliberately not awaited/caught by the caller -
+  // a failed log must never affect this modal opening.
+  useEffect(() => {
+    if (visible && entry && studentId && lookupId) {
+      analyticsApi.logEvent('creature_view', studentId, lookupId).catch(() => {});
+    }
+  }, [visible, entry?.id, studentId, lookupId]);
   // Real fix Sep 16 (live-test bug: "Fully Evolved" text with stale pre-evolution art): also
   // resyncs whenever entry.current_stage itself changes, not just when the modal opens/closes
   // on a different id - creatures.tsx now swaps in a freshly-fetched entry after an evolve
@@ -296,6 +304,11 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
                     setReplayingId(item.id);
                     setReplayItem({ id: item.id, name: item.name, emoji: item.emoji, category: category as BonusItemCategory });
                     setTimeout(() => setReplayingId(null), 2200);
+                    // Real feature Sep 20 (engagement analytics): the replay tap is the only
+                    // real per-item "view" interaction this grid has (all items in a category
+                    // render simultaneously, so logging on render would count every item as
+                    // equally "viewed" - not useful data). Fire-and-forget.
+                    if (studentId) analyticsApi.logEvent('item_view', studentId, undefined, item.id).catch(() => {});
                   },
                 } : {})}
               >

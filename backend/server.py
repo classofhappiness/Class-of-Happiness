@@ -2422,6 +2422,14 @@ class GenerateSchoolCodeRequest(BaseModel):
 class RedeemSchoolCodeRequest(BaseModel):
     code: str
 
+ENGAGEMENT_EVENT_TYPES = ("creature_view", "item_view")
+
+class LogEngagementEventRequest(BaseModel):
+    event_type: str
+    creature_id: Optional[str] = None
+    item_id: Optional[str] = None
+    student_id: str
+
 # ================== AUTH HELPERS ==================
 def _parse_supabase_timestamp(ts: str) -> datetime:
     """Real bug fix Sep 10: Postgres/PostgREST serializes timestamptz with variable
@@ -15391,6 +15399,86 @@ def _teacher_school_admin_id(user: dict) -> Optional[str]:
     if user.get("role") == "school_admin":
         return user["user_id"]
     return user.get("school_admin_id")
+
+def _student_school_admin_id(student_id: str) -> Optional[str]:
+    """Resolves the school_admin a student's engagement events should be attributed
+    to, via students.classroom_id -> classrooms.user_id (the owning teacher) ->
+    that teacher's own school_admin_id (or their own user_id if they ARE the
+    school_admin, same convention as _teacher_school_admin_id). Returns None for a
+    student with no classroom (family-only / not linked to a school) - events then
+    correctly log with no school attribution rather than crashing."""
+    try:
+        s = supabase.table("students").select("classroom_id").eq("id", student_id).execute()
+        if not s.data or not s.data[0].get("classroom_id"):
+            return None
+        c = supabase.table("classrooms").select("user_id").eq("id", s.data[0]["classroom_id"]).execute()
+        if not c.data or not c.data[0].get("user_id"):
+            return None
+        teacher_id = c.data[0]["user_id"]
+        u = supabase.table("users").select("role,school_admin_id").eq("user_id", teacher_id).execute()
+        if not u.data:
+            return None
+        teacher = u.data[0]
+        if teacher.get("role") == "school_admin":
+            return teacher_id
+        return teacher.get("school_admin_id")
+    except Exception as e:
+        logger.warning(f"_student_school_admin_id resolution failed for {student_id}: {e}")
+        return None
+
+# ================== ENGAGEMENT ANALYTICS ==================
+@api_router.post("/analytics/log-event")
+async def log_engagement_event(event: LogEngagementEventRequest, request: Request):
+    """View-count instrumentation only, no duration/screen-time tracking (explicit scope
+    decision). Fire-and-forget from the frontend's perspective - a write failure here
+    (e.g. the table not existing yet) is swallowed and reported as logged:false rather
+    than raising, so this can never break the creature/shop screens it's attached to."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if event.event_type not in ENGAGEMENT_EVENT_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid event_type")
+    if not await _is_authorized_for_student(user, event.student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
+    try:
+        school_admin_id = _student_school_admin_id(event.student_id)
+        supabase.table("engagement_events").insert({
+            "id": str(uuid.uuid4()),
+            "event_type": event.event_type,
+            "creature_id": event.creature_id,
+            "item_id": event.item_id,
+            "student_id": event.student_id,
+            "school_admin_id": school_admin_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }).execute()
+        return {"logged": True}
+    except Exception as e:
+        logger.warning(f"log_engagement_event insert failed: {e}")
+        return {"logged": False}
+
+@api_router.get("/admin/engagement-analytics/{school_admin_id}")
+async def get_engagement_analytics(school_admin_id: str, request: Request, days: int = 30):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    r = supabase.table("engagement_events").select("event_type,creature_id,item_id").eq(
+        "school_admin_id", school_admin_id).gte("timestamp", since).execute()
+    creature_counts: Dict[str, int] = {}
+    item_counts: Dict[str, int] = {}
+    for row in (r.data or []):
+        if row.get("event_type") == "creature_view" and row.get("creature_id"):
+            creature_counts[row["creature_id"]] = creature_counts.get(row["creature_id"], 0) + 1
+        elif row.get("event_type") == "item_view" and row.get("item_id"):
+            item_counts[row["item_id"]] = item_counts.get(row["item_id"], 0) + 1
+    top_creatures = sorted(creature_counts.items(), key=lambda x: -x[1])[:5]
+    top_items = sorted(item_counts.items(), key=lambda x: -x[1])[:5]
+    return {
+        "days": days,
+        "total_events": len(r.data or []),
+        "top_creatures": [{"creature_id": cid, "view_count": c} for cid, c in top_creatures],
+        "top_items": [{"item_id": iid, "view_count": c} for iid, c in top_items],
+    }
 
 @api_router.post("/support-requests")
 async def create_support_request(request: Request):

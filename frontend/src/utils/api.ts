@@ -370,6 +370,16 @@ export const analyticsApi = {
   
   getStudentMonthly: (studentId: string, year: number, month: number) =>
     apiRequest(`/analytics/student/${studentId}/month/${year}/${month}`),
+
+  // Real feature Sep 20 (engagement analytics): view-count instrumentation only, no
+  // duration/screen-time tracking (explicit scope decision). Fire-and-forget by design -
+  // callers should not await/surface errors from this, a missed log must never affect the
+  // creature/shop UI it's attached to.
+  logEvent: (eventType: 'creature_view' | 'item_view', studentId: string, creatureId?: string, itemId?: string): Promise<{ logged: boolean }> =>
+    apiRequest('/analytics/log-event', {
+      method: 'POST',
+      body: JSON.stringify({ event_type: eventType, student_id: studentId, creature_id: creatureId, item_id: itemId }),
+    }),
 };
 
 // Reports API
