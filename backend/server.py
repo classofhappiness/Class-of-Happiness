@@ -13391,6 +13391,7 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
         "creatures_obtained": creatures_obtained,
         "creatures_fully_evolved": creatures_fully_evolved,
         "default_creatures_avg_stage": default_creatures_avg_stage,
+        "period_days": days,
     }
 
 @api_router.get("/school-admin/analytics")
