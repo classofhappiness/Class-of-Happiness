@@ -204,6 +204,20 @@ export default function ManageStudentsScreen() {
               {t('all') || 'All'}
             </Text>
           </TouchableOpacity>
+          {/* Real fix Sep 20 (Jono's report): this chip existed and worked, it just sat AFTER
+              every classroom chip instead of right after "All" as it should - moved here,
+              no behaviour change. */}
+          <TouchableOpacity
+            style={[styles.filterChip, showLinkedOnly && styles.filterChipActive]}
+            onPress={() => { setShowLinkedOnly(!showLinkedOnly); setFilterClassroom(null); }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
+              <MaterialIcons name="link" size={14} color={showLinkedOnly ? 'white' : '#5C6BC0'} />
+              <Text style={[styles.filterChipText, showLinkedOnly && styles.filterChipTextActive]}>
+                {t('linked_students_filter') || 'Linked'} ({students.filter((s: any) => s.is_linked).length})
+              </Text>
+            </View>
+          </TouchableOpacity>
           {classrooms.map(classroom => (
             <TouchableOpacity
               key={classroom.id}
@@ -221,17 +235,6 @@ export default function ManageStudentsScreen() {
               </Text>
             </TouchableOpacity>
           ))}
-          <TouchableOpacity
-            style={[styles.filterChip, showLinkedOnly && styles.filterChipActive]}
-            onPress={() => { setShowLinkedOnly(!showLinkedOnly); setFilterClassroom(null); }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
-              <MaterialIcons name="link" size={14} color={showLinkedOnly ? 'white' : '#5C6BC0'} />
-              <Text style={[styles.filterChipText, showLinkedOnly && styles.filterChipTextActive]}>
-                {t('linked_students_filter') || 'Linked'} ({students.filter((s: any) => s.is_linked).length})
-              </Text>
-            </View>
-          </TouchableOpacity>
         </ScrollView>
       )}
 
