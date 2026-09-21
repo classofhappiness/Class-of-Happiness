@@ -2592,7 +2592,7 @@ const VALID_ADMIN_TABS = ['analytics','support_requests','strategies','resources
 type AdminTab = typeof VALID_ADMIN_TABS[number];
 
 export default function AdminDashboard() {
-  const { user, logout, t } = useApp();
+  const { user, logout, checkAuth, t } = useApp();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   // Real fix Sep 18 (notification tap-to-navigate): lets a push notification deep-link
@@ -2639,9 +2639,42 @@ export default function AdminDashboard() {
   // missing native code. Superadmin excluded - not a support_request recipient.
   useEffect(() => {
     if (!isSuperAdmin && user) {
-      registerForPushNotifications().catch(() => {});
+      // Real fix Sep 21 (device report): this call could already silently succeed (a
+      // fresh permission grant, a token Apple/Google rotated) without ever being
+      // reflected here - `user` comes from login/checkAuth, not from this call's own
+      // result, so a genuinely-now-reachable admin could still see the "not reachable"
+      // notice below until their next full session refresh. checkAuth() re-pulls
+      // /auth/me so user.push_token catches up immediately when this succeeds.
+      registerForPushNotifications().then((token) => { if (token) checkAuth(); }).catch(() => {});
     }
   }, [isSuperAdmin, user]);
+
+  // Real feature Sep 21 (device report): the buzz-visibility rule stays config-only
+  // (enabled_by_school) per Jono's explicit call - gating it on push-token presence
+  // instead would silently vanish the teacher's whole request button the moment an
+  // admin's token lapses, with no way for anyone to know why. This addresses the real
+  // underlying gap from the ADMIN side instead: an admin with no registered token can't
+  // actually receive a support-request or incident push no matter what any teacher sees,
+  // so they get a clear, persistent, actionable nudge here instead of teachers losing a
+  // button. isSuperAdmin excluded - same reasoning as the registration effect above,
+  // they're never a support_request recipient.
+  const [registeringPush, setRegisteringPush] = useState(false);
+  const handleRetryPushRegistration = async () => {
+    setRegisteringPush(true);
+    try {
+      const token = await registerForPushNotifications();
+      if (token) {
+        await checkAuth();
+      } else {
+        Alert.alert(
+          t('notifications_permission_needed') || 'Permission needed',
+          t('notifications_permission_needed_body') || 'Notifications are still off for this app. Check your device settings and allow notifications for Class of Happiness, then try again.'
+        );
+      }
+    } finally {
+      setRegisteringPush(false);
+    }
+  };
 
   useEffect(() => {
     if (unlocked && tab === 'analytics') loadStats();
@@ -2780,6 +2813,29 @@ export default function AdminDashboard() {
         ))}
       </View>
 
+      {/* Real feature Sep 21 (device report): persistent, tap-to-fix nudge for an admin
+          who can't actually receive a push right now - see handleRetryPushRegistration's
+          note above for why this exists instead of hiding teachers' buzz button. Sits
+          above the tab content (not inside one tab) so it's visible regardless of which
+          tab the admin happens to be on - reachability isn't a per-tab concern. */}
+      {!isSuperAdmin && user && !user.push_token && (
+        <TouchableOpacity
+          style={s.pushNudgeBanner}
+          onPress={handleRetryPushRegistration}
+          disabled={registeringPush}
+        >
+          <MaterialIcons name="notifications-off" size={20} color="#B8860B" />
+          <Text style={s.pushNudgeText}>
+            {t('push_nudge_text') || "Teachers can't reach you yet — enable notifications to receive support requests"}
+          </Text>
+          {registeringPush ? (
+            <ActivityIndicator size="small" color="#B8860B" />
+          ) : (
+            <MaterialIcons name="chevron-right" size={20} color="#B8860B" />
+          )}
+        </TouchableOpacity>
+      )}
+
       {/* Content — scrollable. Real fix Aug 16: NestableScrollContainer, not plain
           ScrollView, so the Strategies tab's draggable list can coexist with this
           outer scroll instead of blocking it entirely. */}
@@ -2837,6 +2893,11 @@ const s = StyleSheet.create({
   logoTitle: { fontSize: 22, fontWeight: '800', color: INDIGO },
   logoSub: { fontSize: 13, color: '#888' },
   incidentBanner: { backgroundColor: '#FFEBEE', borderWidth: 1, borderColor: '#E05252', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, marginBottom: 8 },
+  // Real feature Sep 21 (device report): amber/warning tone (not red - this isn't an
+  // active emergency like incidentBanner above, just a setup gap) so it reads as
+  // "action needed, not urgent" and doesn't compete with a genuine incident banner.
+  pushNudgeBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFF8E1', borderWidth: 1, borderColor: '#F5D98A', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginHorizontal: 12, marginTop: 8 },
+  pushNudgeText: { flex: 1, fontSize: 12.5, fontWeight: '700', color: '#8A6D1D' },
   incidentBannerText: { fontSize: 14, fontWeight: '800', color: '#C62828', textAlign: 'center' },
   lockHint: { fontSize: 14, color: '#666', textAlign: 'center' },
   // Header

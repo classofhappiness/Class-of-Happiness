@@ -318,7 +318,16 @@ export default function StrategiesScreen() {
           })()
         }}
       />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      {/* Real fix Sep 21 (device report): app.json has no android.softwareKeyboardLayoutMode
+          override, and Expo's own default for that is 'adjustResize' (confirmed against
+          @expo/config-plugins' WindowSoftInputMode.js) - meaning Android ALREADY resizes the
+          window when the keyboard opens. Stacking KeyboardAvoidingView's own behavior='height'
+          on top of that native resize is a well-known conflict: the two mechanisms compute
+          space independently and fight each other, which is what let the comment field stay
+          covered despite this component already being here. undefined on Android hands the
+          job entirely to the OS's own (already-correct) resize; iOS still needs 'padding'
+          since it has no equivalent automatic behavior. */}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={[styles.zoneHeader, { backgroundColor: zoneColor + '20', borderColor: zoneColor }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>

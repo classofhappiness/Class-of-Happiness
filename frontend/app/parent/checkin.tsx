@@ -337,8 +337,17 @@ export default function FamilyCheckInScreen() {
     // because TranslatedHeader applies the top inset itself and React Native's own SafeAreaView
     // (still used by the loading state above) is iOS-only, which would double it there.
     <EdgeSafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+      {/* Real fix Sep 21 (device report - same gap as student/strategies.tsx's comment
+          field): Android's windowSoftInputMode already defaults to 'adjustResize' (Expo's
+          own default when app.json doesn't override it), so the OS already resizes the
+          window when the keyboard opens - layering this component's own behavior='height'
+          on top fights that native resize instead of complementing it, which is what let
+          the comment field stay covered. undefined on Android leaves it to the OS; iOS
+          still needs 'padding' since it has no automatic equivalent. keyboardVerticalOffset
+          only applies to 'height'/'padding'/'position' behaviors, so it's a no-op on
+          Android now, not a conflicting second offset. */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >

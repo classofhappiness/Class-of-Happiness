@@ -70,6 +70,11 @@ export interface User {
   subscription_expires_at?: string;
   trial_started_at?: string;
   created_at: string;
+  // Real feature Sep 21 (device report): _public_user (server.py) already sends this
+  // straight through - it was never in this interface, not because it's hidden, just
+  // because no screen had read it yet. Used by admin/dashboard.tsx's unreachable-admin
+  // notice to know whether THIS admin can actually receive a push right now.
+  push_token?: string | null;
 }
 
 export interface Student {
