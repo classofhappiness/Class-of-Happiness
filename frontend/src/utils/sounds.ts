@@ -1,5 +1,6 @@
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
+import { getCachedAudioUri, preloadAudioUrls } from './audioCache';
 
 let soundEnabled = true;
 let audioModeSet = false;
@@ -22,8 +23,12 @@ const playSoundUrl = (url: string) => {
   setTimeout(async () => {
     try {
       await initAudio();
+      // Real fix Sep 21 (device report): resolves to a local file if this URL was
+      // already preloaded (see preloadSounds below) - a no-op network-wise when it was,
+      // a one-time download-then-play (same as before) when it wasn't.
+      const localUri = await getCachedAudioUri(url);
       const { sound } = await Audio.Sound.createAsync(
-        { uri: url },
+        { uri: localUri },
         { shouldPlay: true, volume: 0.4 }
       );
       sound.setOnPlaybackStatusUpdate((status) => {
@@ -43,7 +48,17 @@ const SOUND_URLS = {
   select:    'https://cdn.freesound.org/previews/220/220206_4100837-lq.mp3',
 };
 
-export const preloadSounds = async () => { await initAudio(); };
+// Real fix Sep 21 (device report): this used to only set the audio mode - no audio bytes
+// were ever actually fetched ahead of time, so "preload" was a misnomer and every first
+// play of every one of these still incurred a full remote fetch. Now also fires off (does
+// not await - callers shouldn't block on this) a cache-warm for the fixed, always-the-same
+// sound-effect URLs, which are the only ones knowable ahead of any specific screen's
+// content. Safe to call from every screen that already calls this (zone.tsx, rewards.tsx)
+// - repeat calls just hit the already-cached fast path in getCachedAudioUri.
+export const preloadSounds = async () => {
+  await initAudio();
+  preloadAudioUrls([...Object.values(SOUND_URLS), ...Object.values(BONUS_ITEM_SOUND_URLS)]);
+};
 export const unloadSounds = async () => {};
 
 export const playButtonSound  = () => { if (soundEnabled) playSoundUrl(SOUND_URLS.buttonTap); };

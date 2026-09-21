@@ -1,6 +1,7 @@
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setSoundEnabled } from './sounds';
+import { getCachedAudioUri, preloadAudioUrls } from './audioCache';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const VOICE_ENABLED_KEY = 'voice_enabled';
@@ -96,7 +97,11 @@ export const playVoiceClip = async (rawKey: string, language: string) => {
   if (!url) return;
   setTimeout(async () => {
     try {
-      const { sound } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: true, volume: 1.0 });
+      // Real fix Sep 21 (device report): resolves to a local file if preloadZoneAudio
+      // already cached this clip - the common case by the time a kid actually taps a
+      // colour, since that preload starts on the same screen's mount, well before the tap.
+      const localUri = await getCachedAudioUri(url);
+      const { sound } = await Audio.Sound.createAsync({ uri: localUri }, { shouldPlay: true, volume: 1.0 });
       sound.setOnPlaybackStatusUpdate((status) => {
         if (status.isLoaded && status.didJustFinish) {
           sound.unloadAsync().catch(() => {});
@@ -151,11 +156,34 @@ export const playPhraseFromPool = async (moment: VoicePhraseMoment, language: st
     const urls = await loadPhrasePool(moment, language);
     if (!urls.length) return;
     const url = urls[Math.floor(Math.random() * urls.length)];
-    const { sound } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: true, volume: 1.0 });
+    // Real fix Sep 21 (device report): same cache resolution as playVoiceClip above -
+    // whichever of the 2-4 pool variants gets picked here, preloadZoneAudio (zone.tsx)
+    // already fired off downloads for every one of them, not just this random pick.
+    const localUri = await getCachedAudioUri(url);
+    const { sound } = await Audio.Sound.createAsync({ uri: localUri }, { shouldPlay: true, volume: 1.0 });
     sound.setOnPlaybackStatusUpdate((status) => {
       if (status.isLoaded && status.didJustFinish) {
         sound.unloadAsync().catch(() => {});
       }
     });
+  } catch {}
+};
+
+// Real feature Sep 21 (device report): S04 (zone.tsx) is where the delay is most
+// noticed - the opening greeting plays on every visit, and tapping a colour should sound
+// instant, not fetch-on-tap. Called from zone.tsx's mount effect alongside (not instead
+// of) the loader-gated playPhraseFromPool('opening', ...) call above - getCachedAudioUri's
+// in-flight de-dupe means whichever opening variant that call ends up playing shares the
+// same download this fires, never a duplicate fetch. The 4 zone (question) clips have no
+// other caller that would ever warm them ahead of the actual tap, so this is their only
+// chance to be ready before handleZoneSelect's playVoiceClip needs them.
+export const preloadZoneAudio = async (language: string): Promise<void> => {
+  if (!voiceEnabled) return;
+  try {
+    const [manifest, openingUrls] = await Promise.all([
+      manifestLanguage === language ? manifestCache : loadVoiceManifest(language),
+      loadPhrasePool('opening', language),
+    ]);
+    preloadAudioUrls([manifest.blue, manifest.green, manifest.yellow, manifest.red, ...openingUrls]);
   } catch {}
 };

@@ -6,7 +6,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../../src/utils/sounds';
-import { loadVoiceEnabled, loadVoiceManifest, playVoiceClip, playPhraseFromPool } from '../../src/utils/voiceClips';
+import { loadVoiceEnabled, loadVoiceManifest, playVoiceClip, playPhraseFromPool, preloadZoneAudio } from '../../src/utils/voiceClips';
 import { VoiceToggleButton } from '../../src/components/VoiceToggleButton';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 
@@ -79,6 +79,12 @@ export default function ColourSelectionScreen() {
     preloadSounds();
     loadVoiceEnabled();
     loadVoiceManifest(language);
+    // Real feature Sep 21 (device report): warms the 4 zone (question) clips plus every
+    // "opening" pool variant in the background while the greeting below plays - by the
+    // time a kid actually taps a colour (after hearing the greeting, reading the screen),
+    // its clip is normally already a local file, not a fresh fetch. Fire-and-forget: this
+    // screen's own loader is gated on the greeting playing, not on this finishing too.
+    preloadZoneAudio(language);
     // Real fix Sep 14 (Marisa build-26, S04): opening-greeting phrase used to fire-and-forget
     // while the full screen rendered immediately underneath it - the phrase pool fetch plus
     // sound setup took long enough to produce a glitch and ~2/3s silent gap before it

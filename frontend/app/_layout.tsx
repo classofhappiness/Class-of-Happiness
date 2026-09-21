@@ -13,6 +13,7 @@ import { SplashAnimation } from '../src/components/SplashAnimation';
 import { ColourCycleLogo } from '../src/components/ColourCycleLogo';
 import * as Notifications from 'expo-notifications';
 import { isIncidentPushData, showIncidentAlert, registerNotifeeForegroundHandler } from '../src/utils/notifeeIncidents';
+import { preloadSounds } from '../src/utils/sounds';
 
 // Keep splash screen visible until app is ready
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -101,6 +102,15 @@ function AppContent() {
       setDefaultFont('Nunito');
     }
   }, [language]);
+  // Real feature Sep 21 (device report): the fixed, always-the-same sound-effect URLs
+  // (button tap, select, reward, evolution, success, bonus-item categories) are knowable
+  // the instant the app opens, unlike voice clips which depend on the student's language
+  // and the screen they land on. Warming them here, once, means the very first button a
+  // user taps anywhere in the app - not just on screens that happen to call preloadSounds
+  // themselves - already has a local file waiting instead of a fresh CDN fetch.
+  useEffect(() => {
+    preloadSounds();
+  }, []);
   // Real feature Aug 30: replaced the old flat-300ms-then-hide timer - SplashAnimation now
   // owns hiding the native splash itself (the instant it's ready to render its own matching
   // first frame), then runs the real fade-in/colour-cycle/fade-out sequence as a fixed-
