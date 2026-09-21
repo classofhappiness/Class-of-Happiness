@@ -488,7 +488,7 @@
   "parent_sharing_hint": "يمكن لوليّ الأمر تفعيل المشاركة من لوحته الخاصة",
   "password": "كلمة المرور",
   "password_min_chars_placeholder": "8 أحرف على الأقل",
-  "password_optional_label": "كلمة المرور (اختياري)",
+  "password_optional_label": "كلمة المرور (إن وُجدت)",
   "password_optional_placeholder": "فقط إن قمت بتعيين واحدة",
   "password_reset_success_msg": "يمكنك الآن تسجيل الدخول بكلمة مرورك الجديدة.",
   "password_reset_success_title": "تم إعادة تعيين كلمة المرور!",

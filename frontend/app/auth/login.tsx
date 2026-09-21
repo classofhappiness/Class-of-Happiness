@@ -419,7 +419,12 @@ export default function LoginScreen() {
                     /auth/email-login code-required branch) - driven by that real backend
                     signal (the code_required error from loginWithEmail), not a client-side
                     guess list - see the codeStep block above. */}
-                <Text style={styles.label}>{t('password_optional_label') || 'Password (optional)'}</Text>
+                {/* Real fix Sep 21 (device report): "(optional)" was only true for the small
+                    share of accounts that never set a password - wrong, and misleading, for
+                    everyone who has. There's no way to know which before the email is typed
+                    (no pre-submit lookup), so reworded to something honestly ambiguous both
+                    ways instead, matching the placeholder just below it. */}
+                <Text style={styles.label}>{t('password_optional_label') || 'Password (if you have one)'}</Text>
                 <SecureField
                   containerStyle={{ borderWidth: 2, marginBottom: 12 }}
                   placeholder={t('password_optional_placeholder') || "Only if you've set one"}

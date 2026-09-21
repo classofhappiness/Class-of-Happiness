@@ -488,7 +488,7 @@
   "parent_sharing_hint": "家长可以在自己的控制台中开启数据共享",
   "password": "密码",
   "password_min_chars_placeholder": "至少 8 个字符",
-  "password_optional_label": "密码（可选）",
+  "password_optional_label": "密码（如果有的话）",
   "password_optional_placeholder": "如已设置密码请填写",
   "password_reset_success_msg": "你现在可以使用新密码登录了。",
   "password_reset_success_title": "密码已重置！",

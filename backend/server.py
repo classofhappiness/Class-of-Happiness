@@ -14744,14 +14744,21 @@ def _get_school_feature_flags(school_admin_id: str, feature_key: str) -> dict:
             tvs = row.get("tab_visible_to_school")
             return {
                 "allowed_by_superadmin": bool(row.get("allowed_by_superadmin")),
-                "enabled_by_school": bool(row.get("enabled_by_school", True)),
+                # Real fix Sep 21 (device report): this default only fires when the
+                # row's enabled_by_school column is missing/null, which happens on a
+                # school's very first row for a feature. It must match the feature's
+                # own fail-open/fail-closed policy above, not unconditionally True -
+                # otherwise a fail-closed feature like support_requests silently
+                # reports enabled on its first read, flashing the buzz icon before
+                # any school_admin has actually turned it on.
+                "enabled_by_school": bool(row.get("enabled_by_school", feature_key in _FEATURE_FAIL_OPEN_KEYS)),
                 "tab_visible_to_school": True if tvs is None else bool(tvs),
             }
     except Exception as e:
         logger.error(f"_get_school_feature_flags error ({feature_key}): {e}")
     if feature_key in _FEATURE_FAIL_OPEN_KEYS:
         return {"allowed_by_superadmin": True, "enabled_by_school": True, "tab_visible_to_school": True}
-    return {"allowed_by_superadmin": False, "enabled_by_school": True, "tab_visible_to_school": True}
+    return {"allowed_by_superadmin": False, "enabled_by_school": False, "tab_visible_to_school": True}
 
 def _require_feature_access(user: dict, feature_key: str, label: str, school_admin_id: str = None) -> None:
     """403s unless feature_key is BOTH allowed by superadmin AND enabled by
@@ -14882,7 +14889,10 @@ async def set_school_feature_allowed(school_admin_id: str, feature_key: str, req
     allowed = bool(body.get("allowed_by_superadmin", False))
     existing = supabase.table("school_features").select("enabled_by_school") \
         .eq("school_admin_id", school_admin_id).eq("feature_key", feature_key).execute()
-    enabled_by_school = existing.data[0]["enabled_by_school"] if existing.data else True
+    # Real fix Sep 21: same fail-open/fail-closed policy as _get_school_feature_flags -
+    # a superadmin's first-ever grant for a fail-closed feature (support_requests) must
+    # NOT auto-enable it at the school level; the school_admin still has to opt in.
+    enabled_by_school = existing.data[0]["enabled_by_school"] if existing.data else (feature_key in _FEATURE_FAIL_OPEN_KEYS)
     supabase.table("school_features").upsert({
         "school_admin_id": school_admin_id,
         "feature_key": feature_key,

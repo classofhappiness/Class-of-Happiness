@@ -434,7 +434,7 @@
   "password": "Password",
   "past": "PAST",
   "password_min_chars_placeholder": "At least 8 characters",
-  "password_optional_label": "Password (optional)",
+  "password_optional_label": "Password (if you have one)",
   "password_optional_placeholder": "Only if you've set one",
   "password_reset_success_msg": "You can now sign in with your new password.",
   "password_reset_success_title": "Password Reset!",

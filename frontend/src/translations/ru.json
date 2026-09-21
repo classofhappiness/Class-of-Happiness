@@ -488,7 +488,7 @@
   "parent_sharing_hint": "Родитель может включить обмен данными на своей панели",
   "password": "Пароль",
   "password_min_chars_placeholder": "Не менее 8 символов",
-  "password_optional_label": "Пароль (необязательно)",
+  "password_optional_label": "Пароль (если он есть)",
   "password_optional_placeholder": "Только если вы его установили",
   "password_reset_success_msg": "Теперь вы можете войти с новым паролем.",
   "password_reset_success_title": "Пароль сброшен!",

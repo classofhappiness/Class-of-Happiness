@@ -928,7 +928,7 @@
   "next_add_photos": "Siguiente: Añadir fotos →",
   "login_subtitle": "Introduce tu correo para iniciar sesión",
   "email_address_label": "Correo Electrónico",
-  "password_optional_label": "Contraseña (opcional)",
+  "password_optional_label": "Contraseña (si tienes una)",
   "password_optional_placeholder": "Solo si ya has establecido una",
   "forgot_password_link": "¿Olvidaste tu contraseña?",
   "invalid_email_error": "Por favor introduce un correo electrónico válido",

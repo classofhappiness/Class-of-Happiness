@@ -943,7 +943,7 @@
   "next_add_photos": "Suivant : Ajouter des photos →",
   "login_subtitle": "Saisis ton e-mail pour te connecter",
   "email_address_label": "Adresse E-mail",
-  "password_optional_label": "Mot de passe (facultatif)",
+  "password_optional_label": "Mot de passe (si vous en avez un)",
   "password_optional_placeholder": "Seulement si tu en as déjà défini un",
   "forgot_password_link": "Mot de passe oublié ?",
   "invalid_email_error": "Merci de saisir une adresse e-mail valide",

@@ -488,7 +488,7 @@
   "parent_sharing_hint": "अभिभावक अपने पैनल से साझा करना चालू कर सकते हैं",
   "password": "पासवर्ड",
   "password_min_chars_placeholder": "कम से कम 8 अक्षर",
-  "password_optional_label": "पासवर्ड (वैकल्पिक)",
+  "password_optional_label": "पासवर्ड (यदि आपने बनाया हो)",
   "password_optional_placeholder": "केवल अगर आपने एक सेट किया है",
   "password_reset_success_msg": "अब आप अपने नए पासवर्ड से साइन इन कर सकते हैं।",
   "password_reset_success_title": "पासवर्ड रीसेट हो गया!",

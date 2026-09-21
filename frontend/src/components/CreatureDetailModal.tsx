@@ -432,7 +432,16 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
                     onPress={() => setPreviewStage(idx)}
                     style={[
                       s.evoStage,
-                      reached && { backgroundColor: color + '30' },
+                      // Real fix Sep 21 (device report): evoStage's own flat #F0F0F0 base
+                      // showed as a visible grey/white box behind an unreached stage's
+                      // silhouette, clashing against the modal's near-white #F8F9FA
+                      // background - reached stages never had this problem since their own
+                      // colour tint always overrode the base. Giving unreached stages a
+                      // faint tint of the SAME zone colour (not a fixed neutral) instead of
+                      // removing the background outright keeps every stage box the same
+                      // size/shape, just visually part of one family instead of one flat
+                      // institutional-grey outlier.
+                      { backgroundColor: color + (reached ? '30' : '12') },
                       isSelected && { borderWidth: 2, borderColor: color },
                     ]}
                   >
@@ -583,7 +592,7 @@ const s = StyleSheet.create({
   sectionTitle: { alignSelf: 'flex-start', fontSize: 15, fontWeight: '900', color: '#1A1A2E', marginBottom: 10 },
   communityDescription: { alignSelf: 'stretch', textAlign: 'center', fontSize: 13, lineHeight: 18, color: '#555', marginBottom: 14 },
   evoRow: { flexDirection: 'row', gap: 8, width: '100%' },
-  evoStage: { flex: 1, alignItems: 'center', padding: 8, borderRadius: 12, backgroundColor: '#F0F0F0', position: 'relative', borderWidth: 2, borderColor: 'transparent' },
+  evoStage: { flex: 1, alignItems: 'center', padding: 8, borderRadius: 12, position: 'relative', borderWidth: 2, borderColor: 'transparent' },
   evoLockBadge: { position: 'absolute', top: 4, right: 4, fontSize: 10 },
   evoName: { fontSize: 9, color: '#666', marginTop: 4 },
   progressLine: { fontSize: 13, fontWeight: '800', color: '#4CAF73', marginTop: 12, marginBottom: 4 },

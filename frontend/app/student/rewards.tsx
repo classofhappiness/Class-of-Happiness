@@ -3,15 +3,23 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   Animated,
   Easing,
   ScrollView,
   Alert
 } from 'react-native';
+// Real fix Sep 21 (device report): this screen imported SafeAreaView from plain
+// 'react-native' - iOS-only, a complete no-op on Android (same gap TranslatedHeader.tsx's
+// Sep 16 fix comment documents for the other screens that had this) - so on Android neither
+// the header nor the bottom action buttons ever got a real safe-area inset, letting the
+// bottom buttons sit under the system nav bar. Switching to the cross-platform version and
+// using edges=['left','right','bottom'] (TranslatedHeader below applies its own top inset,
+// matching student/strategies.tsx's established pattern) fixes both at once.
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { rewardsApi, Creature, AddPointsResponse } from '../../src/utils/api';
@@ -369,22 +377,13 @@ export default function RewardsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }} />
-        <TouchableOpacity onPress={() => {
-          // Real fix Aug 30 (build-26, kiosk restore): same returnTo-aware destination as
-          // handleContinue below - this header shortcut was bypassing it entirely.
-          if (params.returnTo === 'family') router.replace('/parent/dashboard');
-          else if (params.returnTo === 'kiosk') router.replace('/kiosk');
-          else router.replace('/student/select');
-        }} style={{ padding: 6 }}>
-          <MaterialIcons name="home" size={24} color="#333" />
-        </TouchableOpacity>
-      </View>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+      <TranslatedHeader
+        title={t('great_job_title') || 'Great job!'}
+        showHome
+        onBackPress={() => router.back()}
+        homeTo={params.returnTo === 'family' ? '/parent/dashboard' : params.returnTo === 'kiosk' ? '/kiosk' : '/student/select'}
+      />
       {/* Real bug fix Aug 22: this whole middle section had no ScrollView - once the Bronze
           Shield overlap fix removed creatureSection's greedy flex:1, content could exceed
           screen height with nothing to scroll it, hiding the Continue button entirely. Action
@@ -838,7 +837,14 @@ const styles = StyleSheet.create({
   shieldMax: { fontSize: 11, color: '#FF8F00', fontWeight: '700', marginTop: 4 },
   shieldBar: { height: 6, backgroundColor: '#FFE082', borderRadius: 3, overflow: 'hidden' },
   shieldBarFill: { height: 6, backgroundColor: '#FFA000', borderRadius: 3 },
-  evolveProgressContainer: { maxWidth: 220, alignSelf: 'center', marginTop: -8, marginBottom: 12 },
+  // Real fix Sep 21 (device report): without an explicit width, alignSelf:
+  // 'center' makes this View shrink-wrap to its content (the "60 / 60" label)
+  // instead of stretching - the bar's own width:'100%' then resolves against
+  // that near-zero collapsed width and becomes invisible, while the label
+  // (real intrinsic size) still renders fine. width:'100%' plus maxWidth
+  // keeps the same centred, capped-width look but gives the bar a real
+  // parent width to fill.
+  evolveProgressContainer: { width: '100%', maxWidth: 220, alignSelf: 'center', marginTop: -8, marginBottom: 12 },
   collectionButtonText: {
     color: '#FFD700',
     fontSize: 16,
