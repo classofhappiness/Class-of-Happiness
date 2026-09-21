@@ -7,6 +7,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { sendHelpRequest, sendZoneAlert, sendParentMessage, shieldEmoji } from '../../src/utils/notifications';
 import { useApp } from '../../src/context/AppContext';
+import { useAndroidKeyboardOffset } from '../../src/utils/useAndroidKeyboardOffset';
 import { zoneLogsApi, Strategy } from '../../src/utils/api';
 import { StrategyCard } from '../../src/components/StrategyCard';
 import { CelebrationOverlay } from '../../src/components/CelebrationOverlay';
@@ -31,6 +32,11 @@ export default function StrategiesScreen() {
   const { zone, location, fromFamily, returnTo } = useLocalSearchParams<{ zone: string; location?: string; fromFamily?: string; returnTo?: string }>();
   const checkInLocation = (location as string) || 'school';
   const { currentStudent, t, language, translations } = useApp();
+  // Real fix Sep 21 (device report - 2nd attempt): see useAndroidKeyboardOffset's own
+  // comment for why KeyboardAvoidingView's behavior prop alone can't fix this on Android
+  // for this app specifically (edgeToEdgeEnabled:true breaks the native resize signal both
+  // 'height' and 'undefined' relied on, in different ways).
+  const androidKeyboardOffset = useAndroidKeyboardOffset();
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -318,16 +324,20 @@ export default function StrategiesScreen() {
           })()
         }}
       />
-      {/* Real fix Sep 21 (device report): app.json has no android.softwareKeyboardLayoutMode
-          override, and Expo's own default for that is 'adjustResize' (confirmed against
-          @expo/config-plugins' WindowSoftInputMode.js) - meaning Android ALREADY resizes the
-          window when the keyboard opens. Stacking KeyboardAvoidingView's own behavior='height'
-          on top of that native resize is a well-known conflict: the two mechanisms compute
-          space independently and fight each other, which is what let the comment field stay
-          covered despite this component already being here. undefined on Android hands the
-          job entirely to the OS's own (already-correct) resize; iOS still needs 'padding'
-          since it has no equivalent automatic behavior. */}
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      {/* Real fix Sep 21 (device report, 2nd attempt - the first didn't hold up on
+          device): app.json has edgeToEdgeEnabled:true, and confirmed via research that
+          Android 15+ does NOT reliably run windowSoftInputMode="adjustResize" (Expo's
+          default) under edge-to-edge - the system assumes the app handles keyboard insets
+          itself instead. That broke BOTH the original behavior='height' (fighting a resize
+          that mostly wasn't happening) AND the first fix's behavior=undefined (leaning on a
+          resize that, per the same root cause, isn't reliable either). paddingBottom below
+          is real, JS-driven, and doesn't depend on native resize at all - see
+          useAndroidKeyboardOffset's own comment. iOS is untouched: behavior='padding' has
+          always worked correctly there, unrelated to any of this Android-specific mess. */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1, paddingBottom: androidKeyboardOffset }}
+      >
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={[styles.zoneHeader, { backgroundColor: zoneColor + '20', borderColor: zoneColor }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>

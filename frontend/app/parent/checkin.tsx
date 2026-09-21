@@ -16,6 +16,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
+import { useAndroidKeyboardOffset } from '../../src/utils/useAndroidKeyboardOffset';
 import { SafeAreaView as EdgeSafeAreaView } from 'react-native-safe-area-context';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { familyApi, FamilyMember, strategiesApi, Strategy } from '../../src/utils/api';
@@ -99,6 +100,10 @@ export default function FamilyCheckInScreen() {
   const { memberId, memberName, studentId, relationship } = useLocalSearchParams<{ memberId: string; memberName: string; studentId?: string; relationship?: string }>();
   const memberRelationship = (relationship as string) || 'adult';
   const { t, language, currentStudent, students } = useApp();
+  // Real fix Sep 21 (device report - 2nd attempt): see useAndroidKeyboardOffset's own
+  // comment for why KeyboardAvoidingView's behavior prop alone can't fix this on Android
+  // under this app's edgeToEdgeEnabled:true config.
+  const androidKeyboardOffset = useAndroidKeyboardOffset();
 
   // If checking in a child, redirect to student flow with home location
   React.useEffect(() => {
@@ -337,18 +342,19 @@ export default function FamilyCheckInScreen() {
     // because TranslatedHeader applies the top inset itself and React Native's own SafeAreaView
     // (still used by the loading state above) is iOS-only, which would double it there.
     <EdgeSafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
-      {/* Real fix Sep 21 (device report - same gap as student/strategies.tsx's comment
-          field): Android's windowSoftInputMode already defaults to 'adjustResize' (Expo's
-          own default when app.json doesn't override it), so the OS already resizes the
-          window when the keyboard opens - layering this component's own behavior='height'
-          on top fights that native resize instead of complementing it, which is what let
-          the comment field stay covered. undefined on Android leaves it to the OS; iOS
-          still needs 'padding' since it has no automatic equivalent. keyboardVerticalOffset
-          only applies to 'height'/'padding'/'position' behaviors, so it's a no-op on
-          Android now, not a conflicting second offset. */}
+      {/* Real fix Sep 21 (device report, 2nd attempt - same gap as student/strategies.tsx,
+          and the first fix here didn't hold up on device either): app.json has
+          edgeToEdgeEnabled:true, and Android 15+ does not reliably run
+          windowSoftInputMode="adjustResize" under edge-to-edge - confirmed via research,
+          not just re-guessed. That broke both the original behavior='height' and the first
+          fix's behavior=undefined, since both leaned on a native resize signal that isn't
+          reliable here. paddingBottom below is JS-driven via Keyboard's own show/hide
+          events (see useAndroidKeyboardOffset), independent of native resize entirely.
+          keyboardVerticalOffset still only applies to 'height'/'padding'/'position', so
+          it's a no-op on Android regardless - untouched here. */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}
+        style={{ flex: 1, paddingBottom: androidKeyboardOffset }}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <TranslatedHeader

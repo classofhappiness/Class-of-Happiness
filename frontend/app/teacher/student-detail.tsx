@@ -210,25 +210,40 @@ export default function StudentDetailScreen() {
       if (statusData) {
         setSharingStatus(statusData);
 
-        // Always fetch combined logs (school + home)
-        try {
-          const combined = await teacherHomeDataApi.getCombinedCheckins(studentId, selectedPeriod);
-          setCombinedLogs(combined);
-        } catch (e) { console.log('Combined checkins:', e); }
+        // Real fix Sep 21 (device report - timeout investigation): these three calls used
+        // to run one-after-another with a full await each, and each now also carries one
+        // extra parent_links round-trip server-side (the privacy fix for home_sharing_enabled
+        // - see server.py's _filter_home_logs_for_staff_viewer). Sequential, that compounds
+        // additively on top of Railway's own cold-start latency; none of these three actually
+        // depend on each other's result (home-data's own gate is statusData.is_linked_to_parent,
+        // already resolved above), so running them together removes the compounding without
+        // touching the privacy fix itself. allSettled so one failing doesn't block the others,
+        // matching the existing per-call try/catch behaviour.
+        const [combinedResult, stratsResult, homeDataResult] = await Promise.allSettled([
+          teacherHomeDataApi.getCombinedCheckins(studentId, selectedPeriod),
+          teacherHomeDataApi.getAllStrategies(studentId),
+          statusData.is_linked_to_parent
+            ? teacherHomeDataApi.getStudentHomeData(studentId, selectedPeriod)
+            : Promise.resolve(null),
+        ]);
 
-        // Fetch all strategies (school + family shared)
-        try {
-          const strats = await teacherHomeDataApi.getAllStrategies(studentId);
-          setAllStrategies({ school: strats.school_strategies || [], family: strats.family_strategies || [] });
-        } catch (e) { console.log('All strategies:', e); }
+        if (combinedResult.status === 'fulfilled') {
+          setCombinedLogs(combinedResult.value);
+        } else {
+          console.log('Combined checkins:', combinedResult.reason);
+        }
 
-        // If linked, fetch home data regardless (teacher can see school data always)
+        if (stratsResult.status === 'fulfilled') {
+          setAllStrategies({ school: stratsResult.value.school_strategies || [], family: stratsResult.value.family_strategies || [] });
+        } else {
+          console.log('All strategies:', stratsResult.reason);
+        }
+
         if (statusData.is_linked_to_parent) {
-          try {
-            const homeDataResult = await teacherHomeDataApi.getStudentHomeData(studentId, selectedPeriod);
-            setHomeData(homeDataResult);
-          } catch (error) {
-            console.log('Could not fetch home data:', error);
+          if (homeDataResult.status === 'fulfilled' && homeDataResult.value) {
+            setHomeData(homeDataResult.value);
+          } else if (homeDataResult.status === 'rejected') {
+            console.log('Could not fetch home data:', homeDataResult.reason);
           }
         }
       }
