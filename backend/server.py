@@ -3203,7 +3203,13 @@ async def get_feeling_logs(student_id: str, request: Request, days: int = 7):
         raise HTTPException(status_code=403, detail="Not authorized to view this student's logs")
     start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     result = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
-    logs = result.data or []
+    # CRITICAL privacy fix Sep 21 (live incident, real family - Matilda): this endpoint (and
+    # its zone-logs/{id} and zone-logs/student/{id} aliases below) returned every feeling_logs
+    # row verbatim - comment included - regardless of the parent's home_sharing_enabled
+    # choice. This was the actual leak: teacher/student-detail.tsx's "Recent Check-ins"
+    # renders log.comment directly from this exact response. See
+    # _filter_home_logs_for_staff_viewer's own comment for the full audit.
+    logs = _filter_home_logs_for_staff_viewer(result.data or [], student_id, user)
     return [{
         **log,
         "zone": log.get("feeling_colour", log.get("zone")),
@@ -3243,7 +3249,9 @@ async def get_zone_logs_all(
             raise HTTPException(status_code=403, detail="Not authorized for this student")
         query = query.eq("student_id", student_id)
         result = query.execute()
-        return result.data or []
+        # CRITICAL privacy fix Sep 21 (live incident, real family - Matilda) - see
+        # _filter_home_logs_for_staff_viewer's own comment for the full audit.
+        return _filter_home_logs_for_staff_viewer(result.data or [], student_id, user)
 
     if user.get("role") == "kiosk":
         # Real feature Aug 31 (build-26 kiosk pairing): force-scope to the paired classroom
@@ -3275,7 +3283,12 @@ async def get_zone_logs_all(
     logs: List[dict] = []
     for sid in visible_student_ids:
         sid_result = supabase.table("feeling_logs").select("*").eq("student_id", sid).gte("timestamp", start_date).order("timestamp", desc=True).execute()
-        logs.extend(sid_result.data or [])
+        # CRITICAL privacy fix Sep 21 (live incident, real family - Matilda): this
+        # classroom-wide list feeds teacher/dashboard.tsx's own "Recent Check-ins" card -
+        # the teacher's LANDING screen, showing a colour pill + explicit "HOME" badge for
+        # every student, completely unfiltered before this. See
+        # _filter_home_logs_for_staff_viewer's own comment for the full audit.
+        logs.extend(_filter_home_logs_for_staff_viewer(sid_result.data or [], sid, user))
     logs.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
     return [{
         **log,
@@ -4266,7 +4279,14 @@ async def get_student_analytics(student_id: str, request: Request, days: int = 3
 
     start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     logs = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).execute()
-    logs_data = logs.data or []
+    # CRITICAL privacy fix Sep 21 (live incident, real family - Matilda): this endpoint is
+    # shared by both a teacher's view AND a parent's own view of their own child (see the
+    # _is_authorized_for_student comment above) - feeds student-detail.tsx's trend chart with
+    # unfiltered feeling_colour counts/daily_data that included private home entries. The
+    # helper below only ever filters for a staff viewer (teacher/school_admin/superadmin), so
+    # a parent viewing their own child's analytics is untouched - see
+    # _filter_home_logs_for_staff_viewer's own comment for the full audit.
+    logs_data = _filter_home_logs_for_staff_viewer(logs.data or [], student_id, user)
 
     feeling_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
     helper_counts = {}
@@ -4324,10 +4344,16 @@ async def get_all_classrooms_analytics(request: Request, days: int = 7):
             logger.info(f"[analytics/all] fallback students={student_ids}")
         feeling_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
         if student_ids:
-            logs_r = supabase.table("feeling_logs").select("feeling_colour").in_(
+            # CRITICAL privacy fix Sep 21 (live incident, real family - Matilda): this
+            # aggregate feeds teacher/dashboard.tsx's "Emotion Graph" bar chart - selecting
+            # only feeling_colour meant a private home check-in's colour still shifted the
+            # whole-classroom distribution the teacher sees. Now selects logged_by/student_id
+            # too so _filter_home_logs_batch can exclude unshared home entries before
+            # counting - see that helper's own comment for the full audit.
+            logs_r = supabase.table("feeling_logs").select("feeling_colour,logged_by,student_id").in_(
                 "student_id", student_ids[:100]
             ).gte("timestamp", start_date).execute()
-            for log in (logs_r.data or []):
+            for log in _filter_home_logs_batch(logs_r.data or [], user):
                 colour = log.get("feeling_colour", "")
                 if colour in feeling_counts:
                     feeling_counts[colour] += 1
@@ -4366,7 +4392,10 @@ async def get_classroom_analytics(classroom_id: str, request: Request, days: int
 
     for sid in student_ids:
         logs = supabase.table("feeling_logs").select("*").eq("student_id", sid).gte("timestamp", start_date).execute()
-        for log in (logs.data or []):
+        # CRITICAL privacy fix Sep 21 (live incident, real family - Matilda): this
+        # classroom-scoped chart previously counted every home check-in regardless of
+        # sharing - see _filter_home_logs_for_staff_viewer's own comment for the full audit.
+        for log in _filter_home_logs_for_staff_viewer(logs.data or [], sid, user):
             colour = log.get("feeling_colour", log.get("zone", ""))
             if colour in feeling_counts:
                 feeling_counts[colour] += 1
@@ -4805,6 +4834,74 @@ async def _is_authorized_for_student(user: dict, student_id: str, student_data: 
     except Exception:
         pass
     return False
+
+# CRITICAL privacy fix Sep 21 (live incident, real family - Matilda): feeling_logs is one
+# shared table for BOTH school and home check-ins, distinguished only by logged_by in
+# ('parent','family'). The Sep 19 fix only ever patched GET /teacher/student/{id}/home-data
+# - the one endpoint built specifically to show home data - but a repo-wide audit for this
+# report found feeling_logs read with select("*") and returned essentially raw at several
+# OTHER teacher-facing sites that were never touched: GET /feeling-logs/{id} (+ its
+# /zone-logs/{id} and /zone-logs/student/{id} aliases - the actual site that leaked
+# Matilda's real "Angry with brother" comment, rendered verbatim in
+# teacher/student-detail.tsx's "Recent Check-ins"), GET /zone-logs (both the single-student
+# and classroom-wide branches - the classroom-wide one feeds teacher/dashboard.tsx's OWN
+# "Recent Check-ins" card, which shows a colour pill and an explicit "HOME" badge for every
+# student in the whole classroom on the teacher's landing screen), GET
+# /teacher/student/{id}/combined-checkins (feeds student-detail.tsx's Calendar/Zone
+# Distribution tabs - colour and home/school badges, not the comment, but still a real
+# "Keep Private" violation), and GET /analytics/student/{id} (feeds the same screen's trend
+# chart - aggregate colour counts, still built from unfiltered home entries).
+#
+# One shared gate instead of re-deriving the same parent_links lookup at each site (the
+# Sep 19 fix's own mistake was being local to one endpoint, not central) - every one of the
+# sites above now calls this before returning/using feeling_logs data. Deliberately keyed on
+# the CALLER's role, not just student_id: _is_authorized_for_student (above) intentionally
+# also authorizes the student's OWN linked parent, and a parent must always see their own
+# submitted home check-ins in full regardless of this toggle - only a staff viewer
+# (teacher/school_admin/superadmin) is ever the audience this setting is about.
+def _filter_home_logs_for_staff_viewer(logs: list, student_id: str, user: dict) -> list:
+    if user.get("role") not in ("teacher", "school_admin", "superadmin"):
+        return logs
+    if not any(l.get("logged_by") in ("parent", "family") for l in logs):
+        return logs
+    try:
+        links = supabase.table("parent_links").select("home_sharing_enabled").eq("student_id", student_id).execute()
+        sharing_enabled = any(l.get("home_sharing_enabled") is True for l in (links.data or []))
+    except Exception as e:
+        logger.error(f"_filter_home_logs_for_staff_viewer: could not check sharing for {student_id}: {e}")
+        sharing_enabled = False
+    if sharing_enabled:
+        return logs
+    return [l for l in logs if l.get("logged_by") not in ("parent", "family")]
+
+# CRITICAL privacy fix Sep 21 (live incident, real family - Matilda): the multi-student
+# variant of the helper above, for classroom/school-wide aggregate analytics
+# (/analytics/classroom/{id}, /analytics/classroom/all) that pool feeling_logs across many
+# students at once - those don't have one single student_id to check, and calling the
+# single-student helper in a loop would mean one parent_links query per student. This does
+# one batched query for every student_id present in `logs`, matching the same fail-closed
+# default (no parent_links row, or none with it explicitly True, means filtered out).
+def _filter_home_logs_batch(logs: list, user: dict) -> list:
+    if user.get("role") not in ("teacher", "school_admin", "superadmin"):
+        return logs
+    student_ids = {l.get("student_id") for l in logs if l.get("logged_by") in ("parent", "family")}
+    if not student_ids:
+        return logs
+    try:
+        links = supabase.table("parent_links").select("student_id,home_sharing_enabled").in_(
+            "student_id", list(student_ids)
+        ).execute()
+        sharing_map: dict = {}
+        for l in (links.data or []):
+            if l.get("home_sharing_enabled") is True:
+                sharing_map[l["student_id"]] = True
+    except Exception as e:
+        logger.error(f"_filter_home_logs_batch: could not check sharing for {len(student_ids)} students: {e}")
+        sharing_map = {}
+    return [
+        l for l in logs
+        if l.get("logged_by") not in ("parent", "family") or sharing_map.get(l.get("student_id"))
+    ]
 
 async def _is_authorized_for_classroom(user: dict, classroom_id: str, classroom_data: dict = None) -> bool:
     """Real fix Aug 26 (security audit): shared authorization check for classroom-scoped
@@ -6349,6 +6446,15 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
 
     logs = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start).lte("timestamp", end).order("timestamp", desc=False).execute()
     school_logs = logs.data or []
+    # CRITICAL privacy fix Sep 21 (live incident, real family - Matilda): school_logs is
+    # tagged "school" for ALL of it below regardless of real origin, but feeling_logs is the
+    # SAME shared home+school table used everywhere else in this file - any logged_by in
+    # ('parent','family') row sitting in here (from the linked-child home check-in flow)
+    # would be mislabelled "school" AND printed into this downloadable, shareable PDF with
+    # zero regard for home_sharing_enabled. Filters BEFORE the mislabelling below so the
+    # label bug can't also become a privacy bug. Parent viewers untouched - see
+    # _filter_home_logs_for_staff_viewer's own comment for the full audit.
+    school_logs = _filter_home_logs_for_staff_viewer(school_logs, student_id, user)
     # Tag school logs with source
     for l in school_logs:
         l["_source"] = "school"
@@ -6370,15 +6476,26 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     home_logs = []
     has_home_data = False
     try:
-        fm_link = supabase.table("family_members").select("id").eq("student_id", student_id).execute()
-        if fm_link.data:
-            fm_id = fm_link.data[0]["id"]
-            home_res = supabase.table("family_zone_logs").select("*").eq("family_member_id", fm_id).gte("timestamp", start).lte("timestamp", end).order("timestamp", desc=False).execute()
-            home_logs = home_res.data or []
-            for l in home_logs:
-                l["_source"] = "home"
-                l["zone"] = l.get("zone", l.get("feeling_colour", ""))
-                l["strategies_selected"] = l.get("strategies_selected", l.get("helpers_selected", []))
+        # CRITICAL privacy fix Sep 21 (live incident, real family - Matilda): family_zone_logs
+        # is a dedicated home-only table (unlike feeling_logs above, every row here IS a home
+        # check-in by definition) - this fetched and printed it into the PDF for a
+        # teacher/admin caller with no home_sharing_enabled check at all. Gated the same way
+        # as every other staff-facing site: a linked parent generating their OWN child's
+        # report still sees their own submissions in full.
+        skip_home_for_staff = False
+        if user.get("role") in ("teacher", "school_admin", "superadmin"):
+            links = supabase.table("parent_links").select("home_sharing_enabled").eq("student_id", student_id).execute()
+            skip_home_for_staff = not any(l.get("home_sharing_enabled") is True for l in (links.data or []))
+        if not skip_home_for_staff:
+            fm_link = supabase.table("family_members").select("id").eq("student_id", student_id).execute()
+            if fm_link.data:
+                fm_id = fm_link.data[0]["id"]
+                home_res = supabase.table("family_zone_logs").select("*").eq("family_member_id", fm_id).gte("timestamp", start).lte("timestamp", end).order("timestamp", desc=False).execute()
+                home_logs = home_res.data or []
+                for l in home_logs:
+                    l["_source"] = "home"
+                    l["zone"] = l.get("zone", l.get("feeling_colour", ""))
+                    l["strategies_selected"] = l.get("strategies_selected", l.get("helpers_selected", []))
         has_home_data = len(home_logs) > 0
     except Exception as e:
         logger.warning(f"Could not fetch home logs for PDF: {e}")
@@ -8328,6 +8445,23 @@ def _gather_school_pdf_stats(school_name: Optional[str], start_date: str, admin_
     # demo-prep item 4 (see _fetch_all_paginated's docstring) - a school with >1000
     # checkins in the requested window would have silently under-reported here too.
     logs = _fetch_all_paginated("feeling_logs", "*", lambda q: q.in_("student_id", student_ids).gte("timestamp", start_date)) if student_ids else []
+    # CRITICAL privacy fix Sep 21 (live incident, real family - Matilda): this helper only
+    # ever runs inside the school-wide overview PDF (always a school_admin/superadmin
+    # caller, see the 3 call sites below) - no `user` param to check a role against, but the
+    # context itself guarantees a staff viewer, so this always filters (unlike
+    # _filter_home_logs_batch, which checks role first for callers shared with a parent
+    # view - this one has no such caller). See that helper's own comment for the full audit.
+    home_student_ids = {l.get("student_id") for l in logs if l.get("logged_by") in ("parent", "family")}
+    if home_student_ids:
+        try:
+            links = supabase.table("parent_links").select("student_id,home_sharing_enabled").in_(
+                "student_id", list(home_student_ids)
+            ).execute()
+            sharing_map = {l["student_id"]: True for l in (links.data or []) if l.get("home_sharing_enabled") is True}
+        except Exception as e:
+            logger.error(f"_gather_school_pdf_stats: could not check sharing for {len(home_student_ids)} students: {e}")
+            sharing_map = {}
+        logs = [l for l in logs if l.get("logged_by") not in ("parent", "family") or sharing_map.get(l.get("student_id"))]
 
     zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
     strategy_counts = {}
@@ -8797,7 +8931,11 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
 
     for sid, s in students_by_id.items():
         logs_r = supabase.table("feeling_logs").select("*").eq("student_id", sid).gte("timestamp", range_start).lte("timestamp", range_end).order("timestamp", desc=True).execute()
-        student_logs = logs_r.data or []
+        # CRITICAL privacy fix Sep 21 (live incident, real family - Matilda): this is a
+        # downloadable teacher/admin-only PDF - latest_per_student below stores the raw log
+        # dict verbatim (comment included) for its "latest check-in" summary per student. See
+        # _filter_home_logs_for_staff_viewer's own comment for the full audit.
+        student_logs = _filter_home_logs_for_staff_viewer(logs_r.data or [], sid, user)
         cls_name = classroom_names.get(s.get("classroom_id"), "Unassigned")
         if cls_name not in by_classroom:
             by_classroom[cls_name] = {"green":0,"blue":0,"yellow":0,"red":0,"students":0}
@@ -17909,7 +18047,12 @@ async def get_student_combined_checkins(student_id: str, request: Request, days:
     try:
         start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         result = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
-        logs = result.data or []
+        # CRITICAL privacy fix Sep 21 (live incident, real family - Matilda): this fed
+        # student-detail.tsx's Combined Calendar (an explicit "H" badge per day) and Zone
+        # Distribution tabs (a "Home" filter showing the real colour breakdown) with zero
+        # regard for home_sharing_enabled. See _filter_home_logs_for_staff_viewer's own
+        # comment for the full audit.
+        logs = _filter_home_logs_for_staff_viewer(result.data or [], student_id, user)
         return [{
             **log,
             "zone": log.get("feeling_colour", log.get("zone", "")),
