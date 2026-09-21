@@ -7,6 +7,7 @@ import { BonusItemCategory } from '../utils/sounds';
 import { playButtonFeedback } from '../utils/sounds';
 import { rewardsApi, analyticsApi, ShopItem } from '../utils/api';
 import { useApp } from '../context/AppContext';
+import { pickLocalized } from '../utils/localizedText';
 import { EvolutionProgressBar, DEFAULT_CREATURE_THRESHOLDS, COMMUNITY_CREATURE_THRESHOLDS } from './EvolutionProgressBar';
 
 // Real feature Aug 22 (item 2 visual polish): the "select from a grid, see one large focused
@@ -35,10 +36,7 @@ const ZONE_COLORS: Record<string, string> = {
 // itself (that's just the plain `description` column), so 'en' and "column missing/empty"
 // both fall through to the same base field, not a special case.
 function localizedDescription(entry: CreatureDetailEntry | null, language: string): string | undefined {
-  if (!entry) return undefined;
-  const key = `description_${language}` as keyof CreatureDetailEntry;
-  const localized = entry[key] as string | null | undefined;
-  return (localized && localized.trim()) ? localized : (entry.description || undefined);
+  return pickLocalized(entry, 'description', language);
 }
 
 // Real fix Sep 19 (Jono correction to the Sep 19 stage-navigation build): a future/unreached

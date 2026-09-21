@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import { pickLocalized } from '../utils/localizedText';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { Creature, CreatureStage } from '../utils/api';
 
@@ -97,7 +98,7 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
   animated = true,
   showGrowthIndicator = true,
 }) => {
-  const { t } = useApp();
+  const { t, language } = useApp();
   // Animation values
   const bounceAnim = useRef(new Animated.Value(0)).current;
   const swimAnim = useRef(new Animated.Value(0)).current;
@@ -601,7 +602,7 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
       </Text>
       
       <Text style={[styles.description, { fontSize: sizeConfig.fontSize - 2 }]}>
-        {stageInfo.description}
+        {pickLocalized(stageInfo, 'description', language)}
       </Text>
 
       {/* Growth indicator */}

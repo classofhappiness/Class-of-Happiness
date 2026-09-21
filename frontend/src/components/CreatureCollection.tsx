@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Animated, 
 import { useRouter } from 'expo-router';
 import { Creature } from '../utils/api';
 import { useApp } from '../context/AppContext';
+import { pickLocalized } from '../utils/localizedText';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../utils/sounds';
 import { CreatureShowcase } from './CreatureShowcase';
 import { useDataGridColumns, gridCardWidth } from '../utils/globalStyles';
@@ -103,7 +104,7 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
   onClose,
   allCreatures = [],
 }) => {
-  const { t: tContext } = useApp();
+  const { t: tContext, language } = useApp();
   const t = tProp || tContext;
   const router = useRouter();
   const gridColumns = useDataGridColumns();
@@ -301,7 +302,7 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
                     {equippedOutfit && <Text style={styles.wearingTxt}>{equippedOutfit.emoji} {equippedOutfit.name}</Text>}
                     {equippedMove && <Text style={styles.wearingTxt}>{equippedMove.emoji} {equippedMove.name}</Text>}
                   </View>
-                  <Text style={styles.detailDesc}>{displayCreature.stages?.[displayStage]?.description || ''}</Text>
+                  <Text style={styles.detailDesc}>{pickLocalized(displayCreature.stages?.[displayStage], 'description', language) || ''}</Text>
 
                   <View style={styles.evoRow}>
                     {displayCreature.stages?.map((stage: any, idx: number) => (

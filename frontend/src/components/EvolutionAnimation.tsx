@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Modal, Easing, TouchableOpacity } from 'react-native';
 import { Creature, CreatureStage } from '../utils/api';
+import { useApp } from '../context/AppContext';
+import { pickLocalized } from '../utils/localizedText';
 
 interface EvolutionAnimationProps {
   visible: boolean;
@@ -17,6 +19,7 @@ export const EvolutionAnimation: React.FC<EvolutionAnimationProps> = ({
   toStage,
   onComplete,
 }) => {
+  const { language } = useApp();
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -181,7 +184,7 @@ export const EvolutionAnimation: React.FC<EvolutionAnimationProps> = ({
 
           {showNewForm && (
             <Text style={styles.description}>
-              {newStageInfo.description}
+              {pickLocalized(newStageInfo, 'description', language)}
             </Text>
           )}
 

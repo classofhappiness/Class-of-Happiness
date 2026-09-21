@@ -914,6 +914,17 @@ export interface CreatureStage {
   name: string;
   emoji: string;
   description: string;
+  // Real feature Sep 21: full 10-language parity for default-creature stage descriptions -
+  // see localizedText.ts's pickLocalized() for how these get picked at render time.
+  description_ar?: string;
+  description_de?: string;
+  description_es?: string;
+  description_fr?: string;
+  description_hi?: string;
+  description_it?: string;
+  description_pt?: string;
+  description_ru?: string;
+  description_zh?: string;
   required_points: number;
 }
 

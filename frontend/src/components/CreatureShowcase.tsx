@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Modal, Animated, Easing, TouchableOpacity } from 'react-native';
 import { useApp } from '../context/AppContext';
+import { pickLocalized } from '../utils/localizedText';
 
 const zoneColors: Record<string, string> = {
   blue: '#4FC3F7', green: '#81C784', yellow: '#FFD54F', red: '#FF7043',
@@ -37,7 +38,7 @@ export const CreatureShowcase: React.FC<CreatureShowcaseProps> = ({
   const bg = zoneBg[zone] || '#E3F2FD';
   const emoji = creature?.stages?.[stage]?.emoji || '🥚';
   const stageName = creature?.stages?.[stage]?.name || creature?.name || '';
-  const stageDesc = creature?.stages?.[stage]?.description || '';
+  const stageDesc = pickLocalized(creature?.stages?.[stage], 'description', language) || '';
 
   const moves = (creature?.moves || []).slice(0, 3);
   const outfits = (creature?.outfits || []).slice(0, 3);
