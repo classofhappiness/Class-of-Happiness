@@ -75,6 +75,17 @@ export default function ColourSelectionScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    // Real fix Sep 21 (device report): kids tap fast, routinely navigating away (to
+    // strategies.tsx) while the opening greeting is still mid-flight - `cancelled` already
+    // stopped this effect's OWN setAudioReady calls from firing late (guarded since Sep
+    // 14), but nothing ever stopped the underlying Audio.Sound object itself from
+    // continuing to play and keep reporting playback status into a screen that no longer
+    // exists, which is the actual source of "cannot update an unmounted component"
+    // warnings piling up under real (fast-tapping) use. Held here so cleanup can tear it
+    // down explicitly either way - already resolved (unload it now) or still loading
+    // (greetingSound stays null; the .then() below notices `cancelled` and unloads it the
+    // moment it does resolve, instead of ever setting state or being left to keep playing).
+    let greetingSound: Awaited<ReturnType<typeof playPhraseFromPool>> = null;
     setAudioReady(false);
     preloadSounds();
     loadVoiceEnabled();
@@ -93,10 +104,29 @@ export default function ColourSelectionScreen() {
     // given up (voice off, no clips, network failure), so audio and content land together.
     // The 2.5s timeout is a safety net only, for a hung/slow fetch - not the normal path.
     const timeout = setTimeout(() => { if (!cancelled) setAudioReady(true); }, 2500);
-    playPhraseFromPool('opening', language).finally(() => {
-      if (!cancelled) { clearTimeout(timeout); setAudioReady(true); }
-    });
-    return () => { cancelled = true; clearTimeout(timeout); };
+    playPhraseFromPool('opening', language)
+      .then((sound) => {
+        if (cancelled) {
+          // Unmounted (or language changed, re-running this effect) while this was still
+          // loading - never played into a live screen, tear it down immediately rather
+          // than let it start now or sit around holding a native audio resource.
+          sound?.setOnPlaybackStatusUpdate(null);
+          sound?.unloadAsync().catch(() => {});
+          return;
+        }
+        greetingSound = sound;
+        clearTimeout(timeout);
+        setAudioReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) { clearTimeout(timeout); setAudioReady(true); }
+      });
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+      greetingSound?.setOnPlaybackStatusUpdate(null);
+      greetingSound?.unloadAsync().catch(() => {});
+    };
   }, [language]);
 
   useLayoutEffect(() => {

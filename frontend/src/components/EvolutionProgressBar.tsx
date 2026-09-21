@@ -56,7 +56,26 @@ export const EvolutionProgressBar: React.FC<EvolutionProgressBarProps> = ({
   const displayCurrent = Math.min(current, nextThreshold);
 
   return (
-    <View style={style}>
+    // Real fix Sep 21 (device report - 3rd screen, same bug: reward page, then My
+    // Creatures, now confirmed CreatureDetailModal too, ALL from this one component). Root
+    // cause was never any one caller's style - it's that this outer View had no width of
+    // its own, so it silently inherited whichever way ITS parent happened to size a
+    // no-explicit-width child. track's width:'100%' below is only ever real once this View
+    // has a real width to be 100% of - a plain View defaults to stretching to fill its
+    // parent, but that default flips to shrink-to-content the moment ANY ancestor sets
+    // alignItems to something other than 'stretch' (rewards.tsx: this component's OWN
+    // style had alignSelf:'center'; creatures.tsx and CreatureDetailModal: an ANCESTOR
+    // several levels up has alignItems:'center' for unrelated reasons - centering a
+    // creature image, a scroll container's padding - with this component just caught in
+    // it) OR the caller's own alignSelf does. Either way the symptom is identical: numbers
+    // render (the label has real intrinsic size), the bar doesn't (100% of ~0 is ~0).
+    // width:'100%' here is an explicit, definite dimension - Yoga honours it regardless of
+    // what alignItems/alignSelf anywhere in the tree says, unlike the implicit stretch
+    // default it's replacing, which is exactly what those all silently override. Spreading
+    // the caller's style AFTER it means a caller can still legitimately override width if
+    // one ever has a real reason to; every current caller only adds margin/maxWidth/
+    // alignSelf, none of which conflict with this.
+    <View style={[styles.root, style]}>
       <View style={styles.track}>
         <View style={[styles.fill, { width: `${pct}%`, backgroundColor: colour }]} />
       </View>
@@ -68,6 +87,7 @@ export const EvolutionProgressBar: React.FC<EvolutionProgressBarProps> = ({
 };
 
 const styles = StyleSheet.create({
+  root: { width: '100%' },
   track: { width: '100%', height: 10, backgroundColor: '#E0E0E0', borderRadius: 5, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 5 },
   label: { fontSize: 11, fontWeight: '700', color: '#999', textAlign: 'right', marginTop: 3 },

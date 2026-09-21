@@ -150,11 +150,20 @@ const loadPhrasePool = async (moment: VoicePhraseMoment, language: string): Prom
 // it; existing fire-and-forget callers (rewards.tsx) are unaffected since they never awaited
 // it before either. Dropped the old setTimeout(...,0) wrapper - it only deferred to the next
 // tick for no real reason and made this impossible to await.
-export const playPhraseFromPool = async (moment: VoicePhraseMoment, language: string): Promise<void> => {
-  if (!voiceEnabled) return;
+// Real fix Sep 21 (device report): now returns the Audio.Sound it created (or null if it
+// never got that far) instead of void - a caller gating a loading screen on this (zone.tsx)
+// needs a handle to actually tear the sound down on unmount, not just skip its OWN setState
+// call. A kid tapping a colour before the greeting finishes navigates away while this is
+// still mid-flight; without a real handle the Sound object keeps playing and keeps calling
+// its own status-update callback into a screen that's gone, which is what was actually
+// producing the "cannot update an unmounted component" warnings (a JS-bridge-level effect
+// of the sound object outliving its caller, not a plain missed React state guard - the
+// zone.tsx setAudioReady calls were already `cancelled`-guarded and always have been).
+export const playPhraseFromPool = async (moment: VoicePhraseMoment, language: string): Promise<Audio.Sound | null> => {
+  if (!voiceEnabled) return null;
   try {
     const urls = await loadPhrasePool(moment, language);
-    if (!urls.length) return;
+    if (!urls.length) return null;
     const url = urls[Math.floor(Math.random() * urls.length)];
     // Real fix Sep 21 (device report): same cache resolution as playVoiceClip above -
     // whichever of the 2-4 pool variants gets picked here, preloadZoneAudio (zone.tsx)
@@ -166,7 +175,10 @@ export const playPhraseFromPool = async (moment: VoicePhraseMoment, language: st
         sound.unloadAsync().catch(() => {});
       }
     });
-  } catch {}
+    return sound;
+  } catch {
+    return null;
+  }
 };
 
 // Real feature Sep 21 (device report): S04 (zone.tsx) is where the delay is most

@@ -390,7 +390,15 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
                   maskSilhouette={entry.type === 'community' && !displayReached}
                 />
               </View>
-              {entry.is_active && <Text style={[s.activeBadge, { color }]}>{t('active_badge') || '★ Active'}</Text>}
+              {/* Real fix Sep 21 (device report): "Active" describes the CREATURE overall
+                  (entry.is_active - it's the one the student is currently evolving), not
+                  whichever stage happens to be on screen - it used to show unconditionally,
+                  so previewing an old, already-completed stage of the active creature showed
+                  "★ Active" right next to a "👁️ Previewing..." banner saying otherwise, on
+                  a separate line below it. Now mutually exclusive with the preview banner
+                  (only shown when actually viewing the real current stage) and folded onto
+                  the SAME line/element as the banner otherwise - see previewSlot below. */}
+              {!previewingOther && entry.is_active && <Text style={[s.activeBadge, { color }]}>{t('active_badge') || '★ Active'}</Text>}
               {/* Real fix Sep 19 (Jono correction #2): this banner used to mount/unmount
                   directly in document flow, so appearing/disappearing pushed the "Evolution"
                   title, evoRow and progress line up/down beneath it. It now lives inside a
@@ -400,8 +408,20 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
               <View style={s.previewSlot}>
                 {previewingOther && (
                   <TouchableOpacity onPress={() => setPreviewStage(null)} style={[s.previewBanner, { backgroundColor: color + '20' }]}>
-                    <Text style={[s.previewBannerText, { color }]}>
-                      👁️ {(t('previewing_stage') || 'Previewing Stage {n}').replace('{n}', String(displayStage + 1))} · {t('back_to_current') || 'tap to return'}
+                    <Text
+                      style={[s.previewBannerText, { color }]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.75}
+                    >
+                      {/* Real fix Sep 21 (device report): a previewed stage the creature has
+                          already passed is "Completed", never "Active" - that word is
+                          reserved for the true current stage above. Folded into this same
+                          Text/line rather than a second badge, satisfying both the wording
+                          fix and the "same line" layout ask at once. numberOfLines/
+                          adjustsFontSizeToFit keep it literally one line even for a longer
+                          translation now that "Completed ·" can prepend it. */}
+                      {displayReached ? `✓ ${t('completed_badge') || 'Completed'} · ` : ''}👁️ {(t('previewing_stage') || 'Previewing Stage {n}').replace('{n}', String(displayStage + 1))} · {t('back_to_current') || 'tap to return'}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -581,12 +601,22 @@ const s = StyleSheet.create({
   closeBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(0,0,0,0.12)', justifyContent: 'center', alignItems: 'center' },
   closeTxt: { fontSize: 16, fontWeight: 'bold', color: '#555' },
   scrollPad: { padding: 18, paddingBottom: 40, alignItems: 'center' },
-  visualBox: { width: 150, height: 150, borderRadius: 75, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  // Real fix Sep 21 (device report): marginBottom trimmed 10->4 as part of tightening the
+  // gap to the "Evolution" section below - see previewSlot's note just below for the rest.
+  visualBox: { width: 150, height: 150, borderRadius: 75, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   activeBadge: { fontSize: 13, fontWeight: '900', marginBottom: 8 },
   // Real feature Sep 19: the "you're looking at a stage other than your real current one"
   // banner - tappable itself (returns to current), deliberately using the creature's own
   // zone colour rather than a neutral/warning colour, since previewing isn't an error state.
-  previewSlot: { height: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  // Real fix Sep 21 (device report): this reserved slot sits empty (nothing being
+  // previewed) far more often than it shows a banner, so its own height/margin end up
+  // being most of the "too much gap before Evolution" complaint. height trimmed to just
+  // clear the real banner's content height (previewBannerText's ~14px line + 12px vertical
+  // padding = ~26px - 28 keeps a couple px of headroom, not the previous 32) and
+  // marginBottom dropped to 0 - sectionTitle's own weight/colour already reads as a clear
+  // section break without extra space stacked on top. Still non-zero height, so the
+  // anti-layout-jump fix this slot exists for (Sep 19) is untouched.
+  previewSlot: { height: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 0 },
   previewBanner: { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
   previewBannerText: { fontSize: 11.5, fontWeight: '800' },
   sectionTitle: { alignSelf: 'flex-start', fontSize: 15, fontWeight: '900', color: '#1A1A2E', marginBottom: 10 },

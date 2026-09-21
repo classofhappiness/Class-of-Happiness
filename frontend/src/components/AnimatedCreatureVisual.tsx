@@ -90,7 +90,15 @@ export const AnimatedCreatureVisual: React.FC<Props> = ({ zone, size = 52, unloc
   if (localSource) {
     return (
       <Animated.View style={{ transform, width: size, height: size }}>
-        <Image source={localSource} style={[styles.image, { width: size, height: size, borderRadius: size / 6 }]} resizeMode="contain" />
+        {/* Real fix Sep 21 (device report, 2nd time - the first "fix" tinted evoStage's
+            OUTER box in CreatureDetailModal, which was never the actual source): styles.image
+            below carries backgroundColor:'#F5F5F5' as a loading placeholder for the remote
+            imageUrl path just below - correct there, but this bundled localSource silhouette
+            PNG loads instantly and is genuinely transparent outside the silhouette shape
+            (confirmed against the actual asset pixels, not just the code) - #F5F5F5 was
+            sitting visibly behind/around every unreached-stage silhouette as exactly the
+            "white square" reported both times. No placeholder needed for a local asset. */}
+        <Image source={localSource} style={{ width: size, height: size, borderRadius: size / 6 }} resizeMode="contain" />
       </Animated.View>
     );
   }
