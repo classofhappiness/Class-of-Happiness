@@ -806,6 +806,20 @@ export const teacherHomeDataApi = {
   getAllStrategies: (studentId: string): Promise<{school_strategies: any[]; family_strategies: any[]}> =>
     apiRequest(`/teacher/student/${studentId}/all-strategies`),
 
+  // Real fix Sep 22 (device report): student-detail.tsx's "Pause/Resume sharing with
+  // parent" button called this with a raw fetch() and its own inline BACKEND_URL, but that
+  // call sits inside an Alert button's onPress handler - a different scope than the two
+  // OTHER places in the same file that each separately declare their own local BACKEND_URL
+  // const. It referenced a name that was never in scope there, so every press threw a
+  // ReferenceError, caught by the button's own catch{} and shown as the generic "Could not
+  // update sharing" alert - confirmed via git blame this has been broken exactly this way
+  // since the feature was first built (Aug 26, commit 5667f340), not something the privacy
+  // fix touched. apiRequest already resolves BACKEND_URL/auth internally, the same way
+  // every other call in this object does - using it here instead of another ad-hoc fetch
+  // removes the scope bug at its source rather than patching in a third local BACKEND_URL.
+  toggleSchoolSharing: (studentId: string): Promise<{ school_sharing_enabled: boolean }> =>
+    apiRequest(`/teacher/student/${studentId}/toggle-school-sharing`, { method: 'PUT' }),
+
   addStrategy: (studentId: string, data: {name: string; description?: string; zone: string; icon?: string; share_with_parent?: boolean}): Promise<any> =>
     apiRequest(`/teacher/student/${studentId}/strategies`, { method: 'POST', body: JSON.stringify(data) }),
 

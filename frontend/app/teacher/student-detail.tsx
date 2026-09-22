@@ -930,20 +930,19 @@ export default function StudentDetailScreen() {
                         onPress: async () => {
                           setTogglingSchoolSharing(true);
                           try {
-                            const token = await AsyncStorage.getItem('session_token');
-                            const res = await fetch(`${BACKEND_URL}/api/teacher/student/${studentId}/toggle-school-sharing`, {
-                              method: 'PUT',
-                              headers: { Authorization: `Bearer ${token}` },
-                            });
-                            if (res.ok) {
-                              const data = await res.json();
-                              setSharingStatus((prev: any) => prev ? { ...prev, school_sharing_enabled: data.school_sharing_enabled } : prev);
-                            } else {
-                              const data = await res.json().catch(() => ({}));
-                              Alert.alert(t('error') || 'Error', data.detail || (t('toggle_school_sharing_error') || 'Could not update sharing. Please try again.'));
-                            }
-                          } catch {
-                            Alert.alert(t('error') || 'Error', t('toggle_school_sharing_error') || 'Could not update sharing. Please try again.');
+                            // Real fix Sep 22 (device report): was a raw fetch() referencing
+                            // a BACKEND_URL that was never in scope in this onPress closure
+                            // (two OTHER local BACKEND_URL consts exist elsewhere in this
+                            // file, in unrelated functions) - every press threw a
+                            // ReferenceError here, always caught by the catch{} below and
+                            // shown as this generic alert. teacherHomeDataApi.toggleSchoolSharing
+                            // uses the same apiRequest() every other call in this file already
+                            // does, which resolves the backend URL correctly and throws a
+                            // real Error with the backend's own detail message on failure.
+                            const data = await teacherHomeDataApi.toggleSchoolSharing(studentId);
+                            setSharingStatus((prev: any) => prev ? { ...prev, school_sharing_enabled: data.school_sharing_enabled } : prev);
+                          } catch (e: any) {
+                            Alert.alert(t('error') || 'Error', e?.message || (t('toggle_school_sharing_error') || 'Could not update sharing. Please try again.'));
                           } finally {
                             setTogglingSchoolSharing(false);
                           }

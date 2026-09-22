@@ -3,6 +3,7 @@ import { useNavigation } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Modal, Alert, ActivityIndicator, RefreshControl, Switch, useWindowDimensions, Linking,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -10,6 +11,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { BarChart } from 'react-native-gifted-charts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../../src/context/AppContext';
+import { useAndroidKeyboardOffset } from '../../../src/utils/useAndroidKeyboardOffset';
 import { EMOTION_COLOURS } from '../../../src/constants/emotionColours';
 import { linkedChildApi, LinkedChild, FamilyAssignedStrategy, familyApi } from '../../../src/utils/api';
 import { EmotionColourLoader } from '../../../src/components/EmotionColourLoader';
@@ -81,6 +83,14 @@ export default function LinkedChildDetailScreen() {
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useApp();
+  // Real fix Sep 22 (device report, 3rd report - traced live via parent/dashboard.tsx's
+  // own onPress handler for a school-linked child's stats button: it routes here, to
+  // /parent/linked-child/[id], not student/strategies.tsx or parent/checkin.tsx, which is
+  // why those two earlier fixes never touched this screen at all. This screen's check-in
+  // Comment field had ZERO keyboard-avoidance of any kind - not broken, just never
+  // present. Same Android edge-to-edge/adjustResize gap as the other two screens - see
+  // useAndroidKeyboardOffset's own comment.
+  const androidKeyboardOffset = useAndroidKeyboardOffset();
 
   const [child,          setChild]          = useState<any | null>(null);
   const [childType,      setChildType]      = useState<ChildType>(null);
@@ -737,7 +747,19 @@ export default function LinkedChildDetailScreen() {
 
       {/* CHECK-IN MODAL */}
       <Modal visible={showCheckIn} animationType="slide" transparent onRequestClose={()=>setShowCheckIn(false)}>
-        <View style={s.overlay}><View style={s.sheet}>
+        {/* Real fix Sep 22 (device report, 3rd report): this Modal renders in its own
+            native layer, so an OUTER KeyboardAvoidingView (there wasn't one anyway) couldn't
+            reach it regardless - it has to wrap content INSIDE the Modal itself. behavior=
+            'padding' on iOS pushes this flex-end-aligned overlay's sheet up automatically
+            (real native behaviour, works fine there); Android gets the same explicit
+            paddingBottom approach as the other two screens, since this app's
+            edgeToEdgeEnabled:true breaks the native resize signal 'height'/undefined would
+            otherwise lean on - see useAndroidKeyboardOffset's own comment. */}
+        <KeyboardAvoidingView
+          style={s.overlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={[s.sheet, Platform.OS === 'android' && { marginBottom: androidKeyboardOffset }]}>
           <View style={s.sheetHeader}>
             <Text style={s.sheetTitle}>Check-in - {child.name}</Text>
             <TouchableOpacity onPress={()=>setShowCheckIn(false)}><MaterialIcons name="close" size={24} color="#666" /></TouchableOpacity>
@@ -762,12 +784,19 @@ export default function LinkedChildDetailScreen() {
               {submitting?<ActivityIndicator size="small" color="#fff"/>:<Text style={s.submitBtnText}>Save Check-in</Text>}
             </TouchableOpacity>
           </View>
-        </View></View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ADD STRATEGY MODAL */}
       <Modal visible={showAddStrat} animationType="slide" transparent onRequestClose={()=>setShowAddStrat(false)}>
-        <View style={s.overlay}><View style={s.sheet}>
+        {/* Real fix Sep 22 (device report): same gap as the check-in modal above, same fix -
+            see that Modal's own comment. */}
+        <KeyboardAvoidingView
+          style={s.overlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={[s.sheet, Platform.OS === 'android' && { marginBottom: androidKeyboardOffset }]}>
           <View style={s.sheetHeader}>
             <Text style={s.sheetTitle}>{t('add_strategy') || 'Add Strategy'}</Text>
             <TouchableOpacity onPress={()=>setShowAddStrat(false)}><MaterialIcons name="close" size={24} color="#666" /></TouchableOpacity>
@@ -812,7 +841,8 @@ export default function LinkedChildDetailScreen() {
               <Text style={s.submitBtnText}>{t('add_strategy') || 'Add Strategy'}</Text>
             </TouchableOpacity>
           </View>
-        </View></View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
