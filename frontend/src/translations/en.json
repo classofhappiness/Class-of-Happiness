@@ -130,6 +130,8 @@
   "could_not_save_checkin_now": "Could not save check-in right now.",
   "could_not_start_trial": "Could not start trial",
   "countries_joined_teaser": "{count} countries have joined. Keep submitting to unlock the map!",
+  "see_countries": "See countries",
+  "hide_countries": "Hide countries",
   "countries_joined_teaser_singular": "1 country has joined. Keep submitting to unlock the map!",
   "covered_by_school": "Covered by your school",
   "create_account_btn": "Create Account",

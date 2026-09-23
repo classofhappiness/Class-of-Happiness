@@ -155,6 +155,8 @@
   "could_not_save_checkin_now": "暂时无法保存签到。",
   "could_not_start_trial": "无法开始试用",
   "countries_joined_teaser": "已有 {count} 个国家加入 - 继续提交以解锁地图！",
+  "see_countries": "查看国家",
+  "hide_countries": "隐藏国家",
   "covered_by_school": "由你的学校承担费用",
   "create_account_btn": "创建账户",
   "create_classroom": "创建班级",

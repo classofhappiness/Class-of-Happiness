@@ -11,7 +11,7 @@
 // 4) expiry date and country-of-origin (global scope only, 5-contributor privacy threshold)
 //    now shown on the card, both newly returned by /creatures/eligible.
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Pressable, ActivityIndicator, RefreshControl, Alert, useWindowDimensions, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Pressable, ActivityIndicator, RefreshControl, Alert, useWindowDimensions, Animated, Easing, ScrollView } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -421,7 +421,15 @@ export default function GlobalCreaturesScreen() {
       <TranslatedHeader title={t('world_creatures') || 'World Creatures'} showHome />
       <Text style={styles.subtitle}>{t('find_next_creature_subtitle') || 'Find your next creature to work toward'}</Text>
       {countriesJoined > 0 && (
-        <TouchableOpacity onPress={toggleCountryBoard} activeOpacity={0.7}>
+        // Real fix Sep 23 (device report): the only expand/collapse cue used to be a plain
+        // ▲/▼ TEXT CHARACTER inline at 11px, the same tiny size and purple colour as the
+        // sentence around it - easy for a kid to miss entirely as anything other than
+        // decoration. Restructured into the sentence (kept, still informative) plus a
+        // visually distinct "hint row" underneath it - a real MaterialIcons chevron at
+        // 2x the size, a short explicit label, and generous padding on the whole
+        // TouchableOpacity so the actual tap target clears 44x44 rather than however tall
+        // one line of 11px text happens to be.
+        <TouchableOpacity onPress={toggleCountryBoard} activeOpacity={0.7} style={styles.countryTeaserBtn}>
           <Text style={styles.countryTeaser}>
             {/* Real fix Sep 15 (Marisa build-26, S07): "1 countries have joined" - the
                 template only ever had a plural form. Singular gets its own real sentence
@@ -429,8 +437,14 @@ export default function GlobalCreaturesScreen() {
             🌍 {countriesJoined === 1
               ? (t('countries_joined_teaser_singular') || '1 country has joined. Keep submitting to unlock the map!')
               : (t('countries_joined_teaser') || '{count} countries have joined. Keep submitting to unlock the map!').replace('{count}', String(countriesJoined))
-            } {countryBoardOpen ? '▲' : '▼'}
+            }
           </Text>
+          <View style={styles.countryTeaserHint}>
+            <Text style={styles.countryTeaserHintText}>
+              {countryBoardOpen ? (t('hide_countries') || 'Hide countries') : (t('see_countries') || 'See countries')}
+            </Text>
+            <MaterialIcons name={countryBoardOpen ? 'expand-less' : 'expand-more'} size={24} color="#7C5CBF" />
+          </View>
         </TouchableOpacity>
       )}
       {countryBoardOpen && (
@@ -473,7 +487,20 @@ export default function GlobalCreaturesScreen() {
           ))}
         </View>
       ) : null}
-      <View style={styles.filterRow}>
+      {/* Real fix Sep 23 (device report): flexWrap:'wrap' on a fixed-width row let Red drop
+          to a second line the moment the 5 chips' combined width exceeded phone width - at
+          typical phone widths, it always did. Two changes together, not either/or: chip
+          padding/font shrunk a bit so all 5 comfortably fit without scrolling on a normal
+          phone, AND the row is now a horizontal ScrollView so even an edge case (a very
+          narrow device, a future 6th filter, larger system font size via accessibility
+          settings) degrades to "scroll for the rest" instead of silently wrapping to a
+          second line again. */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterRow}
+        contentContainerStyle={styles.filterRowContent}
+      >
         {['all', 'green', 'blue', 'yellow', 'red'].map(f => (
           <TouchableOpacity key={f}
             style={[styles.filterBtn, filter === f && { backgroundColor: f === 'all' ? '#1A1A2E' : EMOTION_COLORS[f] }]}
@@ -483,7 +510,7 @@ export default function GlobalCreaturesScreen() {
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
       {loading || showScopeLoader ? (
         // Round 3, item 13a: showScopeLoader covers a slow scope switch the same way `loading`
         // covers the initial mount - tab bar and filter row above stay fully visible/tappable
@@ -525,6 +552,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F7F8FA' },
   subtitle: { fontSize: 12, color: '#888', textAlign: 'center', marginTop: 4 },
   countryTeaser: { fontSize: 11, color: '#7C5CBF', fontWeight: '700', textAlign: 'center', marginTop: 3 },
+  // Real fix Sep 23 (device report): countryTeaserBtn's own padding is what guarantees the
+  // real tap target clears 44x44 - the sentence text alone (11px, one or two lines) was
+  // nowhere close. countryTeaserHint is the new, clearly-interactive row: a real chevron at
+  // 24px (was an inline 11px ▲/▼ character) plus a short explicit label, visually distinct
+  // from the informational sentence above it.
+  countryTeaserBtn: { alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16, minHeight: 44 },
+  countryTeaserHint: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 4 },
+  countryTeaserHintText: { fontSize: 13, color: '#7C5CBF', fontWeight: '800' },
   countryBoard: { marginHorizontal: 14, marginTop: 8, padding: 10, backgroundColor: 'white', borderRadius: 12, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
   countryBoardEmpty: { fontSize: 11, color: '#9CA3AF', textAlign: 'center', paddingVertical: 6 },
   countryRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 6 },
@@ -539,9 +574,17 @@ const styles = StyleSheet.create({
   scopeBtnActive: { backgroundColor: '#5C6BC0' },
   scopeBtnText: { fontSize: 10, fontWeight: '800', color: '#666' },
   scopeBtnTextActive: { color: 'white' },
-  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 14, paddingTop: 6, paddingBottom: 10, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  filterBtn: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 50, backgroundColor: '#F0F0F0' },
-  filterText: { fontSize: 12, fontWeight: '800', color: '#666' },
+  // Real fix Sep 23 (device report): filterRow is now the ScrollView's own style (no
+  // flexDirection/flexWrap - that's the content container's job below); flexWrap:'wrap' was
+  // the actual bug, dropping Red onto a second line the moment 5 chips exceeded the row's
+  // width, which they always did at phone width.
+  filterRow: { backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  filterRowContent: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingTop: 6, paddingBottom: 10 },
+  // paddingHorizontal/fontSize both trimmed a bit so all 5 chips comfortably fit on one
+  // line without needing to scroll on a normal phone width - the ScrollView above is the
+  // safety net for anything narrower, not the primary fix.
+  filterBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 50, backgroundColor: '#F0F0F0' },
+  filterText: { fontSize: 11, fontWeight: '800', color: '#666' },
   card: { backgroundColor: 'white', borderRadius: 14, overflow: 'hidden', marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   cardLocked: { opacity: 0.6 },
   imgWrap: { width: '100%', aspectRatio: 1.1, backgroundColor: '#F5F5F5' },

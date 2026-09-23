@@ -155,6 +155,8 @@
   "could_not_save_checkin_now": "تعذر حفظ التسجيل الآن.",
   "could_not_start_trial": "تعذّر بدء الفترة التجريبية",
   "countries_joined_teaser": "انضمت {count} دولة حتى الآن - استمر في المشاركة لفتح الخريطة!",
+  "see_countries": "عرض الدول",
+  "hide_countries": "إخفاء الدول",
   "covered_by_school": "مغطّى من قِبل مدرستك",
   "create_account_btn": "إنشاء حساب",
   "create_classroom": "إنشاء فصل دراسي",

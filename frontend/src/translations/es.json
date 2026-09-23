@@ -750,6 +750,8 @@
   "zone_alert": "Alerta de Zona",
   "back_to_settings": "Volver a Configuración",
   "countries_joined_teaser": "¡{count} países ya se han unido - sigue enviando para desbloquear el mapa!",
+  "see_countries": "Ver países",
+  "hide_countries": "Ocultar países",
   "new_move_unlocked": "🎬 ¡Nuevo Movimiento!",
   "new_outfit_unlocked": "👗 ¡Nuevo Look!",
   "new_food_unlocked": "🍎 ¡Nueva Comida!",

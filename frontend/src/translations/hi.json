@@ -155,6 +155,8 @@
   "could_not_save_checkin_now": "अभी चेक-इन सहेजा नहीं जा सका।",
   "could_not_start_trial": "ट्रायल शुरू नहीं हो सका",
   "countries_joined_teaser": "{count} देश जुड़ चुके हैं - नक्शा अनलॉक करने के लिए भेजते रहें!",
+  "see_countries": "देश देखें",
+  "hide_countries": "देश छिपाएं",
   "covered_by_school": "आपके स्कूल द्वारा कवर किया गया",
   "create_account_btn": "खाता बनाएं",
   "create_classroom": "कक्षा बनाएं",

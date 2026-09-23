@@ -155,6 +155,8 @@
   "could_not_save_checkin_now": "Не удалось сохранить чек-ин сейчас.",
   "could_not_start_trial": "Не удалось начать пробный период",
   "countries_joined_teaser": "{count} стран уже присоединились - продолжайте отправлять, чтобы открыть карту!",
+  "see_countries": "Показать страны",
+  "hide_countries": "Скрыть страны",
   "covered_by_school": "Оплачено вашей школой",
   "create_account_btn": "Создать аккаунт",
   "create_classroom": "Создать класс",
