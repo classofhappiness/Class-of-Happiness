@@ -88,23 +88,38 @@ export default function ColourSelectionScreen() {
     let greetingSound: Awaited<ReturnType<typeof playPhraseFromPool>> = null;
     setAudioReady(false);
     preloadSounds();
-    loadVoiceEnabled();
     loadVoiceManifest(language);
-    // Real feature Sep 21 (device report): warms the 4 zone (question) clips plus every
-    // "opening" pool variant in the background while the greeting below plays - by the
-    // time a kid actually taps a colour (after hearing the greeting, reading the screen),
-    // its clip is normally already a local file, not a fresh fetch. Fire-and-forget: this
-    // screen's own loader is gated on the greeting playing, not on this finishing too.
-    preloadZoneAudio(language);
-    // Real fix Sep 14 (Marisa build-26, S04): opening-greeting phrase used to fire-and-forget
-    // while the full screen rendered immediately underneath it - the phrase pool fetch plus
-    // sound setup took long enough to produce a glitch and ~2/3s silent gap before it
-    // actually started playing, with the screen already fully interactive. Now the loader
-    // (below) stays up until playback has genuinely started or the attempt has genuinely
-    // given up (voice off, no clips, network failure), so audio and content land together.
-    // The 2.5s timeout is a safety net only, for a hung/slow fetch - not the normal path.
+    // Real fix Sep 24 (device report, Kiosk A1): loadVoiceEnabled() and playPhraseFromPool
+    // used to both fire in the same synchronous burst - loadVoiceEnabled reads the persisted
+    // mute flag from AsyncStorage (async), while playPhraseFromPool's own mute check reads
+    // the in-memory voiceEnabled module variable SYNCHRONOUSLY, before that read had a chance
+    // to resolve. On a warm JS session (a dev reload, or a device that's been sitting on the
+    // app for a while) voiceEnabled was already correctly loaded from an earlier screen visit,
+    // so this never showed up - but a kiosk device is cold-launched fresh every morning, which
+    // is exactly the one case where the module variable is still sitting at its default
+    // (true) the very first time this screen ever mounts, regardless of what was muted
+    // yesterday. Awaiting the load before the greeting (and the zone-clip preload, which has
+    // the identical guard) closes that window - the persisted setting is always in memory
+    // before anything checks it.
     const timeout = setTimeout(() => { if (!cancelled) setAudioReady(true); }, 2500);
-    playPhraseFromPool('opening', language)
+    loadVoiceEnabled()
+      .then(() => {
+        if (cancelled) return null;
+        // Real feature Sep 21 (device report): warms the 4 zone (question) clips plus every
+        // "opening" pool variant in the background while the greeting below plays - by the
+        // time a kid actually taps a colour (after hearing the greeting, reading the screen),
+        // its clip is normally already a local file, not a fresh fetch. Fire-and-forget: this
+        // screen's own loader is gated on the greeting playing, not on this finishing too.
+        preloadZoneAudio(language);
+        // Real fix Sep 14 (Marisa build-26, S04): opening-greeting phrase used to fire-and-forget
+        // while the full screen rendered immediately underneath it - the phrase pool fetch plus
+        // sound setup took long enough to produce a glitch and ~2/3s silent gap before it
+        // actually started playing, with the screen already fully interactive. Now the loader
+        // (below) stays up until playback has genuinely started or the attempt has genuinely
+        // given up (voice off, no clips, network failure), so audio and content land together.
+        // The 2.5s timeout is a safety net only, for a hung/slow fetch - not the normal path.
+        return playPhraseFromPool('opening', language);
+      })
       .then((sound) => {
         if (cancelled) {
           // Unmounted (or language changed, re-running this effect) while this was still
@@ -114,7 +129,7 @@ export default function ColourSelectionScreen() {
           sound?.unloadAsync().catch(() => {});
           return;
         }
-        greetingSound = sound;
+        greetingSound = sound || null;
         clearTimeout(timeout);
         setAudioReady(true);
       })
