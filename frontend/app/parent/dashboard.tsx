@@ -219,7 +219,10 @@ export default function ParentDashboard() {
   
   // Analytics
   const [analytics, setAnalytics] = useState<{ zone_counts: Record<string, number> } | null>(null);
-  const [weekExpanded, setWeekExpanded] = useState(false);
+  // Real fix Sep 24 (device report B3/S17-5): defaults to expanded now (Jono's explicit ask
+  // for the Week/Overview section on parent surfaces) - not a persisted preference, just this
+  // component's initial state, so simply flipping the default is the whole fix.
+  const [weekExpanded, setWeekExpanded] = useState(true);
   const [tipDismissed, setTipDismissed] = useState(false);
   const [selectedWeekChild, setSelectedWeekChild] = useState<string | null>(null);
   const [parentAlertCount, setParentAlertCount] = useState(0);
