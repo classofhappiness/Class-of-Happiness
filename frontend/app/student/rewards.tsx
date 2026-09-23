@@ -378,8 +378,12 @@ export default function RewardsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+      {/* Real fix Sep 23 (device report): top-bar title removed - it just repeated the big
+          "🎉 Great job!" heading below in smaller text, and doesn't need to say anything of
+          its own (the back/home buttons and logo are the only things this bar needs to
+          carry on this screen). */}
       <TranslatedHeader
-        title={t('great_job_title') || 'Great job!'}
+        title=""
         showHome
         onBackPress={() => router.back()}
         homeTo={params.returnTo === 'family' ? '/parent/dashboard' : params.returnTo === 'kiosk' ? '/kiosk' : '/student/select'}
@@ -398,9 +402,13 @@ export default function RewardsScreen() {
           height instead, so the gap above the buttons collapses when the shield is gone,
           while still scrolling correctly when content is genuinely tall (shield showing). */}
       <ScrollView showsVerticalScrollIndicator={false}>
-      {/* Header - pushed down from top */}
+      {/* Real fix Sep 23 (device report): this used to be deliberately "pushed down from
+          top" via a redundant extra headerSpacer View stacked on top of header's own
+          paddingTop - now that the top bar above has no title of its own competing for
+          space, that push-down just left the whole page feeling empty at the top for no
+          reason. headerSpacer removed and header's paddingTop trimmed to give the page
+          better spacing, per Jono's explicit ask. */}
       <View style={styles.header}>
-        <View style={styles.headerSpacer} />
         <Text style={styles.headerTitle}>🎉 {t('great_job_title')}</Text>
         <Text style={styles.headerSubtitle}>
           {rewardsData?.streak_days && rewardsData?.streak_days > 1 
@@ -733,7 +741,11 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    paddingTop: 20,
+    // Real fix Sep 23 (device report): trimmed from 20 - was on top of a now-removed
+    // separate 20px headerSpacer View, so the real gap above this heading was ~40px total.
+    // The top bar above has no title of its own anymore either, so there's nothing left
+    // this needed to clear beyond a small breathing gap.
+    paddingTop: 8,
     // Real fix Aug 21: was 10 - not enough fixed clearance before the creature circle below,
     // so its bounce animation reached up into this subtitle. Combined with softening the
     // bounce range itself (see bounceAnim below) so there's no overlap even at full bounce.
@@ -862,7 +874,6 @@ const styles = StyleSheet.create({
     gap: 8,
     width: '100%',
   },
-  headerSpacer: { height: 20 },
   continueText: {
     color: 'white',
     fontSize: 18,
