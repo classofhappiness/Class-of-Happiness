@@ -1342,11 +1342,28 @@ export default function ParentDashboard() {
                     <View style={styles.gridCardActions}>
                       {reorderMode ? (
                         <>
-                          <TouchableOpacity hitSlop={{top:10,bottom:10,left:6,right:6}} onPress={(e) => { e.stopPropagation?.(); moveCard(orderedMembers.indexOf(member), -1); }} style={styles.gridActionBtn}>
-                            <MaterialIcons name="chevron-left" size={16} color="#5C6BC0" />
+                          {/* Real fix Sep 24 (device report B4/S16-3a): visible box grew from
+                              padding:2/icon 16 to padding:6/icon 24 (36x36), and hitSlop grew
+                              to reach a full 48x48 interactive area (36 + 6px on each side) -
+                              the task's explicit minimum. Not doing drag-to-reorder (decided) -
+                              these tap-to-move arrows stay the mechanism. */}
+                          <TouchableOpacity
+                            hitSlop={{top:6,bottom:6,left:6,right:6}}
+                            onPress={(e) => { e.stopPropagation?.(); moveCard(orderedMembers.indexOf(member), -1); }}
+                            style={styles.gridActionBtnLg}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('move_member_left') || 'Move left'}
+                          >
+                            <MaterialIcons name="chevron-left" size={24} color="#5C6BC0" />
                           </TouchableOpacity>
-                          <TouchableOpacity hitSlop={{top:10,bottom:10,left:6,right:6}} onPress={(e) => { e.stopPropagation?.(); moveCard(orderedMembers.indexOf(member), 1); }} style={styles.gridActionBtn}>
-                            <MaterialIcons name="chevron-right" size={16} color="#5C6BC0" />
+                          <TouchableOpacity
+                            hitSlop={{top:6,bottom:6,left:6,right:6}}
+                            onPress={(e) => { e.stopPropagation?.(); moveCard(orderedMembers.indexOf(member), 1); }}
+                            style={styles.gridActionBtnLg}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('move_member_right') || 'Move right'}
+                          >
+                            <MaterialIcons name="chevron-right" size={24} color="#5C6BC0" />
                           </TouchableOpacity>
                         </>
                       ) : (
@@ -2049,6 +2066,9 @@ const styles = StyleSheet.create({
   gridCard: { width: 100, backgroundColor: 'white', borderRadius: 12, padding: 6, alignItems: 'center', borderWidth: 1.5, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   gridCardActions: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 4 },
   gridActionBtn: { padding: 2 },
+  // B4/S16-3a: 36x36 visible box (24dp icon + 6px padding) + 6px hitSlop on every side = a
+  // full 48x48 interactive area, the reorder-mode-only move-left/move-right buttons.
+  gridActionBtnLg: { padding: 6 },
   gridAvatar: { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center', marginBottom: 3 },
   gridAvatarImg: { width: 38, height: 38, borderRadius: 19 },
   gridName: { fontSize: 12, fontWeight: '700', color: '#333', marginBottom: 4, textAlign: 'center' },
