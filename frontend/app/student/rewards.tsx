@@ -169,10 +169,18 @@ export default function RewardsScreen() {
     try {
       const zone = params.zone || 'blue';
       const isLinkedStudent = true;
-      
-      // First get current stage to track evolution
-      const currentRewards = await rewardsApi.getStudentRewards(effectiveStudentId);
-      setPreviousStage(currentRewards.current_stage);
+
+      // Real fix Sep 24 (item1b, load-speed investigation): getStudentRewards (the previous-
+      // stage snapshot) and getStudentShield (a help-request counter - a completely separate
+      // table/feature from points, see server.py's get_student_shield keyed off
+      // student_rewards.count, which addPoints never touches) are both read-only and
+      // provably independent of the addPoints writes below - evolution is no longer
+      // automatic (Sep 15 points-economy-v2), so addPoints never changes current_stage
+      // either. Kicked off here without awaiting, so their round trips overlap with the
+      // addPoints round trips below instead of adding to the critical path in front of and
+      // behind them - removes up to two full sequential network legs from this screen's load.
+      const previousStagePromise = rewardsApi.getStudentRewards(effectiveStudentId);
+      const shieldPromise = getStudentShield(effectiveStudentId);
 
       const strategiesCount = params.strategiesUsed ? parseInt(params.strategiesUsed) : 0;
       const hasComment = params.hasComment === 'true';
@@ -192,8 +200,8 @@ export default function RewardsScreen() {
 
       setRewardsData(response);
 
-      // Fetch shield badge
-      const shieldData = await getStudentShield(effectiveStudentId);
+      const [currentRewards, shieldData] = await Promise.all([previousStagePromise, shieldPromise]);
+      setPreviousStage(currentRewards.current_stage);
       setShield(shieldData);
 
       // Start animations
