@@ -81,7 +81,7 @@ export default function HomeScreen() {
           <MaterialIcons name="child-care" size={44} color="white" />
           <View style={styles.studentButtonText}>
             <Text style={styles.studentButtonTitle} allowFontScaling={false}>{t('student') || 'Student'}</Text>
-            <Text style={styles.studentButtonSub}>{t('check_in_feelings') || 'Check in my feelings'}</Text>
+            <Text style={styles.studentButtonSub} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>{t('check_in_feelings') || 'Check in my feelings'}</Text>
           </View>
           <MaterialIcons name="chevron-right" size={28} color="rgba(255,255,255,0.7)" />
         </TouchableOpacity>
@@ -123,7 +123,12 @@ export default function HomeScreen() {
             <MaterialIcons name="school" size={26} color="white" />
             <View style={{alignItems:'center'}}>
               <Text style={styles.roleButtonTitle}>{t('teacher') || 'Teacher'}</Text>
-              <Text style={{fontSize:10, color:'#1A1A2E', fontStyle:'italic', fontWeight:'600', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}>{t('teacher_dashboard_subtitle') || 'Teachers Dashboard - support your students here'}</Text>
+              <Text
+                style={{fontSize:10, color:'#1A1A2E', fontStyle:'italic', fontWeight:'600', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+              >{t('teacher_dashboard_subtitle') || 'Teachers Dashboard - support your students here'}</Text>
             </View>
             {(!isAuthenticated || teacherLocked) && <MaterialIcons name="lock" size={14} color="rgba(255,255,255,0.7)" />}
           </TouchableOpacity>
@@ -139,7 +144,12 @@ export default function HomeScreen() {
             <MaterialIcons name="family-restroom" size={26} color="white" />
             <View style={{alignItems:'center'}}>
               <Text style={styles.roleButtonTitle}>{t('parent') || 'Parent'}</Text>
-              <Text style={{fontSize:10, color:'#1A1A2E', fontStyle:'italic', fontWeight:'600', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}>{t('family_dashboard_subtitle') || 'Family Dashboard - support your family here'}</Text>
+              <Text
+                style={{fontSize:10, color:'#1A1A2E', fontStyle:'italic', fontWeight:'600', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+              >{t('family_dashboard_subtitle') || 'Family Dashboard - support your family here'}</Text>
             </View>
             {!isAuthenticated && <MaterialIcons name="lock" size={14} color="rgba(255,255,255,0.7)" />}
           </TouchableOpacity>
@@ -209,15 +219,17 @@ const styles = StyleSheet.create({
 
   // Teacher + Parent — side by side smaller
   roleRow: { flexDirection: 'row', gap: 10, marginBottom: 0, marginTop: 0 },
-  roleButton: { flex: 1, borderRadius: 18, paddingVertical: 16, alignItems: 'center', gap: 4 },
+  // Real fix Sep 24 (device report): paddingHorizontal moved here from a Parent-only
+  // override (see git blame) - Italian/German/Portuguese/French subtitles all run
+  // noticeably longer than the English text that override was tuned against, and Teacher
+  // never got any horizontal padding at all, so its subtitle crowded the button edges in
+  // those languages even though Parent's (with its own fix) looked fine. Both buttons now
+  // get identical breathing room regardless of which one's translated text is longest for
+  // a given language, instead of a fix that only ever covered whichever button happened to
+  // be reported at the time.
+  roleButton: { flex: 1, borderRadius: 18, paddingVertical: 16, paddingHorizontal: 6, alignItems: 'center', gap: 4 },
   teacherButton: { backgroundColor: '#FFC107', elevation: 0 },
-  // Real fix Sep 15 (Marisa build-26 round 2, S02): on Android specifically, "Family
-  // Dashboard - support your family here" wraps close enough to the button edges to look
-  // cramped, while the Teacher button's subtitle text doesn't hit the same edge case at the
-  // same shared padding (both use identical inline text styles - this is a wrapping/line-
-  // break difference from the different text content, not a shared-style bug). Parent-only
-  // horizontal padding, not touching teacherButton.
-  parentButton: { backgroundColor: '#4A90D9', elevation: 0, paddingHorizontal: 8 },
+  parentButton: { backgroundColor: '#4A90D9', elevation: 0 },
   // Real feature Aug 28 (item 5): visually lighter/disabled treatment for a button that's
   // genuinely unavailable on the current account, distinct from the normal not-yet-tapped
   // state - opacity alone (rather than a colour swap) keeps it recognisably the same button,
