@@ -1262,8 +1262,15 @@ export default function ParentDashboard() {
         <View style={styles.familySection}>
           <View style={{flexDirection:'row',justifyContent:'flex-end',paddingHorizontal:12,paddingBottom:2,gap:6}}>
               {orderedMembers.length > 1 && (
+                // Real fix Sep 24 (device report B5/S16-3c): this single button IS the
+                // confirm/done control while in reorder mode (tapping it exits reorder mode,
+                // keeping whatever order moveCard already applied - there's no separate
+                // pending/rollback state, so no distinct "cancel" control exists to make
+                // red/neutral instead). Its background was red (#F44336, a literal) for what
+                // is really a positive "done" action - now EMOTION_COLOURS.green, the shared
+                // constant, never a hardcoded hex.
                 <TouchableOpacity
-                  style={[styles.addButton, { backgroundColor: reorderMode ? '#F44336' : '#9E9E9E' }]}
+                  style={[styles.addButton, { backgroundColor: reorderMode ? EMOTION_COLOURS.green : '#9E9E9E' }]}
                   onPress={() => setReorderMode(r => !r)}
                 >
                   <MaterialIcons name={reorderMode ? 'check' : 'swap-horiz'} size={16} color="white" />
