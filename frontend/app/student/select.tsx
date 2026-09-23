@@ -202,10 +202,26 @@ export default function StudentSelectScreen() {
       family_member_id: (student as any).family_member_id || null,
     };
     setCurrentStudent(enriched as any);
+    // Real fix Sep 24 (item1c, load-speed investigation): community creatures (photo-based,
+    // 1120x1120) render cold on the reward screen with no prefetch anywhere in the app - the
+    // exact image URL is already sitting in studentCreatures from this screen's own earlier
+    // collection fetch, unused for this. Warms the native image cache for the student's
+    // current stage during the zone->strategies interaction time that follows, so it's
+    // normally already decoded by the time rewards.tsx actually renders it. Fire-and-forget:
+    // a failed/slow prefetch just means that one image loads cold later, same as before.
+    const creature = studentCreatures[student.id]?.currentCreature;
+    if (creature?.creature_type === 'community') {
+      const stage = studentCreatures[student.id]?.currentStage || 0;
+      const urls: Record<number, string | undefined> = {
+        1: creature.stage1_url, 2: creature.stage2_url, 3: creature.stage3_url, 4: creature.stage4_url,
+      };
+      const imgUrl = urls[Math.max(1, Math.min(stage, 4))] || creature.stage1_url;
+      if (imgUrl) Image.prefetch(imgUrl).catch(() => {});
+    }
     setTimeout(() => {
       router.push({ pathname: '/student/zone', params: { returnTo: returnTo || '' } });
     }, 200);
-  }, [setCurrentStudent, router]);
+  }, [setCurrentStudent, router, studentCreatures]);
 
   // Real bug fix Aug 22: this used to open the old defaults-only CreatureCollection modal -
   // completely disconnected from the real, unified "My Creatures" screen (browse by scope,
