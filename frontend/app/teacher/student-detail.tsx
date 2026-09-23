@@ -79,6 +79,13 @@ export default function StudentDetailScreen() {
   const router = useRouter();
   const [secEmoDistrib, setSecEmoDistrib] = React.useState(false);
   const [secEmoCompare, setSecEmoCompare] = React.useState(false);
+  // Real fix Sep 23 (device report): the "Zone Distribution (combined)" section further
+  // down this page ("Emotion Distribution - Linked Student", tabbed combined/school/home)
+  // was reusing this SAME secEmoDistrib state as the earlier, unrelated "Emotion
+  // Distribution" pie chart section - tapping either one toggled both simultaneously.
+  // Separate state so each expands independently, matching every other section on this
+  // page.
+  const [secEmoDistribLinked, setSecEmoDistribLinked] = React.useState(false);
   const [secMonthlyReport, setSecMonthlyReport] = React.useState(false);
   const [secMostUsed, setSecMostUsed] = React.useState(false);
   const [secRecentCheckins, setSecRecentCheckins] = React.useState(false);
@@ -740,15 +747,15 @@ export default function StudentDetailScreen() {
         {/* ── Zone Distribution (combined) ── */}
         {combinedLogs.length > 0 && (
           <View style={styles.zoneDistSection}>
-            <TouchableOpacity onPress={() => setSecEmoDistrib(e=>!e)}
+            <TouchableOpacity onPress={() => setSecEmoDistribLinked(e=>!e)}
               style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
               <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
                 <MaterialIcons name="pie-chart" size={20} color="#5C6BC0" />
                 <Text style={styles.sectionTitle}>{t('emotion_distribution') || 'Emotion Distribution - Linked Student'}</Text>
               </View>
-              <MaterialIcons name={secEmoDistrib ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+              <MaterialIcons name={secEmoDistribLinked ? 'expand-less' : 'expand-more'} size={20} color="#666" />
             </TouchableOpacity>
-            {secEmoDistrib && (<>
+            {secEmoDistribLinked && (<>
             {/* Data source tabs */}
             <View style={styles.dataTabRow}>
               {(['combined','school','home'] as const).map(tab => (
@@ -1661,11 +1668,15 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   // Home Data Section Styles
+  // Real fix Sep 23 (device report): borderRadius/padding/marginBottom were 16/16/16 - every
+  // sibling section on this page (chartSection, logsSection, calendarSection, zoneDistSection,
+  // strategiesSection, reportsSection) uses 12/10/8, which is why this one alone read as
+  // slightly larger. Matched to the same values.
   homeDataSection: {
     backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 8,
   },
   homeDataHeader: {
     flexDirection: 'row',
