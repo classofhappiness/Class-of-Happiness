@@ -368,9 +368,15 @@ export default function KioskScreen() {
         </View>
       ) : null}
 
-      {/* Main prompt - refresh button now sits right of the heading itself (build 26, Sep 6)
-          instead of on its own row above; kept outside the pulsing Animated.View so only the
-          text breathes, not the static icon. */}
+      {/* Main prompt. Real fix Sep 24 (device report B6/S15-3): this used to share a
+          flexDirection:'row' wrapper with the refresh button (removed in B7/S15-4) -
+          promptBox/promptTitle already had alignItems/textAlign 'center', but centering a
+          shrink-to-content box next to a ~46px sibling centers the *pair*, not the text
+          itself, visibly offsetting the heading left of true screen-centre. Now the sole
+          child at this position, it stretches full-width by RN's default and its existing
+          centering styles genuinely centre it on the screen. Direction-agnostic (alignItems/
+          textAlign 'center' don't depend on LTR vs RTL row order), so this also holds
+          correctly in Arabic. */}
       <Animated.View style={[st.promptBox, { transform: [{ scale: pulseAnim }] }]}>
         <Text style={st.promptTitle}>{t('how_are_you_feeling') || 'How are you feeling today?'}</Text>
         <Text style={st.promptSub}>{t('kiosk_tap_name_hint') || 'Tap your name to check in'} 👇</Text>
