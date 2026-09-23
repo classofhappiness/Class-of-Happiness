@@ -12,6 +12,7 @@ import {
   Alert,
   Share,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -208,6 +209,14 @@ export default function ParentDashboard() {
   const [childCreatures, setChildCreatures] = useState<Record<string, any>>({});
   // Family members (self, partner, kids at home)
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  // Real fix Sep 24 (device report C4b/S16-1): the initial fetchData() call (cold-start,
+  // ~90s in the reported case) had no loading flag of its own - while it was in flight, the
+  // time-filter pills below rendered with only "All" showing (familyMembers/linkedChildren
+  // both still empty arrays), indistinguishable from a parent who genuinely has no family
+  // members yet. Starts true (matches the real initial-mount state) and only ever flips to
+  // false once, in fetchData's finally below - a later manual refresh already has its own
+  // RefreshControl spinner, so this deliberately doesn't reset on every refetch.
+  const [membersLoading, setMembersLoading] = useState(true);
   const [memberCreatures, setMemberCreatures] = useState<Record<string, any>>({});
   const [refreshing, setRefreshing] = useState(false);
   
@@ -670,6 +679,8 @@ export default function ParentDashboard() {
       }
     } catch (error) {
       console.error('Error fetching data:', error);
+    } finally {
+      setMembersLoading(false);
     }
   };
 
@@ -978,6 +989,16 @@ export default function ParentDashboard() {
                 borderWidth:1, borderColor: selectedWeekChild===null?'#5C6BC0':'#E0E0E0' }}>
               <Text style={{ fontSize:11, fontWeight:'700', color: selectedWeekChild===null?'white':'#666' }}>All</Text>
             </TouchableOpacity>
+            {/* Real fix Sep 24 (device report C4b/S16-1): while the initial fetch is still in
+                flight (cold-start can take a while), familyMembers/linkedChildren are both
+                still empty arrays, so this row rendered "All" alone with nothing to tell a
+                parent whether more pills were coming or they simply have no family members
+                yet. */}
+            {membersLoading && familyMembers.length === 0 && (
+              <View style={{ paddingHorizontal:12, justifyContent:'center' }}>
+                <ActivityIndicator size="small" color="#5C6BC0" />
+              </View>
+            )}
             {/* Build 26 (Sep 6): was filtered to relationship==='child' only, so any
                 self/partner family member (e.g. a parent logging their own wellbeing
                 check-ins via the Wellbeing button) could never get a filter pill at all,
