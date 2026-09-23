@@ -8,7 +8,6 @@ import { Avatar } from '../../src/components/Avatar';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../../src/utils/sounds';
 import { loadVoiceEnabled, loadVoiceManifest, playVoiceClip, playPhraseFromPool, preloadZoneAudio } from '../../src/utils/voiceClips';
 import { VoiceToggleButton } from '../../src/components/VoiceToggleButton';
-import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 
 const getColourInfo = (t: (key: string) => string) => ({
   blue: {
@@ -71,22 +70,25 @@ export default function ColourSelectionScreen() {
   const { fromFamily, location: locationParam, returnTo } = useLocalSearchParams<{ fromFamily?: string; location?: string; returnTo?: string }>();
   const { currentStudent, presetAvatars, t, language, translations } = useApp();
   const [showHelp, setShowHelp] = useState(false);
-  const [audioReady, setAudioReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    // Real fix Sep 21 (device report): kids tap fast, routinely navigating away (to
-    // strategies.tsx) while the opening greeting is still mid-flight - `cancelled` already
-    // stopped this effect's OWN setAudioReady calls from firing late (guarded since Sep
-    // 14), but nothing ever stopped the underlying Audio.Sound object itself from
-    // continuing to play and keep reporting playback status into a screen that no longer
-    // exists, which is the actual source of "cannot update an unmounted component"
-    // warnings piling up under real (fast-tapping) use. Held here so cleanup can tear it
-    // down explicitly either way - already resolved (unload it now) or still loading
-    // (greetingSound stays null; the .then() below notices `cancelled` and unloads it the
-    // moment it does resolve, instead of ever setting state or being left to keep playing).
+    // Real fix Sep 24 (device report, load-speed investigation): this used to gate the
+    // ENTIRE screen - including the colour buttons, the actual task - behind an
+    // audioReady flag that only flipped once the opening greeting had genuinely started
+    // playing or a 2.5s timeout fired (a deliberate Sep 14 design choice, to land audio and
+    // content together and avoid a jarring silent gap). Jono's explicit rule this session:
+    // nothing network-bound blocks a student screen's first render. The greeting fetch
+    // (network call + audio cache/decode) is exactly that, so content now renders
+    // immediately and the greeting plays into it whenever it's actually ready - same
+    // pattern as every other "show cached/default content now, refresh/enrich behind it"
+    // fix this session. `cancelled` still guards against a kid navigating away (to
+    // strategies.tsx) while the greeting is still mid-flight - nothing here ever sets
+    // React state after that, and the underlying Audio.Sound is torn down either way
+    // (already resolved: unload it now; still loading: the .then() below notices
+    // `cancelled` and unloads it the moment it does resolve) so it never keeps playing or
+    // reporting status into a screen that's gone.
     let greetingSound: Awaited<ReturnType<typeof playPhraseFromPool>> = null;
-    setAudioReady(false);
     preloadSounds();
     loadVoiceManifest(language);
     // Real fix Sep 24 (device report, Kiosk A1): loadVoiceEnabled() and playPhraseFromPool
@@ -101,23 +103,14 @@ export default function ColourSelectionScreen() {
     // yesterday. Awaiting the load before the greeting (and the zone-clip preload, which has
     // the identical guard) closes that window - the persisted setting is always in memory
     // before anything checks it.
-    const timeout = setTimeout(() => { if (!cancelled) setAudioReady(true); }, 2500);
     loadVoiceEnabled()
       .then(() => {
         if (cancelled) return null;
         // Real feature Sep 21 (device report): warms the 4 zone (question) clips plus every
         // "opening" pool variant in the background while the greeting below plays - by the
         // time a kid actually taps a colour (after hearing the greeting, reading the screen),
-        // its clip is normally already a local file, not a fresh fetch. Fire-and-forget: this
-        // screen's own loader is gated on the greeting playing, not on this finishing too.
+        // its clip is normally already a local file, not a fresh fetch.
         preloadZoneAudio(language);
-        // Real fix Sep 14 (Marisa build-26, S04): opening-greeting phrase used to fire-and-forget
-        // while the full screen rendered immediately underneath it - the phrase pool fetch plus
-        // sound setup took long enough to produce a glitch and ~2/3s silent gap before it
-        // actually started playing, with the screen already fully interactive. Now the loader
-        // (below) stays up until playback has genuinely started or the attempt has genuinely
-        // given up (voice off, no clips, network failure), so audio and content land together.
-        // The 2.5s timeout is a safety net only, for a hung/slow fetch - not the normal path.
         return playPhraseFromPool('opening', language);
       })
       .then((sound) => {
@@ -130,15 +123,10 @@ export default function ColourSelectionScreen() {
           return;
         }
         greetingSound = sound || null;
-        clearTimeout(timeout);
-        setAudioReady(true);
       })
-      .catch(() => {
-        if (!cancelled) { clearTimeout(timeout); setAudioReady(true); }
-      });
+      .catch(() => {});
     return () => {
       cancelled = true;
-      clearTimeout(timeout);
       greetingSound?.setOnPlaybackStatusUpdate(null);
       greetingSound?.unloadAsync().catch(() => {});
     };
@@ -161,16 +149,6 @@ export default function ColourSelectionScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{t('select_profile') || 'Select Your Profile'}</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (!audioReady) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loaderContainer}>
-          <EmotionColourLoader visible size={72} />
         </View>
       </SafeAreaView>
     );
@@ -317,7 +295,6 @@ const styles = StyleSheet.create({
   helpButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 14, alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 22, backgroundColor: 'white', borderRadius: 24, borderWidth: 2, borderColor: '#1A1A2E' },
   helpButtonText: { fontSize: 13, color: '#1A1A2E', fontWeight: '700' },
   errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   errorText: { fontSize: 18, color: '#666' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', alignItems: 'center' },
   modalContainer: { backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%', width: '100%', maxWidth: 480 },
