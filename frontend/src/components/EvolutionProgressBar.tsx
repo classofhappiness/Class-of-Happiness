@@ -46,9 +46,25 @@ export const EvolutionProgressBar: React.FC<EvolutionProgressBarProps> = ({
   const colour = (EMOTION_COLOURS as Record<string, string>)[zone as string] || EMOTION_COLOURS.green;
   const prevThreshold = thresholds[stageIndex];
   const nextThreshold = thresholds[stageIndex + 1];
-  const pct = Math.max(0, Math.min(100,
-    Math.round(((current - prevThreshold) / (nextThreshold - prevThreshold)) * 100)
-  ));
+  // Real fix Sep 23 (device report, 5th progress-bar report - new lead: a LINKED/community
+  // student, "4 from 15" with no fill). Confirmed against real data (Matilda's blue
+  // creature: stages_unlocked already at a stage whose entry requirement is 10 or 15,
+  // rolling 30-day checkins_30d down to 4): a default creature's `current` (cumulative
+  // points) can only ever grow, so current >= prevThreshold always holds once a stage is
+  // reached - the incremental (current-prev)/(next-prev) math below is exactly right for
+  // that case. A community creature's `current` (checkins_30d) is a ROLLING window that
+  // can fall below the very threshold that got it INTO its current, non-regressing stage,
+  // simply because those earlier check-ins aged out of the 30 days - stages never regress,
+  // but the rolling count that unlocked one can. That produces a negative numerator here,
+  // clamped to 0% by the Math.max below - a flat empty bar that reads as "no progress",
+  // even though 4 real recent check-ins is genuine, real progress. When that happens,
+  // fall back to measuring against the absolute next threshold from zero instead of
+  // incrementally from prevThreshold - still always non-negative and honest, and never
+  // reachable for a points-based creature (whose current is never less than prevThreshold
+  // in the first place), so this changes nothing for that case.
+  const pct = current >= prevThreshold
+    ? Math.max(0, Math.min(100, Math.round(((current - prevThreshold) / (nextThreshold - prevThreshold)) * 100)))
+    : Math.max(0, Math.min(100, Math.round((current / nextThreshold) * 100)));
   // Real fix Sep 15: clamped to nextThreshold for display - current can genuinely exceed it
   // once a threshold's been crossed but the explicit Evolve tap hasn't happened yet (the bar
   // itself is already visually full via the pct clamp above), so the label reads "60/60"

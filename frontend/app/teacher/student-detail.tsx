@@ -89,7 +89,26 @@ export default function StudentDetailScreen() {
   const { students, presetAvatars, classrooms, t, language } = useApp();
   
   const student = students.find(s => s.id === studentId);
-  
+
+  // Real fix Sep 23 (device report - "student not found" flash before the real page
+  // loads): AppContext's refreshStudents() runs as background, non-blocking "Step 4" data
+  // AFTER isLoading has already flipped false (deliberately, per its own comment - it's
+  // non-critical data), wrapped in its own extra 100ms setTimeout on top. Navigating
+  // straight here (teacher dashboard -> a student's card) can genuinely land before that
+  // resolves, so `students` is still [] the instant this screen first renders - `student`
+  // above comes back undefined not because the id is wrong, but because the list hasn't
+  // arrived yet. Settles true either the moment `students` actually has something in it
+  // (real signal, not a fixed guess) or after a short grace window as a safety net for the
+  // rare genuinely-empty-roster case, so the hard "not found" error below only ever shows
+  // once the data had a real chance to arrive - matching this app's existing settle-window
+  // precedent (zone.tsx's audio-ready timeout) rather than trusting a length-0 snapshot.
+  const [studentsSettled, setStudentsSettled] = useState(students.length > 0);
+  useEffect(() => {
+    if (students.length > 0) { setStudentsSettled(true); return; }
+    const timer = setTimeout(() => setStudentsSettled(true), 2000);
+    return () => clearTimeout(timer);
+  }, [students.length]);
+
   const [selectedPeriod, setSelectedPeriod] = useState<1 | 7 | 14 | 30>(7);
   const [analytics, setAnalytics] = useState<any>(null);
   const [logs, setLogs] = useState<ZoneLog[]>([]);
@@ -343,6 +362,16 @@ export default function StudentDetailScreen() {
     return `${MONTH_NAMES[month - 1]} ${year}`;
   };
 
+  if (!student && !studentsSettled) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <ActivityIndicator size="large" color="#5C6BC0" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (!student) {
     return (
       <SafeAreaView style={styles.container}>
@@ -480,6 +509,74 @@ export default function StudentDetailScreen() {
           </View>
         </View>
 
+        {/* Real fix Sep 23 (device report): Recent Check-ins moved to be the FIRST section
+            on this page (was 5th, after Emotion Distribution/Comparison/Download Reports/
+            Most Used Strategies) - same reorder applied to family-member-stats/[id].tsx and
+            parent/linked-child/[id].tsx, the two parent-side equivalents. Rest of the order
+            is unchanged. */}
+        {/* Recent Logs */}
+        <View style={styles.logsSection}>
+          <TouchableOpacity onPress={() => setSecRecentCheckins(e => !e)}
+              style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+              <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
+                <MaterialIcons name="history" size={18} color="#5C6BC0"/>
+                <Text style={styles.sectionTitle}>{t('recent_checkins') || 'Recent Check-ins'}</Text>
+              </View>
+              <MaterialIcons name={secRecentCheckins ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+            </TouchableOpacity>
+          {secRecentCheckins && (logs.length > 0 ? (
+            logs.slice(0, 15).map((log) => (
+              <View key={log.id} style={styles.logItem}>
+                <View style={[styles.logZone, { backgroundColor: ZONE_COLORS[log.zone] }]}>
+                  <Text style={styles.logZoneText}>
+                    {log.zone==='green'?'😊':log.zone==='blue'?'😔':log.zone==='yellow'?'😟':'😣'}
+                  </Text>
+                </View>
+                <View style={styles.logDetails}>
+                  <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
+                    <Text style={styles.logZoneName}>{getZoneLabel(log.zone, t)}</Text>
+                    {/* Item 2 (Sep 11), school/home distinction so staff see where a
+                        linked student's check-in happened - same 🏫/🏠 convention as the
+                        Combined Calendar view below. Teacher/admin-only, never shown to
+                        parents. */}
+                    <Text style={{fontSize:12}}>{log.logged_by === 'parent' ? '🏠' : '🏫'}</Text>
+                  </View>
+                  <Text style={styles.logTime}>
+                    {formatDate(log.timestamp)} at {formatTime(log.timestamp)}
+                  </Text>
+                  {log.support_request_type && (
+                    <View style={styles.logStrategies}>
+                      <MaterialIcons name="campaign" size={14} color="#FF7043" />
+                      <Text style={[styles.logStrategiesText, {color:'#FF7043', fontWeight:'700'}]}>
+                        School Support Request - {describeSupportRequest({ request_type: log.support_request_type } as any)}
+                      </Text>
+                    </View>
+                  )}
+                  {log.strategies_selected.length > 0 && (
+                    <View style={styles.logStrategies}>
+                      <MaterialIcons name="lightbulb" size={14} color="#FFC107" />
+                      <Text style={styles.logStrategiesText}>
+                        {log.strategies_selected.map(s => getStrategyName(s)).join(', ')}
+                      </Text>
+                    </View>
+                  )}
+                  {log.comment && (
+                    <View style={styles.logComment}>
+                      <MaterialIcons name="chat-bubble" size={14} color="#5C6BC0" />
+                      <Text style={styles.logCommentText}>"{log.comment}"</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyLogs}>
+              <MaterialIcons name="history" size={48} color="#CCC" />
+              <Text style={styles.emptyLogsText}>{t('no_checkins') || 'No check-ins yet'}</Text>
+            </View>
+          ))}
+        </View>
+
         {/* Emotion Distribution */}
         <View style={styles.chartSection}>
           <TouchableOpacity onPress={() => setSecEmoDistrib(e=>!e)} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
@@ -547,30 +644,6 @@ export default function StudentDetailScreen() {
           </View>
         )}
 
-        {/* Download Reports Section */}
-        {availableMonths.length > 0 && (
-          <View style={styles.reportsSection}>
-            <TouchableOpacity onPress={() => setSecMonthlyReport(e => !e)}
-                style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
-                <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
-                  <MaterialIcons name="picture-as-pdf" size={18} color="#E53935"/>
-                  <Text style={styles.sectionTitle}>{t('download_monthly_reports') || 'Download Monthly Reports'}</Text>
-                </View>
-                <MaterialIcons name={secMonthlyReport ? 'expand-less' : 'expand-more'} size={20} color="#666" />
-              </TouchableOpacity>
-            {secMonthlyReport && (<><Text style={styles.reportsSubtitle}>
-              {t('select_month_pdf') || 'Select a month to download a PDF report'}
-            </Text>
-            <TouchableOpacity
-              style={styles.downloadButton}
-              onPress={() => setShowReportModal(true)}
-            >
-              <MaterialIcons name="picture-as-pdf" size={24} color="white" />
-              <Text style={styles.downloadButtonText}>{t('download_report')}</Text>
-            </TouchableOpacity></>)}
-          </View>
-        )}
-
         {/* Top Strategies */}
         {analytics && Object.keys(analytics.strategy_counts || {}).length > 0 && (
           <View style={styles.strategiesSection}>
@@ -608,69 +681,6 @@ export default function StudentDetailScreen() {
           </View>
         )}
 
-        {/* Recent Logs */}
-        <View style={styles.logsSection}>
-          <TouchableOpacity onPress={() => setSecRecentCheckins(e => !e)}
-              style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
-              <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
-                <MaterialIcons name="history" size={18} color="#5C6BC0"/>
-                <Text style={styles.sectionTitle}>{t('recent_checkins') || 'Recent Check-ins'}</Text>
-              </View>
-              <MaterialIcons name={secRecentCheckins ? 'expand-less' : 'expand-more'} size={20} color="#666" />
-            </TouchableOpacity>
-          {secRecentCheckins && (logs.length > 0 ? (
-            logs.slice(0, 15).map((log) => (
-              <View key={log.id} style={styles.logItem}>
-                <View style={[styles.logZone, { backgroundColor: ZONE_COLORS[log.zone] }]}>
-                  <Text style={styles.logZoneText}>
-                    {log.zone==='green'?'😊':log.zone==='blue'?'😔':log.zone==='yellow'?'😟':'😣'}
-                  </Text>
-                </View>
-                <View style={styles.logDetails}>
-                  <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
-                    <Text style={styles.logZoneName}>{getZoneLabel(log.zone, t)}</Text>
-                    {/* Item 2 (Sep 11), school/home distinction so staff see where a
-                        linked student's check-in happened - same 🏫/🏠 convention as the
-                        Combined Calendar view below. Teacher/admin-only, never shown to
-                        parents. */}
-                    <Text style={{fontSize:12}}>{log.logged_by === 'parent' ? '🏠' : '🏫'}</Text>
-                  </View>
-                  <Text style={styles.logTime}>
-                    {formatDate(log.timestamp)} at {formatTime(log.timestamp)}
-                  </Text>
-                  {log.support_request_type && (
-                    <View style={styles.logStrategies}>
-                      <MaterialIcons name="campaign" size={14} color="#FF7043" />
-                      <Text style={[styles.logStrategiesText, {color:'#FF7043', fontWeight:'700'}]}>
-                        School Support Request - {describeSupportRequest({ request_type: log.support_request_type } as any)}
-                      </Text>
-                    </View>
-                  )}
-                  {log.strategies_selected.length > 0 && (
-                    <View style={styles.logStrategies}>
-                      <MaterialIcons name="lightbulb" size={14} color="#FFC107" />
-                      <Text style={styles.logStrategiesText}>
-                        {log.strategies_selected.map(s => getStrategyName(s)).join(', ')}
-                      </Text>
-                    </View>
-                  )}
-                  {log.comment && (
-                    <View style={styles.logComment}>
-                      <MaterialIcons name="chat-bubble" size={14} color="#5C6BC0" />
-                      <Text style={styles.logCommentText}>"{log.comment}"</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            ))
-          ) : (
-            <View style={styles.emptyLogs}>
-              <MaterialIcons name="history" size={48} color="#CCC" />
-              <Text style={styles.emptyLogsText}>{t('no_checkins') || 'No check-ins yet'}</Text>
-            </View>
-          ))}
-        </View>
-        
         {/* ── Combined Calendar View ── */}
         {combinedLogs.length > 0 && (
           <View style={styles.calendarSection}>
@@ -1037,6 +1047,35 @@ export default function StudentDetailScreen() {
               </View>
             )}
           </>}
+          </View>
+        )}
+
+        {/* Real fix Sep 23 (device report): Download Monthly Reports moved to be the LAST
+            section on this page (was 3rd, before Most Used Strategies/Check-in Calendar) -
+            matching where it already sits on both parent-side equivalents
+            (family-member-stats/[id].tsx and linked-child/[id].tsx), per Jono's ask that
+            individual-person pages share one consistent section order. */}
+        {/* Download Reports Section */}
+        {availableMonths.length > 0 && (
+          <View style={styles.reportsSection}>
+            <TouchableOpacity onPress={() => setSecMonthlyReport(e => !e)}
+                style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+                <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
+                  <MaterialIcons name="picture-as-pdf" size={18} color="#E53935"/>
+                  <Text style={styles.sectionTitle}>{t('download_monthly_reports') || 'Download Monthly Reports'}</Text>
+                </View>
+                <MaterialIcons name={secMonthlyReport ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+              </TouchableOpacity>
+            {secMonthlyReport && (<><Text style={styles.reportsSubtitle}>
+              {t('select_month_pdf') || 'Select a month to download a PDF report'}
+            </Text>
+            <TouchableOpacity
+              style={styles.downloadButton}
+              onPress={() => setShowReportModal(true)}
+            >
+              <MaterialIcons name="picture-as-pdf" size={24} color="white" />
+              <Text style={styles.downloadButtonText}>{t('download_report')}</Text>
+            </TouchableOpacity></>)}
           </View>
         )}
       </ScrollView>

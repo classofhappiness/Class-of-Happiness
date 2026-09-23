@@ -448,6 +448,75 @@ export default function LinkedChildDetailScreen() {
           <View style={s.statCard}><Text style={s.statVal}>{Object.keys(stratCounts).length}</Text><Text style={s.statLbl}>{t('strategy_btn') || t('strategy_btn') || 'Strategies'}</Text></View>
         </View>
 
+        {/* Real fix Sep 23 (device report): Recent Check-ins moved to be the FIRST section
+            on this page (was 4th) - matching the same reorder on teacher/student-detail.tsx
+            and family-member-stats/[id].tsx, per Jono's explicit ask that individual-person
+            pages share one consistent section order. This page's own extra sections (home/
+            school tabs, sharing toggles) are the one legitimate exception for a linked
+            child and stay as they are; only the shared sections' relative order changed. */}
+        {/* RECENT CHECK-INS */}
+        <View style={s.section}>
+          <TouchableOpacity onPress={() => setSecRecentCheckins(e => !e)} style={s.sectionHeader}>
+            <View style={s.sectionHeaderLeft}><MaterialIcons name="history" size={17} color="#5C6BC0" /><Text style={s.sectionTitle}>Recent Check-ins</Text></View>
+            <MaterialIcons name={secRecentCheckins ? 'expand-less' : 'expand-more'} size={20} color="#666" />
+          </TouchableOpacity>
+          {secRecentCheckins && (<>
+            {!isFamilyChild && (
+              <View style={[s.tabRow,{marginTop:8}]}>
+                {(['combined','home','school'] as const).map(tab => (
+                  <TouchableOpacity key={tab} style={[s.tab,activeTab===tab&&s.tabActive]} onPress={() => setActiveTab(tab)}>
+                    <MaterialIcons name={tab==='combined'?'merge-type':tab==='home'?'home':'school'} size={14} color={activeTab===tab?'#fff':'#666'} />
+                    <Text style={[s.tabText,activeTab===tab&&s.tabTextActive]}>{tab==='combined'?'All':tab==='home'?'Home':'School'}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginVertical:8}}
+              contentContainerStyle={{flexDirection:'row',gap:6,paddingHorizontal:2}}>
+              {[{id:null,label:'All',color:'#5C6BC0'},{id:'blue',label:'\u{1F622} Blue',color:EMOTION_COLOURS.blue},
+                {id:'green',label:'\u{1F60A} Green',color:EMOTION_COLOURS.green},{id:'yellow',label:'\u{1F630} Yellow',color:EMOTION_COLOURS.yellow},
+                {id:'red',label:'\u{1F620} Red',color:EMOTION_COLOURS.red}].map(z => (
+                <TouchableOpacity key={z.id||'all'} style={[s.pill,activeZone===z.id&&{backgroundColor:z.color,borderColor:z.color}]}
+                  onPress={() => setActiveZone(z.id)}>
+                  <Text style={[s.pillText,activeZone===z.id&&{color:'white'}]}>{z.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            {(() => {
+              const list = isFamilyChild
+                ? (activeZone ? allCheckIns.filter((c:any)=>(c.zone||c.feeling_colour)===activeZone) : allCheckIns)
+                : getRecentCheckins();
+              return list.length === 0 ? <Text style={s.empty}>No check-ins for this view</Text>
+                : list.slice(0,15).map((ci:any,i:number) => {
+                    const zone = ci.zone||ci.feeling_colour||'green';
+                    const isHome = ci.location==='home'||ci.logged_by==='parent'||ci.logged_by==='family';
+                    const zEmoji: Record<string,string> = {blue:'\u{1F622}',green:'\u{1F60A}',yellow:'\u{1F630}',red:'\u{1F620}'};
+                    return (
+                      <View key={ci.id||i} style={s.ciRow}>
+                        <View style={[s.ciCircle,{backgroundColor:ZONE_COLORS[zone]||'#999'}]}>
+                          <Text>{zEmoji[zone]||'\u{1F60A}'}</Text>
+                        </View>
+                        <View style={{flex:1,marginLeft:10}}>
+                          <Text style={s.ciZone}>{ZONE_CONFIG[zone]?.label||zone}</Text>
+                          <Text style={s.ciTime}>{formatDate(ci.timestamp||ci.created_at)}</Text>
+                          {(ci.strategies_selected?.length>0 || ci.helpers_selected?.length>0) && <Text style={s.ciStrats}>{(ci.strategies_selected || ci.helpers_selected || []).map((sid: string) => resolveStrategyName(sid, t, STRATEGY_NAMES)).join(', ')}</Text>}
+                          {ci.comment && <Text style={s.ciComment}>"{ci.comment}"</Text>}
+                        </View>
+                        {/* Round 3 (Sep 5): this badge already existed but was gated behind
+                            !isFamilyChild, hiding it exactly for a genuinely school-linked
+                            child (e.g. Matilda) viewed via the family-member path - the case
+                            where home vs school actually varies per check-in and the icon is
+                            most useful. Now always shows. */}
+                        <View style={[s.sourceBadge,{backgroundColor:isHome?'#E8F5E9':'#E3F2FD'}]}>
+                          <MaterialIcons name={isHome?'home':'school'} size={13} color={isHome?'#4CAF50':'#2196F3'} />
+                        </View>
+                      </View>
+                    );
+                  });
+            })()}
+          </>)}
+        </View>
+
         {/* EMOTION DISTRIBUTION */}
         <View style={s.section}>
           <TouchableOpacity onPress={() => setSecEmoDistrib(e => !e)} style={s.sectionHeader}>
@@ -529,69 +598,6 @@ export default function LinkedChildDetailScreen() {
               })
             : <Text style={[s.empty,{marginTop:8}]}>{t('no_data_period') || 'No strategies yet'}</Text>
           )}
-        </View>
-
-        {/* RECENT CHECK-INS */}
-        <View style={s.section}>
-          <TouchableOpacity onPress={() => setSecRecentCheckins(e => !e)} style={s.sectionHeader}>
-            <View style={s.sectionHeaderLeft}><MaterialIcons name="history" size={17} color="#5C6BC0" /><Text style={s.sectionTitle}>Recent Check-ins</Text></View>
-            <MaterialIcons name={secRecentCheckins ? 'expand-less' : 'expand-more'} size={20} color="#666" />
-          </TouchableOpacity>
-          {secRecentCheckins && (<>
-            {!isFamilyChild && (
-              <View style={[s.tabRow,{marginTop:8}]}>
-                {(['combined','home','school'] as const).map(tab => (
-                  <TouchableOpacity key={tab} style={[s.tab,activeTab===tab&&s.tabActive]} onPress={() => setActiveTab(tab)}>
-                    <MaterialIcons name={tab==='combined'?'merge-type':tab==='home'?'home':'school'} size={14} color={activeTab===tab?'#fff':'#666'} />
-                    <Text style={[s.tabText,activeTab===tab&&s.tabTextActive]}>{tab==='combined'?'All':tab==='home'?'Home':'School'}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginVertical:8}}
-              contentContainerStyle={{flexDirection:'row',gap:6,paddingHorizontal:2}}>
-              {[{id:null,label:'All',color:'#5C6BC0'},{id:'blue',label:'\u{1F622} Blue',color:EMOTION_COLOURS.blue},
-                {id:'green',label:'\u{1F60A} Green',color:EMOTION_COLOURS.green},{id:'yellow',label:'\u{1F630} Yellow',color:EMOTION_COLOURS.yellow},
-                {id:'red',label:'\u{1F620} Red',color:EMOTION_COLOURS.red}].map(z => (
-                <TouchableOpacity key={z.id||'all'} style={[s.pill,activeZone===z.id&&{backgroundColor:z.color,borderColor:z.color}]}
-                  onPress={() => setActiveZone(z.id)}>
-                  <Text style={[s.pillText,activeZone===z.id&&{color:'white'}]}>{z.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            {(() => {
-              const list = isFamilyChild
-                ? (activeZone ? allCheckIns.filter((c:any)=>(c.zone||c.feeling_colour)===activeZone) : allCheckIns)
-                : getRecentCheckins();
-              return list.length === 0 ? <Text style={s.empty}>No check-ins for this view</Text>
-                : list.slice(0,15).map((ci:any,i:number) => {
-                    const zone = ci.zone||ci.feeling_colour||'green';
-                    const isHome = ci.location==='home'||ci.logged_by==='parent'||ci.logged_by==='family';
-                    const zEmoji: Record<string,string> = {blue:'\u{1F622}',green:'\u{1F60A}',yellow:'\u{1F630}',red:'\u{1F620}'};
-                    return (
-                      <View key={ci.id||i} style={s.ciRow}>
-                        <View style={[s.ciCircle,{backgroundColor:ZONE_COLORS[zone]||'#999'}]}>
-                          <Text>{zEmoji[zone]||'\u{1F60A}'}</Text>
-                        </View>
-                        <View style={{flex:1,marginLeft:10}}>
-                          <Text style={s.ciZone}>{ZONE_CONFIG[zone]?.label||zone}</Text>
-                          <Text style={s.ciTime}>{formatDate(ci.timestamp||ci.created_at)}</Text>
-                          {(ci.strategies_selected?.length>0 || ci.helpers_selected?.length>0) && <Text style={s.ciStrats}>{(ci.strategies_selected || ci.helpers_selected || []).map((sid: string) => resolveStrategyName(sid, t, STRATEGY_NAMES)).join(', ')}</Text>}
-                          {ci.comment && <Text style={s.ciComment}>"{ci.comment}"</Text>}
-                        </View>
-                        {/* Round 3 (Sep 5): this badge already existed but was gated behind
-                            !isFamilyChild, hiding it exactly for a genuinely school-linked
-                            child (e.g. Matilda) viewed via the family-member path - the case
-                            where home vs school actually varies per check-in and the icon is
-                            most useful. Now always shows. */}
-                        <View style={[s.sourceBadge,{backgroundColor:isHome?'#E8F5E9':'#E3F2FD'}]}>
-                          <MaterialIcons name={isHome?'home':'school'} size={13} color={isHome?'#4CAF50':'#2196F3'} />
-                        </View>
-                      </View>
-                    );
-                  });
-            })()}
-          </>)}
         </View>
 
         {/* CHECK-IN CALENDAR */}

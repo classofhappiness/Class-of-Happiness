@@ -284,7 +284,46 @@ export default function FamilyMemberStatsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Emotion Distribution */}
+        {/* Real fix Sep 23 (device report): Recent Check-ins moved to be the FIRST section
+            on this page (was 3rd) - matching the same reorder on teacher/student-detail.tsx
+            and parent/linked-child/[id].tsx, per Jono's explicit ask that individual-person
+            pages share one consistent section order. */}
+        {/* Recent Check-ins */}
+          <View style={s.card}>
+            <SectionHeader label={t('recent_checkins')||'Recent Check-ins'} open={secRecentCheckins} onPress={()=>setSecRecentCheckins(v=>!v)} icon="history" />
+            {secRecentCheckins && (
+              <View style={{gap:10, marginTop:12}}>
+                {filteredLogs.slice(0,15).map((log, i) => {
+                  const z = log.zone || log.feeling_colour || '';
+                  const strats = (log.helpers_selected || log.strategies_selected || []);
+                  return (
+                    <View key={i} style={{flexDirection:'row', alignItems:'flex-start', gap:10}}>
+                      <View style={{width:36, height:36, borderRadius:18, backgroundColor:ZONE_COLORS[z]||'#CCC', alignItems:'center', justifyContent:'center'}}>
+                        <Text style={{fontSize:18}}>{ZONE_EMOJI[z]||'😶'}</Text>
+                      </View>
+                      <View style={{flex:1}}>
+                        <Text style={{fontSize:13, fontWeight:'600', color:'#333'}}>
+                          {new Date(log.timestamp).toLocaleDateString(undefined, {weekday:'short', month:'short', day:'numeric'})}
+                          {' · '}{new Date(log.timestamp).toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit', hour12:true})}
+                        </Text>
+                        {strats.length > 0 && (
+                          <Text style={{fontSize:11, color:'#5C6BC0', marginTop:2}}>
+                            💡 {strats.slice(0,3).map((s:string)=>resolveStratName(s,strategyNames,t)).filter(Boolean).join(', ')}
+                          </Text>
+                        )}
+                        {log.comment && <Text style={{fontSize:11, color:'#888', marginTop:2, fontStyle:'italic'}}>"{log.comment}"</Text>}
+                      </View>
+                      <View style={{backgroundColor:'#E8F5E9', borderRadius:8, paddingHorizontal:6, paddingVertical:3}}>
+                        <Text style={{fontSize:10, color:'#4CAF50'}}>🏠</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+
+          {/* Emotion Distribution */}
           <View style={s.card}>
             <SectionHeader label={t('emotion_distribution')||'Emotion Distribution'} open={secEmoDistrib} onPress={()=>setSecEmoDistrib(v=>!v)} icon="donut-large" />
             {secEmoDistrib && (
@@ -323,41 +362,6 @@ export default function FamilyMemberStatsScreen() {
                     </View>
                   ))
                 }
-              </View>
-            )}
-          </View>
-
-          {/* Recent Check-ins */}
-          <View style={s.card}>
-            <SectionHeader label={t('recent_checkins')||'Recent Check-ins'} open={secRecentCheckins} onPress={()=>setSecRecentCheckins(v=>!v)} icon="history" />
-            {secRecentCheckins && (
-              <View style={{gap:10, marginTop:12}}>
-                {filteredLogs.slice(0,15).map((log, i) => {
-                  const z = log.zone || log.feeling_colour || '';
-                  const strats = (log.helpers_selected || log.strategies_selected || []);
-                  return (
-                    <View key={i} style={{flexDirection:'row', alignItems:'flex-start', gap:10}}>
-                      <View style={{width:36, height:36, borderRadius:18, backgroundColor:ZONE_COLORS[z]||'#CCC', alignItems:'center', justifyContent:'center'}}>
-                        <Text style={{fontSize:18}}>{ZONE_EMOJI[z]||'😶'}</Text>
-                      </View>
-                      <View style={{flex:1}}>
-                        <Text style={{fontSize:13, fontWeight:'600', color:'#333'}}>
-                          {new Date(log.timestamp).toLocaleDateString(undefined, {weekday:'short', month:'short', day:'numeric'})}
-                          {' · '}{new Date(log.timestamp).toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit', hour12:true})}
-                        </Text>
-                        {strats.length > 0 && (
-                          <Text style={{fontSize:11, color:'#5C6BC0', marginTop:2}}>
-                            💡 {strats.slice(0,3).map((s:string)=>resolveStratName(s,strategyNames,t)).filter(Boolean).join(', ')}
-                          </Text>
-                        )}
-                        {log.comment && <Text style={{fontSize:11, color:'#888', marginTop:2, fontStyle:'italic'}}>"{log.comment}"</Text>}
-                      </View>
-                      <View style={{backgroundColor:'#E8F5E9', borderRadius:8, paddingHorizontal:6, paddingVertical:3}}>
-                        <Text style={{fontSize:10, color:'#4CAF50'}}>🏠</Text>
-                      </View>
-                    </View>
-                  );
-                })}
               </View>
             )}
           </View>
