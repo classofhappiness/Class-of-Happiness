@@ -1,7 +1,7 @@
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setSoundEnabled } from './sounds';
-import { getCachedAudioUri, preloadAudioUrls } from './audioCache';
+import { preloadAudioUrls, createResilientSound } from './audioCache';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const VOICE_ENABLED_KEY = 'voice_enabled';
@@ -97,12 +97,14 @@ export const playVoiceClip = async (rawKey: string, language: string) => {
   if (!url) return;
   setTimeout(async () => {
     try {
-      // Real fix Sep 21 (device report): resolves to a local file if preloadZoneAudio
-      // already cached this clip - the common case by the time a kid actually taps a
-      // colour, since that preload starts on the same screen's mount, well before the tap.
-      const localUri = await getCachedAudioUri(url);
-      const { sound } = await Audio.Sound.createAsync({ uri: localUri }, { shouldPlay: true, volume: 1.0 });
-      sound.setOnPlaybackStatusUpdate((status) => {
+      // Real fix Sep 24 (device report - launch-blocking crash): createResilientSound
+      // tries the cached local file first (the common case by the time a kid actually taps
+      // a colour, since preloadZoneAudio starts on the same screen's mount, well before the
+      // tap), and self-heals + falls back to the remote URL if that cached file turns out
+      // to be unreadable - see its own comment in audioCache.ts for why that's a real,
+      // not just theoretical, gap the old direct createAsync call had.
+      const sound = await createResilientSound(url, { shouldPlay: true, volume: 1.0 });
+      sound?.setOnPlaybackStatusUpdate((status) => {
         if (status.isLoaded && status.didJustFinish) {
           sound.unloadAsync().catch(() => {});
         }
@@ -165,12 +167,12 @@ export const playPhraseFromPool = async (moment: VoicePhraseMoment, language: st
     const urls = await loadPhrasePool(moment, language);
     if (!urls.length) return null;
     const url = urls[Math.floor(Math.random() * urls.length)];
-    // Real fix Sep 21 (device report): same cache resolution as playVoiceClip above -
-    // whichever of the 2-4 pool variants gets picked here, preloadZoneAudio (zone.tsx)
-    // already fired off downloads for every one of them, not just this random pick.
-    const localUri = await getCachedAudioUri(url);
-    const { sound } = await Audio.Sound.createAsync({ uri: localUri }, { shouldPlay: true, volume: 1.0 });
-    sound.setOnPlaybackStatusUpdate((status) => {
+    // Real fix Sep 24 (device report - launch-blocking crash): same resilient path as
+    // playVoiceClip above - see createResilientSound's own comment for why a bare
+    // getCachedAudioUri + createAsync call wasn't actually fail-safe against a cache entry
+    // going bad between being written and being played.
+    const sound = await createResilientSound(url, { shouldPlay: true, volume: 1.0 });
+    sound?.setOnPlaybackStatusUpdate((status) => {
       if (status.isLoaded && status.didJustFinish) {
         sound.unloadAsync().catch(() => {});
       }

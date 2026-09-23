@@ -1,6 +1,6 @@
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
-import { getCachedAudioUri, preloadAudioUrls } from './audioCache';
+import { preloadAudioUrls, createResilientSound } from './audioCache';
 
 let soundEnabled = true;
 let audioModeSet = false;
@@ -23,15 +23,13 @@ const playSoundUrl = (url: string) => {
   setTimeout(async () => {
     try {
       await initAudio();
-      // Real fix Sep 21 (device report): resolves to a local file if this URL was
-      // already preloaded (see preloadSounds below) - a no-op network-wise when it was,
-      // a one-time download-then-play (same as before) when it wasn't.
-      const localUri = await getCachedAudioUri(url);
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: localUri },
-        { shouldPlay: true, volume: 0.4 }
-      );
-      sound.setOnPlaybackStatusUpdate((status) => {
+      // Real fix Sep 24 (device report - launch-blocking crash): createResilientSound
+      // tries the cached local file first (instant when it's Sep 21's cache is doing its
+      // job), and if that file turns out to be unreadable (deleted by the OS, or partial
+      // from an interrupted download), invalidates it and falls back to the plain remote
+      // URL itself - the exact pre-cache behaviour - instead of this call just failing.
+      const sound = await createResilientSound(url, { shouldPlay: true, volume: 0.4 });
+      sound?.setOnPlaybackStatusUpdate((status) => {
         if (status.isLoaded && status.didJustFinish) {
           sound.unloadAsync().catch(() => {});
         }

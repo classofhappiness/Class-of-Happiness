@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { Audio } from 'expo-av';
 import { File, Directory, Paths } from 'expo-file-system';
 
 // Real feature Sep 21 (device report): every sound effect and voice clip was fetched
@@ -84,5 +85,57 @@ export async function getCachedAudioUri(remoteUrl: string): Promise<string> {
 export function preloadAudioUrls(urls: (string | undefined | null)[]): void {
   for (const url of urls) {
     if (url) getCachedAudioUri(url).catch(() => {});
+  }
+}
+
+// Real fix Sep 24 (device report - launch-blocking crash, "Failed to load audio from
+// cache: Cannot access file"): getCachedAudioUri's own .exists check only proves the file
+// was there at THAT instant - a real TOCTOU gap, since Paths.cache is explicitly, by
+// Expo's own docs, "a place to store files that can be deleted by the system when the
+// device runs low on storage" at any time, not just checked once at write time. A file
+// left partial by an interrupted download (the app killed mid-write) would also pass
+// .exists (the file is there, just not a valid decodable audio file) with the same result.
+// Every caller previously took getCachedAudioUri's answer on faith and had no plan B if
+// that local file turned out to be unreadable when actually opened - exactly what "the
+// crash must never take the app down, fall back to streaming the CDN URL" was asking for,
+// and what Monday's fix claimed but never actually implemented for this specific case (it
+// only handled the DOWNLOAD failing, never "downloaded fine earlier, unreadable now").
+// Deletes the bad entry so the NEXT request re-downloads a fresh copy instead of hitting
+// the same corrupt file forever (self-healing), and this call itself never throws - same
+// fail-safe contract as everything else in this file.
+export async function invalidateCachedAudio(remoteUrl: string): Promise<void> {
+  if (!remoteUrl || IS_WEB || !CACHE_DIR) return;
+  try {
+    const destFile = new File(CACHE_DIR, stableFilename(remoteUrl));
+    if (destFile.exists) destFile.delete();
+  } catch {}
+}
+
+// Single, shared "create and play this sound" implementation for every caller in sounds.ts
+// and voiceClips.ts - centralizing this (rather than each of the 3 call sites repeating its
+// own Audio.Sound.createAsync + catch) is what actually makes the fallback-to-remote
+// guarantee real everywhere at once, instead of something that has to be remembered and
+// re-implemented correctly at every future call site. Tries the cached local file first
+// (instant when it's good); if THAT throws, treats it as a bad cache entry - invalidates it
+// and retries once against the plain remote URL, exactly the pre-cache behaviour. Returns
+// null (never throws) if both attempts fail, matching every other function in this file.
+export async function createResilientSound(
+  remoteUrl: string,
+  options: Parameters<typeof Audio.Sound.createAsync>[1]
+): Promise<Audio.Sound | null> {
+  if (!remoteUrl) return null;
+  const localUri = await getCachedAudioUri(remoteUrl);
+  try {
+    const { sound } = await Audio.Sound.createAsync({ uri: localUri }, options);
+    return sound;
+  } catch {
+    if (localUri === remoteUrl) return null; // was never cached in the first place - nothing to fall back from
+    await invalidateCachedAudio(remoteUrl);
+    try {
+      const { sound } = await Audio.Sound.createAsync({ uri: remoteUrl }, options);
+      return sound;
+    } catch {
+      return null;
+    }
   }
 }
