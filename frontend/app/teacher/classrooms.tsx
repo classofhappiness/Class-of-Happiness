@@ -387,7 +387,7 @@ export default function ManageClassroomsScreen() {
               {/* Current students */}
               <Text style={styles.sectionLabel}>{t('students_in_class') || 'Students in This Class'} ({classroomStudents.length})</Text>
               {classroomStudents.length === 0 && (
-                <Text style={styles.emptySubtext}>No students yet - add from below</Text>
+                <Text style={styles.emptySubtext}>{t('no_students_add_below') || 'No students yet - add from below'}</Text>
               )}
               {classroomStudents.map(s => (
                 <View key={s.id} style={styles.studentRow}>

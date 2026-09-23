@@ -183,7 +183,7 @@ export default function BulkCheckinScreen() {
           {(classrooms||[]).length === 0 ? (
             <View style={{alignItems:'center', padding:40}}>
               <MaterialIcons name="school" size={48} color="#CCC" />
-              <Text style={{color:'#999', marginTop:12, fontSize:14}}>No classrooms yet - create one first</Text>
+              <Text style={{color:'#999', marginTop:12, fontSize:14}}>{t('no_classrooms_create_first') || 'No classrooms yet - create one first'}</Text>
             </View>
           ) : (classrooms||[]).map((c:any) => (
             <TouchableOpacity key={c.id}

@@ -7,6 +7,7 @@ import {
 } from '../utils/api';
 import { useSupportRequestsList } from '../utils/supportRequestsPoller';
 import { EMOTION_COLOURS } from '../constants/emotionColours';
+import { useApp } from '../context/AppContext';
 
 const FLASH_MS = 4000; // how long a just-RESOLVED request stays visible before it self-removes
 
@@ -31,6 +32,7 @@ function flipTimestamp(r: SupportRequest): number | null {
 // shared poller so they can never show conflicting state. No message/chat button here yet
 // - that's still an unscoped Phase 2 candidate, omitted rather than shipped as a dead tap.
 export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
+  const { t } = useApp();
   const list = useSupportRequestsList(enabled);
   const [active, setActive] = useState<Record<string, SupportRequest>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -77,7 +79,7 @@ export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
       const updated = await supportRequestsApi.markArrived(r.id);
       setActive((a) => ({ ...a, [r.id]: updated }));
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Could not update request');
+      Alert.alert(t('error') || 'Error', e.message || (t('could_not_update_request') || 'Could not update request'));
     } finally {
       setBusy((b) => ({ ...b, [r.id]: undefined }));
     }
@@ -94,7 +96,7 @@ export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
           const updated = await supportRequestsApi.cancel(r.id);
           setActive((a) => ({ ...a, [r.id]: updated }));
         } catch (e: any) {
-          Alert.alert('Error', e.message || 'Could not cancel request');
+          Alert.alert(t('error') || 'Error', e.message || (t('could_not_cancel_request') || 'Could not cancel request'));
         } finally {
           setBusy((b) => ({ ...b, [r.id]: undefined }));
         }
@@ -127,6 +129,7 @@ function RequestCard({ request, expanded, busy, onToggle, onArrived, onCancel }:
   onArrived: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useApp();
   const display = formatSupportRequestStatus(request);
   const isOpen = request.status === 'PENDING' || request.status === 'ACKNOWLEDGED';
   const who = request.student_name || request.classroom_name || 'Classroom';
@@ -162,7 +165,7 @@ function RequestCard({ request, expanded, busy, onToggle, onArrived, onCancel }:
                 {busy === 'arriving' ? <ActivityIndicator color="white" /> : <Text style={styles.arrivedBtnText}>Support arrived ✓</Text>}
               </TouchableOpacity>
               <TouchableOpacity style={styles.cancelBtn} disabled={!!busy} onPress={onCancel}>
-                {busy === 'cancelling' ? <ActivityIndicator color="#999" /> : <Text style={styles.cancelBtnText}>Cancel</Text>}
+                {busy === 'cancelling' ? <ActivityIndicator color="#999" /> : <Text style={styles.cancelBtnText}>{t('cancel') || 'Cancel'}</Text>}
               </TouchableOpacity>
             </View>
           )}

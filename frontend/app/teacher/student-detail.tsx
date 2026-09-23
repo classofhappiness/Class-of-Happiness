@@ -352,7 +352,7 @@ export default function StudentDetailScreen() {
             { text: 'See Plans', onPress: () => router.push('/subscription') },
           ]);
         } else {
-          Alert.alert('Error', 'Cannot generate PDF - no data may exist for this month yet');
+          Alert.alert(t('error') || 'Error', t('pdf_no_data_month') || 'Cannot generate PDF - no data may exist for this month yet');
         }
         return;
       }

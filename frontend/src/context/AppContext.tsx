@@ -669,7 +669,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.error('[Login] Email login error:', error);
         const { Alert } = require('react-native');
         const message = error instanceof Error ? error.message : 'Could not sign in. Please try again.';
-        Alert.alert('Sign In Failed', message);
+        Alert.alert(t('sign_in_failed_title') || 'Sign In Failed', message);
       }
       // Real fix Sep 15: this used to swallow every login failure right here - the caller
       // (login.tsx's handleLogin) had no way to know login actually failed, so it always ran

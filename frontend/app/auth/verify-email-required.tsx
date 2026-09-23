@@ -26,7 +26,7 @@ import { useApp } from '../../src/context/AppContext';
 export default function VerifyEmailRequiredScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { verifyEmail, resendVerificationEmail, logout, user } = useApp();
+  const { verifyEmail, resendVerificationEmail, logout, user, t } = useApp();
   const [goingBack, setGoingBack] = useState(false);
 
   const handleBackToSignup = async () => {
@@ -46,7 +46,7 @@ export default function VerifyEmailRequiredScreen() {
 
   const handleVerify = async () => {
     if (code.trim().length < 6) {
-      setError('Enter the 6-digit code from your email');
+      setError(t('enter_6_digit_code') || 'Enter the 6-digit code from your email');
       return;
     }
     setError('');
@@ -56,7 +56,7 @@ export default function VerifyEmailRequiredScreen() {
       await verifyEmail(code.trim());
       router.replace('/');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not verify. Please try again.');
+      setError(e instanceof Error ? e.message : (t('could_not_verify_retry') || 'Could not verify. Please try again.'));
     } finally {
       setVerifying(false);
     }
@@ -69,7 +69,7 @@ export default function VerifyEmailRequiredScreen() {
       await resendVerificationEmail();
       setResent(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not resend. Please try again.');
+      setError(e instanceof Error ? e.message : (t('could_not_resend_retry') || 'Could not resend. Please try again.'));
     } finally {
       setResending(false);
     }
@@ -86,16 +86,16 @@ export default function VerifyEmailRequiredScreen() {
           <View style={styles.iconWrap}>
             <MaterialIcons name="mark-email-read" size={48} color="#5C6BC0" />
           </View>
-          <Text style={styles.title}>Verify Your Email</Text>
+          <Text style={styles.title}>{t('verify_email_title') || 'Verify Your Email'}</Text>
           <Text style={styles.subtitle}>
-            We sent a 6-digit code to {user?.email ? user.email : 'your email address'}. Enter it below to
-            continue.
+            {(t('verify_email_subtitle') || 'We sent a 6-digit code to {email}. Enter it below to continue.')
+              .replace('{email}', user?.email ? user.email : (t('your_email_address') || 'your email address'))}
           </Text>
           <TouchableOpacity onPress={handleBackToSignup} disabled={goingBack}>
-            <Text style={styles.changeEmailLink}>Wrong email? Go back and fix it</Text>
+            <Text style={styles.changeEmailLink}>{t('wrong_email_go_back') || 'Wrong email? Go back and fix it'}</Text>
           </TouchableOpacity>
 
-          <Text style={styles.label}>Verification Code</Text>
+          <Text style={styles.label}>{t('verification_code_label') || 'Verification Code'}</Text>
           <TextInput
             style={styles.input}
             placeholder="123456"
@@ -110,22 +110,22 @@ export default function VerifyEmailRequiredScreen() {
           />
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          {resent ? <Text style={styles.resentText}>A new code is on its way.</Text> : null}
+          {resent ? <Text style={styles.resentText}>{t('new_code_on_way') || 'A new code is on its way.'}</Text> : null}
 
           <TouchableOpacity
             style={[styles.button, verifying && styles.buttonDisabled]}
             onPress={handleVerify}
             disabled={verifying}
           >
-            {verifying ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Verify & Continue</Text>}
+            {verifying ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>{t('verify_and_continue') || 'Verify & Continue'}</Text>}
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.resendLink} onPress={handleResend} disabled={resending}>
-            <Text style={styles.resendLinkText}>{resending ? 'Sending…' : "Didn't get a code? Resend"}</Text>
+            <Text style={styles.resendLinkText}>{resending ? (t('sending_ellipsis') || 'Sending…') : (t('resend_code_link') || "Didn't get a code? Resend")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.logoutLink} onPress={() => logout()}>
-            <Text style={styles.logoutLinkText}>Not you? Sign out</Text>
+            <Text style={styles.logoutLinkText}>{t('not_you_sign_out') || 'Not you? Sign out'}</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>

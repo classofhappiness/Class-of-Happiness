@@ -2316,6 +2316,7 @@ function srTimeAgo(iso: string | null): string {
 }
 
 function SupportRequestCard({ r, onAck, onRespond }: { r: SupportRequest; onAck: (id: string) => void; onRespond: (id: string, msg: string) => void }) {
+  const { t } = useApp();
   const [msg, setMsg] = useState('');
   const isOpen = SR_OPEN_STATUSES.includes(r.status);
   const who = r.student_name || r.classroom_name || 'Classroom';
@@ -2356,7 +2357,7 @@ function SupportRequestCard({ r, onAck, onRespond }: { r: SupportRequest; onAck:
         <View style={srS.actions}>
           {r.status === 'PENDING' && (
             <TouchableOpacity style={[srS.actionBtn, { backgroundColor: '#E0E0E0' }]} onPress={() => onAck(r.id)}>
-              <Text style={[srS.actionBtnText, { color: '#555' }]}>Acknowledge</Text>
+              <Text style={[srS.actionBtnText, { color: '#555' }]}>{t('acknowledge') || 'Acknowledge'}</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity style={[srS.actionBtn, { backgroundColor: '#4CAF73' }]} onPress={() => onRespond(r.id, 'YES')}>
@@ -2367,14 +2368,14 @@ function SupportRequestCard({ r, onAck, onRespond }: { r: SupportRequest; onAck:
           </TouchableOpacity>
           <TextInput
             style={srS.msgInput}
-            placeholder="Custom message…"
+            placeholder={t('custom_message_placeholder') || 'Custom message…'}
             placeholderTextColor="#AAA"
             value={msg}
             onChangeText={setMsg}
             onSubmitEditing={() => { if (msg.trim()) { onRespond(r.id, msg.trim()); setMsg(''); } }}
           />
           <TouchableOpacity style={[srS.actionBtn, { backgroundColor: INDIGO }]} onPress={() => { if (msg.trim()) { onRespond(r.id, msg.trim()); setMsg(''); } }}>
-            <Text style={srS.actionBtnText}>Send</Text>
+            <Text style={srS.actionBtnText}>{t('send') || 'Send'}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -2383,6 +2384,7 @@ function SupportRequestCard({ r, onAck, onRespond }: { r: SupportRequest; onAck:
 }
 
 function SupportRequestsManager() {
+  const { t } = useApp();
   const list = useSupportRequestsList(true);
   const [resolvedOpen, setResolvedOpen] = useState(false);
 
@@ -2394,10 +2396,10 @@ function SupportRequestsManager() {
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const onAck = async (id: string) => {
-    try { await supportRequestsApi.acknowledge(id); dismissIncidentAlert(id); } catch { Alert.alert('Error', 'Could not acknowledge.'); }
+    try { await supportRequestsApi.acknowledge(id); dismissIncidentAlert(id); } catch { Alert.alert(t('error') || 'Error', t('could_not_acknowledge') || 'Could not acknowledge.'); }
   };
   const onRespond = async (id: string, response: string) => {
-    try { await supportRequestsApi.respond(id, response); dismissIncidentAlert(id); } catch { Alert.alert('Error', 'Could not respond.'); }
+    try { await supportRequestsApi.respond(id, response); dismissIncidentAlert(id); } catch { Alert.alert(t('error') || 'Error', t('could_not_respond') || 'Could not respond.'); }
   };
 
   return (
@@ -2406,7 +2408,7 @@ function SupportRequestsManager() {
         {open.length === 0 ? (
           <View style={{ alignItems: 'center', padding: 20 }}>
             <MaterialIcons name="check-circle" size={28} color="#4CAF73" />
-            <Text style={{ color: '#888', marginTop: 6 }}>Nothing open right now.</Text>
+            <Text style={{ color: '#888', marginTop: 6 }}>{t('nothing_open_right_now') || 'Nothing open right now.'}</Text>
           </View>
         ) : (
           <View style={{ gap: 8 }}>

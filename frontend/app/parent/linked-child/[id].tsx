@@ -321,7 +321,7 @@ export default function LinkedChildDetailScreen() {
         const r = await familyApi.toggleShop(familyMemberId);
         setShopEnabled(r.shop_enabled);
       }
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: any) { Alert.alert(t('error') || 'Error', e.message); }
   };
 
   const getDistCheckins = () =>
@@ -457,7 +457,7 @@ export default function LinkedChildDetailScreen() {
         {/* RECENT CHECK-INS */}
         <View style={s.section}>
           <TouchableOpacity onPress={() => setSecRecentCheckins(e => !e)} style={s.sectionHeader}>
-            <View style={s.sectionHeaderLeft}><MaterialIcons name="history" size={17} color="#5C6BC0" /><Text style={s.sectionTitle}>Recent Check-ins</Text></View>
+            <View style={s.sectionHeaderLeft}><MaterialIcons name="history" size={17} color="#5C6BC0" /><Text style={s.sectionTitle}>{t('recent_checkins') || 'Recent Check-ins'}</Text></View>
             <MaterialIcons name={secRecentCheckins ? 'expand-less' : 'expand-more'} size={20} color="#666" />
           </TouchableOpacity>
           {secRecentCheckins && (<>
@@ -486,7 +486,7 @@ export default function LinkedChildDetailScreen() {
               const list = isFamilyChild
                 ? (activeZone ? allCheckIns.filter((c:any)=>(c.zone||c.feeling_colour)===activeZone) : allCheckIns)
                 : getRecentCheckins();
-              return list.length === 0 ? <Text style={s.empty}>No check-ins for this view</Text>
+              return list.length === 0 ? <Text style={s.empty}>{t('no_checkins_this_view') || 'No check-ins for this view'}</Text>
                 : list.slice(0,15).map((ci:any,i:number) => {
                     const zone = ci.zone||ci.feeling_colour||'green';
                     const isHome = ci.location==='home'||ci.logged_by==='parent'||ci.logged_by==='family';
@@ -684,7 +684,7 @@ export default function LinkedChildDetailScreen() {
               {'\u{1F3E0}'} {isFamilyChild?t('strategy_btn') || t('strategy_btn') || 'Strategies':'Family Strategies'}
             </Text>
             {familyStrats.length===0
-              ? <Text style={s.empty}>No strategies yet - tap Add to create one</Text>
+              ? <Text style={s.empty}>{t('no_strategies_tap_add') || 'No strategies yet - tap Add to create one'}</Text>
               : familyStrats.map((st:any) => (
                 <View key={st.id} style={s.stratCard}>
                   <MaterialIcons name={(st.icon)||'star'} size={20} color="#4CAF50" />
