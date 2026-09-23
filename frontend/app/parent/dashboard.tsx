@@ -1019,7 +1019,18 @@ export default function ParentDashboard() {
         <>
           <View style={styles.section}>
             <TouchableOpacity style={styles.collapsibleHeader} onPress={()=>setWeekExpanded(e=>!e)} activeOpacity={0.7}>
-              <Text style={styles.sectionTitle}>{t('week_overview')||'Week Overview'}</Text>
+              {/* Real fix Sep 24 (device report A2/S17-6): heading was hardcoded to "Week
+                  Overview" regardless of the time-filter pill above (analyticsPeriod) - the
+                  data below it already respected the selected pill (see the `filtered` block
+                  just below), so a parent selecting Month saw genuinely month-scoped data
+                  under a heading that still said "Week". Range-aware now, same variable the
+                  data filter already reads. */}
+              <Text style={styles.sectionTitle}>
+                {analyticsPeriod===1 ? (t('overview_title_today')||"Today's Overview")
+                  : analyticsPeriod===14 ? (t('overview_title_fortnight')||'Fortnight Overview')
+                  : analyticsPeriod===30 ? (t('overview_title_month')||'Month Overview')
+                  : (t('overview_title_week')||t('week_overview')||'Week Overview')}
+              </Text>
               <MaterialIcons name={weekExpanded?'expand-less':'expand-more'} size={22} color="#5C6BC0" />
               </TouchableOpacity>
 
