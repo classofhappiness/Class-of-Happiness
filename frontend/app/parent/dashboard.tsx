@@ -1204,8 +1204,12 @@ export default function ParentDashboard() {
                     <View style={styles.logDetails}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <View style={{ flexDirection:'row', alignItems:'center', gap:4, flexWrap:'wrap' }}>
-                          {(log as any).member_name && <Text style={[styles.logZoneName, { fontSize:14 }]}>{(log as any).member_name.split(' ')[0]}</Text>}
-                          {!(log as any).member_name && (log as any).student_name && <Text style={[styles.logZoneName, { fontSize:14, color:'#5C6BC0' }]}>{(log as any).student_name.split(' ')[0]}</Text>}
+                          {/* Real fix Sep 24 (device report B1/S17-3): was .split(' ')[0]
+                              (first name only) - the row already wraps (flexWrap:'wrap' on
+                              its parent), so there was no layout reason to abbreviate a
+                              longer full name. */}
+                          {(log as any).member_name && <Text style={[styles.logZoneName, { fontSize:14 }]}>{(log as any).member_name}</Text>}
+                          {!(log as any).member_name && (log as any).student_name && <Text style={[styles.logZoneName, { fontSize:14, color:'#5C6BC0' }]}>{(log as any).student_name}</Text>}
                           <Text style={{ fontSize:11, color:'#888' }}>{getZoneLabel(log.zone, t)}</Text>
                         </View>
                       </View>
