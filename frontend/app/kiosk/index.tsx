@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
   ScrollView, ActivityIndicator, Animated, useWindowDimensions, Image, Platform
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -141,6 +141,23 @@ export default function KioskScreen() {
   }, []);
 
   useEffect(() => { loadKioskData(); }, [loadKioskData]);
+
+  // Real fix Sep 24 (device report B7/S15-4): replaces the visible manual refresh button -
+  // a teacher shouldn't need to remember to tap anything for the roster/check-in state to
+  // stay current on a screen nobody is meant to actively operate. Refetches once whenever
+  // this screen regains focus (covers a teacher navigating back to it) plus every 60s while
+  // it's mounted and paired (covers it just being left open all day). loadStudents already
+  // fails silently and leaves the previous state in place on a network error - same
+  // "never blank the list" rule as the classroom-banner fix - so a flaky request here just
+  // skips a beat instead of wiping the roster a kid is mid-check-in against.
+  useFocusEffect(
+    useCallback(() => {
+      if (!kioskToken) return;
+      loadStudents(kioskToken);
+      const interval = setInterval(() => loadStudents(kioskToken), 60000);
+      return () => clearInterval(interval);
+    }, [kioskToken])
+  );
 
   const loadStudents = async (token: string) => {
     setLoading(true);
@@ -354,15 +371,10 @@ export default function KioskScreen() {
       {/* Main prompt - refresh button now sits right of the heading itself (build 26, Sep 6)
           instead of on its own row above; kept outside the pulsing Animated.View so only the
           text breathes, not the static icon. */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-        <Animated.View style={[st.promptBox, { transform: [{ scale: pulseAnim }] }]}>
-          <Text style={st.promptTitle}>{t('how_are_you_feeling') || 'How are you feeling today?'}</Text>
-          <Text style={st.promptSub}>{t('kiosk_tap_name_hint') || 'Tap your name to check in'} 👇</Text>
-        </Animated.View>
-        <TouchableOpacity onPress={() => loadStudents(kioskToken!)} style={st.refreshBtn}>
-          <MaterialIcons name="refresh" size={30} color={INDIGO} />
-        </TouchableOpacity>
-      </View>
+      <Animated.View style={[st.promptBox, { transform: [{ scale: pulseAnim }] }]}>
+        <Text style={st.promptTitle}>{t('how_are_you_feeling') || 'How are you feeling today?'}</Text>
+        <Text style={st.promptSub}>{t('kiosk_tap_name_hint') || 'Tap your name to check in'} 👇</Text>
+      </Animated.View>
 
       {/* Student grid */}
       {loading ? (
@@ -446,7 +458,6 @@ const st = StyleSheet.create({
   headerEmoji: { fontSize: 28 },
   headerTitle: { fontSize: 16, fontWeight: '800', color: INDIGO },
   headerSub: { fontSize: 11, color: '#888' },
-  refreshBtn: { padding: 8 },
   // Prompt
   promptBox: { alignItems: 'center', paddingVertical: 20, paddingHorizontal: 16 },
   promptTitle: { fontSize: 24, fontWeight: '800', color: '#333', textAlign: 'center' },
