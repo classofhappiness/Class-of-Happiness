@@ -887,9 +887,18 @@ export default function StudentDetailScreen() {
         {/* Home Data Section (if parent has enabled sharing) */}
         {sharingStatus?.is_linked_to_parent && (
           <View style={styles.homeDataSection}>
-            <TouchableOpacity onPress={() => setSecHomeSharing(e => !e)} style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: secHomeSharing ? 10 : 0 }}>
+            {/* Real fix Sep 23 (device report, 2nd pass): marginBottom used to be
+                conditionally 10 while expanded - no sibling section's toggle row carries
+                any margin of its own in either state (e.g. "Emotion Distribution"'s
+                TouchableOpacity above has none; its content's own top spacing, or here the
+                container's own padding, is what separates header from content). Dropped so
+                this row matches every sibling's toggle row exactly. */}
+            <TouchableOpacity onPress={() => setSecHomeSharing(e => !e)} style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
               <View style={styles.homeDataHeader}>
-                <MaterialIcons name="home" size={24} color="#4CAF50" />
+                {/* Real fix Sep 23 (device report, 2nd pass): was size 24 - every sibling
+                    section's own header icon (donut-large, history, star, picture-as-pdf) is
+                    18, adding a few more px of height to this row alone. */}
+                <MaterialIcons name="home" size={18} color="#4CAF50" />
                 <Text style={styles.sectionTitle}>{t('home_data') || 'Home Data'}</Text>
               </View>
               <MaterialIcons name={secHomeSharing ? 'expand-less' : 'expand-more'} size={20} color="#666" />
@@ -1678,10 +1687,17 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 8,
   },
+  // Real fix Sep 23 (device report, 2nd pass): matching the OUTER container styles
+  // (borderRadius/padding/marginBottom) wasn't enough - this section was still taller than
+  // its siblings because THIS wrapper (icon+title, inside the header row) had its own
+  // unconditional marginBottom:16 that none of the sibling sections' equivalent inline
+  // header wrappers have (they carry no margin at all - see "Emotion Distribution"'s
+  // {flexDirection:'row',alignItems:'center',gap:8} a few sections up, same role, no
+  // margin). That 16px applied even while COLLAPSED, since it's on the icon+title View,
+  // not gated on the expanded state the way the sharing-status text below it is.
   homeDataHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
     gap: 8,
   },
   sharingEnabledBadge: {
