@@ -48,7 +48,7 @@ async function apiCall(endpoint: string, token: string|null, options: any = {}) 
 // ── Shared Components ────────────────────────────────────────────────────────
 
 function SectionCard({ title, subtitle, icon, color, children, defaultOpen = false }: any) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [open, setOpen] = useState<boolean>(defaultOpen);
   return (
     <View style={s.card}>
       <TouchableOpacity onPress={() => setOpen(v => !v)} style={s.cardHeader} activeOpacity={0.7}>

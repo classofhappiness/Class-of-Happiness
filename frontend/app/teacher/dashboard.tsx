@@ -120,11 +120,20 @@ export default function TeacherDashboardScreen() {
 
   const [pendingCreatures, setPendingCreatures] = useState<any[]>([]);
   useEffect(() => {
-    const token = user?.session_token || user?.authToken || '';
-    if (!token) return;
-    fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL || ''}/api/creatures/pending`, {
-      headers: { Authorization: `Bearer ${token}` }
-    }).then(r => r.json()).then(d => setPendingCreatures(Array.isArray(d) ? d : [])).catch(() => {});
+    // Real bug fix Sep 24 (tsc baseline cleanup): User (api.ts) has never had a session_token
+    // or authToken field - the real session token lives in AsyncStorage under 'session_token',
+    // same as every other authenticated call in this app. This always evaluated to '', so this
+    // fetch always sent an empty Bearer token and silently failed via the catch below - the
+    // pending-creatures badge has likely never actually populated from this call.
+    let cancelled = false;
+    (async () => {
+      const token = await AsyncStorage.getItem('session_token');
+      if (!token || cancelled) return;
+      fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL || ''}/api/creatures/pending`, {
+        headers: { Authorization: `Bearer ${token}` }
+      }).then(r => r.json()).then(d => { if (!cancelled) setPendingCreatures(Array.isArray(d) ? d : []); }).catch(() => {});
+    })();
+    return () => { cancelled = true; };
   }, [user]);
   const [period, setPeriod] = useState<Period>(7);
   const [strategyNames, setStrategyNames] = useState<Record<string,string>>({});

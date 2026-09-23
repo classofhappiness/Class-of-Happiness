@@ -258,9 +258,14 @@ export default function ResourcesScreen() {
   // pills hid content depending which was selected (e.g. Parent Hub uploads only ever
   // showed on one side, regardless of which pill you had open).
   const filteredResources = (() => {
+    // Real bug fix Sep 24 (tsc baseline cleanup): was r.topic - Resource (general/admin
+    // resources) never has a topic field, only TeacherResource does (see api.ts) - this
+    // always evaluated to undefined === selectedTopic, silently returning zero general
+    // resources for every topic tab except "All". Resource's real filterable field is
+    // category (backend's ResourceCreate.category), which uses the same topic-id taxonomy.
     const generalBase = selectedTopic === 'all'
       ? resources
-      : resources.filter(r => r.topic === selectedTopic);
+      : resources.filter(r => r.category === selectedTopic);
     const teacherBase = selectedTopic === 'all'
       ? parentTeacherResources
       : parentTeacherResources.filter(r => r.topic === selectedTopic);

@@ -182,8 +182,7 @@ export default function ParentDashboard() {
 
   // ── Creature section ──────────────────────────────
   const [featuredCreatures, setFeaturedCreatures] = React.useState<any[]>([]);
-  const [studentCreatures, setStudentCreatures] = React.useState<any[]>([]);
-  
+
   React.useEffect(() => {
     // Real fix: use rewardsApi.getCollection, the same proven call used in rewards.tsx and student/select.tsx —
     // the old /creatures/featured + /creatures/my-unlocks calls were never real and crashed the screen.
@@ -192,16 +191,13 @@ export default function ParentDashboard() {
         linkedChildren.map((c: any) => rewardsApi.getCollection(c.id).then(col => ({ id: c.id, name: c.name, col })))
       ).then(results => {
         const collected: any[] = [];
-        const perChild: Record<string, any> = {};
         results.forEach(r => {
           if (r.status === 'fulfilled' && r.value.col?.current_creature) {
             const { id, name, col } = r.value;
-            perChild[id] = col;
             collected.push({ childId: id, childName: name, ...col.current_creature, stage: col.current_stage, points: col.current_points });
           }
         });
         setFeaturedCreatures(collected);
-        setStudentCreatures(perChild);
       });
     }
   }, [linkedChildren]);
@@ -235,13 +231,6 @@ export default function ParentDashboard() {
   const [tipDismissed, setTipDismissed] = useState(false);
   const [selectedWeekChild, setSelectedWeekChild] = useState<string | null>(null);
   const [parentAlertCount, setParentAlertCount] = useState(0);
-  const [linkedChildSections, setLinkedChildSections] = useState<Record<string, {emoDistrib:boolean, recentCheckins:boolean, weekOverview:boolean}>>({});
-  const toggleLinkedSection = (childId: string, section: 'emoDistrib'|'recentCheckins'|'weekOverview') => {
-    setLinkedChildSections(prev => ({
-      ...prev,
-      [childId]: { emoDistrib:false, recentCheckins:false, weekOverview:false, ...prev[childId], [section]: !(prev[childId]?.[section]) }
-    }));
-  };
   const [analyticsPeriod, setAnalyticsPeriod] = useState<1|7|14|30>(7);
   const [checkInsExpanded, setCheckInsExpanded] = useState(false);
 
@@ -763,7 +752,7 @@ export default function ParentDashboard() {
       // Build analytics from combined logs
       const counts = { blue: 0, green: 0, yellow: 0, red: 0 } as Record<string,number>;
       allLogs.forEach((l: any) => { const z = l.zone; if (z in counts) counts[z]++; });
-      setAnalytics({ zone_counts: counts, total_logs: allLogs.length });
+      setAnalytics({ zone_counts: counts });
 
     } catch (error) {
       console.error('Error fetching children data:', error);
@@ -1496,7 +1485,7 @@ export default function ParentDashboard() {
                         }}
                       >
                         <View style={{ flexDirection:'row', justifyContent:'center', flexWrap:'wrap', gap:2 }}>
-                          {(memberCreatures[member.id]?.allCreatures || []).slice(0,4).map((cr, i) => {
+                          {(memberCreatures[member.id]?.allCreatures || []).slice(0,4).map((cr: any, i: number) => {
                             const stg = cr.stages?.[Number(cr.current_stage||0)]?.emoji || '🥚';
                             return <Text key={i} style={{ fontSize:14 }}>{stg}</Text>;
                           })}

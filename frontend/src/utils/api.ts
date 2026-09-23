@@ -350,7 +350,12 @@ export const customStrategiesApi = {
 
 // Zone Logs API
 export const zoneLogsApi = {
-  create: (data: { student_id: string; zone: string; strategies_selected: string[]; comment?: string; logged_by?: string; suppress_auto_alert?: boolean; support_request_type?: string }): Promise<ZoneLog> =>
+  // Real bug fix Sep 24 (tsc baseline cleanup): location was added at the strategies.tsx call
+  // site (home vs school check-ins) and the backend has always accepted it
+  // (FeelingLogCreate.location, default "school") - this parameter type just never picked it
+  // up. Metro doesn't block bundling on tsc errors, so the calls worked fine at runtime; this
+  // just closes the type gap that had been sitting in the tsc baseline since Aug 10.
+  create: (data: { student_id: string; zone: string; strategies_selected: string[]; comment?: string; logged_by?: string; suppress_auto_alert?: boolean; support_request_type?: string; location?: string }): Promise<ZoneLog> =>
     apiRequest('/zone-logs', { method: 'POST', body: JSON.stringify(data) }),
   
   getByStudent: (studentId: string, days?: number): Promise<ZoneLog[]> => 
@@ -503,6 +508,13 @@ export interface Resource {
   content?: string;
   pdf_filename?: string;
   created_at: string;
+  // Real bug fix Sep 24 (tsc baseline cleanup): the backend (ResourceCreate.category,
+  // default "general") always returns this field, but it was never declared here - parent/
+  // resources.tsx's topic-filter was reading r.topic (a TeacherResource-only field, see
+  // TeacherResource.topic below) off a plain Resource instead, which is always undefined on
+  // this type. Every non-"All" topic tab was silently filtering every general/admin-uploaded
+  // resource out - this had been a real, live bug hiding behind a type error the whole time.
+  category?: string;
 }
 
 export const resourcesApi = {

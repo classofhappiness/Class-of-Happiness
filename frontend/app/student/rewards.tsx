@@ -376,6 +376,13 @@ export default function RewardsScreen() {
     );
   }
 
+  // Real bug fix Sep 24 (tsc baseline cleanup): unreachable given the two guards above (every
+  // falsy-rewardsData path already returned by this point, for both the family-member and
+  // non-family-member cases) - added purely so TS's control-flow narrowing carries rewardsData
+  // as non-null through the rest of this render, instead of every rewardsData?.foo access
+  // below typing as `T | undefined` against props that require a definite T.
+  if (!rewardsData) return null;
+
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       {/* Real fix Sep 23 (device report): top-bar title removed - it just repeated the big
