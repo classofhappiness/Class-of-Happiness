@@ -186,18 +186,31 @@ export default function ParentDashboard() {
   React.useEffect(() => {
     // Real fix: use rewardsApi.getCollection, the same proven call used in rewards.tsx and student/select.tsx —
     // the old /creatures/featured + /creatures/my-unlocks calls were never real and crashed the screen.
+    // Real fix Sep 24 (item7, second device-log pass - Metro log showed GET /rewards/{id}/
+    // collection firing 2x per linked child on load): this effect and loadLinkedChildCreatures
+    // (previously called directly from fetchData) were two independent per-child loops hitting
+    // the exact same endpoint for the exact same ids - one populating featuredCreatures, the
+    // other childCreatures. Merged into this one fetch; loadLinkedChildCreatures removed.
     if (linkedChildren?.length) {
       Promise.allSettled(
         linkedChildren.map((c: any) => rewardsApi.getCollection(c.id).then(col => ({ id: c.id, name: c.name, col })))
       ).then(results => {
         const collected: any[] = [];
+        const creaturesMap: Record<string, any> = {};
         results.forEach(r => {
           if (r.status === 'fulfilled' && r.value.col?.current_creature) {
             const { id, name, col } = r.value;
             collected.push({ childId: id, childName: name, ...col.current_creature, stage: col.current_stage, points: col.current_points });
+            const stage = col.current_stage || 0;
+            const emoji = col.current_creature.stages?.[stage]?.emoji || '🥚';
+            creaturesMap[id] = {
+              emoji, color: col.current_creature.color || '#4CAF50',
+              allCreatures: col.all_creatures || [],
+            };
           }
         });
         setFeaturedCreatures(collected);
+        setChildCreatures(prev => ({ ...prev, ...creaturesMap }));
       });
     }
   }, [linkedChildren]);
@@ -464,22 +477,6 @@ export default function ParentDashboard() {
     }
   };
 
-  const loadLinkedChildCreatures = async (children: any[]) => {
-    for (const child of children) {
-      try {
-        const collection = await rewardsApi.getCollection(child.id);
-        if (collection?.current_creature) {
-          const stage = collection.current_stage || 0;
-          const emoji = collection.current_creature.stages?.[stage]?.emoji || '🥚';
-          setChildCreatures(prev => ({ ...prev, [child.id]: {
-            emoji, color: collection.current_creature.color || '#4CAF50',
-            allCreatures: collection.all_creatures || [],
-          }}));
-        }
-      } catch {}
-    }
-  };
-
   const loadFamilyMemberCreatures = async (members: any[]) => {
     const creatures: Record<string, any> = {};
     const childMembers = members.filter((m: any) => m.relationship === 'child');
@@ -552,8 +549,11 @@ export default function ParentDashboard() {
       // Fetch linked children from school
       const children = await parentApi.getChildren();
       setLinkedChildren(children);
-      loadLinkedChildCreatures(children);
-      
+      // Real fix Sep 24 (item7, second device-log pass): loadLinkedChildCreatures used to be
+      // called here too - see the useEffect([linkedChildren]) block's own comment for why
+      // that was a real duplicate of GET /rewards/{id}/collection per child. setLinkedChildren
+      // above already triggers that effect, which now populates childCreatures too.
+
       // Fetch family members
       const members = await familyApi.getMembers();
       setFamilyMembers(members);
