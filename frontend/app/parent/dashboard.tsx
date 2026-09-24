@@ -1026,12 +1026,30 @@ export default function ParentDashboard() {
               ));
             })()}
           </ScrollView>
+          {/* Real fix Sep 24 (item6, third device-log pass): "Esta semana" (pt) rendered
+              off-centre - flex:1 forced all 4 pills to an EQUAL share of the row regardless
+              of content, so a longer label (pt/es's this_week is the longest of the 4 in
+              those languages) had the least room relative to its own text among them, making
+              it the one most likely to actually wrap - and a wrapped Text with no explicit
+              textAlign defaults to left-aligned per line, reading as "off-centre" even though
+              the pill itself was centred. flexGrow (not flex) lets each pill's natural content
+              width count as its real minimum instead of being squashed to 1/4 of the row
+              regardless of length; numberOfLines=1 + adjustsFontSizeToFit is the actual
+              wrap-proof guarantee (shrinks the font instead of ever wrapping), checked against
+              every language's today/this_week/period_fortnight/month values including the
+              longest (German "Diese Woche"/"Zwei Wochen", Russian "На этой неделе"). */}
           <View style={{ flexDirection:'row', gap:6 }}>
             {([1,7,14,30] as const).map(p=>(
               <TouchableOpacity key={p} onPress={()=>setAnalyticsPeriod(p)}
-                style={{ flex:1, paddingVertical:6, borderRadius:8, alignItems:'center',
+                style={{ flexGrow:1, flexShrink:1, minWidth:0, paddingHorizontal:8, paddingVertical:6, borderRadius:8,
+                  alignItems:'center', justifyContent:'center',
                   backgroundColor: analyticsPeriod===p?'#5C6BC0':'#F0F0F0' }}>
-                <Text style={{ fontSize:11, fontWeight:'700', color: analyticsPeriod===p?'white':'#888' }}>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.75}
+                  style={{ fontSize:11, fontWeight:'700', textAlign:'center', color: analyticsPeriod===p?'white':'#888' }}
+                >
                   {p===1?(t('today')||'Today'):p===7?(t('this_week')||'Week'):p===14?(t('period_fortnight')||'Fortnight'):(t('month')||'Month')}
                 </Text>
               </TouchableOpacity>
