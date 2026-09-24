@@ -123,23 +123,11 @@ export async function sendZoneAlert(params: {
   } catch {}
 }
 
-export async function sendParentMessage(params: {
-  student_id: string;
-  message: string;
-  zone: string;
-}): Promise<{ ok: boolean }> {
-  try {
-    const token = await AsyncStorage.getItem('session_token');
-    const res = await fetch(`${BACKEND_URL}/api/notifications/parent-message`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(params),
-    });
-    return await res.json();
-  } catch {
-    return { ok: false };
-  }
-}
+// Real fix Sep 24 (item7, third device-log pass): sendParentMessage (POST /notifications/
+// parent-message) removed - its one caller (student/strategies.tsx's standalone "Send Message
+// to Parent" section) was a duplicate of the "Want to say something?" comment box on the same
+// screen. Grepped the whole repo first to confirm nothing else called it. The backend endpoint
+// is removed too; see server.py's matching comment.
 
 export async function getStudentShield(student_id: string): Promise<{
   has_shield: boolean;

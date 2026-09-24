@@ -3384,6 +3384,17 @@ async def create_feeling_log(log: FeelingLogCreate, request: Request):
                 "resolved": False,
             }).execute()
             logger.info(f"[feeling_log] Created {alert_type} alert for {student_name} zone={zone_val}")
+            # Real fix Sep 24 (item7, third device-log pass): a comment left here used to only
+            # ever create the alerts-table row - the parent had no way to know about it short
+            # of opening the app and checking Alerts themselves. Now push-notifies too, same as
+            # the (now-removed) standalone "Send Message to Parent" section always did - see
+            # _notify_parent_of_message's own comment for why this is parent-only by
+            # construction, never teacher/school_admin.
+            if alert_type == "parent_message":
+                try:
+                    await _notify_parent_of_message(log.student_id, student_name, comment_text, zone_val)
+                except Exception as pe:
+                    logger.warning(f"[feeling_log] Could not push-notify parent: {pe}")
     except Exception as ae:
         logger.warning(f"[feeling_log] Could not create alert: {ae}")
 
@@ -8290,89 +8301,55 @@ async def send_zone_alert(request: Request):
 
     return {"ok": True, "notifications_sent": sent}
 
-# ── Parent message from student ──────────────────────────
-@api_router.post("/notifications/parent-message")
-async def send_parent_message(request: Request):
-    """Student sends a feeling message to a parent."""
-    import json, httpx
-    body = await request.json()
-    student_id = body.get("student_id")
-    message = (body.get("message") or "").strip()
-    zone = body.get("zone", "")
-
-    if not student_id or not message:
-        raise HTTPException(status_code=400, detail="student_id and message required")
-
-    # Real security fix Sep 18: had no auth check at all - anyone who supplied a student_id
-    # could push a fake "message" alert to that student's teacher/parent.
-    user = await get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    if not await _is_authorized_for_student(user, student_id):
-        raise HTTPException(status_code=403, detail="Not authorized for this student")
-
-    student_r = supabase.table("students").select("*").eq("id", student_id).execute()
-    if not student_r.data:
-        raise HTTPException(status_code=404, detail="Student not found")
-    student = student_r.data[0]
-    student_name = student.get("name", "A student")
-
-    # Store message
-    try:
-        # Find the parent user_id via family_members
-        parent_user_id = None
-        try:
-            fm_r = supabase.table("family_members").select("user_id").eq("student_id", student_id).execute()
-            if fm_r.data:
-                parent_user_id = fm_r.data[0].get("user_id")
-        except: pass
-        
-        supabase.table("student_alerts").insert({
-            "id": str(uuid.uuid4()),
-            "student_id": student_id,
-            "student_name": student_name,
-            "alert_type": "parent_message",
-            "zone": zone,
-            "message": message,
-            "context": "home",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "resolved": False,
-        }).execute()
-    except Exception as e:
-        logger.error(f"Parent message store error: {e}")
-
-    # Find parent tokens — check both parent_links (school) and family_members (home)
+# ── Parent message push notification (shared) ────────────
+async def _notify_parent_of_message(student_id: str, student_name: str, message: str, zone: str) -> int:
+    """Real fix Sep 24 (item7, third device-log pass): extracted from send_parent_message
+    (below) so the "Want to say something?" comment box's own write paths
+    (create_feeling_log, family_member_checkin) can push-notify the parent too, not just
+    create the student_alerts row - see this fix's own commit notes for why (the standalone
+    "Send Message to Parent" section this dedupes was the ONLY one of the two that actually
+    notified anyone; the comment box only ever wrote silently to the alerts table). Looks up
+    parent tokens via BOTH parent_links (school-linked parent) and family_members (home/family
+    parent) - deliberately never touches teacher or school_admin tokens, so this can never
+    notify staff by construction, matching the "must not notify school admin or teacher" rule."""
     tokens_to_notify = []
     parent_user_ids = set()
     try:
-        # School-linked parents
         parent_links = supabase.table("parent_links").select("parent_id,parent_user_id").eq("student_id", student_id).execute()
         for link in (parent_links.data or []):
             uid = link.get("parent_user_id") or link.get("parent_id")
             if uid: parent_user_ids.add(uid)
-    except: pass
+    except Exception:
+        pass
     try:
-        # Family member parents (home flow)
         fm_links = supabase.table("family_members").select("user_id").eq("student_id", student_id).execute()
         for link in (fm_links.data or []):
             if link.get("user_id"): parent_user_ids.add(link["user_id"])
-    except: pass
+    except Exception:
+        pass
     try:
         for uid in parent_user_ids:
             parent_r = supabase.table("users").select("push_token").eq("user_id", uid).execute()
             if parent_r.data and parent_r.data[0].get("push_token"):
                 tokens_to_notify.append(parent_r.data[0]["push_token"])
-    except: pass
-
+    except Exception:
+        pass
     zone_emoji = {"blue": "🔵", "green": "🟢", "yellow": "🟡", "red": "🔴"}.get(zone, "💙")
-    sent = await _send_push(
+    return await _send_push(
         tokens_to_notify,
         f"{zone_emoji} Message from {student_name}",
         message[:100],
         data={"type": "parent_message", "student_id": student_id, "zone": zone},
     )
 
-    return {"ok": True, "notifications_sent": sent}
+# Real fix Sep 24 (item7, third device-log pass): removed the standalone POST
+# /notifications/parent-message endpoint (send_parent_message) and its frontend caller - a
+# second, independent way to message a parent that duplicated the "Want to say something?"
+# comment box already on the same check-in screen. Grepped the whole repo (frontend, backend,
+# any portal html) to confirm nothing else called it before removing. Its one genuinely unique
+# behaviour - actually push-notifying the parent, which the comment box never did - is kept as
+# _notify_parent_of_message above, now called from the comment box's own write paths
+# (create_feeling_log, family_member_checkin) instead of being lost.
 
 # ── Shield badge helper ──────────────────────────────────
 def _shield_level(count: int) -> str:
@@ -17305,6 +17282,15 @@ async def family_member_checkin(member_id: str, request: Request):
                     "resolved": False,
                 }).execute()
                 logger.info(f"[family_checkin] Created {alert_type} alert for {member_name} zone={zone} comment={bool(comment_text)}")
+                # Real fix Sep 24 (item7, third device-log pass): see create_feeling_log's
+                # matching comment - a comment here used to only ever create the alerts-table
+                # row, no push. Now push-notifies the parent too, same as the (now-removed)
+                # standalone "Send Message to Parent" section always did.
+                if alert_type == "parent_message":
+                    try:
+                        await _notify_parent_of_message(final_student_id or member_id, member_name, comment_text, zone)
+                    except Exception as pe:
+                        logger.warning(f"[family_checkin] Could not push-notify parent: {pe}")
         except Exception as ae:
             logger.warning(f"[family_checkin] Could not create alert: {ae}")
 

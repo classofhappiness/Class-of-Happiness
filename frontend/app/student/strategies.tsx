@@ -5,7 +5,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { sendHelpRequest, sendZoneAlert, sendParentMessage, shieldEmoji } from '../../src/utils/notifications';
+import { sendHelpRequest, sendZoneAlert, shieldEmoji } from '../../src/utils/notifications';
 import { useApp } from '../../src/context/AppContext';
 import { useAndroidKeyboardOffset } from '../../src/utils/useAndroidKeyboardOffset';
 import { zoneLogsApi, Strategy } from '../../src/utils/api';
@@ -44,9 +44,6 @@ export default function StrategiesScreen() {
   const [saving, setSaving] = useState(false);
   const [helpRequested, setHelpRequested] = useState<Set<string>>(new Set()); // strategy ids
   const [shieldJustAwarded, setShieldJustAwarded] = useState(false);
-  const [parentMessageVisible, setParentMessageVisible] = useState(false);
-  const [parentMessage, setParentMessage] = useState('');
-  const parentMessageRef = React.useRef('');
   const [customSupportMessage, setCustomSupportMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -220,18 +217,6 @@ export default function StrategiesScreen() {
       setShieldJustAwarded(true);
       setTimeout(() => setShieldJustAwarded(false), 3000);
     }
-  };
-
-  const handleParentMessage = async () => {
-    const msg = parentMessage.trim() || parentMessageRef.current.trim();
-    if (!currentStudent || !msg) return;
-    await sendParentMessage({
-      student_id: currentStudent.id,
-      message: msg,
-      zone: zone || '',
-    });
-    setParentMessageVisible(false);
-    setParentMessage('');
   };
 
   const handleDone = async () => {
@@ -425,44 +410,11 @@ export default function StrategiesScreen() {
             </Text>
           </View>
 
-          {/* 💌 Message to parent — only shown in home/family context */}
-          {checkInLocation === 'home' && (
-          <TouchableOpacity
-            style={styles.parentMsgToggle}
-            onPress={() => setParentMessageVisible(!parentMessageVisible)}
-          >
-            <Text style={{ fontSize: 16 }}>💌</Text>
-            <Text style={styles.parentMsgLabel}>{t('message_parent') || 'Send Message to Parent'}</Text>
-            <TouchableOpacity
-              style={[styles.helpBtn, parentMessageVisible && styles.helpBtnDone]}
-              onPress={() => setParentMessageVisible(true)}
-            >
-              <MaterialIcons name="front-hand" size={18}
-                color={parentMessageVisible ? '#333' : '#BBB'}
-                style={{ opacity: parentMessageVisible ? 1 : 0.4 }} />
-            </TouchableOpacity>
-            <MaterialIcons name={parentMessageVisible ? 'expand-less' : 'expand-more'} size={20} color="#CCC" />
-          </TouchableOpacity>
-          )}
-          {parentMessageVisible && checkInLocation === 'home' && (
-            <View style={styles.parentMsgBox}>
-              <TextInput
-                style={[styles.commentInput, { borderColor: '#5C6BC0', marginBottom: 8 }]}
-                placeholder={t('message_parent_placeholder') || 'Tell your parent how you feel...'}
-                placeholderTextColor="#BBB"
-                value={parentMessage}
-                onChangeText={(t) => { setParentMessage(t); parentMessageRef.current = t; }}
-                multiline
-                maxLength={200}
-              />
-              <TouchableOpacity
-                style={{ backgroundColor: '#5C6BC0', borderRadius: 10, padding: 10, alignItems: 'center' }}
-                onPress={handleParentMessage}
-              >
-                <Text style={{ color: 'white', fontWeight: '700' }}>{t('send') || 'Send'} 💌</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          {/* Real fix Sep 24 (item7, third device-log pass): removed the standalone "Send
+              Message to Parent" section (only ever shown for a home check-in) - it duplicated
+              the "Want to say something?" comment box below, which now also push-notifies the
+              parent (see server.py's create_feeling_log/family_member_checkin), so nothing
+              real was lost by keeping just the one. */}
 
         </ScrollView>
         {/* Real fix Sep 15 (Marisa build-26, S05): this used to be the last item INSIDE the
@@ -554,7 +506,4 @@ const styles = StyleSheet.create({
   helpBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'white', borderWidth: 1.5, borderColor: '#5C6BC0', alignItems: 'center', justifyContent: 'center', marginLeft: 6, shadowColor: '#5C6BC0', shadowOpacity: 0.12, shadowRadius: 4, elevation: 2 },
   helpBtnDone: { backgroundColor: '#E8F5E9', borderColor: '#4CAF50' },
   helpBtnTxt: { fontSize: 14 },
-  parentMsgToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: '#E8EAF6', borderRadius: 12, marginTop: 10, marginBottom: 4 },
-  parentMsgLabel: { flex: 1, fontSize: 14, color: '#5C6BC0', fontWeight: '600' },
-  parentMsgBox: { backgroundColor: 'white', borderRadius: 12, padding: 8, marginBottom: 3, borderWidth: 1, borderColor: '#E8EAF6' },
 });
