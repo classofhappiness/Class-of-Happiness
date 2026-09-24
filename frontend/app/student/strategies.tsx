@@ -57,6 +57,11 @@ export default function StrategiesScreen() {
     }
   }, [currentStudent?.id]);
   const [showCelebration, setShowCelebration] = useState(false);
+  // Real fix Sep 24 (item2, third device-log pass): the id of the feeling_logs/
+  // family_zone_logs row handleDone below writes for this check-in - threaded through to
+  // rewards.tsx as a param so its single addPoints call can use it as an idempotency key
+  // (see rewardsApi.addPoints's own comment).
+  const [checkinLogId, setCheckinLogId] = useState<string>('');
   const [comment, setComment] = useState('');
   const [showCommentInput, setShowCommentInput] = useState(false);
 
@@ -237,18 +242,26 @@ export default function StrategiesScreen() {
       // Always save via family member endpoint — backend handles routing to feeling_logs
       const studentId = (currentStudent as any).student_id || currentStudent.id;
       const isFamilyMember = (currentStudent as any).is_family_member;
+      // Real fix Sep 24 (item2, third device-log pass): both responses are now read for the
+      // real log id they carry (previously discarded - `await fetch(...)` alone, or
+      // zoneLogsApi.create's return value never used) so it can be passed to rewards.tsx as
+      // an addPoints idempotency key. Neither write path's own behaviour changed otherwise.
       if (isFamilyMember) {
         const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
         const token = await AsyncStorage.getItem('session_token');
         const familyId = (currentStudent as any).family_member_id || currentStudent.id;
-        await fetch(`${BACKEND_URL}/api/family/members/${familyId}/checkin`, {
+        const res = await fetch(`${BACKEND_URL}/api/family/members/${familyId}/checkin`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ zone, helpers_selected: selectedStrategies, comment: comment.trim() || undefined }),
         });
+        try {
+          const data = await res.json();
+          setCheckinLogId(data?.log?.id || '');
+        } catch {}
       } else {
-        await zoneLogsApi.create({
+        const log = await zoneLogsApi.create({
           student_id: currentStudent.id,
           zone: zone,
           strategies_selected: selectedStrategies,
@@ -256,6 +269,7 @@ export default function StrategiesScreen() {
           logged_by: checkInLocation === 'home' ? 'parent' : 'student',
           location: checkInLocation,
         });
+        setCheckinLogId(log?.id || '');
       }
       // Fire zone alert silently (teacher/parent notified if they enabled it)
       if (currentStudent?.id && zone) {
@@ -284,15 +298,17 @@ export default function StrategiesScreen() {
   const handleSkip = async () => {
     if (!currentStudent || !zone) return;
     playButtonFeedback();
+    let skipCheckinLogId = '';
     try {
       if (!(currentStudent as any).is_family_member) {
-        await zoneLogsApi.create({ student_id: currentStudent.id, zone, strategies_selected: [], location: checkInLocation });
+        const log = await zoneLogsApi.create({ student_id: currentStudent.id, zone, strategies_selected: [], location: checkInLocation });
+        skipCheckinLogId = log?.id || '';
       }
     } catch (e) {}
     // Real fix Aug 30 (build-26, kiosk restore): this skip path was the only one of the
     // three exits from this screen that dropped returnTo, breaking the return trip for
     // anything relying on it (kiosk, family) if a student skipped helper selection.
-    router.replace({ pathname: '/student/rewards', params: { strategiesUsed: '0', hasComment: 'false', zone, fromFamily: fromFamily || '', returnTo: returnTo || '' } });
+    router.replace({ pathname: '/student/rewards', params: { strategiesUsed: '0', hasComment: 'false', zone, fromFamily: fromFamily || '', returnTo: returnTo || '', checkinLogId: skipCheckinLogId } });
   };
 
   // Real fix Sep 16 (status bar overlap fix): this SafeAreaView's default (all) edges already
@@ -310,7 +326,7 @@ export default function StrategiesScreen() {
         avatarCustom={currentStudent?.avatar_custom}
         onComplete={() => {
           setShowCelebration(false);
-          router.replace({ pathname: '/student/rewards', params: { strategiesUsed: selectedStrategies.length.toString(), hasComment: comment.trim() ? 'true' : 'false', zone, fromFamily: fromFamily || '', location: location || '', returnTo: returnTo || '' } });
+          router.replace({ pathname: '/student/rewards', params: { strategiesUsed: selectedStrategies.length.toString(), hasComment: comment.trim() ? 'true' : 'false', zone, fromFamily: fromFamily || '', location: location || '', returnTo: returnTo || '', checkinLogId } });
         }}
         translations={{
           well_done: t('well_done') || t('well_done')||'Well Done',

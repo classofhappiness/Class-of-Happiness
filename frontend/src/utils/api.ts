@@ -1129,10 +1129,17 @@ export const rewardsApi = {
   getStudentRewards: (studentId: string): Promise<StudentRewards> =>
     apiRequest(`/rewards/${studentId}`),
   
-  addPoints: (studentId: string, pointsType: 'strategy' | 'comment' | 'streak' | 'checkin', strategyCount: number = 1, zone?: string): Promise<AddPointsResponse> =>
+  // Real fix Sep 24 (item2, third device-log pass): hasComment/checkinLogId added - a
+  // 'checkin' call now bundles the strategy/comment bonuses server-side (was up to 3
+  // sequential calls - checkin, then strategy, then comment - for one real check-in;
+  // confirmed via the DB this was never a double-award, just extra requests). checkinLogId is
+  // the id of the feeling_logs/family_zone_logs row this check-in already wrote (see
+  // student/strategies.tsx) - passed through so a retried/duplicate call is a no-op
+  // server-side instead of awarding twice.
+  addPoints: (studentId: string, pointsType: 'strategy' | 'comment' | 'streak' | 'checkin', strategyCount: number = 1, zone?: string, hasComment: boolean = false, checkinLogId?: string): Promise<AddPointsResponse> =>
     apiRequest(`/rewards/${studentId}/add-points`, {
       method: 'POST',
-      body: JSON.stringify({ points_type: pointsType, strategy_count: strategyCount, zone: zone })
+      body: JSON.stringify({ points_type: pointsType, strategy_count: strategyCount, zone: zone, has_comment: hasComment, checkin_log_id: checkinLogId })
     }),
   
   getCollection: (studentId: string): Promise<StudentCollection> =>

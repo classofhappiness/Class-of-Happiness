@@ -2453,6 +2453,22 @@ class AddPointsRequest(BaseModel):
     strategy_count: int = 0
     feeling_colour: Optional[str] = "blue"
     zone: Optional[str] = None  # frontend compatibility alias
+    # Real fix Sep 24 (item2, third device-log pass): a single check-in was firing up to 3
+    # sequential add-points calls (checkin, then strategy if any strategies were used, then
+    # comment if one was left) - confirmed via the DB this was never a double-award (a red
+    # check-in with 1 strategy landed exactly 5+8=13 points, matching checkin+strategy once
+    # each), but it's still 2-3 requests for one real event. has_comment lets a single
+    # points_type="checkin" call bundle all three bonuses (strategy_count was already a
+    # field, just never combined with checkin before) into one request/one DB write.
+    has_comment: bool = False
+    # Real fix Sep 24 (item2): idempotency key - the id of the feeling_logs/family_zone_logs
+    # row this check-in already wrote (student/strategies.tsx creates that row before ever
+    # calling this endpoint). If the SAME checkin_log_id is ever submitted again (client
+    # retry, double-tap that slipped past the frontend's own guard, etc.), this call is a
+    # no-op instead of awarding a second time. Requires a `processed_checkin_ids` column on
+    # student_rewards (defensive try/except below - inert, not a hard dependency, until that
+    # migration lands; see this fix's own PR/commit notes).
+    checkin_log_id: Optional[str] = None
 
 class ResourceCreate(BaseModel):
     title: str
@@ -3926,6 +3942,26 @@ def _is_shop_enabled_for_student(student_id: str, student_data: dict) -> bool:
         pass
     return True
 
+def _write_student_rewards(rewards_result, student_id: str, update_data: dict) -> None:
+    """Real fix Sep 24 (item2, third device-log pass): shared by both add_points branches
+    (community creature, default creature). processed_checkin_ids (idempotency tracking - see
+    AddPointsRequest.checkin_log_id) needs a real column on student_rewards that may not exist
+    yet - same defensive try/except-and-retry-without-the-new-field pattern already used
+    elsewhere in this file for a column pending its own migration (e.g. /students'
+    school_admin_id). Inert (silently drops the field, everything else still writes normally)
+    until that migration lands, not a hard dependency."""
+    try:
+        if rewards_result.data:
+            supabase.table("student_rewards").update(update_data).eq("student_id", student_id).execute()
+        else:
+            supabase.table("student_rewards").insert({**update_data, "student_id": student_id}).execute()
+    except Exception:
+        fallback_data = {k: v for k, v in update_data.items() if k != "processed_checkin_ids"}
+        if rewards_result.data:
+            supabase.table("student_rewards").update(fallback_data).eq("student_id", student_id).execute()
+        else:
+            supabase.table("student_rewards").insert({**fallback_data, "student_id": student_id}).execute()
+
 @api_router.post("/rewards/{student_id}/add-points")
 async def add_points(student_id: str, req: AddPointsRequest, request: Request):
     # Real security fix Sep 18: no auth/ownership check at all - anyone with a student_id
@@ -3956,6 +3992,13 @@ async def add_points(student_id: str, req: AddPointsRequest, request: Request):
             "current_stage": 0,
             "current_points": 0
         }
+
+    # Real fix Sep 24 (item2, third device-log pass): see AddPointsRequest.checkin_log_id's
+    # own comment. A duplicate submission still runs the full function below (same response
+    # shape either way, current state included) - it just adds 0 points, everywhere
+    # points_to_add is computed, instead of skipping straight to a return.
+    processed_checkin_ids = rewards.get("processed_checkin_ids") or []
+    is_duplicate_award = bool(req.checkin_log_id) and req.checkin_log_id in processed_checkin_ids
 
     # Which creature gets the points - zone takes priority over feeling_colour default
     feeling_colour = req.zone or (req.feeling_colour if req.feeling_colour != "blue" else None) or "blue"
@@ -4006,21 +4049,33 @@ async def add_points(student_id: str, req: AddPointsRequest, request: Request):
         # computing today's points, so a continuing streak's tiered bonus (see
         # _checkin_points_for_streak) applies on the very check-in that extends it, not one
         # day late.
-        points_to_add = _checkin_points_for_streak(streak_days) if req.points_type == "checkin" else (
-            POINTS_CONFIG["strategy_used"] * req.strategy_count if req.points_type == "strategy"
-            else POINTS_CONFIG["comment_added"] if req.points_type == "comment" else 0
-        )
+        # Real fix Sep 24 (item2, third device-log pass): a "checkin" call now bundles the
+        # strategy/comment bonuses too (strategy_count/has_comment), collapsing what used to
+        # be up to 3 sequential requests (checkin, then strategy, then comment) into one -
+        # streak_checkin_points kept separate from points_to_add so streak_bonus below still
+        # reflects only the streak tier, not the bundled bonuses. points_type
+        # "strategy"/"comment" alone are kept working for any other/older caller.
+        streak_checkin_points = 0
+        if req.points_type == "checkin":
+            streak_checkin_points = _checkin_points_for_streak(streak_days)
+            points_to_add = streak_checkin_points + POINTS_CONFIG["strategy_used"] * req.strategy_count + (POINTS_CONFIG["comment_added"] if req.has_comment else 0)
+        elif req.points_type == "strategy":
+            points_to_add = POINTS_CONFIG["strategy_used"] * req.strategy_count
+        elif req.points_type == "comment":
+            points_to_add = POINTS_CONFIG["comment_added"]
+        else:
+            points_to_add = 0
+        if is_duplicate_award:
+            points_to_add = 0
         total_points = rewards.get("total_points_earned", 0) + points_to_add
         update_data = {
             "total_points_earned": total_points,
             "streak_days": streak_days,
             "last_checkin_date": today if req.points_type == "checkin" else last_checkin,
         }
-        if rewards_result.data:
-            supabase.table("student_rewards").update(update_data).eq("student_id", student_id).execute()
-        else:
-            update_data["student_id"] = student_id
-            supabase.table("student_rewards").insert(update_data).execute()
+        if req.checkin_log_id and not is_duplicate_award:
+            update_data["processed_checkin_ids"] = (processed_checkin_ids + [req.checkin_log_id])[-20:]
+        _write_student_rewards(rewards_result, student_id, update_data)
 
         # Real fix Sep 15 (B1 core-loop bug): _progress_community_creature is now read-only
         # (see its docstring) so it's safe to call unconditionally - previously gated behind
@@ -4083,7 +4138,11 @@ async def add_points(student_id: str, req: AddPointsRequest, request: Request):
             "points_added": points_to_add,
             # Real fix Sep 15 (B1, points economy v2): streak_bonus is now the real tiered
             # amount over base (0/5/10 for 1/2/3+ day streaks), not the old flat constant.
-            "streak_bonus": (points_to_add - POINTS_CONFIG["checkin"]) if req.points_type == "checkin" else 0,
+            # Real fix Sep 24 (item2, third device-log pass): reads streak_checkin_points, not
+            # points_to_add - points_to_add can now also include bundled strategy/comment
+            # bonuses (see this branch's points_to_add computation above), which streak_bonus
+            # must never be inflated by.
+            "streak_bonus": (streak_checkin_points - POINTS_CONFIG["checkin"]) if req.points_type == "checkin" else 0,
             "streak_days": streak_days,
             "total_points_earned": total_points,
             "all_creatures_progress": rewards.get("creature_points") or {},
@@ -4113,13 +4172,22 @@ async def add_points(student_id: str, req: AddPointsRequest, request: Request):
             streak_days = 1
 
     # Calculate points
+    # Real fix Sep 24 (item2, third device-log pass): see the community-creature branch's
+    # matching comment above - a "checkin" call now bundles strategy/comment bonuses too,
+    # collapsing what used to be up to 3 sequential requests into one. streak_checkin_points
+    # kept separate from points_to_add so streak_bonus below still reflects only the streak
+    # tier, not the bundled bonuses.
     points_to_add = 0
+    streak_checkin_points = 0
     if req.points_type == "strategy":
         points_to_add = POINTS_CONFIG["strategy_used"] * req.strategy_count
     elif req.points_type == "comment":
         points_to_add = POINTS_CONFIG["comment_added"]
     elif req.points_type == "checkin":
-        points_to_add = _checkin_points_for_streak(streak_days)
+        streak_checkin_points = _checkin_points_for_streak(streak_days)
+        points_to_add = streak_checkin_points + POINTS_CONFIG["strategy_used"] * req.strategy_count + (POINTS_CONFIG["comment_added"] if req.has_comment else 0)
+    if is_duplicate_award:
+        points_to_add = 0
 
     # Update creature points
     creature_points = rewards.get("creature_points") or {"aqua_buddy": 0, "leaf_friend": 0, "spark_pal": 0, "blaze_heart": 0}
@@ -4198,13 +4266,12 @@ async def add_points(student_id: str, req: AddPointsRequest, request: Request):
         update_data["creature_stages"] = creature_stages
         update_data["current_stage"] = current_stage
 
-    if rewards_result.data:
-        supabase.table("student_rewards").update(update_data).eq("student_id", student_id).execute()
-    else:
-        update_data["student_id"] = student_id
+    if req.checkin_log_id and not is_duplicate_award:
+        update_data["processed_checkin_ids"] = (processed_checkin_ids + [req.checkin_log_id])[-20:]
+    if not rewards_result.data:
         update_data["creature_stages"] = creature_stages
         update_data["current_stage"] = current_stage
-        supabase.table("student_rewards").insert(update_data).execute()
+    _write_student_rewards(rewards_result, student_id, update_data)
 
     creature_data = next((c for c in CREATURES if c["id"] == target_creature), CREATURES[0])
 
@@ -4215,7 +4282,9 @@ async def add_points(student_id: str, req: AddPointsRequest, request: Request):
         "points_added": points_to_add,
         # Real fix Sep 15 (B1, points economy v2): the tiered streak bonus (0/5/10 over base,
         # for 1/2/3+ day streaks), not the old flat constant.
-        "streak_bonus": (points_to_add - POINTS_CONFIG["checkin"]) if req.points_type == "checkin" else 0,
+        # Real fix Sep 24 (item2, third device-log pass): reads streak_checkin_points, not
+        # points_to_add - see this branch's points_to_add computation above.
+        "streak_bonus": (streak_checkin_points - POINTS_CONFIG["checkin"]) if req.points_type == "checkin" else 0,
         # Real fix Sep 15 (B1, points economy v2): "evolved" means the stage was actually
         # committed just now - only possible here when the Shop is off (auto-evolve fallback,
         # see shop_on above). With the Shop on, evolution only ever commits via the explicit
@@ -17201,41 +17270,18 @@ async def family_member_checkin(member_id: str, request: Request):
                 }
                 result = supabase.table("family_zone_logs").insert(log).execute()
         
-        # Award points to the student's creature if they have a student_id
+        # Real fix Sep 24 (item2, third device-log pass): this used to award points itself -
+        # a completely separate, stale implementation (a locally-shadowed
+        # POINTS_CONFIG = {"checkin": 10, ...} instead of the real module-level one, a flat
+        # 10 points regardless of streak, and never accounting for strategies/comment at all)
+        # duplicating what POST /rewards/{id}/add-points already does correctly. A family
+        # check-in with is_family_member/a linked student_id always continues on through
+        # student/zone.tsx -> strategies.tsx -> rewards.tsx, which calls add-points itself
+        # (see rewards.tsx) - that was double-awarding points (this block's flat +10 AND
+        # rewards.tsx's real checkin+strategy+comment total) for exactly that path. This
+        # endpoint's real job, per its own docstring, is saving the check-in log (+ the parent
+        # alert below) - not points. Points now come from exactly one place.
         final_student_id = student_id or member.get("student_id")
-        if final_student_id:
-            try:
-                rewards_res = supabase.table("student_rewards").select("*").eq("student_id", final_student_id).execute()
-                if rewards_res.data:
-                    rewards = rewards_res.data[0]
-                    POINTS_CONFIG = {"checkin": 10, "strategy": 5, "streak": 20}
-                    points_to_add = POINTS_CONFIG["checkin"]
-                    creature_id = rewards.get("current_creature_id", "aqua_buddy")
-                    creature_points = rewards.get("creature_points", {})
-                    creature_stages = rewards.get("creature_stages", {})
-                    current_points = rewards.get("current_points", 0) + points_to_add
-                    creature_points[creature_id] = creature_points.get(creature_id, 0) + points_to_add
-                    # Stage thresholds
-                    thresholds = [0, 30, 80, 150]
-                    stage = 0
-                    for i, thr in enumerate(thresholds):
-                        if creature_points[creature_id] >= thr:
-                            stage = i
-                    creature_stages[creature_id] = stage
-                    total_earned = rewards.get("total_points_earned", 0) + points_to_add
-                    import datetime as dt
-                    today = dt.date.today().isoformat()
-                    supabase.table("student_rewards").update({
-                        "current_points": current_points,
-                        "creature_points": creature_points,
-                        "creature_stages": creature_stages,
-                        "total_points_earned": total_earned,
-                        "last_checkin_date": today,
-                        "current_stage": stage,
-                    }).eq("student_id", final_student_id).execute()
-                    logger.info(f"[family_checkin] Awarded {points_to_add} points to {final_student_id}, stage now {stage}")
-            except Exception as pe:
-                logger.warning(f"[family_checkin] Could not award points: {pe}")
 
         # Create alert for parent — always for non-green or comment
         try:

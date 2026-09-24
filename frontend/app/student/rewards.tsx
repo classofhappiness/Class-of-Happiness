@@ -70,12 +70,16 @@ const STUDENT_COLOUR_MESSAGE: Record<string, string> = {
 export default function RewardsScreen() {
   const router = useRouter();
   const { currentStudent, t, language } = useApp();
-  const params = useLocalSearchParams<{ 
-    strategiesUsed?: string; 
+  const params = useLocalSearchParams<{
+    strategiesUsed?: string;
     hasComment?: string;
     zone?: string;
     fromFamily?: string;
     returnTo?: string;
+    // Real fix Sep 24 (item2, third device-log pass): the id of the feeling_logs/
+    // family_zone_logs row student/strategies.tsx already wrote for this check-in - threaded
+    // through so the single addPoints call below can pass it as an idempotency key.
+    checkinLogId?: string;
   }>();
 
   const [rewardsData, setRewardsData] = useState<AddPointsResponse | null>(null);
@@ -214,18 +218,16 @@ export default function RewardsScreen() {
       const strategiesCount = params.strategiesUsed ? parseInt(params.strategiesUsed) : 0;
       const hasComment = params.hasComment === 'true';
 
-      // Always add points for checking in - WITH THE ZONE to feed correct creature!
-      let response: AddPointsResponse = await rewardsApi.addPoints(effectiveStudentId, 'checkin', 1, zone);
-
-      // Add bonus points for strategies used - same zone
-      if (strategiesCount > 0) {
-        response = await rewardsApi.addPoints(effectiveStudentId, 'strategy', strategiesCount, zone);
-      }
-
-      // Add bonus points for comment if present - same zone
-      if (hasComment) {
-        response = await rewardsApi.addPoints(effectiveStudentId, 'comment', 1, zone);
-      }
+      // Real fix Sep 24 (item2, third device-log pass - Metro log: 2 consecutive POST
+      // /rewards/{id}/add-points for one check-in): confirmed via the DB this was never a
+      // double-award (checkin=5 + strategy=8 for a 1-strategy check-in landed exactly 13
+      // points, once each) - it was the intentional checkin+strategy(+comment) design, just
+      // as up to 3 separate requests. One call now bundles all three bonuses server-side
+      // (add_points' points_type="checkin" path), with checkinLogId as an idempotency key so
+      // a retried/duplicate call is a no-op instead of a second award.
+      const response: AddPointsResponse = await rewardsApi.addPoints(
+        effectiveStudentId, 'checkin', strategiesCount, zone, hasComment, params.checkinLogId
+      );
 
       setRewardsData(response);
 
