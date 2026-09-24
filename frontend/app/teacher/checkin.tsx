@@ -520,11 +520,17 @@ export default function TeacherCheckInScreen() {
     <EdgeSafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <TranslatedHeader
         title={t('teacher_checkin') || 'Teacher Check-In'}
-        // Real fix Sep 24 (item3, second device-log pass): the title ("Teacher Check-In" in
-        // English, similarly two real words/phrases in every other language) overlapped the
-        // Support pill in rightContent at the default single-line treatment. Allows a real
-        // second line instead of an ever-shrinking single one - see TranslatedHeader's own
+        // Real fix Sep 24 (item3, second device-log pass): the title overlapped the Support
+        // pill in rightContent at the default single-line treatment. Allows a real second line
+        // instead of an ever-shrinking single one - see TranslatedHeader's own
         // titleNumberOfLines/titleWrapped comments for how header height stays unchanged.
+        // Real fix Sep 24 (item5, third device-log pass): teacher_checkin's own English value
+        // was "Check in on my own wellbeing" (5 words) - the "'Teacher Check-In' overlapped
+        // the pill" framing in the fix above was really this long string wrapping badly, not
+        // a short "Teacher Check-In" label (the `|| 'Teacher Check-In'` fallback here never
+        // actually fires - t('teacher_checkin') is always truthy). Shortened to "My wellbeing"
+        // (matching the existing my_wellbeing key's phrasing in all 10 languages) rather than
+        // introducing a separate title+subtitle split, per the explicit "key stays" ask.
         titleNumberOfLines={2}
         showHome
         homeTo="/teacher/dashboard"
