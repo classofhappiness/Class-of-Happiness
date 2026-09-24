@@ -14,6 +14,7 @@ import { ColourCycleLogo } from '../src/components/ColourCycleLogo';
 import * as Notifications from 'expo-notifications';
 import { isIncidentPushData, showIncidentAlert, registerNotifeeForegroundHandler } from '../src/utils/notifeeIncidents';
 import { preloadSounds } from '../src/utils/sounds';
+import { warmGreetingAudio } from '../src/utils/voiceClips';
 
 // Keep splash screen visible until app is ready
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -111,6 +112,15 @@ function AppContent() {
   useEffect(() => {
     preloadSounds();
   }, []);
+  // Real fix Sep 24 (item1, device report - greeting plays late on zone.tsx): see
+  // voiceClips.ts's warmGreetingAudio for the full root-cause note - nothing warmed the
+  // opening-greeting clip before this, only the fixed UI sound-effect set above. Re-runs on
+  // `language` (same dependency as the font-swap effect above) since the greeting is
+  // language-specific and a student/family member can change language before ever reaching
+  // a check-in screen.
+  useEffect(() => {
+    warmGreetingAudio(language);
+  }, [language]);
   // Real feature Aug 30: replaced the old flat-300ms-then-hide timer - SplashAnimation now
   // owns hiding the native splash itself (the instant it's ready to render its own matching
   // first frame), then runs the real fade-in/colour-cycle/fade-out sequence as a fixed-

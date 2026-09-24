@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useNavigation, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { Audio } from 'expo-av';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../../src/utils/sounds';
@@ -64,6 +65,12 @@ const getColourInfo = (t: (key: string) => string) => ({
   },
 });
 
+// Real fix Sep 24 (item1, device report): a late greeting is worse than no greeting (Jono's
+// explicit rule) - 600ms is long enough to cover a genuinely-cached (near-instant) local file
+// load with margin, but short enough that a kid isn't left waiting on the check-in they
+// actually came here to do.
+const GREETING_TIMEOUT_MS = 600;
+
 export default function ColourSelectionScreen() {
   const router = useRouter();
   const navigation = useNavigation();
@@ -88,7 +95,26 @@ export default function ColourSelectionScreen() {
     // (already resolved: unload it now; still loading: the .then() below notices
     // `cancelled` and unloads it the moment it does resolve) so it never keeps playing or
     // reporting status into a screen that's gone.
-    let greetingSound: Awaited<ReturnType<typeof playPhraseFromPool>> = null;
+    //
+    // Real fix Sep 24 (item1, device report - regression from the above: greeting now plays
+    // NOTICEABLY LATE): removing the block-the-screen gate was correct (nothing network-bound
+    // should block first render), but it left the greeting free to start playing however late
+    // it actually resolves - including well after a kid's already reading the screen. Jono's
+    // rule: a late greeting is worse than no greeting. playPhraseFromPool is now called with
+    // shouldPlay:false (it only LOADS the sound, doesn't start it) and raced against a 600ms
+    // grace window: loads within it -> play now (this is the fast path on a warm device, since
+    // _layout.tsx's app-start warmGreetingAudio call means the clip is normally already a
+    // local file by the time this screen is ever reached, and a local-file load resolves in
+    // low tens of ms); still loading past 600ms -> skip it for this check-in entirely
+    // (skipGreeting latched permanently for this mount) rather than let it start late -
+    // cleanupSound below unloads it the instant it does resolve, before playAsync is ever
+    // called, so it genuinely never plays, not just "stops quickly after starting".
+    let greetingSound: Audio.Sound | null = null;
+    let skipGreeting = false;
+    const cleanupSound = (sound: Audio.Sound | null | undefined) => {
+      sound?.setOnPlaybackStatusUpdate(null);
+      sound?.unloadAsync().catch(() => {});
+    };
     preloadSounds();
     loadVoiceManifest(language);
     // Real fix Sep 24 (device report, Kiosk A1): loadVoiceEnabled() and playPhraseFromPool
@@ -105,30 +131,36 @@ export default function ColourSelectionScreen() {
     // before anything checks it.
     loadVoiceEnabled()
       .then(() => {
-        if (cancelled) return null;
+        if (cancelled) return;
         // Real feature Sep 21 (device report): warms the 4 zone (question) clips plus every
         // "opening" pool variant in the background while the greeting below plays - by the
         // time a kid actually taps a colour (after hearing the greeting, reading the screen),
         // its clip is normally already a local file, not a fresh fetch.
         preloadZoneAudio(language);
-        return playPhraseFromPool('opening', language);
-      })
-      .then((sound) => {
-        if (cancelled) {
-          // Unmounted (or language changed, re-running this effect) while this was still
-          // loading - never played into a live screen, tear it down immediately rather
-          // than let it start now or sit around holding a native audio resource.
-          sound?.setOnPlaybackStatusUpdate(null);
-          sound?.unloadAsync().catch(() => {});
-          return;
-        }
-        greetingSound = sound || null;
+        const greetingPromise = playPhraseFromPool('opening', language, { shouldPlay: false });
+        const timedOut = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), GREETING_TIMEOUT_MS));
+        Promise.race([greetingPromise, timedOut]).then((result) => {
+          if (result === 'timeout') {
+            skipGreeting = true;
+            // Still loading past the grace window - let it resolve in the background purely
+            // so it can be torn down (never played) the moment it lands, instead of leaking
+            // a native audio resource.
+            greetingPromise.then((sound) => cleanupSound(sound)).catch(() => {});
+            return;
+          }
+          const sound = result;
+          if (cancelled || skipGreeting) {
+            cleanupSound(sound);
+            return;
+          }
+          greetingSound = sound;
+          sound?.playAsync().catch(() => {});
+        });
       })
       .catch(() => {});
     return () => {
       cancelled = true;
-      greetingSound?.setOnPlaybackStatusUpdate(null);
-      greetingSound?.unloadAsync().catch(() => {});
+      cleanupSound(greetingSound);
     };
   }, [language]);
 

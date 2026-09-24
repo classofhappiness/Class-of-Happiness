@@ -161,7 +161,18 @@ const loadPhrasePool = async (moment: VoicePhraseMoment, language: string): Prom
 // producing the "cannot update an unmounted component" warnings (a JS-bridge-level effect
 // of the sound object outliving its caller, not a plain missed React state guard - the
 // zone.tsx setAudioReady calls were already `cancelled`-guarded and always have been).
-export const playPhraseFromPool = async (moment: VoicePhraseMoment, language: string): Promise<Audio.Sound | null> => {
+// Real fix Sep 24 (item1, device report - greeting plays late): added `options.shouldPlay`
+// (defaults true, unchanged for every existing caller). zone.tsx's greeting needs to load the
+// sound WITHOUT starting it, race that load against a 600ms grace window, and only call
+// sound.playAsync() itself if the load won - passing shouldPlay:true here (as before) would
+// start audible playback the instant the sound object resolves, which is exactly the "play
+// late" behaviour the 600ms skip rule exists to prevent (createResilientSound has no way to
+// un-start a sound that's already mid-playback without an audible blip).
+export const playPhraseFromPool = async (
+  moment: VoicePhraseMoment,
+  language: string,
+  options?: { shouldPlay?: boolean }
+): Promise<Audio.Sound | null> => {
   if (!voiceEnabled) return null;
   try {
     const urls = await loadPhrasePool(moment, language);
@@ -171,7 +182,7 @@ export const playPhraseFromPool = async (moment: VoicePhraseMoment, language: st
     // playVoiceClip above - see createResilientSound's own comment for why a bare
     // getCachedAudioUri + createAsync call wasn't actually fail-safe against a cache entry
     // going bad between being written and being played.
-    const sound = await createResilientSound(url, { shouldPlay: true, volume: 1.0 });
+    const sound = await createResilientSound(url, { shouldPlay: options?.shouldPlay ?? true, volume: 1.0 });
     sound?.setOnPlaybackStatusUpdate((status) => {
       if (status.isLoaded && status.didJustFinish) {
         sound.unloadAsync().catch(() => {});
@@ -198,6 +209,34 @@ export const preloadZoneAudio = async (language: string): Promise<void> => {
       manifestLanguage === language ? manifestCache : loadVoiceManifest(language),
       loadPhrasePool('opening', language),
     ]);
-    preloadAudioUrls([manifest.blue, manifest.green, manifest.yellow, manifest.red, ...openingUrls]);
+    // Real fix Sep 24 (item1, device report - greeting plays late): openingUrls (the
+    // greeting) moved first - zone.tsx needs it the INSTANT it mounts, while the 4 zone
+    // clips are only ever needed later, on an actual colour tap. preloadAudioUrls itself
+    // fires every getCachedAudioUri call in the same synchronous loop (no real download
+    // concurrency limit to exploit), so this ordering doesn't throttle anything - it's about
+    // being the correct, honest priority order for what's actually warmed first, not a
+    // functional fix on its own (see warmGreetingAudio below for the fix that actually
+    // matters: warming the greeting well before this screen even mounts).
+    preloadAudioUrls([...openingUrls, manifest.blue, manifest.green, manifest.yellow, manifest.red]);
+  } catch {}
+};
+
+// Real fix Sep 24 (item1, device report - greeting plays late, root cause): NOTHING warmed
+// the opening greeting before today - _layout.tsx's app-start effect only ever called
+// preloadSounds() (sounds.ts's fixed UI-effect set: button taps, dings, reward/evolution
+// stingers), never anything in this file. Every zone.tsx mount was therefore a guaranteed
+// cold path: loadPhrasePool's own network fetch for the {moment,language} -> urls[] list,
+// THEN a fresh audio-bytes download for whichever variant got picked, THEN decode, all
+// strictly before playback could start - exactly the delay Jono saw, worse on a slower
+// connection or the very first check-in of the day. Called once from _layout.tsx alongside
+// preloadSounds, keyed on the same `language` the rest of the app already tracks - by the
+// time a kid actually reaches zone.tsx (auth, profile select, at least one screen transition
+// later), the greeting clip is normally already a local file, and zone.tsx's own 600ms race
+// (see that screen) resolves near-instantly off this cache instead of a cold fetch.
+export const warmGreetingAudio = async (language: string): Promise<void> => {
+  if (!voiceEnabled) return;
+  try {
+    const urls = await loadPhrasePool('opening', language);
+    preloadAudioUrls(urls);
   } catch {}
 };
