@@ -34,6 +34,14 @@ interface TranslatedHeaderProps {
   titleContent?: React.ReactNode;
   rightContent?: React.ReactNode;
   homeTo?: string;
+  // Real addition Sep 24 (item3, second device-log pass): opt-in, default 1 (every existing
+  // screen renders exactly as before). teacher/checkin.tsx passes 2 - its title ("Teacher
+  // Check-In" in English, similarly two real words/phrases in every other language) was
+  // overlapping the Support pill in rightContent at the default single-line
+  // adjustsFontSizeToFit treatment. Rather than change the shared single-line behaviour for
+  // every screen, this lets one screen ask for a real second line instead of an ever-shrinking
+  // single one.
+  titleNumberOfLines?: number;
 }
 
 export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
@@ -48,6 +56,7 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
   titleContent,
   rightContent,
   homeTo,
+  titleNumberOfLines = 1,
 }) => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -114,7 +123,14 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
             <View style={styles.titleBadge}><Text style={styles.titleBadgeText}>{titleBadge}</Text></View>
           </View>
         ) : (
-          <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{title}</Text>
+          <Text
+            style={titleNumberOfLines > 1 ? [styles.title, styles.titleWrapped] : styles.title}
+            numberOfLines={titleNumberOfLines}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+          >
+            {title}
+          </Text>
         )}
         <View style={styles.rightSlot}>
           {rightContent}
@@ -216,6 +232,17 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     flex: 1,
     textAlign: 'center',
+  },
+  // Real addition Sep 24 (item3, second device-log pass): titleNumberOfLines>1's own sizing -
+  // smaller fontSize/lineHeight than the single-line default so two lines (34px) still fits
+  // within the 36px back/home button circles' own height, keeping the header's overall height
+  // unchanged rather than growing the row to fit a full-size two-line title. backSlot/rightSlot
+  // still bound the middle slot symmetrically (title keeps flex:1 + textAlign:'center' from
+  // the base `title` style above), so both lines stay centred with equal spacing from the
+  // back button and whatever sits in rightSlot (e.g. checkin.tsx's Support pill).
+  titleWrapped: {
+    fontSize: 14,
+    lineHeight: 17,
   },
   // titleBadge layout: the title hugs its text (flex 0, still shrinkable) instead of filling
   // the row, so the pill sits right beside it; the pair is centred as a group.

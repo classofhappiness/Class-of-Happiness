@@ -488,17 +488,31 @@ export default function TeacherCheckInScreen() {
     );
   }
 
+  // Real fix Sep 19 (header/nav remainder): converted to the shared TranslatedHeader - the
+  // coloured "Support" pill goes in its rightContent slot (kept exactly as it was, not
+  // flattened to an icon), homeTo keeps the home button on the teacher dashboard. The title
+  // is now centred like every other screen instead of left-aligned. The SafeAreaView becomes
+  // the cross-platform one with no 'top' edge since TranslatedHeader applies the top inset
+  // itself and React Native's own is iOS-only (the loading state above keeps it).
+  //
+  // Real fix Sep 24 (item3, second device-log pass): this whole comment block used to sit
+  // INSIDE the JSX return, directly between <KeyboardAvoidingView> and <EdgeSafeAreaView> -
+  // `//` line comments aren't valid JSX-children syntax (only {/* */} is, or a comment
+  // outside the JSX entirely); JSX parsed the lines as literal text content, which crashed
+  // with "Text strings must be rendered within a <Text> component." Moved above `return`,
+  // and swept the rest of the app for the same "// or /* directly inside JSX children"
+  // pattern (see this commit's other changes) - this was the only real occurrence.
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-    // Real fix Sep 19 (header/nav remainder): converted to the shared TranslatedHeader - the
-    // coloured "Support" pill goes in its rightContent slot (kept exactly as it was, not
-    // flattened to an icon), homeTo keeps the home button on the teacher dashboard. The title
-    // is now centred like every other screen instead of left-aligned. The SafeAreaView becomes
-    // the cross-platform one with no 'top' edge since TranslatedHeader applies the top inset
-    // itself and React Native's own is iOS-only (the loading state above keeps it).
     <EdgeSafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <TranslatedHeader
         title={t('teacher_checkin') || 'Teacher Check-In'}
+        // Real fix Sep 24 (item3, second device-log pass): the title ("Teacher Check-In" in
+        // English, similarly two real words/phrases in every other language) overlapped the
+        // Support pill in rightContent at the default single-line treatment. Allows a real
+        // second line instead of an ever-shrinking single one - see TranslatedHeader's own
+        // titleNumberOfLines/titleWrapped comments for how header height stays unchanged.
+        titleNumberOfLines={2}
         showHome
         homeTo="/teacher/dashboard"
         rightContent={
