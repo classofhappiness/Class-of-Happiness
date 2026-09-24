@@ -202,10 +202,15 @@ export default function FamilyStrategiesScreen() {
       >
         {/* Tab selector */}
         <View style={{ flexDirection: 'row', backgroundColor: '#F0F0F0', borderRadius: 12, padding: 4, marginBottom: 14 }}>
+          {/* Real fix Sep 24 (item9, second device-log pass): reordered Child -> Parent ->
+              All Family (was Parent -> Child -> My Strategies) and the 3rd tab relabelled
+              per Jono's explicit ask - `id: 'custom'` and everything it drives (activeTab
+              checks below, the always-visible "My Family Strategies" custom-strategies
+              section) are unchanged; only display order and this one label moved. */}
           {([
-            { id: 'parent', label: t('tab_parent_strategies') || '👨‍👩‍👧 Parent Strategies' },
             { id: 'child', label: t('tab_child_strategies') || '🧒 Child Strategies' },
-            { id: 'custom', label: t('tab_my_strategies') || '⭐ My Strategies' },
+            { id: 'parent', label: t('tab_parent_strategies') || '👨‍👩‍👧 Parent Strategies' },
+            { id: 'custom', label: t('tab_all_family_strategies') || '👨‍👩‍👧‍👦 All Family' },
           ] as const).map(tab => (
             <TouchableOpacity
               key={tab.id}
