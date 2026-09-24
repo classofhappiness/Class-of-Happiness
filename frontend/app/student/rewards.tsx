@@ -132,7 +132,13 @@ export default function RewardsScreen() {
   // shrinking a button below 48dp.
   const [bodyHeight, setBodyHeight] = useState<number | null>(null);
   const [creatureAreaHeight, setCreatureAreaHeight] = useState<number | null>(null);
-  const isCompactViewport = bodyHeight !== null && bodyHeight < 260;
+  // Real fix Sep 24 (item5, second device-log pass): raised from 260 - headerRoomy (see the
+  // header JSX below) adds ~16dp back once !isCompactViewport, so the threshold itself needs
+  // enough margin above the old 260 cutoff that a viewport just barely over it still has room
+  // for that extra header height on top of everything the 260 figure already accounted for.
+  // 300 keeps a real buffer beyond just the 16dp delta, given every height figure here is a
+  // computed estimate (no live device/simulator in this environment), not a measured one.
+  const isCompactViewport = bodyHeight !== null && bodyHeight < 300;
   const handleBodyLayout = (e: LayoutChangeEvent) => setBodyHeight(e.nativeEvent.layout.height);
   const handleCreatureAreaLayout = (e: LayoutChangeEvent) => setCreatureAreaHeight(e.nativeEvent.layout.height);
   // Reserves room for the name+description text CreatureDisplay/CommunityCreatureDisplay
@@ -446,11 +452,21 @@ export default function RewardsScreen() {
           space, that push-down just left the whole page feeling empty at the top for no
           reason. headerSpacer removed and header's paddingTop trimmed to give the page
           better spacing, per Jono's explicit ask. */}
-      <View style={styles.header}>
+      {/* Real fix Sep 24 (item5, second device-log pass): "more breathing room under the
+          header, more even vertical spacing" - but the hard no-scroll constraint (verified
+          against a 640x360dp viewport, see body/creatureSection's own comments) leaves
+          genuinely no spare budget in the tightest real state (evolve-available, non-compact
+          but short). headerRoomy/headerSubtitleRoomy only apply when isCompactViewport is
+          false - i.e. there's real measured slack (or it hasn't been measured yet, same
+          default-open bias the tip/shield banners already use) - so a normal-height phone
+          gets the requested extra spacing and the worst-case short viewport keeps the exact
+          tight spacing that keeps it scroll-free. No-scroll wins the conflict; this is what
+          "wins" looks like in practice. */}
+      <View style={[styles.header, !isCompactViewport && styles.headerRoomy]}>
         <Text style={styles.headerTitle}>🎉 {t('great_job_title')}</Text>
-        <Text style={styles.headerSubtitle}>
-          {rewardsData?.streak_days && rewardsData?.streak_days > 1 
-            ? `🔥 ${rewardsData?.streak_days} ${t('day_streak')}` 
+        <Text style={[styles.headerSubtitle, !isCompactViewport && styles.headerSubtitleRoomy]}>
+          {rewardsData?.streak_days && rewardsData?.streak_days > 1
+            ? `🔥 ${rewardsData?.streak_days} ${t('day_streak')}`
             : t('keep_it_up') || 'Keep it up!'}
         </Text>
       </View>
@@ -798,12 +814,21 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     // Real fix Sep 24 (item2): trimmed further (was 8) - every px here is now taken directly
-    // out of creatureSection's flex:1 share on a short viewport.
+    // out of creatureSection's flex:1 share on a short viewport. This is the floor -
+    // headerRoomy below adds back real breathing room only when the measured viewport can
+    // actually afford it.
     paddingTop: 4,
     // Real fix Sep 24 (item2): trimmed from 26 - was pure breathing room, not clearance the
     // bounce animation actually needs (that's still guaranteed by creatureSection's own
     // paddingVertical below); this screen no longer has spare vertical budget to give away.
     paddingBottom: 10,
+  },
+  // Real fix Sep 24 (item5, second device-log pass): applied on top of `header` above only
+  // when !isCompactViewport - see the JSX's own comment for why this can't just replace the
+  // base values outright.
+  headerRoomy: {
+    paddingTop: 12,
+    paddingBottom: 16,
   },
   headerTitle: {
     fontSize: 32,
@@ -814,6 +839,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#666',
     marginTop: 4,
+  },
+  headerSubtitleRoomy: {
+    marginTop: 6,
   },
   creatureSection: {
     // Real fix Sep 24 (item2, no-scroll reward screen): the Aug 21 fix above bounded this to a
