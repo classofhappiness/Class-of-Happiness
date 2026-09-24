@@ -597,20 +597,29 @@ export default function ParentDashboard() {
       // rewardsApi.getCollection above. Same enrichment already built for
       // student/select.tsx's bigger cards, applied here too so both surfaces are
       // consistent.
-      const communityResults = await Promise.all(linkedIds.map(async (linkedId) => {
-        try {
-          const myCreatures = await creaturesApi.getMyCreatures(linkedId);
-          const active: any[] = [];
-          Object.entries(myCreatures?.colours || {}).forEach(([colour, bucket]) => {
-            (bucket as any[]).forEach(entry => {
-              if (entry.type === 'community' && entry.is_active) active.push({ ...entry, colour });
-            });
-          });
-          return { linkedId, active };
-        } catch { return { linkedId, active: [] as any[] }; }
-      }));
+      // Real fix Sep 24 (item1, third device-log pass - Metro log: 8x GET /students/{id}/
+      // my-creatures per dashboard load, one per family member, x3 loads/session): swapped
+      // the per-child loop for the batch endpoint built last session (GET /students/
+      // creatures-batch). That endpoint's ownership check (_is_authorized_for_student) was
+      // never teacher-only - it's the SAME shared check the single-student endpoint this
+      // loop used to call already relied on, which already covers a parent's linked children
+      // (parent_links) and family members with an auto-created student record
+      // (family_members.student_id) - confirmed by reading it, no change needed there.
       const communityByLinkedId: Record<string, any[]> = {};
-      communityResults.forEach(({ linkedId, active }) => { communityByLinkedId[linkedId] = active; });
+      if (linkedIds.length > 0) {
+        try {
+          const myCreaturesBatch = await creaturesApi.getMyCreaturesBatch(linkedIds);
+          linkedIds.forEach((linkedId) => {
+            const active: any[] = [];
+            Object.entries(myCreaturesBatch?.[linkedId]?.colours || {}).forEach(([colour, bucket]) => {
+              (bucket as any[]).forEach(entry => {
+                if (entry.type === 'community' && entry.is_active) active.push({ ...entry, colour });
+              });
+            });
+            communityByLinkedId[linkedId] = active;
+          });
+        } catch { /* members without community creature data just get defaults below */ }
+      }
 
       for (const m of members) {
         const linkedId = linkedIdByMember[m.id];
