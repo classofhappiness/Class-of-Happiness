@@ -369,7 +369,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [language, setLanguageState] = useState<string>('en');
   const [translations, setTranslations] = useState<Translations>(defaultTranslations);
 
+  // Real fix Sep 24 (item5, device report - /students timeout investigation): GET /students
+  // was genuinely being fetched TWICE per visit to the select-profile screen - once from this
+  // provider's own boot-time background loader (Step 4 below), once again from that screen's
+  // own mount effect (kept deliberately, per its own comment, so a student added earlier in
+  // the session shows up without a full app restart). Both calls were real and both were
+  // legitimate in isolation, but firing them back-to-back doubles load on a 30s-timeout
+  // endpoint for no benefit when the first one hasn't even finished yet. refreshStudentsRef
+  // collapses a second call into the FIRST call's in-flight promise instead of starting a new
+  // HTTP request - same in-flight-dedupe pattern already used elsewhere in this app
+  // (voiceClips.ts's getCachedAudioUri/loadPhrasePool). A call that arrives once the previous
+  // one has already finished (the common case - visiting the screen well after boot) still
+  // does a real, fresh fetch, so per-visit freshness is unaffected.
+  const refreshStudentsInFlightRef = useRef<Promise<void> | null>(null);
   const refreshStudents = async () => {
+    if (refreshStudentsInFlightRef.current) return refreshStudentsInFlightRef.current;
+    const promise = doRefreshStudents().finally(() => {
+      refreshStudentsInFlightRef.current = null;
+    });
+    refreshStudentsInFlightRef.current = promise;
+    return promise;
+  };
+  const doRefreshStudents = async () => {
     if (!isAuthenticated) return; // ✅ Don't fetch if not logged in
     try {
       // Real fix (build 26, Sep 6): GET /students is teacher/school_admin/superadmin-only
