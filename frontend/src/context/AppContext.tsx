@@ -946,20 +946,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  // Real fix Sep 24 (item10, second device-log pass - Metro log: "/auth/logout is awaited
+  // before the token clears"): POST /auth/logout does a real network round trip (revokes the
+  // session server-side via a DELETE on user_sessions) that server.py's own handler already
+  // documents as potentially slow under bad connectivity/cold-start - there was never a good
+  // reason for the LOCAL logout (clearing the token, resetting AppContext state, navigating
+  // away) to wait on it. clearSessionToken/setUser/etc. now run FIRST and synchronously in
+  // effect (no await needed - AsyncStorage removal and setState are both fast/local), so the
+  // caller's own router.replace('/') right after this resolves lands on a screen with no stale
+  // "still logged in" state to leak into. The actual server-side revocation still happens -
+  // just fire-and-forget in the background, errors swallowed and logged, not blocking the UI.
+  // No push-token unregister call exists anywhere in this codebase today (only a POST
+  // /push-token register endpoint - grepped for it) - nothing to move to the background here,
+  // reported rather than inventing a new backend feature not asked for.
   const logout = async () => {
-    try {
-      await authApi.logout();
-    } catch (error) {
-      console.error('Error logging out:', error);
-    } finally {
-      // Clear session token and ALL cached data on logout
-      await clearSessionToken();
-      setUser(null);
-      setIsAuthenticated(false);
-      setStudents([]);
-      setClassrooms([]);
-      setCurrentStudent(null);
-    }
+    authApi.logout().catch((error) => {
+      console.error('Error logging out (background, local state already cleared):', error);
+    });
+    await clearSessionToken();
+    setUser(null);
+    setIsAuthenticated(false);
+    setStudents([]);
+    setClassrooms([]);
+    setCurrentStudent(null);
   };
 
   const hasActiveSubscription = user ? (

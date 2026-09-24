@@ -51,17 +51,27 @@ export default function LoginScreen() {
   const [newPin, setNewPin] = useState('');
   const [verifying, setVerifying] = useState(false);
 
-  const [googleRequest, googleResponse, promptGoogleAsync] = AuthSession.useAuthRequest(
-    {
+  // Real fix Sep 24 (item10, second device-log pass - Metro log showed "[GoogleAuth] Redirect
+  // URI" logged 14x after logout): this config object was a fresh object literal on every
+  // render, with redirectUri recomputed (and re-logged) via an inline IIFE INSIDE it - useApp
+  // and useRouter both re-render this screen on every AppContext/navigation state change, so
+  // every one of those re-renders rebuilt the whole request config and re-logged, even though
+  // clientId/scopes/redirectUri never actually change during a mount. useMemo makes this a
+  // real one-time computation (AuthSession's own docs recommend memoizing the request config
+  // for exactly this reason) - "mounts 14 times" was really this screen re-rendering many
+  // times while genuinely mounted once, not 14 separate real mounts.
+  const googleAuthConfig = React.useMemo(() => {
+    const uri = AuthSession.makeRedirectUri();
+    console.log('[GoogleAuth] Redirect URI:', uri);
+    return {
       clientId: Platform.select({ ios: GOOGLE_CLIENT_IDS.ios, android: GOOGLE_CLIENT_IDS.android, default: GOOGLE_CLIENT_IDS.default }),
       scopes: ['openid', 'profile', 'email'],
-      redirectUri: (() => {
-        const uri = AuthSession.makeRedirectUri();
-        console.log('[GoogleAuth] Redirect URI:', uri);
-        return uri;
-      })(),
+      redirectUri: uri,
       responseType: AuthSession.ResponseType.Token,
-    },
+    };
+  }, []);
+  const [googleRequest, googleResponse, promptGoogleAsync] = AuthSession.useAuthRequest(
+    googleAuthConfig,
     GOOGLE_DISCOVERY
   );
 
