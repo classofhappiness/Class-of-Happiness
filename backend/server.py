@@ -2978,6 +2978,192 @@ async def create_student(student: StudentCreate, request: Request):
 
     return saved
 
+def _build_creatures_colours(student_data: dict, creature_stages: dict, creature_points: dict,
+                              unlock_rows: list, checkins_30d_fn) -> tuple:
+    """Real fix Sep 24 (item1, second device-log pass): extracted from get_my_creatures so the
+    batch endpoint below (get_my_creatures_batch) can build the identical per-student
+    response from already-fetched, pre-batched data instead of duplicating this logic (and
+    risking the two drifting apart the way the World Creatures pill rows once did).
+    checkins_30d_fn(colour) is injected so the single-student endpoint can keep its live
+    per-call query while the batch endpoint serves it from one already-fetched lookup table -
+    same output either way, different cost to produce it."""
+    active = _get_active_creatures(student_data)
+    creatures_map = {c["id"]: c for c in CREATURES}
+
+    buckets = {"blue": [], "green": [], "yellow": [], "red": []}
+    total_collected = 0
+
+    for colour, default_id in FEELING_COLOUR_MAP.items():
+        cdata = creatures_map.get(default_id, {})
+        stage = creature_stages.get(default_id, 0)
+        is_complete = stage >= 3
+        if is_complete:
+            total_collected += 1
+        buckets[colour].append({
+            "type": "default",
+            "id": default_id,
+            "name": cdata.get("name"),
+            "emoji": (cdata.get("stages") or [{}])[min(stage, 3)].get("emoji") if cdata.get("stages") else None,
+            "current_stage": stage,
+            "max_stage": 3,
+            "is_complete": is_complete,
+            "is_active": active.get(colour) == default_id,
+            "points": creature_points.get(default_id, 0),
+            # Real feature Aug 22 (item 2 visual polish): full per-stage emoji list, so the
+            # detail view can show the whole evolution row (egg -> full creature), not just
+            # the current stage - same real data _get_collection already exposes for the old
+            # modal, just not previously threaded through this endpoint.
+            "stage_emojis": [s.get("emoji") for s in (cdata.get("stages") or [])],
+        })
+
+    for u in unlock_rows:
+        cs = u.get("creature_submissions")
+        if not cs:
+            continue
+        # A creature a student already started stays in creature_unlocks (real progress,
+        # never deleted). Real product fix Sep 12 (tiered moderation model): displays once
+        # its OWN creator-level approver has signed off - superadmin is only required for
+        # visibility_scope=='global' (or, since Sep 18, a flagged submission). See
+        # _passes_creature_approval_gate.
+        if not _passes_creature_approval_gate(cs.get("status"), cs.get("visibility_scope"), cs.get("superadmin_approved_at"), cs.get("ai_moderation_flag")):
+            continue
+        colour = cs.get("emotion_colour")
+        if colour not in buckets:
+            continue
+        stages_unlocked = u.get("stages_unlocked", 0) or 0
+        is_complete = stages_unlocked >= 4
+        if is_complete:
+            total_collected += 1
+        name = (is_complete and u.get("creature_name_snapshot")) or cs.get("creature_name")
+        stage_img = (is_complete and u.get("stage_image_snapshot")) or cs.get(f"stage{max(1, min(stages_unlocked, 4))}_url") or cs.get("stage1_url")
+        checkins_30d = checkins_30d_fn(colour)
+        # Real fix Sep 15 (B1 core-loop bug): My Creatures needs the same eligible_stage
+        # signal as the reward screen, so CreatureDetailModal can show its Evolve button for
+        # an eligible community creature here too - see _progress_community_creature's
+        # docstring for the full history of why this was missing entirely before.
+        eligible_stage = stages_unlocked
+        for i, needed in enumerate(COMMUNITY_STAGE_REQUIREMENTS):
+            if checkins_30d >= needed:
+                eligible_stage = i + 1
+        buckets[colour].append({
+            "type": "community",
+            "id": cs["id"],
+            "name": name,
+            "stage_image": stage_img,
+            "current_stage": stages_unlocked,
+            "max_stage": 4,
+            "is_complete": is_complete,
+            "is_active": active.get(colour) == cs["id"],
+            "started_at": u.get("unlocked_at"),
+            "completed_at": u.get("completed_at"),
+            "was_featured": u.get("was_featured", False),
+            "featured_until": u.get("featured_until_snapshot"),
+            # Real feature Aug 22 (item 2 visual polish): full per-stage photo URLs, so the
+            # detail view can show the whole evolution row the same way a default creature's
+            # stage_emojis does - the photos already exist on the submission row, just weren't
+            # threaded through this endpoint before.
+            "stage_urls": [cs.get("stage1_url"), cs.get("stage2_url"), cs.get("stage3_url"), cs.get("stage4_url")],
+            # Real feature Sep 21: all 10 language variants passed through flat (same
+            # send-everything-let-the-client-pick pattern as the default CREATURES constant's
+            # own description_pt/es/fr/de/it, just newly actually consumed - see
+            # CreatureDetailModal's localizedDescription()).
+            "description": cs.get("description"),
+            "description_ar": cs.get("description_ar"),
+            "description_de": cs.get("description_de"),
+            "description_es": cs.get("description_es"),
+            "description_fr": cs.get("description_fr"),
+            "description_hi": cs.get("description_hi"),
+            "description_it": cs.get("description_it"),
+            "description_pt": cs.get("description_pt"),
+            "description_ru": cs.get("description_ru"),
+            "description_zh": cs.get("description_zh"),
+            # Real feature Sep 15 (progress bar unification): the raw rolling-30-day check-in
+            # count - default creature entries above already carry the equivalent "points"
+            # field; community creatures need this instead, since they evolve on check-in
+            # count against COMMUNITY_CREATURE_THRESHOLDS ([0,5,10,15,20]), not points.
+            "checkins_30d": checkins_30d,
+            "eligible_stage": eligible_stage,
+        })
+
+    return buckets, total_collected
+
+# Real fix Sep 24 (item1, second device-log pass): registered BEFORE /students/{student_id}
+# below - FastAPI/Starlette matches routes in registration order, and "creatures-batch" would
+# otherwise match {student_id} first (get_student("creatures-batch") -> 404 "Student not
+# found"), never reaching this endpoint at all. Metro log evidence: 257x GET
+# /students/{id}/my-creatures + 242x GET /creatures/eligible from student/select.tsx's own
+# per-student loops, re-firing on every `students` reference change - this replaces the whole
+# batch with one call. See get_my_creatures below for the single-student sibling this shares
+# _build_creatures_colours with.
+@api_router.get("/students/creatures-batch")
+async def get_my_creatures_batch(request: Request, student_ids: str = ""):
+    """Same per-student response shape as GET /students/{id}/my-creatures ({"colours": {...},
+    "total_collected": N}), keyed by student_id. Every DB round trip below is batched across
+    ALL requested students - O(1) round trips regardless of class size, not O(n)."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    ids = [i for i in student_ids.split(",") if i]
+    if not ids:
+        return {}
+
+    students_r = supabase.table("students").select("*").in_("id", ids).execute()
+    students_by_id = {s["id"]: s for s in (students_r.data or [])}
+
+    # Same per-student authorization check the single-student endpoint uses - a requested id
+    # the caller isn't authorized for is silently dropped from the response rather than
+    # failing the whole batch.
+    authorized_ids = []
+    for sid in ids:
+        sdata = students_by_id.get(sid)
+        if sdata and await _is_authorized_for_student(user, sid, sdata):
+            authorized_ids.append(sid)
+    if not authorized_ids:
+        return {}
+
+    rewards_r = supabase.table("student_rewards").select("student_id,creature_stages,creature_points").in_("student_id", authorized_ids).execute()
+    rewards_by_student = {r["student_id"]: r for r in (rewards_r.data or [])}
+
+    try:
+        unlocks_r = supabase.table("creature_unlocks").select(
+            "*, creature_submissions(id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,visibility_scope,status,superadmin_approved_at,ai_moderation_flag,"
+            "description,description_ar,description_de,description_es,description_fr,description_hi,description_it,description_pt,description_ru,description_zh)"
+        ).in_("real_student_id", authorized_ids).execute()
+        unlock_rows = unlocks_r.data or []
+    except Exception:
+        unlock_rows = []
+    unlocks_by_student: dict = {}
+    for u in unlock_rows:
+        unlocks_by_student.setdefault(u["real_student_id"], []).append(u)
+
+    # Real fix Sep 24 (item1): _rolling_checkins_30d's own per-(student,colour) feeling_logs
+    # query was the one remaining per-student DB round trip even a naive "loop the single-
+    # student logic server-side" batch would still pay, multiplied by however many community
+    # creatures a student has unlocked. One query for every requested student's feeling_logs
+    # in the last 30 days, counted in Python, replaces all of those.
+    since = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    checkins_r = supabase.table("feeling_logs").select("student_id,feeling_colour").in_(
+        "student_id", authorized_ids
+    ).gte("timestamp", since).execute()
+    checkins_counts: dict = {}
+    for row in (checkins_r.data or []):
+        key = (row.get("student_id"), row.get("feeling_colour"))
+        checkins_counts[key] = checkins_counts.get(key, 0) + 1
+
+    result = {}
+    for sid in authorized_ids:
+        student_data = students_by_id[sid]
+        reward_row = rewards_by_student.get(sid) or {}
+        creature_stages = reward_row.get("creature_stages") or {}
+        creature_points = reward_row.get("creature_points") or {}
+        buckets, total_collected = _build_creatures_colours(
+            student_data, creature_stages, creature_points, unlocks_by_student.get(sid, []),
+            lambda colour, _sid=sid: checkins_counts.get((_sid, colour), 0)
+        )
+        result[sid] = {"colours": buckets, "total_collected": total_collected}
+
+    return result
+
 @api_router.get("/students/{student_id}")
 async def get_student(student_id: str, request: Request):
     user = await get_current_user(request)
@@ -10486,38 +10672,9 @@ async def get_my_creatures(student_id: str, request: Request):
     if not student_data or not await _is_authorized_for_student(user, student_id, student_data):
         raise HTTPException(status_code=403, detail="Not authorized for this student")
 
-    active = _get_active_creatures(student_data)
-
     rewards_r = supabase.table("student_rewards").select("creature_stages,creature_points").eq("student_id", student_id).execute()
     creature_stages = (rewards_r.data[0].get("creature_stages") if rewards_r.data else None) or {}
     creature_points = (rewards_r.data[0].get("creature_points") if rewards_r.data else None) or {}
-    creatures_map = {c["id"]: c for c in CREATURES}
-
-    buckets = {"blue": [], "green": [], "yellow": [], "red": []}
-    total_collected = 0
-
-    for colour, default_id in FEELING_COLOUR_MAP.items():
-        cdata = creatures_map.get(default_id, {})
-        stage = creature_stages.get(default_id, 0)
-        is_complete = stage >= 3
-        if is_complete:
-            total_collected += 1
-        buckets[colour].append({
-            "type": "default",
-            "id": default_id,
-            "name": cdata.get("name"),
-            "emoji": (cdata.get("stages") or [{}])[min(stage, 3)].get("emoji") if cdata.get("stages") else None,
-            "current_stage": stage,
-            "max_stage": 3,
-            "is_complete": is_complete,
-            "is_active": active.get(colour) == default_id,
-            "points": creature_points.get(default_id, 0),
-            # Real feature Aug 22 (item 2 visual polish): full per-stage emoji list, so the
-            # detail view can show the whole evolution row (egg -> full creature), not just
-            # the current stage - same real data _get_collection already exposes for the old
-            # modal, just not previously threaded through this endpoint.
-            "stage_emojis": [s.get("emoji") for s in (cdata.get("stages") or [])],
-        })
 
     # URGENT real security/product fix Aug 23 (corrected same day - see
     # get_eligible_creatures): joined select fails as one unit if superadmin_approved_at
@@ -10532,75 +10689,11 @@ async def get_my_creatures(student_id: str, request: Request):
         unlock_rows = unlocks_r.data or []
     except Exception:
         unlock_rows = []
-    for u in unlock_rows:
-        cs = u.get("creature_submissions")
-        if not cs:
-            continue
-        # A creature a student already started stays in creature_unlocks (real progress,
-        # never deleted). Real product fix Sep 12 (tiered moderation model): displays once
-        # its OWN creator-level approver has signed off - superadmin is only required for
-        # visibility_scope=='global' (or, since Sep 18, a flagged submission). See
-        # _passes_creature_approval_gate.
-        if not _passes_creature_approval_gate(cs.get("status"), cs.get("visibility_scope"), cs.get("superadmin_approved_at"), cs.get("ai_moderation_flag")):
-            continue
-        colour = cs.get("emotion_colour")
-        if colour not in buckets:
-            continue
-        stages_unlocked = u.get("stages_unlocked", 0) or 0
-        is_complete = stages_unlocked >= 4
-        if is_complete:
-            total_collected += 1
-        name = (is_complete and u.get("creature_name_snapshot")) or cs.get("creature_name")
-        stage_img = (is_complete and u.get("stage_image_snapshot")) or cs.get(f"stage{max(1, min(stages_unlocked, 4))}_url") or cs.get("stage1_url")
-        checkins_30d = _rolling_checkins_30d(student_id, colour)
-        # Real fix Sep 15 (B1 core-loop bug): My Creatures needs the same eligible_stage
-        # signal as the reward screen, so CreatureDetailModal can show its Evolve button for
-        # an eligible community creature here too - see _progress_community_creature's
-        # docstring for the full history of why this was missing entirely before.
-        eligible_stage = stages_unlocked
-        for i, needed in enumerate(COMMUNITY_STAGE_REQUIREMENTS):
-            if checkins_30d >= needed:
-                eligible_stage = i + 1
-        buckets[colour].append({
-            "type": "community",
-            "id": cs["id"],
-            "name": name,
-            "stage_image": stage_img,
-            "current_stage": stages_unlocked,
-            "max_stage": 4,
-            "is_complete": is_complete,
-            "is_active": active.get(colour) == cs["id"],
-            "started_at": u.get("unlocked_at"),
-            "completed_at": u.get("completed_at"),
-            "was_featured": u.get("was_featured", False),
-            "featured_until": u.get("featured_until_snapshot"),
-            # Real feature Aug 22 (item 2 visual polish): full per-stage photo URLs, so the
-            # detail view can show the whole evolution row the same way a default creature's
-            # stage_emojis does - the photos already exist on the submission row, just weren't
-            # threaded through this endpoint before.
-            "stage_urls": [cs.get("stage1_url"), cs.get("stage2_url"), cs.get("stage3_url"), cs.get("stage4_url")],
-            # Real feature Sep 21: all 10 language variants passed through flat (same
-            # send-everything-let-the-client-pick pattern as the default CREATURES constant's
-            # own description_pt/es/fr/de/it, just newly actually consumed - see
-            # CreatureDetailModal's localizedDescription()).
-            "description": cs.get("description"),
-            "description_ar": cs.get("description_ar"),
-            "description_de": cs.get("description_de"),
-            "description_es": cs.get("description_es"),
-            "description_fr": cs.get("description_fr"),
-            "description_hi": cs.get("description_hi"),
-            "description_it": cs.get("description_it"),
-            "description_pt": cs.get("description_pt"),
-            "description_ru": cs.get("description_ru"),
-            "description_zh": cs.get("description_zh"),
-            # Real feature Sep 15 (progress bar unification): the raw rolling-30-day check-in
-            # count - default creature entries above already carry the equivalent "points"
-            # field; community creatures need this instead, since they evolve on check-in
-            # count against COMMUNITY_CREATURE_THRESHOLDS ([0,5,10,15,20]), not points.
-            "checkins_30d": checkins_30d,
-            "eligible_stage": eligible_stage,
-        })
 
+    buckets, total_collected = _build_creatures_colours(
+        student_data, creature_stages, creature_points, unlock_rows,
+        lambda colour: _rolling_checkins_30d(student_id, colour)
+    )
     return {"colours": buckets, "total_collected": total_collected}
 
 def _annotate_real_student_names(rows: list) -> list:

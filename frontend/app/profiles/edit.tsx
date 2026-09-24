@@ -115,8 +115,11 @@ export default function EditProfileScreen() {
         avatar_custom: avatarType === 'custom' ? customImage || undefined : undefined,
         classroom_id: selectedClassroom,
       });
-      
-      await refreshStudents();
+
+      // Real fix Sep 24 (item2, second device-log pass): force bypasses refreshStudents' new
+      // 30s TTL cache - a student was just edited, the list must reflect it now, not whenever
+      // the cache happens to expire.
+      await refreshStudents({ force: true });
       Alert.alert('Profile Updated!', `${name}'s profile has been updated.`, [
         { text: 'OK', onPress: () => router.back() }
       ]);
@@ -140,7 +143,7 @@ export default function EditProfileScreen() {
           onPress: async () => {
             try {
               await studentsApi.delete(studentId!);
-              await refreshStudents();
+              await refreshStudents({ force: true });
               router.back();
             } catch (error) {
               Alert.alert('Error', 'Failed to delete profile.');

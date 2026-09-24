@@ -493,6 +493,13 @@ export const creaturesApi = {
   getMyCreatures: (studentId: string): Promise<{ colours: Record<string, any[]>; total_collected: number }> =>
     apiRequest(`/students/${studentId}/my-creatures`),
 
+  // Real fix Sep 24 (item1, second device-log pass): batched sibling of getMyCreatures above -
+  // a Metro log showed 257x GET /students/{id}/my-creatures fired from student/select.tsx's
+  // own per-student loop (15 students x ~8 re-fires). One call, same per-student response
+  // shape keyed by student_id, in place of one per student.
+  getMyCreaturesBatch: (studentIds: string[]): Promise<Record<string, { colours: Record<string, any[]>; total_collected: number }>> =>
+    apiRequest(`/students/creatures-batch?student_ids=${studentIds.join(',')}`),
+
   // Real feature Aug 23 (item 3): "creatures per country" leaderboard - same 5-contributor
   // threshold as countries_joined, sub-threshold countries bucketed into "Rest of World".
   getCountryLeaderboard: (): Promise<{ leaderboard: { country: string; count: number }[]; total_countries: number; total_creatures: number }> =>

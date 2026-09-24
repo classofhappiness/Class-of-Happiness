@@ -325,6 +325,12 @@ export default function TeacherDashboardScreen() {
     } catch {}
   }, []);
 
+  // Real fix Sep 24 (item2, second device-log pass): refreshStudents() here is unforced -
+  // this fires on EVERY focus (returning from any other screen, not just a fresh mount), and
+  // most of those returns involve no student mutation at all. The new 30s TTL means a return
+  // shortly after AppContext's own boot fetch (or another recent screen's, including one that
+  // just force-refreshed after a real mutation) is a no-op here instead of a redundant fetch -
+  // exactly the "6x per session" pattern the Metro log showed.
   useFocusEffect(useCallback(() => {
     loadData(); refreshStudents(); refreshClassrooms();
     const interval = setInterval(() => { refreshAlertCount(); }, 30000);
@@ -337,7 +343,17 @@ export default function TeacherDashboardScreen() {
     return () => clearTimeout(timer);
   }, [period, selectedClassroom]);
 
-  const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
+  // Real fix Sep 24 (item2, second device-log pass): pull-to-refresh used to only reload this
+  // screen's own dashboard data (loadData) - students/classrooms were never included, so
+  // pulling to refresh after e.g. editing a student elsewhere didn't actually guarantee this
+  // screen picked it up. force:true here is deliberate: a pull-to-refresh is an explicit
+  // "give me the real current state" request from the user, the one case the TTL should never
+  // shortcut.
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([loadData(), refreshStudents({ force: true }), refreshClassrooms()]);
+    setRefreshing(false);
+  };
 
   // resolveStrategyLocal removed — was defined but never actually called anywhere, dead code that also used the now-removed STRATEGY_NAMES_LOCAL.
   const getStudentName = (id:string) => students.find(s=>s.id===id)?.name || t('student') || 'Student';

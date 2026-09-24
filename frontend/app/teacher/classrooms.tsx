@@ -113,6 +113,10 @@ export default function ManageClassroomsScreen() {
   const [showCustomStrategyInput, setShowCustomStrategyInput] = useState(false);
   const [addingStrategy, setAddingStrategy] = useState(false);
 
+  // Real fix Sep 24 (item2, second device-log pass): unforced - refreshStudents now has its
+  // own 30s TTL, so this is a no-op when AppContext's own boot-time fetch (or another recent
+  // screen's) is still fresh, and a real fetch otherwise. See handleMoveStudent below for the
+  // one call on this screen that force:true's it (a real mutation just happened).
   React.useEffect(() => { refreshClassrooms(); refreshStudents(); }, []);
 
   const getClassroomStudents = (classroomId: string) =>
@@ -173,7 +177,9 @@ export default function ManageClassroomsScreen() {
   const handleMoveStudent = async (studentId: string, classroomId: string | null) => {
     try {
       await studentsApi.update(studentId, { classroom_id: classroomId });
-      await refreshStudents();
+      // Real fix Sep 24 (item2, second device-log pass): force bypasses refreshStudents' new
+      // 30s TTL cache - a student was just moved to a different classroom, must reflect now.
+      await refreshStudents({ force: true });
     } catch {
       Alert.alert('Error', 'Failed to update student.');
     }

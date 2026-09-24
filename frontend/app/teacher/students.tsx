@@ -65,7 +65,9 @@ export default function ManageStudentsScreen() {
           onPress: async () => {
             try {
               await studentsApi.delete(student.id);
-              await refreshStudents();
+              // Real fix Sep 24 (item2, second device-log pass): force bypasses
+              // refreshStudents' new 30s TTL cache - a student was just deleted.
+              await refreshStudents({ force: true });
             } catch (error) {
               Alert.alert(t('error') || 'Error', 'Failed to delete student.');
             }
@@ -114,7 +116,9 @@ export default function ManageStudentsScreen() {
         studentsApi.update(studentId, { classroom_id: classroomId })
       );
       await Promise.all(updates);
-      await refreshStudents();
+      // Real fix Sep 24 (item2, second device-log pass): force bypasses refreshStudents' new
+      // 30s TTL cache - a bulk classroom reassignment just happened.
+      await refreshStudents({ force: true });
       setShowClassroomPicker(false);
       setSelectedStudents(new Set());
       setSelectionMode(false);

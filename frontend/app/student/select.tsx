@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Pressable, Image } from 'react-native';
 // Real fix Sep 24 (item4, device report): the 20-22dp community-creature thumbnails on these
 // cards were loading through plain RN <Image> - no memory/disk cache of its own, so every
@@ -19,7 +19,6 @@ import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { creaturesApi } from '../../src/utils/api';
 import { useDataGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../../src/utils/sounds';
 
@@ -39,6 +38,13 @@ export default function StudentSelectScreen() {
     // than re-derived by this screen's own effect on every `students` reference change - see
     // AppContext's matching comment for the full root cause. This screen just reads the result.
     studentCreatureData, studentCreaturesLoading,
+    // Real fix Sep 24 (item1, second device-log pass): the full per-student My Creatures
+    // collection is now fetched once, in a batch, by AppContext (GET /students/creatures-
+    // batch) - see that context's matching comment for the full root cause (a Metro log
+    // showed 257x GET /students/{id}/my-creatures fired from this screen's own per-student
+    // loop). studentActiveCommunity/studentAllCreatureData below are now derived from this
+    // instead of independently fetched.
+    studentMyCreaturesData,
   } = useApp();
   const isAdult = user && (user.role === 'teacher' || user.role === 'parent' || user.role === 'admin' || user.role === 'school_admin');
   const [selectedClassroom, setSelectedClassroom] = useState<string | null>(null);
@@ -75,27 +81,46 @@ export default function StudentSelectScreen() {
   const studentCreatures = studentCreatureData;
   const creaturesLoading = studentCreaturesLoading;
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+
   // Real feature Aug 22 (item 7): the tick/completion row here only ever reflected the 4
   // default per-colour creatures - a Family/Class/School/Global creature a student actively
   // selected to work on (via world-creatures.tsx's "Set as Active") never showed up here at
-  // all, only inside "My Creatures" itself. This fetches each student's actively-selected
-  // community creatures (per /students/{id}/my-creatures, filtered to is_active community
-  // entries) so they render alongside the defaults with the same tick/in-progress treatment.
-  const [studentActiveCommunity, setStudentActiveCommunity] = useState<Record<string, any[]>>({});
-  // Round 3 (Sep 5), item 16: redesigned card display - up to 4 minis (most recent first) +
-  // a "xN" total-collection chip, and a milestone-only border. Reuses the SAME
-  // creaturesApi.getMyCreatures() call already made below for studentActiveCommunity - no new
-  // network request, just also keeping the FULL per-colour data (default + every community
-  // creature, not just active ones) instead of discarding everything but the active subset.
-  const [studentAllCreatureData, setStudentAllCreatureData] = useState<Record<string, Record<string, any[]>>>({});
-  // Real feature Aug 23 (item 6): the card only ever reflected default-creature completion
-  // status - a student with all 4 defaults done had no way to know there were new
-  // Family/Class/School/Global creatures they hadn't started yet. Counts eligible creatures
-  // (per /creatures/eligible, same real scope/classroom/school matching the browse screen
-  // uses) with zero progress so far.
-  const [studentNewEligibleCount, setStudentNewEligibleCount] = useState<Record<string, number>>({});
+  // all, only inside "My Creatures" itself. Derived from studentMyCreaturesData (the batched
+  // fetch now owned by AppContext) instead of independently fetched.
+  const studentActiveCommunity = useMemo(() => {
+    const active: Record<string, any[]> = {};
+    Object.entries(studentMyCreaturesData).forEach(([id, data]) => {
+      const entries: any[] = [];
+      Object.entries(data?.colours || {}).forEach(([colour, bucket]) => {
+        (bucket as any[]).forEach(entry => {
+          if (entry.type === 'community' && entry.is_active) {
+            entries.push({ ...entry, colour });
+          }
+        });
+      });
+      if (entries.length) active[id] = entries;
+    });
+    return active;
+  }, [studentMyCreaturesData]);
 
-  // Refresh students every time this screen loads
+  // Round 3 (Sep 5), item 16: redesigned card display - up to 4 minis (most recent first) +
+  // a "xN" total-collection chip, and a milestone-only border. Same source data as
+  // studentActiveCommunity above (studentMyCreaturesData), just kept as the FULL per-colour
+  // data (default + every community creature, not just active ones) instead of discarding
+  // everything but the active subset.
+  const studentAllCreatureData = useMemo(() => {
+    const allData: Record<string, Record<string, any[]>> = {};
+    Object.entries(studentMyCreaturesData).forEach(([id, data]) => {
+      if (data?.colours) allData[id] = data.colours;
+    });
+    return allData;
+  }, [studentMyCreaturesData]);
+
+  // Real fix Sep 24 (item2, second device-log pass): unforced - refreshStudents now has its
+  // own 30s TTL (AppContext), so this is a no-op when AppContext's own boot-time fetch is
+  // still fresh (the common case: reaching this screen shortly after app launch) and a real
+  // fetch otherwise (e.g. revisiting this screen well into a session, or after a mutation
+  // elsewhere force-refreshed and this then correctly sees fresh data too).
   useEffect(() => {
     refreshStudents();
   }, []);
@@ -103,62 +128,20 @@ export default function StudentSelectScreen() {
   // Preload sounds once
   useEffect(() => { preloadSounds(); }, []);
 
-  // Real feature Aug 22 (item 7): fetch each student's actively-selected community creatures
-  // in parallel - one call per student (no batch endpoint exists for this yet, matching the
-  // same fallback pattern already used above), tolerant of individual failures.
+  // Real fix Sep 24 (item4, device report): warm expo-image's cache for every
+  // community-creature stage_image the moment studentMyCreaturesData arrives, so the
+  // ExpoImage thumbnails below (cachePolicy 'memory-disk') are normally already decoded by
+  // the time renderCreatureIcons actually renders them, instead of each card triggering its
+  // own first-render fetch of the same full-resolution PNG.
   useEffect(() => {
-    if (students.length === 0) return;
-    Promise.allSettled(
-      students.map(s => creaturesApi.getMyCreatures(s.id).then(data => ({ id: s.id, data })))
-    ).then(results => {
-      const active: Record<string, any[]> = {};
-      const allData: Record<string, Record<string, any[]>> = {};
-      results.forEach(r => {
-        if (r.status !== 'fulfilled') return;
-        const { id, data } = r.value;
-        const entries: any[] = [];
-        Object.entries(data?.colours || {}).forEach(([colour, bucket]) => {
-          (bucket as any[]).forEach(entry => {
-            if (entry.type === 'community' && entry.is_active) {
-              entries.push({ ...entry, colour });
-            }
-          });
-        });
-        if (entries.length) active[id] = entries;
-        if (data?.colours) allData[id] = data.colours;
+    const stageImageUrls = new Set<string>();
+    Object.values(studentAllCreatureData).forEach(colours => {
+      Object.values(colours).forEach((bucket: any) => {
+        (bucket as any[]).forEach(entry => { if (entry?.stage_image) stageImageUrls.add(entry.stage_image); });
       });
-      setStudentActiveCommunity(active);
-      setStudentAllCreatureData(allData);
-      // Real fix Sep 24 (item4, device report): warm expo-image's cache for every
-      // community-creature stage_image the moment this data arrives, so the ExpoImage
-      // thumbnails above (cachePolicy 'memory-disk') are normally already decoded by the
-      // time renderCreatureIcons actually renders them, instead of each card triggering its
-      // own first-render fetch of the same full-resolution PNG.
-      const stageImageUrls = new Set<string>();
-      Object.values(allData).forEach(colours => {
-        Object.values(colours).forEach((bucket: any) => {
-          (bucket as any[]).forEach(entry => { if (entry?.stage_image) stageImageUrls.add(entry.stage_image); });
-        });
-      });
-      stageImageUrls.forEach(url => { ExpoImage.prefetch(url).catch(() => {}); });
-    }).catch(() => {});
-  }, [students]);
-
-  useEffect(() => {
-    if (students.length === 0) return;
-    Promise.allSettled(
-      students.map(s => creaturesApi.getEligible(s.id).then(data => ({ id: s.id, data })))
-    ).then(results => {
-      const counts: Record<string, number> = {};
-      results.forEach(r => {
-        if (r.status !== 'fulfilled') return;
-        const { id, data } = r.value;
-        const notYetStarted = (data?.creatures || []).filter((c: any) => !c.my_stages_unlocked).length;
-        if (notYetStarted > 0) counts[id] = notYetStarted;
-      });
-      setStudentNewEligibleCount(counts);
-    }).catch(() => {});
-  }, [students]);
+    });
+    stageImageUrls.forEach(url => { ExpoImage.prefetch(url).catch(() => {}); });
+  }, [studentAllCreatureData]);
 
   const handleSelectStudent = useCallback((student: typeof students[0]) => {
     playSelectFeedback();
@@ -327,11 +310,13 @@ export default function StudentSelectScreen() {
               ⭐ {currentPts}/{totalNeeded} pts to complete all
             </Text>
           )}
-          {!!studentNewEligibleCount[studentId] && (
-            <Text style={{ fontSize: 9, color: '#9C27B0', textAlign: 'center', marginBottom: 2, fontWeight: '700' }}>
-              🌟 New creatures to evolve!
-            </Text>
-          )}
+          {/* Real fix Sep 24 (item1, second device-log pass): the "New creatures to evolve!"
+              hint (GET /creatures/eligible, once per student) is removed per explicit
+              instruction - that endpoint is only meaningful for a single student actively
+              checking in (it answers "what could THIS student start next"), not a list
+              screen rendering 15+ cards at once. It was also a real, unnecessary contributor
+              to the per-student request storm this screen was generating (see AppContext's
+              studentMyCreaturesData comment for the my-creatures half of that same fix). */}
           {(() => {
             // Round 3 (Sep 5), item 16a: replaces the old "first 4 defaults + separately-
             // appended active community icons" layout with one merged, recency-sorted list

@@ -9,7 +9,7 @@ import {
   Student, Classroom, User, Translations,
   studentsApi, classroomsApi, avatarsApi, PresetAvatar,
   authApi, translationsApi, setSessionToken, clearSessionToken, initializeSessionToken,
-  rewardsApi,
+  rewardsApi, creaturesApi,
 } from '../utils/api';
 
 // Helper function to wrap any promise with timeout
@@ -86,6 +86,10 @@ interface AppContextType {
   // just reads the shared result instead of re-deriving it.
   studentCreatureData: Record<string, any>;
   studentCreaturesLoading: boolean;
+  // Real fix Sep 24 (item1, second device-log pass): see the matching state's own comment
+  // near its declaration.
+  studentMyCreaturesData: Record<string, { colours: Record<string, any[]>; total_collected: number }>;
+  studentMyCreaturesLoading: boolean;
   
   // Translations
   language: string;
@@ -96,7 +100,9 @@ interface AppContextType {
   // Actions
   setCurrentStudent: (student: Student | null) => void;
   setCurrentClassroom: (classroom: Classroom | null) => void;
-  refreshStudents: () => Promise<void>;
+  // Real fix Sep 24 (item2, second device-log pass): options.force bypasses the TTL cache
+  // (see refreshStudents's own implementation comment) - pass it after any real mutation.
+  refreshStudents: (options?: { force?: boolean }) => Promise<void>;
   refreshClassrooms: () => Promise<void>;
   
   // Subscription
@@ -364,6 +370,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // so a `students` reference change with the SAME real ids - the exact thing that produced
   // the 4x duplicate calls - is recognised as a no-op instead of re-fetching.
   const lastCreaturesKeyRef = useRef<string | null>(null);
+  // Real fix Sep 24 (item1, second device-log pass): the full per-student "My Creatures"
+  // collection (colours + total_collected) - previously fetched by student/select.tsx in a
+  // one-request-per-student loop (a Metro log showed 257x GET /students/{id}/my-creatures,
+  // 15 students re-fired ~8x as `students` kept getting a new array reference). Same
+  // stable-key dedupe pattern as studentCreatureData above, backed by the batched
+  // GET /students/creatures-batch endpoint instead of N individual requests.
+  const [studentMyCreaturesData, setStudentMyCreaturesData] = useState<Record<string, { colours: Record<string, any[]>; total_collected: number }>>({});
+  const [studentMyCreaturesLoading, setStudentMyCreaturesLoading] = useState(false);
+  const lastMyCreaturesKeyRef = useRef<string | null>(null);
 
   // Translations state
   const [language, setLanguageState] = useState<string>('en');
@@ -382,10 +397,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // one has already finished (the common case - visiting the screen well after boot) still
   // does a real, fresh fetch, so per-visit freshness is unaffected.
   const refreshStudentsInFlightRef = useRef<Promise<void> | null>(null);
-  const refreshStudents = async () => {
+  // Real fix Sep 24 (item2, second device-log pass): the in-flight collapse above only ever
+  // stopped CONCURRENT duplicates - a Metro log showed /students still firing 6x across one
+  // session because every mount/focus effect across the app (AppContext boot, select-profile,
+  // teacher/classrooms, teacher/dashboard's useFocusEffect) calls refreshStudents()
+  // unconditionally, each a real, separate, non-overlapping call. STUDENTS_TTL_MS is a plain
+  // "don't bother re-asking if we asked recently" cache: a plain refreshStudents() within 30s
+  // of the last successful fetch is a no-op (the boot loader's data is still trustworthy);
+  // refreshStudents({ force: true }) always does a real fetch, used after an actual
+  // mutation (create/update/delete a student or family member, move classroom) where staleness
+  // would show wrong data, not staleness that's merely inconvenient.
+  const STUDENTS_TTL_MS = 30000;
+  const lastStudentsFetchAtRef = useRef<number>(0);
+  const refreshStudents = async (options?: { force?: boolean }) => {
+    if (!options?.force && Date.now() - lastStudentsFetchAtRef.current < STUDENTS_TTL_MS) return;
     if (refreshStudentsInFlightRef.current) return refreshStudentsInFlightRef.current;
     const promise = doRefreshStudents().finally(() => {
       refreshStudentsInFlightRef.current = null;
+      lastStudentsFetchAtRef.current = Date.now();
     });
     refreshStudentsInFlightRef.current = promise;
     return promise;
@@ -1125,6 +1154,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     })();
   }, [students]);
 
+  // Real fix Sep 24 (item1, second device-log pass): the batched My Creatures fetch - same
+  // stable-key dedupe as the block above, backed by GET /students/creatures-batch instead of
+  // the old one-request-per-student loop. See that endpoint's own docstring in server.py.
+  useEffect(() => {
+    if (students.length === 0) {
+      lastMyCreaturesKeyRef.current = null;
+      setStudentMyCreaturesData({});
+      setStudentMyCreaturesLoading(false);
+      return;
+    }
+    const ids = students.map(s => s.id);
+    const key = ids.slice().sort().join(',');
+    if (key === lastMyCreaturesKeyRef.current) return;
+    lastMyCreaturesKeyRef.current = key;
+    setStudentMyCreaturesLoading(true);
+    creaturesApi.getMyCreaturesBatch(ids)
+      .then(data => setStudentMyCreaturesData(data || {}))
+      .catch(() => setStudentMyCreaturesData({}))
+      .finally(() => setStudentMyCreaturesLoading(false));
+  }, [students]);
+
   // Combined loading state - simple check
   // translationsLoaded is set true immediately now for fast startup
   const isAppLoading = isLoading;
@@ -1157,6 +1207,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         currentClassroom,
         studentCreatureData,
         studentCreaturesLoading,
+        studentMyCreaturesData,
+        studentMyCreaturesLoading,
 
         // Translations
         language,

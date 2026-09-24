@@ -894,7 +894,9 @@ export default function ParentDashboard() {
       setShowAddFamilyModal(false);
       setNewMember({ name: '', relationship: 'child', avatar_type: 'preset', avatar_preset: 'star', avatar_custom: '' });
       fetchData();
-      refreshStudents();
+      // Real fix Sep 24 (item2, second device-log pass): force bypasses refreshStudents' new
+      // 30s TTL cache - a family member was just added, must reflect now.
+      refreshStudents({ force: true });
     } catch (error: any) {
       console.error('Error adding family member:', error);
       Alert.alert(t('error') || 'Error', error.message || (t('failed_add_family_member_login') || 'Failed to add family member. Please make sure you are logged in as a parent.'));
@@ -1704,7 +1706,10 @@ export default function ParentDashboard() {
                                 if (res.ok) {
                                   setShowAddFamilyModal(false);
                                   fetchData();
-                                  refreshStudents();
+                                  // Real fix Sep 24 (item2, second device-log pass): force
+                                  // bypasses refreshStudents' new 30s TTL cache - a student
+                                  // was just linked into the family, must reflect now.
+                                  refreshStudents({ force: true });
                                   Alert.alert(`✅ ${t('added_exclaim') || 'Added!'}`, `${s.name} ${t('added_to_family_dashboard_desc') || 'has been added to your family dashboard.'}`);
                                 } else {
                                   let detail = resText;

@@ -137,7 +137,9 @@ export default function CreateProfileScreen() {
           avatar_custom: avatarType === 'custom' ? customImage || undefined : undefined,
         });
       }
-      await refreshStudents();
+      // Real fix Sep 24 (item2, second device-log pass): force bypasses refreshStudents' new
+      // 30s TTL cache - a student was just created, the list must reflect it now.
+      await refreshStudents({ force: true });
       Alert.alert('Profile Created!', `${name}'s profile has been created.`, [
         { text: 'OK', onPress: () => router.back() }
       ]);
@@ -173,7 +175,7 @@ export default function CreateProfileScreen() {
         };
         students.push(newStudent);
         await AsyncStorage.setItem('local_students', JSON.stringify(students));
-        await refreshStudents();
+        await refreshStudents({ force: true });
         Alert.alert('Profile Created!', `${name}'s profile has been created.`, [
           { text: 'OK', onPress: () => router.back() }
         ]);
