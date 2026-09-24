@@ -17588,6 +17588,25 @@ async def get_parent_resources(request: Request, topic: Optional[str] = None):
         all_resources = resources_result.data or []
         allowed_audiences = ["parents", "both", None, ""]
         visible = []
+        # Real fix Sep 24 (item6, second device-log pass - Metro log: "first GET /resources
+        # times out, later ones succeed"): this used to issue ONE teacher_resource_ratings
+        # query PER RESOURCE inside this loop. supabase-py's client is synchronous - a blocking
+        # loop of N sequential round trips here monopolises this process's single worker for
+        # its whole duration, which is what was actually starving the concurrent GET /resources
+        # request the frontend fires in the same Promise.all (fetchResources in parent/
+        # resources.tsx) - that endpoint's own query is trivially fast on its own, confirmed by
+        # reading it, but it can't even START until whatever's blocking the worker releases it.
+        # The "All" tab (unfiltered topic) has the largest N and was therefore the most likely
+        # to blow the 30s timeout; topic tabs (smaller N, and anyway filtered client-side after
+        # one fetch - see parent/resources.tsx) "worked first time" because there was nothing
+        # to time out. Matches the sibling /teacher-resources endpoint's own already-correct
+        # pattern (one query for every rating, filtered per-resource in Python by
+        # _resource_to_teacher_resource) instead of duplicating the old per-resource loop here.
+        try:
+            all_ratings_result = supabase.table("teacher_resource_ratings").select("*").execute()
+            all_ratings = all_ratings_result.data or []
+        except Exception:
+            all_ratings = []
         for r in all_resources:
             r_audience = r.get("target_audience", "both")
             if r_audience not in allowed_audiences:
@@ -17595,12 +17614,7 @@ async def get_parent_resources(request: Request, topic: Optional[str] = None):
             resource_topic = r.get("topic") or r.get("category") or "general"
             if topic and topic != "all" and resource_topic != topic:
                 continue
-            try:
-                ratings_result = supabase.table("teacher_resource_ratings").select("*").eq("resource_id", r["id"]).execute()
-                ratings = ratings_result.data or []
-            except Exception:
-                ratings = []
-            visible.append(_resource_to_teacher_resource(r, ratings))
+            visible.append(_resource_to_teacher_resource(r, all_ratings))
         return visible
     except Exception as e:
         logger.error(f"get_parent_resources error: {e}")

@@ -55,6 +55,59 @@ const getTopics = (t: (key: string) => string) => [
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
+// Real fix Sep 24 (item6, second device-log pass - Metro log showed GET /resources firing 5x
+// across one session): resource content changes rarely (teacher/admin uploads, not per-visit
+// data), so a plain module-level cache + in-flight collapse is enough - no need for the full
+// AppContext treatment the more dynamic student/creature data got earlier this session. A
+// revisit to this screen within RESOURCES_TTL_MS of the last successful fetch reuses the
+// cached result instead of re-hitting the network; pull-to-refresh always forces a real fetch.
+const RESOURCES_TTL_MS = 30000;
+let resourcesCache: { generalData: Resource[]; parentResourcesData: TeacherResource[] } | null = null;
+let resourcesCacheAt = 0;
+let resourcesInFlight: Promise<{ generalData: Resource[]; parentResourcesData: TeacherResource[] }> | null = null;
+
+async function fetchResourcesShared(force: boolean): Promise<{ generalData: Resource[]; parentResourcesData: TeacherResource[] }> {
+  if (!force && resourcesCache && Date.now() - resourcesCacheAt < RESOURCES_TTL_MS) {
+    return resourcesCache;
+  }
+  if (resourcesInFlight) return resourcesInFlight;
+  resourcesInFlight = (async () => {
+    const [generalData, parentResourcesData] = await Promise.all([
+      resourcesApi.getAll(),
+      // Fetch resources shared with parents (audience=parents or both)
+      (async () => {
+        try {
+          const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+          const token = await AsyncStorage.getItem('session_token');
+          const r = await fetch(`${BACKEND_URL}/api/parent/resources`, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token || ''}`,
+            }
+          });
+          if (!r.ok) {
+            console.error(`/api/parent/resources failed: HTTP ${r.status}`);
+            return [];
+          }
+          return await r.json();
+        } catch (err) {
+          console.error('/api/parent/resources threw:', err);
+          return [];
+        }
+      })(),
+    ]);
+    const result = { generalData, parentResourcesData };
+    resourcesCache = result;
+    resourcesCacheAt = Date.now();
+    return result;
+  })();
+  try {
+    return await resourcesInFlight;
+  } finally {
+    resourcesInFlight = null;
+  }
+}
+
 export default function ResourcesScreen() {
   const router = useRouter();
   const { t, isAuthenticated, user } = useApp();
@@ -77,32 +130,12 @@ export default function ResourcesScreen() {
   const [ratings, setRatings] = useState<TeacherResourceRating[]>([]);
   const [loadingRatings, setLoadingRatings] = useState(false);
 
-  const fetchResources = async () => {
+  // Real fix Sep 24 (item6, second device-log pass): `force` bypasses fetchResourcesShared's
+  // TTL cache - see that function's own comment. Mount uses the cache (force:false); pull-to-
+  // refresh is an explicit "give me the real current state" request, so it always forces.
+  const fetchResources = async (force: boolean) => {
     try {
-      const [generalData, parentResourcesData] = await Promise.all([
-        resourcesApi.getAll(),
-        // Fetch resources shared with parents (audience=parents or both)
-        (async () => {
-          try {
-            const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-            const token = await AsyncStorage.getItem('session_token');
-            const r = await fetch(`${BACKEND_URL}/api/parent/resources`, {
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token || ''}`,
-              }
-            });
-            if (!r.ok) {
-              console.error(`/api/parent/resources failed: HTTP ${r.status}`);
-              return [];
-            }
-            return await r.json();
-          } catch (err) {
-            console.error('/api/parent/resources threw:', err);
-            return [];
-          }
-        })(),
-      ]);
+      const { generalData, parentResourcesData } = await fetchResourcesShared(force);
       setResources(generalData);
       setParentTeacherResources(parentResourcesData);
     } catch (error) {
@@ -113,12 +146,12 @@ export default function ResourcesScreen() {
   };
 
   useEffect(() => {
-    fetchResources();
+    fetchResources(false);
   }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchResources();
+    await fetchResources(true);
     setRefreshing(false);
   };
 
@@ -287,23 +320,17 @@ export default function ResourcesScreen() {
 
     // Real bug fix Aug 29 (item 2): previously ONLY emotions_program was sorted at all - every
     // other category (including Healthy Relationships/Leader Online) showed raw, unsorted
-    // fetch order, which is why it didn't match the portal's real display order. Matches the
-    // portal's own real-data sort (rmRenderList) instead: any topic where at least one resource
-    // carries a real week_number sorts by week ascending (999 sentinel for null/0, order_index
-    // as tiebreak) - confirmed live that Healthy Relationships (21/23) and Leader Online
-    // (23/28) both carry real week data too, not just Emotions Program (17/20). Topics with no
-    // real week data fall back to a plain order_index sort.
-    const weekSortable = combined.some(r => r.week_number != null && r.week_number > 0);
-    if (weekSortable) {
-      combined = combined.slice().sort((a, b) => {
-        const wa = (a.week_number != null && a.week_number > 0) ? a.week_number : 999;
-        const wb = (b.week_number != null && b.week_number > 0) ? b.week_number : 999;
-        if (wa !== wb) return wa - wb;
-        return (a.order_index || 0) - (b.order_index || 0);
-      });
-    } else {
-      combined = combined.slice().sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
-    }
+    // fetch order, which is why it didn't match the portal's real display order.
+    // Real fix Sep 24 (item6, second device-log pass, Jono's explicit standing rule): tiebreak
+    // changed from order_index to created_at desc - week_number ascending (999 sentinel for
+    // null/0) first, newest-first within a week second. No rating/download sort, matching
+    // every other resource list in the app.
+    combined = combined.slice().sort((a, b) => {
+      const wa = (a.week_number != null && a.week_number > 0) ? a.week_number : 999;
+      const wb = (b.week_number != null && b.week_number > 0) ? b.week_number : 999;
+      if (wa !== wb) return wa - wb;
+      return (b.created_at || '').localeCompare(a.created_at || '');
+    });
     return combined;
   })();
 
