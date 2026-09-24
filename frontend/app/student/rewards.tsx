@@ -6,8 +6,8 @@ import {
   TouchableOpacity,
   Animated,
   Easing,
-  ScrollView,
-  Alert
+  Alert,
+  LayoutChangeEvent,
 } from 'react-native';
 // Real fix Sep 21 (device report): this screen imported SafeAreaView from plain
 // 'react-native' - iOS-only, a complete no-op on Android (same gap TranslatedHeader.tsx's
@@ -117,6 +117,29 @@ export default function RewardsScreen() {
   const [evolveSkipped, setEvolveSkipped] = useState(false);
   const [tipVisible, setTipVisible] = useState(true);
   const tipOpacityAnim = useRef(new Animated.Value(1)).current;
+
+  // Real fix Sep 24 (item2, no-scroll reward screen): this screen must fit without scrolling
+  // in every state (normal reward, evolve-available, evolved) on a ~6" phone - the old design
+  // wrapped everything in a ScrollView with a fixed-size (200px) creature image, which just
+  // hid the overflow behind a scroll instead of actually fitting it. `bodyHeight` is the real,
+  // measured space between the header and the pinned action-button bar (flex:1, so it reflects
+  // the viewport, not the content - no measure/re-render feedback loop); `creatureAreaHeight`
+  // is that same flex:1 creature section's own measured height, which - since it's the one
+  // flexible element in the column - is exactly "however much the fixed content above and
+  // below it left over". The creature image is capped to fit that (see maxContainerSize
+  // below) instead of the page overflowing, and on a genuinely tiny viewport the two
+  // secondary/dismissible banners (zone tip, Brave Shield) collapse first rather than ever
+  // shrinking a button below 48dp.
+  const [bodyHeight, setBodyHeight] = useState<number | null>(null);
+  const [creatureAreaHeight, setCreatureAreaHeight] = useState<number | null>(null);
+  const isCompactViewport = bodyHeight !== null && bodyHeight < 260;
+  const handleBodyLayout = (e: LayoutChangeEvent) => setBodyHeight(e.nativeEvent.layout.height);
+  const handleCreatureAreaLayout = (e: LayoutChangeEvent) => setCreatureAreaHeight(e.nativeEvent.layout.height);
+  // Reserves room for the name+description text CreatureDisplay/CommunityCreatureDisplay
+  // render below their own image - both cap out around ~100px of caption + padding at any
+  // container size, confirmed against each component's own styles (container padding:16
+  // top+bottom, name/description/dots stack beneath).
+  const creatureMaxSize = creatureAreaHeight != null ? Math.max(64, creatureAreaHeight - 100) : undefined;
 
   const dismissTip = () => {
     Animated.timing(tipOpacityAnim, {
@@ -416,7 +439,7 @@ export default function RewardsScreen() {
           the remaining space itself - dropping flexGrow lets it size to its real content
           height instead, so the gap above the buttons collapses when the shield is gone,
           while still scrolling correctly when content is genuinely tall (shield showing). */}
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <View style={styles.body} onLayout={handleBodyLayout}>
       {/* Real fix Sep 23 (device report): this used to be deliberately "pushed down from
           top" via a redundant extra headerSpacer View stacked on top of header's own
           paddingTop - now that the top bar above has no title of its own competing for
@@ -434,7 +457,10 @@ export default function RewardsScreen() {
 
       {/* Creature Display — real feature Aug 21: a community creature (photo-based) can now be
           the active pursuit for a colour, alongside the emoji-based default creatures. */}
-      <Animated.View style={[styles.creatureSection, { transform: [{ translateY: bounceAnim }] }]}>
+      <Animated.View
+        style={[styles.creatureSection, { transform: [{ translateY: bounceAnim }] }]}
+        onLayout={handleCreatureAreaLayout}
+      >
         {rewardsData?.current_creature?.creature_type === 'community' ? (
           <CommunityCreatureDisplay
             name={rewardsData.current_creature.name}
@@ -445,6 +471,7 @@ export default function RewardsScreen() {
             stage4_url={rewardsData.current_creature.stage4_url}
             stage={visibleStage}
             size="large"
+            maxContainerSize={creatureMaxSize}
           />
         ) : (
           <CreatureDisplay
@@ -456,6 +483,7 @@ export default function RewardsScreen() {
             showProgress={false}
             showGrowthIndicator={false}
             animated={true}
+            maxContainerSize={creatureMaxSize}
           />
         )}
       </Animated.View>
@@ -559,7 +587,13 @@ export default function RewardsScreen() {
         const tips = ZONE_TIPS[colour] || ZONE_TIPS.green;
         const tip = tips[Math.floor(Date.now() / 1000) % tips.length];
         const msg = STUDENT_COLOUR_MESSAGE[colour] || '';
-        return colour && tipVisible ? (
+        // Real fix Sep 24 (item2, no-scroll reward screen): this generic zone tip and the
+        // Brave Shield badge below are both dismissible asides, never the reason a student
+        // opened this screen - the shield (their own real effort) takes priority on a
+        // shorter viewport where showing both at once, on top of the evolve-available
+        // buttons, is what actually pushed the layout budget over.
+        const shieldShowing = !!shield?.has_shield && !shieldDismissed;
+        return colour && tipVisible && !isCompactViewport && !shieldShowing ? (
           <Animated.View style={{ opacity: tipOpacityAnim, marginHorizontal:20, marginBottom:10, padding:14, borderRadius:14,
             backgroundColor: colour==='blue'?'#EBF5FB': colour==='green'?'#EAFAF1': colour==='yellow'?'#FEFDE7':'#FDEDEC',
             borderLeftWidth:4, borderLeftColor: colour==='blue'?EMOTION_COLOURS.blue: colour==='green'?EMOTION_COLOURS.green: colour==='yellow'?EMOTION_COLOURS.yellow:EMOTION_COLOURS.red }}>
@@ -577,7 +611,7 @@ export default function RewardsScreen() {
       })()}
 
       {/* Brave Shield Badge */}
-      {shield?.has_shield && !shieldDismissed && (
+      {shield?.has_shield && !shieldDismissed && !isCompactViewport && (
         <View style={styles.shieldContainer}>
           {/* Real fix Sep 15: swipe-to-dismiss added, matching the Swipeable pattern already
               used for the parent/teacher dashboard tips (renderRightActions null +
@@ -625,7 +659,7 @@ export default function RewardsScreen() {
           </Swipeable>
         </View>
       )}
-      </ScrollView>
+      </View>
 
       {/* Action Buttons */}
       <View style={styles.buttonContainer}>
@@ -754,17 +788,22 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#666',
   },
+  // Real fix Sep 24 (item2, no-scroll reward screen): replaces the old ScrollView - flex:1
+  // fills exactly the space left between the header above and the pinned button bar below,
+  // and is what makes creatureSection's own flex:1 (below) mean something real instead of
+  // "however tall its content happens to be".
+  body: {
+    flex: 1,
+  },
   header: {
     alignItems: 'center',
-    // Real fix Sep 23 (device report): trimmed from 20 - was on top of a now-removed
-    // separate 20px headerSpacer View, so the real gap above this heading was ~40px total.
-    // The top bar above has no title of its own anymore either, so there's nothing left
-    // this needed to clear beyond a small breathing gap.
-    paddingTop: 8,
-    // Real fix Aug 21: was 10 - not enough fixed clearance before the creature circle below,
-    // so its bounce animation reached up into this subtitle. Combined with softening the
-    // bounce range itself (see bounceAnim below) so there's no overlap even at full bounce.
-    paddingBottom: 26,
+    // Real fix Sep 24 (item2): trimmed further (was 8) - every px here is now taken directly
+    // out of creatureSection's flex:1 share on a short viewport.
+    paddingTop: 4,
+    // Real fix Sep 24 (item2): trimmed from 26 - was pure breathing room, not clearance the
+    // bounce animation actually needs (that's still guaranteed by creatureSection's own
+    // paddingVertical below); this screen no longer has spare vertical budget to give away.
+    paddingBottom: 10,
   },
   headerTitle: {
     fontSize: 32,
@@ -777,19 +816,24 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   creatureSection: {
-    // Real bug fix Aug 21: this was `flex: 1`, competing for space with every sibling below it
-    // (points/progress/tip/shield/buttons) in the same flex column - when the Bronze Shield
-    // badge was also showing, the box could compress enough that the bouncing creature's
-    // bottom edge visually overlapped the shield card. Bounded to a fixed minHeight instead so
-    // it never shrinks below the creature graphic's own size, regardless of what else renders.
-    minHeight: 240,
+    // Real fix Sep 24 (item2, no-scroll reward screen): the Aug 21 fix above bounded this to a
+    // fixed minHeight specifically to stop it competing for space with its siblings - correct
+    // for a ScrollView page where "competing for space" meant an ugly cramped creature, but
+    // wrong now that the page must fit without scrolling at all. This is now the ONE flexible
+    // element in the column (every sibling below is fixed-height/content-sized) - it's
+    // supposed to absorb whatever's left, and the creature image itself shrinks to fit it via
+    // CreatureDisplay/CommunityCreatureDisplay's maxContainerSize prop (see rewards.tsx's
+    // creatureMaxSize) rather than ever overflowing. minHeight is now just a hard floor so the
+    // image never collapses to nothing on an extreme viewport.
+    flex: 1,
+    minHeight: 64,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: 6,
   },
   pointsSection: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 8,
   },
   pointsEarned: {
     fontSize: 36,
@@ -803,7 +847,9 @@ const styles = StyleSheet.create({
   },
   progressHint: {
     alignItems: 'center',
-    marginBottom: 20,
+    // Real fix Sep 24 (item2, no-scroll reward screen): trimmed from 20 - see
+    // evolveActionsRow's matching note.
+    marginBottom: 10,
     paddingHorizontal: 32,
   },
   progressHintText: {
@@ -816,20 +862,28 @@ const styles = StyleSheet.create({
   // on this screen, no flashing/pulsing.
   evolveButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#5C6BC0', borderRadius: 16, paddingVertical: 12, paddingHorizontal: 24,
+    // Real fix Sep 24 (item2): paddingVertical bumped 12->14 - at fontSize 15 the old value
+    // resolved to a ~44dp tall hit target, under the 48dp floor this fix is required to keep
+    // every button at or above (never the thing that gets shrunk to reclaim space).
+    backgroundColor: '#5C6BC0', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 24,
   },
   evolveButtonText: {
     color: 'white', fontSize: 15, fontWeight: '800',
   },
   evolveActionsRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-    marginBottom: 20,
+    // Real fix Sep 24 (item2, no-scroll reward screen): trimmed from 20 - pure breathing room
+    // reclaimed for creatureSection's flex:1 share; the row's own buttons are untouched.
+    marginBottom: 10,
   },
   // Real feature Sep 15 (B1, points economy v2, Jono-approved): deliberately lower visual
   // weight than evolveButton (outline, not filled) - a real, easy-to-take option, but not
   // competing with the primary joyful action.
   evolveSkipButton: {
-    paddingVertical: 12, paddingHorizontal: 16, borderRadius: 16,
+    // Real fix Sep 24 (item2): paddingVertical bumped 12->16 - at fontSize 13 the old value
+    // resolved to a ~40dp tall hit target, under the 48dp floor (see evolveButton's matching
+    // note).
+    paddingVertical: 16, paddingHorizontal: 16, borderRadius: 16,
     borderWidth: 1.5, borderColor: '#DDD',
   },
   evolveSkipButtonText: {
@@ -838,8 +892,13 @@ const styles = StyleSheet.create({
   buttonContainer: {
     flexDirection: 'column',
     paddingHorizontal: 20,
-    paddingBottom: 40,
-    paddingTop: 16,
+    // Real fix Sep 24 (item2, no-scroll reward screen): trimmed from 40/16 - this was pure
+    // breathing room stacked on top of SafeAreaView's own bottom inset (edges includes
+    // 'bottom' above), not clearance anything needs; every px here was competing directly
+    // with creatureSection's flex:1 share for a no-scroll fit. Button sizes/gap between them
+    // are untouched - only the outer margin shrank.
+    paddingBottom: 18,
+    paddingTop: 10,
     gap: 12,
   },
   collectionButton: {
@@ -853,7 +912,7 @@ const styles = StyleSheet.create({
     gap: 8,
     width: '100%',
   },
-  shieldContainer: { paddingHorizontal: 20, marginTop: 8, marginBottom: 12 },
+  shieldContainer: { paddingHorizontal: 20, marginTop: 6, marginBottom: 8 },
   shieldCard: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#FFF8E1', borderRadius: 14, padding: 14, paddingRight: 30, gap: 12, borderWidth: 1.5, borderColor: '#FFD54F', position: 'relative' },
   shieldDismissBtn: { position: 'absolute', top: 8, right: 8, zIndex: 1 },
   shieldDismissText: { fontSize: 14, fontWeight: '900', color: '#B8860B' },
@@ -871,7 +930,9 @@ const styles = StyleSheet.create({
   // (real intrinsic size) still renders fine. width:'100%' plus maxWidth
   // keeps the same centred, capped-width look but gives the bar a real
   // parent width to fill.
-  evolveProgressContainer: { width: '100%', maxWidth: 220, alignSelf: 'center', marginTop: -8, marginBottom: 12 },
+  // Real fix Sep 24 (item2, no-scroll reward screen): marginBottom trimmed 12->6 - see
+  // evolveActionsRow's matching note.
+  evolveProgressContainer: { width: '100%', maxWidth: 220, alignSelf: 'center', marginTop: -8, marginBottom: 6 },
   collectionButtonText: {
     color: '#FFD700',
     fontSize: 16,

@@ -13,6 +13,12 @@ interface CreatureDisplayProps {
   showProgress?: boolean;
   animated?: boolean;
   showGrowthIndicator?: boolean;
+  // Real fix Sep 24 (item2, no-scroll reward screen): `size` only ever picks from 3 fixed
+  // pixel presets - no way for a caller sitting in a flex:1 area of unknown, viewport-
+  // dependent height (rewards.tsx's evolve-available state) to ask for "whatever fits".
+  // When set, caps the preset's container/emoji size down (never up) to this many px, so the
+  // image genuinely shrinks to absorb a tight layout instead of forcing the page to scroll.
+  maxContainerSize?: number;
 }
 
 // Animation configurations for each creature type based on zone
@@ -97,6 +103,7 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
   showProgress = true,
   animated = true,
   showGrowthIndicator = true,
+  maxContainerSize,
 }) => {
   const { t, language } = useApp();
   // Animation values
@@ -121,11 +128,16 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
   // Growth multiplier: creature grows 25% larger as it progresses through stage
   const growthMultiplier = 1 + (progressInStage * 0.25);
   
-  const sizeConfig = {
+  const basePreset = {
     small: { emoji: 40, container: 80, fontSize: 12 },
     medium: { emoji: 80, container: 140, fontSize: 14 },
     large: { emoji: 120, container: 200, fontSize: 16 },
   }[size];
+
+  // Real fix Sep 24 (item2): scale the emoji down by the same ratio the container is capped
+  // by, so a shrunk container never crops/overflows an emoji sized for the full preset.
+  const containerScale = maxContainerSize ? Math.min(1, maxContainerSize / basePreset.container) : 1;
+  const sizeConfig = { ...basePreset, container: basePreset.container * containerScale, emoji: basePreset.emoji * containerScale };
 
   // Apply growth to emoji size
   const dynamicEmojiSize = sizeConfig.emoji * growthMultiplier;

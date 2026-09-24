@@ -18,12 +18,17 @@ interface CommunityCreatureDisplayProps {
   stage4_url?: string;
   stage: number;
   size?: 'small' | 'medium' | 'large';
+  // Real fix Sep 24 (item2, no-scroll reward screen): see CreatureDisplay's matching prop -
+  // caps the preset size down (never up) so the image can shrink to fit a flex:1 area of
+  // unknown height instead of forcing the page to scroll.
+  maxContainerSize?: number;
 }
 
 export const CommunityCreatureDisplay: React.FC<CommunityCreatureDisplayProps> = ({
-  name, emotionColour, stage1_url, stage2_url, stage3_url, stage4_url, stage, size = 'large',
+  name, emotionColour, stage1_url, stage2_url, stage3_url, stage4_url, stage, size = 'large', maxContainerSize,
 }) => {
-  const container = size === 'large' ? 200 : size === 'medium' ? 140 : 80;
+  const presetContainer = size === 'large' ? 200 : size === 'medium' ? 140 : 80;
+  const container = maxContainerSize ? Math.min(presetContainer, maxContainerSize) : presetContainer;
   const urls: Record<number, string | undefined> = { 1: stage1_url, 2: stage2_url, 3: stage3_url, 4: stage4_url };
   const imgUrl = urls[Math.max(1, Math.min(stage, 4))] || stage1_url;
   const colour = EMOTION_COLORS[emotionColour || ''] || '#5C6BC0';
