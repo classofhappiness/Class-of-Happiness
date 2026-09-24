@@ -149,7 +149,6 @@ export default function TeacherDashboardScreen() {
   const [checkinsExpanded, setCheckinsExpanded] = useState(false);
   const [graphExpanded, setGraphExpanded] = useState(false);
   const [tipDismissed, setTipDismissed] = useState(false);
-  const [localClassrooms, setLocalClassrooms] = useState<any[]>([]);
   const [supportRequestsEnabled, setSupportRequestsEnabled] = useState(false);
 
   // Real feature Sep 10 (build 27): Support Request tile only shows when the school has
@@ -272,11 +271,12 @@ export default function TeacherDashboardScreen() {
       } : { zone_counts: { blue:0, green:0, yellow:0, red:0 } };
       setAnalytics(analyticsData);
 
-      // Fetch classrooms directly as fallback
-      try {
-        const crRes = await fetch(`${BACKEND_URL}/api/classrooms`, { headers: h });
-        if (crRes.ok) { const crData = await crRes.json(); if (Array.isArray(crData) && crData.length > 0) setLocalClassrooms(crData); }
-      } catch {}
+      // Real fix Sep 24 (item3, third device-log pass): this direct fetch was a real,
+      // always-firing duplicate of refreshClassrooms() (called separately on focus/refresh
+      // below) - not an actual fallback (it ran unconditionally, not just when AppContext's
+      // classrooms was empty), contributing directly to the x3 GET /classrooms count. Removed;
+      // every classrooms reference on this screen now reads AppContext's own `classrooms`
+      // (which refreshClassrooms keeps fresh) directly, no local shadow copy.
 
       // Alert count
       const alertsRes = await fetch(`${BACKEND_URL}/api/notifications/alerts`, { headers: h }).catch(() => null);
@@ -338,7 +338,22 @@ export default function TeacherDashboardScreen() {
   }, [loadData, refreshAlertCount]));
 
   // Reload when period or classroom filter changes (debounced)
+  // Real fix Sep 24 (item3, third device-log pass - Metro log: /zone-logs?days=7 x4,
+  // /classrooms x3, /students x3 on one dashboard load): this effect and the useFocusEffect
+  // below it both called loadData() on the VERY FIRST render - a mount is a "change" for a
+  // dependency array (there's no prior value to compare against), so period/selectedClassroom
+  // "changing" from undefined-ish to their initial values fired this effect immediately,
+  // ~150ms after (not instead of) the focus effect's own immediate loadData() call. Every
+  // fetch loadData makes (zone-logs, analytics, alerts, and until the fix below, its own
+  // direct /classrooms call too) doubled up on every fresh mount as a result.
+  // isFirstFilterEffect skips exactly that one redundant first-mount call - a genuine later
+  // period/classroom change (the reason this effect exists at all) still reloads normally.
+  const isFirstFilterEffect = useRef(true);
   useEffect(() => {
+    if (isFirstFilterEffect.current) {
+      isFirstFilterEffect.current = false;
+      return;
+    }
     const timer = setTimeout(() => { loadData(); }, 150);
     return () => clearTimeout(timer);
   }, [period, selectedClassroom]);
@@ -351,7 +366,9 @@ export default function TeacherDashboardScreen() {
   // shortcut.
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadData(), refreshStudents({ force: true }), refreshClassrooms()]);
+    // Real fix Sep 24 (item3, third device-log pass): refreshClassrooms force:true too - same
+    // "pull-to-refresh must never be shortcut by the TTL" rule as refreshStudents above.
+    await Promise.all([loadData(), refreshStudents({ force: true }), refreshClassrooms({ force: true })]);
     setRefreshing(false);
   };
 
@@ -507,7 +524,7 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
               <TouchableOpacity style={[st.chip,!selectedClassroom&&st.chipActive]} onPress={() => setSelectedClassroom(null)}>
                 <Text style={[st.chipTxt,!selectedClassroom&&st.chipTxtActive]}>{t('all')||'All'}</Text>
               </TouchableOpacity>
-              {(localClassrooms.length > 0 ? localClassrooms : classrooms).map((c:any) => (
+              {classrooms.map((c:any) => (
                 <View key={c.id} style={{flexDirection:'row', alignItems:'center', gap:2}}>
                   <TouchableOpacity style={[st.chip, selectedClassroom===c.id&&st.chipActive]}
                     onPress={() => setSelectedClassroom(c.id)}>
@@ -584,7 +601,7 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
                         : <View style={st.schoolBadge}><Text style={st.schoolBadgeTxt}>🏫 SCHOOL</Text></View>;
                     })()}
                   </View>
-                  {(() => { const s = getStudent(log.student_id); const allCl = localClassrooms.length > 0 ? localClassrooms : classrooms; const cl = s?.classroom_id ? allCl.find((c:any)=>c.id===s.classroom_id) : null; return cl ? <Text style={{fontSize:9,color:'#AAA'}}>{cl.name}</Text> : null; })()}
+                  {(() => { const s = getStudent(log.student_id); const cl = s?.classroom_id ? classrooms.find((c:any)=>c.id===s.classroom_id) : null; return cl ? <Text style={{fontSize:9,color:'#AAA'}}>{cl.name}</Text> : null; })()}
                   {(log as any).strategies_selected?.length > 0 && (
                     <Text style={st.logStrats} numberOfLines={1}>
                       {(log as any).strategies_selected.slice(0,2).map((s:string)=>strategyNames[s]||resolveStrategy(s, t)).join(', ')}
@@ -611,7 +628,7 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
         {graphExpanded && (
           <View style={{paddingHorizontal:16,paddingTop:4,paddingBottom:2}}>
             <Text style={{fontSize:12,color:'#5C6BC0',fontWeight:'600',textAlign:'center'}}>
-              {selectedClassroom ? `📍 ${(localClassrooms.length > 0 ? localClassrooms : classrooms).find((c:any)=>c.id===selectedClassroom)?.name||'Classroom'}` : `🏫 ${t('all')||'All Classrooms'}`}
+              {selectedClassroom ? `📍 ${classrooms.find((c:any)=>c.id===selectedClassroom)?.name||'Classroom'}` : `🏫 ${t('all')||'All Classrooms'}`}
             </Text>
           </View>
         )}
@@ -761,7 +778,7 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
               the heading itself instead of a lightweight active-filter indicator. */}
           <Text style={{fontWeight:'400', color:'#666'}}>
             {period !== 1 ? ` · ${periodLabel(period)}` : ''}
-            {selectedClassroom ? ` · ${(localClassrooms.length > 0 ? localClassrooms : classrooms).find((c:any)=>c.id===selectedClassroom)?.name || ''}` : ''}
+            {selectedClassroom ? ` · ${classrooms.find((c:any)=>c.id===selectedClassroom)?.name || ''}` : ''}
           </Text>
         </Text>
         <View style={{flexDirection:'row', gap:8, marginBottom:8}}>

@@ -133,7 +133,9 @@ export default function ManageClassroomsScreen() {
     setCreating(true);
     try {
       await classroomsApi.create({ name: newClassName.trim(), teacher_name: newTeacherName.trim() || undefined });
-      await refreshClassrooms();
+      // Real fix Sep 24 (item3, third device-log pass): force bypasses refreshClassrooms' new
+      // 30s TTL cache - a classroom was just created, must reflect now.
+      await refreshClassrooms({ force: true });
       setCreateModalVisible(false);
       setNewClassName('');
       setNewTeacherName('');
@@ -164,7 +166,9 @@ export default function ManageClassroomsScreen() {
           onPress: async () => {
             try {
               await classroomsApi.delete(classroom.id);
-              await refreshClassrooms();
+              // Real fix Sep 24 (item3, third device-log pass): force bypasses
+              // refreshClassrooms' new 30s TTL cache - a classroom was just deleted.
+              await refreshClassrooms({ force: true });
             } catch {
               Alert.alert('Error', 'Failed to delete classroom.');
             }

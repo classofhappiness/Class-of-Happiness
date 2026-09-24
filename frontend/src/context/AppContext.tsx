@@ -103,7 +103,9 @@ interface AppContextType {
   // Real fix Sep 24 (item2, second device-log pass): options.force bypasses the TTL cache
   // (see refreshStudents's own implementation comment) - pass it after any real mutation.
   refreshStudents: (options?: { force?: boolean }) => Promise<void>;
-  refreshClassrooms: () => Promise<void>;
+  // Real fix Sep 24 (item3, third device-log pass): options.force bypasses the TTL cache -
+  // see refreshClassrooms's own implementation comment.
+  refreshClassrooms: (options?: { force?: boolean }) => Promise<void>;
   
   // Subscription
   hasActiveSubscription: boolean;
@@ -501,7 +503,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const refreshClassrooms = async () => {
+  // Real fix Sep 24 (item3, third device-log pass - Metro log: GET /classrooms x3 on one
+  // teacher dashboard load): same TTL + in-flight-collapse pattern already built for
+  // refreshStudents (see that function's own comment for the full rationale) - a plain
+  // refreshClassrooms() within 30s of the last successful fetch is now a no-op;
+  // refreshClassrooms({force:true}) always does a real fetch (used by pull-to-refresh).
+  const CLASSROOMS_TTL_MS = 30000;
+  const lastClassroomsFetchAtRef = useRef<number>(0);
+  const refreshClassroomsInFlightRef = useRef<Promise<void> | null>(null);
+  const refreshClassrooms = async (options?: { force?: boolean }) => {
+    if (!options?.force && Date.now() - lastClassroomsFetchAtRef.current < CLASSROOMS_TTL_MS) return;
+    if (refreshClassroomsInFlightRef.current) return refreshClassroomsInFlightRef.current;
+    const promise = doRefreshClassrooms().finally(() => {
+      refreshClassroomsInFlightRef.current = null;
+      lastClassroomsFetchAtRef.current = Date.now();
+    });
+    refreshClassroomsInFlightRef.current = promise;
+    return promise;
+  };
+  const doRefreshClassrooms = async () => {
     if (!isAuthenticated) return; // ✅ Don't fetch if not logged in
     // Real fix (build 26, Sep 6), same family as refreshStudents above: GET /classrooms is
     // teacher/school_admin/superadmin-only server-side. A parent account always got back a
