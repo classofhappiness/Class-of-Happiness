@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../src/context/AppContext';
 import { translationsApi, subscriptionApi, authApiExtended } from '../src/utils/api';
 import { loadVoiceEnabled, setVoiceEnabled } from '../src/utils/voiceClips';
+import { useWellbeingSharing } from '../src/utils/useWellbeingSharing';
 import { SecureField } from '../src/components/SecureField';
 import { RTL_RESTART_FLOW_READY, needsRtlRestart, applyRtlAndRestart } from '../src/utils/rtl';
 
@@ -199,37 +200,14 @@ export default function SettingsScreen() {
   // Real feature Aug 21: teacher-consent for school_admin to see individual wellbeing
   // check-ins — default-off, explicit opt-in, revocable any time. Mirrors the parent<->
   // teacher home-sharing toggle pattern.
-  const [wellbeingShared, setWellbeingShared] = useState(false);
-  const [wellbeingSharedLoading, setWellbeingSharedLoading] = useState(false);
-  useEffect(() => {
-    if (user?.role !== 'teacher') return;
-    (async () => {
-      try {
-        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-        const token = await AsyncStorage.getItem('session_token');
-        const res = await fetch(`${BACKEND_URL}/api/teacher/wellbeing-sharing-status`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        if (res.ok) { const data = await res.json(); setWellbeingShared(!!data.shared); }
-      } catch {}
-    })();
-  }, [user?.role]);
+  // Real fix Sep 24 (item4, second device-log pass): the fetch/toggle logic itself moved to
+  // useWellbeingSharing (shared with teacher/checkin.tsx, which now shows this same toggle) -
+  // see that hook's own comment for why.
+  const { shared: wellbeingShared, loading: wellbeingSharedLoading, toggle: toggleWellbeingSharing } = useWellbeingSharing(user?.role === 'teacher');
   const handleWellbeingSharingToggle = async () => {
-    setWellbeingSharedLoading(true);
-    try {
-      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-      const token = await AsyncStorage.getItem('session_token');
-      const res = await fetch(`${BACKEND_URL}/api/teacher/toggle-wellbeing-sharing`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (res.ok) { setWellbeingShared(!!data.shared); }
-      else { Alert.alert(t('error') || 'Error', data.detail || 'Could not update sharing status.'); }
-    } catch {
-      Alert.alert(t('error') || 'Error', 'Could not update sharing status. Please try again.');
-    } finally {
-      setWellbeingSharedLoading(false);
+    const result = await toggleWellbeingSharing();
+    if (!result.ok) {
+      Alert.alert(t('error') || 'Error', result.detail || 'Could not update sharing status. Please try again.');
     }
   };
 

@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
   ScrollView, KeyboardAvoidingView, Platform, Alert, TextInput, Modal, Linking,
+  Switch, ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
@@ -12,6 +13,7 @@ import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { useFixedGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
 import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
+import { useWellbeingSharing } from '../../src/utils/useWellbeingSharing';
 
 type FeelingZone = 'blue' | 'green' | 'yellow' | 'red';
 
@@ -63,6 +65,17 @@ export default function TeacherCheckInScreen() {
   const zoneCardWidth = gridCardWidth(useFixedGridColumns(ZONES.length));
   const router = useRouter();
   const { user , t} = useApp();
+  // Real fix Sep 24 (item4, second device-log pass): the "Share With My School Admin" toggle
+  // used to live here too - Jono's report was that it's now only in Settings. Same shared
+  // hook, same backend field (teacher_wellbeing_shared_with_admin) as Settings' copy - see
+  // useWellbeingSharing's own comment. Settings keeps its copy; this is additive, not a move.
+  const { shared: wellbeingShared, loading: wellbeingSharedLoading, toggle: toggleWellbeingSharing } = useWellbeingSharing(user?.role === 'teacher');
+  const handleWellbeingSharingToggle = async () => {
+    const result = await toggleWellbeingSharing();
+    if (!result.ok) {
+      Alert.alert(t('error') || 'Error', result.detail || 'Could not update sharing status. Please try again.');
+    }
+  };
   const [selectedZone, setSelectedZone] = useState<FeelingZone | null>(null);
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
@@ -793,6 +806,31 @@ export default function TeacherCheckInScreen() {
               ));
           })()}
         </View>
+
+        {/* Real feature Sep 24 (item4, second device-log pass): "Share With My School Admin" -
+            see this screen's own useWellbeingSharing wiring above for the shared-field
+            explanation. Only shown once actually linked to a school, matching Settings' own
+            gating for the same toggle. */}
+        {!!(user as any)?.school_name && (
+          <View style={[styles.weekCard, { marginTop: 8 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <MaterialIcons name="favorite-border" size={17} color="#5C6BC0" />
+              <Text style={styles.weekTitle}>{t('share_my_wellbeing') || 'Share My Wellbeing'}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#333' }}>{t('share_with_school_admin') || 'Share With My School Admin'}</Text>
+                <Text style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                  {t('share_wellbeing_desc') || 'When on, your school admin can see your individual wellbeing check-ins. Off by default. You can turn this on or off any time.'}
+                </Text>
+              </View>
+              {wellbeingSharedLoading
+                ? <ActivityIndicator size="small" color="#5C6BC0" />
+                : <Switch value={wellbeingShared} onValueChange={handleWellbeingSharingToggle} trackColor={{ false: '#ddd', true: '#81C784' }} thumbColor={wellbeingShared ? '#4CAF50' : '#999'} />
+              }
+            </View>
+          </View>
+        )}
 
         {/* PDF Download Section */}
         <View style={[styles.weekCard, {marginTop:8}]}>
