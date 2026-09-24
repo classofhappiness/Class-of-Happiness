@@ -1,5 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Pressable, Image } from 'react-native';
+// Real fix Sep 24 (item4, device report): the 20-22dp community-creature thumbnails on these
+// cards were loading through plain RN <Image> - no memory/disk cache of its own, so every
+// render (and every trip back to this screen) re-fetched the SAME full-resolution 1120x1120
+// stageN_url PNG (confirmed against server.py's get_students - stage_image is exactly that
+// field, no thumbnail-sized variant exists yet; reported, not built here per the investigation
+// ask) from the network again. expo-image (already a dependency, previously unused anywhere in
+// the app) actually caches the decoded bitmap - cachePolicy 'memory-disk' means a creature
+// whose image was already shown once (here or elsewhere) renders instantly from memory/disk
+// instead of a fresh decode. Aliased to avoid colliding with RN's Image, still used below for
+// Image.prefetch on the reward-screen handoff.
+import { Image as ExpoImage } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -8,7 +19,7 @@ import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { rewardsApi, creaturesApi, StudentCollection, StudentRewards, Creature } from '../../src/utils/api';
+import { creaturesApi } from '../../src/utils/api';
 import { useDataGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../../src/utils/sounds';
 
@@ -16,19 +27,19 @@ const COMMUNITY_ZONE_COLORS: Record<string, string> = {
   blue: '#4A90D9', green: '#4CAF73', yellow: '#FFC107', red: '#E05252',
 };
 
-interface StudentCreatureData {
-  currentCreature: Creature;
-  currentStage: number;
-  collectedCreatures: Creature[];
-  totalPoints: number;
-}
-
 export default function StudentSelectScreen() {
   const gridColumns = useDataGridColumns();
   const cardWidth = gridCardWidth(gridColumns);
   const router = useRouter();
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
-  const { students, classrooms, presetAvatars, setCurrentStudent, currentStudent, refreshStudents, t, language, translations, user } = useApp();
+  const {
+    students, classrooms, presetAvatars, setCurrentStudent, currentStudent, refreshStudents, t, language, translations, user,
+    // Real fix Sep 24 (item4, device report): the batch creature fetch (and its per-student
+    // fallback) now lives in AppContext, deduped by the real student-id-list content rather
+    // than re-derived by this screen's own effect on every `students` reference change - see
+    // AppContext's matching comment for the full root cause. This screen just reads the result.
+    studentCreatureData, studentCreaturesLoading,
+  } = useApp();
   const isAdult = user && (user.role === 'teacher' || user.role === 'parent' || user.role === 'admin' || user.role === 'school_admin');
   const [selectedClassroom, setSelectedClassroom] = useState<string | null>(null);
   const [localClassrooms, setLocalClassrooms] = useState<any[]>([]);
@@ -56,13 +67,13 @@ export default function StudentSelectScreen() {
     };
     fetchClassrooms();
   }, [isTeacherTierRole]);
-  const [studentCreatures, setStudentCreatures] = useState<Record<string, StudentCreatureData>>({});
-  // Real fix Sep 16 (live-test bug: mini-creatures take ~20s with zero visible feedback,
-  // reading as stuck rather than loading) - renderCreatureIcons returned null with no
-  // indicator at all while this batch fetch was pending. The underlying delay itself is very
-  // likely Railway cold-start (no client-side caching explains why a second visit is
-  // instant), not fixable here - this only makes the wait honest.
-  const [creaturesLoading, setCreaturesLoading] = useState(true);
+  // Real fix Sep 24 (item4, device report): studentCreatures/creaturesLoading are now the
+  // context-provided studentCreatureData/studentCreaturesLoading (aliased to these names so
+  // the rest of this screen - renderCreatureIcons, JSX below - needed no further changes).
+  // The batch fetch itself (and its Sep 16 loading-indicator rationale, still valid) moved to
+  // AppContext - see its matching comment for why (deduping the 4x-per-screen duplicate calls).
+  const studentCreatures = studentCreatureData;
+  const creaturesLoading = studentCreaturesLoading;
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   // Real feature Aug 22 (item 7): the tick/completion row here only ever reflected the 4
   // default per-colour creatures - a Family/Class/School/Global creature a student actively
@@ -92,61 +103,6 @@ export default function StudentSelectScreen() {
   // Preload sounds once
   useEffect(() => { preloadSounds(); }, []);
 
-  // Load ALL creatures in parallel - much faster than one by one
-  useEffect(() => {
-    if (students.length === 0) { setCreaturesLoading(false); return; }
-    setCreaturesLoading(true);
-// Batch fetch all collections in ONE api call
-    const ids = students.map(s => s.id).join(',');
-    const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-    AsyncStorage.getItem('session_token').then(tok => {
-    const token = tok || '';
-    fetch(`${BURL}/api/rewards/batch/collections?student_ids=${ids}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    }).then(r => { console.log('[Creatures] batch response status:', r.status); return r.ok ? r.json() : {}; })
-    .then((batchResults: Record<string,any>) => {
-      const data: Record<string, StudentCreatureData> = {};
-      students.forEach(s => {
-        const c = batchResults[s.id];
-        if (c === null || c === undefined) {
-          // No rewards yet — show default egg
-          data[s.id] = {
-            currentCreature: { id:'egg', name:'Egg', color:'#E0E0E0', stages:[{emoji:'🥚'},{emoji:'🥚'},{emoji:'🥚'},{emoji:'🥚'}] } as any,
-            currentStage: 0,
-            collectedCreatures: [],
-            totalPoints: 0,
-            allCreatures: [],
-          } as any;
-        } else if (c?.current_creature) {
-          data[s.id] = {
-            currentCreature: c.current_creature,
-            currentStage: c.current_stage || 0,
-            collectedCreatures: c.collected_creatures || [],
-            totalPoints: c.current_points || 0,
-            allCreatures: c.all_creatures || [],
-          } as any;
-        }
-      });
-      setStudentCreatures(data);
-      setCreaturesLoading(false);
-    }); }).catch(() => {
-      // Fallback to parallel individual calls
-      Promise.allSettled(
-        students.map(s => rewardsApi.getCollection(s.id).then(c => ({ id: s.id, c })))
-      ).then(results => {
-        const data: Record<string, StudentCreatureData> = {};
-        results.forEach(r => {
-          if (r.status === 'fulfilled' && r.value.c?.current_creature) {
-            const { id, c } = r.value;
-            data[id] = { currentCreature: c.current_creature, currentStage: c.current_stage || 0, collectedCreatures: c.collected_creatures || [], totalPoints: c.current_points || 0, allCreatures: c.all_creatures || [] } as any;
-          }
-        });
-        setStudentCreatures(data);
-        setCreaturesLoading(false);
-      });
-    });
-  }, [students]);
-
   // Real feature Aug 22 (item 7): fetch each student's actively-selected community creatures
   // in parallel - one call per student (no batch endpoint exists for this yet, matching the
   // same fallback pattern already used above), tolerant of individual failures.
@@ -173,6 +129,18 @@ export default function StudentSelectScreen() {
       });
       setStudentActiveCommunity(active);
       setStudentAllCreatureData(allData);
+      // Real fix Sep 24 (item4, device report): warm expo-image's cache for every
+      // community-creature stage_image the moment this data arrives, so the ExpoImage
+      // thumbnails above (cachePolicy 'memory-disk') are normally already decoded by the
+      // time renderCreatureIcons actually renders them, instead of each card triggering its
+      // own first-render fetch of the same full-resolution PNG.
+      const stageImageUrls = new Set<string>();
+      Object.values(allData).forEach(colours => {
+        Object.values(colours).forEach((bucket: any) => {
+          (bucket as any[]).forEach(entry => { if (entry?.stage_image) stageImageUrls.add(entry.stage_image); });
+        });
+      });
+      stageImageUrls.forEach(url => { ExpoImage.prefetch(url).catch(() => {}); });
     }).catch(() => {});
   }, [students]);
 
@@ -328,7 +296,7 @@ export default function StudentSelectScreen() {
           style={[styles.collectedCreatureIcon, { backgroundColor: zoneColor + '30', borderWidth: 1.5, borderColor: zoneColor }]}
         >
           {entry.stage_image ? (
-            <Image source={{ uri: entry.stage_image }} style={styles.communityThumb} />
+            <ExpoImage source={{ uri: entry.stage_image }} style={styles.communityThumb} cachePolicy="memory-disk" />
           ) : (
             <Text style={styles.collectedEmoji}>🐾</Text>
           )}
@@ -413,7 +381,7 @@ export default function StudentSelectScreen() {
                       }]}
                     >
                       {entry.type === 'community' ? (
-                        entry.stage_image ? <Image source={{ uri: entry.stage_image }} style={styles.communityThumb} /> : <Text style={styles.collectedEmoji}>🐾</Text>
+                        entry.stage_image ? <ExpoImage source={{ uri: entry.stage_image }} style={styles.communityThumb} cachePolicy="memory-disk" /> : <Text style={styles.collectedEmoji}>🐾</Text>
                       ) : (
                         <Text style={[styles.collectedEmoji, { opacity: hasProgress ? 1 : 0.4 }]}>{entry.emoji || '🥚'}</Text>
                       )}
@@ -460,7 +428,7 @@ export default function StudentSelectScreen() {
         {/* Collected creatures (smaller) */}
         {collectedCreatures.length > 0 && (
           <View style={styles.collectedIcons}>
-            {collectedCreatures.slice(0, 3).map((creature) => (
+            {collectedCreatures.slice(0, 3).map((creature: any) => (
               <View 
                 key={creature.id} 
                 style={[styles.collectedCreatureIcon, { backgroundColor: creature.color + '30' }]}

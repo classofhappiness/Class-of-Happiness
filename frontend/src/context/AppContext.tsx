@@ -1,14 +1,15 @@
 import * as LANG_TRANSLATIONS from '../translations';
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as ExpoLinking from 'expo-linking';
 import Constants from 'expo-constants';
-import { 
+import {
   Student, Classroom, User, Translations,
   studentsApi, classroomsApi, avatarsApi, PresetAvatar,
-  authApi, translationsApi, setSessionToken, clearSessionToken, initializeSessionToken
+  authApi, translationsApi, setSessionToken, clearSessionToken, initializeSessionToken,
+  rewardsApi,
 } from '../utils/api';
 
 // Helper function to wrap any promise with timeout
@@ -73,6 +74,18 @@ interface AppContextType {
   presetAvatars: PresetAvatar[];
   currentStudent: Student | null;
   currentClassroom: Classroom | null;
+  // Real fix Sep 24 (item4, device report - "[Creatures] batch response status: 200" firing
+  // 4x per screen on select-profile): this used to be fetched independently by
+  // student/select.tsx's own useEffect(..., [students]) - every real setStudents() call
+  // anywhere in the app (AppContext's own background loader on boot, plus select.tsx's own
+  // mount-time refreshStudents()) replaces `students` with a new array reference, re-firing
+  // that dependency even when the actual student ID list hasn't changed. Centralized here
+  // instead, keyed by the real student-id-list content (see lastCreaturesKeyRef below) rather
+  // than by how many times something happened to touch `students` - the network call now
+  // only re-fires when the id list genuinely changes, and every consumer (select.tsx today)
+  // just reads the shared result instead of re-deriving it.
+  studentCreatureData: Record<string, any>;
+  studentCreaturesLoading: boolean;
   
   // Translations
   language: string;
@@ -344,7 +357,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [presetAvatars, setPresetAvatars] = useState<PresetAvatar[]>([]);
   const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
   const [currentClassroom, setCurrentClassroom] = useState<Classroom | null>(null);
-  
+  // Real fix Sep 24 (item4): see the interface's own comment on studentCreatureData above.
+  const [studentCreatureData, setStudentCreatureData] = useState<Record<string, any>>({});
+  const [studentCreaturesLoading, setStudentCreaturesLoading] = useState(false);
+  // Tracks the id-list this data was actually fetched for (sorted+joined, order-independent)
+  // so a `students` reference change with the SAME real ids - the exact thing that produced
+  // the 4x duplicate calls - is recognised as a no-op instead of re-fetching.
+  const lastCreaturesKeyRef = useRef<string | null>(null);
+
   // Translations state
   const [language, setLanguageState] = useState<string>('en');
   const [translations, setTranslations] = useState<Translations>(defaultTranslations);
@@ -1007,6 +1027,83 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     initialize();
   }, []);
 
+  // Real fix Sep 24 (item4, device report - "[Creatures] batch response status: 200" firing
+  // 4x per screen on select-profile): this batch fetch (and its per-student fallback) used to
+  // live entirely inside student/select.tsx's own useEffect(..., [students]) - every genuine
+  // setStudents() call anywhere in the app (this provider's own background loader above, plus
+  // select.tsx's mount-time refreshStudents(), each of which fires independently) swaps in a
+  // brand-new `students` array reference even when the actual roster is unchanged, and that
+  // screen had no way to tell "really changed" from "same ids, new array" apart. Moved here so
+  // there's exactly one place deciding when a refetch is actually warranted: lastCreaturesKeyRef
+  // holds the sorted, joined id list this data was last fetched for, and a `students` change
+  // that resolves to the SAME key (the exact case that produced the duplicate calls) is a
+  // no-op. Every consumer (today: select.tsx) now just reads studentCreatureData/
+  // studentCreaturesLoading instead of independently re-deriving when to fetch.
+  useEffect(() => {
+    if (students.length === 0) {
+      lastCreaturesKeyRef.current = null;
+      setStudentCreatureData({});
+      setStudentCreaturesLoading(false);
+      return;
+    }
+    const ids = students.map(s => s.id);
+    const key = ids.slice().sort().join(',');
+    if (key === lastCreaturesKeyRef.current) return; // same real roster, just a new array reference
+    lastCreaturesKeyRef.current = key;
+    setStudentCreaturesLoading(true);
+    (async () => {
+      try {
+        const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        const token = (await AsyncStorage.getItem('session_token')) || '';
+        const res = await fetch(`${BURL}/api/rewards/batch/collections?student_ids=${ids.join(',')}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const batchResults: Record<string, any> = res.ok ? await res.json() : {};
+        const data: Record<string, any> = {};
+        students.forEach(s => {
+          const c = batchResults[s.id];
+          if (c === null || c === undefined) {
+            data[s.id] = {
+              currentCreature: { id: 'egg', name: 'Egg', color: '#E0E0E0', stages: [{ emoji: '🥚' }, { emoji: '🥚' }, { emoji: '🥚' }, { emoji: '🥚' }] },
+              currentStage: 0,
+              collectedCreatures: [],
+              totalPoints: 0,
+              allCreatures: [],
+            };
+          } else if (c?.current_creature) {
+            data[s.id] = {
+              currentCreature: c.current_creature,
+              currentStage: c.current_stage || 0,
+              collectedCreatures: c.collected_creatures || [],
+              totalPoints: c.current_points || 0,
+              allCreatures: c.all_creatures || [],
+            };
+          }
+        });
+        setStudentCreatureData(data);
+      } catch {
+        // Fallback to parallel individual calls, same as the pre-centralization behaviour.
+        try {
+          const results = await Promise.allSettled(
+            students.map(s => rewardsApi.getCollection(s.id).then(c => ({ id: s.id, c })))
+          );
+          const data: Record<string, any> = {};
+          results.forEach(r => {
+            if (r.status === 'fulfilled' && r.value.c?.current_creature) {
+              const { id, c } = r.value;
+              data[id] = { currentCreature: c.current_creature, currentStage: c.current_stage || 0, collectedCreatures: c.collected_creatures || [], totalPoints: c.current_points || 0, allCreatures: c.all_creatures || [] };
+            }
+          });
+          setStudentCreatureData(data);
+        } catch {
+          setStudentCreatureData({});
+        }
+      } finally {
+        setStudentCreaturesLoading(false);
+      }
+    })();
+  }, [students]);
+
   // Combined loading state - simple check
   // translationsLoaded is set true immediately now for fast startup
   const isAppLoading = isLoading;
@@ -1037,7 +1134,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         presetAvatars,
         currentStudent,
         currentClassroom,
-        
+        studentCreatureData,
+        studentCreaturesLoading,
+
         // Translations
         language,
         translations,
