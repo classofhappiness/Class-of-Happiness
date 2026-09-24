@@ -11,7 +11,7 @@
 // 4) expiry date and country-of-origin (global scope only, 5-contributor privacy threshold)
 //    now shown on the card, both newly returned by /creatures/eligible.
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Pressable, ActivityIndicator, RefreshControl, Alert, useWindowDimensions, Animated, Easing, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Pressable, ActivityIndicator, RefreshControl, Alert, useWindowDimensions, Animated, Easing } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -487,30 +487,32 @@ export default function GlobalCreaturesScreen() {
           ))}
         </View>
       ) : null}
-      {/* Real fix Sep 23 (device report): flexWrap:'wrap' on a fixed-width row let Red drop
-          to a second line the moment the 5 chips' combined width exceeded phone width - at
-          typical phone widths, it always did. Two changes together, not either/or: chip
-          padding/font shrunk a bit so all 5 comfortably fit without scrolling on a normal
-          phone, AND the row is now a horizontal ScrollView so even an edge case (a very
-          narrow device, a future 6th filter, larger system font size via accessibility
-          settings) degrades to "scroll for the rest" instead of silently wrapping to a
-          second line again. */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterRow}
-        contentContainerStyle={styles.filterRowContent}
-      >
-        {['all', 'green', 'blue', 'yellow', 'red'].map(f => (
-          <TouchableOpacity key={f}
-            style={[styles.filterBtn, filter === f && { backgroundColor: f === 'all' ? '#1A1A2E' : EMOTION_COLORS[f] }]}
-            onPress={() => setFilter(f)}>
-            <Text style={[styles.filterText, filter === f && { color: f === 'yellow' ? '#333' : 'white' }]}>
-              {f === 'all' ? 'All' : `${EMOTION_EMOJI[f] || ''} ${f.charAt(0).toUpperCase() + f.slice(1)}`}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      {/* Real fix Sep 24 (item3, device report): the Sep 23 fix above traded a real bug
+          (flexWrap:'wrap' dropping Red to a second line) for a worse one - wrapping the row
+          in a horizontal ScrollView with no explicit style.height. On Android, an
+          unconstrained-height horizontal ScrollView doesn't reliably shrink-wrap to its
+          content's cross-axis size the way a plain View does; the row's own default
+          alignItems:'stretch' then stretched every pill (TouchableOpacity) to match,
+          producing exactly what Jono saw - oversized, tall pills, out of sync with the plain
+          View scopeRow above it. Reverted to a plain (non-scrolling) row, same pattern as
+          scopeRow, which was never affected by this because it was never a ScrollView. The
+          5 trimmed chips genuinely do fit on one line at phone width - that part of the
+          Sep 23 fix (padding/font) was correct and is unchanged; only the ScrollView
+          wrapper (the actual regression source) is gone. Both rows now also share PILL_BASE/
+          PILL_TEXT_BASE (see styles below) so they can't independently drift again. */}
+      <View style={styles.filterRow}>
+        <View style={styles.filterRowContent}>
+          {['all', 'green', 'blue', 'yellow', 'red'].map(f => (
+            <TouchableOpacity key={f}
+              style={[styles.filterBtn, filter === f && { backgroundColor: f === 'all' ? '#1A1A2E' : EMOTION_COLORS[f] }]}
+              onPress={() => setFilter(f)}>
+              <Text style={[styles.filterText, filter === f && { color: f === 'yellow' ? '#333' : 'white' }]}>
+                {f === 'all' ? 'All' : `${EMOTION_EMOJI[f] || ''} ${f.charAt(0).toUpperCase() + f.slice(1)}`}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
       {loading || showScopeLoader ? (
         // Round 3, item 13a: showScopeLoader covers a slow scope switch the same way `loading`
         // covers the initial mount - tab bar and filter row above stay fully visible/tappable
@@ -548,6 +550,15 @@ export default function GlobalCreaturesScreen() {
   );
 }
 
+// Real fix Sep 24 (item3, device report): one shared pill look for the scope row (Any/My
+// family/My school/Global) and the colour filter row below it - extracted so they can't
+// independently drift in height/padding/font again (they already had, by 1px of font size,
+// before this became visually obvious via the ScrollView regression this fix also reverts).
+// scopeBtn/filterBtn below spread this and add only what's genuinely different: flex:1
+// (scope pills fill the row evenly) vs paddingHorizontal (filter pills size to their own text).
+const PILL_BASE = { paddingVertical: 6, borderRadius: 50, backgroundColor: '#F0F0F0' } as const;
+const PILL_TEXT_BASE = { fontSize: 11, fontWeight: '800', color: '#666' } as const;
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F7F8FA' },
   subtitle: { fontSize: 12, color: '#888', textAlign: 'center', marginTop: 4 },
@@ -570,21 +581,20 @@ const styles = StyleSheet.create({
   countryBarLabel: { fontSize: 10, fontWeight: '800', color: '#333', paddingHorizontal: 6 },
   countryCount: { fontSize: 11, fontWeight: '900', color: '#1A1A2E', width: 26, textAlign: 'right' },
   scopeRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 4 },
-  scopeBtn: { flex: 1, paddingVertical: 6, borderRadius: 50, backgroundColor: '#F0F0F0', alignItems: 'center' },
+  scopeBtn: { ...PILL_BASE, flex: 1, alignItems: 'center' },
   scopeBtnActive: { backgroundColor: '#5C6BC0' },
-  scopeBtnText: { fontSize: 10, fontWeight: '800', color: '#666' },
+  scopeBtnText: { ...PILL_TEXT_BASE },
   scopeBtnTextActive: { color: 'white' },
-  // Real fix Sep 23 (device report): filterRow is now the ScrollView's own style (no
-  // flexDirection/flexWrap - that's the content container's job below); flexWrap:'wrap' was
-  // the actual bug, dropping Red onto a second line the moment 5 chips exceeded the row's
-  // width, which they always did at phone width.
+  // Real fix Sep 24 (item3, device report): filterRow/filterRowContent are now both plain
+  // Views (see the JSX above) - a horizontal ScrollView with no explicit style.height was the
+  // actual regression (see that comment for the full root cause), not the flexWrap:'wrap' the
+  // Sep 23 fix blamed. flexWrap intentionally left at its 'nowrap' default: the trimmed
+  // padding/font below already fits all 5 chips on one line at phone width, confirmed by the
+  // Sep 23 investigation and unchanged here.
   filterRow: { backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  filterRowContent: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingTop: 6, paddingBottom: 10 },
-  // paddingHorizontal/fontSize both trimmed a bit so all 5 chips comfortably fit on one
-  // line without needing to scroll on a normal phone width - the ScrollView above is the
-  // safety net for anything narrower, not the primary fix.
-  filterBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 50, backgroundColor: '#F0F0F0' },
-  filterText: { fontSize: 11, fontWeight: '800', color: '#666' },
+  filterRowContent: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingTop: 6, paddingBottom: 10 },
+  filterBtn: { ...PILL_BASE, paddingHorizontal: 10 },
+  filterText: { ...PILL_TEXT_BASE },
   card: { backgroundColor: 'white', borderRadius: 14, overflow: 'hidden', marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   cardLocked: { opacity: 0.6 },
   imgWrap: { width: '100%', aspectRatio: 1.1, backgroundColor: '#F5F5F5' },
