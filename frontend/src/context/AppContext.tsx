@@ -1,5 +1,6 @@
 import * as LANG_TRANSLATIONS from '../translations';
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
+import { startSupportRequestsPoller, stopSupportRequestsPoller } from '../utils/supportRequestsPoller';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
@@ -1021,6 +1022,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const notifyCheckinSaved = useCallback(() => {
     setLastCheckinMutationAt(Date.now());
   }, []);
+
+  // Root cause fix Sep 25 (round-3 device test, item 0): the support-requests poller's
+  // start/stop now lives here, tied to real login/logout, instead of to any screen's
+  // mount/unmount (see supportRequestsPoller.ts's own comment for the full story - a
+  // component-subscribe-driven lifecycle could stack multiple live setInterval timers under
+  // rapid remount churn, confirmed live as 19 real GET /support-requests calls in ~5s).
+  // Only the roles that ever see a Support Requests surface need it running at all.
+  useEffect(() => {
+    const eligible = isAuthenticated && ['teacher', 'school_admin', 'admin', 'superadmin'].includes(user?.role || '');
+    if (eligible) {
+      startSupportRequestsPoller();
+    } else {
+      stopSupportRequestsPoller();
+    }
+  }, [isAuthenticated, user?.role]);
 
   // Pre-warm the browser for faster OAuth (mobile only)
   useEffect(() => {

@@ -183,6 +183,17 @@ export default function ParentDashboard() {
   // ── Creature section ──────────────────────────────
   const [featuredCreatures, setFeaturedCreatures] = React.useState<any[]>([]);
 
+  // Root cause fix Sep 25 (round-3 device test, item 0): this effect depended on the
+  // `linkedChildren` ARRAY, a brand-new reference every time fetchData()/setLinkedChildren
+  // runs (including every throttled-but-still-real refetch after a check-in) - so it refired
+  // and issued a fresh rewardsApi.getCollection(c.id) call PER child every single time,
+  // regardless of whether the actual set of linked children had changed at all. That data
+  // (current_creature/current_stage/current_points per student) is also already fetched in
+  // fetchData's own /rewards/batch/collections call - this was a second, redundant N-call
+  // fetch of data already obtained elsewhere. Keying on a stable, derived id-list string
+  // instead means it only refires when the real SET of linked children changes, not on every
+  // refetch that happens to return the same children again.
+  const linkedChildIdsKey = (linkedChildren || []).map((c: any) => c.id).join(',');
   React.useEffect(() => {
     // Real fix: use rewardsApi.getCollection, the same proven call used in rewards.tsx and student/select.tsx —
     // the old /creatures/featured + /creatures/my-unlocks calls were never real and crashed the screen.
@@ -213,7 +224,7 @@ export default function ParentDashboard() {
         setChildCreatures(prev => ({ ...prev, ...creaturesMap }));
       });
     }
-  }, [linkedChildren]);
+  }, [linkedChildIdsKey]);
   const [availableStudents, setAvailableStudents] = useState<any[]>([]);
   const [childCreatures, setChildCreatures] = useState<Record<string, any>>({});
   // Family members (self, partner, kids at home)

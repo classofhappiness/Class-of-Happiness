@@ -8,17 +8,30 @@ import { supportRequestsApi, SupportRequest } from './api';
 // several sends "not pressing through"). Root cause: React Navigation's stack keeps
 // previous screens mounted (hidden, not unmounted) by default, so every visit to the
 // status screen that didn't end in RESOLVED left its own poller running forever in the
-// background; repeated Fast Refresh during dev made this worse. Every prior fix (cleanup
-// on unmount) only helps if unmount actually fires - it doesn't when a screen is merely
-// navigated away from, not popped.
+// background; repeated Fast Refresh during dev made this worse.
 //
-// Real fix: ONE shared poller for the whole app, module-scoped (this file is edited far
-// less often than the UI components that were stacking intervals). Every subscriber -
-// no matter how many, even leaked ones - shares the same in-flight-guarded tick, so at
-// most one GET /support-requests call goes out per tick, period. useSupportRequestsList
-// additionally unsubscribes the moment a screen loses focus (useIsFocused), so a
-// backgrounded screen contributes zero listeners, not just zero intervals.
+// Root cause fix Sep 25 (round-3 device test, item 0): the module-singleton poller from the
+// Sep 11 fix still tied start/stop to component subscribe/unsubscribe (ensureRunning on
+// every subscribe, stopIfIdle on every unsubscribe) - meaning its real lifecycle was
+// whatever arbitrary mount/unmount/focus churn up to four different call sites produced
+// (admin/dashboard.tsx, teacher/support-request.tsx, teacher/dashboard.tsx AND the
+// SupportRequestBanner it renders - two subscribers live on the same screen at once). A
+// Sep 25 "cooldown" tried to stop a rapid resubscribe from firing an extra immediate tick,
+// but it still created a brand new setInterval on every restart - a fast enough churn (this
+// being a dev Metro session, exactly the Fast Refresh aggravator this file's own Sep 11
+// comment already named) could still stack multiple live timers, each unaware of the
+// others. Confirmed live: 19 real GET /support-requests calls in ~5s, with per-call server
+// duration climbing under the self-inflicted load (up to 15s, per the new timing
+// middleware) - the storm was making itself worse.
+//
+// The poller is no longer started or stopped by subscribing at all. AppContext calls
+// start/stop exactly once, tied to real login/logout (see its own effect on
+// isAuthenticated/user.role) - never to any screen's mount. Every subscriber from here on
+// is a pure state reader: it can request at most one immediate extra tick (rate-limited to
+// once per 5s), and can never touch setInterval/clearInterval, so this whole class of
+// stacking-timers bug is now impossible by construction, not just cooled down.
 const POLL_MS = 2500;
+const MIN_IMMEDIATE_TICK_GAP_MS = 5000;
 
 type Listener = (list: SupportRequest[]) => void;
 
@@ -26,8 +39,6 @@ const listeners = new Set<Listener>();
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let inFlight = false;
 let lastResult: SupportRequest[] = [];
-// Real fix Sep 25 (item1, fourth device-log pass): tracks when a tick last actually ran (start
-// time, not completion) - see ensureRunning's own comment for why.
 let lastTickAt = 0;
 
 async function tick() {
@@ -45,54 +56,50 @@ async function tick() {
   }
 }
 
-function ensureRunning() {
+// Called exactly once, from AppContext, when a support-requests-eligible role
+// (teacher/school_admin/admin/superadmin) becomes authenticated.
+export function startSupportRequestsPoller(): void {
   if (intervalId) return;
-  // Real fix Sep 25 (item1, fourth device-log pass - Metro log: GET /support-requests firing
-  // twice ~1s apart on cold app open only): useSupportRequestsList's own useIsFocused (from
-  // @react-navigation/native, the same focus-tracking machinery useFocusEffect uses) can
-  // report an extra transition during a navigator's initial state resolution on cold boot -
-  // subscribe -> unsubscribe -> resubscribe in quick succession, which without this guard
-  // stopped the poller (last listener gone) and immediately restarted it (tick() on `!
-  // intervalId`), firing a second real request seconds after the first had barely returned.
-  // In-flight alone doesn't catch this - by the time the second subscribe arrives, the first
-  // tick has usually already resolved. This is a real cooldown, not a workaround: a stop+
-  // restart within POLL_MS of the last tick just resumes the existing cadence instead of
-  // firing an extra one, and a genuinely stale restart (the poller having been idle for a
-  // while) still ticks immediately as before.
-  if (Date.now() - lastTickAt < POLL_MS) {
-    intervalId = setInterval(tick, POLL_MS);
-    return;
-  }
   tick();
   intervalId = setInterval(tick, POLL_MS);
 }
 
-function stopIfIdle() {
-  if (listeners.size === 0 && intervalId) {
+// Called exactly once, from AppContext, on logout or a role that never needed this poller.
+export function stopSupportRequestsPoller(): void {
+  if (intervalId) {
     clearInterval(intervalId);
     intervalId = null;
+  }
+  lastResult = [];
+  listeners.forEach((l) => l([]));
+}
+
+// A focus/refresh event may ask for one extra, real, up-to-date tick - but only if the last
+// real tick was more than 5s ago, and it never starts or stops the interval itself.
+export function requestImmediateSupportRequestsTick(): void {
+  if (Date.now() - lastTickAt > MIN_IMMEDIATE_TICK_GAP_MS) {
+    tick();
   }
 }
 
 export function subscribeSupportRequestsList(listener: Listener): () => void {
   listeners.add(listener);
   if (lastResult.length) listener(lastResult); // immediate cached data, don't wait for the next tick
-  ensureRunning();
   return () => {
     listeners.delete(listener);
-    stopIfIdle();
   };
 }
 
 export function useSupportRequestsList(enabled: boolean): SupportRequest[] {
-  const [list, setList] = useState<SupportRequest[]>([]);
+  const [list, setList] = useState<SupportRequest[]>(lastResult);
   const isFocused = useIsFocused();
   useEffect(() => {
-    if (!enabled || !isFocused) {
-      setList([]);
-      return;
-    }
+    if (!enabled) return;
+    // Pure state subscription - never starts/stops the shared interval.
     return subscribeSupportRequestsList(setList);
+  }, [enabled]);
+  useEffect(() => {
+    if (enabled && isFocused) requestImmediateSupportRequestsTick();
   }, [enabled, isFocused]);
-  return list;
+  return enabled && isFocused ? list : [];
 }
