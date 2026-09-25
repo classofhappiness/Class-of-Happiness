@@ -8098,35 +8098,47 @@ async def send_help_request(request: Request):
         if fm_r.data:
             parent_user_id = fm_r.data[0].get("user_id")
     except: pass
-    try:
-        supabase.table("student_alerts").insert({
-            "id": alert_id,
-            "student_id": student_id,
-            "student_name": student_name,
-            "alert_type": "help_request",
-            "context": context or "school",
-            "classroom_name": classroom_name,
-            "zone": zone,
-            "strategy_id": strategy_id,
-            "strategy_name": strategy_name,
-            "message": message,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "resolved": False,
-        }).execute()
-        logger.info(f"[help_request] Stored alert {alert_id} for student {student_id}")
-    except Exception as e:
-        logger.error(f"Could not store help request alert: {e}")
-
-    # Context: 'school' = teacher only, 'home' = family only, None = both
-    context = body.get("context", None)  # None means legacy — notify both (safe default)
+    # Root cause fix Sep 25 (item 7, notification routing audit): context or "school" meant
+    # a missing/malformed context silently defaulted the STORED alert to "school" - visible
+    # to the teacher regardless of whether this was actually a home-only request. The one
+    # live caller (student/strategies.tsx) always sends an explicit 'home'|'school', so this
+    # was unreachable in practice, but the rule ("family help request never notifies school")
+    # is absolute and must hold even if some future caller omits it - fail closed like every
+    # other ambiguous-ownership case in this file (see get_alerts' "No student_ids — return
+    # empty" and _filter_home_logs_batch's fail-closed default) rather than guessing "school".
+    if context not in ("home", "school"):
+        logger.warning(f"[help_request] Missing/invalid context ({context!r}) for student {student_id} - alert not stored, no push sent (fail closed, never guess home vs school).")
+    else:
+        try:
+            supabase.table("student_alerts").insert({
+                "id": alert_id,
+                "student_id": student_id,
+                "student_name": student_name,
+                "alert_type": "help_request",
+                "context": context,
+                "classroom_name": classroom_name,
+                "zone": zone,
+                "strategy_id": strategy_id,
+                "strategy_name": strategy_name,
+                "message": message,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "resolved": False,
+            }).execute()
+            logger.info(f"[help_request] Stored alert {alert_id} for student {student_id}")
+        except Exception as e:
+            logger.error(f"Could not store help request alert: {e}")
 
     # IMPORTANT: School and home are separate notification contexts.
     # A red check-in at school should NOT panic a parent at work.
     # A home check-in should NOT involve the school.
+    # Root cause fix Sep 25 (item 7): these used to be `!= 'home'` / `!= 'school'` - a
+    # missing/None context (the old comment's own "legacy" framing) fell through as
+    # "notify both", the exact opposite of fail-closed. Now requires an exact match, so an
+    # ambiguous context notifies neither side rather than risking a cross-context leak.
     tokens_to_notify = []
 
     # Teacher tokens — only for school context
-    if context != 'home':
+    if context == 'school':
         try:
             # Find teacher via classroom_id → classrooms.user_id
             classroom_id = student.get("classroom_id", "")
@@ -8142,7 +8154,7 @@ async def send_help_request(request: Request):
         except: pass
 
     # Parent/family tokens — only for home context
-    if context != 'school':
+    if context == 'home':
         try:
             parent_links = supabase.table("parent_links").select("parent_id").eq("student_id", student_id).execute()
             for link in (parent_links.data or []):
@@ -17403,7 +17415,14 @@ async def get_linked_children_for_parent(request: Request):
                     # yet, matching "OFF by default for privacy" and the toggle endpoint's own
                     # default just below.
                     "home_sharing_enabled": link.get("home_sharing_enabled", False),
-                    "school_sharing_enabled": True,
+                    # Root cause fix Sep 25 (item 7, notification routing audit): same bug
+                    # class as home_sharing_enabled right above (Sep 19 fix) - hardcoded True
+                    # regardless of the real school_sharing_enabled value, so a parent whose
+                    # teacher had turned school-sharing OFF for their child still saw this
+                    # screen's toggle as ON. get_school_checkins (the actual read gate) always
+                    # used the real value, so this was a display-accuracy bug, not a leak - but
+                    # the same "don't lie to the parent about their own setting" fix applies.
+                    "school_sharing_enabled": link.get("school_sharing_enabled", True),
                     "is_linked_from_school": True,
                     "shop_enabled": link.get("shop_enabled", True),
                 })
