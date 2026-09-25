@@ -67,7 +67,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/logo_coh.png",
+          "icon": "./assets/images/notification-icon-silhouette.png",
           "color": "#5C6BC0",
           "defaultChannel": "default",
           "sounds": ["./assets/sounds/support_buzz.wav"]
@@ -86,7 +86,7 @@
     },
     "owner": "jwacarey",
     "notification": {
-      "icon": "./assets/images/logo_coh.png",
+      "icon": "./assets/images/notification-icon-silhouette.png",
       "color": "#5C6BC0",
       "androidMode": "default",
       "androidCollapsedTitle": "Class of Happiness"

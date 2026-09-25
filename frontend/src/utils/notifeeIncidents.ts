@@ -113,6 +113,20 @@ export async function showIncidentAlert(params: { requestId: string; title: stri
         fullScreenAction: { id: 'default' },
         pressAction: { id: 'default' },
         color: '#E05252',
+        // Real fix Sep 25 (item 10, Android notification icon black blob): this had no
+        // smallIcon at all, so notifee fell back to the app's own launcher icon (full-
+        // colour, not a silhouette) for every incident notification - Android then forces
+        // it through the same white-silhouette-mask rendering as any small icon, turning a
+        // full-colour source into a solid black shape. 'notification_icon' is the exact
+        // drawable resource name the expo-notifications config plugin generates (at every
+        // density) from app.json's notification icon - see NOTIFICATION_ICON in
+        // expo-notifications/plugin/build/withNotificationsAndroid.js - reusing it here
+        // means one silhouette source (assets/images/notification-icon-silhouette.png)
+        // backs both the regular push icon and this incident channel, never two assets to
+        // keep in sync. largeIcon is the real, full-colour logo - notifee's largeIcon (unlike
+        // smallIcon) accepts a bundled asset directly, no native resource wiring needed.
+        smallIcon: 'notification_icon',
+        largeIcon: require('../../assets/images/logo_coh.png'),
       },
     });
   } catch (e) {
