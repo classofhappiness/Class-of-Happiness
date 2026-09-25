@@ -26,10 +26,14 @@ const listeners = new Set<Listener>();
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let inFlight = false;
 let lastResult: SupportRequest[] = [];
+// Real fix Sep 25 (item1, fourth device-log pass): tracks when a tick last actually ran (start
+// time, not completion) - see ensureRunning's own comment for why.
+let lastTickAt = 0;
 
 async function tick() {
   if (inFlight) return; // never let two fetches stack, no matter how the interval fires
   inFlight = true;
+  lastTickAt = Date.now();
   try {
     const list = await supportRequestsApi.list();
     lastResult = list;
@@ -43,6 +47,22 @@ async function tick() {
 
 function ensureRunning() {
   if (intervalId) return;
+  // Real fix Sep 25 (item1, fourth device-log pass - Metro log: GET /support-requests firing
+  // twice ~1s apart on cold app open only): useSupportRequestsList's own useIsFocused (from
+  // @react-navigation/native, the same focus-tracking machinery useFocusEffect uses) can
+  // report an extra transition during a navigator's initial state resolution on cold boot -
+  // subscribe -> unsubscribe -> resubscribe in quick succession, which without this guard
+  // stopped the poller (last listener gone) and immediately restarted it (tick() on `!
+  // intervalId`), firing a second real request seconds after the first had barely returned.
+  // In-flight alone doesn't catch this - by the time the second subscribe arrives, the first
+  // tick has usually already resolved. This is a real cooldown, not a workaround: a stop+
+  // restart within POLL_MS of the last tick just resumes the existing cadence instead of
+  // firing an extra one, and a genuinely stale restart (the poller having been idle for a
+  // while) still ticks immediately as before.
+  if (Date.now() - lastTickAt < POLL_MS) {
+    intervalId = setInterval(tick, POLL_MS);
+    return;
+  }
   tick();
   intervalId = setInterval(tick, POLL_MS);
 }

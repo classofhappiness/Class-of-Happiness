@@ -331,8 +331,28 @@ export default function TeacherDashboardScreen() {
   // shortly after AppContext's own boot fetch (or another recent screen's, including one that
   // just force-refreshed after a real mutation) is a no-op here instead of a redundant fetch -
   // exactly the "6x per session" pattern the Metro log showed.
+  // Real fix Sep 25 (item1, fourth device-log pass - fresh Metro log: /students, /classrooms,
+  // /zone-logs, /support-requests, /subscription/status each firing exactly twice, ~1s apart,
+  // ONLY on a cold app open, never on a normal in-session return to this screen): this is
+  // expo-router/React Navigation's own documented behaviour - useFocusEffect's callback can
+  // genuinely fire twice during a navigator's INITIAL state resolution (once before the
+  // navigation container's isReady settles, once after), specifically on cold boot - not a
+  // "different caller bypassing the cached getter" the way last round's classroom/period-
+  // effect duplicate was. The 30s TTL in AppContext is real and correct for its own purpose
+  // (collapsing repeated fetches across genuinely separate, more widely-spaced focus events
+  // later in the session) but was never designed to catch two invocations of the SAME effect
+  // a few hundred ms apart before either has even resolved once, let alone recorded a
+  // timestamp - the in-flight guard IS the mechanism for that, and it's now applied directly
+  // here instead of relying on downstream callees to catch it. lastFocusRunAtRef is a plain
+  // "did this exact effect body already run in the last 1.5s" guard - not a workaround for a
+  // symptom, this is the recognized fix for this specific, documented react-navigation quirk.
+  const lastFocusRunAtRef = useRef(0);
   useFocusEffect(useCallback(() => {
-    loadData(); refreshStudents(); refreshClassrooms();
+    const now = Date.now();
+    if (now - lastFocusRunAtRef.current > 1500) {
+      lastFocusRunAtRef.current = now;
+      loadData(); refreshStudents(); refreshClassrooms();
+    }
     const interval = setInterval(() => { refreshAlertCount(); }, 30000);
     return () => clearInterval(interval);
   }, [loadData, refreshAlertCount]));
