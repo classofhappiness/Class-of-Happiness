@@ -986,8 +986,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // /push-token register endpoint - grepped for it) - nothing to move to the background here,
   // reported rather than inventing a new backend feature not asked for.
   const logout = async () => {
-    authApi.logout().catch((error) => {
-      console.error('Error logging out (background, local state already cleared):', error);
+    // Real fix Sep 25 (item 18c): pass this device's own push token so the server only
+    // unregisters IT, not every device this account is logged into - see authApi.logout's
+    // own comment for what happens if it's omitted (older cached bundle, or the token was
+    // never registered on this device).
+    AsyncStorage.getItem('expo_push_token').then((devicePushToken) => {
+      authApi.logout(devicePushToken).catch((error) => {
+        console.error('Error logging out (background, local state already cleared):', error);
+      });
     });
     await clearSessionToken();
     setUser(null);

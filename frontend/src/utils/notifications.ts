@@ -19,14 +19,65 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 // let every dashboard mount log a scary, unactionable error.
 const IS_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
+// Real feature Sep 25 (item 18a/b): this handler runs as a bare async callback with no React
+// context - no way to read the current route or a live setting via hooks. Both are cached in
+// plain module-level variables instead, kept in sync from outside (setCurrentRouteForNotifications
+// called from _layout.tsx's own usePathname() effect; setDeviceNotificationsEnabled from
+// Settings). Defaults (empty route, enabled=true) fail toward SHOWING a notification if
+// something hasn't synced yet, never toward silently swallowing one.
+let currentAppRoute = '';
+export function setCurrentRouteForNotifications(route: string): void {
+  currentAppRoute = route;
+}
+export function getCurrentRouteForNotifications(): string {
+  return currentAppRoute;
+}
+
+// A child using the student/kiosk flow, or mid reward/evolution animation, must never have a
+// banner/sound/vibration interrupt them - the alert still exists (shouldShowList keeps it in
+// the OS notification list; the app's own in-app Alerts/badge state updates independently of
+// this handler, via its normal fetch/poll, regardless of what's returned here).
+export function isChildFacingRoute(route: string): boolean {
+  return route.startsWith('/student') || route.startsWith('/kiosk') || route.includes('/reward') || route.includes('evolution');
+}
+
+const DEVICE_NOTIFICATIONS_KEY = 'device_notifications_enabled';
+let deviceNotificationsEnabled = true; // default ON, per item 18b's spec
+
+export async function loadDeviceNotificationsEnabled(): Promise<boolean> {
+  try {
+    const v = await AsyncStorage.getItem(DEVICE_NOTIFICATIONS_KEY);
+    deviceNotificationsEnabled = v !== 'false';
+  } catch {}
+  return deviceNotificationsEnabled;
+}
+export function getDeviceNotificationsEnabledSync(): boolean {
+  return deviceNotificationsEnabled;
+}
+export async function setDeviceNotificationsEnabled(enabled: boolean): Promise<void> {
+  deviceNotificationsEnabled = enabled;
+  try {
+    await AsyncStorage.setItem(DEVICE_NOTIFICATIONS_KEY, enabled ? 'true' : 'false');
+  } catch (e) {
+    console.error('[notifications] could not persist device toggle', e);
+  }
+}
+// Populate the cache as early as possible (module load) - there's an inherent race for a
+// notification arriving before this resolves, but that fails toward showing it, never toward
+// wrongly suppressing one.
+loadDeviceNotificationsEnabled();
+
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async () => {
+    const suppress = isChildFacingRoute(currentAppRoute) || !deviceNotificationsEnabled;
+    return {
+      shouldShowAlert: !suppress,
+      shouldPlaySound: !suppress,
+      shouldSetBadge: false,
+      shouldShowBanner: !suppress,
+      shouldShowList: true,
+    };
+  },
 });
 
 export async function registerForPushNotifications(): Promise<string | null> {

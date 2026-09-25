@@ -2948,16 +2948,25 @@ async def logout(request: Request):
     if not session_token:
         session_token = request.query_params.get("token")
     if session_token:
-        # Root cause fix Sep 25 (round-3 device test, item 00): unregister this device's push
-        # token from the logging-out account BEFORE deleting the session - a device that later
-        # logs in as a different role (e.g. the same phone used for both a teacher and a
-        # school_admin test account) must not still be able to receive the PREVIOUS account's
-        # pushes just because its stale token is still sitting on that account's users row.
-        # Scoped to exactly this session's own user (never touches any other account's token).
+        # Root cause fix Sep 25 (round-3 device test, item 00; extended item 18c for real
+        # multi-device support): unregister THIS device's push token from the logging-out
+        # account BEFORE deleting the session - a device that later logs in as a different
+        # role (e.g. the same phone used for both a teacher and a school_admin test account)
+        # must not still be able to receive the PREVIOUS account's pushes just because its
+        # stale token is still registered to that account. device_push_token (optional body
+        # field, sent by the app if it knows its own current token) scopes this to exactly
+        # ONE push_tokens row now, instead of wiping every device's push registration on any
+        # single logout - see _unregister_push_token's own docstring for the no-token fallback.
+        device_push_token = None
+        try:
+            body = await request.json()
+            device_push_token = body.get("device_push_token")
+        except Exception:
+            pass
         try:
             sess_r = supabase.table("user_sessions").select("user_id").eq("session_token", session_token).execute()
             if sess_r.data:
-                supabase.table("users").update({"push_token": None}).eq("user_id", sess_r.data[0]["user_id"]).execute()
+                await _unregister_push_token(sess_r.data[0]["user_id"], device_push_token)
         except Exception as e:
             logger.warning(f"[logout] could not clear push_token: {e}")
         supabase.table("user_sessions").delete().eq("session_token", session_token).execute()
@@ -8154,8 +8163,7 @@ async def register_push_token(request: Request):
     if not token:
         raise HTTPException(status_code=400, detail="Token required")
     try:
-        existing = supabase.table("users").select("push_token").eq("user_id", user["user_id"]).execute()
-        supabase.table("users").update({"push_token": token}).eq("user_id", user["user_id"]).execute()
+        await _register_push_token(user["user_id"], token)
     except Exception as e:
         logger.error(f"Token registration error: {e}")
     return {"ok": True}
@@ -8295,6 +8303,83 @@ async def update_classroom_notification_settings(classroom_id: str, request: Req
         raise HTTPException(status_code=500, detail="Could not save")
     return {"ok": True, "updated": len(students.data or [])}
 
+# Real feature Sep 25 (item 18c): multi-device push support. Root cause confirmed live -
+# push tokens have only ever lived in ONE column, users.push_token - a single value, not a
+# table. Every one of the ~15 call sites across this file that looked up a user's push token
+# read that one column, so logging into a second device silently overwrote it and killed
+# delivery to the first; logging out on ANY device (see /auth/logout above) nulled it
+# unconditionally, logging every OTHER still-logged-in device out of push too.
+#
+# push_tokens (new table, migration below - inert/falls back to the old column until it's
+# run, same defensive pattern used elsewhere in this file for a pending migration):
+#   id uuid primary key default gen_random_uuid(),
+#   user_id text not null,
+#   token text not null,
+#   created_at timestamptz not null default now(),
+#   updated_at timestamptz not null default now(),
+#   unique(user_id, token)
+# A token is unique to one real device+app-install (Expo's own guarantee) - no separate
+# device_id column needed, the token itself IS the per-device identity.
+#
+# These three helpers are the ONLY places that touch push_tokens/users.push_token now -
+# every call site below was rewritten to go through them rather than repeating the
+# table-vs-column fallback logic 15 times.
+async def _get_push_tokens_for_user(user_id: str) -> list:
+    """All of one user's registered device tokens - empty list if none. Falls back to the
+    legacy single users.push_token column (as a 1-element list) if push_tokens doesn't exist
+    yet (migration pending)."""
+    try:
+        r = supabase.table("push_tokens").select("token").eq("user_id", user_id).execute()
+        return [row["token"] for row in (r.data or []) if row.get("token")]
+    except Exception:
+        try:
+            u = supabase.table("users").select("push_token").eq("user_id", user_id).execute()
+            legacy = u.data[0].get("push_token") if u.data else None
+            return [legacy] if legacy else []
+        except Exception as e2:
+            logger.warning(f"[push_tokens] lookup failed for {user_id}: {e2}")
+            return []
+
+async def _register_push_token(user_id: str, token: str) -> None:
+    """Real fix Sep 25 (item 18c/item 19): a token belongs to one physical device - if it was
+    previously registered to a DIFFERENT account (a shared device, or someone else's old
+    session on this phone), that old registration is now stale and must be removed, or that
+    other account would keep receiving pushes meant for whoever is using this device now."""
+    try:
+        existing = supabase.table("push_tokens").select("user_id").eq("token", token).execute()
+        for row in (existing.data or []):
+            if row.get("user_id") and row["user_id"] != user_id:
+                supabase.table("push_tokens").delete().eq("token", token).eq("user_id", row["user_id"]).execute()
+        supabase.table("push_tokens").upsert(
+            {"user_id": user_id, "token": token, "updated_at": datetime.now(timezone.utc).isoformat()},
+            on_conflict="user_id,token",
+        ).execute()
+    except Exception as e:
+        logger.warning(f"[push_tokens] table upsert failed, falling back to legacy column: {e}")
+        try:
+            supabase.table("users").update({"push_token": token}).eq("user_id", user_id).execute()
+        except Exception as e2:
+            logger.error(f"[push_tokens] legacy column fallback also failed for {user_id}: {e2}")
+
+async def _unregister_push_token(user_id: str, token: str = None) -> None:
+    """Real fix Sep 25 (item 00 follow-up/item 18c): logout now removes only THIS device's
+    token (if the client sent one) instead of nulling the user's only token column and
+    signing every other logged-in device out of push too. token=None (client sent none, e.g.
+    push was never registered here) clears the legacy column only, as a safety net - a
+    multi-device account with no push_tokens rows never had the legacy column in real use
+    anyway once the table exists."""
+    try:
+        if token:
+            supabase.table("push_tokens").delete().eq("user_id", user_id).eq("token", token).execute()
+        else:
+            supabase.table("push_tokens").delete().eq("user_id", user_id).execute()
+    except Exception as e:
+        logger.warning(f"[push_tokens] delete failed (table may not exist yet): {e}")
+    try:
+        supabase.table("users").update({"push_token": None}).eq("user_id", user_id).execute()
+    except Exception as e:
+        logger.warning(f"[push_tokens] legacy column clear failed for {user_id}: {e}")
+
 async def _send_push(tokens: list, title: str, body: str, data: dict = None, sound: str = "default", priority: str = None, channel_id: str = None) -> int:
     """Shared Expo push sender - extracted Sep 10 (Support Requests build, Phase 0) from
     three copy-pasted inline versions of this exact pattern (help-request, zone-alert,
@@ -8429,9 +8514,11 @@ async def send_help_request(request: Request):
                 if classroom_r.data:
                     teacher_user_id = classroom_r.data[0]["user_id"]
             if teacher_user_id:
-                teacher_r = supabase.table("users").select("push_token").eq("user_id", teacher_user_id).execute()
-                if teacher_r.data and teacher_r.data[0].get("push_token"):
-                    tokens_to_notify.append(("teacher", teacher_r.data[0]["push_token"]))
+                # Real fix Sep 25 (item 18c): was a single users.push_token lookup - now fans
+                # out to every device the teacher is registered on (see
+                # _get_push_tokens_for_user's own docstring for the multi-device rationale).
+                for tok in await _get_push_tokens_for_user(teacher_user_id):
+                    tokens_to_notify.append(("teacher", tok))
         except Exception as e:
             logger.warning(f"[notify-teacher-token] teacher push token lookup failed: {e}")
 
@@ -8440,18 +8527,16 @@ async def send_help_request(request: Request):
         try:
             parent_links = supabase.table("parent_links").select("parent_id").eq("student_id", student_id).execute()
             for link in (parent_links.data or []):
-                parent_r = supabase.table("users").select("push_token").eq("user_id", link["parent_id"]).execute()
-                if parent_r.data and parent_r.data[0].get("push_token"):
-                    tokens_to_notify.append(("parent", parent_r.data[0]["push_token"]))
+                for tok in await _get_push_tokens_for_user(link["parent_id"]):
+                    tokens_to_notify.append(("parent", tok))
         except Exception as e:
             logger.warning(f"[notify-parent-tokens] parent_links-based token lookup failed: {e}")
 
         try:
             fm_links = supabase.table("family_members").select("*").eq("student_id", student_id).execute()
             for fm in (fm_links.data or []):
-                parent_r = supabase.table("users").select("push_token").eq("user_id", fm.get("user_id","")).execute()
-                if parent_r.data and parent_r.data[0].get("push_token"):
-                    tokens_to_notify.append(("parent", parent_r.data[0]["push_token"]))
+                for tok in await _get_push_tokens_for_user(fm.get("user_id", "")):
+                    tokens_to_notify.append(("parent", tok))
         except Exception as e:
             logger.warning(f"[notify-parent-tokens] family_members-based token lookup failed: {e}")
 
@@ -8565,9 +8650,7 @@ async def send_zone_alert(request: Request):
                     settings = _json.loads(setting_r.data[0]["value"])
                     watched_zones = settings.get("zone_alerts", [])
                     if zone in watched_zones and settings.get("enabled", False):
-                        teacher_token_r = supabase.table("users").select("push_token").eq("user_id", teacher_id).execute()
-                        if teacher_token_r.data and teacher_token_r.data[0].get("push_token"):
-                            tokens_to_notify.append(teacher_token_r.data[0]["push_token"])
+                        tokens_to_notify.extend(await _get_push_tokens_for_user(teacher_id))
         except Exception as e:
             logger.error(f"Zone alert teacher check error: {e}")
 
@@ -8586,9 +8669,7 @@ async def send_zone_alert(request: Request):
                     settings = _json.loads(setting_r.data[0]["value"])
                     watched_zones = settings.get("zone_alerts", [])
                     if zone in watched_zones and settings.get("enabled", False):
-                        parent_token_r = supabase.table("users").select("push_token").eq("user_id", parent_id).execute()
-                        if parent_token_r.data and parent_token_r.data[0].get("push_token"):
-                            tokens_to_notify.append(parent_token_r.data[0]["push_token"])
+                        tokens_to_notify.extend(await _get_push_tokens_for_user(parent_id))
         except Exception as e:
             logger.error(f"Zone alert parent check error: {e}")
 
@@ -8635,9 +8716,7 @@ async def _notify_parent_of_message(student_id: str, student_name: str, message:
         logger.warning(f"[notify-parents] family_members lookup failed: {e}")
     try:
         for uid in parent_user_ids:
-            parent_r = supabase.table("users").select("push_token").eq("user_id", uid).execute()
-            if parent_r.data and parent_r.data[0].get("push_token"):
-                tokens_to_notify.append(parent_r.data[0]["push_token"])
+            tokens_to_notify.extend(await _get_push_tokens_for_user(uid))
     except Exception as e:
         logger.warning(f"[notify-parents] push_token lookup failed: {e}")
     zone_emoji = {"blue": "🔵", "green": "🟢", "yellow": "🟡", "red": "🔴"}.get(zone, "💙")
@@ -16775,10 +16854,9 @@ async def create_support_request(request: Request):
     # (missing column today, or any future transient DB hiccup) can never prevent the
     # support request itself from being created and returned to the teacher. Matches the
     # same defensive pattern already used for the push-sending block in help-request.
-    admin_token = None
+    admin_tokens = []
     try:
-        admin_r = supabase.table("users").select("push_token").eq("user_id", school_admin_id).execute()
-        admin_token = admin_r.data[0].get("push_token") if admin_r.data else None
+        admin_tokens = await _get_push_tokens_for_user(school_admin_id)
     except Exception as e:
         logger.error(f"Could not look up admin push_token for support request {created['id']}: {e}")
     request_type_labels = {
@@ -16798,7 +16876,7 @@ async def create_support_request(request: Request):
     # build to actually hear either - Expo Go doesn't deliver remote push at all (see
     # notifications.ts's IS_EXPO_GO guard).
     await _send_push(
-        [admin_token] if admin_token else [],
+        admin_tokens,
         "🚨 Incident" if is_incident else "🔔 Support request",
         f"{who}: {request_type_labels.get(request_type, 'needs support')}",
         data={"type": "support_request", "id": created["id"], "is_incident": is_incident},
@@ -16963,10 +17041,9 @@ async def respond_support_request(request_id: str, request: Request):
         updates["acknowledged_at"] = now_iso
     result = supabase.table("support_requests").update(updates).eq("id", request_id).execute()
 
-    teacher_token = None
+    teacher_tokens = []
     try:
-        teacher_r = supabase.table("users").select("push_token").eq("user_id", row["requested_by"]).execute()
-        teacher_token = teacher_r.data[0].get("push_token") if teacher_r.data else None
+        teacher_tokens = await _get_push_tokens_for_user(row["requested_by"])
     except Exception as e:
         logger.error(f"Could not look up teacher push_token for support request {request_id}: {e}")
     # Real fix Sep 11: this push was a bare "Response: <text>" with no student/classroom
@@ -16985,7 +17062,7 @@ async def respond_support_request(request_id: str, request: Request):
     except Exception as e:
         logger.warning(f"[respond_support_request] could not resolve who for push context: {e}")
     await _send_push(
-        [teacher_token] if teacher_token else [],
+        teacher_tokens,
         f"Support request update: {who}" if who else "Support request update",
         response_text,
         data={"type": "support_request_response", "id": request_id},
@@ -17045,14 +17122,13 @@ async def cancel_support_request(request_id: str, request: Request):
         raise HTTPException(status_code=500, detail=f"Could not cancel - has 05_add_support_requests_status_machine.sql been run? ({str(e)[:150]})")
     updated = result.data[0] if result.data else {**row, "status": "CANCELLED", "cancelled_at": now_iso}
 
-    admin_token = None
+    admin_tokens = []
     try:
-        admin_r = supabase.table("users").select("push_token").eq("user_id", row["school_admin_id"]).execute()
-        admin_token = admin_r.data[0].get("push_token") if admin_r.data else None
+        admin_tokens = await _get_push_tokens_for_user(row["school_admin_id"])
     except Exception as e:
         logger.error(f"Could not look up admin push_token for cancelled support request {request_id}: {e}")
     await _send_push(
-        [admin_token] if admin_token else [],
+        admin_tokens,
         "Support request cancelled", "The teacher no longer needs this - no action needed.",
         data={"type": "support_request_cancelled", "id": request_id},
         channel_id="default",  # cancel is always the standard channel, even if the cancelled request was an incident
@@ -17129,15 +17205,14 @@ async def _support_requests_rebuzz_loop():
                     # every single tick forever instead of respecting its own cadence). This
                     # timestamp tracks "we attempted to re-notify," not "delivery succeeded" -
                     # delivery success isn't reliably knowable from Expo's response anyway.
-                    admin_token = None
+                    admin_tokens = []
                     try:
-                        admin_r = supabase.table("users").select("push_token").eq("user_id", r["school_admin_id"]).execute()
-                        admin_token = admin_r.data[0].get("push_token") if admin_r.data else None
+                        admin_tokens = await _get_push_tokens_for_user(r["school_admin_id"])
                     except Exception as e:
                         logger.error(f"[support_requests rebuzz] push_token lookup failed for {r['id']}: {e}")
-                    if admin_token:
+                    if admin_tokens:
                         await _send_push(
-                            [admin_token],
+                            admin_tokens,
                             "🚨 Incident (unacknowledged)" if r.get("is_incident") else "🔔 Support request (unacknowledged)",
                             "Still waiting for a response",
                             data={"type": "support_request_rebuzz", "id": r["id"]},

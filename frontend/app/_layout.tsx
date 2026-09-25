@@ -15,6 +15,7 @@ import * as Notifications from 'expo-notifications';
 import { isIncidentPushData, showIncidentAlert, registerNotifeeForegroundHandler } from '../src/utils/notifeeIncidents';
 import { preloadSounds } from '../src/utils/sounds';
 import { warmGreetingAudio } from '../src/utils/voiceClips';
+import { setCurrentRouteForNotifications, getCurrentRouteForNotifications, isChildFacingRoute, getDeviceNotificationsEnabledSync } from '../src/utils/notifications';
 import * as Sentry from '@sentry/react-native';
 
 // Real feature Sep 25 (item 13): init happens at module load (before RootLayout even mounts)
@@ -104,6 +105,13 @@ function AppContent() {
   const { isLoading, isAuthenticated, user, language } = useApp();
   const router = useRouter();
   const pathname = usePathname();
+
+  // Real feature Sep 25 (item 18a): keeps notifications.ts's own module-level route cache in
+  // sync - its setNotificationHandler callback has no React context of its own to read
+  // pathname from directly.
+  useEffect(() => {
+    setCurrentRouteForNotifications(pathname || '');
+  }, [pathname]);
 
   // Real fix Aug 29 (build-25): AppContent is inside AppProvider, so it's the first place
   // with real access to `language` - RootLayout below (where fonts first load) sits outside
@@ -231,7 +239,18 @@ function AppContent() {
       // backend regression, a shared device, or a role switch without a fresh token
       // re-registration could otherwise still ring a teacher's phone for their own request.
       const isAdminRole = ['school_admin', 'admin', 'superadmin'].includes(user?.role || '');
-      if (isIncidentPushData(data) && isAdminRole) {
+      // Real fix Sep 25 (item 18a): notifee's channel-level vibration/ring can't be
+      // conditionally overridden per-notification (Android channel settings are fixed at
+      // creation), so this JS-level gate before ever calling showIncidentAlert is the only
+      // place route-aware suppression can happen for the incident path. Same rule as the
+      // general expo-notifications handler in notifications.ts (child/kiosk/reward/evolution
+      // routes, or the device toggle off) - an admin is "exempt" only in the sense that they'd
+      // never normally BE on one of those routes; if a shared device somehow has an admin
+      // session open on a student-facing screen, the ring is suppressed there too, same as it
+      // would be for anyone else. The alert itself is unaffected - still recorded, still
+      // visible in the Support Requests queue and dashboard badge once back on an admin route.
+      const routeSuppressed = isChildFacingRoute(getCurrentRouteForNotifications()) || !getDeviceNotificationsEnabledSync();
+      if (isIncidentPushData(data) && isAdminRole && !routeSuppressed) {
         showIncidentAlert({
           requestId: String(data?.id || ''),
           title: event.request.content.title || '🚨 Incident',

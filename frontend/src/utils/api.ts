@@ -227,8 +227,12 @@ export const authApi = {
   getMe: (): Promise<User> =>
     apiRequest('/auth/me'),
   
-  logout: (): Promise<void> =>
-    apiRequest('/auth/logout', { method: 'POST' }),
+  // Real fix Sep 25 (item 18c): device_push_token scopes server-side unregistration to THIS
+  // device's push_tokens row only - omitted, the backend falls back to clearing every device
+  // registered to this account (today's behaviour), which would sign every OTHER logged-in
+  // device out of push too on a single logout.
+  logout: (devicePushToken?: string | null): Promise<void> =>
+    apiRequest('/auth/logout', { method: 'POST', body: JSON.stringify({ device_push_token: devicePushToken || null }) }),
   
   updateLanguage: (language: string): Promise<{ language: string }> =>
     apiRequest('/auth/update-language', { method: 'POST', body: JSON.stringify({ language }) }),

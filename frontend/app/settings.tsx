@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../src/context/AppContext';
 import { translationsApi, subscriptionApi, authApiExtended } from '../src/utils/api';
 import { loadVoiceEnabled, setVoiceEnabled } from '../src/utils/voiceClips';
+import { loadDeviceNotificationsEnabled, setDeviceNotificationsEnabled } from '../src/utils/notifications';
 import { useWellbeingSharing } from '../src/utils/useWellbeingSharing';
 import { SecureField } from '../src/components/SecureField';
 import { RTL_RESTART_FLOW_READY, needsRtlRestart, applyRtlAndRestart } from '../src/utils/rtl';
@@ -97,8 +98,10 @@ export default function SettingsScreen() {
   const { user, language, setLanguage, logout, t, hasActiveSubscription, translations, checkAuth, isAuthenticated, setAdminPin } = useApp();
   const [showLanguages, setShowLanguages] = useState(false);
   const [voiceEnabled, setVoiceEnabledState] = useState(true);
+  const [deviceNotificationsEnabled, setDeviceNotificationsEnabledState] = useState(true);
 
   useEffect(() => { loadVoiceEnabled().then(setVoiceEnabledState); }, []);
+  useEffect(() => { loadDeviceNotificationsEnabled().then(setDeviceNotificationsEnabledState); }, []);
 
   const handleVoiceToggle = async (value: boolean) => {
     setVoiceEnabledState(value);
@@ -1028,6 +1031,30 @@ export default function SettingsScreen() {
             </View>
           </View>
           <Switch value={voiceEnabled} onValueChange={handleVoiceToggle} trackColor={{ false: '#ddd', true: '#81C784' }} thumbColor={voiceEnabled ? '#4CAF50' : '#999'} />
+        </View>
+      </View>
+
+      {/* Real feature Sep 25 (item 18b): stored in AsyncStorage (device-local, not synced to
+          the server or other devices, unlike NotificationSettings.tsx's per-student server
+          preferences below this section elsewhere in the app) - gates banner/sound/vibration
+          only (see notifications.ts's setNotificationHandler + _layout.tsx's incident-ring
+          gate, both check this). Alerts always still land in-app regardless of this toggle. */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('notifications') || 'Notifications'}</Text>
+        <View style={styles.settingItem}>
+          <View style={styles.settingLeft}>
+            <MaterialIcons name="notifications-none" size={24} color="#5C6BC0" />
+            <View style={styles.settingText}>
+              <Text style={styles.settingLabel}>{t('notifications_this_device') || 'Notifications on this device'}</Text>
+              <Text style={styles.settingValue}>{t('notifications_this_device_desc') || 'Turns off banners, sound and vibration on this device only. Alerts still appear in the app.'}</Text>
+            </View>
+          </View>
+          <Switch
+            value={deviceNotificationsEnabled}
+            onValueChange={(next) => { setDeviceNotificationsEnabledState(next); setDeviceNotificationsEnabled(next); }}
+            trackColor={{ false: '#ddd', true: '#81C784' }}
+            thumbColor={deviceNotificationsEnabled ? '#4CAF50' : '#999'}
+          />
         </View>
       </View>
 
