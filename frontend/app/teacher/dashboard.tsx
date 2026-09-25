@@ -315,6 +315,37 @@ export default function TeacherDashboardScreen() {
     } catch(e) { console.error('loadData error:', e); }
   }, [period, selectedClassroom]);
 
+  // Root cause fix Sep 25 (item 3, fifth device-log pass): the 1.5s lastFocusRunAtRef guess
+  // below (Sep 25, fourth pass) assumed expo-router's cold-boot double useFocusEffect firing
+  // is always ~1s apart - true in that one test, but a fresh log this round still showed
+  // /zone-logs?days=7 firing far more than twice, meaning either the real gap is sometimes
+  // wider than 1.5s (Railway cold start, a slow device) or another trigger (the filter
+  // effect, a re-focus mid-load) lands outside that window. zoneLogsApi.getAll had zero TTL/
+  // in-flight-collapse of its own - unlike refreshStudents/refreshClassrooms in AppContext,
+  // every loadData() call was a real, unconditional network round trip. Same real pattern as
+  // those two now applied directly to loadData (not a timing guess): a plain loadData() call
+  // within 30s of the last one for the SAME period/classroom is a no-op; a concurrent call
+  // collapses into the already-in-flight promise regardless of how far apart the triggers
+  // land; loadData({ force: true }) (pull-to-refresh, a real filter change) always fetches.
+  const LOAD_DATA_TTL_MS = 30000;
+  const lastLoadDataAtRef = useRef(0);
+  const lastLoadDataParamsRef = useRef<string>('');
+  const loadDataInFlightRef = useRef<Promise<void> | null>(null);
+  const loadDataThrottled = useCallback(async (options?: { force?: boolean }) => {
+    const paramsKey = `${period}|${selectedClassroom || ''}`;
+    if (!options?.force && paramsKey === lastLoadDataParamsRef.current && Date.now() - lastLoadDataAtRef.current < LOAD_DATA_TTL_MS) {
+      return;
+    }
+    if (loadDataInFlightRef.current) return loadDataInFlightRef.current;
+    const promise = loadData().finally(() => {
+      loadDataInFlightRef.current = null;
+      lastLoadDataAtRef.current = Date.now();
+      lastLoadDataParamsRef.current = paramsKey;
+    });
+    loadDataInFlightRef.current = promise;
+    return promise;
+  }, [loadData, period, selectedClassroom]);
+
   const refreshAlertCount = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('session_token');
@@ -331,31 +362,19 @@ export default function TeacherDashboardScreen() {
   // shortly after AppContext's own boot fetch (or another recent screen's, including one that
   // just force-refreshed after a real mutation) is a no-op here instead of a redundant fetch -
   // exactly the "6x per session" pattern the Metro log showed.
-  // Real fix Sep 25 (item1, fourth device-log pass - fresh Metro log: /students, /classrooms,
-  // /zone-logs, /support-requests, /subscription/status each firing exactly twice, ~1s apart,
-  // ONLY on a cold app open, never on a normal in-session return to this screen): this is
-  // expo-router/React Navigation's own documented behaviour - useFocusEffect's callback can
-  // genuinely fire twice during a navigator's INITIAL state resolution (once before the
-  // navigation container's isReady settles, once after), specifically on cold boot - not a
-  // "different caller bypassing the cached getter" the way last round's classroom/period-
-  // effect duplicate was. The 30s TTL in AppContext is real and correct for its own purpose
-  // (collapsing repeated fetches across genuinely separate, more widely-spaced focus events
-  // later in the session) but was never designed to catch two invocations of the SAME effect
-  // a few hundred ms apart before either has even resolved once, let alone recorded a
-  // timestamp - the in-flight guard IS the mechanism for that, and it's now applied directly
-  // here instead of relying on downstream callees to catch it. lastFocusRunAtRef is a plain
-  // "did this exact effect body already run in the last 1.5s" guard - not a workaround for a
-  // symptom, this is the recognized fix for this specific, documented react-navigation quirk.
-  const lastFocusRunAtRef = useRef(0);
+  // Real fix Sep 25 (item1, fourth device-log pass): tried a 1.5s "did this focus effect
+  // already run recently" timestamp guess here, reasoning expo-router's documented cold-boot
+  // double useFocusEffect firing lands ~1s apart. Root cause fix Sep 25 (item 3, fifth
+  // device-log pass): a fresh log still showed /zone-logs firing well beyond twice - the gap
+  // isn't reliably under 1.5s (Railway cold start, a slow device), so a timing guess is the
+  // wrong tool. loadDataThrottled (defined above, next to loadData) is the real fix: genuine
+  // TTL + in-flight-collapse, the same mechanism refreshStudents/refreshClassrooms already
+  // use, which doesn't care how far apart two triggers land.
   useFocusEffect(useCallback(() => {
-    const now = Date.now();
-    if (now - lastFocusRunAtRef.current > 1500) {
-      lastFocusRunAtRef.current = now;
-      loadData(); refreshStudents(); refreshClassrooms();
-    }
+    loadDataThrottled(); refreshStudents(); refreshClassrooms();
     const interval = setInterval(() => { refreshAlertCount(); }, 30000);
     return () => clearInterval(interval);
-  }, [loadData, refreshAlertCount]));
+  }, [loadDataThrottled, refreshAlertCount]));
 
   // Reload when period or classroom filter changes (debounced)
   // Real fix Sep 24 (item3, third device-log pass - Metro log: /zone-logs?days=7 x4,
@@ -374,9 +393,9 @@ export default function TeacherDashboardScreen() {
       isFirstFilterEffect.current = false;
       return;
     }
-    const timer = setTimeout(() => { loadData(); }, 150);
+    const timer = setTimeout(() => { loadDataThrottled({ force: true }); }, 150);
     return () => clearTimeout(timer);
-  }, [period, selectedClassroom]);
+  }, [period, selectedClassroom, loadDataThrottled]);
 
   // Real fix Sep 24 (item2, second device-log pass): pull-to-refresh used to only reload this
   // screen's own dashboard data (loadData) - students/classrooms were never included, so
@@ -388,7 +407,7 @@ export default function TeacherDashboardScreen() {
     setRefreshing(true);
     // Real fix Sep 24 (item3, third device-log pass): refreshClassrooms force:true too - same
     // "pull-to-refresh must never be shortcut by the TTL" rule as refreshStudents above.
-    await Promise.all([loadData(), refreshStudents({ force: true }), refreshClassrooms({ force: true })]);
+    await Promise.all([loadDataThrottled({ force: true }), refreshStudents({ force: true }), refreshClassrooms({ force: true })]);
     setRefreshing(false);
   };
 

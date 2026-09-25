@@ -682,6 +682,37 @@ export default function ParentDashboard() {
     }
   };
 
+  // Root cause fix Sep 25 (item 3, fifth device-log pass - Metro log after a check-in:
+  // /parent/children x4, /family/members x4, /rewards/batch/collections x3, creatures-batch
+  // x4): fetchData had six call sites (mount, the mutation-signal focus effect below, pull-
+  // to-refresh, link-child, add-family-member, add-linked-student-to-family) and none of them
+  // coordinated with each other - a check-in arriving right as this screen first mounts hits
+  // BOTH the mount effect and the mutation-signal useFocusEffect (which can itself double-
+  // fire on a cold focus, the same documented expo-router quirk already root-caused for
+  // teacher/dashboard.tsx's loadDataThrottled), each a real, uncollapsed network round. Same
+  // TTL + in-flight-collapse pattern as that fix and as AppContext's own refreshStudents/
+  // refreshClassrooms: a plain fetchDataThrottled() within 30s of the last successful run is
+  // a no-op; concurrent calls collapse into the one in-flight promise; fetchDataThrottled(
+  // { force: true }) always does a real fetch - used only where a mutation THIS screen just
+  // made (add/link a family member) genuinely needs to be reflected immediately.
+  // Plain function, not useCallback - matches fetchData's own pattern (and AppContext's
+  // refreshStudents/refreshClassrooms) so it always closes over the current render's
+  // fetchData without needing to appear in any effect's dependency array, same as fetchData
+  // itself was never in one either.
+  const FETCH_DATA_TTL_MS = 30000;
+  const lastFetchDataAtRef = React.useRef(0);
+  const fetchDataInFlightRef = React.useRef<Promise<void> | null>(null);
+  const fetchDataThrottled = async (options?: { force?: boolean }) => {
+    if (!options?.force && Date.now() - lastFetchDataAtRef.current < FETCH_DATA_TTL_MS) return;
+    if (fetchDataInFlightRef.current) return fetchDataInFlightRef.current;
+    const promise = fetchData().finally(() => {
+      fetchDataInFlightRef.current = null;
+      lastFetchDataAtRef.current = Date.now();
+    });
+    fetchDataInFlightRef.current = promise;
+    return promise;
+  };
+
   const fetchMemberData = useCallback(async () => {
     // Fetch combined logs for ALL children (family + linked)
     // This powers the Week Overview and Recent Check-ins sections.
@@ -776,7 +807,7 @@ export default function ParentDashboard() {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    fetchDataThrottled();
     loadParentAlerts();
     // fetchMemberData() runs via the [fetchMemberData] effect below, which also re-fires
     // once fetchData() populates familyMembers/linkedChildren (no need to call it here too).
@@ -808,7 +839,11 @@ export default function ParentDashboard() {
     React.useCallback(() => {
       if (lastCheckinMutationAt > lastCheckinMutationAtRef.current) {
         lastCheckinMutationAtRef.current = lastCheckinMutationAt;
-        fetchData();
+        // Root cause fix Sep 25 (item 3, fifth device-log pass): force:true - this fires
+        // because data genuinely changed (a check-in happened), so it must never be
+        // skipped by fetchDataThrottled's 30s TTL the way a redundant background trigger
+        // should be. Still benefits from in-flight-collapse if it races the mount effect.
+        fetchDataThrottled({ force: true });
       }
     }, [lastCheckinMutationAt])
   );
@@ -847,7 +882,7 @@ export default function ParentDashboard() {
 
   const onRefresh = async () => { loadParentAlerts();
     setRefreshing(true);
-    await fetchData();
+    await fetchDataThrottled({ force: true });
     await fetchMemberData();
     setRefreshing(false);
   };
@@ -864,7 +899,7 @@ export default function ParentDashboard() {
       setShowLinkModal(false);
       setLinkConsentAccepted(false);
       setLinkCode('');
-      fetchData();
+      fetchDataThrottled({ force: true });
       // Show sharing consent after linking
       setTimeout(() => {
         Alert.alert(
@@ -924,7 +959,7 @@ export default function ParentDashboard() {
       Alert.alert(t('success') || 'Success', `${newMember.name} ${t('added_to_family_exclaim') || 'has been added to your family!'}`);
       setShowAddFamilyModal(false);
       setNewMember({ name: '', relationship: 'child', avatar_type: 'preset', avatar_preset: 'star', avatar_custom: '' });
-      fetchData();
+      fetchDataThrottled({ force: true });
       // Real fix Sep 24 (item2, second device-log pass): force bypasses refreshStudents' new
       // 30s TTL cache - a family member was just added, must reflect now.
       refreshStudents({ force: true });
@@ -1754,7 +1789,7 @@ export default function ParentDashboard() {
                                 const resText = await res.text();
                                 if (res.ok) {
                                   setShowAddFamilyModal(false);
-                                  fetchData();
+                                  fetchDataThrottled({ force: true });
                                   // Real fix Sep 24 (item2, second device-log pass): force
                                   // bypasses refreshStudents' new 30s TTL cache - a student
                                   // was just linked into the family, must reflect now.
