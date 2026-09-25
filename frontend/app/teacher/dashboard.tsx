@@ -231,7 +231,7 @@ export default function TeacherDashboardScreen() {
           if (res.ok) { const d = await res.json(); d.forEach((s:any) => { if(s.id&&s.name) nameMap[s.id]=s.name; }); }
         }));
         setStrategyNames(nameMap);
-      } catch {}
+      } catch (e) { console.error('[teacher/dashboard:234]', e); }
     };
     fetchStrategyNames();
   }, []);
@@ -353,7 +353,7 @@ export default function TeacherDashboardScreen() {
       const alertsRes = await fetch(`${BACKEND_URL}/api/notifications/alerts`, { headers: h }).catch(() => null);
       const alertsData = alertsRes?.ok ? await alertsRes.json() : [];
       setAlertCount(Array.isArray(alertsData) ? alertsData.filter((a:any) => !a.resolved).length : 0);
-    } catch {}
+    } catch (e) { console.error('[teacher/dashboard:356]', e); }
   }, []);
 
   // Real fix Sep 24 (item2, second device-log pass): refreshStudents() here is unforced -

@@ -14,7 +14,7 @@ const initAudio = async () => {
       shouldDuckAndroid: true,
     });
     audioModeSet = true;
-  } catch {}
+  } catch (e) { console.error('[utils/sounds:17]', e); }
 };
 
 // Play a one-shot sound on the main thread safely
@@ -34,7 +34,7 @@ const playSoundUrl = (url: string) => {
           sound.unloadAsync().catch(() => {});
         }
       });
-    } catch {}
+    } catch (e) { console.error('[utils/sounds:37]', e); }
   }, 0);
 };
 
@@ -94,7 +94,7 @@ const playHaptic = (type: 'light' | 'medium' | 'heavy' = 'light') => {
                 : type === 'medium' ? Haptics.ImpactFeedbackStyle.Medium
                 :                     Haptics.ImpactFeedbackStyle.Light;
     Haptics.impactAsync(style).catch(() => {});
-  } catch {}
+  } catch (e) { console.error('[utils/sounds:97]', e); }
 };
 
 export const playButtonFeedback  = () => { playButtonSound();  playHaptic('light'); };

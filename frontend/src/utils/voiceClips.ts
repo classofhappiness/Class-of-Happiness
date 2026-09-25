@@ -28,7 +28,7 @@ export const loadVoiceEnabled = async (): Promise<boolean> => {
   try {
     const stored = await AsyncStorage.getItem(VOICE_ENABLED_KEY);
     voiceEnabled = stored === null ? true : stored === 'true';
-  } catch {}
+  } catch (e) { console.error('[utils/voiceClips:31]', e); }
   voiceEnabledLoaded = true;
   // Real fix Sep 15 (Marisa build-26, S05) - see setVoiceEnabled's note below: a mute
   // persisted from a previous session must silence sound effects too, not just voice, from
@@ -52,7 +52,7 @@ export const setVoiceEnabled = async (enabled: boolean) => {
   voiceEnabled = enabled;
   voiceEnabledLoaded = true;
   setSoundEnabled(enabled);
-  try { await AsyncStorage.setItem(VOICE_ENABLED_KEY, enabled ? 'true' : 'false'); } catch {}
+  try { await AsyncStorage.setItem(VOICE_ENABLED_KEY, enabled ? 'true' : 'false'); } catch (e) { console.error('[utils/voiceClips:55]', e); }
 };
 
 // Fetches {clip_key: url} once per language and caches in memory. Missing keys
@@ -109,7 +109,7 @@ export const playVoiceClip = async (rawKey: string, language: string) => {
           sound.unloadAsync().catch(() => {});
         }
       });
-    } catch {}
+    } catch (e) { console.error('[utils/voiceClips:112]', e); }
   }, 0);
 };
 
@@ -218,7 +218,7 @@ export const preloadZoneAudio = async (language: string): Promise<void> => {
     // functional fix on its own (see warmGreetingAudio below for the fix that actually
     // matters: warming the greeting well before this screen even mounts).
     preloadAudioUrls([...openingUrls, manifest.blue, manifest.green, manifest.yellow, manifest.red]);
-  } catch {}
+  } catch (e) { console.error('[utils/voiceClips:221]', e); }
 };
 
 // Real fix Sep 24 (item1, device report - greeting plays late, root cause): NOTHING warmed
@@ -238,5 +238,5 @@ export const warmGreetingAudio = async (language: string): Promise<void> => {
   try {
     const urls = await loadPhrasePool('opening', language);
     preloadAudioUrls(urls);
-  } catch {}
+  } catch (e) { console.error('[utils/voiceClips:241]', e); }
 };

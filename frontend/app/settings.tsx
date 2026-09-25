@@ -543,7 +543,7 @@ export default function SettingsScreen() {
           const data = await res.json();
           if (data?.code) setGeneratedCode(data.code);
         }
-      } catch {}
+      } catch (e) { console.error('[settings:546]', e); }
     })();
   }, [isAuthenticated, user?.role]);
 

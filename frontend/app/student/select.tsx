@@ -69,7 +69,7 @@ export default function StudentSelectScreen() {
         if (!tok) return;
         const res = await fetch(`${BURL}/api/classrooms`, { headers: { Authorization: `Bearer ${tok}` } });
         if (res.ok) { const data = await res.json(); setLocalClassrooms(Array.isArray(data) ? data : []); }
-      } catch {}
+      } catch (e) { console.error('[student/select:72]', e); }
     };
     fetchClassrooms();
   }, [isTeacherTierRole]);

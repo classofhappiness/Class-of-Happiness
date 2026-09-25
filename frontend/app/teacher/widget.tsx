@@ -42,7 +42,7 @@ export default function TeacherWidgetScreen() {
         const aData = await alertsRes.json();
         setAlerts(Array.isArray(aData) ? aData.filter((a:any) => !a.resolved) : []);
       }
-    } catch {}
+    } catch (e) { console.error('[teacher/widget:45]', e); }
     setLoading(false);
     setRefreshing(false);
   }, []);

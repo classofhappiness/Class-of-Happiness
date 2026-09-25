@@ -80,7 +80,7 @@ export default function MyWellbeingScreen() {
         }
 
         setStrategyNames(nameMap);
-      } catch {}
+      } catch (e) { console.error('[parent/my-wellbeing:83]', e); }
     };
     fetchStrategyNames();
   }, []);
@@ -325,7 +325,7 @@ export default function MyWellbeingScreen() {
       const checkRes = await fetch(fullUrl);
       if (!checkRes.ok) {
         let detail = '';
-        try { detail = (await checkRes.json())?.detail || ''; } catch {}
+        try { detail = (await checkRes.json())?.detail || ''; } catch (e) { console.error('[parent/my-wellbeing:328]', e); }
         if (detail.startsWith('free_tier_limit|')) {
           Alert.alert('Free Plan Limit Reached', detail.split('|')[1] || 'Upgrade for unlimited reports.', [
             { text: 'Not Now', style: 'cancel' },

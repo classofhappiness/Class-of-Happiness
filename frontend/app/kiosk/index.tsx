@@ -176,7 +176,7 @@ export default function KioskScreen() {
         const avData = await avatarsRes.json();
         setPresetAvatars(Array.isArray(avData) ? avData : []);
       }
-    } catch {}
+    } catch (e) { console.error('[kiosk/index:179]', e); }
     setLoading(false);
   };
 
@@ -197,7 +197,7 @@ export default function KioskScreen() {
         }
         setRecentLogs(logMap);
       }
-    } catch {}
+    } catch (e) { console.error('[kiosk/index:200]', e); }
   };
 
   const setupKiosk = async () => {

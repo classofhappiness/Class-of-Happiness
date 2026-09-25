@@ -48,7 +48,7 @@ export function useWellbeingSharing(enabled: boolean) {
           cachedShared = !!data.shared;
           setShared(cachedShared);
         }
-      } catch {} finally {
+      } catch (e) { console.error('[utils/useWellbeingSharing:51]', e); } finally {
         setLoading(false);
       }
     })();

@@ -3666,7 +3666,7 @@ async def get_zone_logs_all(
 
 # ================== HELPERS / STRATEGIES ==================
 @api_router.get("/helpers")
-async def get_helpers(feeling_colour: Optional[str] = None, student_id: Optional[str] = None, lang: str = "en"):
+async def get_helpers(request: Request, feeling_colour: Optional[str] = None, student_id: Optional[str] = None, lang: str = "en"):
     helpers = []
     colours = [feeling_colour] if feeling_colour else FEELING_COLOURS
     # Use language-specific helper cards if available
@@ -3680,14 +3680,25 @@ async def get_helpers(feeling_colour: Optional[str] = None, student_id: Optional
         colour_helpers = lang_helpers.get(colour, DEFAULT_HELPERS.get(colour, []))
         helpers.extend(colour_helpers)
 
-    # Get custom helpers for this student
+    # Real fix Sep 25 (item 15, auth-guard audit): this endpoint has always been fully public
+    # (no frontend caller has ever passed student_id - confirmed via repo-wide grep - but
+    # nothing stopped a raw HTTP request from doing so), and the student_id branch returned
+    # that student's custom_helpers rows (their personalised strategy cards) with ZERO
+    # ownership check - any caller who knew/guessed a student_id could read them. The generic,
+    # non-personalised helper list above stays public by design (kiosk/pre-login use); only
+    # the per-student custom data now requires being authorized for that specific student,
+    # same _is_authorized_for_student check every other student-scoped endpoint uses. An
+    # unauthenticated/unauthorized caller with a student_id now just gets the generic list
+    # instead of an error, matching this endpoint's existing fail-open shape.
     if student_id:
         try:
-            custom = supabase.table("custom_helpers").select("*").eq("student_id", student_id).eq("is_active", True).execute()
-            if custom.data:
-                for h in custom.data:
-                    if not feeling_colour or h.get("feeling_colour") == feeling_colour:
-                        helpers.append(h)
+            user = await get_current_user(request)
+            if user and await _is_authorized_for_student(user, student_id):
+                custom = supabase.table("custom_helpers").select("*").eq("student_id", student_id).eq("is_active", True).execute()
+                if custom.data:
+                    for h in custom.data:
+                        if not feeling_colour or h.get("feeling_colour") == feeling_colour:
+                            helpers.append(h)
         except Exception as e:
             logger.error(f"Error fetching custom helpers: {e}")
 
@@ -3809,19 +3820,25 @@ async def get_strategies(request: Request, zone: Optional[str] = None, feeling_c
         logger.warning(f"helpers table error: {e} — using empty list")
         helpers = []
     
-    # Also get custom helpers for the student
+    # Real fix Sep 25 (item 15, auth-guard audit): same gap as GET /helpers - student_id was
+    # accepted with no ownership check at all, letting any caller read another student's
+    # custom_helpers by id. Now requires the caller to actually be authorized for that
+    # student, same as every other student-scoped endpoint.
     custom = []
     if student_id:
         try:
-            custom_result = supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute()
-            for h in (custom_result.data or []):
-                if not effective_zone or h.get("feeling_colour") == effective_zone:
-                    custom.append({
-                        **h,
-                        "zone": h.get("feeling_colour", h.get("zone", effective_zone)),
-                        "is_custom": True,
-                    })
-        except Exception: pass
+            user = await get_current_user(request)
+            if user and await _is_authorized_for_student(user, student_id):
+                custom_result = supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute()
+                for h in (custom_result.data or []):
+                    if not effective_zone or h.get("feeling_colour") == effective_zone:
+                        custom.append({
+                            **h,
+                            "zone": h.get("feeling_colour", h.get("zone", effective_zone)),
+                            "is_custom": True,
+                        })
+        except Exception as e:
+            logger.debug(f"[custom-helpers] could not load custom helpers for student: {e}")
     else:
         # Real gap fixed: custom strategies with student_id=None (not tied to any specific
         # child — e.g. a parent's own adult wellbeing strategy) were completely invisible,
@@ -4086,8 +4103,8 @@ def _is_shop_enabled_for_student(student_id: str, student_data: dict) -> bool:
         for link in (links.data or []):
             if link.get("shop_enabled") is False:
                 return False
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"[shop-enabled] parent_links shop_enabled check failed: {e}")
     # Real fix Sep 15 (B1, "Class of Happiness Shop", Jono-approved): confirmed live
     # (2026-09-15 data check) that 6 of 18 parent accounts have ONLY a family_members-type
     # child (no parent_links row at all) - not a small edge case - and every one of those
@@ -4100,8 +4117,8 @@ def _is_shop_enabled_for_student(student_id: str, student_data: dict) -> bool:
         for m in (fam.data or []):
             if m.get("shop_enabled") is False:
                 return False
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"[shop-enabled] family_members shop_enabled check failed: {e}")
     return True
 
 def _write_student_rewards(rewards_result, student_id: str, update_data: dict) -> None:
@@ -5223,8 +5240,8 @@ async def _is_authorized_for_student(user: dict, student_id: str, student_data: 
             cls = supabase.table("classrooms").select("user_id").eq("id", classroom_id).execute()
             if cls.data:
                 classroom_owner_id = cls.data[0].get("user_id")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[classroom-owner] could not resolve classroom owner {classroom_id}: {e}")
         if classroom_owner_id and classroom_owner_id == user["user_id"]:
             return True
     if user.get("role") == "school_admin" and classroom_owner_id:
@@ -5237,21 +5254,21 @@ async def _is_authorized_for_student(user: dict, student_id: str, student_data: 
                 school_name = user.get("school_name", "")
                 if school_name and owner.get("school_name") == school_name:
                     return True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[auth-check] classroom-owner match failed: {e}")
     try:
         pl = supabase.table("parent_links").select("id,expires_at").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
         for l in (pl.data or []):
             if not l.get("expires_at") or datetime.fromisoformat(l["expires_at"].replace("Z", "+00:00")) > datetime.now(timezone.utc):
                 return True
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"[parent-link-check] parent_links lookup failed: {e}")
     try:
         fm = supabase.table("family_members").select("id").eq("user_id", user["user_id"]).eq("student_id", student_id).execute()
         if fm.data:
             return True
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"[family-member-check] family_members lookup failed: {e}")
     return False
 
 def _batch_authorized_student_ids(user: dict, student_ids: list, students_by_id: dict = None) -> set:
@@ -5424,8 +5441,8 @@ async def _is_authorized_for_classroom(user: dict, classroom_id: str, classroom_
                 school_name = user.get("school_name", "")
                 if school_name and owner.get("school_name") == school_name:
                     return True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[auth-check] classroom-owner match failed: {e}")
     return False
 
 # ================== KIOSK DEVICE PAIRING ==================
@@ -5739,8 +5756,8 @@ def _commit_community_evolution(real_student_id: str, submission_id: str, eligib
             supabase.table("creature_submissions").update({
                 "global_uses": (cur.data[0].get("global_uses") or 0) + 1
             }).eq("id", submission_id).execute()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[creature-global-uses] could not increment global_uses for {submission_id}: {e}")
 
 def _creature_unlocks_for(user_id: str, real_student_id: Optional[str], creature_ids: list = None):
     """Real feature Aug 21: creature_unlocks was keyed only by the SUBMITTING ACCOUNT's user_id
@@ -5755,8 +5772,8 @@ def _creature_unlocks_for(user_id: str, real_student_id: Optional[str], creature
             if creature_ids is not None:
                 q = q.in_("creature_id", creature_ids)
             return q.execute()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[creature-unlocks-query] query failed for real_student_id={real_student_id}: {e}")
     q = supabase.table("creature_unlocks").select("*").eq("student_id", user_id)
     if creature_ids is not None:
         q = q.in_("creature_id", creature_ids)
@@ -5799,8 +5816,8 @@ def _resolve_student_classroom_school(student_data: dict):
                     owner_r = supabase.table("users").select("school_name").eq("user_id", owner_id).execute()
                     if owner_r.data:
                         school_name = owner_r.data[0].get("school_name")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[school-name-resolve] could not resolve school_name via classroom: {e}")
     return classroom_id, school_name
 
 def _admin_is_active(admin_id: str) -> bool:
@@ -6448,14 +6465,14 @@ def resolve_strategy_name(sid: str, lang: str = "en") -> str:
         ch = supabase.table("custom_helpers").select("name").eq("id", bare_id).execute()
         if ch.data and ch.data[0].get("name"):
             return ch.data[0]["name"]
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"[strategy-name-resolve] custom_helpers lookup failed for {bare_id}: {e}")
     try:
         fa = supabase.table("family_assigned_strategies").select("strategy_name").eq("id", bare_id).execute()
         if fa.data and fa.data[0].get("strategy_name"):
             return fa.data[0]["strategy_name"]
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"[strategy-name-resolve] family_assigned_strategies lookup failed for {bare_id}: {e}")
     return sid_clean.replace("_", " ").title()
 
 @api_router.get("/reports/available-months/{student_id}")
@@ -6551,7 +6568,8 @@ async def _generate_family_member_pdf_bytes(fm: dict, family_member_id: str, yea
             if colour in daily_counts[dk]: daily_counts[dk][colour] += 1
             week_counts[ts.weekday()] = week_counts.get(ts.weekday(),0)+1
             hour_counts[ts.hour] = hour_counts.get(ts.hour,0)+1
-        except: pass
+        except Exception as e:
+            logger.debug(f"[checkin-log-timestamp] malformed timestamp skipped: {e}")
 
     # Import PDF builder deps
     import io, calendar as cal_mod
@@ -6710,7 +6728,8 @@ async def _generate_family_member_pdf_bytes(fm: dict, family_member_id: str, yea
         all_helpers = supabase.table("helpers").select("id,name").execute()
         for h in (all_helpers.data or []):
             if h.get("id") and h.get("name"): strat_name_map[h["id"]] = h["name"]
-    except: pass
+    except Exception as e:
+        logger.warning(f"[top-strategies-name-map] could not load helpers name map: {e}")
     if helper_counts:
         story.append(Paragraph("Strategies Used", ST_H2))
         sorted_helpers = sorted(helper_counts.items(), key=lambda x: x[1], reverse=True)[:8]
@@ -6779,7 +6798,9 @@ async def _generate_family_member_pdf_bytes(fm: dict, family_member_id: str, yea
         try:
             ts = datetime.fromisoformat(log["timestamp"].replace("Z","+00:00"))
             date_str = ts.strftime("%d %b"); time_str = ts.strftime("%H:%M")
-        except: date_str = time_str = "—"
+        except Exception as e:
+            logger.debug(f"[checkin-log-pdf-date] malformed timestamp: {e}")
+            date_str = time_str = "—"
         zone = log.get("feeling_colour", log.get("zone",""))
         strats = log.get("helpers_selected", log.get("strategies_selected",[]))
         strat_names = []
@@ -6909,8 +6930,8 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
             cls = supabase.table("classrooms").select("user_id").eq("id", student_data["classroom_id"]).execute()
             if cls.data and cls.data[0].get("user_id") == user["user_id"]:
                 is_authorized = True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[student-auth] classroom ownership check failed: {e}")
     if not is_authorized:
         try:
             pl = supabase.table("parent_links").select("id,expires_at").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
@@ -6918,15 +6939,15 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
                 if not l.get("expires_at") or datetime.fromisoformat(l["expires_at"].replace("Z", "+00:00")) > datetime.now(timezone.utc):
                     is_authorized = True
                     break
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[student-auth] parent_links check failed: {e}")
     if not is_authorized:
         try:
             fm = supabase.table("family_members").select("id").eq("user_id", user["user_id"]).eq("student_id", student_id).execute()
             if fm.data:
                 is_authorized = True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[student-auth] family_members check failed: {e}")
     if not is_authorized:
         raise HTTPException(status_code=403, detail="Not authorized to view this student's report")
 
@@ -7034,7 +7055,8 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
             cr = supabase.table("classrooms").select("name").eq("id", student_data["classroom_id"]).execute()
             if cr.data:
                 classroom_name = cr.data[0]["name"]
-        except: pass
+        except Exception as e:
+            logger.debug(f"[pdf-classroom-name] classroom lookup failed: {e}")
 
     # Detect report language — check request header, then student, then classroom
     report_lang = "en"
@@ -7060,7 +7082,8 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
                 lang_code = cr_lang.data[0]["language"][:2].lower()
                 if lang_code in ["pt", "es", "fr", "de", "it", "en"]:
                     report_lang = lang_code
-    except: pass
+    except Exception as e:
+        logger.debug(f"[pdf-report-lang] classroom language lookup failed: {e}")
     # Inject into student_data so the PDF builder can read it
     student_data["language"] = report_lang
 
@@ -7087,7 +7110,8 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
                 daily_counts[date_key][colour] += 1
             week_counts[ts.weekday()] = week_counts.get(ts.weekday(), 0) + 1
             hour_counts[ts.hour] = hour_counts.get(ts.hour, 0) + 1
-        except: pass
+        except Exception as e:
+            logger.debug(f"[checkin-log-timestamp] malformed timestamp skipped: {e}")
 
     # ── BUILD PDF ──────────────────────────────────────────────────────────────
     buffer = io.BytesIO()
@@ -7121,7 +7145,8 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         else:
             # Try to get from classroom/teacher settings
             pass
-    except: pass
+    except Exception as e:
+        logger.debug(f"[pdf-lang-resolve] language resolution failed: {e}")
 
     ZONE_LABELS_MAP = {
         "en": {"blue": "Blue Emotions",      "green": "Green Emotions",      "yellow": "Yellow Emotions",      "red": "Red Emotions", "about_app": "About App", "about_privacy": "About & Privacy", "access_expires_30_days": "Access expires in 30 days", "add": "Add", "add_comment": "Add Comment", "add_custom_strategy": "Add Custom Strategy", "add_family_member": "Add Family Member", "add_family_strategy": "Add Family Strategy", "add_family_to_track": "Add a family member to track wellbeing", "add_first_student": "Add your first student", "add_member": "Add Member", "add_new_student": "Add New Student", "add_note_optional": "Add a note (optional)", "add_strategy": "Add Strategy", "add_strategy_title": "Add Strategy", "add_strategy_to_students": "Add strategy to students", "add_widget_android": "Add to Home Screen (Android)", "add_widget_ios": "Add Widget (iOS)", "add_widget_title": "Add Widget", "adding": "Adding...", "admin_access": "Admin Access", "admin_dashboard": "Admin Dashboard", "administration": "Administration", "alert_sent": "Alert Sent", "alert_sent_desc": "Your teacher has been notified", "all_arrow": "All →", "all_zones": "All Emotions", "are_you_sure_delete_strategy": "Are you sure you want to delete this strategy?", "as_default_language": "as default language", "assign_classroom": "Assign Classroom", "assign_to": "Assign to", "blue_emotions": "Blue Emotions", "blue_emotions_label": "Blue Emotions", "blue_short": "Blue", "blue_short_label": "Blue", "blue_zone_desc": "Feeling sad or tired", "blue_zone_name": "Blue Emotions", "by": "by", "change": "Change", "change_language_confirm": "Change language?", "change_photo": "Change Photo", "check_ins": "Check-ins", "checkin_btn": "Check In", "checkin_calendar": "Check-in Calendar", "checkin_complete": "Check-in Complete!", "checkin_for": "Check-in for", "checkin_saved": "Check-in Saved!", "checkin_saved_private": "Saved privately", "checkin_saved_shared": "Saved and shared with teacher", "child_not_found": "Child not found", "child_strategies_note": "Strategies assigned to this child", "children_school": "Children at School", "choose_helpful_strategies": "Choose helpful strategies", "choose_icon": "Choose Icon", "classroom": "Classroom", "classroom_name": "Classroom Name", "classroom_name_placeholder": "e.g. Year 3 Sunshine", "classroom_widget": "Classroom Widget", "classrooms": "Classrooms", "comment_optional": "Comment (optional)", "confirm_delete_member": "Delete this family member?", "confirm_delete_resource": "Delete this resource?", "confirm_unlink_student": "Unlink this student from parent?", "create_classroom": "Create Classroom", "create_new_classroom": "Create New Classroom", "create_new_student": "Create New Student", "creating": "Creating...", "creatures": "Creatures", "custom_strategies_for": "Custom strategies for", "data_shared_desc": "Emotional wellbeing data is being shared between school and home", "days_14": "2 Weeks", "days_30": "30 Days", "days_7": "7 Days", "days_ago": "days ago", "default_badge": "Default", "default_zone_strategies": "Default strategies", "delete_btn": "Delete", "delete_classroom": "Delete Classroom", "delete_member": "Delete Member", "delete_student": "Delete Student", "description": "Description", "description_label": "Description", "deselect_all": "Deselect All", "disclaimer_1": "This app supports emotional awareness, not clinical diagnosis.", "disclaimer_2": "Data is kept private and secure.", "disclaimer_3": "Always consult a professional for mental health concerns.", "disclaimer_privacy_terms": "Privacy & Terms", "download_error": "Download Error", "download_monthly_reports": "Download Monthly Reports", "download_report": "Download Report", "edit_family_strategy": "Edit Family Strategy", "edit_member": "Edit Member", "edit_note": "Edit Note", "edit_strategy": "Edit Strategy", "emotion_colour": "Emotion Colour", "emotion_distribution": "Emotion Distribution", "emotion_strategies_children": "Emotion strategies for children", "emotions": "Emotions", "emotions_topic": "Emotions", "enter_admin_code": "Enter admin code to unlock", "enter_code": "Enter the 6-character code from your child's teacher", "enter_description": "Enter description", "enter_invite_code_desc": "Enter your school invite code", "enter_name": "Enter name", "error": "Error", "everyone": "Everyone", "evolves": "Evolves!", "failed_delete_member": "Failed to delete member", "failed_update_member": "Failed to update member", "family": "Family", "family_emotional_status": "Family Emotional Status", "family_emotions": "Family Emotions", "family_widget": "Family Widget", "for_educational_purposes": "For educational purposes only", "for_student": "for student", "free_trial_label": "Free Trial", "from_teacher": "From Teacher", "full_access_no_card": "Full access — no credit card needed", "generate_code": "Generate Code", "generate_code_desc": "Generate a code to share with the parent", "generate_invite_code": "Generate Invite Code", "generate_parent_code": "Generate Parent Code", "generate_teacher_code": "Generate Teacher Code", "generating": "Generating...", "go_back": "Go Back", "got_it": "Got it!", "green_emotions": "Green Emotions", "green_emotions_label": "Green Emotions", "green_short": "Green", "green_short_label": "Green", "green_zone_desc": "Feeling happy and ready to learn", "green_zone_name": "Green Emotions", "has_been_removed": "has been removed", "has_been_updated": "has been updated", "healthy_relationships": "Healthy Relationships", "home": "Home", "home_check_in": "Home Check-in", "home_checkins": "Home Check-ins", "home_data": "Home Data", "home_legend": "H = Home", "home_sharing_disabled": "Home sharing disabled", "home_sharing_enabled": "Home sharing enabled", "home_sharing_off": "Home data sharing is OFF", "home_sharing_on": "Home data sharing is ON", "hours_ago": "hours ago", "how_feeling": "How are you feeling?", "how_to_do_optional": "How to do it (optional)", "how_to_use": "How to use this strategy", "i_agree_and_continue": "I Agree & Continue", "icon": "Icon", "icon_label": "Icon", "image_label": "Image", "important_notice": "Important Notice", "invite_code_placeholder": "Enter invite code", "join_school_btn": "Join School", "join_your_school": "Join Your School", "joining": "Joining...", "just_now": "Just now", "keep_private": "Keep Private", "large_widget": "Large Widget", "leader_online": "Leader Online", "legal": "Legal", "link_child": "Link Child", "link_child_school": "Link Child from School", "link_children_school": "Link Children from School", "linked_students_filter": "Linked Students", "linking": "Linking...", "loading_resources": "Loading resources...", "logged_in_required": "Please log in to continue", "manage_strategies_title": "Manage Strategies", "medium_widget": "Medium Widget", "minutes_ago": "minutes ago", "month": "Month", "more_points_until": "more points until", "most_used_strategies": "Most Used Strategies", "mutual_consent": "Mutual Consent Active", "my_strategies": "My Strategies", "name": "Name", "name_required": "Name required", "no_checkin_yet": "No check-ins yet", "no_checkins": "No check-ins yet", "no_classroom": "No Classroom", "no_classrooms_yet": "No classrooms yet", "no_data_period": "No data for this period", "no_family_strategies": "No family strategies yet", "no_home_data_yet": "No home data yet", "no_recent_activity": "No recent activity", "no_resources_yet": "No resources yet", "no_students_found": "No students found", "no_students_yet": "No students yet", "parent_link_code": "Parent Link Code", "parent_sharing_disabled": "Parent has not enabled home data sharing", "parent_sharing_hint": "The parent can enable sharing from their dashboard", "per_week_avg": "per week avg", "personal_support_message": "Personal support message", "photo": "Photo", "photo_label": "Photo", "please_enter_name": "Please enter a name", "please_try_again": "Please try again", "private_message_note": "This message is private", "recent_checkins": "Recent Check-ins", "red_emotions": "Red Emotions", "red_emotions_label": "Red Emotions", "red_short": "Red", "red_short_label": "Red", "red_zone_desc": "Feeling very upset or angry", "red_zone_name": "Red Emotions", "relationship": "Relationship", "request_support": "Request Support", "research_basis": "Evidence-based emotional learning", "resources": "Resources", "save_changes": "Save Changes", "save_check_in": "Save Check-in", "save_message": "Save Message", "save_school_profile": "Save School Profile", "saving": "Saving...", "school": "School", "school_admin_dashboard": "School Admin Dashboard", "school_admin_label": "School Admin", "school_invite_code": "School Invite Code", "school_legend": "S = School", "school_strategies": "School Strategies", "search_students": "Search students", "select": "Select", "select_all": "Select All", "select_classroom_for": "Select classroom for", "select_emotion": "Select an emotion", "select_helpful_strategies": "Select helpful strategies", "select_month": "Select Month", "select_month_pdf": "Select a month to download a PDF report", "select_pdf": "Select PDF", "select_strategy": "Select Strategy", "select_students": "Select Students", "selected": "Selected", "selected_count": "selected", "share_code": "Share Code", "share_code_instructions": "Share this code with the parent so they can link their account", "share_student_tracking": "Share Student Emotion Tracking", "share_wellbeing": "Share Wellbeing", "share_with_home": "Share with Home", "share_with_home_desc": "Parent will see this strategy in the app", "share_with_teacher": "Share with Teacher", "share_with_teachers": "Share with Teachers", "shared_strategies": "Shared Strategies", "shared_with_teacher_check": "Shared with teacher", "sharing_disclaimer_text": "By sharing, you consent to emotional wellbeing data being shared between school and home for this student's support.", "sharing_disclaimer_title": "Consent to Share Access", "sharing_paused": "Sharing Paused", "sharing_paused_desc": "Parent has not enabled home sharing. Home check-in data is not visible.", "skip_strategies": "Skip strategies", "small_widget": "Small Widget", "special_needs_education": "Special Needs Education", "start_free_trial": "Start Free Trial", "start_free_trial_btn": "Start Free Trial", "starting": "Starting...", "stats": "Stats", "steady": "Steady", "strat_5_senses": "5 Senses", "strat_bubble_breathing": "Bubble Breathing", "strat_count_to_10": "Count to 10", "strat_favourite_song": "Favourite Song", "strat_gentle_stretch": "Gentle Stretch", "strat_gratitude": "Gratitude", "strat_help_friend": "Help a Friend", "strat_keep_going": "Keep Going!", "strat_safe_space_name": "Safe Space", "strat_set_goal": "Set a Goal", "strat_slow_breathing": "Slow Breathing", "strat_squeeze_release": "Squeeze & Release", "strat_talk_about_it": "Talk About It", "strat_tell_someone": "Tell Someone", "strat_walk_away": "Walk Away", "strategy_added": "Strategy added!", "strategy_btn": "Strategies", "strategy_desc_ph": "Describe how to use this strategy...", "strategy_example": "e.g. Deep breathing, Take a walk...", "strategy_name": "Strategy Name", "strategy_name_example": "e.g. Bubble Breathing", "strategy_name_ph": "Strategy name", "strategy_shared": "Strategy shared with teacher", "strategy_unshared": "Strategy no longer shared", "streak_bonus": "Streak Bonus!", "stressed": "Stressed", "student_linked": "Student is Linked", "student_linked_desc": "This student is connected to a parent account", "student_not_found": "Student not found", "student_unlinked": "Student unlinked from parent", "students": "Students", "students_in_class": "Students in class", "success": "Success!", "super_admin": "Super Admin", "support": "Support", "support_message_hint": "Tap the hand icon to ask for support", "support_message_hint2": "Your teacher will be notified", "support_message_placeholder": "Tell your teacher how you feel...", "synced": "Synced", "tab_child_strategies": "Child Strategies", "tab_my_strategies": "My Strategies", "tab_parent_strategies": "Parent Strategies", "tap_to_check_in": "Tap to check in", "teacher_can_see": "Teacher can see this", "teacher_can_see_strategy": "Teacher can see this strategy", "teacher_cannot_see": "Teacher cannot see this", "teacher_checkin": "Teacher Check-in", "teacher_link_code": "Teacher Link Code", "teacher_name_optional": "Teacher name (optional)", "teacher_name_placeholder": "e.g. Ms Smith", "teacher_resources": "Teacher Resources", "thank_you": "Thank you!", "this_week": "This Week", "trial": "Free Trial", "trial_active": "Trial Active", "trial_active_desc": "Your free trial is active", "trial_desc": "No credit card needed", "try_again": "Try Again", "try_different_search": "Try a different search", "unlink": "Unlink", "unlink_student": "Unlink Student", "updated_just_now": "Updated just now", "updating": "Updating...", "upload_photo": "Upload Photo", "use_icon": "Use Icon", "view_my_wellbeing": "View My Wellbeing", "wellbeing_journal": "Add journal note", "wellbeing_journal_ph": "Write how you feel today...", "wellbeing_pin_confirm": "Confirm PIN", "wellbeing_pin_desc": "Only you can see this.", "wellbeing_pin_enter": "Enter your PIN", "wellbeing_pin_forgot": "Forgot PIN?", "wellbeing_pin_forgot_msg": "Try again or reset your PIN", "wellbeing_pin_hint_label": "PIN hint (optional)", "wellbeing_pin_hint_show": "Your hint:", "wellbeing_pin_mismatch": "PINs do not match", "wellbeing_pin_reset": "Reset PIN", "wellbeing_pin_setup": "Create your private PIN", "wellbeing_pin_wrong": "Incorrect PIN", "wellbeing_total": "total check-ins", "widget_preview": "Widget Preview", "widget_preview_desc": "See how your family is feeling at a glance", "widget_preview_desc_teacher": "See how your class is feeling at a glance", "write_custom_strategy": "Write a custom strategy", "write_short_note": "Write a short note...", "yellow_emotions": "Yellow Emotions", "yellow_emotions_label": "Yellow Emotions", "yellow_short": "Yellow", "yellow_short_label": "Yellow", "yellow_zone_desc": "Feeling worried or anxious", "yellow_zone_name": "Yellow Emotions", "you_are_what_you_eat": "You are what you eat", "your_recent_checkins": "Your Recent Check-ins", "zone_all": "All", "zone_blue": "Blue", "zone_comparison": "Emotion Comparison", "zone_green": "Green", "zone_red": "Red", "zone_yellow": "Yellow", "class_code_label": "Class Code", "class_code_optional": "Ask your teacher for your class code (optional)", "invalid_class_code": "Code not found — check with your teacher", "class_joined": "Joined class!", "class_code_placeholder": "e.g. ABC123", "family_dashboard": "Family Dashboard"},
@@ -7553,7 +7578,8 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
                 ts       = datetime.fromisoformat(log["timestamp"].replace("Z", "+00:00"))
                 date_str = ts.strftime("%d %b")
                 time_str = ts.strftime("%H:%M")
-            except:
+            except Exception as e:
+                logger.debug(f"[pdf-checkin-log-date] malformed timestamp: {e}")
                 date_str = log.get("timestamp","")[:10]
                 time_str = ""
 
@@ -7704,7 +7730,8 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     try:
         alerts_r = supabase.table("student_alerts").select("*").eq("user_id", user_id).eq("alert_type", "wellbeing_alert").gte("created_at", start).lte("created_at", end).order("created_at", desc=False).execute()
         support_requests = alerts_r.data or []
-    except: pass
+    except Exception as e:
+        logger.warning(f"[pdf-support-requests] student_alerts query failed: {e}")
 
     # Fetch real strategy names from DB
     strategy_name_map = {}
@@ -7714,7 +7741,8 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
             for s in (sr.data or []):
                 if s.get("id") and s.get("name"):
                     strategy_name_map[s["id"]] = s["name"]
-    except: pass
+    except Exception as e:
+        logger.warning(f"[pdf-strategy-names] strategies name map build failed: {e}")
 
     STRATEGY_NAMES_LOCAL = {
         "blue_1": "Gentle Stretch", "blue_2": "Drink Water", "blue_3": "Favourite Song",
@@ -7743,14 +7771,14 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
             ch = supabase.table("custom_helpers").select("name").eq("id", bare_sid).execute()
             if ch.data and ch.data[0].get("name"):
                 return ch.data[0]["name"]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[strategy-name-resolve] custom_helpers lookup failed for {bare_sid}: {e}")
         try:
             fa = supabase.table("family_assigned_strategies").select("strategy_name").eq("id", bare_sid).execute()
             if fa.data and fa.data[0].get("strategy_name"):
                 return fa.data[0]["strategy_name"]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[strategy-name-resolve] family_assigned_strategies lookup failed for {bare_sid}: {e}")
         return sid.replace("_"," ").title()
 
     # Aggregate
@@ -7771,7 +7799,8 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
             dk = ts.strftime("%Y-%m-%d")
             if dk not in daily_zones:
                 daily_zones[dk] = zone
-        except: pass
+        except Exception as e:
+            logger.debug(f"[pdf-daily-zones] malformed timestamp skipped: {e}")
 
     total = sum(zone_counts.values())
 
@@ -7816,7 +7845,8 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
         coh_logo = RLImage(logo_path, width=40, height=40)
         logo_cell = Table([[coh_logo, Paragraph("Class of Happiness", ST_LOGO)]], colWidths=[48, 200],
             style=[("VALIGN",(0,0),(-1,-1),"MIDDLE"),("PADDING",(0,0),(-1,-1),0),("LEFTPADDING",(1,0),(1,0),6)])
-    except:
+    except Exception as e:
+        logger.debug(f"[pdf-logo] logo image unavailable, using text fallback: {e}")
         logo_cell = Paragraph("🎓 Class of Happiness", ST_LOGO)
 
     header_data = [[logo_cell, Paragraph(f"<b>Teacher Wellbeing Report</b><br/>{month_name}", s("HR", fontSize=11, textColor=colors.HexColor("#5C6BC0"), fontName="Helvetica-Bold", alignment=2, leading=15))]]
@@ -7952,7 +7982,8 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
             try:
                 ts = datetime.fromisoformat(req["created_at"].replace("Z", "+00:00"))
                 dt_str = ts.strftime("%d %b %Y %H:%M")
-            except:
+            except Exception as e:
+                logger.debug(f"[pdf-support-request-date] malformed timestamp: {e}")
                 dt_str = req.get("created_at", "")[:16]
             msg = (req.get("message") or "Support requested")[:80]
             req_data.append([Paragraph(dt_str, ST_SMALL), Paragraph(msg, ST_SMALL)])
@@ -7977,7 +8008,8 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
             try:
                 ts = datetime.fromisoformat(log["timestamp"].replace("Z", "+00:00"))
                 date_str = ts.strftime("%d %b %H:%M")
-            except:
+            except Exception as e:
+                logger.debug(f"[pdf-checkin-history-date] malformed timestamp: {e}")
                 date_str = log.get("timestamp", "")[:10]
             zone = log.get("zone", "")
             strat_names = [resolve_strategy_name(s) for s in log.get("strategies_selected", []) if resolve_strategy_name(s)]
@@ -8149,7 +8181,8 @@ async def get_notification_settings(request: Request):
             import json
             try:
                 settings[row["key"]] = json.loads(row["value"])
-            except:
+            except Exception as e:
+                logger.debug(f"[notif-settings-parse] non-JSON value for {row.get('key')}: {e}")
                 settings[row["key"]] = row["value"]
         return settings
     except Exception as e:
@@ -8198,7 +8231,8 @@ async def get_student_notification_settings(student_id: str, request: Request):
             import json
             try:
                 return json.loads(result.data[0]["value"])
-            except:
+            except Exception as e:
+                logger.warning(f"[notif-settings-parse] could not parse student notif settings: {e}")
                 return {}
         return {"help_request": False, "zone_alerts": [], "enabled": False}
     except Exception as e:
@@ -8329,7 +8363,8 @@ async def send_help_request(request: Request):
         if student.get("classroom_id"):
             cr = supabase.table("classrooms").select("name").eq("id", student["classroom_id"]).execute()
             classroom_name = cr.data[0]["name"] if cr.data else ""
-    except: pass
+    except Exception as e:
+        logger.debug(f"[alert-classroom-name] classroom lookup failed: {e}")
 
     # Context defined here before use
     context = body.get("context", None)
@@ -8342,7 +8377,8 @@ async def send_help_request(request: Request):
         fm_r = supabase.table("family_members").select("user_id").eq("student_id", student_id).execute()
         if fm_r.data:
             parent_user_id = fm_r.data[0].get("user_id")
-    except: pass
+    except Exception as e:
+        logger.warning(f"[alert-parent-lookup] family_members lookup failed: {e}")
     # Root cause fix Sep 25 (item 7, notification routing audit): context or "school" meant
     # a missing/malformed context silently defaulted the STORED alert to "school" - visible
     # to the teacher regardless of whether this was actually a home-only request. The one
@@ -8396,7 +8432,8 @@ async def send_help_request(request: Request):
                 teacher_r = supabase.table("users").select("push_token").eq("user_id", teacher_user_id).execute()
                 if teacher_r.data and teacher_r.data[0].get("push_token"):
                     tokens_to_notify.append(("teacher", teacher_r.data[0]["push_token"]))
-        except: pass
+        except Exception as e:
+            logger.warning(f"[notify-teacher-token] teacher push token lookup failed: {e}")
 
     # Parent/family tokens — only for home context
     if context == 'home':
@@ -8406,7 +8443,8 @@ async def send_help_request(request: Request):
                 parent_r = supabase.table("users").select("push_token").eq("user_id", link["parent_id"]).execute()
                 if parent_r.data and parent_r.data[0].get("push_token"):
                     tokens_to_notify.append(("parent", parent_r.data[0]["push_token"]))
-        except: pass
+        except Exception as e:
+            logger.warning(f"[notify-parent-tokens] parent_links-based token lookup failed: {e}")
 
         try:
             fm_links = supabase.table("family_members").select("*").eq("student_id", student_id).execute()
@@ -8414,7 +8452,8 @@ async def send_help_request(request: Request):
                 parent_r = supabase.table("users").select("push_token").eq("user_id", fm.get("user_id","")).execute()
                 if parent_r.data and parent_r.data[0].get("push_token"):
                     tokens_to_notify.append(("parent", parent_r.data[0]["push_token"]))
-        except: pass
+        except Exception as e:
+            logger.warning(f"[notify-parent-tokens] family_members-based token lookup failed: {e}")
 
     # Send Expo push notifications
     zone_emoji = {"blue": "🔵", "green": "🟢", "yellow": "🟡", "red": "🔴"}.get(zone, "💙")
@@ -8586,21 +8625,21 @@ async def _notify_parent_of_message(student_id: str, student_name: str, message:
         for link in (parent_links.data or []):
             uid = link.get("parent_user_id") or link.get("parent_id")
             if uid: parent_user_ids.add(uid)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[notify-parents] parent_links lookup failed: {e}")
     try:
         fm_links = supabase.table("family_members").select("user_id").eq("student_id", student_id).execute()
         for link in (fm_links.data or []):
             if link.get("user_id"): parent_user_ids.add(link["user_id"])
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[notify-parents] family_members lookup failed: {e}")
     try:
         for uid in parent_user_ids:
             parent_r = supabase.table("users").select("push_token").eq("user_id", uid).execute()
             if parent_r.data and parent_r.data[0].get("push_token"):
                 tokens_to_notify.append(parent_r.data[0]["push_token"])
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[notify-parents] push_token lookup failed: {e}")
     zone_emoji = {"blue": "🔵", "green": "🟢", "yellow": "🟡", "red": "🔴"}.get(zone, "💙")
     return await _send_push(
         tokens_to_notify,
@@ -8629,8 +8668,11 @@ def _shield_level(count: int) -> str:
 
 # ── Get student shield badge ─────────────────────────────
 @api_router.get("/notifications/shield/{student_id}")
-async def get_student_shield(student_id: str):
+async def get_student_shield(student_id: str, request: Request):
     """Get brave shield badge for a student.
+    Real fix Sep 25 (item 15, auth-guard audit): had NO auth at all - any caller who knew/
+    guessed a student_id could read how many times that student has requested help, a real
+    (if minor) wellbeing signal. Now requires the caller to be authorized for this student.
     Real fix Sep 15 (Bronze Shield bug): `level` used to be read from a separately-stored
     `level` column that can legitimately drift from `count` - exactly what was observed live
     (a "Bronze Shield I" label next to a silver-coloured icon, with count reading 0 right
@@ -8644,6 +8686,9 @@ async def get_student_shield(student_id: str):
     that row exists for virtually every student (points/streak tracking creates it on its
     own), so the old check would show a "Brave Shield" banner (0 times) even for a student
     who had never once asked for help."""
+    user = await get_current_user(request)
+    if not user or not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     try:
         result = supabase.table("student_rewards").select("*").eq("student_id", student_id).execute()
         if result.data:
@@ -8675,16 +8720,20 @@ def _shield_label(level: str) -> str:
 
 # ── Alerts dashboard (teacher/parent) ───────────────────
 @api_router.get("/notifications/alerts/test")
-async def test_alerts_endpoint():
-    """Debug: returns all student_alerts"""
+async def test_alerts_endpoint(request: Request):
+    """Debug: returns all student_alerts
+    Real fix Sep 25 (item 15, auth-guard audit): closes the gap flagged-but-not-fixed on Sep
+    10 below - this had NO authentication at all, returning up to 50 raw student_alerts rows
+    (across every school) to anyone. Restricted to superadmin, matching this file's other
+    debug/admin-only routes, rather than removed - it's still useful for Jono to check."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
     try:
         result = supabase.table("student_alerts").select("*").order("created_at", desc=True).limit(50).execute()
-        # Real fix Sep 10 (Support Requests parent-leak audit): this endpoint has NO
-        # authentication at all - a much bigger pre-existing issue than the one this line
-        # actually addresses (flagged separately, not fixed here to avoid silently changing
-        # this debug route's behaviour beyond the current task's scope). This filter only
-        # narrowly keeps support_request rows (never-parent-facing, per that feature's hard
-        # rule) from being among the data an unauthenticated caller can read from here.
+        # Real fix Sep 10 (Support Requests parent-leak audit): this filter only narrowly
+        # keeps support_request rows (never-parent-facing, per that feature's hard rule) from
+        # being among the data this route returns.
         alerts = [a for a in (result.data or []) if a.get("alert_type") != "support_request"]
         return {"count": len(alerts), "alerts": alerts}
     except Exception as e:
@@ -8758,7 +8807,8 @@ async def get_alerts(request: Request, limit: int = 100):
                         school_r = supabase.table("students").select("id").eq("family_member_id", l["id"]).execute()
                         for sr in (school_r.data or []):
                             if sr.get("id"): student_ids.append(sr["id"])
-                    except: pass
+                    except Exception as e:
+                        logger.debug(f"[family-student-lookup] school-linked student lookup failed: {e}")
                 # Also add family_member id itself in case alerts stored with that id
                 if l.get("id"):
                     student_ids.append(l["id"])
@@ -9453,8 +9503,8 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
                     bkey = ts.strftime("%b %Y")
                     if bkey in bucket_zone_counts:
                         bucket_zone_counts[bkey][zone] += 1
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"[pdf-bucket-zone] malformed timestamp skipped: {e}")
             for strat in (log.get("helpers_selected") or log.get("strategies_selected") or []):
                 name = resolve_strat(strat)
                 if name:
@@ -9588,8 +9638,10 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
         for v in needs_attention[:20]:
             when = ""
             if v.get("timestamp"):
-                try: when = datetime.fromisoformat(v["timestamp"].replace("Z","+00:00")).strftime("%d %b, %H:%M")
-                except Exception: pass
+                try:
+                    when = datetime.fromisoformat(v["timestamp"].replace("Z","+00:00")).strftime("%d %b, %H:%M")
+                except Exception as e:
+                    logger.debug(f"[pdf-needs-attention-date] malformed timestamp: {e}")
             na_rows.append([Paragraph(v.get("student_name","Student"), ST_VALUE), Paragraph(v.get("classroom_name",""), ST_VALUE), Paragraph(when, ST_SMALL)])
         na_table = Table(na_rows, colWidths=[(PAGE_W-72)*0.4,(PAGE_W-72)*0.35,(PAGE_W-72)*0.25])
         na_table.setStyle(TableStyle([
@@ -10914,8 +10966,8 @@ async def start_creature(submission_id: str, request: Request):
         new_row = {"student_id": user["user_id"], "creature_id": submission_id, "stages_unlocked": 0}
         try:
             supabase.table("creature_unlocks").insert({**new_row, "real_student_id": real_student_id}).execute()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[creature-unlocks-insert] could not insert unlock row for {real_student_id}: {e}")
 
     return {"active_creatures": active, "message": f"{creature.get('creature_name')} is now your active {colour} creature!"}
 
@@ -10940,8 +10992,8 @@ async def get_my_unlocks(request: Request, student_id: Optional[str] = None):
         try:
             rows = supabase.table("creature_unlocks").select(select_fields).eq("real_student_id", real_student_id).execute()
             return rows.data or []
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[creature-unlocks-query] query failed for real_student_id={real_student_id}: {e}")
     rows = supabase.table("creature_unlocks").select(select_fields).eq("student_id", user["user_id"]).execute()
     return rows.data or []
 
@@ -11170,7 +11222,8 @@ async def get_admin_stats(request: Request, days: int = 7):
                     logs.extend(_fetch_all_paginated("feeling_logs", "*", lambda q, c=chunk: q.in_("student_id", c).gte("timestamp", week_ago)))
             else:
                 logs = _fetch_all_paginated("feeling_logs", "*", lambda q: q.gte("timestamp", week_ago))
-        except: pass
+        except Exception as e:
+            logger.warning(f"[stats-feeling-logs] feeling_logs fetch failed: {e}")
 
         # Zone counts
         zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
@@ -11189,8 +11242,8 @@ async def get_admin_stats(request: Request, days: int = 7):
                 days_ago = (today - log_date).days
                 if 0 <= days_ago < 7:
                     checkin_daily[6 - days_ago] += 1
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"[stats-checkin-daily] malformed timestamp skipped: {e}")
 
         # Today's checkins
         today_str = now.strftime("%Y-%m-%d")
@@ -11221,8 +11274,10 @@ async def get_admin_stats(request: Request, days: int = 7):
                         d_ago = (today - tdate).days
                         if 0 <= d_ago < 7:
                             teacher_daily[6 - d_ago] += 1
-                except: pass
-        except: pass
+                except Exception as e:
+                    logger.debug(f"[stats-teacher-daily] malformed timestamp skipped: {e}")
+        except Exception as e:
+            logger.debug(f"[stats-teacher-daily] teacher_checkins bucketing failed: {e}")
         # Note: feeling_logs has no teacher/user identity column at all (only student_id), so
         # entries with a null student_id genuinely can't be scoped to a school without a
         # schema change — left global for both roles, unlike the two blocks above.
@@ -11239,7 +11294,8 @@ async def get_admin_stats(request: Request, days: int = 7):
                         d_ago = (today - tdate).days
                         if 0 <= d_ago < 7:
                             teacher_daily[6 - d_ago] += 1
-                except: pass
+                except Exception as e:
+                    logger.debug(f"[stats-teacher-daily] malformed timestamp skipped: {e}")
         except Exception as te:
             logger.error(f"Teacher zone counts error: {te}")
 
@@ -11251,7 +11307,8 @@ async def get_admin_stats(request: Request, days: int = 7):
         try:
             creatures_r = supabase.table("creatures").select("id", count="exact").execute()
             total_creatures = creatures_r.count or 0
-        except: pass
+        except Exception as e:
+            logger.warning(f"[stats-total-creatures] creatures count failed: {e}")
 
         # Streak students — students with check-ins on 3+ consecutive days
         streak_students = 0
@@ -11272,7 +11329,8 @@ async def get_admin_stats(request: Request, days: int = 7):
                 try:
                     d = datetime.fromisoformat(l["timestamp"].replace("Z","+00:00")).date()
                     student_dates[l["student_id"]].add(d)
-                except: pass
+                except Exception as e:
+                    logger.debug(f"[stats-streak] malformed timestamp skipped: {e}")
             for sid, dates in student_dates.items():
                 sorted_dates = sorted(dates)
                 streak = 1
@@ -11284,7 +11342,8 @@ async def get_admin_stats(request: Request, days: int = 7):
                             break
                     else:
                         streak = 1
-        except: pass
+        except Exception as e:
+            logger.debug(f"[stats-streak] streak_students calculation failed: {e}")
 
         # Top strategy
         strategy_counts = {}
@@ -11322,7 +11381,8 @@ async def get_admin_stats(request: Request, days: int = 7):
                         if school_classroom_ids2:
                             school_students = supabase.table("students").select("id,classroom_id").in_("classroom_id", school_classroom_ids2).execute()
                             student_ids = [s["id"] for s in (school_students.data or [])]
-                except:
+                except Exception as e:
+                    logger.warning(f"[stats-school-students] school students query failed: {e}")
                     student_ids = []
 
                 school_zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
@@ -11350,8 +11410,8 @@ async def get_admin_stats(request: Request, days: int = 7):
                             if z in school_zone_counts:
                                 school_zone_counts[z] += 1
                         school_checkins = len(school_logs_data)
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"[stats-school-logs] school feeling_logs query failed: {e}")
 
                 # Get school name from admin record or school_profiles
                 school_name = admin.get("school_name") or admin.get("email", "Unknown School")
@@ -11361,8 +11421,8 @@ async def get_admin_stats(request: Request, days: int = 7):
                     if profile.data:
                         school_name = profile.data[0].get("school_name") or school_name
                         school_desc = profile.data[0].get("description", "")
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"[stats-school-profile] school_profiles lookup failed: {e}")
 
                 schools_breakdown.append({
                     "name": school_name,
@@ -11381,7 +11441,8 @@ async def get_admin_stats(request: Request, days: int = 7):
         try:
             classrooms_r = supabase.table("classrooms").select("id,name").execute()
             classroom_name_map = {c["id"]: c["name"] for c in (classrooms_r.data or [])}
-        except: pass
+        except Exception as e:
+            logger.debug(f"[stats-classroom-names] classroom name map build failed: {e}")
 
         # Real feature Aug 26 (item 10): the portal's "Subscriptions & Revenue" card has read
         # active_parents/annual_parents/active_teachers/annual_teachers/active_schools from
@@ -11405,8 +11466,8 @@ async def get_admin_stats(request: Request, days: int = 7):
                         try:
                             if datetime.fromisoformat(exp.replace("Z", "+00:00")) <= now:
                                 continue  # expired, not a real paying subscriber
-                        except (ValueError, TypeError):
-                            pass
+                        except (ValueError, TypeError) as e:
+                            logger.debug(f"[stats-paying-subscribers] malformed subscription_expires_at: {e}")
                     if u.get("role") == "parent":
                         active_parents += 1
                     elif u.get("role") == "teacher":
@@ -11471,8 +11532,8 @@ async def get_admin_stats(request: Request, days: int = 7):
                 "avg_session_mins": "—", "avg_student_session": "—",
                 "avg_teacher_session": "—", "schools_breakdown": [],
             }
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"[platform-stats] platform stats computation failed, returning empty fallback: {e}")
         return {
             "total_students": 0, "total_teachers": 0, "total_users": 0,
             "total_schools": 0, "checkins_today": 0, "total_checkins": 0,
@@ -11601,16 +11662,21 @@ async def create_admin_resource(request: Request):
 
 
 @api_router.get("/debug/student-classrooms")
-async def debug_student_classrooms():
-    """Temp debug: show all students and their classroom assignments."""
+async def debug_student_classrooms(request: Request):
+    """Temp debug: show all students and their classroom assignments.
+    Real fix Sep 25 (item 15, auth-guard audit): closes the gap flagged-but-not-fixed on Sep
+    10 below - this had NO authentication at all, dumping EVERY student's name across the
+    entire platform (plus every classroom and the 10 most recent alerts) to anyone. Restricted
+    to superadmin, matching this file's other debug/admin-only routes, rather than removed."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
     try:
         students = supabase.table("students").select("id,name,classroom_id,user_id").order("name").execute()
         classrooms = supabase.table("classrooms").select("id,name,user_id").execute()
         alerts = supabase.table("student_alerts").select("id,student_name,student_id,alert_type,created_at,resolved").order("created_at", desc=True).limit(10).execute()
-        # Real fix Sep 10 (Support Requests parent-leak audit): same no-auth issue as
-        # /notifications/alerts/test, flagged separately - this narrowly keeps
-        # never-parent-facing support_request rows out of what this unauthenticated
-        # debug route can leak, without changing anything else about it.
+        # Real fix Sep 10 (Support Requests parent-leak audit): this narrowly keeps
+        # never-parent-facing support_request rows out of what this route returns.
         recent_alerts = [a for a in (alerts.data or []) if a.get("alert_type") != "support_request"]
         return {
             "students": students.data or [],
@@ -11916,8 +11982,8 @@ async def redeem_trial_code(request: Request):
         days = db_row.get("days", 30)
         try:
             supabase.table("promo_codes").update({"uses": uses + 1}).eq("code", code).execute()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[promo-code-use] could not increment uses for {code}: {e}")
     elif code in PROMO_CODES:
         days = PROMO_CODES[code].get("days", 30)
     else:
@@ -12239,8 +12305,9 @@ async def verify_login_pin(request: Request):
                 raise HTTPException(status_code=429, detail="Too many failed attempts. Please try again in a few minutes.")
         except HTTPException:
             raise
-        except Exception:
-            pass  # unparsable/stale value - don't let it block a real login
+        except Exception as e:
+            # unparsable/stale value - don't let it block a real login
+            logger.debug(f"[pin-lock-parse] could not parse pin_locked_until: {e}")
 
     def _register_pin_failure():
         # Fails soft (defensive try/except, same pattern as buy_bonus_item's
@@ -12267,8 +12334,8 @@ async def verify_login_pin(request: Request):
 
     try:
         supabase.table("users").update({"pin_failed_attempts": 0, "pin_locked_until": None}).eq("user_id", user["user_id"]).execute()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[pin-reset] could not clear pin failure state for {user['user_id']}: {e}")
 
     session_token = str(uuid.uuid4())
     try:
@@ -12525,7 +12592,8 @@ async def get_my_teacher_resource_uploads(request: Request):
         try:
             ratings_result = supabase.table("teacher_resource_ratings").select("*").execute()
             ratings = ratings_result.data or []
-        except:
+        except Exception as e:
+            logger.warning(f"[resource-ratings] teacher_resource_ratings fetch failed: {e}")
             ratings = []
         return [_resource_to_teacher_resource(r, ratings) for r in resources]
     except Exception as e:
@@ -13743,7 +13811,8 @@ async def get_school_invite_codes(request: Request):
     try:
         result = supabase.table("invite_codes").select("*").eq("school_admin_id", user["user_id"]).execute()
         return result.data or []
-    except:
+    except Exception as e:
+        logger.warning(f"[invite-codes-list] invite_codes fetch failed: {e}")
         return []
 
 @api_router.get("/school/invite-code")
@@ -13993,8 +14062,8 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
             hour = str(int((log.get("timestamp") or "00:00")[-8:-6].strip(":")))
             if hour in hourly:
                 hourly[hour] += 1
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"[hourly-bucket] malformed timestamp skipped: {e}")
         # Real bug fix Aug 28 (found live-verifying demo-prep item 4): feeling_logs' real
         # column is helpers_selected (see the /checkins insert), not strategies_selected -
         # this loop has always silently counted zero strategies, so strategy_counts/
@@ -14063,8 +14132,8 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
                         resolved = datetime.fromisoformat(a["resolved_at"].replace("Z", "+00:00"))
                         resolution_seconds_total += (resolved - created).total_seconds()
                         resolution_count += 1
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"[alert-resolution-time] malformed timestamp skipped: {e}")
     avg_resolution_hours = round((resolution_seconds_total / resolution_count) / 3600, 1) if resolution_count else None
 
     # Real teacher adoption — % of this school's teachers who have logged their own wellbeing
@@ -14586,8 +14655,8 @@ async def suspend_user(target_user_id: str, request: Request):
     body = {}
     try:
         body = await request.json()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"[suspend-user] no/invalid JSON body: {e}")
     try:
         supabase.table("users").update({
             "account_suspended": True,
@@ -14702,7 +14771,8 @@ async def get_dashboard_summary(request: Request):
     try:
         strategies_db = supabase.table("admin_teacher_strategies").select("id,name,zone").execute().data or []
         strat_map = {s["id"]: s["name"] for s in strategies_db}
-    except:
+    except Exception as e:
+        logger.warning(f"[report-strategy-names] admin_teacher_strategies fetch failed: {e}")
         strat_map = {}
 
     # Strategy counts with real names
@@ -14824,7 +14894,8 @@ async def get_help_stats(request: Request):
         raise HTTPException(status_code=403, detail="Superadmin access required")
     try:
         alerts = supabase.table("student_alerts").select("*").eq("type", "need_help").execute().data or []
-    except:
+    except Exception as e:
+        logger.warning(f"[help-stats] student_alerts fetch failed: {e}")
         alerts = []
     strategy_tallies = {}
     emotion_tallies = {"green": 0, "blue": 0, "yellow": 0, "red": 0}
@@ -14849,7 +14920,8 @@ async def get_school_profiles(request: Request):
         raise HTTPException(status_code=403, detail="Superadmin access required")
     try:
         profiles = supabase.table("school_profiles").select("*").execute().data or []
-    except:
+    except Exception as e:
+        logger.error(f"[school-profiles] school_profiles fetch failed: {e}")
         profiles = []
     return profiles
 
@@ -15444,7 +15516,8 @@ async def get_team_roles(request: Request):
     try:
         roles = supabase.table("school_team_roles").select("*").eq("school_admin_id", user["user_id"]).execute().data or []
         return roles
-    except:
+    except Exception as e:
+        logger.warning(f"[team-roles] school_team_roles fetch failed: {e}")
         return []
 
 @api_router.post("/school-admin/team-roles")
@@ -15483,7 +15556,8 @@ async def get_services_directory(request: Request):
     try:
         services = supabase.table("school_services_directory").select("*").eq("school_admin_id", user["user_id"]).order("category").execute().data or []
         return services
-    except:
+    except Exception as e:
+        logger.warning(f"[services-directory] school_services_directory fetch failed: {e}")
         return []
 
 @api_router.post("/school-admin/services-directory")
@@ -16601,8 +16675,8 @@ async def create_support_request(request: Request):
             logs_r = supabase.table("feeling_logs").select("feeling_colour").eq("student_id", student_id).order("timestamp", desc=True).limit(1).execute()
             if logs_r.data:
                 checkin_colour = logs_r.data[0].get("feeling_colour")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[checkin-colour] latest feeling_logs lookup failed: {e}")
 
     # Real addition Sep 11 (item 8): classroom-level requests only (no individual student
     # attached) - the student-linked "Support in classroom" sub-type already has its own
@@ -17359,7 +17433,7 @@ async def parent_home_checkin(request: Request):
     try:
         supabase.table("emotion_checkins").insert(record).execute()
     except Exception as e:
-        pass
+        logger.warning(f"[home-checkin-insert] emotion_checkins insert failed: {e}")
     return {"status": "saved", "feeling_colour": record["feeling_colour"]}
 
 @api_router.get("/parent/dashboard-stats")
@@ -17434,8 +17508,8 @@ async def get_trial_status(request: Request):
                 supabase.table("users").update({"subscription_status": "free"}).eq("user_id", user["user_id"]).execute()
                 return {"status": "expired", "days_left": 0, "trial_type": trial_type}
             return {"status": "trial", "days_left": days_left, "expires_at": trial_expires, "trial_type": trial_type}
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"[trial-status] trial status check failed: {e}")
     
     return {"status": sub_status, "days_left": None, "trial_type": trial_type}
 
@@ -17499,8 +17573,8 @@ async def register_school(request: Request):
                 supabase.table("admin_settings").update({"value": setting["value"]}).eq("key", setting["key"]).eq("school_admin_id", user["user_id"]).execute()
             else:
                 supabase.table("admin_settings").insert({**setting, "school_admin_id": user["user_id"]}).execute()
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"[admin-settings-save] could not save setting {setting.get('key')}: {e}")
 
     # Also update user record
     supabase.table("users").update({
@@ -17634,7 +17708,8 @@ async def get_schools_world_wall(request: Request):
                     settings_dict = {row["key"]: row["value"] for row in (settings.data or [])}
                     flag = settings_dict.get("school_country_flag", "🌍")
                     city = settings_dict.get("school_city", "")
-                except:
+                except Exception as e:
+                    logger.debug(f"[world-wall-flag] admin_settings lookup failed: {e}")
                     flag = "🌍"
                     city = ""
                 schools.append({
@@ -17740,8 +17815,8 @@ async def update_user_language(request: Request):
     lang = body.get("language", "en")
     try:
         supabase.table("users").update({"language": lang}).eq("user_id", user["user_id"]).execute()
-    except:
-        pass
+    except Exception as e:
+        logger.warning(f"[update-language] could not save language for {user['user_id']}: {e}")
     return {"status": "ok", "language": lang}
 
 
@@ -18620,8 +18695,8 @@ async def get_student_sharing_status(student_id: str, request: Request):
                 parent = supabase.table("users").select("name,email").eq("user_id", link["parent_user_id"]).execute()
                 if parent.data:
                     parent_name = parent.data[0].get("name") or parent.data[0].get("email", "Parent")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[sharing-status-parent-name] parent name lookup failed: {e}")
         return {
             "is_linked_to_parent": is_linked,
             "home_sharing_enabled": home_sharing,
@@ -19216,8 +19291,8 @@ async def request_account_deletion(request: Request):
                 )
                 if resp.status_code == 200 and resp.json().get("email", "").strip().lower() == (user.get("email") or "").strip().lower():
                     reauthed = True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[google-reauth] Google re-auth verification failed: {e}")
     if not reauthed:
         raise HTTPException(status_code=403, detail="Re-authentication required — enter your password or sign in with Google again to confirm.")
 
@@ -19302,7 +19377,8 @@ async def join_classroom_by_code(code: str, request: Request):
     """
     try:
         body = await request.json()
-    except:
+    except Exception as e:
+        logger.debug(f"[join-classroom] no/invalid JSON body: {e}")
         body = {}
 
     classroom_result = supabase.table("classrooms").select("*").eq("join_code", code.upper().strip()).execute()
@@ -19526,7 +19602,8 @@ def verify_password(password: str, stored: str) -> bool:
     try:
         salt, hashed = stored.split(":")
         return hashlib.sha256((password + salt).encode()).hexdigest() == hashed
-    except:
+    except Exception as e:
+        logger.warning(f"[verify-password] malformed stored password hash: {e}")
         return False
 
 @api_router.post("/auth/set-password")
@@ -19809,8 +19886,8 @@ async def reset_password(request: Request):
                 raise HTTPException(status_code=400, detail="Reset token has expired")
         except HTTPException:
             raise
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[reset-token-expiry] could not parse token expiry: {e}")
     hashed = hash_password(new_password)
     supabase.table("users").update({
         "portal_password": hashed,

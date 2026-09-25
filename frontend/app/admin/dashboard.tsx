@@ -41,7 +41,7 @@ async function apiCall(endpoint: string, token: string|null, options: any = {}) 
     try {
       const body = await res.json();
       if (body?.detail) detail = body.detail;
-    } catch {}
+    } catch (e) { console.error('[admin/dashboard:44]', e); }
     throw new Error(detail);
   }
   return res.json();
@@ -275,7 +275,7 @@ function UsersManager({ authToken, isSuperAdmin }: { authToken: string|null, isS
       } else {
         import('expo-clipboard').then(m => m.setStringAsync(u.email)).catch(() => {});
       }
-    } catch {}
+    } catch (e) { console.error('[admin/dashboard:278]', e); }
     setCopiedId(u.user_id);
     setTimeout(() => setCopiedId((id) => (id === u.user_id ? null : id)), 1500);
   };
@@ -2345,7 +2345,7 @@ function SchoolSettings({ authToken, user }: any) {
       } else {
         import('expo-clipboard').then(m => m.setStringAsync(inviteCode)).catch(() => {});
       }
-    } catch {}
+    } catch (e) { console.error('[admin/dashboard:2348]', e); }
     setCopiedInviteCode(true);
     setTimeout(() => setCopiedInviteCode(false), 1500);
   };
@@ -2960,7 +2960,7 @@ export default function AdminDashboard() {
     try {
       const d = await apiCall(`/admin/stats?days=${statsPeriod}`, authToken);
       setStats(d);
-    } catch {}
+    } catch (e) { console.error('[admin/dashboard:2963]', e); }
     setStatsLoading(false);
   };
 

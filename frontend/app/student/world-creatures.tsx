@@ -340,9 +340,9 @@ export default function GlobalCreaturesScreen() {
         try {
           const activeData = await creaturesApi.getActiveCreatures(studentId);
           setActive(activeData || {});
-        } catch (e) {}
+        } catch (e) { console.error('[student/world-creatures:343]', e); }
       }
-    } catch (e) {}
+    } catch (e) { console.error('[student/world-creatures:345]', e); }
     setLoading(false);
     setRefreshing(false);
   };
@@ -376,7 +376,7 @@ export default function GlobalCreaturesScreen() {
     try {
       await creaturesApi.setScopePref(studentId, pref);
       await load();
-    } catch (e) {}
+    } catch (e) { console.error('[student/world-creatures:379]', e); }
     clearTimeout(loaderTimer);
     setShowScopeLoader(false);
     setScopeChanging(false);

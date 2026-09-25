@@ -48,7 +48,7 @@ export default function ParentWidgetScreen() {
             const data = await res.json();
             if (Array.isArray(data) && data.length > 0) logsMap[m.id] = data[0];
           }
-        } catch {}
+        } catch (e) { console.error('[parent/widget:51]', e); }
       }));
       setLogs(logsMap);
 
@@ -61,8 +61,8 @@ export default function ParentWidgetScreen() {
           const aData = await alertRes.json();
           setAlerts(Array.isArray(aData) ? aData.filter((a:any) => !a.resolved) : []);
         }
-      } catch {}
-    } catch {}
+      } catch (e) { console.error('[parent/widget:64]', e); }
+    } catch (e) { console.error('[parent/widget:65]', e); }
     setLoading(false);
     setRefreshing(false);
   }, []);

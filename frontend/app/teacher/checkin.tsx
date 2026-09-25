@@ -145,7 +145,7 @@ export default function TeacherCheckInScreen() {
           setAdminStrategies(data);
         }
       }
-    } catch (e) { console.log("[silent]", e); }
+    } catch (e) { console.error("[silent]", e); }
   };
 
   // Legacy fallback dictionary — kept only as a safety net for resolveStrategyName()
@@ -231,7 +231,7 @@ export default function TeacherCheckInScreen() {
       // Load custom teacher strategies
       const customRaw = await AsyncStorage.getItem(`teacher_custom_strategies_${user.user_id}`);
       if (customRaw) setCustomStrategies(JSON.parse(customRaw));
-    } catch (e) { console.log("[silent]", e); }
+    } catch (e) { console.error("[silent]", e); }
   };
 
   const saveCustomStrategy = async () => {
@@ -388,7 +388,7 @@ export default function TeacherCheckInScreen() {
       const checkRes = await fetch(url);
       if (!checkRes.ok) {
         let detail = '';
-        try { detail = (await checkRes.json())?.detail || ''; } catch {}
+        try { detail = (await checkRes.json())?.detail || ''; } catch (e) { console.error('[teacher/checkin:391]', e); }
         if (detail.startsWith('free_tier_limit|')) {
           Alert.alert(t('free_plan_limit_title') || 'Free Plan Limit Reached', detail.split('|')[1] || t('upgrade_unlimited_reports') || 'Upgrade for unlimited reports.', [
             { text: t('not_now') || 'Not Now', style: 'cancel' },
@@ -464,7 +464,7 @@ export default function TeacherCheckInScreen() {
       });
       setDisplayName(nameInput.trim());
       setEditingName(false);
-    } catch {}
+    } catch (e) { console.error('[teacher/checkin:467]', e); }
   };
 
   const zoneConfig = selectedZone ? ZONES.find(z => z.id === selectedZone) : null;

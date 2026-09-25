@@ -658,7 +658,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setLanguageState(userData.language);
         await fetchTranslations(userData.language);
         // Save it locally so it persists
-        try { await setStorageWithTimeout('app_language', userData.language, 3000); } catch {}
+        try { await setStorageWithTimeout('app_language', userData.language, 3000); } catch (e) { console.error('[context/AppContext:661]', e); }
       }
     } catch (error) {
       setUser(null);

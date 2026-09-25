@@ -92,7 +92,7 @@ export default function SupportRequestScreen() {
 
   useEffect(() => {
     AsyncStorage.getItem(RECENTS_KEY).then(raw => {
-      if (raw) { try { setRecents(JSON.parse(raw)); } catch {} }
+      if (raw) { try { setRecents(JSON.parse(raw)); } catch (e) { console.error('[teacher/support-request:95]', e); } }
     });
     supportRequestsApi.getShortcuts().then(setShortcuts).catch(() => {});
   }, []);
@@ -205,7 +205,7 @@ export default function SupportRequestScreen() {
             logged_by: 'teacher_individual', suppress_auto_alert: true,
             support_request_type: finalType,
           });
-        } catch {}
+        } catch (e) { console.error('[teacher/support-request:208]', e); }
       }
       // Real bug fix Sep 11: classroom_id was only ever sent when finalType ===
       // 'CLASSROOM_SUPPORT' - item 7's new classroom-level INCIDENT button (student_id

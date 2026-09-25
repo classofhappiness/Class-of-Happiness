@@ -149,7 +149,7 @@ export default function LinkedChildDetailScreen() {
       const checkRes = await fetch(fullUrl);
       if (!checkRes.ok) {
         let detail = '';
-        try { detail = (await checkRes.json())?.detail || ''; } catch {}
+        try { detail = (await checkRes.json())?.detail || ''; } catch (e) { console.error('[parent/linked-child/[id]:152]', e); }
         if (detail.startsWith('free_tier_limit|')) {
           Alert.alert('Free Plan Limit Reached', detail.split('|')[1] || 'Upgrade for unlimited reports.', [
             { text: 'Not Now', style: 'cancel' },

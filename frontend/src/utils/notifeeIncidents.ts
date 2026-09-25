@@ -137,7 +137,7 @@ export async function showIncidentAlert(params: { requestId: string; title: stri
 export async function dismissIncidentAlert(requestId: string): Promise<void> {
   try {
     await notifee.cancelNotification(`incident-${requestId}`);
-  } catch {}
+  } catch (e) { console.error('[utils/notifeeIncidents:140]', e); }
 }
 
 // Real addition Sep 11: pressing the notification (or its full-screen action) already

@@ -244,7 +244,7 @@ export default function StrategiesScreen() {
         try {
           const data = await res.json();
           setCheckinLogId(data?.log?.id || '');
-        } catch {}
+        } catch (e) { console.error('[student/strategies:247]', e); }
       } else {
         const log = await zoneLogsApi.create({
           student_id: currentStudent.id,
@@ -298,7 +298,7 @@ export default function StrategiesScreen() {
         // this path genuinely writes a real check-in too (just with no strategies/comment).
         notifyCheckinSaved();
       }
-    } catch (e) {}
+    } catch (e) { console.error('[student/strategies:301]', e); }
     // Real fix Aug 30 (build-26, kiosk restore): this skip path was the only one of the
     // three exits from this screen that dropped returnTo, breaking the return trip for
     // anything relying on it (kiosk, family) if a student skipped helper selection.

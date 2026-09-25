@@ -89,7 +89,7 @@ export default function SubmitCreatureScreen() {
         // choice (the common case - one child) so the real scope options resolve without an
         // extra tap; still changeable, and still an active choice when there's more than one.
         if (resolved.length === 1) setSelectedStudentId(resolved[0].id);
-      } catch {}
+      } catch (e) { console.error('[student/submit-creature:92]', e); }
     })();
   }, [user?.role]);
 

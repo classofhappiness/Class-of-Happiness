@@ -507,7 +507,7 @@ export default function ParentDashboard() {
             };
             return;
           }
-        } catch {}
+        } catch (e) { console.error('[parent/dashboard:510]', e); }
       }
       // Default egg for unlinked children
       creatures[member.id] = {
@@ -533,7 +533,7 @@ export default function ParentDashboard() {
         const count = Array.isArray(data) ? data.filter((a:any) => !a.resolved).length : 0;
         setParentAlertCount(count);
       }
-    } catch {}
+    } catch (e) { console.error('[parent/dashboard:536]', e); }
   };
 
   const fetchData = async () => {
@@ -547,7 +547,7 @@ export default function ParentDashboard() {
         if (r.ok) { const d = await r.json(); d.forEach((s:any) => { if(s.id&&s.name) nameMap[s.id]=s.name; }); }
       }));
       setStrategyNames(nameMap);
-    } catch {}
+    } catch (e) { console.error('[parent/dashboard:550]', e); }
     try {
       // Real fix Aug 26 (item 1, silent role auto-sync): this used to silently overwrite the
       // account's real role field to 'parent' every single time this screen mounted, no
@@ -1814,7 +1814,7 @@ export default function ParentDashboard() {
                                   Alert.alert(`✅ ${t('added_exclaim') || 'Added!'}`, `${s.name} ${t('added_to_family_dashboard_desc') || 'has been added to your family dashboard.'}`);
                                 } else {
                                   let detail = resText;
-                                  try { detail = JSON.parse(resText)?.detail || resText; } catch {}
+                                  try { detail = JSON.parse(resText)?.detail || resText; } catch (e) { console.error('[parent/dashboard:1817]', e); }
                                   if (typeof detail === 'string' && detail.startsWith('free_tier_limit|')) {
                                     Alert.alert(t('free_plan_limit_title') || 'Free Plan Limit Reached', detail.split('|')[1] || (t('upgrade_add_more_children') || 'Upgrade to add more children.'), [
                                       { text: t('not_now') || 'Not Now', style: 'cancel' },

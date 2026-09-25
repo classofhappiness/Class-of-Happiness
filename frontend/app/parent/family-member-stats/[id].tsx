@@ -95,7 +95,7 @@ export default function FamilyMemberStatsScreen() {
       const seen = new Set();
       const deduped = combined.filter(l => { if (seen.has(l.id)) return false; seen.add(l.id); return true; });
       setLogs(deduped);
-    } catch {}
+    } catch (e) { console.error('[parent/family-member-stats/[id]:98]', e); }
     // Fetch strategy names for ID lookup - check all zones
     try {
       const token2 = await AsyncStorage.getItem('session_token');
@@ -119,7 +119,7 @@ export default function FamilyMemberStatsScreen() {
         strats2.forEach((s: any) => { if (s.id && s.name) nameMap[s.id] = s.name; });
       }
       setStrategyNames(nameMap);
-    } catch {}
+    } catch (e) { console.error('[parent/family-member-stats/[id]:122]', e); }
     setLoading(false);
     setRefreshing(false);
   }, [id]);
@@ -189,7 +189,7 @@ export default function FamilyMemberStatsScreen() {
       monthsSet.add(mk);
       if (!calendarMap[dk]) calendarMap[dk] = [];
       if (!calendarMap[dk].includes(z)) calendarMap[dk].push(z);
-    } catch {}
+    } catch (e) { console.error('[parent/family-member-stats/[id]:192]', e); }
   });
 
   const total = filteredLogs.length;

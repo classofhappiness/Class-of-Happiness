@@ -26,7 +26,7 @@ function ensureCacheDir() {
   if (!CACHE_DIR) return;
   try {
     if (!CACHE_DIR.exists) CACHE_DIR.create({ intermediates: true, idempotent: true });
-  } catch {}
+  } catch (e) { console.error('[utils/audioCache:29]', e); }
 }
 
 // Deterministic per-URL filename (no crypto needed, just needs to be stable and
@@ -108,7 +108,7 @@ export async function invalidateCachedAudio(remoteUrl: string): Promise<void> {
   try {
     const destFile = new File(CACHE_DIR, stableFilename(remoteUrl));
     if (destFile.exists) destFile.delete();
-  } catch {}
+  } catch (e) { console.error('[utils/audioCache:111]', e); }
 }
 
 // Single, shared "create and play this sound" implementation for every caller in sounds.ts

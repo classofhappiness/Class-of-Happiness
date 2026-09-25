@@ -120,7 +120,7 @@ export async function sendZoneAlert(params: {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(params),
     });
-  } catch {}
+  } catch (e) { console.error('[utils/notifications:123]', e); }
 }
 
 // Real fix Sep 24 (item7, third device-log pass): sendParentMessage (POST /notifications/
@@ -183,7 +183,7 @@ export async function updateStudentNotifSettings(
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${teacher_token}` },
       body: JSON.stringify(settings),
     });
-  } catch {}
+  } catch (e) { console.error('[utils/notifications:186]', e); }
 }
 
 export async function getAlerts(token: string): Promise<any[]> {
@@ -211,7 +211,7 @@ export async function resolveAlert(alert_id: string, token: string): Promise<voi
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
-  } catch {}
+  } catch (e) { console.error('[utils/notifications:214]', e); }
 }
 
 export const SHIELD_LEVELS = [
