@@ -557,16 +557,16 @@ export default function ParentDashboard() {
       // control fix), silently rewriting it on every visit is no longer safe. Role now only
       // changes via an explicit "Switch account type" action in Settings, with confirmation.
 
-      // Fetch linked children from school
-      const children = await parentApi.getChildren();
+      // Root cause fix Sep 25 (round-3 device test, items 1/3, "parent dashboard cold load
+      // 10s"): getChildren() and getMembers() are independent of each other - neither reads
+      // the other's result - but were awaited sequentially, each paying its own full network
+      // round trip back to back. Promise.all cuts this stage's wall-clock roughly in half.
+      const [children, members] = await Promise.all([parentApi.getChildren(), familyApi.getMembers()]);
       setLinkedChildren(children);
       // Real fix Sep 24 (item7, second device-log pass): loadLinkedChildCreatures used to be
       // called here too - see the useEffect([linkedChildren]) block's own comment for why
       // that was a real duplicate of GET /rewards/{id}/collection per child. setLinkedChildren
       // above already triggers that effect, which now populates childCreatures too.
-
-      // Fetch family members
-      const members = await familyApi.getMembers();
       setFamilyMembers(members);
       // Fetch creatures for all family members
       const creatureMap: Record<string, any> = {};
@@ -591,35 +591,40 @@ export default function ParentDashboard() {
       });
       const linkedIds = Array.from(new Set(Object.values(linkedIdByMember)));
 
+      // Root cause fix Sep 25 (round-3 device test, items 1/3): the batch collections fetch
+      // and the creatures-batch fetch right below it are also independent of each other -
+      // both only need `linkedIds`, neither reads the other's result - but were awaited
+      // sequentially. Promise.all cuts this stage's wall-clock roughly in half too.
       let batchCollections: Record<string, any> = {};
-      if (linkedIds.length > 0) {
-        try {
-          const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-          const tok = await AsyncStorage.getItem('session_token');
-          const r = await fetch(`${BURL}/api/rewards/batch/collections?student_ids=${linkedIds.join(',')}`, {
-            headers: { Authorization: `Bearer ${tok}` }
-          });
-          if (r.ok) batchCollections = await r.json();
-        } catch { /* fall through - members without a collection just get defaults below */ }
-      }
-
-      // Real feature Aug 23 (item 5): the small family-member cards never showed active
-      // community (Family/Class/School/Global) creatures at all - only defaults, via
-      // rewardsApi.getCollection above. Same enrichment already built for
-      // student/select.tsx's bigger cards, applied here too so both surfaces are
-      // consistent.
-      // Real fix Sep 24 (item1, third device-log pass - Metro log: 8x GET /students/{id}/
-      // my-creatures per dashboard load, one per family member, x3 loads/session): swapped
-      // the per-child loop for the batch endpoint built last session (GET /students/
-      // creatures-batch). That endpoint's ownership check (_is_authorized_for_student) was
-      // never teacher-only - it's the SAME shared check the single-student endpoint this
-      // loop used to call already relied on, which already covers a parent's linked children
-      // (parent_links) and family members with an auto-created student record
-      // (family_members.student_id) - confirmed by reading it, no change needed there.
       const communityByLinkedId: Record<string, any[]> = {};
       if (linkedIds.length > 0) {
-        try {
-          const myCreaturesBatch = await creaturesApi.getMyCreaturesBatch(linkedIds);
+        const [batchResult, myCreaturesBatchResult] = await Promise.allSettled([
+          (async () => {
+            const BURL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+            const tok = await AsyncStorage.getItem('session_token');
+            const r = await fetch(`${BURL}/api/rewards/batch/collections?student_ids=${linkedIds.join(',')}`, {
+              headers: { Authorization: `Bearer ${tok}` }
+            });
+            return r.ok ? await r.json() : {};
+          })(),
+          // Real feature Aug 23 (item 5): the small family-member cards never showed active
+          // community (Family/Class/School/Global) creatures at all - only defaults, via
+          // rewardsApi.getCollection above. Same enrichment already built for
+          // student/select.tsx's bigger cards, applied here too so both surfaces are
+          // consistent.
+          // Real fix Sep 24 (item1, third device-log pass - Metro log: 8x GET /students/{id}/
+          // my-creatures per dashboard load, one per family member, x3 loads/session): swapped
+          // the per-child loop for the batch endpoint built last session (GET /students/
+          // creatures-batch). That endpoint's ownership check (_is_authorized_for_student) was
+          // never teacher-only - it's the SAME shared check the single-student endpoint this
+          // loop used to call already relied on, which already covers a parent's linked children
+          // (parent_links) and family members with an auto-created student record
+          // (family_members.student_id) - confirmed by reading it, no change needed there.
+          creaturesApi.getMyCreaturesBatch(linkedIds),
+        ]);
+        if (batchResult.status === 'fulfilled') batchCollections = batchResult.value || {};
+        if (myCreaturesBatchResult.status === 'fulfilled') {
+          const myCreaturesBatch = myCreaturesBatchResult.value;
           linkedIds.forEach((linkedId) => {
             const active: any[] = [];
             Object.entries(myCreaturesBatch?.[linkedId]?.colours || {}).forEach(([colour, bucket]) => {
@@ -629,7 +634,7 @@ export default function ParentDashboard() {
             });
             communityByLinkedId[linkedId] = active;
           });
-        } catch { /* members without community creature data just get defaults below */ }
+        }
       }
 
       for (const m of members) {
@@ -739,53 +744,54 @@ export default function ParentDashboard() {
       const children = familyMembers.filter((m: any) => m.relationship === 'child');
       const linkedKids = linkedChildren;
 
-      const childResults = await Promise.all(children.map(async (child: any) => {
-        const logs: any[] = [];
-        // From feeling_logs via student_id (primary source — creature points go here)
-        if (child.student_id) {
-          try {
-            const r = await fetch(`${BACKEND_URL}/api/zone-logs/student/${child.student_id}?days=${analyticsPeriod}`, { headers });
-            const d = r.ok ? await r.json() : [];
-            if (Array.isArray(d)) {
-              logs.push(...d.map((l: any) => ({
-                ...l,
-                zone: l.zone || l.feeling_colour,
-                member_name: child.name,
-                member_id: child.id,
-              })));
-            }
-          } catch {}
-        }
-        // Also from family_zone_logs (fallback)
-        try {
-          const r2 = await fetch(`${BACKEND_URL}/api/family/zone-logs/${child.id}?days=${analyticsPeriod}`, { headers });
-          const d2 = r2.ok ? await r2.json() : [];
-          if (Array.isArray(d2)) {
-            const existingIds = new Set(logs.map((l: any) => l.id));
-            logs.push(...d2.filter((l: any) => !existingIds.has(l.id)).map((l: any) => ({
-              ...l,
-              zone: l.zone || l.feeling_colour,
-              member_name: child.name,
-              member_id: child.id,
-            })));
-          }
-        } catch {}
-        return logs;
-      }));
-
-      const linkedResults = await Promise.all(linkedKids.map(async (linked: any) => {
-        try {
-          const r = await fetch(`${BACKEND_URL}/api/parent/linked-child/${linked.id}/all-checkins?days=${analyticsPeriod}`, { headers });
-          const d = r.ok ? await r.json() : [];
-          return Array.isArray(d) ? d.map((l: any) => ({
+      // Root cause fix Sep 25 (round-3 device test, items 1/3, "parent dashboard cold load
+      // 10s"): each child's two log sources (zone-logs/student and family/zone-logs) were
+      // awaited sequentially - independent of each other (neither reads the other's result,
+      // dedup is symmetric regardless of fetch order), so this doubled every child's own
+      // contribution to the critical path. Also ran childResults and linkedResults as two
+      // sequential Promise.all stages even though they're independent of each other (one
+      // reads familyMembers, the other linkedChildren) - combined into one Promise.all so
+      // both groups fetch concurrently, not back to back.
+      const [childResults, linkedResults] = await Promise.all([
+        Promise.all(children.map(async (child: any) => {
+          const [studentResult, familyResult] = await Promise.allSettled([
+            child.student_id
+              ? fetch(`${BACKEND_URL}/api/zone-logs/student/${child.student_id}?days=${analyticsPeriod}`, { headers }).then(r => r.ok ? r.json() : [])
+              : Promise.resolve([]),
+            fetch(`${BACKEND_URL}/api/family/zone-logs/${child.id}?days=${analyticsPeriod}`, { headers }).then(r => r.ok ? r.json() : []),
+          ]);
+          const logs: any[] = [];
+          const d = studentResult.status === 'fulfilled' && Array.isArray(studentResult.value) ? studentResult.value : [];
+          logs.push(...d.map((l: any) => ({
             ...l,
             zone: l.zone || l.feeling_colour,
-            member_name: linked.name,
-            linked_id: linked.id,
-            student_id: linked.id,
-          })) : [];
-        } catch { return []; }
-      }));
+            member_name: child.name,
+            member_id: child.id,
+          })));
+          const d2 = familyResult.status === 'fulfilled' && Array.isArray(familyResult.value) ? familyResult.value : [];
+          const existingIds = new Set(logs.map((l: any) => l.id));
+          logs.push(...d2.filter((l: any) => !existingIds.has(l.id)).map((l: any) => ({
+            ...l,
+            zone: l.zone || l.feeling_colour,
+            member_name: child.name,
+            member_id: child.id,
+          })));
+          return logs;
+        })),
+        Promise.all(linkedKids.map(async (linked: any) => {
+          try {
+            const r = await fetch(`${BACKEND_URL}/api/parent/linked-child/${linked.id}/all-checkins?days=${analyticsPeriod}`, { headers });
+            const d = r.ok ? await r.json() : [];
+            return Array.isArray(d) ? d.map((l: any) => ({
+              ...l,
+              zone: l.zone || l.feeling_colour,
+              member_name: linked.name,
+              linked_id: linked.id,
+              student_id: linked.id,
+            })) : [];
+          } catch { return []; }
+        })),
+      ]);
 
       const allLogs: any[] = [];
       childResults.forEach(logs => allLogs.push(...logs));
