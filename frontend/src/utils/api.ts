@@ -178,11 +178,17 @@ async function apiRequest(endpoint: string, options: RequestInit = {}) {
   // Add Authorization header with session token for ALL platforms
   // This ensures mobile clients always send the token
   const token = await getSessionToken();
+  // Real fix Sep 25 (item 14): added method + a real ISO timestamp to this existing log line
+  // (was endpoint-only, no method, no timestamp) - scripts/check_metro_log.py needs both to
+  // detect an endpoint re-fetching within a 5s window from a saved Metro log; Metro itself
+  // doesn't timestamp console.log output, so without this the app's own log line was the only
+  // place a real timestamp could come from. Format kept single-line and grep-friendly
+  // (`[API] <method> <endpoint> <iso-timestamp> auth=<bool>`) rather than restructuring the
+  // two existing auth-branch messages, so this stays a pure addition, not a behavior change.
+  const method = (options.method || 'GET').toUpperCase();
+  console.log(`[API] ${method} ${endpoint} ${new Date().toISOString()} auth=${!!token}`);
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
-    console.log('[API] Request to', endpoint, '- Auth header added');
-  } else {
-    console.log('[API] Request to', endpoint, '- No auth token available');
   }
 
   const controller = new AbortController();

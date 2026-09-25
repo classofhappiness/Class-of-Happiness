@@ -16801,9 +16801,28 @@ async def list_support_requests(request: Request):
     student_ids = list({r["student_id"] for r in rows if r.get("student_id")})
     classroom_ids = list({r["classroom_id"] for r in rows if r.get("classroom_id")})
     teacher_ids = list({r["requested_by"] for r in rows if r.get("requested_by")})
-    student_names = {s["id"]: s["name"] for s in (supabase.table("students").select("id,name").in_("id", student_ids).execute().data or [])} if student_ids else {}
-    classroom_names = {c["id"]: c["name"] for c in (supabase.table("classrooms").select("id,name").in_("id", classroom_ids).execute().data or [])} if classroom_ids else {}
-    teacher_names = {u["user_id"]: (u.get("name") or u.get("email")) for u in (supabase.table("users").select("user_id,name,email").in_("user_id", teacher_ids).execute().data or [])} if teacher_ids else {}
+    # Real fix Sep 25 (item 14 follow-up, live production finding): this is the app's own
+    # highest-frequency poll target (teacher dashboard + admin queue, every 2.5s per device -
+    # see supportRequestsPoller.ts) and was running these 3 independent enrichment queries
+    # sequentially - confirmed live via railway logs during the item-14 smoke test that single
+    # calls to this endpoint were taking 600-2800ms with db_calls=6, matching the same ~70-
+    # 230ms-per-round-trip fixed overhead already found and fixed the same way at /students
+    # (Sep 24, item5) - 3 sequential round trips here alone account for up to ~700ms of that.
+    # Same asyncio.gather(asyncio.to_thread(...)) pattern; no logic change, still 3 queries,
+    # just concurrent instead of sequential.
+    async def _fetch(table, select, ids):
+        if not ids:
+            return []
+        r = await asyncio.to_thread(lambda: supabase.table(table).select(select).in_("id" if table != "users" else "user_id", ids).execute())
+        return r.data or []
+    students_data, classrooms_data, teachers_data = await asyncio.gather(
+        _fetch("students", "id,name", student_ids),
+        _fetch("classrooms", "id,name", classroom_ids),
+        _fetch("users", "user_id,name,email", teacher_ids),
+    )
+    student_names = {s["id"]: s["name"] for s in students_data}
+    classroom_names = {c["id"]: c["name"] for c in classrooms_data}
+    teacher_names = {u["user_id"]: (u.get("name") or u.get("email")) for u in teachers_data}
     for r in rows:
         r["student_name"] = student_names.get(r.get("student_id"))
         r["classroom_name"] = classroom_names.get(r.get("classroom_id"))

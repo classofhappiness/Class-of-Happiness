@@ -17,6 +17,12 @@ The marketing site **was** checked live via `curl https://classofhappiness.com`,
 
 ---
 
+## PRE-BUILD CHECKLIST
+
+1. **Run smoke + metro check** — `python3 scripts/smoke.py` (build-gate GET-endpoint health per role; needs `SMOKE_TEACHER_EMAIL`/`SMOKE_PARENT_EMAIL`/`SMOKE_SCHOOL_ADMIN_EMAIL`/`SMOKE_SUPERADMIN_EMAIL` in env) and `python3 scripts/check_metro_log.py <path-to-metro.log>` (poller-storm check against a real captured device session) — both must be clean before cutting a new build. See item 14, 2026-09-25: `check_metro_log.py`'s literal ">1 call within 5s" rule as specified will also flag the app's own correct, by-design 2.5s support-requests poll cadence (item 0) — not yet resolved; treat a single-endpoint violation with ~2.5s gaps as expected/known, and anything with sub-second gaps as the real signal, until the threshold itself is revisited.
+
+---
+
 # LAUNCH-BLOCKING
 
 ### L1. [SECURITY] Hardcoded superadmin bypass code shipped in the app bundle *(Section 6 #1)* — ✅ DONE 2026-08-18
