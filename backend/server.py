@@ -14016,19 +14016,48 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     # this whole endpoint already follows. Genuinely tracked data (confirmed live above), just
     # never surfaced by this endpoint before - the global superadmin stats.teacher_zone_counts
     # computes the equivalent thing platform-wide, this is the same concept scoped per school.
-    teacher_zone_dist = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+    #
+    # Real fix Sep 25 (item 5): this used to aggregate EVERY teacher's check-ins regardless of
+    # whether they'd opted into wellbeing sharing at all (teacher_wellbeing_shared_with_admin) -
+    # "aggregate only, no individual identifiers" protects against naming a teacher, but a small
+    # school with 1-2 teachers makes an "aggregate" trivially attributable anyway (a lone red
+    # count IS that one teacher). Now: only opted-in teachers' check-ins are aggregated at all
+    # (same shared=True/persisted-setting convention item 4/8 already use), and the whole
+    # teacher-wellbeing block is suppressed (None, not zeros - zeros would themselves leak "0
+    # opted-in teachers checked in red") whenever fewer than 3 teachers have opted in, so no
+    # small group can ever be singled out even in aggregate. teacher_opted_in_count is always
+    # returned (never suppressed) so a caller can explain an empty state honestly.
+    teacher_zone_dist = None
+    teacher_top_strategies: list = []
+    teacher_opted_in_ids: list = []
     if teacher_ids:
         try:
-            tc_res = supabase.table("teacher_checkins").select("user_id,zone").in_("user_id", teacher_ids).gte("timestamp", start_date).execute()
+            opted_r = supabase.table("users").select("user_id").in_("user_id", teacher_ids).eq("teacher_wellbeing_shared_with_admin", True).execute()
+            teacher_opted_in_ids = [r["user_id"] for r in (opted_r.data or [])]
+        except Exception as e:
+            logger.warning(f"[school-admin/analytics] opted-in teacher lookup failed: {e}")
+    teacher_opted_in_count = len(teacher_opted_in_ids)
+    teacher_wellbeing_suppressed = teacher_opted_in_count < 3
+    if teacher_opted_in_ids and not teacher_wellbeing_suppressed:
+        try:
+            tc_res = supabase.table("teacher_checkins").select("user_id,zone,strategies_selected").in_("user_id", teacher_opted_in_ids).eq("shared", True).gte("timestamp", start_date).execute()
             tc_rows = tc_res.data or []
             teachers_checked_in = len(set(r["user_id"] for r in tc_rows if r.get("user_id")))
+            teacher_zone_dist = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
+            teacher_strategy_counts: dict = {}
             for r in tc_rows:
                 z = r.get("zone")
                 if z in teacher_zone_dist:
                     teacher_zone_dist[z] += 1
+                for sid in (r.get("strategies_selected") or []):
+                    teacher_strategy_counts[sid] = teacher_strategy_counts.get(sid, 0) + 1
+            teacher_top_strategies = sorted(teacher_strategy_counts.items(), key=lambda kv: kv[1], reverse=True)[:5]
+            teacher_top_strategies = [{"id": sid, "count": c} for sid, c in teacher_top_strategies]
         except Exception as e:
             logger.warning(f"[school-admin/analytics] teacher_checkins query failed: {e}")
-    teacher_checkin_rate = round((teachers_checked_in / len(teacher_ids)) * 100) if teacher_ids else 0
+    teacher_checkin_rate = None if teacher_wellbeing_suppressed else (round((teachers_checked_in / teacher_opted_in_count) * 100) if teacher_opted_in_count else 0)
+    if teacher_wellbeing_suppressed:
+        teachers_checked_in = None
 
     # Real feature Aug 28 (demo-prep item 4): the 7-card dashboard stack needed two things
     # this endpoint didn't compute yet - real participation rate (distinct students who
@@ -14138,6 +14167,9 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
         "teacher_checkin_rate": teacher_checkin_rate,
         "teachers_checked_in": teachers_checked_in,
         "teacher_zone_distribution": teacher_zone_dist,
+        "teacher_opted_in_count": teacher_opted_in_count,
+        "teacher_wellbeing_suppressed": teacher_wellbeing_suppressed,
+        "teacher_top_strategies": teacher_top_strategies,
         "students_needing_support": students_needing_support,
         "participation_rate": participation_rate,
         "participation_rate_prev": prev_participation_rate,
@@ -14261,7 +14293,13 @@ def _school_analytics_metric_rows(d: dict) -> list:
         pct = round((count / total) * 100) if total else 0
         return f"{pct}% ({count})"
     zd = d.get("zone_distribution") or {}
-    tzd = d.get("teacher_zone_distribution") or {}
+    # Real fix Sep 25 (item 5): d.get(key, 0) only falls back on a MISSING key - the
+    # suppressed-for-privacy case sets teacher_checkin_rate/teacher_zone_distribution to a real
+    # None (see _compute_school_admin_analytics), so the old `d.get('teacher_checkin_rate', 0)`
+    # would have rendered the literal string "None%" in this PDF instead of an honest "—".
+    suppressed = bool(d.get("teacher_wellbeing_suppressed"))
+    tzd = {} if suppressed else (d.get("teacher_zone_distribution") or {})
+    teacher_rate_cell = "— (fewer than 3 teachers opted in)" if suppressed else f"{d.get('teacher_checkin_rate') or 0}%"
     return [
         ("Students", d.get("total_students", 0)),
         ("Teachers", d.get("total_teachers", 0)),
@@ -14270,11 +14308,12 @@ def _school_analytics_metric_rows(d: dict) -> list:
         ("Student Mood - Green", zone_pct(zd, "green")),
         ("Student Mood - Yellow", zone_pct(zd, "yellow")),
         ("Student Mood - Red", zone_pct(zd, "red")),
-        ("Teacher Check-in Rate", f"{d.get('teacher_checkin_rate', 0)}%"),
-        ("Teacher Mood - Blue", zone_pct(tzd, "blue")),
-        ("Teacher Mood - Green", zone_pct(tzd, "green")),
-        ("Teacher Mood - Yellow", zone_pct(tzd, "yellow")),
-        ("Teacher Mood - Red", zone_pct(tzd, "red")),
+        ("Teachers Opted Into Wellbeing Sharing", d.get("teacher_opted_in_count", 0)),
+        ("Teacher Check-in Rate", teacher_rate_cell),
+        ("Teacher Mood - Blue", "—" if suppressed else zone_pct(tzd, "blue")),
+        ("Teacher Mood - Green", "—" if suppressed else zone_pct(tzd, "green")),
+        ("Teacher Mood - Yellow", "—" if suppressed else zone_pct(tzd, "yellow")),
+        ("Teacher Mood - Red", "—" if suppressed else zone_pct(tzd, "red")),
         ("Home Check-ins", d.get("home_checkins_total", 0)),
         ("Linked Families", d.get("linked_families", 0)),
         ("Creatures Obtained", d.get("creatures_obtained", 0)),

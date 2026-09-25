@@ -446,6 +446,18 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
   const [featuresLoading, setFeaturesLoading] = useState(true);
   const [featureTogglePending, setFeatureTogglePending] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  // Real feature Sep 25 (item 5): superadmin-facing AGGREGATE-ONLY teacher wellbeing, lazy-
+  // loaded per school on first expand (same GET /admin/school-analytics/{id} the portal's
+  // per-school card already uses - one shared computation, never two). Keyed by
+  // school_admin_user_id so re-expanding a card that's already loaded doesn't refetch.
+  const [teacherWellbeing, setTeacherWellbeing] = useState<Record<string, any>>({});
+  const loadTeacherWellbeing = useCallback((adminId: string) => {
+    if (!adminId || teacherWellbeing[adminId] !== undefined) return;
+    setTeacherWellbeing(prev => ({ ...prev, [adminId]: null }));
+    apiCall(`/admin/school-analytics/${adminId}?period=${statsPeriod}`, authToken)
+      .then((d: any) => setTeacherWellbeing(prev => ({ ...prev, [adminId]: d })))
+      .catch(() => setTeacherWellbeing(prev => ({ ...prev, [adminId]: false })));
+  }, [authToken, statsPeriod, teacherWellbeing]);
 
   const loadProfiles = useCallback(() => {
     setProfilesLoading(true);
@@ -688,7 +700,7 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
             const statusColors = SCHOOL_STATUS_COLORS[profile.status] || SCHOOL_STATUS_COLORS.active;
             return (
               <View key={profile.id} style={{ backgroundColor: 'white', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#EEE' }}>
-                <TouchableOpacity onPress={() => setExpanded(e => ({ ...e, [profile.id]: !e[profile.id] }))} activeOpacity={0.7}>
+                <TouchableOpacity onPress={() => { setExpanded(e => ({ ...e, [profile.id]: !e[profile.id] })); if (profile.school_admin_user_id) loadTeacherWellbeing(profile.school_admin_user_id); }} activeOpacity={0.7}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <MaterialIcons name="business" size={20} color="#5C6BC0" />
                     <Text style={{ fontSize: 15, fontWeight: '800', color: '#1A1A2E', flex: 1 }}>{name}</Text>
@@ -779,6 +791,53 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
                         })
                       )}
                     </View>
+
+                    {/* Real feature Sep 25 (item 5): AGGREGATE-ONLY teacher wellbeing, never
+                        individual names or check-ins - see server.py
+                        _compute_school_admin_analytics for the real suppression rule (fewer
+                        than 3 opted-in teachers -> shown as "—", not zeros, so a tiny school
+                        can never be effectively deanonymized via "the aggregate"). */}
+                    {!!profile.school_admin_user_id && (
+                      <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F0F0F0' }}>
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                          {t('teacher_wellbeing_aggregate_label') || 'Teacher Wellbeing (aggregate)'}
+                        </Text>
+                        {teacherWellbeing[profile.school_admin_user_id] === null || teacherWellbeing[profile.school_admin_user_id] === undefined ? (
+                          <ActivityIndicator size="small" color="#5C6BC0" />
+                        ) : teacherWellbeing[profile.school_admin_user_id] === false ? (
+                          <Text style={{ fontSize: 12, color: '#AAA', fontStyle: 'italic' }}>{t('could_not_load_teacher_wellbeing') || 'Could not load teacher wellbeing data right now.'}</Text>
+                        ) : (() => {
+                          const d = teacherWellbeing[profile.school_admin_user_id];
+                          const optedIn = d.teacher_opted_in_count || 0;
+                          if (d.teacher_wellbeing_suppressed) {
+                            return (
+                              <Text style={{ fontSize: 12, color: '#AAA', fontStyle: 'italic' }}>
+                                {(t('teacher_wellbeing_suppressed_msg') || '— {n} teacher(s) opted in. Needs 3+ to show an aggregate without risking identifying someone.').replace('{n}', String(optedIn))}
+                              </Text>
+                            );
+                          }
+                          const tzd = d.teacher_zone_distribution || {};
+                          return (
+                            <>
+                              <Text style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>
+                                {(t('teacher_wellbeing_summary') || '{n} opted in · {rate}% checked in').replace('{n}', String(optedIn)).replace('{rate}', String(d.teacher_checkin_rate ?? 0))}
+                              </Text>
+                              <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+                                <Text style={{ fontSize: 11, color: EMOTION_COLOURS.green }}>🟢 {tzd.green || 0}</Text>
+                                <Text style={{ fontSize: 11, color: EMOTION_COLOURS.blue }}>🔵 {tzd.blue || 0}</Text>
+                                <Text style={{ fontSize: 11, color: EMOTION_COLOURS.yellow }}>🟡 {tzd.yellow || 0}</Text>
+                                <Text style={{ fontSize: 11, color: EMOTION_COLOURS.red }}>🔴 {tzd.red || 0}</Text>
+                              </View>
+                              {!!(d.teacher_top_strategies || []).length && (
+                                <Text style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
+                                  {(t('top_strategies_label') || 'Top strategies:') + ' ' + d.teacher_top_strategies.map((s: any) => resolveStrategyName(s.id, t, STRAT)).join(', ')}
+                                </Text>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </View>
+                    )}
                   </View>
                 )}
               </View>
