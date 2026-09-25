@@ -2649,7 +2649,14 @@ export default function AdminDashboard() {
       // /auth/me so user.push_token catches up immediately when this succeeds.
       registerForPushNotifications().then((token) => { if (token) checkAuth(); }).catch(() => {});
     }
-  }, [isSuperAdmin, user]);
+    // Root cause fix Sep 25 (item 2, infinite /auth/me + /translations loop): depending on
+    // the whole `user` object made this effect self-triggering - checkAuth() above calls
+    // setUser() with a brand-new object reference every time (fresh JSON from /auth/me),
+    // which changed this effect's own `user` dependency, re-firing it, calling checkAuth()
+    // again, forever (40+ /auth/me+/translations pairs in ~30s on a real device). user_id
+    // is a stable string that only actually changes on a real login/logout, which is the
+    // only time this effect needs to re-run.
+  }, [isSuperAdmin, user?.user_id]);
 
   // Real feature Sep 21 (device report): the buzz-visibility rule stays config-only
   // (enabled_by_school) per Jono's explicit call - gating it on push-token presence
