@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, Linking, Pressable, Image, Switch,
+  TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, Linking, Image, Switch,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import DraggableFlatList, { NestableScrollContainer, NestableDraggableFlatList } from 'react-native-draggable-flatlist';
+import { NestableScrollContainer } from 'react-native-draggable-flatlist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -1167,89 +1167,121 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
         </View>
       )}
 
-      {/* Strategy list — real drag-reorder Aug 15 (only when unfiltered by zone, and
-          only for real teacher/parent items — student ones use a different endpoint,
-          built-ins have no real record to reorder) */}
+      {/* Strategy list — real reorder Aug 15 (only when unfiltered by zone, and only for
+          real teacher/parent items — student ones use a different endpoint, built-ins have
+          no real record to reorder).
+          Root cause fix Sep 25 (round-3 device test, item 00): this used to be
+          NestableDraggableFlatList - "ref.measureLayout must be called with a ref to a
+          native component" fired 13x on this exact list even after patch-package's real fix
+          to the library's own onListContainerLayout (confirmed the patch is genuinely
+          present in node_modules and applies cleanly - the fix is correct, but the library
+          is still fighting this specific nesting under expo start --clear). Per Jono's own
+          explicit fallback instruction: replaced with a plain list + up/down reorder
+          buttons, the exact same tap-to-move pattern parent/dashboard.tsx's family-member
+          reorder already uses (moveCard) - zero refs, zero measureLayout, so this class of
+          warning is now structurally impossible here regardless of the library's own
+          behaviour. Same persistence logic as the old onDragEnd, same order_index PUT/fork-
+          on-drag semantics, unchanged. */}
       {loading ? <View style={{ padding: 20, alignItems: 'center' }}><EmotionColourLoader visible size={48} /></View> : (
-        <NestableDraggableFlatList
-          data={strats.filter((strat: any) => !zoneFilter || strat.zone === zoneFilter)}
-          keyExtractor={(strat: any, i: number) => strat.id || String(i)}
-          scrollEnabled={false}
-          onDragEnd={async ({ data }: any) => {
-            setStrats((prev: any[]) => {
-              const others = prev.filter((p: any) => zoneFilter && p.zone !== zoneFilter);
-              return zoneFilter ? [...others, ...data] : data;
-            });
-            // Real fix Aug 16: school_admin can reorder ALL types via their own
-            // scoped table; superadmin keeps the original teacher/parent-only reorder.
-            const ep = !isSuperAdmin ? '/school-admin/school-strategies' : '/admin/teacher-strategies';
-            const canReorderThisType = !isSuperAdmin || type === 'teacher' || type === 'parent';
-            if (canReorderThisType) {
-              const reorderable = data.filter((s: any) => !s.is_builtin && !s.builtin);
-              try {
-                // Real fix Aug 16: a global item being dragged gets forked into the
-                // school's own copy at its new position; already-owned items just
-                // get their order_index updated.
-                await Promise.all(reorderable.map((s: any, i: number) => {
-                  if (!isSuperAdmin && s._isGlobal) {
-                    return apiCall('/school-admin/school-strategies', authToken, {
-                      method: 'POST',
-                      body: JSON.stringify({ name: s.name, description: s.description, icon: s.icon, zone: s.zone, strategy_type: type, forked_from: s.id, order_index: i + 1 }),
-                    });
-                  }
-                  return apiCall(`${ep}/${s.id}`, authToken, { method: 'PUT', body: JSON.stringify({ order_index: i + 1 }) });
-                }));
-                load();
-              } catch { Alert.alert(t('error') || 'Error', t('could_not_save_order') || 'Could not save new order.'); }
-            }
-          }}
-          renderItem={({ item: strat, drag, isActive }: any) => {
-            const canDrag = (!isSuperAdmin || type === 'teacher' || type === 'parent') && !strat.is_builtin && !strat.builtin && !zoneFilter;
-            return (
-              <Pressable
-                onLongPress={canDrag ? drag : undefined}
-                delayLongPress={200}
-                disabled={isActive}
-                style={[s.stratRow, isActive && { opacity: 0.6 }]}
-              >
-                {canDrag && <MaterialIcons name="drag-indicator" size={18} color="#CCC" style={{ marginRight: 2 }} />}
-                <View style={[s.stratDot, { backgroundColor: ZONE_COLORS[strat.zone] || '#999' }]} />
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={s.stratName}>{strat.name}</Text>
-                    {(strat.is_builtin || strat.builtin) && (
-                      <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: '#EDE7F6' }}>
-                        <Text style={{ fontSize: 8, fontWeight: '800', color: '#7C5CBF' }}>{(t('built_in_badge') || 'Built-in').toUpperCase()}</Text>
-                      </View>
+        <View>
+          {(() => {
+            const visibleStrats = strats.filter((strat: any) => !zoneFilter || strat.zone === zoneFilter);
+            const moveStrategy = async (idx: number, dir: -1 | 1) => {
+              const newIdx = idx + dir;
+              if (newIdx < 0 || newIdx >= visibleStrats.length) return;
+              const reordered = [...visibleStrats];
+              [reordered[idx], reordered[newIdx]] = [reordered[newIdx], reordered[idx]];
+              setStrats((prev: any[]) => {
+                const others = prev.filter((p: any) => zoneFilter && p.zone !== zoneFilter);
+                return zoneFilter ? [...others, ...reordered] : reordered;
+              });
+              // Real fix Aug 16: school_admin can reorder ALL types via their own
+              // scoped table; superadmin keeps the original teacher/parent-only reorder.
+              const ep = !isSuperAdmin ? '/school-admin/school-strategies' : '/admin/teacher-strategies';
+              const canReorderThisType = !isSuperAdmin || type === 'teacher' || type === 'parent';
+              if (canReorderThisType) {
+                const reorderable = reordered.filter((s: any) => !s.is_builtin && !s.builtin);
+                try {
+                  // Real fix Aug 16: a global item being moved gets forked into the
+                  // school's own copy at its new position; already-owned items just
+                  // get their order_index updated.
+                  await Promise.all(reorderable.map((s: any, i: number) => {
+                    if (!isSuperAdmin && s._isGlobal) {
+                      return apiCall('/school-admin/school-strategies', authToken, {
+                        method: 'POST',
+                        body: JSON.stringify({ name: s.name, description: s.description, icon: s.icon, zone: s.zone, strategy_type: type, forked_from: s.id, order_index: i + 1 }),
+                      });
+                    }
+                    return apiCall(`${ep}/${s.id}`, authToken, { method: 'PUT', body: JSON.stringify({ order_index: i + 1 }) });
+                  }));
+                  load();
+                } catch { Alert.alert(t('error') || 'Error', t('could_not_save_order') || 'Could not save new order.'); }
+              }
+            };
+            return visibleStrats.map((strat: any, idx: number) => {
+              const canReorder = (!isSuperAdmin || type === 'teacher' || type === 'parent') && !strat.is_builtin && !strat.builtin && !zoneFilter;
+              return (
+                <View key={strat.id || String(idx)} style={s.stratRow}>
+                  {canReorder && (
+                    <View style={{ marginRight: 2 }}>
+                      <TouchableOpacity
+                        disabled={idx === 0}
+                        onPress={() => moveStrategy(idx, -1)}
+                        hitSlop={{ top: 6, bottom: 2, left: 6, right: 6 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('move_up') || 'Move up'}
+                      >
+                        <MaterialIcons name="keyboard-arrow-up" size={18} color={idx === 0 ? '#DDD' : '#666'} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        disabled={idx === visibleStrats.length - 1}
+                        onPress={() => moveStrategy(idx, 1)}
+                        hitSlop={{ top: 2, bottom: 6, left: 6, right: 6 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('move_down') || 'Move down'}
+                      >
+                        <MaterialIcons name="keyboard-arrow-down" size={18} color={idx === visibleStrats.length - 1 ? '#DDD' : '#666'} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  <View style={[s.stratDot, { backgroundColor: ZONE_COLORS[strat.zone] || '#999' }]} />
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={s.stratName}>{strat.name}</Text>
+                      {(strat.is_builtin || strat.builtin) && (
+                        <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: '#EDE7F6' }}>
+                          <Text style={{ fontSize: 8, fontWeight: '800', color: '#7C5CBF' }}>{(t('built_in_badge') || 'Built-in').toUpperCase()}</Text>
+                        </View>
+                      )}
+                    </View>
+                    {strat.description ? <Text style={s.stratDesc}>{strat.description}</Text> : null}
+                    {strat.created_by_role && (
+                      <Text style={{ fontSize: 9, color: '#AAA', marginTop: 2 }}>
+                        {t('added_by_label') || 'Added by'} {strat.created_by_role === 'superadmin' ? (t('super_admin') || 'Superadmin') : strat.created_by_role === 'school_admin' ? (t('school_admin_label') || 'School Admin') : strat.created_by_role}
+                        {strat.audience ? ` · ${strat.audience === 'all_students' ? (t('audience_all_students') || 'All Students') : strat.audience === 'all_teachers' ? (t('audience_all_teachers') || 'All Teachers') : strat.audience === 'all_parents' ? (t('audience_all_parents') || 'All Parents') : strat.audience}` : ''}
+                      </Text>
+                    )}
+                    {strat.created_at && (
+                      <Text style={{ fontSize: 9, color: '#CCC', marginTop: 1 }}>
+                        {t('added_label') || 'Added'} {new Date(strat.created_at).toLocaleDateString()}
+                      </Text>
                     )}
                   </View>
-                  {strat.description ? <Text style={s.stratDesc}>{strat.description}</Text> : null}
-                  {strat.created_by_role && (
-                    <Text style={{ fontSize: 9, color: '#AAA', marginTop: 2 }}>
-                      {t('added_by_label') || 'Added by'} {strat.created_by_role === 'superadmin' ? (t('super_admin') || 'Superadmin') : strat.created_by_role === 'school_admin' ? (t('school_admin_label') || 'School Admin') : strat.created_by_role}
-                      {strat.audience ? ` · ${strat.audience === 'all_students' ? (t('audience_all_students') || 'All Students') : strat.audience === 'all_teachers' ? (t('audience_all_teachers') || 'All Teachers') : strat.audience === 'all_parents' ? (t('audience_all_parents') || 'All Parents') : strat.audience}` : ''}
-                    </Text>
-                  )}
-                  {strat.created_at && (
-                    <Text style={{ fontSize: 9, color: '#CCC', marginTop: 1 }}>
-                      {t('added_label') || 'Added'} {new Date(strat.created_at).toLocaleDateString()}
-                    </Text>
+                  {isSuperAdmin && (
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity onPress={() => { setEditing(strat); setName(strat.name || ''); setDesc(strat.description || ''); setZone(strat.zone || 'blue'); setAudience(strat.audience || 'all_students'); }}>
+                        <MaterialIcons name="edit" size={16} color={INDIGO} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => del(strat)}>
+                        <MaterialIcons name="delete" size={16} color="#F44336" />
+                      </TouchableOpacity>
+                    </View>
                   )}
                 </View>
-                {isSuperAdmin && (
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <TouchableOpacity onPress={() => { setEditing(strat); setName(strat.name || ''); setDesc(strat.description || ''); setZone(strat.zone || 'blue'); setAudience(strat.audience || 'all_students'); }}>
-                      <MaterialIcons name="edit" size={16} color={INDIGO} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => del(strat)}>
-                      <MaterialIcons name="delete" size={16} color="#F44336" />
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </Pressable>
-            );
-          }}
-        />
+              );
+            });
+          })()}
+        </View>
       )}
     </View>
   );

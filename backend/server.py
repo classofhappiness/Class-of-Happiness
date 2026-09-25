@@ -2912,6 +2912,18 @@ async def logout(request: Request):
     if not session_token:
         session_token = request.query_params.get("token")
     if session_token:
+        # Root cause fix Sep 25 (round-3 device test, item 00): unregister this device's push
+        # token from the logging-out account BEFORE deleting the session - a device that later
+        # logs in as a different role (e.g. the same phone used for both a teacher and a
+        # school_admin test account) must not still be able to receive the PREVIOUS account's
+        # pushes just because its stale token is still sitting on that account's users row.
+        # Scoped to exactly this session's own user (never touches any other account's token).
+        try:
+            sess_r = supabase.table("user_sessions").select("user_id").eq("session_token", session_token).execute()
+            if sess_r.data:
+                supabase.table("users").update({"push_token": None}).eq("user_id", sess_r.data[0]["user_id"]).execute()
+        except Exception as e:
+            logger.warning(f"[logout] could not clear push_token: {e}")
         supabase.table("user_sessions").delete().eq("session_token", session_token).execute()
     response = Response(content='{"message": "Logged out"}')
     response.delete_cookie("session_token")

@@ -195,7 +195,18 @@ function AppContent() {
   useEffect(() => {
     const sub = Notifications.addNotificationReceivedListener((event) => {
       const data = event.request.content.data as Record<string, any> | undefined;
-      if (isIncidentPushData(data)) {
+      // Root cause fix Sep 25 (round-3 device test, item 00): backend's create_support_request
+      // already only ever pushes to the school_admin's own token, so a teacher's device was
+      // never actually a recipient of this push in practice - but this listener itself had no
+      // role check at all, meaning it would escalate ANY incident-shaped push it happened to
+      // receive to the full ring/vibrate/full-screen treatment regardless of who's logged in
+      // on this device. Explicit rule (Jono): the teacher who raised a request must never get
+      // buzz/sound/push for it - they get the pending state + red pulse on their own
+      // dashboard only. Real defence in depth, not dead code: this is the one place a future
+      // backend regression, a shared device, or a role switch without a fresh token
+      // re-registration could otherwise still ring a teacher's phone for their own request.
+      const isAdminRole = ['school_admin', 'admin', 'superadmin'].includes(user?.role || '');
+      if (isIncidentPushData(data) && isAdminRole) {
         showIncidentAlert({
           requestId: String(data?.id || ''),
           title: event.request.content.title || '🚨 Incident',

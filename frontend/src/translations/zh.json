@@ -427,6 +427,8 @@
   "more_points_until": "还需要更多积分才能到",
   "most_used_strategies": "最常用的策略",
   "move_member_left": "向左移动",
+  "move_up": "上移",
+  "move_down": "下移",
   "move_member_right": "向右移动",
   "moves": "动作",
   "mutual_consent": "双方同意 已生效",
