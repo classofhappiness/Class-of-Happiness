@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 import uuid
@@ -2539,7 +2540,7 @@ def _parse_supabase_timestamp(ts: str) -> datetime:
         ts = m.group(1) + frac + m.group(3)
     return datetime.fromisoformat(ts)
 
-async def get_current_user(request: Request) -> Optional[dict]:
+def _get_current_user_sync(request: Request) -> Optional[dict]:
     """Get current user from Supabase session token"""
     session_token = request.cookies.get("session_token")
     if not session_token:
@@ -2593,6 +2594,15 @@ async def get_current_user(request: Request) -> Optional[dict]:
     except Exception as e:
         logger.error(f"Auth error: {e}")
         return None
+
+async def get_current_user(request: Request) -> Optional[dict]:
+    """Item 1 fix (Sep 25, build blocker): this runs on nearly every one of the 306 route
+    handlers as their first line. The body above does zero real async I/O - it's synchronous
+    supabase-py .execute() calls - so left as `async def` it blocks the single-worker event
+    loop for its full duration on every authenticated request, not just the ones that are
+    genuinely slow. Wrapping it in run_in_threadpool moves that blocking work off the event
+    loop without changing any of the ~306 `await get_current_user(request)` call sites."""
+    return await run_in_threadpool(_get_current_user_sync, request)
 
 def _public_user(user: dict) -> dict:
     """CRITICAL security fix Aug 26: /auth/me, /auth/email-login, and google_auth all used to
