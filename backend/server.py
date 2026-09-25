@@ -131,15 +131,40 @@ try:
 except Exception as e:
     logger.warning(f"[timing] could not attach Supabase call-count hook: {e}")
 
+# Real fix Sep 25 (round-3 device test, item 1): GET /resources made 13 real Supabase calls
+# for one parent - traced to _resolve_caller_school_admin_ids and _parent_is_school_covered
+# (via _is_genuinely_free_tier) each independently re-walking the exact same parent_links ->
+# students -> classrooms -> users chain, PLUS _admin_is_active/_school_grace_period_expired/
+# _any_school_admin_active_by_name being called with no caching at all even when the same
+# admin_id or school_name is checked more than once in one request. A per-request cache -
+# same contextvar+mutable-object pattern as the call counter above - lets those functions
+# memoize their own results without changing any of their logic (pure "compute once, reuse
+# within this request", not a behaviour change), which is a much lower-risk fix than merging
+# the actual coverage-decision logic of three interacting, paywall-adjacent functions.
+_request_cache: contextvars.ContextVar = contextvars.ContextVar("_request_cache", default=None)
+
+def _request_cached(key_prefix: str, key, compute_fn):
+    cache = _request_cache.get()
+    if cache is None:
+        return compute_fn()
+    full_key = (key_prefix, key)
+    if full_key in cache:
+        return cache[full_key]
+    result = compute_fn()
+    cache[full_key] = result
+    return result
+
 class _RequestTimingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         counter = _SupabaseCallCounter()
-        token = _supabase_call_counter.set(counter)
+        count_token = _supabase_call_counter.set(counter)
+        cache_token = _request_cache.set({})
         start = time.monotonic()
         try:
             response = await call_next(request)
         finally:
-            _supabase_call_counter.reset(token)
+            _supabase_call_counter.reset(count_token)
+            _request_cache.reset(cache_token)
         duration_ms = (time.monotonic() - start) * 1000
         # request.scope["route"] is set by Starlette's router once a route has matched -
         # by the time call_next has returned, routing has already happened. .path is the
@@ -3204,14 +3229,14 @@ async def get_my_creatures_batch(request: Request, student_ids: str = ""):
     students_r = supabase.table("students").select("*").in_("id", ids).execute()
     students_by_id = {s["id"]: s for s in (students_r.data or [])}
 
-    # Same per-student authorization check the single-student endpoint uses - a requested id
-    # the caller isn't authorized for is silently dropped from the response rather than
-    # failing the whole batch.
-    authorized_ids = []
-    for sid in ids:
-        sdata = students_by_id.get(sid)
-        if sdata and await _is_authorized_for_student(user, sid, sdata):
-            authorized_ids.append(sid)
+    # Root cause fix Sep 25 (round-3 device test, item 1): this endpoint's docstring already
+    # promised "O(1) round trips regardless of class size" but the authorization check itself
+    # was still a per-id loop calling _is_authorized_for_student (up to 4-5 queries each) -
+    # the one remaining O(N) piece, confirmed live (7 students -> 8 Supabase calls, some
+    # short-circuiting cheaply, but still N+1 in principle). _batch_authorized_student_ids
+    # resolves the whole batch in O(1) queries - a requested id the caller isn't authorized
+    # for is still silently dropped from the response, same contract as before.
+    authorized_ids = list(_batch_authorized_student_ids(user, ids, students_by_id=students_by_id))
     if not authorized_ids:
         return {}
 
@@ -5181,6 +5206,82 @@ async def _is_authorized_for_student(user: dict, student_id: str, student_data: 
         pass
     return False
 
+def _batch_authorized_student_ids(user: dict, student_ids: list, students_by_id: dict = None) -> set:
+    """Root cause fix Sep 25 (round-3 device test, item 1): batched equivalent of
+    _is_authorized_for_student for a whole list of ids at once. That helper does up to 4-5
+    sequential queries per call (students, classrooms, users/school_admin, parent_links,
+    family_members) - fine for a single-student endpoint, but get_batch_collections and
+    get_my_creatures_batch each called it in a plain `for sid in ids` loop, so an N-student
+    batch paid O(N) round trips instead of the O(1) the rest of those endpoints were already
+    built for. Confirmed live: GET /rewards/batch/collections for 7 students made 18 real
+    Supabase calls and took 13.0s (see the new timing middleware's own log line) - almost
+    entirely this loop, not the actual reward data fetch. Same authorization rules and same
+    precedence as _is_authorized_for_student, just resolved as batched sets up front - at
+    most 5 queries total regardless of how many student_ids are requested.
+    students_by_id: pass an already-fetched {id: row} map (needs at least id/user_id/
+    classroom_id) to skip this function's own students query - get_my_creatures_batch already
+    fetches every requested student's full row before this is called, so reusing it avoids a
+    second, redundant students query for the exact same ids."""
+    ids = list(dict.fromkeys(student_ids))
+    if not ids:
+        return set()
+    if user.get("role") == "superadmin":
+        return set(ids)
+    uid = user["user_id"]
+    role = user.get("role")
+    authorized: set = set()
+
+    if students_by_id is None:
+        students_r = supabase.table("students").select("id,user_id,classroom_id").in_("id", ids).execute()
+        students_by_id = {s["id"]: s for s in (students_r.data or [])}
+
+    if role == "kiosk":
+        kclass = user.get("kiosk_classroom_id")
+        return {sid for sid, s in students_by_id.items() if s.get("classroom_id") == kclass}
+
+    for sid, s in students_by_id.items():
+        if s.get("user_id") == uid:
+            authorized.add(sid)
+
+    classroom_ids = {s["classroom_id"] for s in students_by_id.values() if s.get("classroom_id")}
+    if classroom_ids:
+        classes_r = supabase.table("classrooms").select("id,user_id").in_("id", list(classroom_ids)).execute()
+        owner_by_classroom = {c["id"]: c.get("user_id") for c in (classes_r.data or [])}
+        for sid, s in students_by_id.items():
+            cls_owner = owner_by_classroom.get(s.get("classroom_id"))
+            if cls_owner and cls_owner == uid:
+                authorized.add(sid)
+        if role == "school_admin":
+            other_owner_ids = {v for v in owner_by_classroom.values() if v and v != uid}
+            if other_owner_ids:
+                owners_r = supabase.table("users").select("user_id,school_admin_id,school_name").in_("user_id", list(other_owner_ids)).execute()
+                school_name = user.get("school_name", "")
+                matching_owner_ids = {
+                    o["user_id"] for o in (owners_r.data or [])
+                    if o.get("school_admin_id") == uid or (school_name and o.get("school_name") == school_name)
+                }
+                if matching_owner_ids:
+                    for sid, s in students_by_id.items():
+                        if owner_by_classroom.get(s.get("classroom_id")) in matching_owner_ids:
+                            authorized.add(sid)
+
+    remaining = [sid for sid in ids if sid not in authorized]
+    if remaining:
+        pl = supabase.table("parent_links").select("student_id,expires_at").eq("parent_user_id", uid).in_("student_id", remaining).execute()
+        now = datetime.now(timezone.utc)
+        for l in (pl.data or []):
+            if not l.get("expires_at") or datetime.fromisoformat(l["expires_at"].replace("Z", "+00:00")) > now:
+                authorized.add(l["student_id"])
+
+    remaining2 = [sid for sid in ids if sid not in authorized]
+    if remaining2:
+        fm = supabase.table("family_members").select("student_id").eq("user_id", uid).in_("student_id", remaining2).execute()
+        for f in (fm.data or []):
+            if f.get("student_id"):
+                authorized.add(f["student_id"])
+
+    return authorized
+
 # CRITICAL privacy fix Sep 21 (live incident, real family - Matilda): feeling_logs is one
 # shared table for BOTH school and home check-ins, distinguished only by logged_by in
 # ('parent','family'). The Sep 19 fix only ever patched GET /teacher/student/{id}/home-data
@@ -5655,6 +5756,13 @@ def _resolve_student_classroom_school(student_data: dict):
     return classroom_id, school_name
 
 def _admin_is_active(admin_id: str) -> bool:
+    """Cached per-request (Sep 25, round-3 device test, item 1) - the same admin_id is often
+    checked more than once within a single request (e.g. get_resources checks coverage via
+    both _resolve_caller_school_admin_ids's downstream and _parent_is_school_covered), and
+    each call was a real, uncached Supabase query. See _request_cached's own comment."""
+    return _request_cached("admin_is_active", admin_id, lambda: _admin_is_active_uncached(admin_id))
+
+def _admin_is_active_uncached(admin_id: str) -> bool:
     """True if this school_admin user_id has an ACTIVE paid plan. Shared by
     _parent_is_school_covered and _teacher_is_school_covered — extracted Aug 19
     (A8) from what used to be a private closure inside the parent version only.
@@ -5700,6 +5808,10 @@ def _admin_is_active(admin_id: str) -> bool:
 SCHOOL_RENEWAL_GRACE_DAYS = 10
 
 def _school_grace_period_expired(school_admin_id: str) -> bool:
+    """Cached per-request - see _admin_is_active's own comment for why."""
+    return _request_cached("school_grace_period_expired", school_admin_id, lambda: _school_grace_period_expired_uncached(school_admin_id))
+
+def _school_grace_period_expired_uncached(school_admin_id: str) -> bool:
     try:
         r = supabase.table("school_profiles").select("subscription_renewal_date").eq("school_admin_user_id", school_admin_id).execute()
         if not r.data or not r.data[0].get("subscription_renewal_date"):
@@ -5712,6 +5824,10 @@ def _school_grace_period_expired(school_admin_id: str) -> bool:
         return False
 
 def _any_school_admin_active_by_name(school_name: str) -> bool:
+    """Cached per-request - see _admin_is_active's own comment for why."""
+    return _request_cached("school_admin_active_by_name", school_name, lambda: _any_school_admin_active_by_name_uncached(school_name))
+
+def _any_school_admin_active_by_name_uncached(school_name: str) -> bool:
     """Same expiry-aware check as _admin_is_active, for the school_name dual-match fallback
     used by _teacher_is_school_covered/_parent_is_school_covered when a teacher/parent's
     school_admin_id was never backfilled. Real bug fix Aug 28: this fallback path had the
@@ -5758,6 +5874,35 @@ def _teacher_is_school_covered(user: dict) -> bool:
         return True
     return _any_school_admin_active_by_name(user.get("school_name"))
 
+def _parent_reachable_teachers(parent_user_id: str) -> list:
+    """Root cause fix Sep 25 (round-3 device test, item 1): the parent_links -> students ->
+    classrooms -> users walk that resolves "which teachers does this parent's linked
+    children's classrooms belong to". Extracted so _parent_is_school_covered and
+    _resolve_caller_school_admin_ids's parent branch can share ONE real walk instead of each
+    independently re-querying the exact same 4 tables - confirmed live via the new timing
+    middleware that GET /resources was making both walks in the same request (13 Supabase
+    calls total). Cached per-request; pure extraction, no logic change to either caller."""
+    def _compute():
+        try:
+            links = supabase.table("parent_links").select("student_id").eq("parent_user_id", parent_user_id).execute()
+            student_ids = [l["student_id"] for l in (links.data or [])]
+            if not student_ids:
+                return []
+            students = supabase.table("students").select("classroom_id").in_("id", student_ids).execute()
+            classroom_ids = list({s["classroom_id"] for s in (students.data or []) if s.get("classroom_id")})
+            if not classroom_ids:
+                return []
+            classrooms = supabase.table("classrooms").select("user_id").in_("id", classroom_ids).execute()
+            teacher_ids = list({c["user_id"] for c in (classrooms.data or []) if c.get("user_id")})
+            if not teacher_ids:
+                return []
+            teachers = supabase.table("users").select("user_id,school_admin_id,school_name").in_("user_id", teacher_ids).execute()
+            return teachers.data or []
+        except Exception as e:
+            logger.warning(f"_parent_reachable_teachers failed for parent {parent_user_id}: {e}")
+            return []
+    return _request_cached("parent_reachable_teachers", parent_user_id, _compute)
+
 def _parent_is_school_covered(user: dict) -> bool:
     """True if any of this parent's linked children attend a school whose own school_admin
     account has an ACTIVE paid plan. Real fix Aug 18, per Jono's final pricing model
@@ -5769,43 +5914,26 @@ def _parent_is_school_covered(user: dict) -> bool:
     # Rare case: a parent row itself carries a school_admin_id.
     if _admin_is_active(user.get("school_admin_id")):
         return True
-
-    try:
-        links = supabase.table("parent_links").select("student_id").eq("parent_user_id", user["user_id"]).execute()
-        student_ids = [l["student_id"] for l in (links.data or [])]
-        if not student_ids:
-            return False
-        students = supabase.table("students").select("classroom_id").in_("id", student_ids).execute()
-        classroom_ids = list({s["classroom_id"] for s in (students.data or []) if s.get("classroom_id")})
-        if not classroom_ids:
-            return False
-        classrooms = supabase.table("classrooms").select("user_id").in_("id", classroom_ids).execute()
-        teacher_ids = list({c["user_id"] for c in (classrooms.data or []) if c.get("user_id")})
-        if not teacher_ids:
-            return False
-        teachers = supabase.table("users").select("school_admin_id,school_name").in_("user_id", teacher_ids).execute()
-        for t in (teachers.data or []):
-            if _admin_is_active(t.get("school_admin_id")):
-                return True
-            # Dual-match fallback, same principle as the L4 school-identity fix: a teacher's
-            # own school_admin_id can be unbackfilled even when their school_name correctly
-            # matches an active school's admin.
-            if _any_school_admin_active_by_name(t.get("school_name")):
-                return True
-        return False
-    except Exception as e:
-        logger.warning(f"_parent_is_school_covered check failed for {user.get('user_id')}: {e}")
-        return False
+    for t in _parent_reachable_teachers(user["user_id"]):
+        if _admin_is_active(t.get("school_admin_id")):
+            return True
+        # Dual-match fallback, same principle as the L4 school-identity fix: a teacher's
+        # own school_admin_id can be unbackfilled even when their school_name correctly
+        # matches an active school's admin.
+        if _any_school_admin_active_by_name(t.get("school_name")):
+            return True
+    return False
 
 def _resolve_caller_school_admin_ids(user: dict) -> set:
     """Real addition Sep 11 (Phase 2.5 resource scoping, read-side): every school_admin_id
     a resource-read caller is entitled to see school-scoped content from - a teacher has
     at most one, a parent can have several (linked children at different schools), a
     school_admin is their own. Reuses the exact same parent_links -> students ->
-    classrooms -> teacher -> school_admin_id walk _parent_is_school_covered already uses
-    (proven correct in production), rather than inventing a second version of the same
-    resolution. superadmin/admin are NOT special-cased here - callers using this for
-    visibility filtering should skip the filter entirely for those roles instead."""
+    classrooms -> teacher -> school_admin_id walk _parent_is_school_covered uses (via the
+    shared, per-request-cached _parent_reachable_teachers, Sep 25 round-3), rather than a
+    second version of the same resolution. superadmin/admin are NOT special-cased here -
+    callers using this for visibility filtering should skip the filter entirely for those
+    roles instead."""
     role = user.get("role")
     if role == "school_admin":
         return {user["user_id"]}
@@ -5816,22 +5944,9 @@ def _resolve_caller_school_admin_ids(user: dict) -> set:
         ids = set()
         if user.get("school_admin_id"):
             ids.add(user["school_admin_id"])
-        try:
-            links = supabase.table("parent_links").select("student_id").eq("parent_user_id", user["user_id"]).execute()
-            student_ids = [l["student_id"] for l in (links.data or [])]
-            if student_ids:
-                students = supabase.table("students").select("classroom_id").in_("id", student_ids).execute()
-                classroom_ids = list({s["classroom_id"] for s in (students.data or []) if s.get("classroom_id")})
-                if classroom_ids:
-                    classrooms = supabase.table("classrooms").select("user_id").in_("id", classroom_ids).execute()
-                    teacher_ids = list({c["user_id"] for c in (classrooms.data or []) if c.get("user_id")})
-                    if teacher_ids:
-                        teachers = supabase.table("users").select("school_admin_id").in_("user_id", teacher_ids).execute()
-                        for t in (teachers.data or []):
-                            if t.get("school_admin_id"):
-                                ids.add(t["school_admin_id"])
-        except Exception as e:
-            logger.warning(f"_resolve_caller_school_admin_ids failed for parent {user.get('user_id')}: {e}")
+        for t in _parent_reachable_teachers(user["user_id"]):
+            if t.get("school_admin_id"):
+                ids.add(t["school_admin_id"])
         return ids
     return set()
 
@@ -6015,14 +6130,23 @@ async def get_linked_children(request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Root cause fix Sep 25 (round-3 device test, item 1): one students query per link,
+    # sequential - O(N) round trips for N linked children instead of O(1). Confirmed live via
+    # the timing middleware as part of /parent/children's overall latency. Batched into a
+    # single .in_() query; de-dup and result order preserved exactly as before.
+    links = supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).execute()
+    student_ids = [link["student_id"] for link in (links.data or []) if link.get("student_id")]
+    if not student_ids:
+        return []
+    students_r = supabase.table("students").select("*").in_("id", list(dict.fromkeys(student_ids))).execute()
+    students_by_id = {s["id"]: s for s in (students_r.data or [])}
     children = []
     seen_ids = set()
-    links = supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).execute()
-    for link in (links.data or []):
-        student = supabase.table("students").select("*").eq("id", link["student_id"]).execute()
-        if student.data and student.data[0]["id"] not in seen_ids:
-            children.append(student.data[0])
-            seen_ids.add(student.data[0]["id"])
+    for sid in student_ids:
+        s = students_by_id.get(sid)
+        if s and s["id"] not in seen_ids:
+            children.append(s)
+            seen_ids.add(s["id"])
     return children
 
 @api_router.get("/parent/available-students")
@@ -6032,14 +6156,19 @@ async def get_available_students(request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
     children = []
     seen_ids = set()
+    # Root cause fix Sep 25 (round-3 device test, item 1): same N+1 pattern as
+    # get_linked_children right above - batched into one .in_() query.
     links = supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).execute()
-    for link in (links.data or []):
-        student = supabase.table("students").select("*").eq("id", link["student_id"]).execute()
-        if student.data and student.data[0]["id"] not in seen_ids:
-            s = student.data[0]
-            s["_source"] = "school"
-            children.append(s)
-            seen_ids.add(s["id"])
+    link_student_ids = [link["student_id"] for link in (links.data or []) if link.get("student_id")]
+    if link_student_ids:
+        students_r = supabase.table("students").select("*").in_("id", list(dict.fromkeys(link_student_ids))).execute()
+        students_by_id = {s["id"]: s for s in (students_r.data or [])}
+        for sid in link_student_ids:
+            s = students_by_id.get(sid)
+            if s and s["id"] not in seen_ids:
+                s = {**s, "_source": "school"}
+                children.append(s)
+                seen_ids.add(s["id"])
     own_students = supabase.table("students").select("*").eq("user_id", user["user_id"]).execute()
     for s in (own_students.data or []):
         if s["id"] not in seen_ids:
@@ -12819,25 +12948,44 @@ async def get_batch_collections(student_ids: str, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     ids = [s.strip() for s in student_ids.split(',') if s.strip()][:20]
-    results = {}
+    results = {sid: None for sid in ids}
     creatures_map = {c["id"]: c for c in CREATURES}
 
+    # Root cause fix Sep 25 (round-3 device test, item 1): this used to call
+    # _is_authorized_for_student (up to 4-5 sequential queries each) plus its own
+    # student_rewards query inside a `for sid in ids` loop - O(N) round trips. Confirmed
+    # live via the new timing middleware: 7 students -> 18 Supabase calls, 13.0s. Now
+    # resolves authorization for the whole batch in O(1) queries via
+    # _batch_authorized_student_ids, then fetches every authorized student's rewards row
+    # in a single .in_() query - exactly the "batch/parallelise" fix asked for.
+    try:
+        authorized_ids = _batch_authorized_student_ids(user, ids)
+    except Exception as e:
+        logger.error(f"Batch collection auth error: {e}")
+        return results
+    if not authorized_ids:
+        return results
+
+    try:
+        rewards_r = supabase.table("student_rewards").select("*").in_("student_id", list(authorized_ids)).execute()
+        rewards_by_student = {r["student_id"]: r for r in (rewards_r.data or [])}
+    except Exception as e:
+        logger.error(f"Batch collection rewards fetch error: {e}")
+        return results
+
     for sid in ids:
+        if sid not in authorized_ids:
+            continue
+        data = rewards_by_student.get(sid)
+        if not data:
+            continue
         try:
-            if not await _is_authorized_for_student(user, sid):
-                results[sid] = None
-                continue
-            r = supabase.table("student_rewards").select("*").eq("student_id", sid).execute()
-            if not r.data:
-                results[sid] = None
-                continue
-            data = r.data[0]
             creature_points = data.get("creature_points") or {}
             creature_stages = data.get("creature_stages") or {}
             current_id = data.get("current_creature_id", "aqua_buddy")
             current_stage = data.get("current_stage", 0)
             current_points = data.get("current_points", 0)
-            
+
             all_creatures = []
             for cid, cdata in creatures_map.items():
                 cstage = creature_stages.get(cid, 0)
@@ -12849,7 +12997,7 @@ async def get_batch_collections(student_ids: str, request: Request):
                     "current_stage": cstage,
                     "is_complete": cstage >= len(stages) - 1,
                 })
-            
+
             current_creature = creatures_map.get(current_id, CREATURES[0])
             results[sid] = {
                 "current_creature": current_creature,
