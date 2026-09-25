@@ -2158,6 +2158,7 @@ function SchoolSettings({ authToken, user }: any) {
   const [saving, setSaving] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
   const [generatingCode, setGeneratingCode] = useState(false);
+  const [copiedInviteCode, setCopiedInviteCode] = useState(false);
   // Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): school-level toggle,
   // same two-tier allowed_by_superadmin/enabled_by_school pattern as support_requests -
   // reuses the existing generic GET /features + PUT /features/{key} endpoints rather than
@@ -2177,6 +2178,11 @@ function SchoolSettings({ authToken, user }: any) {
   const [buzzFeatureAllowed, setBuzzFeatureAllowed] = useState(true);
   const [buzzTogglePending, setBuzzTogglePending] = useState(false);
 
+  // Real fix Sep 25 (item 12): regenerating a code now invalidates whatever code was
+  // previously live (server-side, see /school/generate-invite-code) - a teacher with the old
+  // code printed/saved will stop being able to use it, so this is now behind an explicit
+  // confirm rather than a single tap, and all three surfaces (this, Settings, the portal) show
+  // the SAME current code by fetching it, not just whatever each one last generated locally.
   const generateInviteCode = async () => {
     setGeneratingCode(true);
     try {
@@ -2186,6 +2192,32 @@ function SchoolSettings({ authToken, user }: any) {
       Alert.alert(t('error') || 'Error', t('could_not_generate_invite_code') || 'Could not generate invite code.');
     }
     setGeneratingCode(false);
+  };
+
+  const confirmRegenerateInviteCode = () => {
+    if (!inviteCode) { generateInviteCode(); return; }
+    Alert.alert(
+      t('regenerate_code_title') || 'Regenerate invite code?',
+      t('regenerate_code_warning') || "Teachers with the old code won't be able to use it.",
+      [
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
+        { text: t('regenerate') || 'Regenerate', style: 'destructive', onPress: generateInviteCode },
+      ],
+    );
+  };
+
+  const copyInviteCode = () => {
+    if (!inviteCode) return;
+    try {
+      const { Clipboard } = require('react-native');
+      if (Clipboard?.setString) {
+        Clipboard.setString(inviteCode);
+      } else {
+        import('expo-clipboard').then(m => m.setStringAsync(inviteCode)).catch(() => {});
+      }
+    } catch {}
+    setCopiedInviteCode(true);
+    setTimeout(() => setCopiedInviteCode(false), 1500);
   };
 
   useEffect(() => {
@@ -2200,6 +2232,9 @@ function SchoolSettings({ authToken, user }: any) {
         setStudentCount(d.student_count?.toString() || '');
         setWellbeingEmail(d.wellbeing_email || '');
       }).catch(() => {});
+    apiCall('/school/invite-code', authToken)
+      .then((d: any) => { if (d?.code) setInviteCode(d.code); })
+      .catch(() => {});
     apiCall('/features', authToken)
       .then((features: any[]) => {
         const shop = (features || []).find(f => f.feature_key === 'creature_shop');
@@ -2296,13 +2331,17 @@ function SchoolSettings({ authToken, user }: any) {
       <SectionCard title={t('invite_teachers') || 'Invite Teachers'} subtitle={t('link_teachers_to_school') || 'Link your teachers to this school'} icon="group-add" color="#5C6BC0">
         <Text style={s.hint}>{t('generate_and_share_teacher_code') || 'Generate a code and share it with your teachers so they link to your school.'}</Text>
         {!!inviteCode && (
-          <View style={{ backgroundColor: '#F0F4FF', borderRadius: 10, padding: 14, marginVertical: 8, alignItems: 'center' }}>
+          <TouchableOpacity
+            onPress={copyInviteCode}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: '#F0F4FF', borderRadius: 10, padding: 14, marginVertical: 8 }}
+          >
             <Text style={{ fontSize: 18, fontWeight: '900', color: '#1A1A2E', letterSpacing: 1 }}>{inviteCode}</Text>
-          </View>
+            <MaterialIcons name={copiedInviteCode ? 'check' : 'content-copy'} size={18} color={copiedInviteCode ? '#4CAF50' : '#5C6BC0'} />
+          </TouchableOpacity>
         )}
         <TouchableOpacity
           style={[s.btn, generatingCode && { opacity: 0.6 }]}
-          onPress={generateInviteCode}
+          onPress={confirmRegenerateInviteCode}
           disabled={generatingCode}
         >
           <MaterialIcons name="qr-code" size={16} color="white" />

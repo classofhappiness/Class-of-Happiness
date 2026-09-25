@@ -454,7 +454,7 @@ export default function SettingsScreen() {
   const [generatedCode, setGeneratedCode] = useState('');
   const [generatingCode, setGeneratingCode] = useState(false);
 
-  const handleGenerateInviteCode = async () => {
+  const doGenerateInviteCode = async () => {
     setGeneratingCode(true);
     try {
       const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -475,6 +475,39 @@ export default function SettingsScreen() {
       setGeneratingCode(false);
     }
   };
+
+  // Real fix Sep 25 (item 12): regenerating now invalidates the previous code server-side
+  // (POST /school/generate-invite-code) - a teacher holding the old code stops being able to
+  // use it, so this is a real, confirmed action once a code already exists, not a silent
+  // re-tap. Also fetches the CURRENT code on mount (GET /school/invite-code) instead of only
+  // ever showing a code this screen itself just generated - the app School tab and portal
+  // both read the same endpoint, so all three surfaces agree on what "the" code is.
+  const handleGenerateInviteCode = async () => {
+    if (!generatedCode) { doGenerateInviteCode(); return; }
+    Alert.alert(
+      t('regenerate_code_title') || 'Regenerate invite code?',
+      t('regenerate_code_warning') || "Teachers with the old code won't be able to use it.",
+      [
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
+        { text: t('regenerate') || 'Regenerate', style: 'destructive', onPress: doGenerateInviteCode },
+      ],
+    );
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated || !(user?.role === 'school_admin' || user?.role === 'admin' || user?.role === 'superadmin')) return;
+    (async () => {
+      try {
+        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        const token = await AsyncStorage.getItem('session_token');
+        const res = await fetch(`${BACKEND_URL}/api/school/invite-code`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.code) setGeneratedCode(data.code);
+        }
+      } catch {}
+    })();
+  }, [isAuthenticated, user?.role]);
 
   // Start trial
   const [startingTrial, setStartingTrial] = useState(false);
@@ -1225,7 +1258,7 @@ export default function SettingsScreen() {
                 disabled={generatingCode}
               >
                 <Text style={{ color: 'white', fontWeight: 'bold', textAlign: 'center' }}>
-                  {generatingCode ? t('loading')||'Generating...' : '🔑 ' + (t('generate_invite_code')||'Generate Invite Code')}
+                  {generatingCode ? t('loading')||'Generating...' : '🔑 ' + (generatedCode ? (t('generate_new_code') || 'Generate New Code') : (t('generate_invite_code')||'Generate Invite Code'))}
                 </Text>
               </TouchableOpacity>
             </View>

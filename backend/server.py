@@ -13469,6 +13469,22 @@ async def generate_school_invite_code(request: Request):
             target_admin_id = target_r.data[0]["user_id"]
             target_school_name = target_r.data[0].get("school_name") or "My School"
 
+    # Real fix Sep 25 (item 12): all three surfaces (portal Invite Teachers, app Settings,
+    # app School tab) call this same endpoint, but nothing ever invalidated the PREVIOUS
+    # code for this school - each press just inserted another active row, so a school could
+    # accumulate any number of simultaneously-valid codes with no way to tell which one was
+    # "current" (confirmed live: Sunshine had 7 valid invite_codes rows before this fix, one
+    # per generate press across the 3 surfaces + earlier testing). Enforces a real
+    # one-active-code-per-school invariant: expire every other still-valid code for this
+    # target BEFORE inserting the new one, so "Regenerate" now actually invalidates the old
+    # code rather than just adding a sibling to it. Soft-invalidate (set expires_at to now)
+    # rather than delete, so the old row stays for audit/history.
+    now_iso = datetime.now(timezone.utc).isoformat()
+    try:
+        supabase.table("invite_codes").update({"expires_at": now_iso}).eq("school_admin_id", target_admin_id).eq("type", "school").gt("expires_at", now_iso).execute()
+    except Exception as e:
+        logger.warning(f"[invite-code] could not invalidate previous codes for {target_admin_id}: {e}")
+
     code = generate_invite_code("SCH")
     expires_at = (datetime.now(timezone.utc) + timedelta(days=90)).isoformat()
 
@@ -13581,6 +13597,41 @@ async def get_school_invite_codes(request: Request):
         return result.data or []
     except:
         return []
+
+@api_router.get("/school/invite-code")
+async def get_current_school_invite_code(request: Request, school_admin_id: str = None):
+    """Real feature Sep 25 (item 12): the single "current code" read used by all three
+    surfaces (portal Invite Teachers card, app Settings, app School tab) so they always show
+    the SAME code instead of each only knowing about whatever it last generated itself in
+    local state. Returns the most recent still-valid invite_codes row for the target school,
+    or {"code": null} if none has ever been generated (a fresh "Generate" is then a create,
+    not a regenerate). superadmin may pass ?school_admin_id= to view/manage another school's
+    code from its contact-details card; any other role always sees only their own."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    target_admin_id = user["user_id"]
+    if user.get("role") == "superadmin" and school_admin_id:
+        target_admin_id = school_admin_id
+    try:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        result = (
+            supabase.table("invite_codes")
+            .select("*")
+            .eq("school_admin_id", target_admin_id)
+            .eq("type", "school")
+            .gt("expires_at", now_iso)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            row = result.data[0]
+            return {"code": row["code"], "expires_at": row["expires_at"], "school_name": row.get("school_name")}
+        return {"code": None}
+    except Exception as e:
+        logger.error(f"[invite-code] current lookup failed: {e}")
+        return {"code": None}
 
 
 @api_router.post("/school/bulk-invite")
