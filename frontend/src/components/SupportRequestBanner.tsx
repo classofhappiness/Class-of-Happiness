@@ -41,6 +41,24 @@ export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
 
   // Real fix Sep 11 (stop-ship): this used to run its own setInterval + fetch. Now purely
   // derives from the one shared poller (supportRequestsPoller.ts) - see that file for why.
+  //
+  // Root cause fix Sep 25 (round-3 device test, item 00, BUILD BLOCKER - Metro log: 155x
+  // "Maximum update depth exceeded"): this effect depended on `list` (the array itself) and
+  // unconditionally called setActive(next) with a brand-new object literal every time it
+  // ran - React has no way to bail out of a state update when the new value is merely
+  // deep-equal, only when it's the SAME reference, so every run was a guaranteed re-render
+  // regardless of whether anything had actually changed. Two independent fixes, both real
+  // root causes rather than one patching around the other:
+  // (1) the effect's own dependency is now a stable, derived signature (id+status, joined) -
+  //     it only re-runs when a request's identity or status genuinely changes, not on every
+  //     render that happens to produce an equivalent `list`.
+  // (2) setActive is now idempotent - skipped entirely when the freshly-built `next` is
+  //     shallow-equal (by id+status) to the current `active` state, so even a genuine
+  //     dependency change that resolves to the same visible set never triggers a wasted
+  //     re-render. This is real defense in depth, not just a mirror of fix (1): flipTimestamp-
+  //     driven entries (RESOLVED/CANCELLED) can still legitimately re-add the same id on a
+  //     later tick before its flash timer fires, which fix (1) alone wouldn't catch.
+  const listSignature = list.map((r) => `${r.id}:${r.status}`).join('|');
   useEffect(() => {
     const now = Date.now();
     const next: Record<string, SupportRequest> = {};
@@ -63,8 +81,13 @@ export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
         delete timers.current[r.id];
       }, msRemaining);
     });
-    setActive(next);
-  }, [list]);
+    setActive((prev) => {
+      const prevSig = Object.values(prev).map((r) => `${r.id}:${r.status}`).sort().join('|');
+      const nextSig = Object.values(next).map((r) => `${r.id}:${r.status}`).sort().join('|');
+      return prevSig === nextSig ? prev : next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listSignature]);
 
   useEffect(() => () => { Object.values(timers.current).forEach(clearTimeout); }, []);
 
