@@ -9,6 +9,7 @@ from typing import List, Optional, Dict
 import uuid
 import os
 import re
+import time
 import asyncio
 import logging
 import httpx
@@ -86,6 +87,73 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ================== REQUEST TIMING (Sep 25, round-2 device test, item 1) ==================
+# "This is the item that ends the guessing" - one stdout line per request (Railway captures
+# stdout directly, no extra sink needed) with method, the ROUTE TEMPLATE (not the raw path -
+# /students/{student_id}, not /students/0baa8df5-..., so requests to the same endpoint for
+# different ids/students group together in the logs), status, duration, and how many real
+# Supabase/PostgREST round trips that request made.
+#
+# The call counter hooks the actual HTTP layer, not supabase-py's own .execute() - every
+# .table(...).execute() call ultimately fires exactly one HTTP request through
+# supabase.postgrest.session (a real httpx.Client), so counting THERE is a single, reliable
+# choke point regardless of which of the many query-builder call shapes in this file were
+# used, rather than trying to monkeypatch every possible chained builder method.
+#
+# Scoped per-request via a contextvar - but contextvars.set() inside a child thread (every
+# plain `def` handler, and everything explicitly wrapped in run_in_threadpool, e.g. item 1's
+# get_current_user fix) does NOT propagate back out to the parent context once the thread
+# function returns (copy_context() semantics - each copy is independent). A bare int counter
+# would silently undercount anything counted from inside a threadpooled call. Storing a
+# single MUTABLE counter object in the contextvar instead sidesteps this: the object's
+# IDENTITY (a reference) is what's copied into every child thread's context, so incrementing
+# its .count attribute from any thread mutates the one shared object the middleware itself
+# is still holding a reference to.
+import contextvars
+
+class _SupabaseCallCounter:
+    __slots__ = ("count",)
+    def __init__(self):
+        self.count = 0
+
+_supabase_call_counter: contextvars.ContextVar = contextvars.ContextVar(
+    "_supabase_call_counter", default=None
+)
+
+def _count_supabase_call(httpx_request) -> None:
+    counter = _supabase_call_counter.get()
+    if counter is not None:
+        counter.count += 1
+
+try:
+    supabase.postgrest.session.event_hooks["request"].append(_count_supabase_call)
+except Exception as e:
+    logger.warning(f"[timing] could not attach Supabase call-count hook: {e}")
+
+class _RequestTimingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        counter = _SupabaseCallCounter()
+        token = _supabase_call_counter.set(counter)
+        start = time.monotonic()
+        try:
+            response = await call_next(request)
+        finally:
+            _supabase_call_counter.reset(token)
+        duration_ms = (time.monotonic() - start) * 1000
+        # request.scope["route"] is set by Starlette's router once a route has matched -
+        # by the time call_next has returned, routing has already happened. .path is the
+        # TEMPLATE ("/api/students/{student_id}"), not the raw request path. Falls back to
+        # the raw path for anything that never matched a route (404s).
+        route = request.scope.get("route")
+        path_template = route.path if route else request.url.path
+        logger.info(
+            f"[timing] {request.method} {path_template} status={response.status_code} "
+            f"duration_ms={duration_ms:.1f} db_calls={counter.count}"
+        )
+        return response
+
+app.add_middleware(_RequestTimingMiddleware)
 
 # ================== SUBSCRIPTION PLANS ==================
 SUBSCRIPTION_PLANS = {
