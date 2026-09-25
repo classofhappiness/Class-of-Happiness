@@ -195,7 +195,7 @@ function CreatureCard({
           onPressOut={isActive && !fullyEvolved && !locked ? onHoldOut : undefined}
         >
           <Animated.View style={[styles.imgWrap, { transform: bounceTransform }]}>
-            <Image source={{ uri: imgUrl }} style={[styles.creatureImg, locked && styles.creatureImgLocked]} />
+            <Image source={{ uri: imgUrl }} resizeMode="contain" style={[styles.creatureImg, locked && styles.creatureImgLocked]} />
             {locked ? (
               <View style={styles.lockOverlay}>
                 <MaterialIcons name="lock" size={28} color="white" />
@@ -597,7 +597,12 @@ const styles = StyleSheet.create({
   filterText: { ...PILL_TEXT_BASE },
   card: { backgroundColor: 'white', borderRadius: 14, overflow: 'hidden', marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   cardLocked: { opacity: 0.6 },
-  imgWrap: { width: '100%', aspectRatio: 1.1, backgroundColor: '#F5F5F5' },
+  // Real fix Sep 25 (item 17): backgroundColor:'#F5F5F5' was invisible only because every
+  // creature photo (default AND community) was itself opaque with no real transparency - see
+  // the asset-side + AnimatedCreatureVisual fixes, same item. Same bobbing already comes from
+  // this screen's own useZoneMovement call above (the same hook AnimatedCreatureVisual uses
+  // internally), so this is already "one animation code path" - just needed the same box fix.
+  imgWrap: { width: '100%', aspectRatio: 1.1 },
   creatureImg: { width: '100%', height: '100%' },
   creatureImgLocked: { opacity: 0.4 },
   lockOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,.35)', alignItems: 'center', justifyContent: 'center' },

@@ -1,10 +1,15 @@
 import React, { useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { pickLocalized } from '../utils/localizedText';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Text, Image, StyleSheet, Animated, Easing } from 'react-native';
 import { Creature, CreatureStage } from '../utils/api';
 
 interface CreatureDisplayProps {
+  // Real fix Sep 25 (item 17): `creature` only strictly needs `.zone`/`.color` when `imageUrl`
+  // is set (a community creature has neither `.stages` nor a real `Creature` shape at all -
+  // see rewards.tsx's caller) - `.stages![stage]` is only ever read when rendering the emoji
+  // path below. Kept as `Creature` (not loosened) for the default-creature callers, which do
+  // still pass a real one; the image path builds its own minimal-shape object instead.
   creature: Creature;
   stage: number;
   currentPoints: number;
@@ -19,6 +24,14 @@ interface CreatureDisplayProps {
   // When set, caps the preset's container/emoji size down (never up) to this many px, so the
   // image genuinely shrinks to absorb a tight layout instead of forcing the page to scroll.
   maxContainerSize?: number;
+  // Real feature Sep 25 (item 17): a community creature is a real photo, not an emoji - same
+  // animated container/bob/glow/particles as every default creature (the actual point of this
+  // change: one visual code path, a prop for image source, instead of CommunityCreatureDisplay
+  // being a second, simpler, non-bobbing, non-transparent-aware implementation). When set,
+  // this renders INSTEAD OF creature.stages![stage].emoji - stage name/description (which a
+  // community creature doesn't have per-stage) fall back to nameOverride/no description.
+  imageUrl?: string | null;
+  nameOverride?: string;
 }
 
 // Animation configurations for each creature type based on zone
@@ -104,6 +117,8 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
   animated = true,
   showGrowthIndicator = true,
   maxContainerSize,
+  imageUrl,
+  nameOverride,
 }) => {
   const { t, language } = useApp();
   // Animation values
@@ -115,11 +130,11 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
   const effectAnim = useRef(new Animated.Value(0)).current;
   const effectOpacity = useRef(new Animated.Value(0)).current;
 
-  const stageInfo = creature.stages![stage];
+  const stageInfo = imageUrl ? null : creature.stages![stage];
   const animConfig = getCreatureAnimationConfig(creature.zone!, stage);
 
   // Calculate growth progress within current stage (0 to 1)
-  const previousThreshold = stage > 0 ? creature.stages![stage].required_points : 0;
+  const previousThreshold = imageUrl ? 0 : (stage > 0 ? creature.stages![stage].required_points : 0);
   const nextThreshold = pointsForNext || (previousThreshold + 20);
   const progressInStage = pointsForNext 
     ? Math.min((currentPoints - previousThreshold) / (nextThreshold - previousThreshold), 1)
@@ -576,14 +591,28 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
             },
           ]}
         >
-          {/* Real fix Sep 15 (Marisa build-26, S06): lone emoji Text wasn't centring inside
-              its circle - Android's default font padding adds asymmetric space a plain
-              textAlign:'center' doesn't fix. includeFontPadding:false (Android-only, no-op on
-              iOS) plus a lineHeight matching this instance's dynamic size gets it centred on
-              both platforms, same fix as EvolutionAnimation's modal circle. */}
-          <Text style={[styles.emoji, { fontSize: dynamicEmojiSize, lineHeight: dynamicEmojiSize * 1.2, includeFontPadding: false }]}>
-            {stageInfo.emoji}
-          </Text>
+          {imageUrl ? (
+            // Real feature Sep 25 (item 17): a community creature's real photo, sized/animated
+            // identically to a default creature's emoji right above - no backgroundColor box
+            // (this component never had one behind the emoji either; the box bug was
+            // CommunityCreatureDisplay's own imageRing style, not reproduced here), no forced
+            // circular crop (resizeMode="contain" keeps the whole photo, unlike the old
+            // component's overflow:hidden circular mask that cropped non-circular art).
+            <Image
+              source={{ uri: imageUrl }}
+              resizeMode="contain"
+              style={{ width: dynamicEmojiSize * 1.4, height: dynamicEmojiSize * 1.4 }}
+            />
+          ) : (
+            // Real fix Sep 15 (Marisa build-26, S06): lone emoji Text wasn't centring inside
+            // its circle - Android's default font padding adds asymmetric space a plain
+            // textAlign:'center' doesn't fix. includeFontPadding:false (Android-only, no-op on
+            // iOS) plus a lineHeight matching this instance's dynamic size gets it centred on
+            // both platforms, same fix as EvolutionAnimation's modal circle.
+            <Text style={[styles.emoji, { fontSize: dynamicEmojiSize, lineHeight: dynamicEmojiSize * 1.2, includeFontPadding: false }]}>
+              {stageInfo?.emoji}
+            </Text>
+          )}
         </Animated.View>
         
         {/* Growth sparkles when progressing */}
@@ -608,14 +637,19 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
         )}
       </View>
 
-      {/* Name and Stage */}
-      <Text style={[styles.name, { fontSize: sizeConfig.fontSize + 2, color: creature.color }]}>
-        {stageInfo.name}
-      </Text>
-      
-      <Text style={[styles.description, { fontSize: sizeConfig.fontSize - 2 }]}>
-        {pickLocalized(stageInfo, 'description', language)}
-      </Text>
+      {/* Name and Stage - a community creature has one name overall, not a real per-stage
+          name/description (nameOverride), and no description at all (matches
+          CommunityCreatureDisplay's own old behaviour - it never showed one either). */}
+      {(nameOverride || stageInfo?.name) && (
+        <Text style={[styles.name, { fontSize: sizeConfig.fontSize + 2, color: creature.color }]}>
+          {nameOverride || stageInfo?.name}
+        </Text>
+      )}
+      {stageInfo && (
+        <Text style={[styles.description, { fontSize: sizeConfig.fontSize - 2 }]}>
+          {pickLocalized(stageInfo, 'description', language)}
+        </Text>
+      )}
 
       {/* Growth indicator */}
       {showGrowthIndicator && pointsForNext && (

@@ -25,7 +25,6 @@ import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { rewardsApi, Creature, AddPointsResponse } from '../../src/utils/api';
 import { getStudentShield, SHIELD_LEVELS } from '../../src/utils/notifications';
 import { CreatureDisplay } from '../../src/components/CreatureDisplay';
-import { CommunityCreatureDisplay } from '../../src/components/CommunityCreatureDisplay';
 import { EvolutionAnimation } from '../../src/components/EvolutionAnimation';
 import { CommunityEvolutionAnimation } from '../../src/components/CommunityEvolutionAnimation';
 import { BonusItemCelebration, CelebrationItem } from '../../src/components/BonusItemCelebration';
@@ -483,15 +482,31 @@ export default function RewardsScreen() {
         onLayout={handleCreatureAreaLayout}
       >
         {rewardsData?.current_creature?.creature_type === 'community' ? (
-          <CommunityCreatureDisplay
-            name={rewardsData.current_creature.name}
-            emotionColour={rewardsData.current_creature.feeling_colour}
-            stage1_url={rewardsData.current_creature.stage1_url}
-            stage2_url={rewardsData.current_creature.stage2_url}
-            stage3_url={rewardsData.current_creature.stage3_url}
-            stage4_url={rewardsData.current_creature.stage4_url}
+          // Real fix Sep 25 (item 17): was CommunityCreatureDisplay, a second, simpler
+          // implementation with no bobbing, a circular crop that clipped non-circular art, and
+          // an opaque #F5F5F5 box behind the image (invisible only because every community
+          // creature photo was itself opaque JPEG with no transparency - see the asset-side
+          // fix, same item). Same CreatureDisplay every default creature on this exact screen
+          // already renders through, just with imageUrl instead of an emoji - real, identical
+          // animated bob/size, no second visual language. A community creature has no `.zone`/
+          // `.color`/`.stages` (see CreatureDisplay's own prop comment) - built as a minimal
+          // object with just what the image path actually reads.
+          <CreatureDisplay
+            creature={{ zone: rewardsData.current_creature.feeling_colour, color: EMOTION_COLOURS[rewardsData.current_creature.feeling_colour as keyof typeof EMOTION_COLOURS] || '#5C6BC0' } as Creature}
             stage={visibleStage}
+            currentPoints={rewardsData?.current_points}
+            pointsForNext={rewardsData?.points_for_next_evolution}
+            imageUrl={[
+              rewardsData.current_creature.stage1_url,
+              rewardsData.current_creature.stage2_url,
+              rewardsData.current_creature.stage3_url,
+              rewardsData.current_creature.stage4_url,
+            ][Math.max(0, Math.min(visibleStage, 3))] || rewardsData.current_creature.stage1_url}
+            nameOverride={rewardsData.current_creature.name}
             size="large"
+            showProgress={false}
+            showGrowthIndicator={false}
+            animated={true}
             maxContainerSize={creatureMaxSize}
           />
         ) : (

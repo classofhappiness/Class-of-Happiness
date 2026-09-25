@@ -106,7 +106,13 @@ export const AnimatedCreatureVisual: React.FC<Props> = ({ zone, size = 52, unloc
   if (imageUrl) {
     return (
       <Animated.View style={{ transform, opacity: maskSilhouette ? 1 : (unlocked ? 1 : 0.3), width: size, height: size }}>
-        <Image source={{ uri: imageUrl }} style={[styles.image, { width: size, height: size, borderRadius: size / 6 }]} />
+        {/* Real fix Sep 25 (item 17): styles.image's backgroundColor:'#F5F5F5' was a loading
+            placeholder for the remote fetch - harmless while every community creature photo
+            was itself an opaque JPEG (see the asset-side fix, same item), but a real grey box
+            behind any image with genuine transparency, which these now have. resizeMode=
+            "contain" added for the same reason localSource already has it explicitly below -
+            default 'cover' would crop a non-square photo instead of showing the whole thing. */}
+        <Image source={{ uri: imageUrl }} resizeMode="contain" style={{ width: size, height: size, borderRadius: size / 6 }} />
         {maskSilhouette && (
           <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: '#000', borderRadius: size / 6 }]} />
         )}
@@ -125,6 +131,3 @@ export const AnimatedCreatureVisual: React.FC<Props> = ({ zone, size = 52, unloc
   );
 };
 
-const styles = StyleSheet.create({
-  image: { backgroundColor: '#F5F5F5' },
-});
