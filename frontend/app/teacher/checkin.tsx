@@ -915,7 +915,16 @@ export default function TeacherCheckInScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  alertBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#555', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, gap: 6 },
+  // Real fix Sep 25 (item2): was #555 (a plain mid grey) - changed to #1A1A2E, the same
+  // near-black used everywhere else in the app for a pill/circle button (back/home buttons in
+  // _layout.tsx and TranslatedHeader.tsx, kiosk/index.tsx's own back/home buttons - 22 files
+  // use this exact colour already, confirmed via grep; no separate exported constant exists
+  // to import, every one of those files repeats the literal hex, so this matches that
+  // established convention rather than introducing a new shared style). White text (already
+  // in place) keeps strong contrast against it; this app has no separate dark-mode theme for
+  // native screens (every screen uses a fixed light background), so no dark/light divergence
+  // to account for. Same padding/radius/size as before - only the colour changed.
+  alertBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1A1A2E', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, gap: 6 },
   alertBtnText: { color: 'white', fontWeight: '700', fontSize: 13 },
   scroll: { padding: 16, paddingBottom: 40 },
   sectionLabel: { fontSize: 15, fontWeight: '600', color: '#444', marginBottom: 10, marginTop: 8 },
