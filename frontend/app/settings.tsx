@@ -421,11 +421,7 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleJoinSchool = async () => {
-    if (!schoolInviteCode.trim()) {
-      Alert.alert(t('enter_invite_code_title') || 'Enter invite code', t('enter_invite_code_body') || 'Please enter the invite code from your school admin.');
-      return;
-    }
+  const doJoinSchool = async () => {
     setJoiningSchool(true);
     try {
       const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -448,6 +444,48 @@ export default function SettingsScreen() {
     } finally {
       setJoiningSchool(false);
     }
+  };
+
+  // Real feature Sep 25 (queued after item 10): redeeming a code while already linked to a
+  // DIFFERENT school used to switch silently - a teacher who fat-fingered or reused an old
+  // code from a previous school could lose access to their real classrooms with no warning.
+  // Previews the code's target school (GET /school/invite-code-preview, read-only, no side
+  // effects) before committing, so the confirm can name both schools. If the preview itself
+  // fails for any reason (network, code turns out invalid), falls through to the real join
+  // directly - that call has its own real validation/error handling either way, so failing
+  // open here never bypasses a check, it just skips showing the extra name-both-schools detail.
+  const handleJoinSchool = async () => {
+    if (!schoolInviteCode.trim()) {
+      Alert.alert(t('enter_invite_code_title') || 'Enter invite code', t('enter_invite_code_body') || 'Please enter the invite code from your school admin.');
+      return;
+    }
+    const currentSchool = (user as any)?.school_name;
+    if (currentSchool) {
+      try {
+        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        const token = await AsyncStorage.getItem('session_token');
+        const res = await fetch(`${BACKEND_URL}/api/school/invite-code-preview?code=${encodeURIComponent(schoolInviteCode.trim().toUpperCase())}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const newSchool = data.school_name;
+          if (newSchool && newSchool !== currentSchool) {
+            Alert.alert(
+              t('switch_school_title') || 'Switch schools?',
+              (t('switch_school_body') || "You're currently linked to {current}. Switch to {new}? Your {current} classrooms will no longer be visible.")
+                .replace(/{current}/g, currentSchool).replace('{new}', newSchool),
+              [
+                { text: t('cancel') || 'Cancel', style: 'cancel' },
+                { text: t('switch') || 'Switch', style: 'destructive', onPress: doJoinSchool },
+              ],
+            );
+            return;
+          }
+        }
+      } catch { /* preview failed - fall through to the real join below */ }
+    }
+    doJoinSchool();
   };
 
   // Generate school invite code (school admin only)

@@ -13612,6 +13612,30 @@ async def generate_school_invite_code(request: Request):
 
     return {"code": code, "expires_at": expires_at, "school_name": invite_data["school_name"], "stored": stored}
 
+@api_router.get("/school/invite-code-preview")
+async def preview_school_invite_code(code: str, request: Request):
+    """Real feature Sep 25 (queued after item 10): a teacher already linked to a different
+    school needs to see WHICH school a code belongs to before switching - a plain confirm
+    dialog with no school name in it isn't useful. Read-only: validates the code exactly like
+    POST /school/join does (same table, same expiry check) but never mutates anything, so a
+    teacher can preview any code without side effects, including one they end up not using."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Must be logged in")
+    if user.get("role") != "teacher":
+        raise HTTPException(status_code=403, detail="Only teacher accounts can preview a school invite code.")
+    code = (code or "").strip().upper()
+    if not code:
+        raise HTTPException(status_code=400, detail="Invite code required")
+    result = supabase.table("invite_codes").select("school_name,expires_at").eq("code", code).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Invalid invite code. Check the code and try again.")
+    invite = result.data[0]
+    expires = datetime.fromisoformat(invite["expires_at"].replace("Z", "+00:00"))
+    if datetime.now(timezone.utc) > expires:
+        raise HTTPException(status_code=400, detail="This invite code has expired. Ask your school admin for a new one.")
+    return {"school_name": invite["school_name"]}
+
 @api_router.post("/school/join")
 async def join_school_with_invite(request: Request):
     """Teacher joins a school using invite code"""

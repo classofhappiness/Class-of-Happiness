@@ -115,7 +115,13 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
         ) : subtitle ? (
           <View style={styles.titleStack}>
             <Text style={[styles.title, styles.titleBesideBadge]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{title}</Text>
-            <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>
+            {/* Real fix Sep 25 (item 10): the title right above has always had
+                adjustsFontSizeToFit - this subtitle line never did, so a long translation
+                (parent/checkin.tsx's "Check-in for {name}" grows with the child's real name,
+                unbounded) could only ever clip with an ellipsis, never shrink to fit. Matches
+                the title's own treatment, one point higher on the floor since this text is
+                already smaller (11px) and has less room to shrink before becoming illegible. */}
+            <Text style={styles.subtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{subtitle}</Text>
           </View>
         ) : titleBadge ? (
           <View style={styles.titleWithBadge}>
@@ -123,11 +129,22 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
             <View style={styles.titleBadge}><Text style={styles.titleBadgeText}>{titleBadge}</Text></View>
           </View>
         ) : (
+          // Real fix Sep 25 (item 10, German header squashed on Teacher Check-In): checked
+          // the actual available width here at 360dp against every language's real
+          // translation - teacher/checkin.tsx's title is the tightest real case (rightSlot
+          // holds a Support pill + logo + home button, leaving roughly 90-100px for the
+          // title). German/Russian's longest single word (Wohlbefinden/самочувствие, 12
+          // chars) was landing right at the 0.75 floor's edge on the wrapped line, shrinking
+          // about as far as it's allowed to go rather than comfortably - that's the
+          // "squashed" look. A single line has even less room (the full untruncated string is
+          // wider than a wrapped single word), so this keeps the 2-line wrap Sep 24 already
+          // added rather than reverting to single-line, and just gives the wrapped case more
+          // room to shrink before hitting its floor.
           <Text
             style={titleNumberOfLines > 1 ? [styles.title, styles.titleWrapped] : styles.title}
             numberOfLines={titleNumberOfLines}
             adjustsFontSizeToFit
-            minimumFontScale={0.75}
+            minimumFontScale={titleNumberOfLines > 1 ? 0.6 : 0.75}
           >
             {title}
           </Text>
