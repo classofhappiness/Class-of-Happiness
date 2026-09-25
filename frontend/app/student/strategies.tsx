@@ -31,7 +31,7 @@ export default function StrategiesScreen() {
   const router = useRouter();
   const { zone, location, fromFamily, returnTo } = useLocalSearchParams<{ zone: string; location?: string; fromFamily?: string; returnTo?: string }>();
   const checkInLocation = (location as string) || 'school';
-  const { currentStudent, t, language, translations } = useApp();
+  const { currentStudent, t, language, translations, notifyCheckinSaved } = useApp();
   // Real fix Sep 21 (device report - 2nd attempt): see useAndroidKeyboardOffset's own
   // comment for why KeyboardAvoidingView's behavior prop alone can't fix this on Android
   // for this app specifically (edgeToEdgeEnabled:true breaks the native resize signal both
@@ -256,6 +256,12 @@ export default function StrategiesScreen() {
         });
         setCheckinLogId(log?.id || '');
       }
+      // Real fix Sep 25 (item3, fourth device-log pass - family dashboard "new check-in
+      // missing from Week/Fortnight/Month until re-enter"): tells any currently-focused
+      // dashboard (parent/dashboard.tsx, teacher/student-detail.tsx) that a check-in just
+      // wrote real data, so its own cached, period-scoped check-in list is now stale -
+      // see notifyCheckinSaved's own comment in AppContext.
+      notifyCheckinSaved();
       // Fire zone alert silently (teacher/parent notified if they enabled it)
       if (currentStudent?.id && zone) {
         sendZoneAlert({
@@ -288,6 +294,9 @@ export default function StrategiesScreen() {
       if (!(currentStudent as any).is_family_member) {
         const log = await zoneLogsApi.create({ student_id: currentStudent.id, zone, strategies_selected: [], location: checkInLocation });
         skipCheckinLogId = log?.id || '';
+        // Real fix Sep 25 (item3, fourth device-log pass): see handleDone's matching call -
+        // this path genuinely writes a real check-in too (just with no strategies/comment).
+        notifyCheckinSaved();
       }
     } catch (e) {}
     // Real fix Aug 30 (build-26, kiosk restore): this skip path was the only one of the

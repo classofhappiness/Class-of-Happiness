@@ -109,6 +109,11 @@ interface AppContextType {
   
   // Subscription
   hasActiveSubscription: boolean;
+
+  // Real fix Sep 25 (item3, fourth device-log pass): see this pair's own implementation
+  // comment near lastCheckinMutationAt's declaration.
+  lastCheckinMutationAt: number;
+  notifyCheckinSaved: () => void;
 }
 
 const defaultTranslations: Translations = {
@@ -995,6 +1000,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     user.subscription_status === 'active' || user.subscription_status === 'trial'
   ) : false;
 
+  // Real fix Sep 25 (item3, fourth device-log pass - "new check-in missing from Week/
+  // Fortnight/Month until re-enter"): parent/dashboard.tsx's recentLogs (which every period
+  // pill filters client-side, including Today) only ever fetched on this screen's own initial
+  // mount - a check-in happens on a completely separate screen (student/zone.tsx ->
+  // strategies.tsx), which has no direct way to tell the dashboard its data is now stale.
+  // lastCheckinMutationAt is a plain, global "something was checked in at this time" signal -
+  // strategies.tsx calls notifyCheckinSaved() right after a successful check-in write (home or
+  // linked-child), and any screen that caches check-in-derived data (parent/dashboard.tsx,
+  // teacher/student-detail.tsx - both fixed to use this) compares it against its own
+  // last-refreshed timestamp on focus and force-refetches only when it's genuinely newer -
+  // never touches AppContext's `students` (so it doesn't interact with the TTL work on that),
+  // purely a "did a check-in happen since I last looked" signal. Deliberately global rather
+  // than scoped to one student/family - check-ins are infrequent enough that an occasional
+  // refetch-that-finds-nothing-new for an unrelated family is a non-issue, and scoping this
+  // correctly would need every check-in write path to know and pass through the exact set of
+  // dashboards that might currently be caching that student's data, which isn't worth the
+  // complexity for how rarely this actually fires.
+  const [lastCheckinMutationAt, setLastCheckinMutationAt] = useState(0);
+  const notifyCheckinSaved = useCallback(() => {
+    setLastCheckinMutationAt(Date.now());
+  }, []);
+
   // Pre-warm the browser for faster OAuth (mobile only)
   useEffect(() => {
     if (Platform.OS !== 'web') {
@@ -1253,6 +1280,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         
         // Subscription
         hasActiveSubscription,
+
+        lastCheckinMutationAt,
+        notifyCheckinSaved,
       }}
     >
       {children}

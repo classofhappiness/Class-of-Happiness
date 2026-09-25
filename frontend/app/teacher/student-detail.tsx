@@ -17,7 +17,7 @@ import {
   Animated,
   TextInput,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
@@ -93,7 +93,7 @@ export default function StudentDetailScreen() {
   const [secStrategies, setSecStrategies] = React.useState(false);
   const [creatureEmoji, setCreatureEmoji] = React.useState('🥚');
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
-  const { students, presetAvatars, classrooms, t, language } = useApp();
+  const { students, presetAvatars, classrooms, t, language, lastCheckinMutationAt } = useApp();
   
   const student = students.find(s => s.id === studentId);
 
@@ -281,6 +281,23 @@ export default function StudentDetailScreen() {
   useEffect(() => {
     fetchData();
   }, [studentId, selectedPeriod]);
+
+  // Real fix Sep 25 (item3, fourth device-log pass - same pattern as parent/dashboard.tsx's
+  // fix, checked here per the explicit ask): fetchData only ever ran on studentId/
+  // selectedPeriod changing - a check-in on this same student, written from a completely
+  // separate screen, never invalidated this screen's already-fetched logs/analytics for
+  // whichever period was selected at the time. On focus, if AppContext's
+  // lastCheckinMutationAt is newer than the last mutation this screen has already reacted
+  // to, force a real refetch; otherwise a no-op, not a blanket refetch-on-every-focus.
+  const lastCheckinMutationAtRef = useRef(0);
+  useFocusEffect(
+    React.useCallback(() => {
+      if (lastCheckinMutationAt > lastCheckinMutationAtRef.current) {
+        lastCheckinMutationAtRef.current = lastCheckinMutationAt;
+        fetchData();
+      }
+    }, [lastCheckinMutationAt])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);

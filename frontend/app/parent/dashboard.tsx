@@ -158,7 +158,7 @@ const COLOUR_TIPS_PARENT: Record<string, {tip: string, action: string, tipKey: s
 export default function ParentDashboard() {
   const router = useRouter();
   const { editMember: editMemberParam, openLinkModal: openLinkModalParam } = useLocalSearchParams<{ editMember?: string; openLinkModal?: string }>();
-  const { user, presetAvatars, t, language, setCurrentStudent, hasActiveSubscription, students, refreshStudents } = useApp();
+  const { user, presetAvatars, t, language, setCurrentStudent, hasActiveSubscription, students, refreshStudents, lastCheckinMutationAt } = useApp();
 
   // Real bug fix Sep 4: the Aug 28 guard here was unconditional on role !== 'parent',
   // which - combined with role being a single mutable field last set by whichever way the
@@ -789,6 +789,28 @@ export default function ParentDashboard() {
       const interval = setInterval(() => { loadParentAlerts(); }, 30000);
       return () => clearInterval(interval);
     }, [])
+  );
+
+  // Real fix Sep 25 (item3, fourth device-log pass - "new check-in missing from Week/
+  // Fortnight/Month until re-enter"): recentLogs (fetchMemberData, which every period pill -
+  // Today included - filters client-side) only ever refetched on this screen's own initial
+  // mount effect above. A check-in happens on a completely separate screen (student/
+  // strategies.tsx), which has no direct way to mark this screen's cached data stale -
+  // returning here without a genuine remount of this exact component instance left
+  // recentLogs exactly as stale as it was, for every period, regardless of which one was
+  // showing at the time. lastCheckinMutationAtRef tracks the last mutation THIS screen has
+  // already reacted to; a focus where AppContext's lastCheckinMutationAt is newer means a
+  // check-in happened since - force a real refetch (fetchData cascades into fetchMemberData
+  // via its own [fetchMemberData] effect below, refreshing whatever period is currently
+  // selected). A focus with nothing new is a no-op, not a blanket refetch-on-every-focus.
+  const lastCheckinMutationAtRef = React.useRef(0);
+  useFocusEffect(
+    React.useCallback(() => {
+      if (lastCheckinMutationAt > lastCheckinMutationAtRef.current) {
+        lastCheckinMutationAtRef.current = lastCheckinMutationAt;
+        fetchData();
+      }
+    }, [lastCheckinMutationAt])
   );
 
   useEffect(() => {
