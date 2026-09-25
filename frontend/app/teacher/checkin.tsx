@@ -12,6 +12,7 @@ import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { useFixedGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
+import { StrategyIcon } from '../../src/components/StrategyIcon';
 import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
 import { useWellbeingSharing } from '../../src/utils/useWellbeingSharing';
 
@@ -602,7 +603,7 @@ export default function TeacherCheckInScreen() {
                 onPress={() => toggleStrategy(s.id)}
               >
                 <View style={[styles.strategyIcon, { backgroundColor: (zoneConfig?.color || '#5C6BC0') + '25' }]}>
-                  <MaterialIcons name={s.icon as any} size={22} color={zoneConfig?.color || '#5C6BC0'} />
+                  <StrategyIcon icon={s.icon} size={22} color={zoneConfig?.color || '#5C6BC0'} />
                 </View>
                 <View style={styles.strategyText}>
                   <Text style={styles.strategyName}>{s.name}</Text>

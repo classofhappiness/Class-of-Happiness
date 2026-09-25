@@ -29,6 +29,7 @@ import { useApp } from '../../src/context/AppContext';
 import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy, reportsApi, teacherApi, teacherHomeDataApi, describeSupportRequest } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
+import { StrategyIcon } from '../../src/components/StrategyIcon';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
 
@@ -1048,7 +1049,7 @@ export default function StudentDetailScreen() {
                     </TouchableOpacity>
                     {secFamilyStrats && (homeData.family_strategies || []).map((strategy: any, index: number) => (
                       <View key={`strategy_${strategy.id || index}`} style={styles.familyStrategyItem}>
-                        <MaterialIcons name={(strategy.icon || 'star') as any} size={20} color="#4CAF50" />
+                        <StrategyIcon icon={strategy.icon} size={20} color="#4CAF50" />
                         <View style={styles.familyStrategyInfo}>
                           <Text style={styles.familyStrategyName}>{strategy.strategy_name}</Text>
                           <Text style={styles.familyStrategyDesc}>{strategy.strategy_description}</Text>

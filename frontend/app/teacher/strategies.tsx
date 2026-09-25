@@ -11,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { strategiesApi, customStrategiesApi, strategySyncApi, CustomStrategy, Strategy } from '../../src/utils/api';
 import { ZONE_CONFIG } from '../../src/components/ZoneButton';
+import { StrategyIcon } from '../../src/components/StrategyIcon';
 
 const ZONES = ['blue', 'green', 'yellow', 'red'] as const;
 
@@ -334,7 +335,7 @@ export default function ManageStrategiesScreen() {
                   {strategy.image_type === 'custom' && strategy.custom_image ? (
                     <Image source={{ uri: strategy.custom_image }} style={styles.customImageSmall} />
                   ) : (
-                    <MaterialIcons name={strategy.icon as any} size={28} color="white" />
+                    <StrategyIcon icon={strategy.icon} size={28} color="white" />
                   )}
                 </View>
                 <View style={styles.strategyInfo}>
@@ -364,7 +365,7 @@ export default function ManageStrategiesScreen() {
             {sharedStrategies.map((strategy) => (
               <View key={strategy.id} style={[styles.strategyCard, styles.sharedCard]}>
                 <View style={[styles.strategyIcon, { backgroundColor: '#9C27B0' }]}>
-                  <MaterialIcons name={strategy.icon as any || 'star'} size={28} color="white" />
+                  <StrategyIcon icon={strategy.icon} size={28} color="white" />
                 </View>
                 <View style={styles.strategyInfo}>
                   <Text style={styles.strategyName}>{STRATEGY_KEYS[strategy.name] ? (t(STRATEGY_KEYS[strategy.name][0]) || strategy.name) : strategy.name}</Text>
@@ -385,7 +386,7 @@ export default function ManageStrategiesScreen() {
           {strategies.map((strategy) => (
             <View key={strategy.id} style={[styles.strategyCard, styles.defaultCard]}>
               <View style={[styles.strategyIcon, { backgroundColor: zoneConfig.color }]}>
-                <MaterialIcons name={strategy.icon as any} size={28} color="white" />
+                <StrategyIcon icon={strategy.icon} size={28} color="white" />
               </View>
               <View style={styles.strategyInfo}>
                 <Text style={styles.strategyName}>{STRATEGY_KEYS[strategy.name] ? (t(STRATEGY_KEYS[strategy.name][0]) || strategy.name) : strategy.name}</Text>
