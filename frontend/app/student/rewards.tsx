@@ -360,12 +360,15 @@ export default function RewardsScreen() {
       // Real feature Sep 15 ("Class of Happiness Shop"): newly-available items are announced
       // as a Shop invitation, not an auto-grant celebration - the child still chooses whether
       // and what to buy. No loss framing, no urgency - just letting them know what's there.
-      if (result.newly_available_items && result.newly_available_items.length > 0) {
-        setTimeout(() => {
-          setCelebrationItems(result.newly_available_items as any);
-          setShowBonusCelebration(true);
-        }, 1800);
-      }
+      // Root cause fix Sep 25 (item 5): this used to fire on a fixed 1800ms setTimeout,
+      // racing the real evolution animation instead of waiting for it - on any device where
+      // the animation ran longer than 1800ms, the item-unlock celebration popped up over or
+      // before the evolution animation finished. Now it's just data - celebrationItems is
+      // reset every evolve so a previous evolve's stale items can never leak into this one -
+      // and setShowBonusCelebration only fires from the animation's own onComplete below,
+      // the same "reveal only once the real animation has finished" contract visibleStage
+      // already uses.
+      setCelebrationItems(result.newly_available_items && result.newly_available_items.length > 0 ? (result.newly_available_items as any) : []);
     } catch (e) {
       Alert.alert(t('error') || 'Error', t('evolve_failed') || 'Could not evolve right now. Please try again.');
     } finally {
@@ -750,6 +753,9 @@ export default function RewardsScreen() {
             // Reveal the new stage on the background display now that the modal's own
             // dolphin->shark (etc.) transition has actually finished - see visibleStage note.
             setVisibleStage(rewardsData?.current_stage ?? 0);
+            // Item 5 fix (Sep 25): item unlocks wait for the real animation to finish
+            // (same contract as visibleStage above) instead of racing it on a timer.
+            if (celebrationItems && celebrationItems.length > 0) setShowBonusCelebration(true);
           }}
         />
       )}
@@ -771,6 +777,9 @@ export default function RewardsScreen() {
           onComplete={() => {
             setShowCommunityEvolution(false);
             setVisibleStage(rewardsData?.current_stage ?? 0);
+            // Item 5 fix (Sep 25): see the default EvolutionAnimation's onComplete above -
+            // same contract, community creatures included.
+            if (celebrationItems && celebrationItems.length > 0) setShowBonusCelebration(true);
           }}
         />
       )}
