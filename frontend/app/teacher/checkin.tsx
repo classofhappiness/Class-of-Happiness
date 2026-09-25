@@ -87,7 +87,6 @@ export default function TeacherCheckInScreen() {
   const [alertMessage, setAlertMessage] = useState('');
   const [sendingAlert, setSendingAlert] = useState(false);
   const [adminStrategies, setAdminStrategies] = useState<any[]>([]);
-  const [shareWithWellbeing, setShareWithWellbeing] = useState(false);
   const [customStrategies, setCustomStrategies] = useState<Array<{id: string; name: string; description: string}>>([]);
   const [showAddStrategy, setShowAddStrategy] = useState(false);
   const [newStrategyName, setNewStrategyName] = useState('');
@@ -276,13 +275,23 @@ export default function TeacherCheckInScreen() {
       const storageKey = `teacher_checkins_${user.user_id}`;
       const existingRaw = await AsyncStorage.getItem(storageKey);
       const existing = existingRaw ? JSON.parse(existingRaw) : [];
+      // Real fix Sep 25 (items 4+8): a check-in's `shared` flag now ALWAYS mirrors the one
+      // persisted "Share With My School Admin" setting (wellbeingShared, below) at the moment
+      // of save - there is no second, per-check-in toggle any more. The old local
+      // shareWithWellbeing state defaulted to false and was reset to false after every save
+      // (see git history), so even a teacher who had turned persisted sharing ON never actually
+      // produced a single `teacher_checkins.shared=true` row - which is exactly why
+      // /school-admin/teacher-wellbeing (filters on that column) always came back empty despite
+      // sharing showing as "on" in Settings. A check-in never mutates the persisted setting;
+      // it only snapshots its current value.
+      const isShared = !!wellbeingShared;
       const newEntry = {
         id: `${Date.now()}`,
         timestamp: new Date().toISOString(),
         zone: selectedZone,
         strategies_selected: selectedStrategies,
         notes: notes.trim() || null,
-        shared: shareWithWellbeing,
+        shared: isShared,
       };
       const updated = [newEntry, ...existing].slice(0, 90);
       await AsyncStorage.setItem(storageKey, JSON.stringify(updated));
@@ -300,7 +309,7 @@ export default function TeacherCheckInScreen() {
             zone: selectedZone,
             strategies_selected: selectedStrategies,
             notes: notes.trim() || null,
-            shared: shareWithWellbeing,
+            shared: isShared,
             timestamp: newEntry.timestamp,
           }),
         });
@@ -309,29 +318,11 @@ export default function TeacherCheckInScreen() {
         console.log('Could not sync teacher checkin to server:', e);
       }
 
-      // If teacher chose to share, notify wellbeing support
-      if (shareWithWellbeing) {
-        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-        try {
-          await fetch(`${BACKEND_URL}/api/wellbeing-alert`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              teacher_name: user?.name || 'Teacher',
-              message: `Teacher check-in shared: ${selectedZone} zone. ${notes.trim() ? 'Note: ' + notes.trim() : ''} Strategies used: ${selectedStrategies.join(', ') || 'none'}`,
-              zone: selectedZone,
-              timestamp: new Date().toISOString(),
-            }),
-          });
-        } catch (e) { console.log("[silent]", e); }
-      }
-
       await loadData();
       setSelectedZone(null);
       setSelectedStrategies([]);
       setNotes('');
-      setShareWithWellbeing(false);
-      Alert.alert(t('checkin_saved') || '✅ Saved', shareWithWellbeing ? (t('checkin_saved_shared') || 'Check-in saved and shared with your wellbeing support team.') : (t('checkin_saved_private') || 'Your check-in has been recorded privately.'));
+      Alert.alert(t('checkin_saved') || '✅ Saved', isShared ? (t('checkin_saved_shared') || 'Check-in saved. Your school admin can see this in your Wellbeing view.') : (t('checkin_saved_private') || 'Your check-in has been recorded privately.'));
     } catch {
       Alert.alert(t('error') || 'Error', t('could_not_save_checkin_now') || 'Could not save check-in right now.');
     } finally {
@@ -661,30 +652,32 @@ export default function TeacherCheckInScreen() {
               placeholderTextColor="#AAA"
             />
 
-            {/* Share with wellbeing toggle */}
-            <TouchableOpacity
-              style={styles.shareToggle}
-              onPress={() => setShareWithWellbeing(!shareWithWellbeing)}
-            >
+            {/* Real fix Sep 25 (items 4+8): this used to be its own, separate per-check-in
+                toggle (shareWithWellbeing) that fought the persisted "Share With My School
+                Admin" setting below - resetting to off after every save regardless of what a
+                teacher had actually chosen, and driving the ONLY value the backend ever wrote
+                to teacher_checkins.shared (never the persisted one). Now this is a read-only
+                status line mirroring wellbeingShared - the single source of truth, changed only
+                via the real toggle further down this screen (or in Settings). Also fixes the
+                false "principal/psychologist will be notified" copy - sharing never sends a
+                notification, it only makes this check-in visible in the admin's Wellbeing view. */}
+            <View style={styles.shareToggle}>
               <MaterialIcons
-                name={shareWithWellbeing ? 'notifications-active' : 'notifications-off'}
+                name={wellbeingShared ? 'visibility' : 'lock'}
                 size={20}
-                color={shareWithWellbeing ? '#F44336' : '#CCC'}
+                color={wellbeingShared ? '#4CAF50' : '#CCC'}
               />
               <View style={styles.shareToggleText}>
                 <Text style={styles.shareToggleTitle}>
-                  {shareWithWellbeing ? (t('share_wellbeing') || '📨 Share with wellbeing support') : (t('keep_private') || '🔒 Keep private')}
+                  {wellbeingShared ? (t('share_wellbeing') || '👁️ Visible to your school admin') : (t('keep_private') || '🔒 Keep private')}
                 </Text>
                 <Text style={styles.shareToggleDesc}>
-                  {shareWithWellbeing
-                    ? (t('principal_notified_desc') || 'Your principal/psychologist will be notified of this check-in')
+                  {wellbeingShared
+                    ? (t('wellbeing_team_will_view') || 'Your wellbeing and support team will view this check-in')
                     : (t('only_you_see_checkin') || 'Only you can see this check-in')}
                 </Text>
               </View>
-              <View style={[styles.toggleSwitch, shareWithWellbeing && styles.toggleSwitchOn]}>
-                <View style={[styles.toggleKnob, shareWithWellbeing && styles.toggleKnobOn]} />
-              </View>
-            </TouchableOpacity>
+            </View>
 
             {/* Save button */}
             <TouchableOpacity
@@ -975,18 +968,6 @@ const styles = StyleSheet.create({
   shareToggleText: { flex: 1 },
   shareToggleTitle: { fontSize: 14, fontWeight: '600', color: '#333' },
   shareToggleDesc: { fontSize: 11, color: '#888', marginTop: 2 },
-  toggleSwitch: { width: 44, height: 24, borderRadius: 12, backgroundColor: '#E0E0E0', justifyContent: 'center', padding: 2 },
-  toggleSwitchOn: { backgroundColor: '#F44336' },
-  toggleKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: 'white' },
-  toggleKnobOn: { alignSelf: 'flex-end' },
-  // duplicate shareToggle removed
-  // duplicate shareToggleText removed
-  // duplicate shareToggleTitle removed
-  // duplicate shareToggleDesc removed
-  // duplicate toggleSwitch removed
-  // duplicate toggleSwitchOn removed
-  // duplicate toggleKnob removed
-  // duplicate toggleKnobOn removed
   customStratLabel: { fontSize: 13, fontWeight: '600', color: '#5C6BC0', marginBottom: 8, marginTop: 4 },
   addStrategyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, marginBottom: 8 },
   addStrategyText: { fontSize: 14, color: '#5C6BC0', fontWeight: '600' },
