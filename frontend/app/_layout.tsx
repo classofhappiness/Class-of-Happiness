@@ -15,6 +15,24 @@ import * as Notifications from 'expo-notifications';
 import { isIncidentPushData, showIncidentAlert, registerNotifeeForegroundHandler } from '../src/utils/notifeeIncidents';
 import { preloadSounds } from '../src/utils/sounds';
 import { warmGreetingAudio } from '../src/utils/voiceClips';
+import * as Sentry from '@sentry/react-native';
+
+// Real feature Sep 25 (item 13): init happens at module load (before RootLayout even mounts)
+// so it captures crashes as early as possible - a no-op with no DSN set (see app.config.js's
+// own comment: the native Sentry plugin itself is also skipped entirely in that case, so this
+// mirrors that same "absent unless configured" behaviour at the JS layer too). Same
+// EXPO_PUBLIC_SENTRY_DSN env var the config plugin gates on, so enabling Sentry is exactly
+// one EAS secret, not two separate switches to keep in sync.
+const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
+if (SENTRY_DSN) {
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    // Real decision Sep 25: unhandled JS exceptions + native crashes are both on by default
+    // in the RN SDK (enableNativeCrashHandling/enableAutoSessionTracking) - no extra config
+    // needed for the "capture unhandled JS + native crashes" half of item 13's ask.
+    tracesSampleRate: 0.2,
+  });
+}
 
 // Keep splash screen visible until app is ready
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -103,6 +121,13 @@ function AppContent() {
       setDefaultFont('Nunito');
     }
   }, [language]);
+  // Real feature Sep 25 (item 13): role as a tag, never name/email - explicit setUser is
+  // never called anywhere in this app, so no PII reaches Sentry via that path either. Tag
+  // only, not scoped user identity, since a role-level breakdown ("how many crashes affect
+  // teachers vs parents") is the actual debugging value here, not per-person tracking.
+  useEffect(() => {
+    Sentry.setTag('role', user?.role || 'anonymous');
+  }, [user?.role]);
   // Real feature Sep 21 (device report): the fixed, always-the-same sound-effect URLs
   // (button tap, select, reward, evolution, success, bonus-item categories) are knowable
   // the instant the app opens, unlike voice clips which depend on the student's language
@@ -696,7 +721,7 @@ function DashboardLogoOnly() {
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const [fontsLoaded] = useFonts({
     Nunito: require('../assets/fonts/Nunito.ttf'),
   });
@@ -718,3 +743,12 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+// Real feature Sep 25 (item 13): Sentry.wrap adds a root-level error boundary (an uncaught
+// render error is captured and reported instead of just crashing to a blank/red screen) and
+// touch-event breadcrumbs. Only applied when Sentry was actually initialized above - wrap()
+// installs a real ErrorBoundary regardless of whether a client exists, so gating it here
+// (rather than trusting an unconfigured SDK to no-op) keeps error UX byte-for-byte identical
+// to today whenever EXPO_PUBLIC_SENTRY_DSN isn't set, instead of silently changing what
+// happens on an uncaught render error before Jono has even set up a Sentry project.
+export default SENTRY_DSN ? Sentry.wrap(RootLayout) : RootLayout;

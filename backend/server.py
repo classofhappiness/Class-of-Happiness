@@ -20,6 +20,7 @@ import calendar
 import base64
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import sentry_sdk
 
 # PDF Generation
 from reportlab.lib import colors
@@ -51,6 +52,17 @@ SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
+# Real feature Sep 25 (item 13): DSN comes from a Railway env var (SENTRY_DSN), never
+# committed - sentry_sdk.init() is a real no-op when dsn is empty/None (confirmed in the
+# SDK's own source: every capture_* call short-circuits with no client bound), so this is
+# safe to leave in place whether or not Jono has set up a Sentry project yet. traces_sample_
+# rate=0.1 gives general APM coverage without capturing every single request; the >3s slow-
+# request case is guaranteed separately in _RequestTimingMiddleware below regardless of this
+# sample rate, since sampling can't know a request's duration in advance.
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+if SENTRY_DSN:
+    sentry_sdk.init(dsn=SENTRY_DSN, traces_sample_rate=0.1, send_default_pii=False)
+
 app = FastAPI(title="Class of Happiness API")
 api_router = APIRouter(prefix="/api")
 
@@ -76,6 +88,14 @@ class _UnhandledExceptionMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         except Exception as exc:
             logger.error(f"Unhandled exception on {request.method} {request.url.path}: {exc}", exc_info=True)
+            # Real feature Sep 25 (item 13): this middleware catches and swallows every
+            # unhandled exception itself (that's the whole point - a bare 500 with real CORS
+            # headers, see the docstring above) which means it never propagates further up the
+            # stack - Sentry's own auto-instrumentation only ever sees exceptions that
+            # propagate, so without this explicit capture_exception call, NOTHING here would
+            # ever reach Sentry regardless of DSN/init. No-op with no DSN set, same as every
+            # other sentry_sdk call in this file.
+            sentry_sdk.capture_exception(exc)
             return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 app.add_middleware(_UnhandledExceptionMiddleware)
@@ -176,6 +196,22 @@ class _RequestTimingMiddleware(BaseHTTPMiddleware):
             f"[timing] {request.method} {path_template} status={response.status_code} "
             f"duration_ms={duration_ms:.1f} db_calls={counter.count}"
         )
+        # Real feature Sep 25 (item 13): "any request >3s as a performance event" - explicit
+        # rather than relying on tracesSampleRate's random sampling (which can't know a
+        # request's duration in advance, so it can't be made to always sample slow ones).
+        # fingerprint groups these by route+method in Sentry (one issue per slow endpoint,
+        # not one per slow request) rather than becoming unaggregated noise.
+        if duration_ms > 3000:
+            with sentry_sdk.new_scope() as scope:
+                scope.set_tag("route", path_template)
+                scope.set_tag("method", request.method)
+                scope.set_extra("duration_ms", round(duration_ms, 1))
+                scope.set_extra("db_calls", counter.count)
+                scope.fingerprint = ["slow-request", request.method, path_template]
+                sentry_sdk.capture_message(
+                    f"Slow request: {request.method} {path_template} took {duration_ms:.0f}ms",
+                    level="warning",
+                )
         return response
 
 app.add_middleware(_RequestTimingMiddleware)
