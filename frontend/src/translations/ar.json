@@ -1209,6 +1209,8 @@
   "awaiting_final_approval": "بانتظار الموافقة النهائية",
   "both_label": "كلاهما",
   "built_in_badge": "مدمج",
+  "global_readonly_badge": "عام · للقراءة فقط",
+  "school_specific_badge": "خاص بالمدرسة",
   "category_label": "الفئة",
   "check_connection_try_again": "تحقق من اتصالك وحاول مرة أخرى.",
   "check_in_counts_for": "عدد التسجيلات لـ:",

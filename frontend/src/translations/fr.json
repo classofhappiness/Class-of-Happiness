@@ -1487,6 +1487,8 @@
   "awaiting_final_approval": "En Attente d'Approbation Finale",
   "both_label": "Les deux",
   "built_in_badge": "Intégré",
+  "global_readonly_badge": "Global · lecture seule",
+  "school_specific_badge": "Spécifique à l'école",
   "category_label": "Catégorie",
   "check_connection_try_again": "Vérifiez votre connexion et réessayez.",
   "check_in_counts_for": "Nombre de check-ins pour :",

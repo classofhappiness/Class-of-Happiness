@@ -1209,6 +1209,8 @@
   "awaiting_final_approval": "अंतिम स्वीकृति की प्रतीक्षा में",
   "both_label": "दोनों",
   "built_in_badge": "अंतर्निर्मित",
+  "global_readonly_badge": "वैश्विक · केवल पठनीय",
+  "school_specific_badge": "स्कूल-विशिष्ट",
   "category_label": "श्रेणी",
   "check_connection_try_again": "अपना कनेक्शन जांचें और फिर से प्रयास करें।",
   "check_in_counts_for": "के लिए चेक-इन गिनती:",

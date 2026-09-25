@@ -1040,25 +1040,27 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
 
   useEffect(() => { load(); }, [load]);
 
+  // Real fix Sep 25 (item 7): global (superadmin-owned) rows are now strictly read-only in
+  // this UI, matching the portal exactly - no edit/delete affordance is rendered for them at
+  // all (see the strat._isGlobal badge below), so this function is only ever reachable for a
+  // school_admin's OWN school_strategies rows, or a superadmin's own admin_teacher_strategies/
+  // helpers rows. Dropped the earlier Aug 16 "fork a global item into a school-owned copy on
+  // edit" behavior along with it, since with no button to trigger it, it was unreachable dead
+  // code - the backend's own /school-admin/school-strategies PUT/DELETE also now 403 on any
+  // cross-scope id (see server.py), so this never relied on the fork path for safety anyway.
   const save = async () => {
     if (!name.trim()) { Alert.alert(t('name_required') || 'Name required'); return; }
-    // Real fix Aug 16: school_admin always saves to their own scoped table with
-    // strategy_type set (no separate student-only endpoint like superadmin has).
     const ep = !isSuperAdmin
       ? '/school-admin/school-strategies'
       : (type === 'teacher' || type === 'parent') ? '/admin/teacher-strategies' : '/strategies';
     const body: any = { name, description: desc, zone, icon: 'star' };
     if (!isSuperAdmin) {
       body.strategy_type = type;
-      // Editing a GLOBAL (superadmin-set) item forks it into the school's own
-      // copy instead of trying to edit the shared global record.
-      if (editing?._isGlobal) { body.forked_from = editing.id; body.order_index = editing.order_index ?? 0; }
     } else if (type === 'teacher' || type === 'parent') {
       body.strategy_type = type; body.audience = audience;
     }
-    const isForkOnEdit = !isSuperAdmin && editing?._isGlobal;
     try {
-      if (editing && !isForkOnEdit) {
+      if (editing) {
         await apiCall(`${ep}/${editing.id}`, authToken, { method: 'PUT', body: JSON.stringify(body) });
       } else {
         await apiCall(ep, authToken, { method: 'POST', body: JSON.stringify(body) });
@@ -1073,20 +1075,10 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
       { text: t('cancel') || 'Cancel', style: 'cancel' },
       { text: t('delete') || 'Delete', style: 'destructive', onPress: async () => {
         try {
-          if (!isSuperAdmin && strat._isGlobal) {
-            // Real fix Aug 16: can't delete a global (superadmin-owned) record —
-            // fork it as inactive instead. Hides it from this school's view while
-            // leaving the original global item untouched for every other school.
-            await apiCall('/school-admin/school-strategies', authToken, {
-              method: 'POST',
-              body: JSON.stringify({ name: strat.name, description: strat.description, icon: strat.icon, zone: strat.zone, strategy_type: type, forked_from: strat.id, is_active: false, order_index: strat.order_index ?? 0 }),
-            });
-          } else {
-            const ep = !isSuperAdmin
-              ? '/school-admin/school-strategies'
-              : (type === 'teacher' || type === 'parent') ? '/admin/teacher-strategies' : '/strategies';
-            await apiCall(`${ep}/${strat.id}`, authToken, { method: 'DELETE' });
-          }
+          const ep = !isSuperAdmin
+            ? '/school-admin/school-strategies'
+            : (type === 'teacher' || type === 'parent') ? '/admin/teacher-strategies' : '/strategies';
+          await apiCall(`${ep}/${strat.id}`, authToken, { method: 'DELETE' });
           load();
         } catch { Alert.alert(t('error') || 'Error', t('could_not_delete') || 'Could not delete.'); }
       }},
@@ -1200,26 +1192,22 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
               const ep = !isSuperAdmin ? '/school-admin/school-strategies' : '/admin/teacher-strategies';
               const canReorderThisType = !isSuperAdmin || type === 'teacher' || type === 'parent';
               if (canReorderThisType) {
-                const reorderable = reordered.filter((s: any) => !s.is_builtin && !s.builtin);
+                // Real fix Sep 25 (item 7): global rows are read-only for school_admin now
+                // (no fork-on-touch - see save()/del() above), so they're excluded here too -
+                // only a school_admin's own school_strategies rows get their order_index
+                // persisted; a global item's position in the merged list is display-only and
+                // not something this school can change.
+                const reorderable = reordered.filter((s: any) => !s.is_builtin && !s.builtin && !(!isSuperAdmin && s._isGlobal));
                 try {
-                  // Real fix Aug 16: a global item being moved gets forked into the
-                  // school's own copy at its new position; already-owned items just
-                  // get their order_index updated.
-                  await Promise.all(reorderable.map((s: any, i: number) => {
-                    if (!isSuperAdmin && s._isGlobal) {
-                      return apiCall('/school-admin/school-strategies', authToken, {
-                        method: 'POST',
-                        body: JSON.stringify({ name: s.name, description: s.description, icon: s.icon, zone: s.zone, strategy_type: type, forked_from: s.id, order_index: i + 1 }),
-                      });
-                    }
-                    return apiCall(`${ep}/${s.id}`, authToken, { method: 'PUT', body: JSON.stringify({ order_index: i + 1 }) });
-                  }));
+                  await Promise.all(reorderable.map((s: any, i: number) =>
+                    apiCall(`${ep}/${s.id}`, authToken, { method: 'PUT', body: JSON.stringify({ order_index: i + 1 }) })
+                  ));
                   load();
                 } catch { Alert.alert(t('error') || 'Error', t('could_not_save_order') || 'Could not save new order.'); }
               }
             };
             return visibleStrats.map((strat: any, idx: number) => {
-              const canReorder = (!isSuperAdmin || type === 'teacher' || type === 'parent') && !strat.is_builtin && !strat.builtin && !zoneFilter;
+              const canReorder = (!isSuperAdmin || type === 'teacher' || type === 'parent') && !strat.is_builtin && !strat.builtin && !zoneFilter && !(!isSuperAdmin && strat._isGlobal);
               return (
                 <View key={strat.id || String(idx)} style={s.stratRow}>
                   {canReorder && (
@@ -1253,6 +1241,16 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
                           <Text style={{ fontSize: 8, fontWeight: '800', color: '#7C5CBF' }}>{(t('built_in_badge') || 'Built-in').toUpperCase()}</Text>
                         </View>
                       )}
+                      {!isSuperAdmin && strat._isGlobal && (
+                        <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: '#E8EAF6' }}>
+                          <Text style={{ fontSize: 8, fontWeight: '800', color: '#3949AB' }}>{(t('global_readonly_badge') || 'Global · read-only').toUpperCase()}</Text>
+                        </View>
+                      )}
+                      {!isSuperAdmin && !strat._isGlobal && !strat.is_builtin && !strat.builtin && (
+                        <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: '#E8F5E9' }}>
+                          <Text style={{ fontSize: 8, fontWeight: '800', color: '#2E7D32' }}>{(t('school_specific_badge') || 'School-specific').toUpperCase()}</Text>
+                        </View>
+                      )}
                     </View>
                     {strat.description ? <Text style={s.stratDesc}>{strat.description}</Text> : null}
                     {strat.created_by_role && (
@@ -1267,7 +1265,13 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
                       </Text>
                     )}
                   </View>
-                  {isSuperAdmin && (
+                  {/* Real fix Sep 25 (item 7): school_admin previously had no edit/delete
+                      affordance rendered at all for ANY strategy, own or global - save()/del()
+                      were already correctly wired for their own school_strategies rows, but
+                      nothing on screen could ever call them. Now shown for a school_admin's
+                      own (non-global, non-built-in) rows too; global rows stay strictly
+                      read-only (see the badge above), matching the portal exactly. */}
+                  {(isSuperAdmin || (!strat._isGlobal && !strat.is_builtin && !strat.builtin)) && (
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                       <TouchableOpacity onPress={() => { setEditing(strat); setName(strat.name || ''); setDesc(strat.description || ''); setZone(strat.zone || 'blue'); setAudience(strat.audience || 'all_students'); }}>
                         <MaterialIcons name="edit" size={16} color={INDIGO} />

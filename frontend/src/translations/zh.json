@@ -1209,6 +1209,8 @@
   "awaiting_final_approval": "等待最终批准",
   "both_label": "两者",
   "built_in_badge": "内置",
+  "global_readonly_badge": "全局 · 只读",
+  "school_specific_badge": "本校专属",
   "category_label": "类别",
   "check_connection_try_again": "请检查您的网络连接并重试。",
   "check_in_counts_for": "打卡统计周期：",

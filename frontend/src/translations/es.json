@@ -1476,6 +1476,8 @@
   "awaiting_final_approval": "Pendiente de Aprobación Final",
   "both_label": "Ambos",
   "built_in_badge": "Integrado",
+  "global_readonly_badge": "Global · solo lectura",
+  "school_specific_badge": "Específico de la escuela",
   "category_label": "Categoría",
   "check_connection_try_again": "Verifique su conexión e inténtelo de nuevo.",
   "check_in_counts_for": "Recuento de check-ins para:",

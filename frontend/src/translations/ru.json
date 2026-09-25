@@ -1209,6 +1209,8 @@
   "awaiting_final_approval": "Ожидает Окончательного Одобрения",
   "both_label": "Оба",
   "built_in_badge": "Встроенный",
+  "global_readonly_badge": "Общая · только чтение",
+  "school_specific_badge": "Только для этой школы",
   "category_label": "Категория",
   "check_connection_try_again": "Проверьте подключение и попробуйте снова.",
   "check_in_counts_for": "Количество отметок за:",

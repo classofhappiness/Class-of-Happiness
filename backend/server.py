@@ -13323,9 +13323,18 @@ async def delete_teacher_strategy(strategy_id: str, request: Request):
 
 @api_router.post("/admin/teacher-strategies")
 async def create_admin_teacher_strategy(request: Request):
-    """Admin adds a new strategy for teachers"""
+    """Admin adds a new strategy for teachers. Real fix Sep 25 (item 7 audit): this inserts
+    straight into admin_teacher_strategies with no target_schools/school_admin_id at all -
+    every row it creates is genuinely global, visible to every teacher at every school via
+    GET /admin/teacher-strategies (which has no school filter). The allowed-roles list used to
+    include school_admin and teacher, neither of which the app or portal actually calls this
+    with (school_admin's real strategy CRUD is /school-admin/school-strategies, teacher's "Add
+    Strategy" is local-only, AsyncStorage) - so it was a live, unused path for either role to
+    inject content school-wide/site-wide with zero admin oversight, directly against the same
+    "only superadmin touches truly-global content" principle item 7 is about. Restricted to
+    admin/superadmin, matching PUT/DELETE on this same table below."""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin", "school_admin", "teacher"]:
+    if not user or user.get("role") not in ["admin", "superadmin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     body = await request.json()
     new_strat = {
@@ -17038,6 +17047,19 @@ async def update_school_strategy(strategy_id: str, request: Request):
     user = await get_current_user(request)
     if not user or user.get("role") not in ["school_admin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
+    # Real fix Sep 25 (item 7): the previous `.eq("school_admin_id", user["user_id"])` filter
+    # on the update itself was already safe (a cross-school id simply matches zero rows), but
+    # it fails SILENTLY - a school_admin PUTting another school's strategy_id (or a global row,
+    # which never lives in this table at all) got a 200 with no actual effect, indistinguishable
+    # from success. Fetching first lets this tell the three real cases apart and return the
+    # right status for each: 404 (no such row anywhere), 403 (real row, someone else's school -
+    # global rows live in admin_teacher_strategies, a different table, so they can never appear
+    # here at all), or the real update.
+    existing = supabase.table("school_strategies").select("id,school_admin_id").eq("id", strategy_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    if existing.data[0].get("school_admin_id") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="You can only edit your own school's strategies")
     body = await request.json()
     allowed = ["name", "description", "icon", "zone", "strategy_type", "is_active", "order_index"]
     updates = {k: v for k, v in body.items() if k in allowed}
@@ -17049,6 +17071,14 @@ async def delete_school_strategy(strategy_id: str, request: Request):
     user = await get_current_user(request)
     if not user or user.get("role") not in ["school_admin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
+    # Real fix Sep 25 (item 7): same silent-no-op gap as the PUT above - explicit
+    # ownership check so a cross-school delete attempt gets a real 403, not an
+    # indistinguishable-from-success 200 that deleted nothing.
+    existing = supabase.table("school_strategies").select("id,school_admin_id").eq("id", strategy_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    if existing.data[0].get("school_admin_id") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="You can only delete your own school's strategies")
     supabase.table("school_strategies").delete().eq("id", strategy_id).eq("school_admin_id", user["user_id"]).execute()
     return {"status": "deleted"}
 
@@ -17418,9 +17448,15 @@ async def get_schools_world_wall(request: Request):
 
 @api_router.post("/strategies")
 async def create_global_strategy(request: Request):
-    """Admin adds a global student strategy"""
+    """Admin adds a global student strategy. Real fix Sep 25 (item 7 audit): inserts into
+    helpers with no school scoping whatsoever - every row is visible to every student at
+    every school. school_admin was in the allowed-roles list even though their real,
+    school-scoped path is POST /school-admin/school-strategies (school_strategies table) -
+    same class of gap as /admin/teacher-strategies just above: a school_admin could call this
+    directly and create genuinely global content. Restricted to admin/superadmin, matching
+    this endpoint's own PUT/DELETE (already superadmin-only)."""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
+    if not user or user.get("role") not in ["admin", "superadmin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     body = await request.json()
     name = (body.get("name") or "").strip()
@@ -17435,17 +17471,28 @@ async def create_global_strategy(request: Request):
         "is_custom": False,
         "is_active": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
-        # Real fix Aug 15: added real attribution, matching what /admin/teacher-strategies
-        # already had — student strategies previously had no way to show who added them.
-        "created_by": user["user_id"],
-        "created_by_role": user.get("role", "admin"),
     }
+    # Real fix Sep 25 (item 7 audit, found while restricting this endpoint's roles above): the
+    # Aug 15 "real attribution" fix unconditionally added created_by/created_by_role to this
+    # insert, but helpers has never actually had those columns (confirmed live: helpers' real
+    # columns are id/name/description/feeling_colour/icon/is_custom/is_active/order_index/
+    # created_at) - every single call to this endpoint has 500'd since Aug 15, for every role,
+    # superadmin included. Same defensive pattern already used elsewhere in this file for a
+    # column pending its own migration: try with attribution, silently drop it and retry
+    # without on failure, so this actually works today and picks up attribution automatically
+    # if that migration ever lands.
+    attributed = {**new_strat, "created_by": user["user_id"], "created_by_role": user.get("role", "admin")}
     try:
-        result = supabase.table("helpers").insert(new_strat).execute()
-        return result.data[0] if result.data else new_strat
+        result = supabase.table("helpers").insert(attributed).execute()
+        return result.data[0] if result.data else attributed
     except Exception as e:
-        logger.error(f"Strategy create error: {e}")
-        raise HTTPException(status_code=500, detail="Could not save strategy")
+        logger.warning(f"Strategy create without attribution columns (helpers.created_by/created_by_role missing?): {e}")
+        try:
+            result = supabase.table("helpers").insert(new_strat).execute()
+            return result.data[0] if result.data else new_strat
+        except Exception as e2:
+            logger.error(f"Strategy create error: {e2}")
+            raise HTTPException(status_code=500, detail="Could not save strategy")
 
 @api_router.put("/strategies/{strategy_id}")
 async def update_global_strategy(strategy_id: str, request: Request):

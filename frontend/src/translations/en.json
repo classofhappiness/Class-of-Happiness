@@ -1221,6 +1221,8 @@
   "awaiting_final_approval": "Awaiting Final Approval",
   "both_label": "Both",
   "built_in_badge": "Built-in",
+  "global_readonly_badge": "Global · read-only",
+  "school_specific_badge": "School-specific",
   "category_label": "Category",
   "check_connection_try_again": "Check your connection and try again.",
   "check_in_counts_for": "Check-in counts for:",
