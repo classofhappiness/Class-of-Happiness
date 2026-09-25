@@ -330,6 +330,13 @@ export default function TeacherCheckInScreen() {
     }
   };
 
+  // Real rewrite Sep 25 (item 11) - this used to be a genuine dead end: POST /wellbeing-alert
+  // never required auth, never sent a real email (only logged one), and nothing anywhere ever
+  // read the table it wrote to - a teacher tapping Support always saw "notified" regardless of
+  // what actually happened, which was always nothing. Now surfaces the backend's real status:
+  // sent (a real email went to the school's configured contact), not_configured (no contact
+  // set up - told honestly instead of a false success), or recorded_email_failed (saved, admin
+  // will still see it in-app, but the email itself didn't go out).
   const sendWellbeingAlert = async () => {
     if (!alertMessage.trim()) {
       Alert.alert(t('add_a_message') || 'Add a message', t('write_brief_message_before_sending') || 'Please write a brief message before sending.');
@@ -338,21 +345,30 @@ export default function TeacherCheckInScreen() {
     setSendingAlert(true);
     try {
       const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-      await fetch(`${BACKEND_URL}/api/wellbeing-alert`, {
+      const res = await fetch(`${BACKEND_URL}/api/wellbeing-alert`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          teacher_name: user?.name || 'Teacher',
-          message: alertMessage.trim(),
-          zone: selectedZone,
-          timestamp: new Date().toISOString(),
-        }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${await AsyncStorage.getItem('session_token')}`,
+        },
+        body: JSON.stringify({ message: alertMessage.trim(), zone: selectedZone }),
       });
-    } catch (e) { console.log("[silent]", e); }
-    setShowAlertModal(false);
-    setAlertMessage('');
+      const data = await res.json().catch(() => ({}));
+      setShowAlertModal(false);
+      setAlertMessage('');
+      if (data.status === 'sent') {
+        Alert.alert(t('alert_sent') || '📨 Sent', data.message || (t('alert_sent_desc') || 'Your message has been sent to your wellbeing support contact.'), [{ text: t('thank_you') || 'Thank you' }]);
+      } else if (data.status === 'not_configured') {
+        Alert.alert(t('support_not_set_up_title') || 'No wellbeing contact set up', data.message || (t('support_not_set_up_desc') || "Your school hasn't set up a wellbeing support contact yet. Ask your school admin to add one in Settings."));
+      } else {
+        Alert.alert(t('alert_recorded_title') || 'Recorded', data.message || (t('alert_recorded_desc') || 'Your message was saved and your school admin will see it, but the email could not be sent.'));
+      }
+    } catch (e) {
+      setShowAlertModal(false);
+      setAlertMessage('');
+      Alert.alert(t('error') || 'Error', t('could_not_send_support_message') || 'Could not send your message right now. Please try again.');
+    }
     setSendingAlert(false);
-    Alert.alert(t('alert_sent') || '📨 Alert Sent', t('alert_sent_desc') || 'Your wellbeing support team has been notified. Someone will reach out to you soon.', [{ text: t('thank_you') || 'Thank you' }]);
   };
 
   const getStrategyName = (id: string) => ALL_STRATEGIES.find(s => s.id === id)?.name || id;
@@ -875,7 +891,7 @@ export default function TeacherCheckInScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.modalSubtitle}>
-              {t('principal_notified_confidentially') || 'Your principal, psychologist, or wellbeing lead will be notified privately and confidentially.'}
+              {t('support_contact_desc') || "This sends an email to your school's designated wellbeing support contact, and your school admin will see it too."}
             </Text>
             <Text style={styles.inputLabel}>{t('support_message_placeholder') || 'Your Message'}</Text>
             <TextInput
@@ -897,7 +913,7 @@ export default function TeacherCheckInScreen() {
               <Text style={styles.sendAlertText}>{sendingAlert ? (t('sending_ellipsis') || 'Sending...') : (t('send_to_wellbeing_team') || 'Send to Wellbeing Team')}</Text>
             </TouchableOpacity>
             <Text style={styles.modalNote}>
-              {t('private_message_note') || '🔒 This message is private. Only your designated wellbeing support staff will see it.'}
+              {t('support_not_emergency_note') || '⚠️ This is not for emergencies. It is checked when your wellbeing contact next has time - if you need help right now, contact them directly or follow your school\'s usual safeguarding process.'}
             </Text>
           </View>
         </View>

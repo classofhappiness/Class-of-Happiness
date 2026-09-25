@@ -13152,70 +13152,149 @@ async def get_collection(student_id: str, request: Request):
 
 # ================== WELLBEING ALERT ==================
 class WellbeingAlertRequest(BaseModel):
-    teacher_name: str
     message: str
     zone: Optional[str] = None
-    timestamp: Optional[str] = None
+
+def _send_wellbeing_support_email(contact_name: str, contact_email: str, teacher_name: str, message: str, zone: Optional[str]) -> tuple:
+    """Real feature Sep 25 (item 11). Never raises - same pattern as
+    _send_school_renewal_reminder/_send_school_checkin_nudge above."""
+    if not RESEND_API_KEY:
+        return False, "RESEND_API_KEY not configured"
+    zone_line = f"<p style='color:#888;font-size:13px;margin:4px 0'>Zone at time of message: <b>{zone}</b></p>" if zone else ""
+    try:
+        result = resend.Emails.send({
+            "from": RESEND_FROM_EMAIL,
+            "to": [contact_email],
+            "subject": f"Wellbeing support - message from {teacher_name}",
+            "html": f"""
+                <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+                  <h2 style="color:#1A1A2E">A teacher has reached out</h2>
+                  <p style="color:#333;font-size:15px">Hi{' ' + contact_name if contact_name else ''},</p>
+                  <p style="color:#333;font-size:15px">
+                    <b>{teacher_name}</b> used Class of Happiness's Teacher Check-In to send you
+                    this message as their school's designated wellbeing support contact:
+                  </p>
+                  {zone_line}
+                  <p style="color:#333;font-size:15px;white-space:pre-wrap;background:#F5F5F5;border-radius:8px;padding:12px">{message}</p>
+                  <p style="color:#888;font-size:12px;margin-top:24px">
+                    This is a non-emergency, asynchronous message sent when {teacher_name} tapped
+                    Support - it is not monitored in real time. If this is urgent, please follow
+                    your school's usual safeguarding process rather than waiting on this email.
+                  </p>
+                </div>
+            """,
+        })
+        email_id = result.get("id") if isinstance(result, dict) else getattr(result, "id", None)
+        return True, email_id or "sent"
+    except Exception as e:
+        logger.error(f"[wellbeing-support] send failed: {e}")
+        return False, str(e)[:150]
 
 @api_router.post("/wellbeing-alert")
 async def send_wellbeing_alert(req: WellbeingAlertRequest, request: Request):
-    """Teacher sends a private wellbeing support request to admin/principal"""
+    """Real rewrite Sep 25 (item 11) - this used to be a dead end end-to-end: no auth required
+    at all (teacher_id was always None on every real row - confirmed live, 13/13 legacy rows),
+    the "notify" step only ever logged an email address rather than sending one, and NOTHING
+    anywhere (app or portal) has read the wellbeing_alerts table since a Sep 11 fix removed the
+    portal's last reader for being unscoped across every school. A teacher tapping Support and
+    seeing "Your wellbeing support team has been notified" was always false - genuinely nobody
+    was ever notified, ever. Now: real auth, real per-school scoping (teacher -> their own
+    school_admin's configured contact, PUT /schools/my-school's wellbeing_email/
+    wellbeing_contact_name - Settings), a real email via Resend, and a real school-scoped
+    in-app listing (GET /school-admin/wellbeing-support-requests below) instead of a table
+    nothing reads."""
     user = await get_current_user(request)
-    
-    # Store alert in database
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if user.get("role") != "teacher":
+        raise HTTPException(status_code=403, detail="Only teacher accounts can send a wellbeing support request")
+    admin_id = _teacher_school_admin_id(user)
+    if not admin_id:
+        return {"status": "not_configured", "message": "Your account isn't linked to a school yet, so there's no wellbeing contact to reach."}
+    settings_r = supabase.table("admin_settings").select("key,value").eq("school_admin_id", admin_id).in_("key", ["school_wellbeing_email", "school_wellbeing_contact_name"]).execute()
+    settings = {row["key"]: row["value"] for row in (settings_r.data or [])}
+    contact_email = (settings.get("school_wellbeing_email") or "").strip()
+    contact_name = (settings.get("school_wellbeing_contact_name") or "").strip()
+    if not contact_email:
+        return {"status": "not_configured", "message": "Your school hasn't set up a wellbeing support contact yet. Ask your school admin to add one in Settings."}
+
+    teacher_name = user.get("name") or "A teacher"
     alert_data = {
         "id": str(uuid.uuid4()),
-        "teacher_name": req.teacher_name,
-        "teacher_id": user["user_id"] if user else None,
+        "teacher_name": teacher_name,
+        "teacher_id": user["user_id"],
+        "school_admin_id": admin_id,
         "message": req.message,
         "zone": req.zone,
-        "timestamp": req.timestamp or datetime.now(timezone.utc).isoformat(),
         "status": "pending",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    
     try:
         supabase.table("wellbeing_alerts").insert(alert_data).execute()
     except Exception as e:
-        logger.error(f"Could not store wellbeing alert: {e}")
-    
-    # Try to get admin notification email from settings
+        # Defensive: school_admin_id may not be a migrated column yet on this table - same
+        # try-without-the-new-field pattern used elsewhere in this file. The in-app listing
+        # below simply won't see this row until the migration lands; the email still sends.
+        logger.warning(f"[wellbeing-alert] insert without school_admin_id (migration pending?): {e}")
+        try:
+            fallback = {k: v for k, v in alert_data.items() if k != "school_admin_id"}
+            supabase.table("wellbeing_alerts").insert(fallback).execute()
+        except Exception as e2:
+            logger.error(f"Could not store wellbeing alert: {e2}")
+
+    sent, detail = _send_wellbeing_support_email(contact_name, contact_email, teacher_name, req.message, req.zone)
+    if not sent:
+        logger.error(f"[wellbeing-alert] email to {contact_email} failed: {detail}")
+        return {"status": "recorded_email_failed", "message": "Your message was recorded, but the email to your wellbeing contact could not be sent. It will still be visible to your school admin."}
+    return {"status": "sent", "message": f"Sent to {contact_name or contact_email}."}
+
+@api_router.get("/school-admin/wellbeing-support-requests")
+async def get_school_wellbeing_support_requests(request: Request):
+    """Real feature Sep 25 (item 11) - the actual "in-app admin alert" side of the Support
+    button: a school_admin's own teachers' pending wellbeing requests, properly scoped by the
+    school_admin_id written at send time. Legacy pre-fix rows (teacher_id always None, no
+    school_admin_id) intentionally never appear here - they can't be safely attributed to a
+    school, and were never real deliberate Support-button submissions under this feature's
+    actual design (the old auto-fire-on-checkin-share path removed in item 8)."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin", "admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
     try:
-        settings_result = supabase.table("admin_settings").select("*").eq("key", "wellbeing_email").execute()
-        if settings_result.data:
-            notify_email = settings_result.data[0].get("value")
-            logger.info(f"Wellbeing alert from {req.teacher_name} — would notify: {notify_email}")
+        result = supabase.table("wellbeing_alerts").select("*").eq("school_admin_id", user["user_id"]).order("created_at", desc=True).limit(50).execute()
+        return result.data or []
     except Exception as e:
-        logger.error(f"Could not fetch notification email: {e}")
-    
-    return {"status": "sent", "message": "Alert recorded successfully"}
+        logger.error(f"[wellbeing-support-requests] query failed: {e}")
+        return []
+
+@api_router.put("/school-admin/wellbeing-support-requests/{alert_id}/acknowledge")
+async def acknowledge_wellbeing_support_request(alert_id: str, request: Request):
+    """Real feature Sep 25 (item 11). Same ownership-check-then-403 pattern as item 7's
+    school_strategies fix - a school_admin can only acknowledge their OWN school's requests."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin", "admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    existing = supabase.table("wellbeing_alerts").select("id,school_admin_id").eq("id", alert_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if existing.data[0].get("school_admin_id") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="You can only acknowledge your own school's requests")
+    supabase.table("wellbeing_alerts").update({"status": "acknowledged"}).eq("id", alert_id).execute()
+    return {"status": "acknowledged"}
 
 @api_router.get("/admin/wellbeing-alerts")
 async def get_wellbeing_alerts(request: Request):
-    """Admin views all teacher wellbeing alerts"""
+    """Superadmin-only cross-school view (debug/oversight). Real fix Sep 25 (item 11 audit):
+    this used to also allow admin/school_admin with ZERO scoping - .select("*") across every
+    school's rows, confirmed live and previously flagged in a Sep 11 portal comment as a real
+    cross-school leak (the portal's own reader was removed for exactly this reason, but the
+    endpoint itself stayed open). school_admin's real, properly-scoped path is now GET
+    /school-admin/wellbeing-support-requests above."""
     user = await get_current_user(request)
-    if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
-        raise HTTPException(status_code=403, detail="Admin access required")
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
     try:
-        result = supabase.table("wellbeing_alerts").select("*").order("created_at", desc=True).execute()
-        alerts = result.data or []
-        # Resolve strategy IDs to names
-        STRATEGY_NAMES = {
-            "blue_1":"Talk to a trusted colleague","blue_2":"Brief outdoor walk",
-            "blue_3":"Safe staff space reset","blue_4":"Hydrate and breathe",
-            "green_1":"Protect what works","green_2":"Positive micro-moment",
-            "green_3":"Prep buffer time","green_4":"Boundary reminder",
-            "yellow_1":"Movement break","yellow_2":"Guided meditation",
-            "yellow_3":"Challenge log","yellow_4":"Deep breathing set",
-            "yellow_5":"Quick yoga stretch","red_1":"Ask for immediate cover",
-            "red_2":"Grounding routine","red_3":"Pause before response",
-            "red_4":"De-escalation script",
-        }
-        for alert in alerts:
-            if isinstance(alert.get("message"), str):
-                for sid, sname in STRATEGY_NAMES.items():
-                    alert["message"] = alert["message"].replace(sid, sname)
-        return alerts
+        result = supabase.table("wellbeing_alerts").select("*").order("created_at", desc=True).limit(200).execute()
+        return result.data or []
     except Exception as e:
         logger.error(f"wellbeing_alerts table error: {e}")
         return []
@@ -17362,6 +17441,10 @@ _MY_SCHOOL_SETTINGS_KEYS = {
     "curriculum": "school_curriculum",
     "student_count": "school_student_count",
     "wellbeing_email": "school_wellbeing_email",
+    # Real feature Sep 25 (item 11): paired with wellbeing_email above so the support-contact
+    # emails sent by POST /wellbeing-alert can be addressed to a real person ("Hi Maria,")
+    # instead of just a bare inbox.
+    "wellbeing_contact_name": "school_wellbeing_contact_name",
 }
 
 @api_router.get("/schools/my-school")
@@ -17379,6 +17462,7 @@ async def get_my_school(request: Request):
         "curriculum": settings.get("school_curriculum", ""),
         "student_count": int(settings.get("school_student_count") or 0),
         "wellbeing_email": settings.get("school_wellbeing_email", ""),
+        "wellbeing_contact_name": settings.get("school_wellbeing_contact_name", ""),
     }
 
 @api_router.put("/schools/my-school")

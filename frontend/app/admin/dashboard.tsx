@@ -2136,6 +2136,72 @@ function TeacherWellbeing({ authToken, statsPeriod }: any) {
   );
 }
 
+// ── Wellbeing Support Requests ──────────────────────────────────────────────
+// Real feature Sep 25 (item 11): the in-app half of the Teacher Check-In "Support" button -
+// GET /school-admin/wellbeing-support-requests (school_admin_id-scoped). Before this round the
+// button wrote into a table nothing ever read; this is the first real place a school_admin
+// sees what a teacher sent, alongside the real email POST /wellbeing-alert now also sends.
+function WellbeingSupportRequests({ authToken }: any) {
+  const { t } = useApp();
+  const [requests, setRequests] = useState<any[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [acking, setAcking] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    if (!authToken) return;
+    apiCall('/school-admin/wellbeing-support-requests', authToken)
+      .then((d: any) => setRequests(Array.isArray(d) ? d : []))
+      .catch(() => setFailed(true));
+  }, [authToken]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const acknowledge = async (id: string) => {
+    setAcking(id);
+    try {
+      await apiCall(`/school-admin/wellbeing-support-requests/${id}/acknowledge`, authToken, { method: 'PUT' });
+      setRequests((prev) => (prev || []).map((r: any) => (r.id === id ? { ...r, status: 'acknowledged' } : r)));
+    } catch {
+      Alert.alert(t('error') || 'Error', t('could_not_save') || 'Could not save.');
+    }
+    setAcking(null);
+  };
+
+  const pending = (requests || []).filter((r: any) => r.status !== 'acknowledged');
+
+  return (
+    <SectionCard title={t('wellbeing_support_requests') || 'Wellbeing Support Requests'} subtitle={t('from_your_teachers') || 'From your teachers'} icon="mark-email-unread" color="#F44336">
+      {failed ? (
+        <Text style={s.hint}>{t('could_not_load_wellbeing_requests') || 'Could not load wellbeing support requests right now.'}</Text>
+      ) : requests === null ? (
+        <ActivityIndicator color={INDIGO} />
+      ) : pending.length === 0 ? (
+        <Text style={s.hint}>{t('no_wellbeing_requests_yet') || 'No wellbeing support requests right now.'}</Text>
+      ) : pending.map((r: any) => (
+        <View key={r.id} style={s.classroomRow}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                {!!r.zone && <View style={[s.colourDot, { backgroundColor: ZONE_COLORS[r.zone] || '#999' }]} />}
+                <Text style={s.classroomName}>{r.teacher_name || 'Teacher'}</Text>
+              </View>
+              <Text style={[s.classroomMeta, { marginTop: 4 }]}>{r.message}</Text>
+              <Text style={[s.classroomMeta, { marginTop: 2, color: '#AAA' }]}>{new Date(r.created_at).toLocaleString()}</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => acknowledge(r.id)}
+              disabled={acking === r.id}
+              style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#F0F0F0', opacity: acking === r.id ? 0.6 : 1 }}
+            >
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#666' }}>{t('acknowledge') || 'Acknowledge'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ))}
+    </SectionCard>
+  );
+}
+
 // ── School Settings ───────────────────────────────────────────────────────────
 
 const COUNTRY_FLAGS = [
@@ -2159,6 +2225,7 @@ function SchoolSettings({ authToken, user }: any) {
   const [curriculum, setCurriculum] = useState('');
   const [studentCount, setStudentCount] = useState('');
   const [wellbeingEmail, setWellbeingEmail] = useState('');
+  const [wellbeingContactName, setWellbeingContactName] = useState('');
   const [saving, setSaving] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
   const [generatingCode, setGeneratingCode] = useState(false);
@@ -2235,6 +2302,7 @@ function SchoolSettings({ authToken, user }: any) {
         setCurriculum(d.curriculum || '');
         setStudentCount(d.student_count?.toString() || '');
         setWellbeingEmail(d.wellbeing_email || '');
+        setWellbeingContactName(d.wellbeing_contact_name || '');
       }).catch(() => {});
     apiCall('/school/invite-code', authToken)
       .then((d: any) => { if (d?.code) setInviteCode(d.code); })
@@ -2285,7 +2353,7 @@ function SchoolSettings({ authToken, user }: any) {
     try {
       await apiCall('/schools/my-school', authToken, {
         method: 'PUT',
-        body: JSON.stringify({ name: schoolName, city, flag: country, school_type: schoolType, curriculum, student_count: parseInt(studentCount) || 0, wellbeing_email: wellbeingEmail }),
+        body: JSON.stringify({ name: schoolName, city, flag: country, school_type: schoolType, curriculum, student_count: parseInt(studentCount) || 0, wellbeing_email: wellbeingEmail, wellbeing_contact_name: wellbeingContactName }),
       });
       Alert.alert(`✅ ${t('saved') || 'Saved'}`, t('school_profile_updated') || 'School profile updated.');
     } catch { Alert.alert(t('error') || 'Error', t('could_not_save') || 'Could not save.'); }
@@ -2327,10 +2395,18 @@ function SchoolSettings({ authToken, user }: any) {
         <TextInput style={s.input} placeholder={t('approx_student_count_placeholder') || 'Approximate number of students'} value={studentCount} onChangeText={setStudentCount} keyboardType="numeric" placeholderTextColor="#AAA" />
       </SectionCard>
 
-      <SectionCard title={t("wellbeing_alerts") || "Wellbeing Alerts"} subtitle={t("get_notified") || "Get notified"} icon="notifications-active" color="#F44336">
-        <Text style={s.hint}>{t("wellbeing_alert_desc") || "Receive email alerts when students or teachers request support."}</Text>
-        <TextInput style={s.input} placeholder={t('wellbeing_alert_email_placeholder') || 'Wellbeing alert email'} value={wellbeingEmail} onChangeText={setWellbeingEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#AAA" />
+      {/* Real feature Sep 25 (item 11): this used to be a decorative field that fed a dead-end
+          endpoint - nobody was ever actually emailed. Now it's the real contact a teacher's
+          Support button on Teacher Check-In reaches (POST /wellbeing-alert), so it needed a
+          name to go with the email (real emails are addressed to it: "Hi {name},") and copy
+          that describes what actually happens now. */}
+      <SectionCard title={t("wellbeing_support_contact") || "Wellbeing Support Contact"} subtitle={t("teachers_can_reach_out") || "Teachers can reach out"} icon="notifications-active" color="#F44336">
+        <Text style={s.hint}>{t("wellbeing_contact_desc") || "When a teacher taps Support on their Check-In, this person gets a real email - and the request appears below for your school."}</Text>
+        <TextInput style={s.input} placeholder={t('wellbeing_contact_name_placeholder') || 'Contact name (e.g. Maria Santos)'} value={wellbeingContactName} onChangeText={setWellbeingContactName} placeholderTextColor="#AAA" />
+        <TextInput style={s.input} placeholder={t('wellbeing_alert_email_placeholder') || 'Wellbeing contact email'} value={wellbeingEmail} onChangeText={setWellbeingEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#AAA" />
       </SectionCard>
+
+      <WellbeingSupportRequests authToken={authToken} />
 
       <SectionCard title={t('invite_teachers') || 'Invite Teachers'} subtitle={t('link_teachers_to_school') || 'Link your teachers to this school'} icon="group-add" color="#5C6BC0">
         <Text style={s.hint}>{t('generate_and_share_teacher_code') || 'Generate a code and share it with your teachers so they link to your school.'}</Text>
