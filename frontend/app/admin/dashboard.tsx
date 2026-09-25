@@ -19,6 +19,8 @@ import { dismissIncidentAlert } from '../../src/utils/notifeeIncidents';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ColourCycleLogo } from '../../src/components/ColourCycleLogo';
 import { BarChart } from 'react-native-gifted-charts';
+import { STRAT } from '../../src/components/AlertCard';
+import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const INDIGO = '#5C6BC0';
@@ -1958,14 +1960,10 @@ function SchoolAdminDashboard({ authToken, stats, statsLoading, statsPeriod, set
         {/* Classroom comparison - Real feature Sep 19 (app parity with the portal Overview) */}
         <ClassroomBreakdown authToken={authToken} statsPeriod={statsPeriod} />
 
-        {/* Teacher wellbeing */}
-        <SectionCard title={t("teacher_wellbeing") || "Teacher Wellbeing"} subtitle={t("teacher_checkin_private") || "Anonymised data"} icon="spa" color="#4CAF50">
-          <StatRow label={t('support_requests_plural') || 'Support Requests'} value={stats?.support_requests} icon="notifications-active" color="#F44336" />
-          <View style={s.privacyBox}>
-            <MaterialIcons name="lock" size={12} color="#888" />
-            <Text style={s.privacyText}>{t("teacher_checkin_private") || "Teacher check-ins are private."}</Text>
-          </View>
-        </SectionCard>
+        {/* Teacher wellbeing - real feature Sep 25 (item 8): replaced the old stub (a support-
+            requests count plus a static "check-ins are private" note - no per-teacher data was
+            ever shown here) with a real list of teachers who explicitly opted in. */}
+        <TeacherWellbeing authToken={authToken} statsPeriod={statsPeriod} />
 
         {/* Engagement */}
         <SectionCard title={t("engagement") || "Engagement"} subtitle={t("how_school_using") || "App usage"} icon="trending-up" color="#FF9800">
@@ -2039,6 +2037,64 @@ function ClassroomBreakdown({ authToken, statsPeriod }: any) {
           </View>
         );
       })}
+      {statsPeriod > 90 && <Text style={[s.hint, { marginTop: 8 }]}>{t('classroom_max_90_days') || 'Showing the last 90 days, the maximum for this view.'}</Text>}
+    </SectionCard>
+  );
+}
+
+// ── Teacher Wellbeing ─────────────────────────────────────────────────────────
+// Real feature Sep 25 (item 8): per-teacher view of SHARED wellbeing check-ins, from the new
+// GET /school-admin/teacher-wellbeing (school_admin_id-scoped, fail closed - see its own
+// server.py comment). Only teachers who explicitly opted in (shared=True on at least one
+// check-in in the window) appear at all - a teacher with zero shared check-ins is simply
+// absent from `teachers`, never rendered as a placeholder or counted anywhere on this card.
+// Same period pill (statsPeriod) as the rest of this tab, per Jono's explicit ask.
+function TeacherWellbeing({ authToken, statsPeriod }: any) {
+  const { t } = useApp();
+  const [teachers, setTeachers] = useState<any[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const period = Math.min(statsPeriod || 30, 90);
+
+  useEffect(() => {
+    if (!authToken) return;
+    let cancelled = false;
+    setTeachers(null);
+    setFailed(false);
+    apiCall(`/school-admin/teacher-wellbeing?days=${period}`, authToken)
+      .then((d: any) => { if (!cancelled) setTeachers(Array.isArray(d?.teachers) ? d.teachers : []); })
+      .catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; };
+  }, [authToken, period]);
+
+  return (
+    <SectionCard title={t('teacher_wellbeing') || 'Teacher Wellbeing'} subtitle={t('teacher_wellbeing_opted_in_subtitle') || 'Teachers who chose to share'} icon="spa" color="#4CAF50">
+      {failed ? (
+        <Text style={s.hint}>{t('could_not_load_teacher_wellbeing') || 'Could not load teacher wellbeing data right now.'}</Text>
+      ) : teachers === null ? (
+        <ActivityIndicator color={INDIGO} />
+      ) : teachers.length === 0 ? (
+        <Text style={s.hint}>{t('no_teacher_wellbeing_yet') || 'No teachers have shared a wellbeing check-in with you yet.'}</Text>
+      ) : teachers.map((tw: any) => (
+        <View key={tw.teacher_id} style={s.classroomRow}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <Text style={s.classroomName} numberOfLines={1}>{tw.teacher_name}</Text>
+            <Text style={s.classroomMeta}>{tw.checkins?.length ?? 0} {t('checkins') || 'check-ins'}</Text>
+          </View>
+          {(tw.checkins || []).slice(0, 5).map((c: any, i: number) => (
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+              <View style={[s.colourDot, { backgroundColor: ZONE_COLORS[c.zone] || '#999' }]} />
+              <Text style={s.classroomMeta}>
+                {new Date(c.timestamp).toLocaleDateString()}
+                {c.strategies_selected?.length ? ` · ${c.strategies_selected.map((sid: string) => resolveStrategyName(sid, t, STRAT)).join(', ')}` : ''}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ))}
+      <View style={s.privacyBox}>
+        <MaterialIcons name="lock" size={12} color="#888" />
+        <Text style={s.privacyText}>{t('teacher_checkin_private') || 'Only teachers who choose to share appear here.'}</Text>
+      </View>
       {statsPeriod > 90 && <Text style={[s.hint, { marginTop: 8 }]}>{t('classroom_max_90_days') || 'Showing the last 90 days, the maximum for this view.'}</Text>}
     </SectionCard>
   );

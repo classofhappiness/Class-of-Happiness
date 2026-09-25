@@ -13808,6 +13808,58 @@ async def get_school_admin_analytics(request: Request, period: int = 30, classro
         classroom_id=classroom_id,
     )
 
+@api_router.get("/school-admin/teacher-wellbeing")
+async def get_school_admin_teacher_wellbeing(request: Request, days: int = 30):
+    """New Sep 25 (item 8): per-teacher view of shared wellbeing check-ins, for the school
+    admin's own school. Distinct from /school-admin/analytics' teacher_zone_distribution,
+    which is deliberately aggregate-only (no individual identifiers, by explicit design) -
+    this is the first endpoint that shows a school_admin WHICH teachers are checking in,
+    individually, and only the ones who opted in. A teacher who has never marked a check-in
+    shared, or has none in the window, must not appear here at all - not greyed, not counted
+    by name - so this only ever selects rows already flagged shared=True; there is no code
+    path here that can surface an unshared row (fail closed: any query error returns an
+    empty list, never a fallback to unfiltered data). Same school_admin_id-or-school_name
+    teacher resolution as _compute_school_admin_analytics, reused rather than re-derived so
+    the two can never drift on who counts as "this school's teachers"."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ["school_admin", "admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="School admin access required")
+    days = max(1, min(days, 90))
+    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+    school_name = user.get("school_name", "")
+    teachers_by_id = supabase.table("users").select("user_id,name,email").eq("school_admin_id", user["user_id"]).execute()
+    teachers_by_name = supabase.table("users").select("user_id,name,email").eq("school_name", school_name).eq("role", "teacher").execute() if school_name else type('obj', (object,), {'data': []})()
+    all_teachers = {t["user_id"]: t for t in (teachers_by_id.data or []) + (teachers_by_name.data or [])}
+    teacher_ids = list(all_teachers.keys())
+    if not teacher_ids:
+        return {"teachers": [], "period_days": days}
+
+    try:
+        rows = supabase.table("teacher_checkins").select("user_id,zone,strategies_selected,timestamp").in_("user_id", teacher_ids).eq("shared", True).gte("timestamp", start_date).order("timestamp", desc=True).execute()
+        checkin_rows = rows.data or []
+    except Exception as e:
+        logger.error(f"[school-admin/teacher-wellbeing] query failed: {e}")
+        checkin_rows = []
+
+    by_teacher: dict = {}
+    for r in checkin_rows:
+        uid = r.get("user_id")
+        if not uid or uid not in all_teachers:
+            continue
+        by_teacher.setdefault(uid, []).append({
+            "zone": r.get("zone"),
+            "strategies_selected": r.get("strategies_selected") or [],
+            "timestamp": r.get("timestamp"),
+        })
+
+    teachers_out = [
+        {"teacher_id": uid, "teacher_name": all_teachers[uid].get("name") or "Teacher", "checkins": checkins}
+        for uid, checkins in by_teacher.items()
+    ]
+    teachers_out.sort(key=lambda tw: tw["checkins"][0]["timestamp"] if tw["checkins"] else "", reverse=True)
+    return {"teachers": teachers_out, "period_days": days}
+
 @api_router.get("/admin/school-analytics/{school_admin_id}")
 async def get_superadmin_school_analytics(school_admin_id: str, request: Request, period: int = 30, classroom_id: str = None):
     """Real feature Sep 20: superadmin-facing per-school variant of /school-admin/analytics,
