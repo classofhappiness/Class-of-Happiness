@@ -2752,9 +2752,7 @@ def _get_current_user_sync(request: Request) -> Optional[dict]:
     # shaped cached value.
     cached = _auth_cache_get(session_token)
     if cached is not None:
-        logger.info(f"[analytics-wave-timing] auth_cache HIT for {session_token[:8]}...")
         return cached
-    logger.info(f"[analytics-wave-timing] auth_cache MISS for {session_token[:8]}...")
 
     try:
         # Real fix Sep 26 (item 27): this used to be two sequential round trips - a
@@ -14288,35 +14286,10 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     # be silently swallowed into an empty result) still raises after the gather; one that
     # already caught its own exception and fell back to a safe default still does, with the
     # same warning log line.
-    import time as _t
-    _fn_start = _t.monotonic()
-    try:
-        _loop = asyncio.get_running_loop()
-        _executor = _loop._default_executor
-        if _executor is None:
-            # Not yet lazily created - force creation the same way asyncio.to_thread does,
-            # then read its real max_workers.
-            import concurrent.futures
-            _executor = concurrent.futures.ThreadPoolExecutor()
-            _loop.set_default_executor(_executor)
-        _pool_size = getattr(_executor, "_max_workers", "unknown")
-        _active_threads = len(getattr(_executor, "_threads", []))
-    except Exception as _pool_e:
-        _pool_size = f"error: {_pool_e}"
-        _active_threads = "unknown"
-    logger.info(f"[analytics-wave-timing] cpu_count={os.cpu_count()} default_executor_max_workers={_pool_size} threads_created_so_far={_active_threads}")
-    async def _wave(tasks: dict, _wave_name: str = "") -> dict:
+    async def _wave(tasks: dict) -> dict:
         if not tasks:
             return {}
-        _w0 = _t.monotonic()
-        async def _timed(key, coro):
-            t0 = _t.monotonic()
-            try:
-                return await coro
-            finally:
-                logger.info(f"[analytics-wave-timing] +{(t0-_fn_start)*1000:.1f}ms {_wave_name}.{key} took {(_t.monotonic()-t0)*1000:.1f}ms")
-        results = await asyncio.gather(*(_timed(k, c) for k, c in tasks.items()), return_exceptions=True)
-        logger.info(f"[analytics-wave-timing] {_wave_name} TOTAL took {(_t.monotonic()-_w0)*1000:.1f}ms (started at +{(_w0-_fn_start)*1000:.1f}ms)")
+        results = await asyncio.gather(*tasks.values(), return_exceptions=True)
         return dict(zip(tasks.keys(), results))
 
     def _raise_if_failed(wave: dict, key: str):
@@ -14327,7 +14300,7 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     w1 = await _wave({
         "teachers_by_id": asyncio.to_thread(lambda: supabase.table("users").select("user_id,name,email").eq("school_admin_id", user_id).execute()),
         **({"teachers_by_name": asyncio.to_thread(lambda: supabase.table("users").select("user_id,name,email").eq("school_name", school_name).eq("role", "teacher").execute())} if school_name else {}),
-    }, "w1")
+    })
     _raise_if_failed(w1, "teachers_by_id")
     _raise_if_failed(w1, "teachers_by_name")
     teachers_by_id_rows = w1["teachers_by_id"].data or []
@@ -14350,13 +14323,12 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     w2 = await _wave({
         "classrooms": asyncio.to_thread(lambda: supabase.table("classrooms").select("*").in_("user_id", classroom_owner_ids).execute()),
         **({"opted_in": asyncio.to_thread(lambda: supabase.table("users").select("user_id").in_("user_id", teacher_ids).eq("teacher_wellbeing_shared_with_admin", True).execute())} if teacher_ids else {}),
-    }, "w2")
+    })
     _raise_if_failed(w2, "classrooms")
     classrooms = w2["classrooms"].data or []
     classroom_ids = [c["id"] for c in classrooms]
 
     if not teacher_ids and not classrooms:
-        logger.info(f"[analytics-wave-timing] EARLY RETURN (no teachers/classrooms) after {(_t.monotonic()-_fn_start)*1000:.1f}ms")
         return {"total_teachers": 0, "total_students": 0, "total_checkins": 0,
                 "zone_distribution": {}, "daily_counts": {}, "classroom_breakdown": [],
                 "school_name": school_name or "My School"}
@@ -14375,7 +14347,7 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     w3 = await _wave({
         **({"students": asyncio.to_thread(lambda: supabase.table("students").select("*").in_("classroom_id", classroom_ids).execute())} if classroom_ids else {}),
         **({"teacher_checkins": asyncio.to_thread(lambda: supabase.table("teacher_checkins").select("user_id,zone,strategies_selected").in_("user_id", teacher_opted_in_ids).eq("shared", True).gte("timestamp", start_date).execute())} if (teacher_opted_in_ids and not teacher_wellbeing_suppressed) else {}),
-    }, "w3")
+    })
     _raise_if_failed(w3, "students")
     all_students = (w3["students"].data or []) if "students" in w3 else []
     all_student_ids = [s["id"] for s in all_students]
@@ -14404,7 +14376,7 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
             "creature_unlocks": asyncio.to_thread(lambda: supabase.table("creature_unlocks").select("completed_at").in_("real_student_id", student_ids).execute()),
             "student_rewards": asyncio.to_thread(lambda: supabase.table("student_rewards").select("current_stage").in_("student_id", student_ids).execute()),
         } if student_ids else {}),
-    }, "w4")
+    })
     _raise_if_failed(w4, "all_logs")
     _raise_if_failed(w4, "alerts")
     _raise_if_failed(w4, "prev_logs")
@@ -14651,7 +14623,6 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
             if sr_rows:
                 default_creatures_avg_stage = round(sum(r.get("current_stage") or 0 for r in sr_rows) / len(sr_rows), 1)
 
-    logger.info(f"[analytics-wave-timing] FUNCTION TOTAL took {(_t.monotonic()-_fn_start)*1000:.1f}ms")
     return {
         "school_name": school_name or "My School",
         "total_teachers": len(teacher_ids),
