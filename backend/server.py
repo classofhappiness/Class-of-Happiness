@@ -17532,16 +17532,73 @@ async def delete_staff_shortcut(shortcut_id: str, request: Request):
     supabase.table("support_staff_shortcuts").delete().eq("id", shortcut_id).eq("school_admin_id", user["user_id"]).execute()
     return {"status": "deleted"}
 
+async def _try_claim_recurring_tick(lock_key: str, min_interval_seconds: int) -> bool:
+    """Cross-worker mutual exclusion for a recurring background loop tick, without a real
+    Postgres advisory lock. Root cause fix Sep 26 (multi-worker duplication audit):
+    _support_requests_rebuzz_loop (and the two once-daily loops below) are started in
+    @app.on_event("startup"), which runs once per --workers 2 process (item 1, Sep 25, added
+    --workers AFTER these loops' own docstrings assumed a single persistent process) - both
+    workers' copies tick independently and would each run the full notification logic,
+    sending duplicates.
+
+    pg_try_advisory_lock is not usable here: confirmed live that it isn't exposed via
+    PostgREST's RPC layer (only functions actually defined in the `public` schema are
+    callable that way - pg_try_advisory_lock lives in pg_catalog), and creating a `public`
+    wrapper function needs DDL access this environment doesn't have (no direct Postgres
+    connection string is configured - only the Supabase REST/service-role client). Even with
+    a wrapper, session-level advisory locks need the lock and unlock to run on the SAME
+    database connection, which Supabase's pooled REST calls don't guarantee across two
+    separate HTTP requests.
+
+    This achieves the same practical effect using only the REST-accessible admin_settings
+    table (already existing, no DDL needed): a single shared row's `value` holds the ISO
+    timestamp of the last successful claim. A worker "wins" the tick only if it can update
+    that row with a WHERE clause requiring the CURRENT value to be older than
+    min_interval_seconds - a single atomic Postgres UPDATE statement, so if the other worker's
+    tick already claimed it moments earlier, this one's WHERE clause no longer matches and it
+    affects zero rows. Requires the row to already exist (seeded once, out of band - an UPDATE
+    with no matching row simply means "nobody wins," so an unseeded key fails safe, it never
+    double-fires)."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    threshold_iso = (datetime.now(timezone.utc) - timedelta(seconds=min_interval_seconds)).isoformat()
+    def _claim():
+        return (
+            supabase.table("admin_settings")
+            .update({"value": now_iso})
+            .eq("key", lock_key)
+            .is_("school_admin_id", "null")
+            .lt("value", threshold_iso)
+            .execute()
+        )
+    try:
+        result = await asyncio.to_thread(_claim)
+        return bool(result.data)
+    except Exception as e:
+        logger.error(f"[recurring-tick-lock] claim failed for {lock_key}: {e}")
+        return False
+
 async def _support_requests_rebuzz_loop():
-    """Background loop, started at app startup (single persistent Railway process -
-    confirmed this deployment doesn't run multiple worker processes before relying on
-    that assumption). Every 30s (the incident cadence itself, per Jono's Sep 10 answer),
-    re-sends the push for any PENDING+unacknowledged request whose last (re)buzz is older
-    than its own cadence - ~2min standard, ~30s (every tick) for incidents. Acknowledging
-    a request stops it immediately since the query only ever selects unacknowledged rows."""
+    """Background loop, started at app startup. Every 30s (the incident cadence itself, per
+    Jono's Sep 10 answer), re-sends the push for any PENDING+unacknowledged request whose
+    last (re)buzz is older than its own cadence - ~2min standard, ~30s (every tick) for
+    incidents. Acknowledging a request stops it immediately since the query only ever
+    selects unacknowledged rows. See _try_claim_recurring_tick's own docstring for why only
+    one of the 2 --workers processes actually runs this tick's body."""
     while True:
         try:
             await asyncio.sleep(30)
+            # TEMPORARY diagnostic (Sep 26, multi-worker duplication proof) - logs every
+            # attempt's outcome with the attempting worker's PID, kept fully enforced (the
+            # `continue` below still applies): a logged "lost the race" from one PID moments
+            # after another PID's "claimed" is direct proof that PID would otherwise have
+            # ALSO run the full notification logic for this same tick had the lock not been
+            # here. Removed once evidence is captured.
+            _won = await _try_claim_recurring_tick("loop_lock::support_rebuzz", min_interval_seconds=25)
+            logger.info(f"[DIAG-duplication-proof] pid={os.getpid()} tick at {datetime.now(timezone.utc).isoformat()} claimed={_won}")
+            if not _won:
+                logger.info(f"[support_requests rebuzz] pid={os.getpid()} skipped this tick - another worker already claimed it")
+                continue
+            logger.info(f"[support_requests rebuzz] pid={os.getpid()} claimed this tick - processing")
             now = datetime.now(timezone.utc)
             standard_cutoff = (now - timedelta(minutes=2)).isoformat()
             # Root cause fix Sep 26 (blocking-call audit): this ran as a direct blocking call
@@ -17598,9 +17655,16 @@ async def _support_requests_rebuzz_loop():
 SCHOOL_RENEWAL_LOOP_SECONDS = 86400
 
 async def _school_renewal_reminder_loop():
+    """Same multi-worker duplication risk and fix as _support_requests_rebuzz_loop - see
+    _try_claim_recurring_tick's own docstring. 23h threshold (not the full 24h) gives margin
+    below the sleep interval so a worker's own timing drift can't starve a real day boundary."""
     while True:
         try:
             await asyncio.sleep(SCHOOL_RENEWAL_LOOP_SECONDS)
+            if not await _try_claim_recurring_tick("loop_lock::school_renewal_reminders", min_interval_seconds=82800):
+                logger.info(f"[school-renewal-reminders] pid={os.getpid()} skipped this tick - another worker already claimed it")
+                continue
+            logger.info(f"[school-renewal-reminders] pid={os.getpid()} claimed this tick - processing")
             await _check_school_renewal_reminders()
         except Exception as e:
             logger.error(f"[school-renewal-reminders] loop error: {e}")
@@ -17651,9 +17715,15 @@ def _send_school_renewal_reminder(school_name: str, days_left: int, renewal_date
         return False, str(e)[:150]
 
 async def _school_checkin_nudge_loop():
+    """Same multi-worker duplication risk and fix as _support_requests_rebuzz_loop - see
+    _try_claim_recurring_tick's own docstring."""
     while True:
         try:
             await asyncio.sleep(SCHOOL_RENEWAL_LOOP_SECONDS)
+            if not await _try_claim_recurring_tick("loop_lock::school_checkin_nudges", min_interval_seconds=82800):
+                logger.info(f"[school-checkin-nudge] pid={os.getpid()} skipped this tick - another worker already claimed it")
+                continue
+            logger.info(f"[school-checkin-nudge] pid={os.getpid()} claimed this tick - processing")
             await _check_school_checkin_nudges()
         except Exception as e:
             logger.error(f"[school-checkin-nudge] loop error: {e}")
