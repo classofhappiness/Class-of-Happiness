@@ -2838,6 +2838,45 @@ def _personal_sub_is_active(user: dict) -> bool:
 async def health():
     return {"status": "healthy", "app": "Class of Happiness", "version": "2.1"}
 
+# TEMPORARY diagnostic - item 26 (Sep 26), superadmin-only, to be removed immediately after
+# use. Measures real Railway-container -> Supabase round-trip latency from INSIDE the actual
+# running process (not from a local machine, which would measure a totally different, useless
+# network path) - the only way to answer "are these two services in different regions" without
+# SSH access to the container.
+@api_router.get("/debug/db-latency")
+async def debug_db_latency(request: Request):
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    import time as _time
+    import socket
+    times = []
+    for _ in range(20):
+        t0 = _time.monotonic()
+        supabase.table("users").select("user_id").limit(1).execute()
+        times.append(round((_time.monotonic() - t0) * 1000, 1))
+    sorted_times = sorted(times)
+    n = len(sorted_times)
+    median = sorted_times[n // 2] if n % 2 else (sorted_times[n // 2 - 1] + sorted_times[n // 2]) / 2
+    supabase_host = SUPABASE_URL.split("//")[-1].split(".")[0] if SUPABASE_URL else None
+    # Reports the pooled httpx client's actual connection count for the Supabase host - >0
+    # persistent connections confirms keep-alive/pooling is real, not one-TLS-handshake-per-call.
+    pool_info = None
+    try:
+        transport = supabase.postgrest.session._transport
+        pool_info = str(transport._pool) if hasattr(transport, "_pool") else "no _pool attr"
+    except Exception as e:
+        pool_info = f"could not introspect: {e}"
+    return {
+        "raw_ms": times,
+        "min_ms": min(times), "median_ms": median, "max_ms": max(times), "mean_ms": round(sum(times) / n, 1),
+        "supabase_project_ref": supabase_host,
+        "railway_region_env": os.environ.get("RAILWAY_REGION"),
+        "railway_replica_region_env": os.environ.get("RAILWAY_REPLICA_REGION"),
+        "container_hostname": socket.gethostname(),
+        "httpx_pool_info": pool_info,
+    }
+
 # ================== TRANSLATIONS ==================
 @api_router.get("/translations/{lang}")
 async def get_translations(lang: str):
