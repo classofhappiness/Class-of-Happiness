@@ -10,6 +10,7 @@ import uuid
 import os
 import re
 import time
+import threading
 import asyncio
 import logging
 import httpx
@@ -2669,6 +2670,68 @@ def _parse_supabase_timestamp(ts: str) -> datetime:
         ts = m.group(1) + frac + m.group(3)
     return datetime.fromisoformat(ts)
 
+# ================== AUTH CACHE (Sep 26, item 27) ==================
+# Root cause confirmed live (item 26's own latency investigation): every one of the ~306
+# routes calling get_current_user() pays 2 full Supabase round trips before the endpoint's
+# own work even starts (user_sessions lookup, then a second users lookup) - at the ~100-300ms
+# per-round-trip floor item 26 measured, that's 200-650ms of pure auth overhead on every
+# single authenticated request, region fix or not.
+#
+# Two independent fixes:
+# 1. Collapsed to ONE query via PostgREST embedding - confirmed live that user_sessions has a
+#    real FK to users, so `select("*, users(*)")` returns both rows in one round trip instead
+#    of two sequential ones.
+# 2. A short in-process TTL cache keyed by session_token, so a session making several
+#    requests within the TTL window skips the DB for auth entirely after the first one.
+#
+# Real, deliberately-flagged limitation: this cache is per-process memory (Procfile/
+# railway.toml run --workers 2, two separate OS processes with no shared memory - see item 1's
+# own fix). Eviction on logout/password-change/role-change/suspend below is real and immediate
+# in whichever worker process handles that mutation request, but a DIFFERENT worker that
+# cached the same session_token moments earlier keeps its own copy until that copy's own TTL
+# naturally expires. With TTL_SECONDS this small, that bounds the absolute worst case (an
+# invalidating event landing on the other worker from an existing cached session) to well under
+# TTL_SECONDS of possible staleness - never indefinite, never "outlives" the TTL window itself,
+# but not a hard, instant, cross-process guarantee either. Flagged explicitly rather than
+# silently ignored; a shared cache (Redis) would close this gap entirely if it ever needs to.
+_AUTH_CACHE_TTL_SECONDS = 30
+_auth_cache_lock = threading.Lock()
+_auth_cache: dict = {}  # session_token -> (user_dict, cached_at_monotonic)
+
+def _auth_cache_get(session_token: str) -> Optional[dict]:
+    with _auth_cache_lock:
+        entry = _auth_cache.get(session_token)
+        if not entry:
+            return None
+        user_dict, cached_at = entry
+        if time.monotonic() - cached_at > _AUTH_CACHE_TTL_SECONDS:
+            del _auth_cache[session_token]
+            return None
+        # A fresh copy, never the same dict object stored in the cache - some of the ~306
+        # call sites that receive get_current_user()'s return value may mutate it in place
+        # (a stray `user["x"] = ...` or `.pop(...)`), which would otherwise silently corrupt
+        # the shared cached copy for every other request using this session token.
+        return dict(user_dict)
+
+def _auth_cache_set(session_token: str, user_dict: dict) -> None:
+    with _auth_cache_lock:
+        _auth_cache[session_token] = (dict(user_dict), time.monotonic())
+
+def _auth_cache_evict_token(session_token: str) -> None:
+    """Logout - evicts exactly the one session being logged out."""
+    with _auth_cache_lock:
+        _auth_cache.pop(session_token, None)
+
+def _auth_cache_evict_user(user_id: str) -> None:
+    """Password change, role change, or suspend/reactivate - a user can hold multiple cached
+    sessions at once (multi-device, item 18), so this is keyed by user_id, not one token, and
+    evicts all of them. O(n) in cache size - fine given this only runs on rare admin/account
+    mutations, never on the hot authenticated-request path."""
+    with _auth_cache_lock:
+        stale = [tok for tok, (u, _) in _auth_cache.items() if u.get("user_id") == user_id]
+        for tok in stale:
+            del _auth_cache[tok]
+
 def _get_current_user_sync(request: Request) -> Optional[dict]:
     """Get current user from Supabase session token"""
     session_token = request.cookies.get("session_token")
@@ -2681,8 +2744,23 @@ def _get_current_user_sync(request: Request) -> Optional[dict]:
         session_token = request.query_params.get("token")
     if not session_token:
         return None
+
+    # Real fix Sep 26 (item 27): checked before any DB call at all - a warm hit here costs
+    # zero Supabase round trips, not even the one query below. Only ever populated on the
+    # real, non-kiosk success path (see the bottom of this function) - a kiosk session's own
+    # cheap revocation check isn't worth the added cache-key complexity of a second, differently-
+    # shaped cached value.
+    cached = _auth_cache_get(session_token)
+    if cached is not None:
+        return cached
+
     try:
-        result = supabase.table("user_sessions").select("*").eq("session_token", session_token).execute()
+        # Real fix Sep 26 (item 27): this used to be two sequential round trips - a
+        # user_sessions select, then a second users select keyed off its user_id. Confirmed
+        # live that user_sessions has a real FK to users PostgREST already recognizes, so this
+        # embed returns both rows in the exact same one HTTP call - same data, same shape
+        # (session fields alongside a nested "users" dict), half the round trips.
+        result = supabase.table("user_sessions").select("*, users(*)").eq("session_token", session_token).execute()
         if not result.data:
             # Real feature Aug 31 (build-26): a paired kiosk_token isn't a real session_token -
             # check the separate, deliberately-restricted kiosk_sessions table before giving up.
@@ -2707,10 +2785,9 @@ def _get_current_user_sync(request: Request) -> Optional[dict]:
         expires_at = _parse_supabase_timestamp(session["expires_at"])
         if expires_at < datetime.now(timezone.utc):
             return None
-        user_result = supabase.table("users").select("*").eq("user_id", session["user_id"]).execute()
-        if not user_result.data:
+        found_user = session.get("users")
+        if not found_user:
             return None
-        found_user = user_result.data[0]
         # Real feature Aug 27 (item 11, account suspend/reactivate): checked here, not just
         # at login, so suspending an account kills an already-active session immediately
         # rather than waiting for it to next log in. .get() is a no-op if the account_suspended
@@ -2719,6 +2796,7 @@ def _get_current_user_sync(request: Request) -> Optional[dict]:
         # authenticated" with their own 401/403, same as an expired session.
         if found_user.get("account_suspended"):
             return None
+        _auth_cache_set(session_token, found_user)
         return found_user
     except Exception as e:
         logger.error(f"Auth error: {e}")
@@ -2970,6 +3048,11 @@ async def logout(request: Request):
         except Exception as e:
             logger.warning(f"[logout] could not clear push_token: {e}")
         supabase.table("user_sessions").delete().eq("session_token", session_token).execute()
+        # Real fix Sep 26 (item 27): evicts this exact session from the auth cache - see that
+        # cache's own module comment for the one real limitation (per-process memory, so a
+        # DIFFERENT worker that cached this same token moments ago keeps it until its own
+        # short TTL expires).
+        _auth_cache_evict_token(session_token)
     response = Response(content='{"message": "Logged out"}')
     response.delete_cookie("session_token")
     return {"message": "Logged out"}
@@ -2990,6 +3073,7 @@ async def update_role(request: Request):
             detail="Switching to Teacher requires an active Teacher subscription. Subscribe to Teacher, or ask your school to link your account, then try again."
         )
     supabase.table("users").update({"role": role}).eq("user_id", user["user_id"]).execute()
+    _auth_cache_evict_user(user["user_id"])  # item 27: a stale cached role must not survive this
     return {"role": role}
 
 # Real fix Aug 25: removed the dead /auth/promo-code endpoint (apply_promo_code) and its
@@ -14745,6 +14829,10 @@ async def suspend_user(target_user_id: str, request: Request):
         }).eq("user_id", target_user_id).execute()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not suspend — has the account_suspended migration run? ({str(e)[:150]})")
+    # Real fix Sep 26 (item 27): this endpoint's own docstring already promises "kills an
+    # already-active session immediately" - the new auth cache would have silently broken that
+    # real guarantee for up to _AUTH_CACHE_TTL_SECONDS without this.
+    _auth_cache_evict_user(target_user_id)
     return {"status": "suspended", "user_id": target_user_id}
 
 @api_router.post("/admin/users/{target_user_id}/reactivate")
@@ -14761,6 +14849,7 @@ async def reactivate_user(target_user_id: str, request: Request):
         }).eq("user_id", target_user_id).execute()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not reactivate — has the account_suspended migration run? ({str(e)[:150]})")
+    _auth_cache_evict_user(target_user_id)  # item 27: no security need (reactivate only grants back), but avoids a stale up-to-30s "still suspended" cache hit
     return {"status": "reactivated", "user_id": target_user_id}
 
 @api_router.get("/admin/users/checkin-frequency")
@@ -15145,6 +15234,7 @@ async def create_school_admin(request: Request):
             "school_name": school_name,
             "subscription_status": "trial",
         }).eq("email", email).execute()
+        _auth_cache_evict_user(existing_user_id)  # item 27: role just changed for an existing account
         _ensure_school_profile(existing_user_id, school_name)
         return {"status": "updated", "email": email, "role": "school_admin", "school_name": school_name}
     # Create new user
@@ -15296,6 +15386,7 @@ async def redeem_school_provisioning_code(body: RedeemSchoolCodeRequest, request
         "subscription_status": "active",
         "subscription_expires_at": default_expiry,
     }).eq("user_id", user_id).execute()
+    _auth_cache_evict_user(user_id)  # item 27: role just changed for the currently-logged-in caller
 
     # Real reuse Sep 20: same idempotent helper /admin/create-school-admin already uses -
     # creates the school_profiles row if this user doesn't have one yet (a genuinely new
@@ -19693,6 +19784,7 @@ async def set_password(request: Request):
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
     hashed = hash_password(password)
     supabase.table("users").update({"portal_password": hashed}).eq("user_id", user["user_id"]).execute()
+    _auth_cache_evict_user(user["user_id"])  # item 27: a cached copy would hold the old password hash
     return {"status": "password set successfully"}
 
 @api_router.post("/auth/signup")
@@ -19969,6 +20061,7 @@ async def reset_password(request: Request):
         "reset_token": None,
         "reset_token_expires": None,
     }).eq("user_id", user["user_id"]).execute()
+    _auth_cache_evict_user(user["user_id"])  # item 27: a cached copy would hold the old password hash
     return {"status": "password reset successfully"}
 
 @api_router.get("/creatures/analytics")
