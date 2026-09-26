@@ -13877,12 +13877,18 @@ async def generate_school_invite_code(request: Request):
         except Exception:
             body = {}
         requested_admin_id = body.get("school_admin_id")
-        if requested_admin_id:
-            target_r = supabase.table("users").select("user_id,school_name").eq("user_id", requested_admin_id).eq("role", "school_admin").execute()
-            if not target_r.data:
-                raise HTTPException(status_code=404, detail="No school_admin account found with that user_id")
-            target_admin_id = target_r.data[0]["user_id"]
-            target_school_name = target_r.data[0].get("school_name") or "My School"
+        # Root cause fix Sep 26 (item 21b): a superadmin is not a school and has no teachers to
+        # invite - confirmed live that this exact gap let 3 stray codes accumulate against the
+        # superadmin's own account (including one still active, SCH-27DT-BPEU) from calling this
+        # with no target school_admin_id, which fell through to target_admin_id=the caller's own
+        # id. Now rejected explicitly instead of silently creating a meaningless code.
+        if not requested_admin_id:
+            raise HTTPException(status_code=400, detail="Superadmin has no school of their own - pass a target school_admin_id.")
+        target_r = supabase.table("users").select("user_id,school_name").eq("user_id", requested_admin_id).eq("role", "school_admin").execute()
+        if not target_r.data:
+            raise HTTPException(status_code=404, detail="No school_admin account found with that user_id")
+        target_admin_id = target_r.data[0]["user_id"]
+        target_school_name = target_r.data[0].get("school_name") or "My School"
 
     # Real fix Sep 25 (item 12): all three surfaces (portal Invite Teachers, app Settings,
     # app School tab) call this same endpoint, but nothing ever invalidated the PREVIOUS
