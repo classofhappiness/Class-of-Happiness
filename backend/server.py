@@ -3384,7 +3384,7 @@ async def get_my_creatures_batch(request: Request, student_ids: str = ""):
     # short-circuiting cheaply, but still N+1 in principle). _batch_authorized_student_ids
     # resolves the whole batch in O(1) queries - a requested id the caller isn't authorized
     # for is still silently dropped from the response, same contract as before.
-    authorized_ids = list(_batch_authorized_student_ids(user, ids, students_by_id=students_by_id))
+    authorized_ids = list(await _batch_authorized_student_ids(user, ids, students_by_id=students_by_id))
     if not authorized_ids:
         return {}
 
@@ -5332,6 +5332,15 @@ async def delete_family_member(member_id: str, request: Request):
     return {"message": "Member deleted"}
 
 async def _is_authorized_for_student(user: dict, student_id: str, student_data: dict = None) -> bool:
+    """Async wrapper - see _is_authorized_for_student_sync's own docstring. Root cause fix
+    Sep 26 (blocking-call audit, prompted by the same bug found in _batch_resolve_strategy_names):
+    this was `async def` with a body making direct, unwrapped supabase.table().execute() calls -
+    the single most-called auth helper in the file (42 call sites), blocking the event loop on
+    every single call. asyncio.to_thread offloads it without touching any of those 42 `await
+    _is_authorized_for_student(...)` call sites."""
+    return await asyncio.to_thread(_is_authorized_for_student_sync, user, student_id, student_data)
+
+def _is_authorized_for_student_sync(user: dict, student_id: str, student_data: dict = None) -> bool:
     """Shared authorization check for viewing an individual student's data (analytics, zone
     logs, available months). Real feature Aug 21: adds school_admin as a real authorized
     role for their own school's students - mirrors the dual-match (school_admin_id OR
@@ -5395,7 +5404,16 @@ async def _is_authorized_for_student(user: dict, student_id: str, student_data: 
         logger.debug(f"[family-member-check] family_members lookup failed: {e}")
     return False
 
-def _batch_authorized_student_ids(user: dict, student_ids: list, students_by_id: dict = None) -> set:
+async def _batch_authorized_student_ids(user: dict, student_ids: list, students_by_id: dict = None) -> set:
+    """Async wrapper - see _batch_authorized_student_ids_sync's own docstring. Root cause fix
+    Sep 26 (blocking-call audit): this was a plain `def` called directly (no await, no
+    to_thread) from inside async route handlers - a normal function call executes on the
+    event loop thread itself, so its up-to-5 real Supabase calls blocked the loop exactly
+    like an unwrapped `async def` would. Converted to `async def` + to_thread wrapper; its 2
+    call sites (get_batch_collections, get_my_creatures_batch) updated to await it."""
+    return await asyncio.to_thread(_batch_authorized_student_ids_sync, user, student_ids, students_by_id)
+
+def _batch_authorized_student_ids_sync(user: dict, student_ids: list, students_by_id: dict = None) -> set:
     """Root cause fix Sep 25 (round-3 device test, item 1): batched equivalent of
     _is_authorized_for_student for a whole list of ids at once. That helper does up to 4-5
     sequential queries per call (students, classrooms, users/school_admin, parent_links,
@@ -5540,6 +5558,12 @@ def _filter_home_logs_batch(logs: list, user: dict) -> list:
     ]
 
 async def _is_authorized_for_classroom(user: dict, classroom_id: str, classroom_data: dict = None) -> bool:
+    """Async wrapper - see _is_authorized_for_classroom_sync's own docstring. Root cause fix
+    Sep 26 (blocking-call audit): same unwrapped-blocking-call bug as
+    _is_authorized_for_student, offloaded the same way."""
+    return await asyncio.to_thread(_is_authorized_for_classroom_sync, user, classroom_id, classroom_data)
+
+def _is_authorized_for_classroom_sync(user: dict, classroom_id: str, classroom_data: dict = None) -> bool:
     """Real fix Aug 26 (security audit): shared authorization check for classroom-scoped
     teacher endpoints (analytics, join code, delete) - same dual-match (school_admin_id OR
     school_name) precedent as _is_authorized_for_student's classroom-ownership branch.
@@ -6668,6 +6692,14 @@ async def get_available_months(student_id: str, request: Request):
     return sorted(list(months), reverse=True)
 
 async def _generate_family_member_pdf_bytes(fm: dict, family_member_id: str, year: int, month: int, lang: str = ""):
+    """Async wrapper - see _generate_family_member_pdf_bytes_sync's own docstring. Root cause
+    fix Sep 26 (blocking-call audit): this whole function was `async def` with zero real
+    `await` in its body - 3 direct blocking Supabase calls plus ~300 lines of synchronous
+    ReportLab PDF rendering (also worth keeping off the event loop, not just the queries).
+    to_thread offloads the entire thing; both call sites already awaited it, unchanged."""
+    return await asyncio.to_thread(_generate_family_member_pdf_bytes_sync, fm, family_member_id, year, month, lang)
+
+def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year: int, month: int, lang: str = ""):
     """Builds one family member's PDF (home check-ins only) and returns (pdf_bytes, safe_name).
     Real fix Aug 21: extracted out of generate_family_pdf_report so both the single-member
     route and the family-wide ZIP export (generate_family_pdf_all, below) share this exact
@@ -8492,6 +8524,15 @@ async def update_classroom_notification_settings(classroom_id: str, request: Req
 # every call site below was rewritten to go through them rather than repeating the
 # table-vs-column fallback logic 15 times.
 async def _get_push_tokens_for_user(user_id: str) -> list:
+    """Async wrapper - see _get_push_tokens_for_user_sync's own docstring. Root cause fix
+    Sep 26 (blocking-call audit): all 3 push_tokens helpers were `async def` with bodies
+    making direct, unwrapped supabase.table().execute() calls, hit from hot notification
+    paths (support-request buzz/rebuzz, zone alerts, parent messages) - each call blocked the
+    event loop for its own duration. Offloaded via to_thread; all 12 `await` call sites across
+    the file are unchanged."""
+    return await asyncio.to_thread(_get_push_tokens_for_user_sync, user_id)
+
+def _get_push_tokens_for_user_sync(user_id: str) -> list:
     """All of one user's registered device tokens - empty list if none. Falls back to the
     legacy single users.push_token column (as a 1-element list) if push_tokens doesn't exist
     yet (migration pending)."""
@@ -8508,6 +8549,11 @@ async def _get_push_tokens_for_user(user_id: str) -> list:
             return []
 
 async def _register_push_token(user_id: str, token: str) -> None:
+    """Async wrapper - see _register_push_token_sync's own docstring. Same blocking-call fix
+    as _get_push_tokens_for_user above."""
+    await asyncio.to_thread(_register_push_token_sync, user_id, token)
+
+def _register_push_token_sync(user_id: str, token: str) -> None:
     """Real fix Sep 25 (item 18c), corrected Sep 26 (item 19) against the real push_tokens
     schema Jono created: token has a real UNIQUE constraint on its own (push_tokens_token_key,
     confirmed live), not the composite unique(user_id, token) this function originally assumed.
@@ -8539,6 +8585,11 @@ async def _register_push_token(user_id: str, token: str) -> None:
             logger.error(f"[push_tokens] legacy column fallback also failed for {user_id}: {e2}")
 
 async def _unregister_push_token(user_id: str, token: str = None) -> None:
+    """Async wrapper - see _unregister_push_token_sync's own docstring. Same blocking-call fix
+    as _get_push_tokens_for_user above."""
+    await asyncio.to_thread(_unregister_push_token_sync, user_id, token)
+
+def _unregister_push_token_sync(user_id: str, token: str = None) -> None:
     """Real fix Sep 25 (item 00 follow-up/item 18c): logout now removes only THIS device's
     token (if the client sent one) instead of nulling the user's only token column and
     signing every other logged-in device out of push too. token=None (client sent none, e.g.
@@ -8865,18 +8916,10 @@ async def send_zone_alert(request: Request):
 
     return {"ok": True, "notifications_sent": sent}
 
-# ── Parent message push notification (shared) ────────────
-async def _notify_parent_of_message(student_id: str, student_name: str, message: str, zone: str) -> int:
-    """Real fix Sep 24 (item7, third device-log pass): extracted from send_parent_message
-    (below) so the "Want to say something?" comment box's own write paths
-    (create_feeling_log, family_member_checkin) can push-notify the parent too, not just
-    create the student_alerts row - see this fix's own commit notes for why (the standalone
-    "Send Message to Parent" section this dedupes was the ONLY one of the two that actually
-    notified anyone; the comment box only ever wrote silently to the alerts table). Looks up
-    parent tokens via BOTH parent_links (school-linked parent) and family_members (home/family
-    parent) - deliberately never touches teacher or school_admin tokens, so this can never
-    notify staff by construction, matching the "must not notify school admin or teacher" rule."""
-    tokens_to_notify = []
+def _resolve_parent_user_ids_sync(student_id: str) -> set:
+    """Every parent/family user_id linked to a student, via BOTH parent_links (school-linked)
+    and family_members (home/family) - extracted from _notify_parent_of_message so its 2
+    direct Supabase calls can run off the event loop via asyncio.to_thread."""
     parent_user_ids = set()
     try:
         parent_links = supabase.table("parent_links").select("parent_id,parent_user_id").eq("student_id", student_id).execute()
@@ -8891,6 +8934,24 @@ async def _notify_parent_of_message(student_id: str, student_name: str, message:
             if link.get("user_id"): parent_user_ids.add(link["user_id"])
     except Exception as e:
         logger.warning(f"[notify-parents] family_members lookup failed: {e}")
+    return parent_user_ids
+
+# ── Parent message push notification (shared) ────────────
+async def _notify_parent_of_message(student_id: str, student_name: str, message: str, zone: str) -> int:
+    """Real fix Sep 24 (item7, third device-log pass): extracted from send_parent_message
+    (below) so the "Want to say something?" comment box's own write paths
+    (create_feeling_log, family_member_checkin) can push-notify the parent too, not just
+    create the student_alerts row - see this fix's own commit notes for why (the standalone
+    "Send Message to Parent" section this dedupes was the ONLY one of the two that actually
+    notified anyone; the comment box only ever wrote silently to the alerts table). Looks up
+    parent tokens via BOTH parent_links (school-linked parent) and family_members (home/family
+    parent) - deliberately never touches teacher or school_admin tokens, so this can never
+    notify staff by construction, matching the "must not notify school admin or teacher" rule."""
+    tokens_to_notify = []
+    # Root cause fix Sep 26 (blocking-call audit): these 2 lookups used to run as direct,
+    # unwrapped blocking calls inside this async function - offloaded together since they're
+    # both just "resolve this student's parent user_ids" and neither depends on the other.
+    parent_user_ids = await asyncio.to_thread(_resolve_parent_user_ids_sync, student_id)
     try:
         for uid in parent_user_ids:
             tokens_to_notify.extend(await _get_push_tokens_for_user(uid))
@@ -10465,6 +10526,12 @@ def _passes_creature_approval_gate(status: str, visibility_scope: str, superadmi
     return (visibility_scope or "global") != "global" or bool(superadmin_approved_at)
 
 async def _can_approve_creature(user: dict, submission: dict) -> bool:
+    """Async wrapper - see _can_approve_creature_sync's own docstring. Root cause fix Sep 26
+    (blocking-call audit): the teacher branch made 2 direct blocking Supabase calls with no
+    to_thread wrapping; offloaded the whole function since it has no other await in it."""
+    return await asyncio.to_thread(_can_approve_creature_sync, user, submission)
+
+def _can_approve_creature_sync(user: dict, submission: dict) -> bool:
     """Real bug fix Aug 22 (urgent security fix): /creatures/approve and /creatures/reject had
     ZERO ownership/school-scoping - any authenticated teacher/parent/school_admin could
     approve or reject ANY creature submission system-wide, not just ones at their own school.
@@ -13346,7 +13413,7 @@ async def get_batch_collections(student_ids: str, request: Request):
     # _batch_authorized_student_ids, then fetches every authorized student's rewards row
     # in a single .in_() query - exactly the "batch/parallelise" fix asked for.
     try:
-        authorized_ids = _batch_authorized_student_ids(user, ids)
+        authorized_ids = await _batch_authorized_student_ids(user, ids)
     except Exception as e:
         logger.error(f"Batch collection auth error: {e}")
         return results
@@ -14800,7 +14867,9 @@ def _school_analytics_metric_rows(d: dict) -> list:
     ]
 
 async def _resolve_school_admin_analytics(school_admin_id: str, period: int, classroom_id: str = None) -> tuple:
-    target = supabase.table("users").select("user_id,name,school_name").eq("user_id", school_admin_id).execute()
+    # Root cause fix Sep 26 (blocking-call audit): this select used to run as a direct,
+    # unwrapped blocking call before the real await right after it.
+    target = await asyncio.to_thread(lambda: supabase.table("users").select("user_id,name,school_name").eq("user_id", school_admin_id).execute())
     if not target.data:
         raise HTTPException(status_code=404, detail="School admin not found")
     t = target.data[0]
@@ -14831,12 +14900,22 @@ async def _gather_school_comparison_data(school_admin_ids: str, period: int) -> 
     ids = [s.strip() for s in school_admin_ids.split(",") if s.strip()]
     if len(ids) < 2:
         raise HTTPException(status_code=400, detail="Select at least 2 schools to compare")
+    # Root cause fix Sep 26 (blocking-call audit, found alongside): each school's analytics
+    # used to be resolved one at a time in a sequential `for sid in ids` loop - none of them
+    # depend on each other, so they now run concurrently via gather, same pattern as
+    # _compute_school_admin_analytics's own wave restructuring.
+    results = await asyncio.gather(
+        *(_resolve_school_admin_analytics(sid, period) for sid in ids),
+        return_exceptions=True,
+    )
     school_data = []
-    for sid in ids:
-        try:
-            name, d = await _resolve_school_admin_analytics(sid, period)
-        except HTTPException:
+    for sid, result in zip(ids, results):
+        if isinstance(result, HTTPException):
             continue
+        if isinstance(result, Exception):
+            logger.warning(f"[school-comparison] failed to resolve {sid}: {result}")
+            continue
+        name, d = result
         school_data.append((sid, name, _school_analytics_metric_rows(d)))
     if len(school_data) < 2:
         raise HTTPException(status_code=404, detail="Not enough valid schools found to compare")
@@ -17465,7 +17544,11 @@ async def _support_requests_rebuzz_loop():
             await asyncio.sleep(30)
             now = datetime.now(timezone.utc)
             standard_cutoff = (now - timedelta(minutes=2)).isoformat()
-            pending = supabase.table("support_requests").select("*").eq("status", "PENDING").is_("acknowledged_at", "null").execute().data or []
+            # Root cause fix Sep 26 (blocking-call audit): this ran as a direct blocking call
+            # on EVERY 30s tick of a loop that runs forever - unlike a one-off endpoint, this
+            # blocked the event loop repeatedly and indefinitely for as long as the process
+            # runs, not just once.
+            pending = (await asyncio.to_thread(lambda: supabase.table("support_requests").select("*").eq("status", "PENDING").is_("acknowledged_at", "null").execute())).data or []
             for r in pending:
                 # Real fix Sep 10: each request handled in its own try/except - an error on
                 # one row (e.g. the missing users.push_token column found live today, or any
@@ -17496,7 +17579,7 @@ async def _support_requests_rebuzz_loop():
                             priority="high", channel_id="incident" if r.get("is_incident") else "default",
                             sound="default" if r.get("is_incident") else "support_buzz.wav",
                         )
-                    supabase.table("support_requests").update({"last_rebuzz_at": now.isoformat()}).eq("id", r["id"]).execute()
+                    await asyncio.to_thread(lambda: supabase.table("support_requests").update({"last_rebuzz_at": now.isoformat()}).eq("id", r["id"]).execute())
                 except Exception as e:
                     logger.error(f"[support_requests rebuzz] row {r.get('id')} error: {e}")
         except Exception as e:
@@ -17524,7 +17607,9 @@ async def _school_renewal_reminder_loop():
 
 async def _check_school_renewal_reminders():
     now = datetime.now(timezone.utc)
-    profiles = supabase.table("school_profiles").select("school_name,subscription_renewal_date").execute().data or []
+    # Root cause fix Sep 26 (blocking-call audit): direct blocking call inside a background
+    # loop's tick - lower-frequency (once/day) than the rebuzz loop, but same bug class.
+    profiles = (await asyncio.to_thread(lambda: supabase.table("school_profiles").select("school_name,subscription_renewal_date").execute())).data or []
     for p in profiles:
         renewal_str = p.get("subscription_renewal_date")
         if not renewal_str:
@@ -17575,7 +17660,8 @@ async def _school_checkin_nudge_loop():
 
 async def _check_school_checkin_nudges():
     now = datetime.now(timezone.utc)
-    codes = supabase.table("school_provisioning_codes").select("school_name,tier,used_at").not_.is_("used_at", "null").execute().data or []
+    # Root cause fix Sep 26 (blocking-call audit): same fix as _check_school_renewal_reminders.
+    codes = (await asyncio.to_thread(lambda: supabase.table("school_provisioning_codes").select("school_name,tier,used_at").not_.is_("used_at", "null").execute())).data or []
     for c in codes:
         used_str = c.get("used_at")
         if not used_str:
