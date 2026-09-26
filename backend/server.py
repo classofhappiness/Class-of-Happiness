@@ -6602,6 +6602,54 @@ def resolve_strategy_name(sid: str, lang: str = "en") -> str:
         logger.debug(f"[strategy-name-resolve] family_assigned_strategies lookup failed for {bare_id}: {e}")
     return sid_clean.replace("_", " ").title()
 
+def _batch_resolve_strategy_names(ids: list, lang: str = "en") -> dict:
+    """Batched sibling of resolve_strategy_name, for resolving MANY ids in one pass instead of
+    calling resolve_strategy_name in a loop. Root cause fix Sep 26 (school-admin/analytics
+    perf, found while root-causing that endpoint's 1182.6ms): resolve_strategy_name makes up
+    to 2 sequential DB calls (custom_helpers, then family_assigned_strategies) for every id
+    that ISN'T a recognized built-in short code - calling it once per unique strategy id in
+    strategy_counts.items() (as school-admin/analytics's top-strategies computation does) is
+    an unbatched N+1 hiding inside what looks like pure post-processing, not a query. Same
+    short-code fast path (no DB call at all for a recognized id), but whatever's left over now
+    runs as ONE .in_() query per table regardless of how many ids need it, not one per id.
+    This same N+1 exists at the other resolve_strategy_name call sites in this file (PDF/
+    report generation, mostly) - not swept there, flagged for a separate pass if it ever shows
+    up in a timing complaint the way this one did."""
+    lang_map = STRATEGY_MAPS_BY_LANG.get(lang, STRATEGY_NAME_MAP)
+    result: dict = {}
+    unresolved_bare: dict = {}
+    for sid in ids:
+        sid_clean = str(sid).strip()
+        known = lang_map.get(sid_clean) or STRATEGY_NAME_MAP.get(sid_clean)
+        if known:
+            result[sid] = known
+            continue
+        bare_id = sid_clean
+        for suffix in ("_family", "_school", "_home"):
+            if bare_id.endswith(suffix):
+                bare_id = bare_id[:-len(suffix)]
+                break
+        unresolved_bare[sid] = bare_id
+    if unresolved_bare:
+        bare_ids = list(set(unresolved_bare.values()))
+        ch_by_id: dict = {}
+        try:
+            ch = supabase.table("custom_helpers").select("id,name").in_("id", bare_ids).execute()
+            ch_by_id = {r["id"]: r.get("name") for r in (ch.data or []) if r.get("name")}
+        except Exception as e:
+            logger.debug(f"[strategy-name-resolve] batched custom_helpers lookup failed: {e}")
+        still_unresolved = [b for b in bare_ids if b not in ch_by_id]
+        fa_by_id: dict = {}
+        if still_unresolved:
+            try:
+                fa = supabase.table("family_assigned_strategies").select("id,strategy_name").in_("id", still_unresolved).execute()
+                fa_by_id = {r["id"]: r.get("strategy_name") for r in (fa.data or []) if r.get("strategy_name")}
+            except Exception as e:
+                logger.debug(f"[strategy-name-resolve] batched family_assigned_strategies lookup failed: {e}")
+        for sid, bare_id in unresolved_bare.items():
+            result[sid] = ch_by_id.get(bare_id) or fa_by_id.get(bare_id) or str(sid).strip().replace("_", " ").title()
+    return result
+
 @api_router.get("/reports/available-months/{student_id}")
 async def get_available_months(student_id: str, request: Request):
     # Real fix Aug 21: had NO authentication or authorization at all - which months a
@@ -14486,10 +14534,18 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     prev_participation_rate = round((prev_participating / len(students)) * 100) if students else 0
     prev_students_needing_support = len(set(l["student_id"] for l in prev_logs if (l.get("feeling_colour") or l.get("zone")) == "red" and l.get("student_id")))
 
+    # Root cause fix Sep 26 (school-admin/analytics perf): both name-resolution needs below
+    # used to call resolve_strategy_name once per id (up to 2 sequential DB calls each for any
+    # id that isn't a recognized built-in short code) - top_strategy_name resolved top_id, then
+    # the loop right after resolved it AGAIN as part of strategy_counts.items(), on top of
+    # being an unbatched N+1 across every OTHER unresolved id too. One batched resolve for
+    # every id in strategy_counts, used by both.
+    _strategy_names = _batch_resolve_strategy_names(list(strategy_counts.keys()))
+
     top_strategy_name = None
     if strategy_counts:
         top_id = max(strategy_counts, key=strategy_counts.get)
-        top_strategy_name = resolve_strategy_name(top_id)
+        top_strategy_name = _strategy_names.get(top_id)
 
     # Real fix Sep 19: the portal's "Top strategies" card read a per-classroom top_strategies
     # field that classroom_breakdown never had, so it always fell back to invented numbers.
@@ -14498,7 +14554,7 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     # to the same name are merged so one strategy can't appear twice.
     _by_name = {}
     for _sid, _n in strategy_counts.items():
-        _nm = resolve_strategy_name(_sid)
+        _nm = _strategy_names.get(_sid, _sid)
         _by_name[_nm] = _by_name.get(_nm, 0) + _n
     top_strategies = [{"name": _nm, "count": _n} for _nm, _n in sorted(_by_name.items(), key=lambda kv: kv[1], reverse=True)[:5]]
 
