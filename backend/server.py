@@ -8401,16 +8401,17 @@ async def update_classroom_notification_settings(classroom_id: str, request: Req
 # delivery to the first; logging out on ANY device (see /auth/logout above) nulled it
 # unconditionally, logging every OTHER still-logged-in device out of push too.
 #
-# push_tokens (new table, migration below - inert/falls back to the old column until it's
-# run, same defensive pattern used elsewhere in this file for a pending migration):
-#   id uuid primary key default gen_random_uuid(),
-#   user_id text not null,
-#   token text not null,
-#   created_at timestamptz not null default now(),
-#   updated_at timestamptz not null default now(),
-#   unique(user_id, token)
-# A token is unique to one real device+app-install (Expo's own guarantee) - no separate
-# device_id column needed, the token itself IS the per-device identity.
+# push_tokens - real table, created by Jono (schema confirmed live, Sep 26 - differs from
+# this comment's own original proposal, code below adapted to match what actually exists
+# rather than the other way around):
+#   id uuid primary key, user_id text, token text UNIQUE, platform text, device_name text,
+#   created_at timestamptz, last_seen_at timestamptz, index on user_id.
+# token UNIQUE (not composite unique(user_id, token) as originally proposed) is the RIGHT
+# call, stricter than what was first written here - a physical device's token can only ever
+# belong to one row at all, so the DB itself now structurally prevents the exact item-19 bug
+# (the same token registered under two different accounts at once) rather than relying on
+# application code to notice and clean it up. _register_push_token below upserts on
+# conflict=token specifically to lean on this constraint.
 #
 # These three helpers are the ONLY places that touch push_tokens/users.push_token now -
 # every call site below was rewritten to go through them rather than repeating the
@@ -8432,22 +8433,32 @@ async def _get_push_tokens_for_user(user_id: str) -> list:
             return []
 
 async def _register_push_token(user_id: str, token: str) -> None:
-    """Real fix Sep 25 (item 18c/item 19): a token belongs to one physical device - if it was
-    previously registered to a DIFFERENT account (a shared device, or someone else's old
-    session on this phone), that old registration is now stale and must be removed, or that
-    other account would keep receiving pushes meant for whoever is using this device now."""
+    """Real fix Sep 25 (item 18c), corrected Sep 26 (item 19) against the real push_tokens
+    schema Jono created: token has a real UNIQUE constraint on its own (push_tokens_token_key,
+    confirmed live), not the composite unique(user_id, token) this function originally assumed.
+    Upserting on conflict=token leans on that directly - if this token was previously
+    registered to a DIFFERENT account (a shared device, or someone else's old session on this
+    phone), the single upsert reassigns that same row to user_id instead of needing a separate
+    select-other-owners-and-delete step first (the original version's approach, and a real
+    TOCTOU gap between its own select and delete - this has none, since it's one write)."""
     try:
-        existing = supabase.table("push_tokens").select("user_id").eq("token", token).execute()
-        for row in (existing.data or []):
-            if row.get("user_id") and row["user_id"] != user_id:
-                supabase.table("push_tokens").delete().eq("token", token).eq("user_id", row["user_id"]).execute()
         supabase.table("push_tokens").upsert(
-            {"user_id": user_id, "token": token, "updated_at": datetime.now(timezone.utc).isoformat()},
-            on_conflict="user_id,token",
+            {"user_id": user_id, "token": token, "last_seen_at": datetime.now(timezone.utc).isoformat()},
+            on_conflict="token",
         ).execute()
     except Exception as e:
         logger.warning(f"[push_tokens] table upsert failed, falling back to legacy column: {e}")
         try:
+            # Real fix Sep 26 (item 19): the legacy single-column fallback below only ever set
+            # THIS user's own push_token - if the same token was already sitting on a DIFFERENT
+            # user's row from an earlier session on this device, that stale registration was
+            # never cleared here, which is exactly the bug item 19 reported (a teacher's device
+            # still receiving a push meant for whichever account last registered this token).
+            # Only reachable if the push_tokens table itself is unavailable; harmless no-op
+            # once the table exists, since this whole except block then never runs.
+            stale = supabase.table("users").select("user_id").eq("push_token", token).neq("user_id", user_id).execute()
+            for row in (stale.data or []):
+                supabase.table("users").update({"push_token": None}).eq("user_id", row["user_id"]).execute()
             supabase.table("users").update({"push_token": token}).eq("user_id", user_id).execute()
         except Exception as e2:
             logger.error(f"[push_tokens] legacy column fallback also failed for {user_id}: {e2}")
