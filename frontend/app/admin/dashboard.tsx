@@ -11,6 +11,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { SecureField } from '../../src/components/SecureField';
+import { PinConfirmModal } from '../../src/components/PinConfirmModal';
 import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
 import { supportRequestsApi, SupportRequest } from '../../src/utils/api';
 import { useSupportRequestsList } from '../../src/utils/supportRequestsPoller';
@@ -479,7 +480,119 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
       .finally(() => setFeaturesLoading(false));
   }, [authToken]);
 
-  useEffect(() => { loadProfiles(); loadSchoolFeatures(); }, [loadProfiles, loadSchoolFeatures]);
+  // Real feature Sep 26 (item 21a): app parity with the portal's superadmin Schools tab -
+  // each school card shows its active school-provisioning code (tier/expiry/copy/Generate)
+  // and its current teacher invite code (copy/Regenerate). Provisioning codes: one batch
+  // GET /admin/school-codes for every school (same as the portal's loadSASchools), not one
+  // call per card. Invite codes: no batch endpoint exists for those, so they're loaded lazily
+  // per school, only when that school's code panel is actually opened.
+  const [allSchoolCodes, setAllSchoolCodes] = useState<any[]>([]);
+  const loadAllSchoolCodes = useCallback(() => {
+    apiCall('/admin/school-codes', authToken)
+      .then((d: any[]) => setAllSchoolCodes(Array.isArray(d) ? d : []))
+      .catch(() => setAllSchoolCodes([]));
+  }, [authToken]);
+  const activeCodeBySchool = React.useMemo(() => {
+    const map: Record<string, any> = {};
+    (allSchoolCodes || []).forEach((c: any) => {
+      if (c.used_at || new Date(c.expires_at) < new Date()) return;
+      const existing = map[c.school_name];
+      if (!existing || new Date(c.created_at) > new Date(existing.created_at)) map[c.school_name] = c;
+    });
+    return map;
+  }, [allSchoolCodes]);
+
+  const SCHOOL_TIER_OPTIONS = ['school_starter', 'school_standard', 'school_plus'];
+  const tierLabel = (tier: string) => {
+    if (tier === 'school_starter') return t('tier_starter') || 'Starter';
+    if (tier === 'school_standard') return t('tier_standard') || 'Standard';
+    if (tier === 'school_plus') return t('tier_plus') || 'Plus';
+    return tier;
+  };
+
+  const [codesPanelOpen, setCodesPanelOpen] = useState<Record<string, boolean>>({});
+  const [tierBySchool, setTierBySchool] = useState<Record<string, string>>({});
+  const [existingCodesBySchool, setExistingCodesBySchool] = useState<Record<string, any[]>>({});
+  const [generatingCodeFor, setGeneratingCodeFor] = useState<string | null>(null);
+
+  const loadExistingCodesForSchool = (schoolName: string) => {
+    apiCall(`/admin/school-codes?school_name=${encodeURIComponent(schoolName)}`, authToken)
+      .then((d: any[]) => setExistingCodesBySchool(prev => ({ ...prev, [schoolName]: Array.isArray(d) ? d : [] })))
+      .catch(() => setExistingCodesBySchool(prev => ({ ...prev, [schoolName]: [] })));
+  };
+
+  const toggleCodesPanel = (profile: any) => {
+    const opening = !codesPanelOpen[profile.id];
+    setCodesPanelOpen(prev => ({ ...prev, [profile.id]: opening }));
+    if (opening) {
+      loadExistingCodesForSchool(profile.school_name);
+      if (profile.school_admin_user_id) loadInviteCodeForSchool(profile.school_admin_user_id);
+    }
+  };
+
+  const generateSchoolCode = async (profile: any) => {
+    setGeneratingCodeFor(profile.id);
+    try {
+      await apiCall('/admin/generate-school-code', authToken, {
+        method: 'POST',
+        body: JSON.stringify({ school_name: profile.school_name, tier: tierBySchool[profile.id] || 'school_starter' }),
+      });
+      loadAllSchoolCodes();
+      loadExistingCodesForSchool(profile.school_name);
+    } catch (e: any) {
+      Alert.alert(t('error') || 'Error', e?.message || (t('could_not_generate_invite_code') || 'Could not generate code.'));
+    }
+    setGeneratingCodeFor(null);
+  };
+
+  const copyToClipboard = (text: string) => {
+    try {
+      const { Clipboard } = require('react-native');
+      if (Clipboard?.setString) Clipboard.setString(text);
+      else import('expo-clipboard').then(m => m.setStringAsync(text)).catch(() => {});
+    } catch (e) { console.error('[admin/dashboard:copyToClipboard]', e); }
+  };
+
+  // Invite (teacher-join) codes, lazy per school_admin_user_id - GET /school/invite-code and
+  // POST /school/generate-invite-code both already support a superadmin passing a target
+  // school_admin_id (see server.py docstrings); undefined = not loaded, null = loaded, no code.
+  const [inviteCodeBySchool, setInviteCodeBySchool] = useState<Record<string, any>>({});
+  const [generatingInviteFor, setGeneratingInviteFor] = useState<string | null>(null);
+  const loadInviteCodeForSchool = (adminId: string) => {
+    if (!adminId || inviteCodeBySchool[adminId] !== undefined) return;
+    apiCall(`/school/invite-code?school_admin_id=${adminId}`, authToken)
+      .then((d: any) => setInviteCodeBySchool(prev => ({ ...prev, [adminId]: d?.code ? d : null })))
+      .catch(() => setInviteCodeBySchool(prev => ({ ...prev, [adminId]: null })));
+  };
+  const regenerateInviteCodeForSchool = (profile: any) => {
+    const adminId = profile.school_admin_user_id;
+    if (!adminId) return;
+    const hasExisting = !!inviteCodeBySchool[adminId]?.code;
+    const doGenerate = async () => {
+      setGeneratingInviteFor(profile.id);
+      try {
+        const d = await apiCall('/school/generate-invite-code', authToken, {
+          method: 'POST',
+          body: JSON.stringify({ school_admin_id: adminId }),
+        });
+        setInviteCodeBySchool(prev => ({ ...prev, [adminId]: d }));
+      } catch (e: any) {
+        Alert.alert(t('error') || 'Error', e?.message || (t('could_not_generate_invite_code') || 'Could not generate invite code.'));
+      }
+      setGeneratingInviteFor(null);
+    };
+    if (!hasExisting) { doGenerate(); return; }
+    Alert.alert(
+      t('regenerate_code_title') || 'Regenerate invite code?',
+      t('regenerate_code_warning') || 'Regenerating invalidates the current code. Teachers already linked are not affected.',
+      [
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
+        { text: t('regenerate') || 'Regenerate', style: 'destructive', onPress: doGenerate },
+      ],
+    );
+  };
+
+  useEffect(() => { loadProfiles(); loadSchoolFeatures(); loadAllSchoolCodes(); }, [loadProfiles, loadSchoolFeatures, loadAllSchoolCodes]);
 
   const toggleFeatureAllowed = async (schoolAdminId: string, featureKey: string, next: boolean) => {
     const pendingKey = `${schoolAdminId}:${featureKey}`;
@@ -748,6 +861,117 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
                       <MaterialIcons name="edit" size={13} color="#5C6BC0" />
                       <Text style={{ fontSize: 12, fontWeight: '700', color: '#5C6BC0' }}>{t('edit') || 'Edit'}</Text>
                     </TouchableOpacity>
+
+                    {/* Real feature Sep 26 (item 21a): app parity with the portal's per-school
+                        provisioning-code summary + a new invite-code row neither surface had
+                        before. */}
+                    <View style={{ marginTop: 10 }}>
+                      {(() => {
+                        const active = activeCodeBySchool[profile.school_name];
+                        return active ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, backgroundColor: '#EDE7F6', borderRadius: 8, padding: 8, marginBottom: 6 }}>
+                            <Text style={{ fontSize: 12, fontWeight: '800', color: '#1A1A2E', flexShrink: 1 }}>
+                              {active.code} <Text style={{ fontSize: 10, fontWeight: '600', color: '#888' }}>· {tierLabel(active.tier)} · {t('until_label') || 'until'} {new Date(active.expires_at).toLocaleDateString()}</Text>
+                            </Text>
+                            <TouchableOpacity onPress={() => copyToClipboard(active.code)} style={{ paddingHorizontal: 8, paddingVertical: 4, backgroundColor: 'white', borderRadius: 8 }}>
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: '#5C6BC0' }}>📋 {t('copy') || 'Copy'}</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ) : (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F5F5F5', borderRadius: 8, padding: 8, marginBottom: 6 }}>
+                            <Text style={{ fontSize: 11, color: '#999' }}>{t('no_active_provisioning_code') || 'No active provisioning code'}</Text>
+                          </View>
+                        );
+                      })()}
+                      <TouchableOpacity
+                        onPress={() => toggleCodesPanel(profile)}
+                        style={{ alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'white', borderWidth: 1.5, borderColor: '#EEE', borderRadius: 14, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                      >
+                        <MaterialIcons name="vpn-key" size={13} color="#5C6BC0" />
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#5C6BC0' }}>{t('manage_codes') || 'Manage Codes'}</Text>
+                      </TouchableOpacity>
+
+                      {codesPanelOpen[profile.id] && (
+                        <View style={{ marginTop: 8, padding: 10, backgroundColor: '#FAFAFA', borderRadius: 10 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '800', color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                            {t('school_provisioning_code_label') || 'School Provisioning Code'}
+                          </Text>
+                          <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                            {SCHOOL_TIER_OPTIONS.map(tier => (
+                              <TouchableOpacity
+                                key={tier}
+                                onPress={() => setTierBySchool(prev => ({ ...prev, [profile.id]: tier }))}
+                                style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: (tierBySchool[profile.id] || 'school_starter') === tier ? '#5C6BC0' : '#F0F0F0' }}
+                              >
+                                <Text style={{ fontSize: 11, fontWeight: '700', color: (tierBySchool[profile.id] || 'school_starter') === tier ? 'white' : '#666' }}>{tierLabel(tier)}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                          <TouchableOpacity
+                            onPress={() => generateSchoolCode(profile)}
+                            disabled={generatingCodeFor === profile.id}
+                            style={{ backgroundColor: '#5C6BC0', borderRadius: 20, paddingVertical: 8, alignItems: 'center', marginBottom: 10, opacity: generatingCodeFor === profile.id ? 0.6 : 1 }}
+                          >
+                            <Text style={{ color: 'white', fontWeight: '800', fontSize: 12 }}>
+                              {generatingCodeFor === profile.id ? (t('generating') || 'Generating...') : (t('generate_code') || 'Generate Code')}
+                            </Text>
+                          </TouchableOpacity>
+                          {(existingCodesBySchool[profile.school_name] || []).length > 0 && (
+                            <>
+                              <Text style={{ fontSize: 11, fontWeight: '800', color: '#999', marginBottom: 4 }}>{t('existing_codes') || 'Existing codes'}</Text>
+                              {(existingCodesBySchool[profile.school_name] || []).map((c: any) => {
+                                const expired = new Date(c.expires_at) < new Date();
+                                const statusLabel = c.used_at ? (t('code_status_used') || 'Used') : expired ? (t('code_status_expired') || 'Expired') : (t('code_status_active') || 'Active');
+                                const statusColor = c.used_at ? '#2E7D32' : expired ? '#C62828' : '#5C6BC0';
+                                return (
+                                  <View key={c.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: '#EEE' }}>
+                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#333' }}>{c.code}</Text>
+                                    <Text style={{ fontSize: 10, color: statusColor, fontWeight: '700' }}>{tierLabel(c.tier)} · {statusLabel}</Text>
+                                  </View>
+                                );
+                              })}
+                            </>
+                          )}
+
+                          {!!profile.school_admin_user_id && (
+                            <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#EEE' }}>
+                              <Text style={{ fontSize: 11, fontWeight: '800', color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                                {t('school_invite_code') || 'School Invite Code'}
+                              </Text>
+                              {inviteCodeBySchool[profile.school_admin_user_id] === undefined ? (
+                                <ActivityIndicator size="small" color="#5C6BC0" />
+                              ) : (
+                                <>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F0F4FF', borderRadius: 8, padding: 8, marginBottom: 8 }}>
+                                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#1A1A2E' }}>
+                                      {inviteCodeBySchool[profile.school_admin_user_id]?.code || (t('no_invite_code_yet') || 'No invite code yet')}
+                                    </Text>
+                                    {!!inviteCodeBySchool[profile.school_admin_user_id]?.code && (
+                                      <TouchableOpacity onPress={() => copyToClipboard(inviteCodeBySchool[profile.school_admin_user_id].code)} style={{ paddingHorizontal: 8, paddingVertical: 4, backgroundColor: 'white', borderRadius: 8 }}>
+                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#5C6BC0' }}>📋 {t('copy') || 'Copy'}</Text>
+                                      </TouchableOpacity>
+                                    )}
+                                  </View>
+                                  <TouchableOpacity
+                                    onPress={() => regenerateInviteCodeForSchool(profile)}
+                                    disabled={generatingInviteFor === profile.id}
+                                    style={{ backgroundColor: '#4CAF50', borderRadius: 20, paddingVertical: 8, alignItems: 'center', opacity: generatingInviteFor === profile.id ? 0.6 : 1 }}
+                                  >
+                                    <Text style={{ color: 'white', fontWeight: '800', fontSize: 12 }}>
+                                      {generatingInviteFor === profile.id
+                                        ? (t('generating') || 'Generating...')
+                                        : inviteCodeBySchool[profile.school_admin_user_id]?.code
+                                          ? (t('regenerate') || 'Regenerate')
+                                          : (t('generate_invite_code') || 'Generate Invite Code')}
+                                    </Text>
+                                  </TouchableOpacity>
+                                </>
+                              )}
+                            </View>
+                          )}
+                        </View>
+                      )}
+                    </View>
 
                     {/* Real feature Sep 18: per-school feature grants - the first app-side UI
                         for allowed_by_superadmin (previously Supabase-only). Requires a real
@@ -2289,6 +2513,11 @@ function SchoolSettings({ authToken, user }: any) {
   const [inviteCode, setInviteCode] = useState('');
   const [generatingCode, setGeneratingCode] = useState(false);
   const [copiedInviteCode, setCopiedInviteCode] = useState(false);
+  // Real feature Sep 26 (item 21c): regenerating an existing code now requires the admin PIN,
+  // same /admin/verify check the dashboard's own Unlock screen uses - the first-ever code for
+  // a school still needs no PIN (nothing to invalidate yet), matching the existing
+  // confirmRegenerateInviteCode early-return below.
+  const [showPinConfirm, setShowPinConfirm] = useState(false);
   // Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): school-level toggle,
   // same two-tier allowed_by_superadmin/enabled_by_school pattern as support_requests -
   // reuses the existing generic GET /features + PUT /features/{key} endpoints rather than
@@ -2324,14 +2553,25 @@ function SchoolSettings({ authToken, user }: any) {
     setGeneratingCode(false);
   };
 
+  const verifyPinForRegenerate = async (pin: string): Promise<boolean> => {
+    const freshToken = await AsyncStorage.getItem('session_token');
+    const d = await apiCall('/admin/verify', freshToken, { method: 'POST', body: JSON.stringify({ code: pin }) });
+    if (d?.valid) {
+      setShowPinConfirm(false);
+      generateInviteCode();
+      return true;
+    }
+    return false;
+  };
+
   const confirmRegenerateInviteCode = () => {
     if (!inviteCode) { generateInviteCode(); return; }
     Alert.alert(
       t('regenerate_code_title') || 'Regenerate invite code?',
-      t('regenerate_code_warning') || "Teachers with the old code won't be able to use it.",
+      t('regenerate_code_warning') || 'Regenerating invalidates the current code. Teachers already linked are not affected.',
       [
         { text: t('cancel') || 'Cancel', style: 'cancel' },
-        { text: t('regenerate') || 'Regenerate', style: 'destructive', onPress: generateInviteCode },
+        { text: t('regenerate') || 'Regenerate', style: 'destructive', onPress: () => setShowPinConfirm(true) },
       ],
     );
   };
@@ -2532,6 +2772,18 @@ function SchoolSettings({ authToken, user }: any) {
         <MaterialIcons name="save" size={16} color="white" />
         <Text style={s.btnText}>{saving ? (t("saving") || "Saving...") : (t("save_school_profile") || "Save School Profile")}</Text>
       </TouchableOpacity>
+
+      <PinConfirmModal
+        visible={showPinConfirm}
+        title={t('enter_admin_pin_title') || 'Enter Admin PIN'}
+        message={t('pin_required_to_regenerate') || 'Enter your admin PIN to confirm regenerating this code.'}
+        pinLabel={t('enter_pin') || 'Enter PIN'}
+        confirmLabel={t('confirm') || 'Confirm'}
+        cancelLabel={t('cancel') || 'Cancel'}
+        wrongPinLabel={t('incorrect_pin') || 'Incorrect PIN'}
+        onCancel={() => setShowPinConfirm(false)}
+        onSubmit={verifyPinForRegenerate}
+      />
     </View>
   );
 }

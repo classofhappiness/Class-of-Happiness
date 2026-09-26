@@ -12,6 +12,7 @@ import { loadVoiceEnabled, setVoiceEnabled } from '../src/utils/voiceClips';
 import { loadDeviceNotificationsEnabled, setDeviceNotificationsEnabled } from '../src/utils/notifications';
 import { useWellbeingSharing } from '../src/utils/useWellbeingSharing';
 import { SecureField } from '../src/components/SecureField';
+import { PinConfirmModal } from '../src/components/PinConfirmModal';
 import { RTL_RESTART_FLOW_READY, needsRtlRestart, applyRtlAndRestart } from '../src/utils/rtl';
 
 // hasVoice matches the backend's VOICE_CLIP_LANGUAGES (server.py) - real recordings exist
@@ -494,6 +495,10 @@ export default function SettingsScreen() {
   // Generate school invite code (school admin only)
   const [generatedCode, setGeneratedCode] = useState('');
   const [generatingCode, setGeneratingCode] = useState(false);
+  // Real feature Sep 26 (item 21c): same PIN re-confirmation as admin/dashboard.tsx's School
+  // tab - this screen is a second, equally-real path to regenerate the same code, so gating
+  // only the dashboard's copy of this action would leave a working, ungated bypass right here.
+  const [showRegenPinConfirm, setShowRegenPinConfirm] = useState(false);
 
   const doGenerateInviteCode = async () => {
     setGeneratingCode(true);
@@ -527,12 +532,29 @@ export default function SettingsScreen() {
     if (!generatedCode) { doGenerateInviteCode(); return; }
     Alert.alert(
       t('regenerate_code_title') || 'Regenerate invite code?',
-      t('regenerate_code_warning') || "Teachers with the old code won't be able to use it.",
+      t('regenerate_code_warning') || 'Regenerating invalidates the current code. Teachers already linked are not affected.',
       [
         { text: t('cancel') || 'Cancel', style: 'cancel' },
-        { text: t('regenerate') || 'Regenerate', style: 'destructive', onPress: doGenerateInviteCode },
+        { text: t('regenerate') || 'Regenerate', style: 'destructive', onPress: () => setShowRegenPinConfirm(true) },
       ],
     );
+  };
+
+  const verifyPinForRegenerate = async (pin: string): Promise<boolean> => {
+    const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+    const token = await AsyncStorage.getItem('session_token');
+    const res = await fetch(`${BACKEND_URL}/api/admin/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ code: pin }),
+    });
+    const data = await res.json();
+    if (res.ok && data?.valid) {
+      setShowRegenPinConfirm(false);
+      doGenerateInviteCode();
+      return true;
+    }
+    return false;
   };
 
   useEffect(() => {
@@ -1330,8 +1352,17 @@ export default function SettingsScreen() {
           </View>
         )}
 
-
-        
+        <PinConfirmModal
+          visible={showRegenPinConfirm}
+          title={t('enter_admin_pin_title') || 'Enter Admin PIN'}
+          message={t('pin_required_to_regenerate') || 'Enter your admin PIN to confirm regenerating this code.'}
+          pinLabel={t('enter_pin') || 'Enter PIN'}
+          confirmLabel={t('confirm') || 'Confirm'}
+          cancelLabel={t('cancel') || 'Cancel'}
+          wrongPinLabel={t('incorrect_pin') || 'Incorrect PIN'}
+          onCancel={() => setShowRegenPinConfirm(false)}
+          onSubmit={verifyPinForRegenerate}
+        />
 
         {/* Join School section consolidated above */}
       </View>
