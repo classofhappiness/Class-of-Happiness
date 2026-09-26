@@ -130,7 +130,10 @@ function CreatureCard({
   }, [fullyEvolved]);
 
   const displayStage = fullyEvolved ? 4 : previewStage;
-  const imgUrl = item[`stage${displayStage}_url`] || item.stage1_url;
+  // Real fix Sep 26 (item 16): this card is exactly the 200px-thumb use case (a grid of many
+  // creatures, never shown at full 1120px) - falls back to the full-size url only for a
+  // creature somehow missing its thumb (predates the backfill and hasn't been re-touched).
+  const imgUrl = item[`stage${displayStage}_thumb_url`] || item[`stage${displayStage}_url`] || item.stage1_thumb_url || item.stage1_url;
   const expiry = formatExpiry(item.featured_until);
   // Real feature Aug 24 (item 1, free-tier collection cap): item.locked comes straight from
   // /creatures/eligible - a free-tier account already has one fully-evolved creature for this

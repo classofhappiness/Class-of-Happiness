@@ -1601,8 +1601,10 @@ export default function ParentDashboard() {
                             const zoneColor = EMOTION_COLOURS[entry.colour as keyof typeof EMOTION_COLOURS] || '#5C6BC0';
                             return (
                               <View key={`community-${entry.id}`} style={{ width: 16, height: 16, borderRadius: 4, borderWidth: 1, borderColor: zoneColor, overflow: 'hidden', position: 'relative' }}>
-                                {entry.stage_image ? (
-                                  <Image source={{ uri: entry.stage_image }} style={{ width: '100%', height: '100%' }} />
+                                {/* Real fix Sep 26 (item 16): a 16x16 icon has no business
+                                    fetching a 1120px original - uses the real 200px thumb now. */}
+                                {(entry.stage_image_thumb || entry.stage_image) ? (
+                                  <Image source={{ uri: entry.stage_image_thumb || entry.stage_image }} style={{ width: '100%', height: '100%' }} />
                                 ) : (
                                   <Text style={{ fontSize: 10, textAlign: 'center' }}>🐾</Text>
                                 )}

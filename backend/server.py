@@ -3310,6 +3310,12 @@ def _build_creatures_colours(student_data: dict, creature_stages: dict, creature
             "id": cs["id"],
             "name": name,
             "stage_image": stage_img,
+            # Real feature Sep 26 (item 16): the 200px variant for card/list use (this batch
+            # endpoint IS the card/list use case - My Creatures, World Creatures, student cards
+            # all render from here) - full-size stage_image/stage_urls above are untouched and
+            # still what the detail/reward screens should use. Derived on read, not stored -
+            # see _thumb_url's own docstring for why no new DB column/migration is needed.
+            "stage_image_thumb": _thumb_url(stage_img),
             "current_stage": stages_unlocked,
             "max_stage": 4,
             "is_complete": is_complete,
@@ -3323,6 +3329,7 @@ def _build_creatures_colours(student_data: dict, creature_stages: dict, creature
             # stage_emojis does - the photos already exist on the submission row, just weren't
             # threaded through this endpoint before.
             "stage_urls": [cs.get("stage1_url"), cs.get("stage2_url"), cs.get("stage3_url"), cs.get("stage4_url")],
+            "stage_urls_thumb": [_thumb_url(cs.get("stage1_url")), _thumb_url(cs.get("stage2_url")), _thumb_url(cs.get("stage3_url")), _thumb_url(cs.get("stage4_url"))],
             # Real feature Sep 21: all 10 language variants passed through flat (same
             # send-everything-let-the-client-pick pattern as the default CREATURES constant's
             # own description_pt/es/fr/de/it, just newly actually consumed - see
@@ -10801,6 +10808,12 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
             "stage2_url": c.get("stage2_url"),
             "stage3_url": c.get("stage3_url"),
             "stage4_url": c.get("stage4_url"),
+            # Real feature Sep 26 (item 16): World Creatures' own grid cards - the same 200px
+            # variant, full-size stageN_url above untouched for whatever still needs it.
+            "stage1_thumb_url": _thumb_url(c.get("stage1_url")),
+            "stage2_thumb_url": _thumb_url(c.get("stage2_url")),
+            "stage3_thumb_url": _thumb_url(c.get("stage3_url")),
+            "stage4_thumb_url": _thumb_url(c.get("stage4_url")),
             "global_uses": c.get("global_uses", 0),
             "visibility_scope": scope,
             "classroom_name": classroom_names.get(c.get("classroom_id")),
@@ -19735,6 +19748,51 @@ async def notify_creature_expiry(request: Request):
     # For now, return what would be notified
     return {"expiring_soon": len(expiring.data or []), "features": expiring.data or []}
 
+def _thumb_object_path(full_object_path: str) -> str:
+    """Real feature Sep 26 (item 16): derives a thumbnail's storage path from the full-size
+    image's own path by inserting _thumb before the extension, always forcing .png regardless
+    of the source format (a thumbnail must preserve alpha - see item 17's own fix for why a
+    community creature's real background depends on that). Deterministic and reversible purely
+    from the full URL already stored on creature_submissions - no new DB column needed, no
+    dependency on the upload response being threaded through the submission flow."""
+    base, _, _ = full_object_path.rpartition(".")
+    base = base or full_object_path
+    return f"{base}_thumb.png"
+
+def _thumb_url(full_url: Optional[str]) -> Optional[str]:
+    """Same derivation as _thumb_object_path, applied to a full PUBLIC url (strips any ?v=
+    cache-busting query string first, then re-derives the thumb's own public url) - used
+    wherever a full-size creature_submissions.stageN_url needs its thumbnail counterpart."""
+    if not full_url:
+        return None
+    base_url = full_url.split("?")[0]
+    marker = "/creature-images/"
+    if marker not in base_url:
+        return None
+    idx = base_url.index(marker) + len(marker)
+    object_path = base_url[idx:]
+    thumb_path = _thumb_object_path(object_path)
+    return base_url[:idx] + thumb_path
+
+def _generate_thumbnail_bytes(img_bytes: bytes, size: int = 200) -> Optional[bytes]:
+    """Real feature Sep 26 (item 16). Never raises - a thumbnail failure must never block the
+    real upload/backfill it's attached to; callers treat None as "skip the thumb, the full-size
+    image is still there and correct." RGBA preserved (or added, e.g. a legacy flattened JPEG
+    with no alpha at all) so a thumb of an already-transparent image stays transparent."""
+    try:
+        import io
+        from PIL import Image
+        img = Image.open(io.BytesIO(img_bytes))
+        if img.mode != "RGBA":
+            img = img.convert("RGBA")
+        img.thumbnail((size, size), Image.LANCZOS)
+        out = io.BytesIO()
+        img.save(out, format="PNG")
+        return out.getvalue()
+    except Exception as e:
+        logger.warning(f"[creature-thumbnail] generation failed: {e}")
+        return None
+
 @api_router.post("/creatures/upload-image")
 async def upload_creature_image(request: Request):
     """Receives a base64 image, uploads to Supabase Storage, returns public URL."""
@@ -19755,6 +19813,20 @@ async def upload_creature_image(request: Request):
         {"content-type": f"image/{ext}", "upsert": "true"}
     )
     url = supabase.storage.from_("creature-images").get_public_url(filename)
+    # Real feature Sep 26 (item 16): generates the 200px thumbnail at upload time, right
+    # alongside the full-size image, rather than waiting for a separate batch/cron pass - a
+    # freshly-submitted creature has a working thumbnail from the moment it exists. Best-
+    # effort: a thumbnail failure never blocks the real submission (the full-size url above is
+    # already uploaded and returned regardless).
+    thumb_bytes = _generate_thumbnail_bytes(img_bytes)
+    if thumb_bytes:
+        try:
+            supabase.storage.from_("creature-images").upload(
+                _thumb_object_path(filename), thumb_bytes,
+                {"content-type": "image/png", "upsert": "true"},
+            )
+        except Exception as e:
+            logger.warning(f"[creature-thumbnail] upload failed for {filename}: {e}")
     return {"url": url, "filename": filename}
 
 import hashlib, secrets

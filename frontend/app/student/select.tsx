@@ -129,15 +129,19 @@ export default function StudentSelectScreen() {
   useEffect(() => { preloadSounds(); }, []);
 
   // Real fix Sep 24 (item4, device report): warm expo-image's cache for every
-  // community-creature stage_image the moment studentMyCreaturesData arrives, so the
+  // community-creature stage image the moment studentMyCreaturesData arrives, so the
   // ExpoImage thumbnails below (cachePolicy 'memory-disk') are normally already decoded by
   // the time renderCreatureIcons actually renders them, instead of each card triggering its
-  // own first-render fetch of the same full-resolution PNG.
+  // own first-render fetch.
+  // Real fix Sep 26 (item 16): this comment used to end "...of the same full-resolution PNG" -
+  // that was the actual problem item 16 fixes. Now prefetches stage_image_thumb (a real 200px
+  // variant, not the full 1120px original these small grid icons never needed) with a fallback
+  // to stage_image only for a creature that predates the thumbnail backfill somehow reaching it.
   useEffect(() => {
     const stageImageUrls = new Set<string>();
     Object.values(studentAllCreatureData).forEach(colours => {
       Object.values(colours).forEach((bucket: any) => {
-        (bucket as any[]).forEach(entry => { if (entry?.stage_image) stageImageUrls.add(entry.stage_image); });
+        (bucket as any[]).forEach(entry => { const u = entry?.stage_image_thumb || entry?.stage_image; if (u) stageImageUrls.add(u); });
       });
     });
     stageImageUrls.forEach(url => { ExpoImage.prefetch(url).catch(() => {}); });
@@ -278,8 +282,8 @@ export default function StudentSelectScreen() {
           key={`community-${entry.id}`}
           style={[styles.collectedCreatureIcon, { backgroundColor: zoneColor + '30', borderWidth: 1.5, borderColor: zoneColor }]}
         >
-          {entry.stage_image ? (
-            <ExpoImage source={{ uri: entry.stage_image }} style={styles.communityThumb} cachePolicy="memory-disk" />
+          {(entry.stage_image_thumb || entry.stage_image) ? (
+            <ExpoImage source={{ uri: entry.stage_image_thumb || entry.stage_image }} style={styles.communityThumb} cachePolicy="memory-disk" />
           ) : (
             <Text style={styles.collectedEmoji}>🐾</Text>
           )}
@@ -366,7 +370,7 @@ export default function StudentSelectScreen() {
                       }]}
                     >
                       {entry.type === 'community' ? (
-                        entry.stage_image ? <ExpoImage source={{ uri: entry.stage_image }} style={styles.communityThumb} cachePolicy="memory-disk" /> : <Text style={styles.collectedEmoji}>🐾</Text>
+                        (entry.stage_image_thumb || entry.stage_image) ? <ExpoImage source={{ uri: entry.stage_image_thumb || entry.stage_image }} style={styles.communityThumb} cachePolicy="memory-disk" /> : <Text style={styles.collectedEmoji}>🐾</Text>
                       ) : (
                         <Text style={[styles.collectedEmoji, { opacity: hasProgress ? 1 : 0.4 }]}>{entry.emoji || '🥚'}</Text>
                       )}

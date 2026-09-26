@@ -55,8 +55,12 @@ interface CreatureEntry {
   name: string;
   emoji?: string | null;
   stage_image?: string | null;
+  // Real feature Sep 26 (item 16): 200px variant for this exact grid-card use case - full-size
+  // stage_image above is what CreatureDetailModal still uses once a card is tapped.
+  stage_image_thumb?: string | null;
   stage_emojis?: string[];
   stage_urls?: (string | null)[];
+  stage_urls_thumb?: (string | null)[];
   current_stage: number;
   max_stage: number;
   is_complete: boolean;
@@ -98,7 +102,7 @@ function CreatureGridCard({
 }) {
   const ringPulse = useRef(new Animated.Value(1)).current;
   const expired = item.was_featured && item.featured_until && new Date(item.featured_until) < new Date();
-  const imgUrl = item.type === 'community' ? item.stage_image : null;
+  const imgUrl = item.type === 'community' ? (item.stage_image_thumb || item.stage_image) : null;
   // Real fix Sep 15 (Marisa build-26, S08): confirmed in server.py's /my-creatures - a
   // DEFAULT creature's current_stage is 0-indexed with max_stage hardcoded to 3 (the max
   // INDEX, not a count), while a COMMUNITY creature's current_stage (stages_unlocked) is
