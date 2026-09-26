@@ -14568,7 +14568,18 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     # the loop right after resolved it AGAIN as part of strategy_counts.items(), on top of
     # being an unbatched N+1 across every OTHER unresolved id too. One batched resolve for
     # every id in strategy_counts, used by both.
-    _strategy_names = _batch_resolve_strategy_names(list(strategy_counts.keys()))
+    #
+    # Second root cause fix Sep 26 (found while investigating a ~200x latency-variance report):
+    # this was calling _batch_resolve_strategy_names directly - a synchronous function making
+    # real Supabase calls - with no asyncio.to_thread wrapper, unlike every other query in this
+    # function. That blocks the single-threaded event loop for its full duration (confirmed via
+    # per-wave timing showing an unaccounted ~80-100ms gap between wave 4 finishing and the
+    # function returning, with NO wave logged as running during it). Under --workers 2, an
+    # event loop blocked here doesn't just slow this one request - every OTHER concurrent
+    # request on the same worker process stalls until this call returns, which is a genuinely
+    # plausible mechanism for occasional large outliers on otherwise-unrelated requests, not
+    # just this endpoint being slow to itself.
+    _strategy_names = await asyncio.to_thread(_batch_resolve_strategy_names, list(strategy_counts.keys()))
 
     top_strategy_name = None
     if strategy_counts:
