@@ -558,7 +558,11 @@ export default function SettingsScreen() {
   };
 
   useEffect(() => {
-    if (!isAuthenticated || !(user?.role === 'school_admin' || user?.role === 'admin' || user?.role === 'superadmin')) return;
+    // Root cause fix Sep 26 (item 21b): superadmin isn't a school and has no teachers to
+    // invite - this fetch (and the section below) used to run for superadmin too, which is
+    // exactly how a stray invite_codes row tied to the superadmin's own account first got
+    // generated and then kept showing up here (SCH-27DT-BPEU, deleted from the DB directly).
+    if (!isAuthenticated || !(user?.role === 'school_admin' || user?.role === 'admin')) return;
     (async () => {
       try {
         const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -1294,7 +1298,8 @@ export default function SettingsScreen() {
         )}
 
         {/* School Invite Code Generator - for school admins */}
-        {isAuthenticated && (user?.role === 'school_admin' || user?.role === 'admin' || user?.role === 'superadmin') && (
+        {/* Item 21b: superadmin has no school of its own - see the fetch effect's comment above */}
+        {isAuthenticated && (user?.role === 'school_admin' || user?.role === 'admin') && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="vpn-key" size={20} color="#5C6BC0" />
