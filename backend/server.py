@@ -14224,11 +14224,41 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     days = max(1, min(period, 90))
     start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
-    # Get all teachers in this school — by school_admin_id OR school_name
-    teachers_by_id = supabase.table("users").select("user_id,name,email").eq("school_admin_id", user_id).execute()
-    teachers_by_name = supabase.table("users").select("user_id,name,email").eq("school_name", school_name).eq("role", "teacher").execute() if school_name else type('obj', (object,), {'data': []})()
+    # Root cause fix Sep 26 (school-admin/analytics perf, post-EU-region-move): this function
+    # made up to 12 fully sequential Supabase round trips - confirmed live via smoke.py at
+    # 1182.6ms even after the region move eliminated the cross-region penalty every other
+    # endpoint benefited from (12 sequential round trips at the new ~55-90ms in-region latency
+    # is still ~700ms-1s of pure serial wait, independent of any actual query cost - the
+    # region move alone already dropped this from 3.3s). Restructured into 4 dependency-
+    # ordered waves fired with asyncio.gather - only queries that genuinely depend on a
+    # PRECEDING wave's result (e.g. classrooms needs teacher_ids first) still wait; every
+    # query that only needs teacher_ids or student_ids, once known, now fires alongside its
+    # siblings instead of one at a time. Each query's original error-handling is preserved
+    # exactly: one that had no try/except before (a real failure should surface as a 500, not
+    # be silently swallowed into an empty result) still raises after the gather; one that
+    # already caught its own exception and fell back to a safe default still does, with the
+    # same warning log line.
+    async def _wave(tasks: dict) -> dict:
+        if not tasks:
+            return {}
+        results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        return dict(zip(tasks.keys(), results))
+
+    def _raise_if_failed(wave: dict, key: str):
+        if isinstance(wave.get(key), Exception):
+            raise wave[key]
+
+    # Wave 1: both teacher lookups only need user_id/school_name, known up front.
+    w1 = await _wave({
+        "teachers_by_id": asyncio.to_thread(lambda: supabase.table("users").select("user_id,name,email").eq("school_admin_id", user_id).execute()),
+        **({"teachers_by_name": asyncio.to_thread(lambda: supabase.table("users").select("user_id,name,email").eq("school_name", school_name).eq("role", "teacher").execute())} if school_name else {}),
+    })
+    _raise_if_failed(w1, "teachers_by_id")
+    _raise_if_failed(w1, "teachers_by_name")
+    teachers_by_id_rows = w1["teachers_by_id"].data or []
+    teachers_by_name_rows = (w1["teachers_by_name"].data or []) if "teachers_by_name" in w1 else []
     # Merge and deduplicate
-    all_teachers = {t["user_id"]: t for t in (teachers_by_id.data or []) + (teachers_by_name.data or [])}
+    all_teachers = {t["user_id"]: t for t in teachers_by_id_rows + teachers_by_name_rows}
     teacher_list = list(all_teachers.values())
     teacher_ids = [t["user_id"] for t in teacher_list]
 
@@ -14240,9 +14270,14 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     # also drives total_teachers/seats_used/teacher_checkin_rate further down.
     classroom_owner_ids = teacher_ids + [user_id]
 
-    # Get classrooms
-    classrooms_res = supabase.table("classrooms").select("*").in_("user_id", classroom_owner_ids).execute()
-    classrooms = classrooms_res.data or []
+    # Wave 2: classrooms (needs classroom_owner_ids, just computed) and the opted-in-teacher
+    # lookup (needs teacher_ids, also just computed) don't depend on each other.
+    w2 = await _wave({
+        "classrooms": asyncio.to_thread(lambda: supabase.table("classrooms").select("*").in_("user_id", classroom_owner_ids).execute()),
+        **({"opted_in": asyncio.to_thread(lambda: supabase.table("users").select("user_id").in_("user_id", teacher_ids).eq("teacher_wellbeing_shared_with_admin", True).execute())} if teacher_ids else {}),
+    })
+    _raise_if_failed(w2, "classrooms")
+    classrooms = w2["classrooms"].data or []
     classroom_ids = [c["id"] for c in classrooms]
 
     if not teacher_ids and not classrooms:
@@ -14250,29 +14285,55 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
                 "zone_distribution": {}, "daily_counts": {}, "classroom_breakdown": [],
                 "school_name": school_name or "My School"}
 
-    # Get students. Real fix Aug 14: this queried students by "user_id" in teacher_ids,
-    # but students link via classroom_id, not a direct teacher-owned user_id column (same
-    # architectural fact already fixed twice elsewhere in this file today). classroom_ids
-    # is already correctly computed right above — just wasn't being used here.
-    students_res = supabase.table("students").select("*").in_("classroom_id", classroom_ids).execute() if classroom_ids else type('obj', (object,), {'data': []})()
-    all_students = students_res.data or []
-    all_student_ids = [s["id"] for s in all_students]
+    teacher_opted_in_ids: list = []
+    if "opted_in" in w2:
+        if isinstance(w2["opted_in"], Exception):
+            logger.warning(f"[school-admin/analytics] opted-in teacher lookup failed: {w2['opted_in']}")
+        else:
+            teacher_opted_in_ids = [r["user_id"] for r in (w2["opted_in"].data or [])]
+    teacher_opted_in_count = len(teacher_opted_in_ids)
+    teacher_wellbeing_suppressed = teacher_opted_in_count < 3
 
-    # Get feeling logs (unfiltered - classroom_breakdown below needs every classroom's own
-    # logs regardless of which pill is selected, and the classroom_id filter is applied
-    # in-memory right after, no second query needed).
-    all_logs = []
-    if all_student_ids:
-        all_logs = _fetch_all_paginated("feeling_logs", "*", lambda q: q.in_("student_id", all_student_ids).gte("timestamp", start_date))
+    # Wave 3: students (needs classroom_ids from wave 2) and teacher_checkins (needs
+    # teacher_opted_in_ids from wave 2) are independent of each other.
+    w3 = await _wave({
+        **({"students": asyncio.to_thread(lambda: supabase.table("students").select("*").in_("classroom_id", classroom_ids).execute())} if classroom_ids else {}),
+        **({"teacher_checkins": asyncio.to_thread(lambda: supabase.table("teacher_checkins").select("user_id,zone,strategies_selected").in_("user_id", teacher_opted_in_ids).eq("shared", True).gte("timestamp", start_date).execute())} if (teacher_opted_in_ids and not teacher_wellbeing_suppressed) else {}),
+    })
+    _raise_if_failed(w3, "students")
+    all_students = (w3["students"].data or []) if "students" in w3 else []
+    all_student_ids = [s["id"] for s in all_students]
 
     if classroom_id:
         if classroom_id not in classroom_ids:
             raise HTTPException(status_code=404, detail="Classroom not found")
         students = [s for s in all_students if s.get("classroom_id") == classroom_id]
         student_ids = [s["id"] for s in students]
-        logs = [l for l in all_logs if l.get("student_id") in set(student_ids)]
     else:
-        students, student_ids, logs = all_students, all_student_ids, all_logs
+        students, student_ids = all_students, all_student_ids
+
+    prev_start = (datetime.now(timezone.utc) - timedelta(days=days * 2)).isoformat()
+
+    # Wave 4: the 7 remaining round trips all only depend on student_ids/all_student_ids,
+    # both known now - current-period logs (unfiltered, classroom_breakdown below needs every
+    # classroom's own logs regardless of which pill is selected), the previous-period logs for
+    # the trend arrow, alerts, family check-ins, linked parents, and the two creature tables.
+    w4 = await _wave({
+        **({"all_logs": asyncio.to_thread(lambda: _fetch_all_paginated("feeling_logs", "*", lambda q: q.in_("student_id", all_student_ids).gte("timestamp", start_date)))} if all_student_ids else {}),
+        **({
+            "alerts": asyncio.to_thread(lambda: supabase.table("student_alerts").select("*").in_("student_id", student_ids).gte("created_at", start_date).execute()),
+            "prev_logs": asyncio.to_thread(lambda: _fetch_all_paginated("feeling_logs", "student_id,feeling_colour", lambda q: q.in_("student_id", student_ids).gte("timestamp", prev_start).lt("timestamp", start_date))),
+            "fam_logs": asyncio.to_thread(lambda: supabase.table("family_zone_logs").select("id").in_("student_id", student_ids).gte("timestamp", start_date).execute()),
+            "parent_links": asyncio.to_thread(lambda: supabase.table("parent_links").select("parent_user_id").in_("student_id", student_ids).execute()),
+            "creature_unlocks": asyncio.to_thread(lambda: supabase.table("creature_unlocks").select("completed_at").in_("real_student_id", student_ids).execute()),
+            "student_rewards": asyncio.to_thread(lambda: supabase.table("student_rewards").select("current_stage").in_("student_id", student_ids).execute()),
+        } if student_ids else {}),
+    })
+    _raise_if_failed(w4, "all_logs")
+    _raise_if_failed(w4, "alerts")
+    _raise_if_failed(w4, "prev_logs")
+    all_logs = w4.get("all_logs") or []
+    logs = [l for l in all_logs if l.get("student_id") in set(student_ids)] if classroom_id else all_logs
 
     # Aggregate — no individual identifiers returned
     zone_dist = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
@@ -14330,7 +14391,8 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
 
     # Real alert stats + resolution speed — uses the SAME student_ids already resolved above,
     # aggregate-only (no student names/identifiers returned), matches the school's real
-    # student_alerts data instead of the unrelated teacher-only wellbeing_alerts table
+    # student_alerts data instead of the unrelated teacher-only wellbeing_alerts table.
+    # Data already fetched in wave 4 above - just reading it here now, no new query.
     alert_volume = 0
     alert_zone_dist = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
     alert_context_dist = {"home": 0, "school": 0}
@@ -14343,8 +14405,7 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     resolution_seconds_total = 0
     resolution_count = 0
     if student_ids:
-        alerts_res = supabase.table("student_alerts").select("*").in_("student_id", student_ids).gte("created_at", start_date).execute()
-        school_alerts = alerts_res.data or []
+        school_alerts = w4["alerts"].data or []
         alert_volume = len(school_alerts)
         for a in school_alerts:
             z = a.get("zone") or "yellow"
@@ -14385,21 +14446,16 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     # opted-in teachers checked in red") whenever fewer than 3 teachers have opted in, so no
     # small group can ever be singled out even in aggregate. teacher_opted_in_count is always
     # returned (never suppressed) so a caller can explain an empty state honestly.
+    # teacher_opted_in_ids/teacher_opted_in_count/teacher_wellbeing_suppressed already resolved
+    # in wave 2 above (opted_in query); teacher_checkins already resolved in wave 3 - both just
+    # read here now, no new queries.
     teacher_zone_dist = None
     teacher_top_strategies: list = []
-    teacher_opted_in_ids: list = []
-    if teacher_ids:
-        try:
-            opted_r = supabase.table("users").select("user_id").in_("user_id", teacher_ids).eq("teacher_wellbeing_shared_with_admin", True).execute()
-            teacher_opted_in_ids = [r["user_id"] for r in (opted_r.data or [])]
-        except Exception as e:
-            logger.warning(f"[school-admin/analytics] opted-in teacher lookup failed: {e}")
-    teacher_opted_in_count = len(teacher_opted_in_ids)
-    teacher_wellbeing_suppressed = teacher_opted_in_count < 3
-    if teacher_opted_in_ids and not teacher_wellbeing_suppressed:
-        try:
-            tc_res = supabase.table("teacher_checkins").select("user_id,zone,strategies_selected").in_("user_id", teacher_opted_in_ids).eq("shared", True).gte("timestamp", start_date).execute()
-            tc_rows = tc_res.data or []
+    if "teacher_checkins" in w3:
+        if isinstance(w3["teacher_checkins"], Exception):
+            logger.warning(f"[school-admin/analytics] teacher_checkins query failed: {w3['teacher_checkins']}")
+        else:
+            tc_rows = w3["teacher_checkins"].data or []
             teachers_checked_in = len(set(r["user_id"] for r in tc_rows if r.get("user_id")))
             teacher_zone_dist = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
             teacher_strategy_counts: dict = {}
@@ -14411,8 +14467,6 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
                     teacher_strategy_counts[sid] = teacher_strategy_counts.get(sid, 0) + 1
             teacher_top_strategies = sorted(teacher_strategy_counts.items(), key=lambda kv: kv[1], reverse=True)[:5]
             teacher_top_strategies = [{"id": sid, "count": c} for sid, c in teacher_top_strategies]
-        except Exception as e:
-            logger.warning(f"[school-admin/analytics] teacher_checkins query failed: {e}")
     teacher_checkin_rate = None if teacher_wellbeing_suppressed else (round((teachers_checked_in / teacher_opted_in_count) * 100) if teacher_opted_in_count else 0)
     if teacher_wellbeing_suppressed:
         teachers_checked_in = None
@@ -14426,10 +14480,8 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     participating_students = len(set(l["student_id"] for l in logs if l.get("student_id")))
     participation_rate = round((participating_students / len(students)) * 100) if students else 0
 
-    prev_start = (datetime.now(timezone.utc) - timedelta(days=days * 2)).isoformat()
-    prev_logs = []
-    if student_ids:
-        prev_logs = _fetch_all_paginated("feeling_logs", "student_id,feeling_colour", lambda q: q.in_("student_id", student_ids).gte("timestamp", prev_start).lt("timestamp", start_date))
+    # prev_logs already fetched in wave 4 above - just reading it here now.
+    prev_logs = w4.get("prev_logs") or []
     prev_participating = len(set(l["student_id"] for l in prev_logs if l.get("student_id")))
     prev_participation_rate = round((prev_participating / len(students)) * 100) if students else 0
     prev_students_needing_support = len(set(l["student_id"] for l in prev_logs if (l.get("feeling_colour") or l.get("zone")) == "red" and l.get("student_id")))
@@ -14458,12 +14510,12 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     home_checkins_total = 0
     if student_ids:
         home_logs = [l for l in logs if l.get("logged_by") in ("parent", "family")]
-        try:
-            fam_logs_res = supabase.table("family_zone_logs").select("id").in_("student_id", student_ids).gte("timestamp", start_date).execute()
-            fam_logs_count = len(fam_logs_res.data or [])
-        except Exception as e:
-            logger.warning(f"[school-admin/analytics] family_zone_logs query failed: {e}")
+        # fam_logs already fetched in wave 4 above - just reading it here now.
+        if isinstance(w4.get("fam_logs"), Exception):
+            logger.warning(f"[school-admin/analytics] family_zone_logs query failed: {w4['fam_logs']}")
             fam_logs_count = 0
+        else:
+            fam_logs_count = len((w4.get("fam_logs").data or []) if w4.get("fam_logs") is not None else [])
         home_checkins_total = len(home_logs) + fam_logs_count
 
     # Real feature Sep 20 (item 2): distinct parents/families linked to any of this school's
@@ -14471,11 +14523,12 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     # families" reads elsewhere as a standing count, not an activity-in-window number).
     linked_families = 0
     if student_ids:
-        try:
-            pl_res = supabase.table("parent_links").select("parent_user_id").in_("student_id", student_ids).execute()
-            linked_families = len(set(r["parent_user_id"] for r in (pl_res.data or []) if r.get("parent_user_id")))
-        except Exception as e:
-            logger.warning(f"[school-admin/analytics] parent_links query failed: {e}")
+        # parent_links already fetched in wave 4 above - just reading it here now.
+        if isinstance(w4.get("parent_links"), Exception):
+            logger.warning(f"[school-admin/analytics] parent_links query failed: {w4['parent_links']}")
+        else:
+            pl_rows = (w4.get("parent_links").data or []) if w4.get("parent_links") is not None else []
+            linked_families = len(set(r["parent_user_id"] for r in pl_rows if r.get("parent_user_id")))
 
     # Real feature Sep 20 (item 2): creature/engagement summary for this school's own
     # students. Two creature systems exist (see server.py's CREATURES constant docs) -
@@ -14488,20 +14541,20 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     creatures_fully_evolved = 0
     default_creatures_avg_stage = 0
     if student_ids:
-        try:
-            cu_res = supabase.table("creature_unlocks").select("completed_at").in_("real_student_id", student_ids).execute()
-            cu_rows = cu_res.data or []
+        # creature_unlocks/student_rewards already fetched in wave 4 above - just reading them
+        # here now.
+        if isinstance(w4.get("creature_unlocks"), Exception):
+            logger.warning(f"[school-admin/analytics] creature_unlocks query failed: {w4['creature_unlocks']}")
+        else:
+            cu_rows = (w4.get("creature_unlocks").data or []) if w4.get("creature_unlocks") is not None else []
             creatures_obtained = len(cu_rows)
             creatures_fully_evolved = len([r for r in cu_rows if r.get("completed_at")])
-        except Exception as e:
-            logger.warning(f"[school-admin/analytics] creature_unlocks query failed: {e}")
-        try:
-            sr_res = supabase.table("student_rewards").select("current_stage").in_("student_id", student_ids).execute()
-            sr_rows = sr_res.data or []
+        if isinstance(w4.get("student_rewards"), Exception):
+            logger.warning(f"[school-admin/analytics] student_rewards query failed: {w4['student_rewards']}")
+        else:
+            sr_rows = (w4.get("student_rewards").data or []) if w4.get("student_rewards") is not None else []
             if sr_rows:
                 default_creatures_avg_stage = round(sum(r.get("current_stage") or 0 for r in sr_rows) / len(sr_rows), 1)
-        except Exception as e:
-            logger.warning(f"[school-admin/analytics] student_rewards query failed: {e}")
 
     return {
         "school_name": school_name or "My School",
