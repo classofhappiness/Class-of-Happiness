@@ -15,6 +15,7 @@ import { useFixedGridColumns, gridCardWidth } from '../../src/utils/globalStyles
 import { StrategyIcon } from '../../src/components/StrategyIcon';
 import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
 import { useWellbeingSharing } from '../../src/utils/useWellbeingSharing';
+import { useAndroidKeyboardOffset } from '../../src/utils/useAndroidKeyboardOffset';
 
 type FeelingZone = 'blue' | 'green' | 'yellow' | 'red';
 
@@ -84,6 +85,7 @@ export default function TeacherCheckInScreen() {
   const [weekData, setWeekData] = useState<Record<string, { zone: FeelingZone; time: string }[]>>({});
   const [history, setHistory] = useState<any[]>([]);
   const [showAlertModal, setShowAlertModal] = useState(false);
+  const androidKeyboardOffset = useAndroidKeyboardOffset();
   const [alertMessage, setAlertMessage] = useState('');
   const [sendingAlert, setSendingAlert] = useState(false);
   const [adminStrategies, setAdminStrategies] = useState<any[]>([]);
@@ -881,8 +883,12 @@ export default function TeacherCheckInScreen() {
 
       {/* Wellbeing Alert Modal */}
       <Modal visible={showAlertModal} transparent animationType="slide" onRequestClose={() => setShowAlertModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        {/* Item 22 fix (2026-09-26): same pattern as linked-child/[id].tsx's check-in modal -
+            this Modal renders in its own native layer so an outer KeyboardAvoidingView can't
+            reach it; edgeToEdgeEnabled:true breaks Android's native resize signal, so Android
+            gets an explicit marginBottom from useAndroidKeyboardOffset instead. */}
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={[styles.modalContent, Platform.OS === 'android' && { marginBottom: androidKeyboardOffset }]}>
             <View style={styles.modalHeader}>
               <MaterialIcons name="notifications-active" size={24} color="#F44336" />
               <Text style={styles.modalTitle}>{t('request_support') || 'Request Wellbeing Support'}</Text>
@@ -916,7 +922,7 @@ export default function TeacherCheckInScreen() {
               {t('support_not_emergency_note') || '⚠️ This is not for emergencies. It is checked when your wellbeing contact next has time - if you need help right now, contact them directly or follow your school\'s usual safeguarding process.'}
             </Text>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </EdgeSafeAreaView>
   </KeyboardAvoidingView>
