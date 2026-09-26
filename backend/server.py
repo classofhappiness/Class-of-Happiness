@@ -2689,12 +2689,12 @@ def _parse_supabase_timestamp(ts: str) -> datetime:
 # own fix). Eviction on logout/password-change/role-change/suspend below is real and immediate
 # in whichever worker process handles that mutation request, but a DIFFERENT worker that
 # cached the same session_token moments earlier keeps its own copy until that copy's own TTL
-# naturally expires. With TTL_SECONDS this small, that bounds the absolute worst case (an
-# invalidating event landing on the other worker from an existing cached session) to well under
-# TTL_SECONDS of possible staleness - never indefinite, never "outlives" the TTL window itself,
-# but not a hard, instant, cross-process guarantee either. Flagged explicitly rather than
-# silently ignored; a shared cache (Redis) would close this gap entirely if it ever needs to.
-_AUTH_CACHE_TTL_SECONDS = 30
+# naturally expires. Confirmed live (item 27 round report): a logout or suspend that lands on
+# the OTHER worker from an existing cached session lets that session keep authenticating for up
+# to TTL_SECONDS. Jono's explicit call after seeing that result: 10s (down from an initial
+# 30s), no shared cache (Redis) - accepts a real but small, bounded worst case rather than add
+# new infra. Logged in COH-REVIEW-PLAN.md's Known Limitations.
+_AUTH_CACHE_TTL_SECONDS = 10
 _auth_cache_lock = threading.Lock()
 _auth_cache: dict = {}  # session_token -> (user_dict, cached_at_monotonic)
 

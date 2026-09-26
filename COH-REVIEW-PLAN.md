@@ -23,6 +23,12 @@ The marketing site **was** checked live via `curl https://classofhappiness.com`,
 
 ---
 
+## KNOWN LIMITATIONS
+
+- Auth cache is per-worker; revocation can lag ≤10s on the other worker. *(item 27, 2026-09-26)*
+
+---
+
 # LAUNCH-BLOCKING
 
 ### L1. [SECURITY] Hardcoded superadmin bypass code shipped in the app bundle *(Section 6 #1)* — ✅ DONE 2026-08-18
