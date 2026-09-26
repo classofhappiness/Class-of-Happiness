@@ -17,6 +17,7 @@ import {
   ScrollView,
   Animated,
   Easing,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -96,9 +97,9 @@ interface CreatureEntry {
 // hooks - a plain per-item render function can't safely call hooks, since the number of
 // entries (and therefore call count) varies between renders.
 function CreatureGridCard({
-  item, colour, width, onPress, t,
+  item, colour, width, creatureSize, onPress, t,
 }: {
-  item: CreatureEntry; colour: string; width: number | string; onPress: () => void; t: (key: string) => string | undefined;
+  item: CreatureEntry; colour: string; width: number | string; creatureSize: number; onPress: () => void; t: (key: string) => string | undefined;
 }) {
   const ringPulse = useRef(new Animated.Value(1)).current;
   const expired = item.was_featured && item.featured_until && new Date(item.featured_until) < new Date();
@@ -163,14 +164,18 @@ function CreatureGridCard({
         <View style={[styles.imgWrap, { backgroundColor: EMOTION_COLORS[colour] + '25' }]}>
           <AnimatedCreatureVisual
             zone={colour}
-            size={64}
+            size={creatureSize}
             unlocked={item.current_stage > 0 || item.is_complete}
             emoji={item.type === 'default' ? item.emoji : undefined}
             imageUrl={imgUrl || undefined}
-            // Real fix Sep 15 (Marisa build-26, S07): "Top Trumps cards" reference - a
-            // collection you're meant to read and compare, not one that's constantly
-            // moving. Bobbing stopped entirely on this screen only.
-            animated={false}
+            // Root cause fix Sep 27 (live feedback, item 1): was a hardcoded 64px regardless
+            // of the actual card width (confirmed live math: ~138px of real available space
+            // on a typical phone, over half wasted) AND animated=false ("Top Trumps cards"
+            // decision, Sep 15) - both reversed per this explicit request: size now computed
+            // from the real grid column width (creatureSize, from the screen's own
+            // useWindowDimensions - same technique world-creatures.tsx already uses for its
+            // own card width), and bobbing re-enabled so these match "the originals'"
+            // scale/presence and animation on this screen too.
           />
         </View>
         {/* Build 26 (Sep 6): text block below the image was unbounded height, so a card with
@@ -214,6 +219,16 @@ function CreatureGridCard({
 
 export default function CreatureCollectionScreen() {
   const gridColumns = useDataGridColumns();
+  // Root cause fix Sep 27 (live feedback, item 1): the creature itself was a hardcoded 64px
+  // no matter how wide its card actually rendered (gridCardWidth returns a % of the section,
+  // not a pixel value AnimatedCreatureVisual's Image/Text sizing can use directly) - computed
+  // here the same way world-creatures.tsx already computes its own real per-card pixel width,
+  // then reduced by this screen's own known padding (list:16px, sectionBody:10px, card:12px,
+  // border:1px, each side) to land on imgWrap's actual inner size, so the creature fills it
+  // properly instead of sitting small in the middle of empty space.
+  const { width: screenWidth } = useWindowDimensions();
+  const cardPixelWidth = (screenWidth - 16 * 2 - 10 * 2 - 10 * (gridColumns - 1)) / gridColumns;
+  const creatureSize = Math.max(40, cardPixelWidth - (12 * 2) - (1 * 2));
   const [colours, setColours] = useState<Record<string, CreatureEntry[]>>({});
   const [totalCollected, setTotalCollected] = useState(0);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -281,6 +296,7 @@ export default function CreatureCollectionScreen() {
       item={item}
       colour={colour}
       width={gridCardWidth(gridColumns)}
+      creatureSize={creatureSize}
       onPress={() => { setDetailColour(colour); setDetailEntry(item); }}
       t={t}
     />

@@ -382,7 +382,11 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
               <View style={[s.visualBox, { backgroundColor: color + '20' }]}>
                 <AnimatedCreatureVisual
                   zone={colour}
-                  size={110}
+                  // Root cause fix Sep 27 (live feedback, item 1): was 110 in a 150px box
+                  // (visualBox below) - enlarged to better match "the originals'" scale/
+                  // presence, matching student/creatures.tsx's own size fix. No overflow:hidden
+                  // anywhere in this modal, so bounce already renders past the box edge.
+                  size={135}
                   unlocked
                   emoji={entry.type === 'default' && displayReached ? (entry.stage_emojis?.[displayStage] ?? entry.emoji) : undefined}
                   localSource={entry.type === 'default' && !displayReached ? SILHOUETTE_ASSETS[`${entry.id}_${displayStage}`] : undefined}
