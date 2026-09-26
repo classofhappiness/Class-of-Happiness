@@ -82,7 +82,7 @@ export default function LinkedChildDetailScreen() {
   const navigation = useNavigation() as any;
   useEffect(() => { navigation.setOptions({ headerShown: false }); }, [navigation]);
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { t } = useApp();
+  const { t, language } = useApp();
   // Real fix Sep 22 (device report, 3rd report - traced live via parent/dashboard.tsx's
   // own onPress handler for a school-linked child's stats button: it routes here, to
   // /parent/linked-child/[id], not student/strategies.tsx or parent/checkin.tsx, which is
@@ -195,8 +195,12 @@ export default function LinkedChildDetailScreen() {
           linkedChildApi.getFamilyStrategies(id),
         ]);
         if (schoolStratData?.sharing_disabled) setSchoolSharingPaused(true);
+        // Root cause fix Sep 27 (live feedback, item 2): lang was hardcoded to 'en' - /api/
+        // helpers is fully localized for all 10 languages already (confirmed live), this
+        // screen just never passed the real one. custom_strategies below is real
+        // user-authored content, deliberately left as typed.
         const genericRes = await Promise.all(['blue','green','yellow','red'].map(zone =>
-          fetch(`${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=en`).then(r => r.json()).catch(() => [])
+          fetch(`${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=${language || 'en'}`).then(r => r.json()).catch(() => [])
         ));
         setSchoolStrats([...genericRes.flat(), ...(schoolStratData.custom_strategies || [])]);
         setFamilyStrats(familyStratData || []);
@@ -234,13 +238,13 @@ export default function LinkedChildDetailScreen() {
           zone: s.zone, icon: s.icon, share_with_teacher: false,
         })));
         const genericRes2 = await Promise.all(['blue','green','yellow','red'].map(zone =>
-          fetch(`${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=en`).then(r => r.json()).catch(() => [])
+          fetch(`${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=${language || 'en'}`).then(r => r.json()).catch(() => [])
         ));
         setSchoolStrats(genericRes2.flat());
       }
     } catch (err) { console.error('LinkedChild fetchData error:', err); }
     finally { setLoading(false); setRefreshing(false); }
-  }, [id, selectedPeriod]);
+  }, [id, selectedPeriod, language]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
   const onRefresh = () => { setRefreshing(true); fetchData(); };

@@ -198,9 +198,16 @@ export default function StudentDetailScreen() {
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
         const token = await AsyncStorage.getItem('session_token');
         
-        // Load helpers for all zones
+        // Root cause fix Sep 27 (live feedback, item 2): lang was hardcoded to 'en' here -
+        // /api/helpers itself is fully localized (confirmed for all 10 languages, same
+        // endpoint student/strategies.tsx already calls correctly), this screen just never
+        // passed the app's real current language, so every built-in strategy name/description
+        // shown anywhere on this screen (Most Used Strategies, per-check-in strategy chips)
+        // was English regardless of the teacher's language setting. Custom/school/family
+        // strategies (customHelpers, allStrats below) are real user-authored text and are
+        // deliberately left as-is - only this built-in fetch needed the real language.
         const helperPromises = ['blue','green','yellow','red'].map(zone =>
-          fetch(`${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=en`)
+          fetch(`${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=${language || 'en'}`)
             .then(r => r.json()).catch(() => [])
         );
         const helperResults = await Promise.all(helperPromises);
@@ -281,7 +288,12 @@ export default function StudentDetailScreen() {
 
   useEffect(() => {
     fetchData();
-  }, [studentId, selectedPeriod]);
+    // language added Sep 27 (item 2 fix): fetchData's /api/helpers calls now pass the real
+    // current language (see that fetch's own comment) - without this dependency, a teacher
+    // changing language while already on this screen wouldn't see built-in strategy names
+    // update until navigating away and back, same reactivity convention student/strategies.tsx
+    // already uses for its own /api/helpers fetch.
+  }, [studentId, selectedPeriod, language]);
 
   // Real fix Sep 25 (item3, fourth device-log pass - same pattern as parent/dashboard.tsx's
   // fix, checked here per the explicit ask): fetchData only ever ran on studentId/

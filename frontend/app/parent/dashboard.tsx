@@ -13,6 +13,7 @@ import {
   Share,
   Image,
   ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -159,6 +160,29 @@ export default function ParentDashboard() {
   const router = useRouter();
   const { editMember: editMemberParam, openLinkModal: openLinkModalParam } = useLocalSearchParams<{ editMember?: string; openLinkModal?: string }>();
   const { user, presetAvatars, t, language, setCurrentStudent, hasActiveSubscription, students, refreshStudents, lastCheckinMutationAt } = useApp();
+
+  // Real fix Sep 26 (live feedback): family cards were a fixed 100px - readable on no real
+  // device, hard to tap accurately. Sized so exactly 2 cards fill the screen width (the
+  // arrow-based reorder mechanism is unchanged - this only changes card/content size, never
+  // navigation), with the rest reachable by the same horizontal scroll as before. Computed
+  // from the real screen width minus this screen's own paddingHorizontal:16 (scrollContent)
+  // and the card row's own paddingHorizontal:12 + the 10px gap between the 2 visible cards -
+  // not a guessed constant, so it holds on any device width, not just the one it was eyeballed
+  // on. cardScale drives every inner element (avatar, buttons, badges, text) proportionally,
+  // relative to the ORIGINAL fixed 100px card this was designed at.
+  const { width: screenWidth } = useWindowDimensions();
+  const familyCardWidth = Math.floor((screenWidth - 16 * 2 - 12 * 2 - 10) / 2);
+  const cardScale = familyCardWidth / 100;
+  // "Keep the same height" and "proportionally enlarge every element" pull in different
+  // directions if applied with one factor: cardScale (~1.6-1.8x on a real phone, since the
+  // card goes from a 100px sliver to filling half the screen) would make every vertically-
+  // stacked element noticeably taller too, growing the card's total height well past what it
+  // is today. cardScale drives font sizes, icons and horizontal-fill badges (a bigger font
+  // or icon barely adds vertical stacking pressure); vScale is a dampened factor (40% of the
+  // gap above 1x) used ONLY for things that directly add to the card's total height when
+  // stacked - avatar diameter, vertical padding/margins, min-heights - so the card reads and
+  // taps noticeably bigger without growing taller than it is now.
+  const vScale = 1 + (cardScale - 1) * 0.4;
 
   // Real bug fix Sep 4: the Aug 28 guard here was unconditional on role !== 'parent',
   // which - combined with role being a single mutable field last set by whichever way the
@@ -1454,7 +1478,7 @@ export default function ParentDashboard() {
                 return (
                   <TouchableOpacity
                     key={member.id}
-                    style={[styles.gridCard, { borderColor: cardColor + '30' }]}
+                    style={[styles.gridCard, { width: familyCardWidth, borderColor: cardColor + '30' }]}
                     onPress={() => { if (!reorderMode) handleMemberCheckin(member); }}
                     activeOpacity={reorderMode ? 1 : 0.85}
                   >
@@ -1466,7 +1490,10 @@ export default function ParentDashboard() {
                               padding:2/icon 16 to padding:6/icon 24 (36x36), and hitSlop grew
                               to reach a full 48x48 interactive area (36 + 6px on each side) -
                               the task's explicit minimum. Not doing drag-to-reorder (decided) -
-                              these tap-to-move arrows stay the mechanism. */}
+                              these tap-to-move arrows stay the mechanism. Real fix Sep 26 (live
+                              feedback): icon size now scales with cardScale like everything
+                              else on the card - the arrow MECHANISM/position is unchanged, only
+                              its size grows along with the rest of the enlarged card. */}
                           <TouchableOpacity
                             hitSlop={{top:6,bottom:6,left:6,right:6}}
                             onPress={(e) => { e.stopPropagation?.(); moveCard(orderedMembers.indexOf(member), -1); }}
@@ -1474,7 +1501,7 @@ export default function ParentDashboard() {
                             accessibilityRole="button"
                             accessibilityLabel={t('move_member_left') || 'Move left'}
                           >
-                            <MaterialIcons name="chevron-left" size={24} color="#5C6BC0" />
+                            <MaterialIcons name="chevron-left" size={24 * cardScale} color="#5C6BC0" />
                           </TouchableOpacity>
                           <TouchableOpacity
                             hitSlop={{top:6,bottom:6,left:6,right:6}}
@@ -1483,20 +1510,20 @@ export default function ParentDashboard() {
                             accessibilityRole="button"
                             accessibilityLabel={t('move_member_right') || 'Move right'}
                           >
-                            <MaterialIcons name="chevron-right" size={24} color="#5C6BC0" />
+                            <MaterialIcons name="chevron-right" size={24 * cardScale} color="#5C6BC0" />
                           </TouchableOpacity>
                         </>
                       ) : (
                         <TouchableOpacity hitSlop={{top:10,bottom:10,left:6,right:6}} onPress={(e) => { e.stopPropagation?.(); handleEditFamilyMember(member); }} style={styles.gridActionBtn}>
-                          <MaterialIcons name="edit" size={11} color="#5C6BC0" />
+                          <MaterialIcons name="edit" size={11 * cardScale} color="#5C6BC0" />
                         </TouchableOpacity>
                       )}
                       {isLinked && (
                         <TouchableOpacity
                           hitSlop={{top:10,bottom:10,left:6,right:6}}
                           onPress={(e) => { e.stopPropagation?.(); router.push(`/parent/linked-child/${linkedChildId || member.id}`); }}
-                          style={[styles.linkedBadge, { backgroundColor:'#E8F5E9' }]}>
-                          <MaterialIcons name="link" size={10} color="#4CAF50" />
+                          style={[styles.linkedBadge, { width: 18 * cardScale, height: 18 * cardScale, borderRadius: 9 * cardScale, backgroundColor:'#E8F5E9' }]}>
+                          <MaterialIcons name="link" size={10 * cardScale} color="#4CAF50" />
                         </TouchableOpacity>
                       )}
                       {/* Build 27 fix (Family Dashboard bug report): this button's hit area was
@@ -1507,41 +1534,41 @@ export default function ParentDashboard() {
                           since no handler ever runs. hitSlop expands the tappable area without
                           changing the visible icon size. */}
                       <TouchableOpacity hitSlop={{top:10,bottom:10,left:6,right:6}} onPress={(e) => { e.stopPropagation?.(); handleDeleteFamilyMember(member); }} style={styles.gridActionBtn}>
-                        <MaterialIcons name="close" size={11} color="#F44336" />
+                        <MaterialIcons name="close" size={11 * cardScale} color="#F44336" />
                       </TouchableOpacity>
                     </View>
 
                     {/* Avatar */}
-                    <View style={[styles.gridAvatar, { backgroundColor: cardColor + '15' }]}>
+                    <View style={[styles.gridAvatar, { width: 38 * vScale, height: 38 * vScale, borderRadius: 19 * vScale, backgroundColor: cardColor + '15' }]}>
                       {member.avatar_type === 'custom' && member.avatar_custom ? (
-                        <Image source={{ uri: member.avatar_custom }} style={styles.gridAvatarImg} />
+                        <Image source={{ uri: member.avatar_custom }} style={{ width: 38 * vScale, height: 38 * vScale, borderRadius: 19 * vScale }} />
                       ) : (
-                        <Text style={{ fontSize: 26 }}>
+                        <Text style={{ fontSize: 26 * vScale }}>
                           {presetAvatars?.find((a: any) => a.id === member.avatar_preset)?.emoji || (isChild ? '👧' : '⭐')}
                         </Text>
                       )}
                     </View>
 
-                    <Text style={styles.gridName} numberOfLines={1}>{member.name}</Text>
-                    {isLinkedChild && <Text style={styles.linkedLabel}>{t('children_school') || t('children_school') || 'School Linked'}</Text>}
+                    <Text style={[styles.gridName, { fontSize: 12 * cardScale }]} numberOfLines={1}>{member.name}</Text>
+                    {isLinkedChild && <Text style={[styles.linkedLabel, { fontSize: 9 * cardScale }]}>{t('children_school') || t('children_school') || 'School Linked'}</Text>}
 
 
 
                     {!isChild && (
                       <TouchableOpacity
-                        style={styles.wellbeingBtn}
+                        style={[styles.wellbeingBtn, { paddingHorizontal: 4 * cardScale, paddingVertical: 2 * vScale, borderRadius: 6 * cardScale }]}
                         onPress={(e) => {
                           e.stopPropagation?.();
                           router.push(`/parent/my-wellbeing?memberId=${member.id}&memberName=${encodeURIComponent(member.name)}&skipPin=false`);
                         }}
                       >
-                        <MaterialIcons name="spa" size={12} color="#5C6BC0" />
-                        <Text style={styles.wellbeingBtnTxt}>{t('wellbeing') || 'Wellbeing'}</Text>
+                        <MaterialIcons name="spa" size={12 * cardScale} color="#5C6BC0" />
+                        <Text style={[styles.wellbeingBtnTxt, { fontSize: 8 * cardScale }]}>{t('wellbeing') || 'Wellbeing'}</Text>
                       </TouchableOpacity>
                     )}
                     {isChild && (
                       <TouchableOpacity
-                        style={[styles.wellbeingBtn, { backgroundColor:'#E8F5E9', borderColor:'#4CAF50', marginTop:2, flexDirection:'row', gap:3 }]}
+                        style={[styles.wellbeingBtn, { paddingHorizontal: 4 * cardScale, paddingVertical: 2 * vScale, borderRadius: 6 * cardScale, backgroundColor:'#E8F5E9', borderColor:'#4CAF50', marginTop:2 * vScale, flexDirection:'row', gap:3 * cardScale }]}
                         onPress={(e) => {
                           e.stopPropagation?.();
                           if (isLinked || isLinkedChild) {
@@ -1552,14 +1579,14 @@ export default function ParentDashboard() {
                           }
                         }}
                       >
-                        <MaterialIcons name={isLinked || isLinkedChild ? "school" : "home"} size={10} color="#4CAF50" />
-                        <Text style={[styles.wellbeingBtnTxt, { color:'#4CAF50' }]}>{t('stats') || t('stats') || 'Stats'}</Text>
-                        <MaterialIcons name="chevron-right" size={10} color="#4CAF50" />
+                        <MaterialIcons name={isLinked || isLinkedChild ? "school" : "home"} size={10 * cardScale} color="#4CAF50" />
+                        <Text style={[styles.wellbeingBtnTxt, { fontSize: 8 * cardScale, color:'#4CAF50' }]}>{t('stats') || t('stats') || 'Stats'}</Text>
+                        <MaterialIcons name="chevron-right" size={10 * cardScale} color="#4CAF50" />
                       </TouchableOpacity>
                     )}
                     {isChild && (
                       <TouchableOpacity
-                        style={{ marginTop: 4, alignItems: 'center', width: '100%', borderWidth:1, borderColor:'#C5CAE9', borderRadius:8, paddingVertical:3, backgroundColor:'#F3F4FF', minHeight:28 }}
+                        style={{ marginTop: 4 * vScale, alignItems: 'center', width: '100%', borderWidth:1, borderColor:'#C5CAE9', borderRadius:8 * cardScale, paddingVertical:3 * vScale, backgroundColor:'#F3F4FF', minHeight:28 * vScale }}
                         onPress={(e) => {
                           e.stopPropagation?.();
                           // Real bug fix Aug 23: this used to open the old defaults-only
@@ -1587,37 +1614,37 @@ export default function ParentDashboard() {
                           router.push('/student/creatures');
                         }}
                       >
-                        <View style={{ flexDirection:'row', justifyContent:'center', flexWrap:'wrap', gap:2 }}>
+                        <View style={{ flexDirection:'row', justifyContent:'center', flexWrap:'wrap', gap:2 * cardScale }}>
                           {(memberCreatures[member.id]?.allCreatures || []).slice(0,4).map((cr: any, i: number) => {
                             const stg = cr.stages?.[Number(cr.current_stage||0)]?.emoji || '🥚';
-                            return <Text key={i} style={{ fontSize:14 }}>{stg}</Text>;
+                            return <Text key={i} style={{ fontSize:14 * vScale }}>{stg}</Text>;
                           })}
                           {(!memberCreatures[member.id]?.allCreatures?.length) && (
-                            <Text style={{ fontSize:20 }}>{creatureEmoji}</Text>
+                            <Text style={{ fontSize:20 * vScale }}>{creatureEmoji}</Text>
                           )}
                           {/* Real feature Aug 23 (item 5): active community creatures,
                               matching the same icon treatment student/select.tsx already has. */}
                           {(memberCreatures[member.id]?.activeCommunity || []).map((entry: any) => {
                             const zoneColor = EMOTION_COLOURS[entry.colour as keyof typeof EMOTION_COLOURS] || '#5C6BC0';
                             return (
-                              <View key={`community-${entry.id}`} style={{ width: 16, height: 16, borderRadius: 4, borderWidth: 1, borderColor: zoneColor, overflow: 'hidden', position: 'relative' }}>
+                              <View key={`community-${entry.id}`} style={{ width: 16 * vScale, height: 16 * vScale, borderRadius: 4 * vScale, borderWidth: 1, borderColor: zoneColor, overflow: 'hidden', position: 'relative' }}>
                                 {/* Real fix Sep 26 (item 16): a 16x16 icon has no business
                                     fetching a 1120px original - uses the real 200px thumb now. */}
                                 {(entry.stage_image_thumb || entry.stage_image) ? (
                                   <Image source={{ uri: entry.stage_image_thumb || entry.stage_image }} style={{ width: '100%', height: '100%' }} />
                                 ) : (
-                                  <Text style={{ fontSize: 10, textAlign: 'center' }}>🐾</Text>
+                                  <Text style={{ fontSize: 10 * vScale, textAlign: 'center' }}>🐾</Text>
                                 )}
                                 {entry.is_complete && (
-                                  <View style={{ position: 'absolute', bottom: -1, right: -1, width: 8, height: 8, borderRadius: 4, backgroundColor: zoneColor, alignItems: 'center', justifyContent: 'center' }}>
-                                    <Text style={{ fontSize: 6, color: 'white', fontWeight: '900' }}>✓</Text>
+                                  <View style={{ position: 'absolute', bottom: -1, right: -1, width: 8 * vScale, height: 8 * vScale, borderRadius: 4 * vScale, backgroundColor: zoneColor, alignItems: 'center', justifyContent: 'center' }}>
+                                    <Text style={{ fontSize: 6 * vScale, color: 'white', fontWeight: '900' }}>✓</Text>
                                   </View>
                                 )}
                               </View>
                             );
                           })}
                         </View>
-                        <Text style={{ fontSize:8, color:'#5C6BC0', marginTop:2 }}>{t('my_creatures') || 'My Creatures'}</Text>
+                        <Text style={{ fontSize:8 * cardScale, color:'#5C6BC0', marginTop:2 * vScale }}>{t('my_creatures') || 'My Creatures'}</Text>
                       </TouchableOpacity>
                     )}
                   </TouchableOpacity>
@@ -1625,13 +1652,13 @@ export default function ParentDashboard() {
               })}
                 {!hasActiveSubscription && familyMembers.length >= 2 && (
                   <TouchableOpacity onPress={() => router.push('/subscription')}
-                    style={[styles.gridCard, { borderColor:'#5C6BC0', borderStyle:'dashed', opacity:0.85, justifyContent:'center', alignItems:'center', gap:6 }]}>
-                    <View style={{ width:40, height:40, borderRadius:20, backgroundColor:'#EDE7F6', justifyContent:'center', alignItems:'center' }}>
-                      <MaterialIcons name="lock" size={20} color="#5C6BC0" />
+                    style={[styles.gridCard, { width: familyCardWidth, borderColor:'#5C6BC0', borderStyle:'dashed', opacity:0.85, justifyContent:'center', alignItems:'center', gap:6 * vScale }]}>
+                    <View style={{ width:40 * vScale, height:40 * vScale, borderRadius:20 * vScale, backgroundColor:'#EDE7F6', justifyContent:'center', alignItems:'center' }}>
+                      <MaterialIcons name="lock" size={20 * vScale} color="#5C6BC0" />
                     </View>
-                    <Text style={{ fontSize:10, fontWeight:'700', color:'#5C6BC0', textAlign:'center' }}>{t('add_more')||'Add more'}</Text>
-                    <View style={{ backgroundColor:'#5C6BC0', borderRadius:8, paddingHorizontal:8, paddingVertical:3 }}>
-                      <Text style={{ fontSize:9, color:'white', fontWeight:'700' }}>{t('upgrade') || 'UPGRADE'}</Text>
+                    <Text style={{ fontSize:10 * cardScale, fontWeight:'700', color:'#5C6BC0', textAlign:'center' }}>{t('add_more')||'Add more'}</Text>
+                    <View style={{ backgroundColor:'#5C6BC0', borderRadius:8 * cardScale, paddingHorizontal:8 * cardScale, paddingVertical:3 * vScale }}>
+                      <Text style={{ fontSize:9 * cardScale, color:'white', fontWeight:'700' }}>{t('upgrade') || 'UPGRADE'}</Text>
                     </View>
                   </TouchableOpacity>
                 )}
