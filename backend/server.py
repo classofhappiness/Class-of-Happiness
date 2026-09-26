@@ -14286,10 +14286,17 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     # be silently swallowed into an empty result) still raises after the gather; one that
     # already caught its own exception and fell back to a safe default still does, with the
     # same warning log line.
-    async def _wave(tasks: dict) -> dict:
+    async def _wave(tasks: dict, _wave_name: str = "") -> dict:
         if not tasks:
             return {}
-        results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        import time as _t
+        async def _timed(key, coro):
+            t0 = _t.monotonic()
+            try:
+                return await coro
+            finally:
+                logger.info(f"[analytics-wave-timing] {_wave_name}.{key} took {(_t.monotonic()-t0)*1000:.1f}ms")
+        results = await asyncio.gather(*(_timed(k, c) for k, c in tasks.items()), return_exceptions=True)
         return dict(zip(tasks.keys(), results))
 
     def _raise_if_failed(wave: dict, key: str):
@@ -14300,7 +14307,7 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     w1 = await _wave({
         "teachers_by_id": asyncio.to_thread(lambda: supabase.table("users").select("user_id,name,email").eq("school_admin_id", user_id).execute()),
         **({"teachers_by_name": asyncio.to_thread(lambda: supabase.table("users").select("user_id,name,email").eq("school_name", school_name).eq("role", "teacher").execute())} if school_name else {}),
-    })
+    }, "wave1")
     _raise_if_failed(w1, "teachers_by_id")
     _raise_if_failed(w1, "teachers_by_name")
     teachers_by_id_rows = w1["teachers_by_id"].data or []
@@ -14323,7 +14330,7 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     w2 = await _wave({
         "classrooms": asyncio.to_thread(lambda: supabase.table("classrooms").select("*").in_("user_id", classroom_owner_ids).execute()),
         **({"opted_in": asyncio.to_thread(lambda: supabase.table("users").select("user_id").in_("user_id", teacher_ids).eq("teacher_wellbeing_shared_with_admin", True).execute())} if teacher_ids else {}),
-    })
+    }, "wave2")
     _raise_if_failed(w2, "classrooms")
     classrooms = w2["classrooms"].data or []
     classroom_ids = [c["id"] for c in classrooms]
@@ -14347,7 +14354,7 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
     w3 = await _wave({
         **({"students": asyncio.to_thread(lambda: supabase.table("students").select("*").in_("classroom_id", classroom_ids).execute())} if classroom_ids else {}),
         **({"teacher_checkins": asyncio.to_thread(lambda: supabase.table("teacher_checkins").select("user_id,zone,strategies_selected").in_("user_id", teacher_opted_in_ids).eq("shared", True).gte("timestamp", start_date).execute())} if (teacher_opted_in_ids and not teacher_wellbeing_suppressed) else {}),
-    })
+    }, "wave3")
     _raise_if_failed(w3, "students")
     all_students = (w3["students"].data or []) if "students" in w3 else []
     all_student_ids = [s["id"] for s in all_students]
@@ -14376,7 +14383,7 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
             "creature_unlocks": asyncio.to_thread(lambda: supabase.table("creature_unlocks").select("completed_at").in_("real_student_id", student_ids).execute()),
             "student_rewards": asyncio.to_thread(lambda: supabase.table("student_rewards").select("current_stage").in_("student_id", student_ids).execute()),
         } if student_ids else {}),
-    })
+    }, "wave4")
     _raise_if_failed(w4, "all_logs")
     _raise_if_failed(w4, "alerts")
     _raise_if_failed(w4, "prev_logs")
