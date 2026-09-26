@@ -17587,15 +17587,7 @@ async def _support_requests_rebuzz_loop():
     while True:
         try:
             await asyncio.sleep(30)
-            # TEMPORARY diagnostic (Sep 26, multi-worker duplication proof) - logs every
-            # attempt's outcome with the attempting worker's PID, kept fully enforced (the
-            # `continue` below still applies): a logged "lost the race" from one PID moments
-            # after another PID's "claimed" is direct proof that PID would otherwise have
-            # ALSO run the full notification logic for this same tick had the lock not been
-            # here. Removed once evidence is captured.
-            _won = await _try_claim_recurring_tick("loop_lock::support_rebuzz", min_interval_seconds=25)
-            logger.info(f"[DIAG-duplication-proof] pid={os.getpid()} tick at {datetime.now(timezone.utc).isoformat()} claimed={_won}")
-            if not _won:
+            if not await _try_claim_recurring_tick("loop_lock::support_rebuzz", min_interval_seconds=25):
                 logger.info(f"[support_requests rebuzz] pid={os.getpid()} skipped this tick - another worker already claimed it")
                 continue
             logger.info(f"[support_requests rebuzz] pid={os.getpid()} claimed this tick - processing")
