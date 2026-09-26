@@ -1462,7 +1462,7 @@
   "support_requests_plural": "Solicitudes de Apoyo",
   "push_nudge_text": "Los profesores todavía no pueden contactarte — activa las notificaciones para recibir solicitudes de apoyo",
   "notifications_permission_needed": "Permiso necesario",
-  "notifications_permission_needed_body": "Las notificaciones siguen desactivadas para esta aplicación. Comprueba la configuración de tu dispositivo y permite las notificaciones para Class of Happiness, luego inténtalo de nuevo.",
+  "notifications_permission_needed_body": "Las notificaciones están desactivadas para Class of Happiness. Abre Ajustes para activarlas e inténtalo de nuevo.",
   "title_label": "Título",
   "topic_label": "Tema:",
   "unknown_error": "Error desconocido",
@@ -1906,5 +1906,8 @@
   "code_status_used": "Usado",
   "code_status_expired": "Caducado",
   "no_invite_code_yet": "Aún sin código de invitación",
-  "until_label": "hasta"
+  "until_label": "hasta",
+  "open_settings": "Abrir Ajustes",
+  "push_unavailable_expo_go_title": "No disponible en esta vista previa",
+  "push_unavailable_expo_go_body": "Las notificaciones push no se pueden probar en Expo Go. Instala la compilación completa de la aplicación para recibir alertas de solicitudes de apoyo."
 }

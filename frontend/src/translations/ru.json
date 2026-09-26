@@ -1195,7 +1195,7 @@
   "support_requests_plural": "Запросы поддержки",
   "push_nudge_text": "Учителя пока не могут связаться с вами — включите уведомления, чтобы получать запросы поддержки",
   "notifications_permission_needed": "Требуется разрешение",
-  "notifications_permission_needed_body": "Уведомления для этого приложения всё ещё отключены. Проверьте настройки устройства и разрешите уведомления для Class of Happiness, затем попробуйте снова.",
+  "notifications_permission_needed_body": "Уведомления отключены для Class of Happiness. Откройте настройки, чтобы включить их, затем повторите попытку.",
   "title_label": "Заголовок",
   "topic_label": "Тема:",
   "unknown_error": "Неизвестная ошибка",
@@ -1752,5 +1752,8 @@
   "code_status_used": "Использован",
   "code_status_expired": "Истёк",
   "no_invite_code_yet": "Пригласительного кода пока нет",
-  "until_label": "до"
+  "until_label": "до",
+  "open_settings": "Открыть настройки",
+  "push_unavailable_expo_go_title": "Недоступно в этой предварительной версии",
+  "push_unavailable_expo_go_body": "Push-уведомления нельзя протестировать в Expo Go. Установите полную сборку приложения, чтобы получать оповещения о запросах поддержки."
 }

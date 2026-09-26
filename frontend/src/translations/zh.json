@@ -1195,7 +1195,7 @@
   "support_requests_plural": "支持请求",
   "push_nudge_text": "老师暂时无法联系到您——请开启通知以接收支持请求",
   "notifications_permission_needed": "需要权限",
-  "notifications_permission_needed_body": "此应用的通知仍处于关闭状态。请检查您的设备设置并允许 Class of Happiness 发送通知，然后重试。",
+  "notifications_permission_needed_body": "Class of Happiness 的通知已关闭。请打开设置以开启通知,然后重试。",
   "title_label": "标题",
   "topic_label": "主题：",
   "unknown_error": "未知错误",
@@ -1752,5 +1752,8 @@
   "code_status_used": "已使用",
   "code_status_expired": "已过期",
   "no_invite_code_yet": "尚无邀请码",
-  "until_label": "至"
+  "until_label": "至",
+  "open_settings": "打开设置",
+  "push_unavailable_expo_go_title": "此预览版本中不可用",
+  "push_unavailable_expo_go_body": "无法在 Expo Go 中测试推送通知。请安装完整版应用以接收支持请求提醒。"
 }

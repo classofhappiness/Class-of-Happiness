@@ -17767,10 +17767,24 @@ def _send_school_checkin_nudge(school_name: str, tier: str) -> tuple:
 
 @api_router.get("/school-admin/school-strategies")
 async def get_school_strategies(request: Request, strategy_type: str = None):
-    """School-specific strategies. School admin can add/edit/remove these for their community. Teachers can view (read-only)."""
+    """School-specific strategies. School admin can add/edit/remove these for their community. Teachers can view (read-only).
+
+    Root cause fix Sep 26 (item 6, live device test): this always filtered
+    school_strategies by school_admin_id == the CALLER's own user_id - correct for a
+    school_admin (their own id IS the school_admin_id every row is scoped by), but for a
+    teacher caller their own user_id never equals any school_strategies.school_admin_id
+    (those rows are always scoped to the ADMIN who created them), so school_specific was
+    silently [] for every teacher, every time, despite this endpoint's own docstring and
+    role check both explicitly promising teacher read access. Confirmed live: a real
+    "Staff Room" strategy pembrokeadmin created was invisible to jono+teacher via this
+    exact endpoint. Uses the same _teacher_school_admin_id resolution every other
+    teacher-facing school-scoped feature in this file already uses."""
     user = await get_current_user(request)
     if not user or user.get("role") not in ["school_admin", "teacher"]:
         raise HTTPException(status_code=403, detail="School admin access required")
+    target_school_admin_id = _teacher_school_admin_id(user)
+    if not target_school_admin_id:
+        return {"global": [], "school_specific": []}
     try:
         # Global strategies (read-only for school admin)
         global_q = supabase.table("admin_teacher_strategies").select("*").filter("target_schools", "eq", "[]")
@@ -17779,7 +17793,7 @@ async def get_school_strategies(request: Request, strategy_type: str = None):
         global_strats = global_q.execute().data or []
         # School-specific strategies — real fix Aug 16: sort by order_index (then created_at
         # as tiebreaker), and support optional strategy_type filter to match /admin/teacher-strategies
-        school_q = supabase.table("school_strategies").select("*").eq("school_admin_id", user["user_id"])
+        school_q = supabase.table("school_strategies").select("*").eq("school_admin_id", target_school_admin_id)
         if strategy_type:
             school_q = school_q.eq("strategy_type", strategy_type)
         school_strats = school_q.order("order_index").order("created_at").execute().data or []

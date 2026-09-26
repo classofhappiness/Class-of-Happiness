@@ -17,7 +17,13 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 // EAS/dev-client build, physical-device testing moves off Expo Go and this stops
 // mattering, but until then, skip remote push entirely under Expo Go rather than
 // let every dashboard mount log a scary, unactionable error.
-const IS_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+// Exported Sep 26 (item 5, live device test): admin/dashboard.tsx's "enable notifications"
+// nudge banner used to call registerForPushNotifications() and, on a null result, show a
+// generic "check your device permissions" alert regardless of WHY it returned null - under
+// Expo Go that's actively misleading (no permission prompt was ever shown at all, so there's
+// nothing to find in device settings), which is exactly why tapping the banner "did nothing"
+// from the tester's perspective. Exported so that caller can show the real reason first.
+export const IS_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 // Real feature Sep 25 (item 18a/b): this handler runs as a bare async callback with no React
 // context - no way to read the current route or a live setting via hooks. Both are cached in

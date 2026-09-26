@@ -1473,7 +1473,7 @@
   "support_requests_plural": "Unterstützungsanfragen",
   "push_nudge_text": "Lehrkräfte können Sie noch nicht erreichen — aktivieren Sie Benachrichtigungen, um Unterstützungsanfragen zu erhalten",
   "notifications_permission_needed": "Berechtigung erforderlich",
-  "notifications_permission_needed_body": "Benachrichtigungen sind für diese App noch deaktiviert. Überprüfen Sie Ihre Geräteeinstellungen und erlauben Sie Benachrichtigungen für Class of Happiness, und versuchen Sie es dann erneut.",
+  "notifications_permission_needed_body": "Benachrichtigungen sind für Class of Happiness deaktiviert. Öffnen Sie die Einstellungen, um sie zu aktivieren, und versuchen Sie es erneut.",
   "title_label": "Titel",
   "topic_label": "Thema:",
   "unknown_error": "Unbekannter Fehler",
@@ -1917,5 +1917,8 @@
   "code_status_used": "Verwendet",
   "code_status_expired": "Abgelaufen",
   "no_invite_code_yet": "Noch kein Einladungscode",
-  "until_label": "bis"
+  "until_label": "bis",
+  "open_settings": "Einstellungen öffnen",
+  "push_unavailable_expo_go_title": "In dieser Vorschau nicht verfügbar",
+  "push_unavailable_expo_go_body": "Push-Benachrichtigungen können in Expo Go nicht getestet werden. Installieren Sie die vollständige App, um Benachrichtigungen zu Support-Anfragen zu erhalten."
 }

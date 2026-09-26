@@ -1195,7 +1195,7 @@
   "support_requests_plural": "طلبات الدعم",
   "push_nudge_text": "لا يمكن للمعلمين التواصل معك بعد — فعّل الإشعارات لاستقبال طلبات الدعم",
   "notifications_permission_needed": "الإذن مطلوب",
-  "notifications_permission_needed_body": "لا تزال الإشعارات مغلقة لهذا التطبيق. تحقق من إعدادات جهازك واسمح بالإشعارات لتطبيق Class of Happiness، ثم حاول مرة أخرى.",
+  "notifications_permission_needed_body": "الإشعارات معطلة لتطبيق Class of Happiness. افتح الإعدادات لتفعيلها ثم حاول مرة أخرى.",
   "title_label": "العنوان",
   "topic_label": "الموضوع:",
   "unknown_error": "خطأ غير معروف",
@@ -1752,5 +1752,8 @@
   "code_status_used": "مستخدم",
   "code_status_expired": "منتهي الصلاحية",
   "no_invite_code_yet": "لا يوجد رمز دعوة بعد",
-  "until_label": "حتى"
+  "until_label": "حتى",
+  "open_settings": "افتح الإعدادات",
+  "push_unavailable_expo_go_title": "غير متاح في هذه المعاينة",
+  "push_unavailable_expo_go_body": "لا يمكن اختبار الإشعارات الفورية في Expo Go. ثبّت النسخة الكاملة من التطبيق لتلقي تنبيهات طلبات الدعم."
 }

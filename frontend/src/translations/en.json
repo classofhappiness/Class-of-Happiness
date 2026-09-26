@@ -1197,7 +1197,7 @@
   "support_requests_plural": "Support Requests",
   "push_nudge_text": "Teachers can't reach you yet — enable notifications to receive support requests",
   "notifications_permission_needed": "Permission needed",
-  "notifications_permission_needed_body": "Notifications are still off for this app. Check your device settings and allow notifications for Class of Happiness, then try again.",
+  "notifications_permission_needed_body": "Notifications are off for Class of Happiness. Open Settings to turn them on, then try again.",
   "tab_child_strategies": "🧒 Child Strategies",
   "tab_my_strategies": "⭐ My Strategies",
   "tab_all_family_strategies": "👨‍👩‍👧‍👦 All Family",
@@ -1652,5 +1652,8 @@
   "code_status_used": "Used",
   "code_status_expired": "Expired",
   "no_invite_code_yet": "No invite code yet",
-  "until_label": "until"
+  "until_label": "until",
+  "open_settings": "Open Settings",
+  "push_unavailable_expo_go_title": "Not available in this preview",
+  "push_unavailable_expo_go_body": "Push notifications can't be tested in Expo Go. Install the full app build to receive support request alerts."
 }

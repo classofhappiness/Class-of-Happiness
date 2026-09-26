@@ -15,7 +15,7 @@ import { PinConfirmModal } from '../../src/components/PinConfirmModal';
 import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
 import { supportRequestsApi, SupportRequest } from '../../src/utils/api';
 import { useSupportRequestsList } from '../../src/utils/supportRequestsPoller';
-import { registerForPushNotifications } from '../../src/utils/notifications';
+import { registerForPushNotifications, IS_EXPO_GO } from '../../src/utils/notifications';
 import { dismissIncidentAlert } from '../../src/utils/notifeeIncidents';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ColourCycleLogo } from '../../src/components/ColourCycleLogo';
@@ -3187,15 +3187,34 @@ export default function AdminDashboard() {
   // they're never a support_request recipient.
   const [registeringPush, setRegisteringPush] = useState(false);
   const handleRetryPushRegistration = async () => {
+    // Root cause fix Sep 26 (item 5, live device test): this used to call
+    // registerForPushNotifications() and, on any null result, show the same "check your
+    // device settings" alert - accurate for a real permission denial, actively misleading
+    // under Expo Go (no permission prompt is ever shown there at all, see that function's
+    // own Expo-Go early return), which is exactly why the banner "did nothing" when tapped
+    // during Expo Go testing. Checked first, with its own honest message.
+    if (IS_EXPO_GO) {
+      Alert.alert(
+        t('push_unavailable_expo_go_title') || 'Not available in this preview',
+        t('push_unavailable_expo_go_body') || "Push notifications can't be tested in Expo Go. Install the full app build to receive support request alerts."
+      );
+      return;
+    }
     setRegisteringPush(true);
     try {
       const token = await registerForPushNotifications();
       if (token) {
         await checkAuth();
       } else {
+        // Real fix Sep 26 (item 5): was a text-only instruction with no way to act on it from
+        // here - now opens the device's own notification settings for this app directly.
         Alert.alert(
           t('notifications_permission_needed') || 'Permission needed',
-          t('notifications_permission_needed_body') || 'Notifications are still off for this app. Check your device settings and allow notifications for Class of Happiness, then try again.'
+          t('notifications_permission_needed_body') || 'Notifications are off for Class of Happiness. Open Settings to turn them on, then try again.',
+          [
+            { text: t('cancel') || 'Cancel', style: 'cancel' },
+            { text: t('open_settings') || 'Open Settings', onPress: () => Linking.openSettings() },
+          ]
         );
       }
     } finally {

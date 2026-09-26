@@ -1195,7 +1195,7 @@
   "support_requests_plural": "सहायता अनुरोध",
   "push_nudge_text": "शिक्षक अभी तक आप तक नहीं पहुँच सकते — सहायता अनुरोध प्राप्त करने के लिए सूचनाएं चालू करें",
   "notifications_permission_needed": "अनुमति आवश्यक है",
-  "notifications_permission_needed_body": "इस ऐप के लिए सूचनाएं अभी भी बंद हैं। अपनी डिवाइस सेटिंग जांचें और Class of Happiness के लिए सूचनाओं की अनुमति दें, फिर पुनः प्रयास करें।",
+  "notifications_permission_needed_body": "Class of Happiness के लिए सूचनाएं बंद हैं। उन्हें चालू करने के लिए सेटिंग्स खोलें, फिर पुनः प्रयास करें।",
   "title_label": "शीर्षक",
   "topic_label": "विषय:",
   "unknown_error": "अज्ञात त्रुटि",
@@ -1752,5 +1752,8 @@
   "code_status_used": "उपयोग किया गया",
   "code_status_expired": "समाप्त",
   "no_invite_code_yet": "अभी तक कोई निमंत्रण कोड नहीं",
-  "until_label": "तक"
+  "until_label": "तक",
+  "open_settings": "सेटिंग्स खोलें",
+  "push_unavailable_expo_go_title": "इस पूर्वावलोकन में उपलब्ध नहीं है",
+  "push_unavailable_expo_go_body": "Expo Go में पुश सूचनाओं का परीक्षण नहीं किया जा सकता। सहायता अनुरोध अलर्ट प्राप्त करने के लिए पूर्ण ऐप बिल्ड इंस्टॉल करें।"
 }
