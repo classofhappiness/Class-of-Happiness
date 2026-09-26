@@ -5106,32 +5106,56 @@ async def get_family_members(request: Request):
     # access-category one.
     if user.get("role") not in ("parent", "teacher", "superadmin"):
         raise HTTPException(status_code=403, detail="Parent access required")
-    result = supabase.table("family_members").select("*").eq("user_id", user["user_id"]).execute()
+    # Root cause fix Sep 26 (item 23): "school link, path 1" (family_members -> students by
+    # classroom_id) and "path 2" (parent_links -> students by name) are two entirely
+    # independent lookups, both keyed off the caller's own user_id - they used to run as 4
+    # fully sequential round trips. family_members and parent_links have no dependency on each
+    # other, so they now fire concurrently; each one's follow-up students query then fires as
+    # soon as its own ids are known (also concurrently with the other branch's follow-up).
+    result, pl = await asyncio.gather(
+        asyncio.to_thread(lambda: supabase.table("family_members").select("*").eq("user_id", user["user_id"]).execute()),
+        asyncio.to_thread(lambda: supabase.table("parent_links").select("student_id,expires_at").eq("parent_user_id", user["user_id"]).execute()),
+        return_exceptions=True,
+    )
+    if isinstance(result, Exception):
+        raise result
     members = result.data or []
     # Real school link, path 1: the family_members.student_id row has a classroom_id
     student_ids = [m["student_id"] for m in members if m.get("student_id")]
-    classroom_map = {}
-    if student_ids:
-        students_r = supabase.table("students").select("id,classroom_id").in_("id", student_ids).execute()
-        classroom_map = {s["id"]: s.get("classroom_id") for s in (students_r.data or [])}
     # Real school link, path 2: a genuine parent_links row exists for this parent, matched by
     # child name — this is the older/legacy linking system the app itself actually uses, and
     # can be true even when family_members.student_id is null (confirmed real case: Matilda)
-    linked_names_via_parent_links = set()
-    name_to_real_student_id = {}
-    try:
-        pl = supabase.table("parent_links").select("student_id,expires_at").eq("parent_user_id", user["user_id"]).execute()
+    active_student_ids = []
+    if isinstance(pl, Exception):
+        logger.warning(f"[get_family_members] parent_links fallback check failed: {pl}")
+    else:
         active_student_ids = [
             l["student_id"] for l in (pl.data or [])
             if l.get("student_id") and (not l.get("expires_at") or datetime.fromisoformat(l["expires_at"].replace("Z","+00:00")) > datetime.now(timezone.utc))
         ]
+
+    classroom_map = {}
+    linked_names_via_parent_links = set()
+    name_to_real_student_id = {}
+    try:
+        lookups = {}
+        if student_ids:
+            lookups["classroom"] = asyncio.to_thread(lambda: supabase.table("students").select("id,classroom_id").in_("id", student_ids).execute())
         if active_student_ids:
-            linked_students_r = supabase.table("students").select("id,name").in_("id", active_student_ids).execute()
-            for s in (linked_students_r.data or []):
-                if s.get("name"):
-                    nm = s["name"].strip().lower()
-                    linked_names_via_parent_links.add(nm)
-                    name_to_real_student_id[nm] = s["id"]
+            lookups["linked_names"] = asyncio.to_thread(lambda: supabase.table("students").select("id,name").in_("id", active_student_ids).execute())
+        if lookups:
+            results = await asyncio.gather(*lookups.values(), return_exceptions=True)
+            by_key = dict(zip(lookups.keys(), results))
+            students_r = by_key.get("classroom")
+            if students_r is not None and not isinstance(students_r, Exception):
+                classroom_map = {s["id"]: s.get("classroom_id") for s in (students_r.data or [])}
+            linked_students_r = by_key.get("linked_names")
+            if linked_students_r is not None and not isinstance(linked_students_r, Exception):
+                for s in (linked_students_r.data or []):
+                    if s.get("name"):
+                        nm = s["name"].strip().lower()
+                        linked_names_via_parent_links.add(nm)
+                        name_to_real_student_id[nm] = s["id"]
     except Exception as e:
         logger.warning(f"[get_family_members] parent_links fallback check failed: {e}")
     for m in members:
@@ -6323,7 +6347,13 @@ async def get_available_students(request: Request):
     seen_ids = set()
     # Root cause fix Sep 25 (round-3 device test, item 1): same N+1 pattern as
     # get_linked_children right above - batched into one .in_() query.
-    links = supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).execute()
+    # Root cause fix Sep 26 (item 23): own_students only depends on the caller's own user_id,
+    # not on the parent_links result, so it now fires concurrently with the links lookup
+    # instead of waiting behind the links -> students chain.
+    links, own_students = await asyncio.gather(
+        asyncio.to_thread(lambda: supabase.table("parent_links").select("*").eq("parent_user_id", user["user_id"]).execute()),
+        asyncio.to_thread(lambda: supabase.table("students").select("*").eq("user_id", user["user_id"]).execute()),
+    )
     link_student_ids = [link["student_id"] for link in (links.data or []) if link.get("student_id")]
     if link_student_ids:
         students_r = supabase.table("students").select("*").in_("id", list(dict.fromkeys(link_student_ids))).execute()
@@ -6334,7 +6364,6 @@ async def get_available_students(request: Request):
                 s = {**s, "_source": "school"}
                 children.append(s)
                 seen_ids.add(s["id"])
-    own_students = supabase.table("students").select("*").eq("user_id", user["user_id"]).execute()
     for s in (own_students.data or []):
         if s["id"] not in seen_ids:
             s["_source"] = "own"
@@ -6359,26 +6388,44 @@ async def get_shared_strategies_for_student(student_id: str, request: Request):
         data = []
         seen_ids = set()
 
+        # Root cause fix Sep 26 (item 23): this used to be 1 (teacher) + 1 (parent_links) +
+        # N (one custom_helpers query PER linked parent) + 1 (family_members) + M (one PER
+        # family-member parent) sequential round trips - confirmed live via the timing
+        # middleware at 5 db_calls/1.2s for a single-parent student, growing with every extra
+        # guardian. The 3 top-level lookups (teacher strategies, parent_links, family_members)
+        # don't depend on each other, so they now run concurrently; the two per-parent loops
+        # collapse into one batched .in_("user_id", ...) query covering every linked parent AND
+        # family member at once, so total round trips stay fixed regardless of guardian count.
+        teacher_result, links_result, fm_result = await asyncio.gather(
+            asyncio.to_thread(lambda: supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute()),
+            asyncio.to_thread(lambda: supabase.table("parent_links").select("parent_user_id").eq("student_id", student_id).execute()),
+            asyncio.to_thread(lambda: supabase.table("family_members").select("user_id").eq("student_id", student_id).execute()),
+            return_exceptions=True,
+        )
+
         # 1. Teacher-added custom strategies for this student
-        try:
-            result = supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute()
-            for s in (result.data or []):
+        if isinstance(teacher_result, Exception):
+            logger.error(f"teacher strategies fetch error: {teacher_result}")
+        else:
+            for s in (teacher_result.data or []):
                 if s["id"] not in seen_ids:
                     s["creator_role"] = "teacher"
                     data.append(s)
                     seen_ids.add(s["id"])
-        except Exception as e:
-            logger.error(f"teacher strategies fetch error: {e}")
 
-        # 2. Parent family strategies linked via parent_links
+        # 2/3. Parent + family-member custom strategies - one batched query for all guardians
         try:
-            links = supabase.table("parent_links").select("parent_user_id").eq("student_id", student_id).execute()
-            for link in (links.data or []):
-                parent_id = link.get("parent_user_id")
-                if not parent_id:
-                    continue
-                # Get ALL parent custom strategies (not just is_shared)
-                fam_result = supabase.table("custom_helpers").select("*").eq("user_id", parent_id).execute()
+            parent_ids = set()
+            if not isinstance(links_result, Exception):
+                parent_ids.update(l.get("parent_user_id") for l in (links_result.data or []) if l.get("parent_user_id"))
+            else:
+                logger.error(f"parent strategies fetch error: {links_result}")
+            if not isinstance(fm_result, Exception):
+                parent_ids.update(fm.get("user_id") for fm in (fm_result.data or []) if fm.get("user_id"))
+            else:
+                logger.error(f"family member strategies fetch error: {fm_result}")
+            if parent_ids:
+                fam_result = supabase.table("custom_helpers").select("*").in_("user_id", list(parent_ids)).execute()
                 for s in (fam_result.data or []):
                     if s["id"] in seen_ids:
                         continue
@@ -6389,27 +6436,7 @@ async def get_shared_strategies_for_student(student_id: str, request: Request):
                         data.append(s)
                         seen_ids.add(s["id"])
         except Exception as e:
-            logger.error(f"parent strategies fetch error: {e}")
-
-        # 3. Family member strategies — for family children (no parent_links entry)
-        # Find if this student_id belongs to a family member, then get that parent's strategies
-        try:
-            fm_result = supabase.table("family_members").select("user_id").eq("student_id", student_id).execute()
-            for fm in (fm_result.data or []):
-                parent_id = fm.get("user_id")
-                if not parent_id:
-                    continue
-                fam_result2 = supabase.table("custom_helpers").select("*").eq("user_id", parent_id).execute()
-                for s in (fam_result2.data or []):
-                    if s["id"] in seen_ids:
-                        continue
-                    assigned = s.get("assigned_to", "all") or "all"
-                    if assigned in ("all", student_id):
-                        s["creator_role"] = "parent"
-                        data.append(s)
-                        seen_ids.add(s["id"])
-        except Exception as e:
-            logger.error(f"family member strategies fetch error: {e}")
+            logger.error(f"guardian strategies fetch error: {e}")
 
         # Normalise zone/feeling_colour for all
         for row in data:
@@ -8920,13 +8947,22 @@ async def test_alerts_endpoint(request: Request):
     except Exception as e:
         return {"error": str(e)}
 
-@api_router.get("/notifications/alerts")
-async def get_alerts(request: Request, limit: int = 100):
+def _cleanup_old_alerts_background():
     try:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
         supabase.table("student_alerts").delete().lt("created_at", cutoff).execute()
     except Exception as ce:
         logger.warning(f"Alert cleanup: {ce}")
+
+@api_router.get("/notifications/alerts")
+async def get_alerts(request: Request, limit: int = 100):
+    # Root cause fix Sep 26 (item 23): this 30-day cleanup delete ran synchronously on EVERY
+    # single call to this endpoint, for every user, adding one full Supabase round trip to the
+    # hot path before any actual alert data was even fetched - confirmed live via the timing
+    # middleware (db_calls=4 for what should only need 1-3 real reads). Cleanup doesn't need to
+    # block the response it's piggybacking on, so it now runs as a fire-and-forget background
+    # task instead - same cleanup, same frequency, just off the request's critical path.
+    asyncio.create_task(asyncio.to_thread(_cleanup_old_alerts_background))
     """Get recent alerts for the current user's students."""
     user = await get_current_user(request)
     if not user:

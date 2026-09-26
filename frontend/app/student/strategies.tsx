@@ -95,59 +95,67 @@ export default function StrategiesScreen() {
     setLoading(true);
     setLoadError(false);
     try {
-      // Fetch generic helpers
+      // Root cause fix Sep 26 (item 23): these 3 fetches don't depend on each other's
+      // responses (only on zone/currentStudent.id/language/token, all known up front) but
+      // used to run sequentially - await genericStrats, THEN await teacher custom, THEN await
+      // family shared - so total wait was the SUM of all 3 round trips instead of the slowest
+      // one. Confirmed via the timing middleware this screen's calls individually cost
+      // 700ms-1.2s each at the already-diagnosed Railway<->Supabase region latency (item 26) -
+      // summed sequentially that's exactly the multi-second wait Jono measured. Now fired
+      // concurrently with Promise.all; per-call error handling unchanged (a failed custom/
+      // shared fetch is still silently skipped, only a failed genericStrats fetch throws to
+      // trigger the existing retry-then-error-state path).
       const url = `${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=${language || 'en'}`;
-      const response = await fetch(url);
+      const tokenPromise = currentStudent?.id ? AsyncStorage.getItem('session_token') : Promise.resolve(null);
+
+      const [response, customStrats] = await Promise.all([
+        fetch(url),
+        (async (): Promise<Strategy[]> => {
+          if (!currentStudent?.id) return [];
+          const token = await tokenPromise;
+          const headers = { 'Authorization': `Bearer ${token}` };
+          let strats: Strategy[] = [];
+          const [customRes, sharedRes] = await Promise.all([
+            fetch(`${BACKEND_URL}/api/custom-strategies?student_id=${currentStudent.id}`, { headers }).catch(() => null),
+            fetch(`${BACKEND_URL}/api/strategies/shared/${currentStudent.id}`, { headers }).catch(() => null),
+          ]);
+          try {
+            if (customRes?.ok) {
+              const customData = await customRes.json();
+              const teacherStrats = (Array.isArray(customData) ? customData : [])
+                .filter((s: any) => (s.feeling_colour || s.zone) === zone)
+                .map((s: any) => ({
+                  id: s.id,
+                  name: s.name,
+                  description: s.description || '',
+                  icon: s.icon || 'star',
+                  zone: s.feeling_colour || s.zone || zone,
+                  is_custom: true,
+                }));
+              strats = [...strats, ...teacherStrats];
+            }
+          } catch { /* custom strategies optional */ }
+          try {
+            if (sharedRes?.ok) {
+              const sharedData = await sharedRes.json();
+              const familyStrats = (Array.isArray(sharedData) ? sharedData : [])
+                .filter((s: any) => (s.feeling_colour || s.zone) === zone)
+                .map((s: any) => ({
+                  id: s.id + '_family',
+                  name: s.name,
+                  description: s.description || '',
+                  icon: s.icon || 'favorite',
+                  zone: s.feeling_colour || s.zone || zone,
+                  is_custom: true,
+                }));
+              strats = [...strats, ...familyStrats];
+            }
+          } catch { /* shared strategies optional */ }
+          return strats;
+        })(),
+      ]);
       if (!response.ok) throw new Error(`helpers fetch failed: ${response.status}`);
       const genericStrats: Strategy[] = await response.json();
-
-      // Fetch custom strategies (teacher-added) and shared family strategies
-      let customStrats: Strategy[] = [];
-      if (currentStudent?.id) {
-        try {
-          const token = await AsyncStorage.getItem('session_token');
-
-          // Teacher custom strategies
-          const customRes = await fetch(
-            `${BACKEND_URL}/api/custom-strategies?student_id=${currentStudent.id}`,
-            { headers: { 'Authorization': `Bearer ${token}` } }
-          );
-          if (customRes.ok) {
-            const customData = await customRes.json();
-            const teacherStrats = (Array.isArray(customData) ? customData : [])
-              .filter((s: any) => (s.feeling_colour || s.zone) === zone)
-              .map((s: any) => ({
-                id: s.id,
-                name: s.name,
-                description: s.description || '',
-                icon: s.icon || 'star',
-                zone: s.feeling_colour || s.zone || zone,
-                is_custom: true,
-              }));
-            customStrats = [...customStrats, ...teacherStrats];
-          }
-
-          // Family/parent shared strategies
-          const sharedRes = await fetch(
-            `${BACKEND_URL}/api/strategies/shared/${currentStudent.id}`,
-            { headers: { 'Authorization': `Bearer ${token}` } }
-          );
-          if (sharedRes.ok) {
-            const sharedData = await sharedRes.json();
-            const familyStrats = (Array.isArray(sharedData) ? sharedData : [])
-              .filter((s: any) => (s.feeling_colour || s.zone) === zone)
-              .map((s: any) => ({
-                id: s.id + '_family',
-                name: s.name,
-                description: s.description || '',
-                icon: s.icon || 'favorite',
-                zone: s.feeling_colour || s.zone || zone,
-                is_custom: true,
-              }));
-            customStrats = [...customStrats, ...familyStrats];
-          }
-        } catch { /* custom strategies optional */ }
-      }
 
       // Merge: generic first, then custom (no duplicates by name)
       const genericNames = new Set(genericStrats.map((s: Strategy) => s.name.toLowerCase()));
