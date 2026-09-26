@@ -9,61 +9,49 @@ import { Avatar } from '../../src/components/Avatar';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../../src/utils/sounds';
 import { loadVoiceEnabled, loadVoiceManifest, playVoiceClip, playPhraseFromPool, preloadZoneAudio } from '../../src/utils/voiceClips';
 import { VoiceToggleButton } from '../../src/components/VoiceToggleButton';
+import { getZoneWords } from '../../src/constants/zoneWords';
 
-const getColourInfo = (t: (key: string) => string) => ({
-  blue: {
-    color: '#5DADE2',
-    emoji: '😔',
-    title: t('blue_feelings') || 'Blue Feelings',
-    feeling: t('blue_feeling') || 'Quiet Energy',
-    words: [
-      { label: t('tired') || 'Tired', emoji: '😴' },
-      { label: t('sad') || 'Sad', emoji: '😢' },
-      { label: t('bored') || 'Bored', emoji: '😑' },
-      { label: t('lonely') || 'Lonely', emoji: '🥺' },
-    ],
-    description: t('blue_description') || 'Your body is moving slowly. You might feel tired, sad or need some rest.',
-  },
-  green: {
-    color: '#58D68D',
-    emoji: '😊',
-    title: t('green_feelings') || 'Green Feelings',
-    feeling: t('green_feeling') || 'Balanced Energy',
-    words: [
-      { label: t('calm') || 'Calm', emoji: '😌' },
-      { label: t('happy') || 'Happy', emoji: '😄' },
-      { label: t('focused') || 'Focused', emoji: '🎯' },
-      { label: t('ready_to_learn') || 'Ready', emoji: '🌟' },
-    ],
-    description: t('green_description') || 'You feel calm, happy and ready. This is a great feeling!',
-  },
-  yellow: {
-    color: '#F4D03F',
-    emoji: '😬',
-    title: t('yellow_feelings') || 'Yellow Feelings',
-    feeling: t('yellow_feeling') || 'Fizzing Energy',
-    words: [
-      { label: t('silly') || 'Silly', emoji: '🤪' },
-      { label: t('nervous') || 'Nervous', emoji: '😰' },
-      { label: t('frustrated') || 'Frustrated', emoji: '😤' },
-      { label: t('worried') || 'Worried', emoji: '😟' },
-    ],
-    description: t('yellow_description') || 'You are starting to feel wobbly. You might feel silly, nervous or frustrated.',
-  },
-  red: {
-    color: '#EC7063',
-    emoji: '🤯',
-    title: t('red_feelings') || 'Red Feelings',
-    feeling: t('red_feeling') || 'Big Energy',
-    words: [
-      { label: t('angry') || 'Angry', emoji: '😡' },
-      { label: t('very_upset') || 'Very Upset', emoji: '😭' },
-      { label: t('out_of_control') || 'Wild', emoji: '🌪️' },
-      { label: t('super_charged') || 'Hyper', emoji: '⚡' },
-    ],
-    description: t('red_description') || 'Your body has big feelings right now. You might feel angry or out of control.',
-  },
-});
+// Root cause fix Sep 27 (home-screen mood-emoji press-hold feature): `words` per colour is now
+// the shared getZoneWords source (see its own comment) - this screen's colour/title/feeling/
+// description content is unchanged, only the words array is no longer a second, independently-
+// maintained copy of the same list.
+const getColourInfo = (t: (key: string) => string) => {
+  const words = getZoneWords(t);
+  return {
+    blue: {
+      color: '#5DADE2',
+      emoji: '😔',
+      title: t('blue_feelings') || 'Blue Feelings',
+      feeling: t('blue_feeling') || 'Quiet Energy',
+      words: words.blue,
+      description: t('blue_description') || 'Your body is moving slowly. You might feel tired, sad or need some rest.',
+    },
+    green: {
+      color: '#58D68D',
+      emoji: '😊',
+      title: t('green_feelings') || 'Green Feelings',
+      feeling: t('green_feeling') || 'Balanced Energy',
+      words: words.green,
+      description: t('green_description') || 'You feel calm, happy and ready. This is a great feeling!',
+    },
+    yellow: {
+      color: '#F4D03F',
+      emoji: '😬',
+      title: t('yellow_feelings') || 'Yellow Feelings',
+      feeling: t('yellow_feeling') || 'Fizzing Energy',
+      words: words.yellow,
+      description: t('yellow_description') || 'You are starting to feel wobbly. You might feel silly, nervous or frustrated.',
+    },
+    red: {
+      color: '#EC7063',
+      emoji: '🤯',
+      title: t('red_feelings') || 'Red Feelings',
+      feeling: t('red_feeling') || 'Big Energy',
+      words: words.red,
+      description: t('red_description') || 'Your body has big feelings right now. You might feel angry or out of control.',
+    },
+  };
+};
 
 // Real fix Sep 24 (item1, device report): a late greeting is worse than no greeting (Jono's
 // explicit rule) - 600ms is long enough to cover a genuinely-cached (near-instant) local file

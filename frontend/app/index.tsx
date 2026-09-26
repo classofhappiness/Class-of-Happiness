@@ -1,16 +1,141 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, ScrollView, Image, Alert, Animated, Easing } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../src/context/AppContext';
 import { ZONE_FACES } from '../src/components/ZoneButton';
 import { EMOTION_COLOURS } from '../src/constants/emotionColours';
+import { getZoneWords, ZoneColour } from '../src/constants/zoneWords';
+
+// Root cause: no existing local feature-flag constant pattern anywhere in this codebase
+// (checked repo-wide) - the closest thing, server-side allowed_by_superadmin/enabled_by_school
+// toggles, is a per-school DB-driven system, not appropriate for a single-device cosmetic
+// toggle. A plain exported boolean, checked once at render, is the simplest thing that
+// actually satisfies "flip it off, the screen behaves exactly as it did before this feature
+// existed" - when false, none of the press-hold state/handlers/render branches below even run.
+export const HOME_EMOJI_INTERACTION_ENABLED = true;
+
+const WORD_CYCLE_MS = 1800;
 
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isLoading, isAuthenticated, user, login, t, hasActiveSubscription } = useApp();
+  const { isLoading, isAuthenticated, user, login, t, language, hasActiveSubscription } = useApp();
+
+  // ── Logo easter egg (Sep 27, purely cosmetic) ──────────────────────────────
+  // Real feature: tapping the logo plays a short, unmistakably-different variant of the app's
+  // own EmotionColourLoader loading animation (same cycling-colour-circle-with-face concept,
+  // reused rather than inventing a new visual language) - NOT the shared component itself,
+  // since that's the app's real loading indicator elsewhere and must never be touched by a
+  // cosmetic easter egg. Distinct on purpose: a warm gold/pink/purple/teal palette (none of
+  // EmotionColourLoader's real blue/green/yellow/red), a continuous spin, and a sparkle overlay
+  // - so this can never be mistaken for the app actually loading or being stuck.
+  const [eggPlaying, setEggPlaying] = useState(false);
+  const eggScale = useRef(new Animated.Value(1)).current;
+  const eggSpin = useRef(new Animated.Value(0)).current;
+  const eggSparkle = useRef(new Animated.Value(0)).current;
+  const eggTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleLogoTap = () => {
+    // "Tapping again while mid-animation should either restart cleanly or be ignored" - ignored
+    // here (simplest way to guarantee zero stacking/glitching: a second tap while `eggPlaying`
+    // is true is a no-op, the current play-through just finishes on its own).
+    if (eggPlaying) return;
+    setEggPlaying(true);
+    eggScale.setValue(1);
+    eggSpin.setValue(0);
+    eggSparkle.setValue(0);
+    Animated.parallel([
+      Animated.sequence([
+        Animated.timing(eggScale, { toValue: 1.25, duration: 220, easing: Easing.out(Easing.back(1.6)), useNativeDriver: true }),
+        Animated.timing(eggScale, { toValue: 1, duration: 220, delay: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
+      Animated.timing(eggSpin, { toValue: 1, duration: 1400, easing: Easing.linear, useNativeDriver: true }),
+      Animated.sequence([
+        Animated.timing(eggSparkle, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.timing(eggSparkle, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(eggSparkle, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]),
+    ]).start();
+    if (eggTimeoutRef.current) clearTimeout(eggTimeoutRef.current);
+    eggTimeoutRef.current = setTimeout(() => setEggPlaying(false), 1500);
+  };
+  useEffect(() => () => { if (eggTimeoutRef.current) clearTimeout(eggTimeoutRef.current); }, []);
+
+  // ── Mood-emoji press-and-hold (Sep 27, build 27) ───────────────────────────
+  const zoneOrder: ZoneColour[] = ['blue', 'green', 'yellow', 'red'];
+  const zoneWords = getZoneWords(t);
+  const [heldZone, setHeldZone] = useState<ZoneColour | null>(null);
+  const [wordIdx, setWordIdx] = useState(0);
+  // One Animated.Value per emoji for scale + opacity (focus/dim effect), plus one shared
+  // crossfade value for the word swap and one breathing-pulse value while a word is showing.
+  const zoneScale = useRef(zoneOrder.reduce((acc, z) => ({ ...acc, [z]: new Animated.Value(1) }), {} as Record<ZoneColour, Animated.Value>)).current;
+  const zoneOpacity = useRef(zoneOrder.reduce((acc, z) => ({ ...acc, [z]: new Animated.Value(1) }), {} as Record<ZoneColour, Animated.Value>)).current;
+  const wordFade = useRef(new Animated.Value(0)).current;
+  const breathe = useRef(new Animated.Value(1)).current;
+  const cycleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const breatheLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  // Tracks the current word index for the setInterval closure below - React state
+  // (wordIdx) would be stale inside that closure since the interval is only created once
+  // per hold, not re-created every render.
+  const wordIdxRef = useRef(0);
+
+  const resetZoneVisuals = () => {
+    Animated.parallel(
+      zoneOrder.flatMap(z => [
+        Animated.spring(zoneScale[z], { toValue: 1, useNativeDriver: true, friction: 6 }),
+        Animated.timing(zoneOpacity[z], { toValue: 1, duration: 250, useNativeDriver: true }),
+      ])
+    ).start();
+  };
+
+  const stopMoodHold = () => {
+    if (cycleIntervalRef.current) { clearInterval(cycleIntervalRef.current); cycleIntervalRef.current = null; }
+    if (breatheLoopRef.current) { breatheLoopRef.current.stop(); breatheLoopRef.current = null; }
+    breathe.setValue(1);
+    resetZoneVisuals();
+    setHeldZone(null);
+  };
+  // Unmount safety - never leaves a live interval/loop behind.
+  useEffect(() => () => stopMoodHold(), []);
+
+  const showWord = (idx: number) => {
+    wordIdxRef.current = idx;
+    wordFade.setValue(0);
+    Animated.timing(wordFade, { toValue: 1, duration: 250, easing: Easing.out(Easing.ease), useNativeDriver: true }).start();
+    setWordIdx(idx);
+  };
+
+  const startMoodHold = (zone: ZoneColour) => {
+    if (!HOME_EMOJI_INTERACTION_ENABLED) return;
+    // If a previous hold's release animation/cleanup hadn't fully settled, starting fresh here
+    // is safe - stopMoodHold below is idempotent (clearInterval/stop on already-cleared refs
+    // are no-ops) and every Animated call sets its own starting value first.
+    setHeldZone(zone);
+    Animated.parallel(
+      zoneOrder.flatMap(z => z === zone
+        ? [Animated.spring(zoneScale[z], { toValue: 1.35, useNativeDriver: true, friction: 5 })]
+        : [
+            Animated.spring(zoneScale[z], { toValue: 0.85, useNativeDriver: true, friction: 6 }),
+            Animated.timing(zoneOpacity[z], { toValue: 0.35, duration: 250, useNativeDriver: true }),
+          ]
+      )
+    ).start();
+    showWord(0);
+    if (cycleIntervalRef.current) clearInterval(cycleIntervalRef.current);
+    cycleIntervalRef.current = setInterval(() => {
+      showWord((wordIdxRef.current + 1) % zoneWords[zone].length);
+    }, WORD_CYCLE_MS);
+    breathe.setValue(1);
+    breatheLoopRef.current = Animated.loop(
+      Animated.sequence([
+        Animated.timing(breathe, { toValue: 0.55, duration: WORD_CYCLE_MS / 2, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(breathe, { toValue: 1, duration: WORD_CYCLE_MS / 2, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    );
+    breatheLoopRef.current.start();
+  };
 
   // Real bug fix Aug 28 (item 5): a parent account is genuinely on a lower-tier plan than
   // teacher (confirmed in server.py's SUBSCRIPTION_PLANS: parent_monthly is priced below
@@ -46,27 +171,92 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Logo */}
-        <View style={styles.logoContainer}>
+        {/* Logo — tappable easter egg, purely cosmetic, see handleLogoTap's own comment */}
+        <Pressable onPress={handleLogoTap} style={styles.logoContainer} hitSlop={{top:8,bottom:8,left:8,right:8}}>
           <Image source={require('../assets/images/logo_coh.png')} style={styles.mainLogo} resizeMode="contain" />
-        </View>
+          {eggPlaying && (
+            <View pointerEvents="none" style={styles.eggOverlay}>
+              <Animated.View
+                style={{
+                  width: 72, height: 72, borderRadius: 36,
+                  alignItems: 'center', justifyContent: 'center',
+                  transform: [
+                    { scale: eggScale },
+                    { rotate: eggSpin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) },
+                  ],
+                  // Distinct gold/pink/purple/teal palette - never the real loader's blue/
+                  // green/yellow/red - via a soft gradient-like layering (RN has no native
+                  // gradient without an extra lib; two overlapping tinted circles reads as a
+                  // shimmer without one).
+                  backgroundColor: '#FFC94A',
+                }}
+              >
+                <View style={{ position: 'absolute', width: 72, height: 72, borderRadius: 36, backgroundColor: '#B388FF', opacity: 0.5 }} />
+                <Text style={{ fontSize: 34 }}>😊</Text>
+              </Animated.View>
+              <Animated.Text style={{ position: 'absolute', top: -6, right: -2, fontSize: 22, opacity: eggSparkle }}>✨</Animated.Text>
+              <Animated.Text style={{ position: 'absolute', bottom: -4, left: -6, fontSize: 18, opacity: eggSparkle }}>✨</Animated.Text>
+            </View>
+          )}
+        </Pressable>
 
         {/* Subtitle */}
         <Text style={styles.subtitle} allowFontScaling={false}>{t('how_are_you_feeling') || 'How are you feeling today?'}</Text>
 
-        {/* Zone emoji faces — decorative, sets the tone */}
+        {/* Zone emoji faces — decorative, sets the tone. Press-and-hold (build 27, live
+            feedback): fully gated on HOME_EMOJI_INTERACTION_ENABLED - when false, this renders
+            (and behaves) exactly as the plain decorative row it always was, Pressable's onPress
+            handlers simply never firing anything beyond their default no-op. */}
         <View style={styles.zonePreviewRow}>
-          {[
-            { color: EMOTION_COLOURS.blue, face: ZONE_FACES.blue },
-            { color: EMOTION_COLOURS.green, face: ZONE_FACES.green },
-            { color: EMOTION_COLOURS.yellow, face: ZONE_FACES.yellow },
-            { color: EMOTION_COLOURS.red, face: ZONE_FACES.red },
-          ].map((z, i) => (
-            <View key={i} style={[styles.zoneFaceContainer, { backgroundColor: z.color }]}>
-              <Text style={styles.zoneFace}>{z.face}</Text>
-            </View>
-          ))}
+          {zoneOrder.map((zone) => {
+            const face = ZONE_FACES[zone];
+            const color = EMOTION_COLOURS[zone];
+            return (
+              <Pressable
+                key={zone}
+                disabled={!HOME_EMOJI_INTERACTION_ENABLED}
+                onPressIn={() => startMoodHold(zone)}
+                onPressOut={stopMoodHold}
+                hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+              >
+                <Animated.View
+                  style={[
+                    styles.zoneFaceContainer,
+                    { backgroundColor: color },
+                    HOME_EMOJI_INTERACTION_ENABLED && { transform: [{ scale: zoneScale[zone] }], opacity: zoneOpacity[zone] },
+                  ]}
+                >
+                  <Text style={styles.zoneFace}>{face}</Text>
+                </Animated.View>
+              </Pressable>
+            );
+          })}
         </View>
+
+        {/* Held-word display - reserves its height even when nothing is held, so the layout
+            below never jumps/shifts as a hold starts or ends. */}
+        {HOME_EMOJI_INTERACTION_ENABLED && (
+          <View style={styles.moodWordSlot}>
+            {heldZone && (
+              <Animated.View style={{ opacity: Animated.multiply(wordFade, breathe), flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: 22 }}>{zoneWords[heldZone][wordIdx]?.emoji}</Text>
+                {/* Root cause fix (German/Russian/Arabic length check, this feature): a fixed
+                    fontSize clipped/wrapped the longest real translations (e.g. German "Sehr
+                    Aufgebracht", Russian "Сосредоточенность", both 16-17 chars) - same
+                    adjustsFontSizeToFit + minimumFontScale + numberOfLines={1} pattern already
+                    used on this exact screen's own Teacher/Parent subtitles for the same reason. */}
+                <Text
+                  style={styles.moodWordText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.65}
+                >
+                  {zoneWords[heldZone][wordIdx]?.label}
+                </Text>
+              </Animated.View>
+            )}
+          </View>
+        )}
         <View style={{flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, marginBottom:16}}>
           <Text style={{fontSize:12, fontStyle:'italic', color:'#000', fontWeight:'400'}}>{t('select_below_to_begin') || 'Select below to begin'}</Text>
           <Text style={{fontSize:13, color:'#000'}}>↓</Text>
@@ -203,13 +393,26 @@ const styles = StyleSheet.create({
 
   logoContainer: { alignItems: 'center', marginBottom: 12, marginTop: 0 },
   mainLogo: { width: 140, height: 150 },
+  // Centred over the logo - RN Views default to position:'relative', so this absolute child
+  // anchors to logoContainer without needing an explicit position style there.
+  eggOverlay: { position: 'absolute', top: '50%', left: '50%', marginTop: -36, marginLeft: -36, alignItems: 'center', justifyContent: 'center' },
 
   subtitle: { fontSize: 16, color: '#333', textAlign: 'center', marginBottom: 14, fontWeight: '500' },
 
+  // Root cause fix (flag-off parity check): this used to be marginBottom:14 before the
+  // press-hold feature - reduced to 6 so the new moodWordSlot's OWN spacing (below) wouldn't
+  // double up, but that meant flag-off (moodWordSlot never rendered at all) ended up with 8px
+  // LESS space here than the screen had before this feature existed. Kept at the original 14
+  // unconditionally; moodWordSlot's own marginBottom is what changes total spacing when a word
+  // is actually showing, not this row's.
   zonePreviewRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 14 },
   zoneFaceContainer: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
   zoneFace: { fontSize: 22 },
   zoneTip: { fontSize: 12, color: '#555', textAlign: 'center', marginBottom: 28 },
+  // Reserves height whether or not a word is currently showing, so the rest of the page never
+  // shifts as a hold starts/ends.
+  moodWordSlot: { height: 30, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  moodWordText: { fontSize: 15, fontWeight: '700', color: '#333', maxWidth: 220 },
 
   // Student — hero button
   studentButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#4CAF50', borderRadius: 22, paddingVertical: 20, paddingHorizontal: 20, marginBottom: 10 },
