@@ -250,18 +250,30 @@ export default function TeacherCheckInScreen() {
 
   const strategiesForZone = useMemo(() => {
     if (!selectedZone) return [];
-    const hardcoded = TEACHER_STRATEGIES[selectedZone] || [];
+    // Item 24 fix (2026-09-26): TEACHER_STRATEGIES is the built-in/global list (same for
+    // every school) - its name/description are now translated via teacher_strategy_<id>_name/
+    // _desc keys, falling back to the original English literal if a language is missing the
+    // key. fromDB below is school-entered custom content (POST /admin/teacher-strategies) -
+    // real user-authored text, deliberately left untranslated/as-typed.
+    const rawHardcoded = TEACHER_STRATEGIES[selectedZone] || [];
     const fromDB = adminStrategies.filter(s => (s.zone || s.feeling_colour) === selectedZone);
-    // Merge - avoid duplicates by name
-    const hardcodedNames = new Set(hardcoded.map((s:any) => s.name.toLowerCase()));
+    // Merge - avoid duplicates by name. Dedup against the ORIGINAL English names (not the
+    // translated ones below) since fromDB content is whatever the admin actually typed,
+    // which stays in whatever language they typed it in regardless of the viewer's app language.
+    const hardcodedNames = new Set(rawHardcoded.map((s:any) => s.name.toLowerCase()));
     const newFromDB = fromDB.filter(s => s.name && !hardcodedNames.has(s.name.toLowerCase()));
+    const hardcoded = rawHardcoded.map(s => ({
+      ...s,
+      name: t(`teacher_strategy_${s.id}_name`) || s.name,
+      description: t(`teacher_strategy_${s.id}_desc`) || s.description,
+    }));
     return [...hardcoded, ...newFromDB.map(s => ({
       id: s.id || String(Math.random()),
       name: s.name || 'Strategy',
       description: s.description || '',
       icon: s.icon || 'star',
     }))];
-  }, [selectedZone, adminStrategies]);
+  }, [selectedZone, adminStrategies, t]);
 
   const toggleStrategy = (id: string) => {
     setSelectedStrategies(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
