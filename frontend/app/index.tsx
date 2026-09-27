@@ -18,44 +18,10 @@ export const HOME_EMOJI_INTERACTION_ENABLED = true;
 
 const WORD_CYCLE_MS = 1800;
 
-// 2nd correction Sep 27: the earlier fix replayed EmotionColourLoader (the in-app loading
-// spinner, code-driven, no asset file) - reasonable given no GIF existed in the repo at the
-// time, but not what was actually being asked for. Jono supplied the real file
-// (~/Desktop/coh-logo.gif, verified: genuine animated GIF89a, 37 frames, 300x300, not a
-// static image saved with a .gif extension) - copied to assets/images/coh-logo.gif (same
-// folder as every other logo/splash asset). No colour-shift/tint is applied: RN's only
-// runtime recolour mechanic is Image's `tintColor`, which flattens every non-transparent
-// pixel to one flat colour - correct for a silhouette, but would turn this multi-coloured
-// photographic-style GIF into a solid colour blob, not a "fun variant" (no colour-matrix/
-// hue-shift library is installed, and adding one for a cosmetic tap easter egg isn't
-// justified) - so it plays in its real original colours, per Jono's own explicit fallback.
-// Duration measured directly from the file's own frame delays (Python/Pillow: 37 frames,
-// sum of per-frame `duration` = 3040ms) rather than guessed - one full pass, then hidden,
-// since the file's own loop metadata is 0 (loop forever) and would otherwise repeat.
-const EGG_DURATION_MS = 3040;
-
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isLoading, isAuthenticated, user, login, t, language, hasActiveSubscription } = useApp();
-
-  // ── Logo easter egg (Sep 27, purely cosmetic) ──────────────────────────────
-  // Real feature: tapping the logo replays the app's real EmotionColourLoader component (see
-  // EGG_DURATION_MS/EASTER_EGG_PALETTE comment above) for one full pass, recoloured, then stops
-  // - not a real loading state, and not a separate bespoke animation.
-  const [eggPlaying, setEggPlaying] = useState(false);
-  const eggTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleLogoTap = () => {
-    // "Tapping again while mid-animation should either restart cleanly or be ignored" - ignored
-    // here (simplest way to guarantee zero stacking/glitching: a second tap while `eggPlaying`
-    // is true is a no-op, the current play-through just finishes on its own).
-    if (eggPlaying) return;
-    setEggPlaying(true);
-    if (eggTimeoutRef.current) clearTimeout(eggTimeoutRef.current);
-    eggTimeoutRef.current = setTimeout(() => setEggPlaying(false), EGG_DURATION_MS);
-  };
-  useEffect(() => () => { if (eggTimeoutRef.current) clearTimeout(eggTimeoutRef.current); }, []);
 
   // ── Mood-emoji press-and-hold (Sep 27, build 27) ───────────────────────────
   const zoneOrder: ZoneColour[] = ['blue', 'green', 'yellow', 'red'];
@@ -165,24 +131,10 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Logo — tappable easter egg, purely cosmetic, see handleLogoTap's own comment */}
-        <Pressable onPress={handleLogoTap} style={styles.logoContainer} hitSlop={{top:8,bottom:8,left:8,right:8}}>
+        {/* Logo */}
+        <View style={styles.logoContainer}>
           <Image source={require('../assets/images/logo_coh.png')} style={styles.mainLogo} resizeMode="contain" />
-          {eggPlaying && (
-            // key=eggPlaying's mount identity: this whole subtree is unmounted (by the
-            // `eggPlaying &&` guard) the instant EGG_DURATION_MS elapses, then freshly
-            // remounted on the next tap - RN's native GIF decoder always starts an animated
-            // Image at frame 0 on mount, so no manual reset/seek logic is needed to guarantee
-            // "restart cleanly" on the next play.
-            <View pointerEvents="none" style={styles.eggOverlay}>
-              <Image
-                source={require('../assets/images/coh-logo.gif')}
-                style={{ width: 96, height: 96 }}
-                resizeMode="contain"
-              />
-            </View>
-          )}
-        </Pressable>
+        </View>
 
         {/* Subtitle */}
         <Text style={styles.subtitle} allowFontScaling={false}>{t('how_are_you_feeling') || 'How are you feeling today?'}</Text>
@@ -377,10 +329,6 @@ const styles = StyleSheet.create({
 
   logoContainer: { alignItems: 'center', marginBottom: 12, marginTop: 0 },
   mainLogo: { width: 140, height: 150 },
-  // Centred over the logo - RN Views default to position:'relative', so this absolute child
-  // anchors to logoContainer without needing an explicit position style there. Offset is half
-  // the GIF's rendered 96x96 size (see the Image style at its render site).
-  eggOverlay: { position: 'absolute', top: '50%', left: '50%', marginTop: -48, marginLeft: -48, alignItems: 'center', justifyContent: 'center' },
 
   subtitle: { fontSize: 16, color: '#333', textAlign: 'center', marginBottom: 14, fontWeight: '500' },
 
