@@ -22,11 +22,15 @@ import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { familyApi, FamilyMember, strategiesApi, Strategy } from '../../src/utils/api';
 import { useDataGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
 
+// Real fix Sep 27 (live device report): "___ Zone" fallbacks renamed to "___ Emotions",
+// matching the naming convention already established everywhere else in the app (confirmed
+// against the Arabic voice script) - see blue_zone/green_zone/yellow_zone/red_zone's own
+// translation-key values, now identical to blue_emotions/etc in all 10 languages.
 const getZones = (t: (key: string) => string) => [
-  { id: 'blue', name: t('blue_zone')||'Blue Zone', color: '#4A90D9', desc: t('blue_feeling_desc')||'Quiet Energy - Sad, Tired, Bored', face: '😢', emoji: '😢' },
-  { id: 'green', name: t('green_zone')||'Green Zone', color: '#4CAF50', desc: t('green_feeling_desc')||'Balanced Energy - Calm, Happy, Focused', face: '😊', emoji: '😊' },
-  { id: 'yellow', name: t('yellow_zone')||'Yellow Zone', color: '#FFC107', desc: t('yellow_feeling_desc')||'Fizzing Energy - Worried, Silly, Frustrated', face: '😟', emoji: '😟' },
-  { id: 'red', name: t('red_zone')||'Red Zone', color: '#F44336', desc: t('red_feeling_desc')||'Big Energy - Angry, Scared, Overwhelmed', face: '😣', emoji: '😣' },
+  { id: 'blue', name: t('blue_zone')||'Blue Emotions', color: '#4A90D9', desc: t('blue_feeling_desc')||'Quiet Energy - Sad, Tired, Bored', face: '😢', emoji: '😢' },
+  { id: 'green', name: t('green_zone')||'Green Emotions', color: '#4CAF50', desc: t('green_feeling_desc')||'Balanced Energy - Calm, Happy, Focused', face: '😊', emoji: '😊' },
+  { id: 'yellow', name: t('yellow_zone')||'Yellow Emotions', color: '#FFC107', desc: t('yellow_feeling_desc')||'Fizzing Energy - Worried, Silly, Frustrated', face: '😟', emoji: '😟' },
+  { id: 'red', name: t('red_zone')||'Red Emotions', color: '#F44336', desc: t('red_feeling_desc')||'Big Energy - Angry, Scared, Overwhelmed', face: '😣', emoji: '😣' },
 ];
 
 const MAX_COMMENT_LENGTH = 100;
