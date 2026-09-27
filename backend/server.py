@@ -3534,7 +3534,11 @@ async def get_classrooms(request: Request):
     # classrooms as a non-teacher role. Teacher functionality now requires a teacher-tier role.
     if user.get("role") not in ("teacher", "school_admin", "superadmin"):
         raise HTTPException(status_code=403, detail="Teacher access required")
-    result = supabase.table("classrooms").select("*").eq("user_id", user["user_id"]).execute()
+    # Root-cause fix Sep 27 (live device report investigation - a genuine, separate,
+    # never-fixed instance of the same blocking-call bug class found repeatedly this
+    # session, not covered by the earlier audit since this one-line handler was easy to
+    # miss): was a direct, unwrapped synchronous Supabase call inside an async def.
+    result = await asyncio.to_thread(lambda: supabase.table("classrooms").select("*").eq("user_id", user["user_id"]).execute())
     return result.data or []
 
 @api_router.post("/classrooms")
