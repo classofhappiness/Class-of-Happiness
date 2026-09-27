@@ -15838,6 +15838,56 @@ async def revoke_school_admin(user_id: str, request: Request):
         "detached_school_profile_id": detached_profile_id,
     }
 
+@api_router.delete("/admin/school-profiles/{school_id}")
+async def delete_orphaned_school_profile(school_id: str, request: Request):
+    """Real feature Sep 27: narrow, safe cleanup for the school_profiles rows revoke_school_admin
+    leaves behind - deliberately NOT a general "delete any school" endpoint. Confirmed against the
+    real schema before writing this: nothing anywhere references school_profiles.id as a foreign
+    key (checked every table) - teachers/students/classrooms/everything else link to a school via
+    users.school_admin_id (a real admin's user_id), never via this row's own id. So the correct,
+    precise safety check is (a) this row currently has no admin linked at all, and (b) no teacher
+    who ever got linked to a FORMER admin of a school with this exact name (via
+    school_provisioning_codes.used_by_user_id) is still sitting there un-reassigned - catches the
+    case where a real school's admin was revoked after real teachers had already joined, which
+    would otherwise silently vanish this school's teacher roster along with the row. Refuses (400)
+    rather than deletes whenever either check fails - never usable against a real, populated
+    school."""
+    caller = await get_current_user(request)
+    if not caller or caller.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+
+    profile_r = supabase.table("school_profiles").select("*").eq("id", school_id).execute()
+    if not profile_r.data:
+        raise HTTPException(status_code=404, detail="School profile not found")
+    profile = profile_r.data[0]
+
+    if profile.get("school_admin_user_id"):
+        raise HTTPException(status_code=400, detail="This school has an admin currently linked - refusing to delete a populated school. Use revoke first if you want to detach the admin.")
+
+    school_name = profile.get("school_name")
+    former_admin_ids = set()
+    if school_name:
+        codes_r = supabase.table("school_provisioning_codes").select("used_by_user_id").eq("school_name", school_name).not_.is_("used_by_user_id", "null").execute()
+        for row in (codes_r.data or []):
+            if row.get("used_by_user_id"):
+                former_admin_ids.add(row["used_by_user_id"])
+
+    blocking_teachers = 0
+    for uid in former_admin_ids:
+        # Skip anyone who's still the real, current admin of a DIFFERENT (or this) school_profiles
+        # row for this same name - that's the real school, not a dangling reference to check.
+        still_admin_r = supabase.table("school_profiles").select("id").eq("school_admin_user_id", uid).execute()
+        if still_admin_r.data:
+            continue
+        teachers_r = supabase.table("users").select("user_id").eq("role", "teacher").eq("school_admin_id", uid).execute()
+        blocking_teachers += len(teachers_r.data or [])
+
+    if blocking_teachers > 0:
+        raise HTTPException(status_code=400, detail=f"{blocking_teachers} teacher(s) are still linked to a former admin of this school - refusing to delete. This would silently orphan their accounts.")
+
+    supabase.table("school_profiles").delete().eq("id", school_id).execute()
+    return {"status": "deleted", "school_id": school_id, "school_name": school_name}
+
 # ================== SCHOOL-PROVISIONING CODES (Sep 20) ==================
 # Real feature Sep 20 (fully scoped and logged 2026-09-19/20 before build): a genuinely new,
 # separate code system from invite_codes (teacher-joins-a-school) and parent_links (parent

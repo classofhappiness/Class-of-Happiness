@@ -663,6 +663,36 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
     );
   };
 
+  // Real feature Sep 27: the other half of cleaning up an orphaned duplicate school (revoke
+  // detaches the admin, this actually removes the now-empty row so it doesn't sit in this list
+  // forever). Only ever offered when school_admin_user_id is already null - the backend
+  // (DELETE /admin/school-profiles/{id}) independently re-verifies that plus a zero-linked-
+  // teachers check before touching anything, so this button can't be the only thing standing
+  // between a tap and deleting a real school even if this client-side gate were ever wrong.
+  const [deletingProfileFor, setDeletingProfileFor] = useState<string | null>(null);
+  const deleteOrphanedSchoolProfile = (profile: any) => {
+    if (profile.school_admin_user_id) return;
+    Alert.alert(
+      t('delete_school_title') || 'Delete this empty school?',
+      (t('delete_school_warning') || '{school} has no admin and no data linked to it. This permanently deletes its profile. This cannot be undone.')
+        .split('{school}').join(profile.school_name),
+      [
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
+        { text: t('delete') || 'Delete', style: 'destructive', onPress: async () => {
+          setDeletingProfileFor(profile.id);
+          try {
+            await apiCall(`/admin/school-profiles/${profile.id}`, authToken, { method: 'DELETE' });
+            loadProfiles();
+            Alert.alert(t('success') || 'Success', t('delete_school_success') || 'Empty school profile deleted.');
+          } catch (e: any) {
+            Alert.alert(t('error') || 'Error', e?.message || (t('could_not_delete_school') || 'Could not delete this school profile.'));
+          }
+          setDeletingProfileFor(null);
+        }},
+      ],
+    );
+  };
+
   useEffect(() => { loadProfiles(); loadSchoolFeatures(); loadAllSchoolCodes(); }, [loadProfiles, loadSchoolFeatures, loadAllSchoolCodes]);
 
   const toggleFeatureAllowed = async (schoolAdminId: string, featureKey: string, next: boolean) => {
@@ -1062,6 +1092,33 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
                                 <MaterialIcons name="remove-circle-outline" size={15} color="#F44336" />
                                 <Text style={{ color: '#F44336', fontWeight: '800', fontSize: 12 }}>
                                   {revokingAdminFor === profile.id ? (t('revoking') || 'Revoking...') : (t('revoke_admin_btn') || 'Revoke Admin Access')}
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+
+                          {/* Real feature Sep 27: cleanup for the row a revoke (or an
+                              accidental duplicate-code redemption never revoked at all)
+                              leaves behind - exact opposite gate from the invite-code/
+                              revoke sections above, only ever shown when there is no
+                              admin to protect. Backend independently re-verifies this is
+                              genuinely empty before deleting anything. */}
+                          {!profile.school_admin_user_id && (
+                            <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#FFCDD2' }}>
+                              <Text style={{ fontSize: 11, fontWeight: '800', color: '#C62828', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                                {t('danger_zone_label') || 'Danger Zone'}
+                              </Text>
+                              <Text style={{ fontSize: 11, color: '#999', marginBottom: 8 }}>
+                                {t('no_admin_linked_desc') || 'No admin is linked to this school profile.'}
+                              </Text>
+                              <TouchableOpacity
+                                onPress={() => deleteOrphanedSchoolProfile(profile)}
+                                disabled={deletingProfileFor === profile.id}
+                                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: 'white', borderWidth: 1.5, borderColor: '#F44336', borderRadius: 20, paddingVertical: 8, opacity: deletingProfileFor === profile.id ? 0.6 : 1 }}
+                              >
+                                <MaterialIcons name="delete-outline" size={15} color="#F44336" />
+                                <Text style={{ color: '#F44336', fontWeight: '800', fontSize: 12 }}>
+                                  {deletingProfileFor === profile.id ? (t('deleting') || 'Deleting...') : (t('delete_school_btn') || 'Delete Empty School')}
                                 </Text>
                               </TouchableOpacity>
                             </View>
