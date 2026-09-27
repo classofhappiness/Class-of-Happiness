@@ -8620,6 +8620,195 @@ def _unregister_push_token_sync(user_id: str, token: str = None) -> None:
     except Exception as e:
         logger.warning(f"[push_tokens] legacy column clear failed for {user_id}: {e}")
 
+# ================== PUSH NOTIFICATION TEXT (localized) ==================
+# Real feature Sep 27 (push notification localization, stage 3): first real non-English push
+# notification text, wired via the stage-2 _send_push refactor (dict[lang] -> {"title",
+# "body"}, batch-resolved recipient language). First-draft translations, same standard as
+# the Arabic voice recording script - safe to ship (better than 100% English), recommend a
+# native-speaker spot-check per language before treating as fully final.
+PUSH_NOTIFICATION_LANGUAGES = ("en", "pt", "es", "fr", "de", "it", "hi", "zh", "ar", "ru")
+
+PUSH_HELP_REQUEST_TITLE = {
+    "en": "{emoji} {name} needs help", "pt": "{emoji} {name} precisa de ajuda",
+    "es": "{emoji} {name} necesita ayuda", "fr": "{emoji} {name} a besoin d'aide",
+    "de": "{emoji} {name} braucht Hilfe", "it": "{emoji} {name} ha bisogno di aiuto",
+    "hi": "{emoji} {name} को मदद चाहिए", "zh": "{emoji} {name}需要帮助",
+    "ar": "{emoji} {name} بحاجة إلى مساعدة", "ru": "{emoji} {name} нужна помощь",
+}
+PUSH_HELP_REQUEST_BODY_BASE = {
+    "en": "Asked for help with: {strategy_name}", "pt": "Pediu ajuda com: {strategy_name}",
+    "es": "Pidió ayuda con: {strategy_name}", "fr": "A demandé de l'aide pour : {strategy_name}",
+    "de": "Hat um Hilfe gebeten bei: {strategy_name}", "it": "Ha chiesto aiuto con: {strategy_name}",
+    "hi": "मदद माँगी: {strategy_name}", "zh": "请求帮助：{strategy_name}",
+    "ar": "طلب المساعدة في: {strategy_name}", "ru": "Попросил(а) помощь с: {strategy_name}",
+}
+# Universal, deliberately NOT translated per-language - only the base line above is
+# translated; the student's own free-typed message is wrapped identically (newline + literal
+# quote marks) regardless of language, same as every other free-text body in this file.
+PUSH_MESSAGE_SUFFIX_FORMAT = "\n\"{message}\""
+
+PUSH_ZONE_ALERT_TITLE = {
+    "en": "{emoji} {name} checked in", "pt": "{emoji} {name} fez o check-in",
+    "es": "{emoji} {name} hizo el check-in", "fr": "{emoji} {name} a fait son bilan",
+    "de": "{emoji} {name} hat eingecheckt", "it": "{emoji} {name} ha fatto il check-in",
+    "hi": "{emoji} {name} ने चेक-इन किया", "zh": "{emoji} {name}已签到",
+    "ar": "{emoji} قام {name} بتسجيل الحضور", "ru": "{emoji} {name} отметил(ась)",
+}
+PUSH_ZONE_ALERT_BODY = {
+    "en": "Feeling {zone_label} right now.", "pt": "A sentir-se {zone_label} agora.",
+    "es": "Sintiéndose {zone_label} ahora mismo.", "fr": "Se sent {zone_label} en ce moment.",
+    "de": "Fühlt sich gerade {zone_label}.", "it": "Si sente {zone_label} in questo momento.",
+    "hi": "अभी {zone_label} महसूस कर रहा है।", "zh": "现在感觉{zone_label}。",
+    "ar": "يشعر بـ{zone_label} الآن.", "ru": "Сейчас чувствует себя на {zone_label}.",
+}
+# zone_label itself is deliberately NOT translated here - pulled from the app's own existing
+# notif_zone_blue/green/yellow/red keys (frontend/src/translations/{lang}.json) per language,
+# for consistency with the rest of the app, per Jono's explicit instruction, rather than
+# inventing new wording. Same 4 values, mirrored here since this file has no JS i18n import.
+PUSH_ZONE_LABELS_BY_LANG = {
+    "en": {"blue": "Blue", "green": "Green", "yellow": "Yellow", "red": "Red"},
+    "pt": {"blue": "Azul", "green": "Verde", "yellow": "Amarelo", "red": "Vermelho"},
+    "es": {"blue": "Azul", "green": "Verde", "yellow": "Amarillo", "red": "Rojo"},
+    "fr": {"blue": "Bleu", "green": "Vert", "yellow": "Jaune", "red": "Rouge"},
+    "de": {"blue": "Blau", "green": "Grün", "yellow": "Gelb", "red": "Rot"},
+    "it": {"blue": "Blu", "green": "Verde", "yellow": "Giallo", "red": "Rosso"},
+    "hi": {"blue": "नीला", "green": "हरा", "yellow": "पीला", "red": "लाल"},
+    "zh": {"blue": "蓝色", "green": "绿色", "yellow": "黄色", "red": "红色"},
+    "ar": {"blue": "أزرق", "green": "أخضر", "yellow": "أصفر", "red": "أحمر"},
+    "ru": {"blue": "Синий", "green": "Зелёный", "yellow": "Жёлтый", "red": "Красный"},
+}
+
+PUSH_PARENT_MESSAGE_TITLE = {
+    "en": "{emoji} Message from {name}", "pt": "{emoji} Mensagem de {name}",
+    "es": "{emoji} Mensaje de {name}", "fr": "{emoji} Message de {name}",
+    "de": "{emoji} Nachricht von {name}", "it": "{emoji} Messaggio da {name}",
+    "hi": "{emoji} {name} का संदेश", "zh": "{emoji} 来自{name}的消息",
+    "ar": "{emoji} رسالة من {name}", "ru": "{emoji} Сообщение от {name}",
+}
+
+PUSH_SUPPORT_TITLE_INCIDENT = {
+    "en": "🚨 Incident", "pt": "🚨 Incidente", "es": "🚨 Incidente", "fr": "🚨 Incident",
+    "de": "🚨 Vorfall", "it": "🚨 Incidente", "hi": "🚨 घटना", "zh": "🚨 事件",
+    "ar": "🚨 حادثة", "ru": "🚨 Инцидент",
+}
+PUSH_SUPPORT_TITLE_NORMAL = {
+    "en": "🔔 Support request", "pt": "🔔 Pedido de apoio", "es": "🔔 Solicitud de apoyo",
+    "fr": "🔔 Demande de soutien", "de": "🔔 Unterstützungsanfrage", "it": "🔔 Richiesta di supporto",
+    "hi": "🔔 सहायता अनुरोध", "zh": "🔔 支持请求", "ar": "🔔 طلب دعم", "ru": "🔔 Запрос поддержки",
+}
+PUSH_REQUEST_TYPE_LABELS = {
+    "CLASSROOM_SUPPORT": {
+        "en": "needs support in the classroom", "pt": "precisa de apoio na sala de aula",
+        "es": "necesita apoyo en el aula", "fr": "a besoin de soutien en classe",
+        "de": "braucht Unterstützung im Klassenzimmer", "it": "ha bisogno di supporto in classe",
+        "hi": "कक्षा में सहायता चाहिए", "zh": "需要课堂支持",
+        "ar": "بحاجة إلى دعم في الفصل الدراسي", "ru": "нужна поддержка в классе",
+    },
+    "BACK_ON_TRACK": {
+        "en": "is heading to Back on Track - needs supervision",
+        "pt": "está a caminho do espaço de reequilíbrio - precisa de supervisão",
+        "es": "se dirige al espacio de reequilibrio - necesita supervisión",
+        "fr": "se dirige vers l'espace de recentrage - a besoin de supervision",
+        "de": "geht zum Ruhebereich - braucht Aufsicht",
+        "it": "si sta dirigendo verso lo spazio di ricentraggio - ha bisogno di supervisione",
+        "hi": "शांत होने की जगह जा रहा है - निगरानी चाहिए", "zh": "正前往情绪调节区 - 需要看护",
+        "ar": "متجه إلى مساحة الهدوء - بحاجة إلى إشراف", "ru": "направляется в зону восстановления - нужен присмотр",
+    },
+    "INCIDENT": {
+        "en": "INCIDENT - needs immediate support", "pt": "INCIDENTE - precisa de apoio imediato",
+        "es": "INCIDENTE - necesita apoyo inmediato", "fr": "INCIDENT - a besoin d'un soutien immédiat",
+        "de": "VORFALL - braucht sofortige Unterstützung", "it": "INCIDENTE - ha bisogno di supporto immediato",
+        "hi": "घटना - तुरंत सहायता चाहिए", "zh": "事件 - 需要立即支持",
+        "ar": "حادثة - بحاجة إلى دعم فوري", "ru": "ИНЦИДЕНТ - нужна немедленная помощь",
+    },
+    "OTHER_fallback": {
+        "en": "needs support", "pt": "precisa de apoio", "es": "necesita apoyo",
+        "fr": "a besoin de soutien", "de": "braucht Unterstützung", "it": "ha bisogno di supporto",
+        "hi": "सहायता चाहिए", "zh": "需要支持", "ar": "بحاجة إلى دعم", "ru": "нужна поддержка",
+    },
+    "STAFF_MEMBER_fallback": {
+        "en": "needs a staff member", "pt": "precisa de um membro da equipa",
+        "es": "necesita a un miembro del personal", "fr": "a besoin d'un membre du personnel",
+        "de": "braucht eine Aufsichtsperson", "it": "ha bisogno di un membro dello staff",
+        "hi": "किसी स्टाफ सदस्य की जरूरत है", "zh": "需要一名工作人员",
+        "ar": "بحاجة إلى أحد أعضاء الطاقم", "ru": "нужен сотрудник",
+    },
+    # STAFF_MEMBER with a real typed name is deliberately NOT translated (kept English-glued,
+    # unchanged from before) - see _support_request_type_label's own comment for why.
+}
+
+def _support_request_type_label(request_type: str, target_text: str, lang: str) -> str:
+    """Per-language equivalent of the old flat request_type_labels.get(request_type, 'needs
+    support') lookup. STAFF_MEMBER with a real typed name is left in its original
+    English-glued form (f"needs {target_text}") for EVERY language, not translated - checked
+    the frontend first (frontend/app/teacher/support-request.tsx:501-506): target_text is
+    free-typed text (a real staff member's name, via a TextInput with recent/shortcut chips
+    that just pre-fill it) - confirmed NOT a fixed dropdown of options. Gluing a translated
+    verb onto an untranslated person's name is exactly the fragile-grammar case flagged
+    before wiring this (gendered verb agreement unknown, awkward in Hindi/Russian) - so that
+    one specific sub-case stays exactly as it was before this feature, no regression, pending
+    a real decision on how to phrase it. STAFF_MEMBER with NO name (falls back to "a staff
+    member") has no such issue and is fully translated."""
+    if request_type == "STAFF_MEMBER":
+        if target_text:
+            return f"needs {target_text}"
+        labels = PUSH_REQUEST_TYPE_LABELS["STAFF_MEMBER_fallback"]
+        return labels.get(lang) or labels["en"]
+    if request_type == "OTHER":
+        if target_text:
+            return target_text
+        labels = PUSH_REQUEST_TYPE_LABELS["OTHER_fallback"]
+        return labels.get(lang) or labels["en"]
+    labels = PUSH_REQUEST_TYPE_LABELS.get(request_type)
+    if not labels:
+        fallback = PUSH_REQUEST_TYPE_LABELS["OTHER_fallback"]
+        return fallback.get(lang) or fallback["en"]
+    return labels.get(lang) or labels["en"]
+
+PUSH_SUPPORT_RESPONSE_TITLE_WITH_WHO = {
+    "en": "Support request update: {who}", "pt": "Atualização do pedido de apoio: {who}",
+    "es": "Actualización de la solicitud de apoyo: {who}", "fr": "Mise à jour de la demande de soutien : {who}",
+    "de": "Update zur Unterstützungsanfrage: {who}", "it": "Aggiornamento richiesta di supporto: {who}",
+    "hi": "सहायता अनुरोध अपडेट: {who}", "zh": "支持请求更新：{who}",
+    "ar": "تحديث طلب الدعم: {who}", "ru": "Обновление запроса поддержки: {who}",
+}
+PUSH_SUPPORT_RESPONSE_TITLE_WITHOUT_WHO = {
+    "en": "Support request update", "pt": "Atualização do pedido de apoio",
+    "es": "Actualización de la solicitud de apoyo", "fr": "Mise à jour de la demande de soutien",
+    "de": "Update zur Unterstützungsanfrage", "it": "Aggiornamento richiesta di supporto",
+    "hi": "सहायता अनुरोध अपडेट", "zh": "支持请求更新",
+    "ar": "تحديث طلب الدعم", "ru": "Обновление запроса поддержки",
+}
+
+PUSH_SUPPORT_CANCELLED_TITLE = {
+    "en": "Support request cancelled", "pt": "Pedido de apoio cancelado", "es": "Solicitud de apoyo cancelada",
+    "fr": "Demande de soutien annulée", "de": "Unterstützungsanfrage storniert", "it": "Richiesta di supporto annullata",
+    "hi": "सहायता अनुरोध रद्द किया गया", "zh": "支持请求已取消", "ar": "تم إلغاء طلب الدعم", "ru": "Запрос поддержки отменён",
+}
+PUSH_SUPPORT_CANCELLED_BODY = {
+    "en": "The teacher no longer needs this - no action needed.",
+    "pt": "O professor já não precisa disto - não é necessária qualquer ação.",
+    "es": "El profesor ya no necesita esto - no se requiere ninguna acción.",
+    "fr": "L'enseignant n'en a plus besoin - aucune action requise.",
+    "de": "Die Lehrkraft benötigt dies nicht mehr - keine Aktion erforderlich.",
+    "it": "L'insegnante non ne ha più bisogno - nessuna azione necessaria.",
+    "hi": "शिक्षक को अब इसकी जरूरत नहीं है - कोई कार्रवाई आवश्यक नहीं।",
+    "zh": "老师已不再需要此项 - 无需采取任何行动。",
+    "ar": "لم يعد المعلم بحاجة إلى هذا - لا حاجة لأي إجراء.",
+    "ru": "Учителю это больше не нужно - действий не требуется.",
+}
+
+PUSH_REBUZZ_UNACKNOWLEDGED_SUFFIX = {
+    "en": "(unacknowledged)", "pt": "(não confirmado)", "es": "(sin confirmar)", "fr": "(non confirmé)",
+    "de": "(unbestätigt)", "it": "(non confermato)", "hi": "(अपुष्ट)", "zh": "（未确认）",
+    "ar": "(غير مؤكد)", "ru": "(не подтверждено)",
+}
+PUSH_REBUZZ_BODY = {
+    "en": "Still waiting for a response", "pt": "Ainda a aguardar uma resposta", "es": "Todavía esperando una respuesta",
+    "fr": "Toujours en attente d'une réponse", "de": "Wartet noch auf eine Antwort", "it": "Ancora in attesa di una risposta",
+    "hi": "अभी भी प्रतिक्रिया की प्रतीक्षा है", "zh": "仍在等待回复", "ar": "لا يزال بانتظار الرد", "ru": "Всё ещё ожидает ответа",
+}
+
 async def _send_push(recipients: list, text_by_lang: dict, data: dict = None, sound: str = "default", priority: str = None, channel_id: str = None) -> int:
     """Shared Expo push sender - extracted Sep 10 (Support Requests build, Phase 0) from
     three copy-pasted inline versions of this exact pattern (help-request, zone-alert,
@@ -8820,14 +9009,19 @@ async def send_help_request(request: Request):
 
     # Send Expo push notifications
     zone_emoji = {"blue": "🔵", "green": "🟢", "yellow": "🟡", "red": "🔴"}.get(zone, "💙")
-    notif_title = f"{zone_emoji} {student_name} needs help"
-    notif_body = f"Asked for help with: {strategy_name}"
-    if message:
-        notif_body += f"\n\"{message}\""
+    text_by_lang = {}
+    for lang in PUSH_NOTIFICATION_LANGUAGES:
+        body = PUSH_HELP_REQUEST_BODY_BASE[lang].format(strategy_name=strategy_name)
+        if message:
+            body += PUSH_MESSAGE_SUFFIX_FORMAT.format(message=message)
+        text_by_lang[lang] = {
+            "title": PUSH_HELP_REQUEST_TITLE[lang].format(emoji=zone_emoji, name=student_name),
+            "body": body,
+        }
 
     sent = await _send_push(
         tokens_to_notify,
-        {"en": {"title": notif_title, "body": notif_body}},
+        text_by_lang,
         data={
             "type": "help_request", "student_id": student_id, "student_name": student_name,
             "zone": zone, "strategy_name": strategy_name, "alert_id": alert_id,
@@ -8955,11 +9149,17 @@ async def send_zone_alert(request: Request):
         return {"ok": True, "notifications_sent": 0, "reason": "no enabled watchers"}
 
     zone_emoji = {"blue": "🔵", "green": "🟢", "yellow": "🟡", "red": "🔴"}.get(zone, "💙")
-    zone_label = {"blue": "Blue", "green": "Green", "yellow": "Yellow", "red": "Red"}.get(zone, zone.title())
+    text_by_lang = {}
+    for lang in PUSH_NOTIFICATION_LANGUAGES:
+        zone_label = PUSH_ZONE_LABELS_BY_LANG[lang].get(zone, zone.title())
+        text_by_lang[lang] = {
+            "title": PUSH_ZONE_ALERT_TITLE[lang].format(emoji=zone_emoji, name=student_name),
+            "body": PUSH_ZONE_ALERT_BODY[lang].format(zone_label=zone_label),
+        }
 
     sent = await _send_push(
         tokens_to_notify,
-        {"en": {"title": f"{zone_emoji} {student_name} checked in", "body": f"Feeling {zone_label} right now."}},
+        text_by_lang,
         data={"type": "zone_alert", "student_id": student_id, "zone": zone, "log_id": log_id},
     )
 
@@ -9007,9 +9207,13 @@ async def _notify_parent_of_message(student_id: str, student_name: str, message:
     except Exception as e:
         logger.warning(f"[notify-parents] push_token lookup failed: {e}")
     zone_emoji = {"blue": "🔵", "green": "🟢", "yellow": "🟡", "red": "🔴"}.get(zone, "💙")
+    text_by_lang = {
+        lang: {"title": PUSH_PARENT_MESSAGE_TITLE[lang].format(emoji=zone_emoji, name=student_name), "body": message[:100]}
+        for lang in PUSH_NOTIFICATION_LANGUAGES
+    }
     return await _send_push(
         tokens_to_notify,
-        {"en": {"title": f"{zone_emoji} Message from {student_name}", "body": message[:100]}},
+        text_by_lang,
         data={"type": "parent_message", "student_id": student_id, "zone": zone},
     )
 
@@ -17263,14 +17467,14 @@ async def create_support_request(request: Request):
         admin_tokens = [(school_admin_id, tok) for tok in await _get_push_tokens_for_user(school_admin_id)]
     except Exception as e:
         logger.error(f"Could not look up admin push_token for support request {created['id']}: {e}")
-    request_type_labels = {
-        "CLASSROOM_SUPPORT": "needs support in the classroom",
-        "STAFF_MEMBER": f"needs {target_text or 'a staff member'}",
-        "BACK_ON_TRACK": "is heading to Back on Track - needs supervision",
-        "INCIDENT": "INCIDENT - needs immediate support",
-        "OTHER": target_text or "needs support",
-    }
     who = student_name or classroom_name or "A classroom"
+    text_by_lang = {
+        lang: {
+            "title": (PUSH_SUPPORT_TITLE_INCIDENT if is_incident else PUSH_SUPPORT_TITLE_NORMAL)[lang],
+            "body": f"{who}: {_support_request_type_label(request_type, target_text, lang)}",
+        }
+        for lang in PUSH_NOTIFICATION_LANGUAGES
+    }
     # Real addition Sep 10 (tone spec): standard buzz gets its own bundled soft two-note
     # sound (assets/sounds/support_buzz.wav, wired into app.json's expo-notifications
     # plugin) - a wellbeing app shouldn't sound like a security alarm for a routine
@@ -17281,10 +17485,7 @@ async def create_support_request(request: Request):
     # notifications.ts's IS_EXPO_GO guard).
     await _send_push(
         admin_tokens,
-        {"en": {
-            "title": "🚨 Incident" if is_incident else "🔔 Support request",
-            "body": f"{who}: {request_type_labels.get(request_type, 'needs support')}",
-        }},
+        text_by_lang,
         data={"type": "support_request", "id": created["id"], "is_incident": is_incident},
         priority="high",
         channel_id="incident" if is_incident else "default",
@@ -17467,9 +17668,16 @@ async def respond_support_request(request_id: str, request: Request):
             who = c.data[0]["name"] if c.data else None
     except Exception as e:
         logger.warning(f"[respond_support_request] could not resolve who for push context: {e}")
+    text_by_lang = {
+        lang: {
+            "title": PUSH_SUPPORT_RESPONSE_TITLE_WITH_WHO[lang].format(who=who) if who else PUSH_SUPPORT_RESPONSE_TITLE_WITHOUT_WHO[lang],
+            "body": response_text,
+        }
+        for lang in PUSH_NOTIFICATION_LANGUAGES
+    }
     await _send_push(
         teacher_tokens,
-        {"en": {"title": f"Support request update: {who}" if who else "Support request update", "body": response_text}},
+        text_by_lang,
         data={"type": "support_request_response", "id": request_id},
     )
     return result.data[0] if result.data else updates
@@ -17534,7 +17742,7 @@ async def cancel_support_request(request_id: str, request: Request):
         logger.error(f"Could not look up admin push_token for cancelled support request {request_id}: {e}")
     await _send_push(
         admin_tokens,
-        {"en": {"title": "Support request cancelled", "body": "The teacher no longer needs this - no action needed."}},
+        {lang: {"title": PUSH_SUPPORT_CANCELLED_TITLE[lang], "body": PUSH_SUPPORT_CANCELLED_BODY[lang]} for lang in PUSH_NOTIFICATION_LANGUAGES},
         data={"type": "support_request_cancelled", "id": request_id},
         channel_id="default",  # cancel is always the standard channel, even if the cancelled request was an incident
     )
@@ -17669,15 +17877,20 @@ async def _support_requests_rebuzz_loop():
                     except Exception as e:
                         logger.error(f"[support_requests rebuzz] push_token lookup failed for {r['id']}: {e}")
                     if admin_tokens:
+                        is_incident_rebuzz = r.get("is_incident")
+                        text_by_lang = {
+                            lang: {
+                                "title": f"{(PUSH_SUPPORT_TITLE_INCIDENT if is_incident_rebuzz else PUSH_SUPPORT_TITLE_NORMAL)[lang]} {PUSH_REBUZZ_UNACKNOWLEDGED_SUFFIX[lang]}",
+                                "body": PUSH_REBUZZ_BODY[lang],
+                            }
+                            for lang in PUSH_NOTIFICATION_LANGUAGES
+                        }
                         await _send_push(
                             admin_tokens,
-                            {"en": {
-                                "title": "🚨 Incident (unacknowledged)" if r.get("is_incident") else "🔔 Support request (unacknowledged)",
-                                "body": "Still waiting for a response",
-                            }},
+                            text_by_lang,
                             data={"type": "support_request_rebuzz", "id": r["id"]},
-                            priority="high", channel_id="incident" if r.get("is_incident") else "default",
-                            sound="default" if r.get("is_incident") else "support_buzz.wav",
+                            priority="high", channel_id="incident" if is_incident_rebuzz else "default",
+                            sound="default" if is_incident_rebuzz else "support_buzz.wav",
                         )
                     await asyncio.to_thread(lambda: supabase.table("support_requests").update({"last_rebuzz_at": now.isoformat()}).eq("id", r["id"]).execute())
                 except Exception as e:
