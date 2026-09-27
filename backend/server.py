@@ -14151,7 +14151,19 @@ async def create_admin_teacher_strategy(request: Request):
         "is_active": True,
         "created_by": user["user_id"],
         "created_by_role": user.get("role", "admin"),
-        "audience": body.get("audience"),
+        # Root-cause fix Sep 27 (live 500, blocking build 27): "audience" was never a real
+        # column on this table (confirmed directly against Supabase: PGRST204 "Could not find
+        # the 'audience' column") and nothing anywhere reads it back for this table - checked
+        # every reference in this file. It's a real, working concept elsewhere (/teacher-
+        # resources' audience/target_audience, with genuine read-side filtering), but was never
+        # given that follow-through here - the app's own strategy_type (student/teacher/parent)
+        # already does the one job "audience" would have done. Dropped, not migrated in, since
+        # building read-side filtering for a field nothing consumes would be new scope, not a
+        # bug fix. strategy_type was ALSO silently missing from this insert (a second, separate
+        # bug - every strategy created here, including "parent" ones, was landing with
+        # strategy_type=NULL, so it would never appear under the right tab even once the 500
+        # was fixed) - now set from the real request field the frontend already sends.
+        "strategy_type": body.get("strategy_type", "student"),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     result = supabase.table("admin_teacher_strategies").insert(new_strat).execute()
@@ -15729,7 +15741,13 @@ async def update_teacher_strategy(strategy_id: str, request: Request):
     if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Admin access required")
     body = await request.json()
-    allowed = ["name","description","icon","is_active","zone","strategy_type","target_countries","target_schools","audience","order_index"]
+    # Root-cause fix Sep 27 (live 500, blocking build 27): "audience" removed from the
+    # whitelist - see create_admin_teacher_strategy's own comment on this same table for why
+    # (not a real column, nothing reads it back, a stray field from a different feature's
+    # pattern that never got real follow-through here). The frontend still sends it in the
+    # same shared body object it uses for both create and edit - harmless now, just silently
+    # dropped by this whitelist instead of crashing the write.
+    allowed = ["name","description","icon","is_active","zone","strategy_type","target_countries","target_schools","order_index"]
     updates = {k:v for k,v in body.items() if k in allowed}
     result = supabase.table("admin_teacher_strategies").update(updates).eq("id", strategy_id).execute()
     return result.data[0] if result.data else updates
