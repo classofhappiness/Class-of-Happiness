@@ -11112,18 +11112,30 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
     school_name, country) is NEVER included here - only in /creatures/global, which is
     admin/superadmin/school_admin-only moderation tooling, not student-facing.
     If student_id is omitted (or the caller isn't authorized for it), falls back to
-    global-scope-only creatures so this never breaks for an unresolvable caller."""
+    global-scope-only creatures so this never breaks for an unresolvable caller.
+
+    Root-cause fix Sep 27 (live device report - student/world-creatures.tsx's 30s
+    AbortController fired; Railway logs confirmed a real 40992.2ms response, vs. 217.2ms for
+    the same endpoint moments earlier): the whole body used to run directly in this async def,
+    making ~5-6 sequential, unwrapped, synchronous Supabase calls - blocking the event loop for
+    the full duration of each one, stalling every OTHER concurrent request on the same
+    --workers 2 process. Exact same bug class as _compute_school_admin_analytics earlier this
+    session, just not caught by that audit (which didn't cover every route handler). Extracted
+    to a _sync twin run via asyncio.to_thread, same established pattern - _is_authorized_for_
+    student_sync called directly (no await) since a to_thread'd function can't await."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    return await asyncio.to_thread(_get_eligible_creatures_sync, user, student_id)
 
+def _get_eligible_creatures_sync(user: dict, student_id: Optional[str] = None) -> dict:
     classroom_id, school_name = None, None
     authorized_student_id = None
     scope_pref = "any"
     if student_id:
         student_r = supabase.table("students").select("*").eq("id", student_id).execute()
         student_data = student_r.data[0] if student_r.data else None
-        if student_data and await _is_authorized_for_student(user, student_id, student_data):
+        if student_data and _is_authorized_for_student_sync(user, student_id, student_data):
             classroom_id, school_name = _resolve_student_classroom_school(student_data)
             authorized_student_id = student_id
             scope_pref = student_data.get("creature_scope_pref") or "any"
