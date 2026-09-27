@@ -19,18 +19,9 @@ const SHOW_DELAY_MS = 300;
 interface EmotionColourLoaderProps {
   visible: boolean;
   size?: number;
-  // Real feature Sep 27 (home-screen logo easter egg): lets a caller replay this exact same
-  // component/animation - same shape, same emoji sequence, same scale-pulse motion - with a
-  // different colour set, instead of a real loading context reusing the literal blue/green/
-  // yellow/red palette. Optional and defaulting to COLOURS so every existing call site (the
-  // real loading indicator, ~19 screens) is completely unaffected.
-  palette?: { colour: string; face: string }[];
-  // Real feature Sep 27: the easter egg wants to show immediately on tap, not after the
-  // "don't flash on quick loads" debounce that makes sense for a real loading indicator.
-  showDelayMs?: number;
 }
 
-export const EmotionColourLoader: React.FC<EmotionColourLoaderProps> = ({ visible, size = 56, palette = COLOURS, showDelayMs = SHOW_DELAY_MS }) => {
+export const EmotionColourLoader: React.FC<EmotionColourLoaderProps> = ({ visible, size = 56 }) => {
   const [shouldRender, setShouldRender] = useState(false);
   const [index, setIndex] = useState(0);
   const scale = useRef(new Animated.Value(1)).current;
@@ -38,28 +29,28 @@ export const EmotionColourLoader: React.FC<EmotionColourLoaderProps> = ({ visibl
   useEffect(() => {
     let delayTimer: ReturnType<typeof setTimeout> | null = null;
     if (visible) {
-      delayTimer = setTimeout(() => setShouldRender(true), showDelayMs);
+      delayTimer = setTimeout(() => setShouldRender(true), SHOW_DELAY_MS);
     } else {
       setShouldRender(false);
     }
     return () => { if (delayTimer) clearTimeout(delayTimer); };
-  }, [visible, showDelayMs]);
+  }, [visible]);
 
   useEffect(() => {
     if (!shouldRender) return;
     const interval = setInterval(() => {
-      setIndex(i => (i + 1) % palette.length);
+      setIndex(i => (i + 1) % COLOURS.length);
       Animated.sequence([
         Animated.timing(scale, { toValue: 1.08, duration: 200, useNativeDriver: true }),
         Animated.timing(scale, { toValue: 1, duration: 200, useNativeDriver: true }),
       ]).start();
     }, STEP_MS);
     return () => clearInterval(interval);
-  }, [shouldRender, palette]);
+  }, [shouldRender]);
 
   if (!shouldRender) return null;
 
-  const current = palette[index];
+  const current = COLOURS[index];
 
   return (
     <View style={{ alignItems: 'center', justifyContent: 'center' }}>

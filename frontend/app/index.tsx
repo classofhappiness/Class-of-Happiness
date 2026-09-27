@@ -7,7 +7,6 @@ import { useApp } from '../src/context/AppContext';
 import { ZONE_FACES } from '../src/components/ZoneButton';
 import { EMOTION_COLOURS } from '../src/constants/emotionColours';
 import { getZoneWords, ZoneColour } from '../src/constants/zoneWords';
-import { EmotionColourLoader } from '../src/components/EmotionColourLoader';
 
 // Root cause: no existing local feature-flag constant pattern anywhere in this codebase
 // (checked repo-wide) - the closest thing, server-side allowed_by_superadmin/enabled_by_school
@@ -19,24 +18,21 @@ export const HOME_EMOJI_INTERACTION_ENABLED = true;
 
 const WORD_CYCLE_MS = 1800;
 
-// Correction Sep 27 (live feedback): the easter egg must replay the app's REAL loading
-// animation - EmotionColourLoader (frontend/src/components/EmotionColourLoader.tsx), the one
-// canonical loading indicator used on ~19 other screens - not a bespoke shape. There's no GIF/
-// Lottie asset anywhere in this codebase (confirmed repo-wide); the "animation" IS that
-// component's code, so "same asset" means rendering that exact component. Only its colour
-// palette is swapped (EmotionColourLoader now takes an optional `palette` prop, defaulting to
-// its real blue/green/yellow/red everywhere else) so this can't be mistaken for a real load.
-// Same faces/motion/timing as the real loader, only the 4 colours differ.
-const EASTER_EGG_PALETTE = [
-  { colour: '#FFC94A', face: '😔' },
-  { colour: '#FF6FA1', face: '😊' },
-  { colour: '#B388FF', face: '😬' },
-  { colour: '#4DD0E1', face: '🤯' },
-];
-// One full un-looped pass through all 4 palette steps at the real loader's own 500ms/step
-// pace (4 x 500ms) - "matching the asset's natural length", per the correction, rather than an
-// arbitrary duration or looping it.
-const EGG_DURATION_MS = 2000;
+// 2nd correction Sep 27: the earlier fix replayed EmotionColourLoader (the in-app loading
+// spinner, code-driven, no asset file) - reasonable given no GIF existed in the repo at the
+// time, but not what was actually being asked for. Jono supplied the real file
+// (~/Desktop/coh-logo.gif, verified: genuine animated GIF89a, 37 frames, 300x300, not a
+// static image saved with a .gif extension) - copied to assets/images/coh-logo.gif (same
+// folder as every other logo/splash asset). No colour-shift/tint is applied: RN's only
+// runtime recolour mechanic is Image's `tintColor`, which flattens every non-transparent
+// pixel to one flat colour - correct for a silhouette, but would turn this multi-coloured
+// photographic-style GIF into a solid colour blob, not a "fun variant" (no colour-matrix/
+// hue-shift library is installed, and adding one for a cosmetic tap easter egg isn't
+// justified) - so it plays in its real original colours, per Jono's own explicit fallback.
+// Duration measured directly from the file's own frame delays (Python/Pillow: 37 frames,
+// sum of per-frame `duration` = 3040ms) rather than guessed - one full pass, then hidden,
+// since the file's own loop metadata is 0 (loop forever) and would otherwise repeat.
+const EGG_DURATION_MS = 3040;
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -173,12 +169,17 @@ export default function HomeScreen() {
         <Pressable onPress={handleLogoTap} style={styles.logoContainer} hitSlop={{top:8,bottom:8,left:8,right:8}}>
           <Image source={require('../assets/images/logo_coh.png')} style={styles.mainLogo} resizeMode="contain" />
           {eggPlaying && (
+            // key=eggPlaying's mount identity: this whole subtree is unmounted (by the
+            // `eggPlaying &&` guard) the instant EGG_DURATION_MS elapses, then freshly
+            // remounted on the next tap - RN's native GIF decoder always starts an animated
+            // Image at frame 0 on mount, so no manual reset/seek logic is needed to guarantee
+            // "restart cleanly" on the next play.
             <View pointerEvents="none" style={styles.eggOverlay}>
-              {/* Real EmotionColourLoader component - the actual app-wide loading animation,
-                  see its own comment - showDelayMs=0 so it appears the instant the logo is
-                  tapped (skipping the "don't flash on quick loads" debounce that's correct for
-                  a real loading context but wrong for a deliberate tap-triggered play). */}
-              <EmotionColourLoader visible={eggPlaying} palette={EASTER_EGG_PALETTE} showDelayMs={0} size={72} />
+              <Image
+                source={require('../assets/images/coh-logo.gif')}
+                style={{ width: 96, height: 96 }}
+                resizeMode="contain"
+              />
             </View>
           )}
         </Pressable>
@@ -377,8 +378,9 @@ const styles = StyleSheet.create({
   logoContainer: { alignItems: 'center', marginBottom: 12, marginTop: 0 },
   mainLogo: { width: 140, height: 150 },
   // Centred over the logo - RN Views default to position:'relative', so this absolute child
-  // anchors to logoContainer without needing an explicit position style there.
-  eggOverlay: { position: 'absolute', top: '50%', left: '50%', marginTop: -36, marginLeft: -36, alignItems: 'center', justifyContent: 'center' },
+  // anchors to logoContainer without needing an explicit position style there. Offset is half
+  // the GIF's rendered 96x96 size (see the Image style at its render site).
+  eggOverlay: { position: 'absolute', top: '50%', left: '50%', marginTop: -48, marginLeft: -48, alignItems: 'center', justifyContent: 'center' },
 
   subtitle: { fontSize: 16, color: '#333', textAlign: 'center', marginBottom: 14, fontWeight: '500' },
 
