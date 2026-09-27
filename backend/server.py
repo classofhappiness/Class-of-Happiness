@@ -41,6 +41,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 # Supabase
 from supabase import create_client, Client
+from supabase.client import ClientOptions
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -48,10 +49,58 @@ load_dotenv(ROOT_DIR / '.env')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Real feature Sep 27 (live incident - a genuine httpcore.ReadTimeout talking to Supabase
+# froze GET /students, /classrooms, /support-requests for ~100-150s simultaneously, all on
+# the same worker - see COH-REVIEW-PLAN.md/session notes for the full investigation).
+# Confirmed a single central chokepoint before building anything: all 801 supabase.table(...)
+# call sites in this file share ONE client instance, and supabase-py's ClientOptions accepts
+# a custom httpx.Client (checked the installed library source directly:
+# Client.postgrest/Client.storage properties both pass options.httpx_client straight through
+# as postgrest-py's/storage3's own http_client, used AS-IS - no other wiring needed, every
+# call site benefits automatically). Deliberately GET-only: a ReadTimeout means the request
+# MAY have already reached Supabase and succeeded server-side - the client just didn't hear
+# back in time - so blindly retrying a write could double it (the exact class of bug fixed
+# for student_rewards earlier this session). Reads carry no such risk. Real 4xx/validation
+# errors are ordinary HTTP responses, not exceptions - they're never touched by this at all,
+# only genuine transport-level failures (ReadTimeout/ConnectTimeout/ConnectError) trigger a
+# retry. When a custom httpx_client is supplied, supabase-py ignores its own
+# postgrest_client_timeout/storage_client_timeout entirely (confirmed in
+# Client._init_postgrest_client's source: "if http_client is not None: ...timeout/verify/
+# proxy never passed") - timeout=120 set explicitly here to match postgrest's own existing
+# default exactly, not silently shorten it to httpx's 5s default.
+class _RetryTransport(httpx.HTTPTransport):
+    _MAX_RETRIES = 2
+    _BACKOFF_BASE_SECONDS = 0.5
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        if request.method != "GET":
+            return super().handle_request(request)
+        last_exc: Optional[Exception] = None
+        for attempt in range(self._MAX_RETRIES + 1):
+            try:
+                return super().handle_request(request)
+            except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.ConnectError) as e:
+                last_exc = e
+                if attempt < self._MAX_RETRIES:
+                    logger.warning(f"[supabase-retry] {request.method} {request.url.path} attempt {attempt + 1} failed ({type(e).__name__}), retrying in {self._BACKOFF_BASE_SECONDS * (2 ** attempt)}s")
+                    time.sleep(self._BACKOFF_BASE_SECONDS * (2 ** attempt))
+                    continue
+                raise
+        raise last_exc  # pragma: no cover - loop above always returns or raises
+
+_supabase_httpx_client = httpx.Client(
+    transport=_RetryTransport(http2=True),
+    timeout=120,
+    follow_redirects=True,
+)
+
 # Supabase client
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+supabase: Client = create_client(
+    SUPABASE_URL, SUPABASE_SERVICE_KEY,
+    options=ClientOptions(httpx_client=_supabase_httpx_client),
+)
 
 # Real feature Sep 25 (item 13): DSN comes from a Railway env var (SENTRY_DSN), never
 # committed - sentry_sdk.init() is a real no-op when dsn is empty/None (confirmed in the
