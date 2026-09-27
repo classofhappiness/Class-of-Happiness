@@ -25,12 +25,15 @@ import { RTL_RESTART_FLOW_READY, needsRtlRestart, applyRtlAndRestart } from '../
 // missing keys silently no-op in playback either way, same established precedent.
 // Real feature Aug 30: hi/zh/ar/ru added as real, selectable languages - text-only review
 // drafts for Jono to show native speakers, per his explicit decision not to wait for
-// audio/full review. Arabic is TEXT ONLY - no RTL layout support yet (a genuinely separate,
-// larger project - see COH-REVIEW-PLAN.md), renders LTR like every other language for now.
+// audio/full review. Arabic text is otherwise complete - no RTL layout support yet (a
+// genuinely separate, larger project - see COH-REVIEW-PLAN.md), renders LTR like every other
+// language for now.
 // Real fix Aug 29: fr was stale here too (said false since Aug 25, but got its own full
 // 28-clip rollout tonight) - same "this array drifts from VOICE_CLIP_LANGUAGES" bug as item
 // 7 above, found again rather than trusted. de/hi/ru/zh all flipped true across this same
-// session as each got its own full 28-clip rollout - only `ar` has no recordings at all.
+// session as each got its own full 28-clip rollout.
+// Real feature Sep 27: ar flipped true - first-ever Arabic audio, real family recordings
+// (28 canonical clips + the 8 opening/praise/farewell phrases), uploaded and live-verified.
 // isBeta: hi/zh/ar/ru are unreviewed beyond the voiced strings themselves (no native-speaker
 // pass on the full UI text yet, unlike es/fr/de/it/pt which were already-established
 // translations before tonight) - shown as a small badge so families know what they're
@@ -44,7 +47,7 @@ const LANGUAGES = [
   { code: 'it', name: 'Italiano', flag: '🇮🇹', hasVoice: true, isBeta: false },
   { code: 'hi', name: 'हिन्दी', flag: '🇮🇳', hasVoice: true, isBeta: true },
   { code: 'zh', name: '中文', flag: '🇨🇳', hasVoice: true, isBeta: true },
-  { code: 'ar', name: 'العربية', flag: '🇸🇦', hasVoice: false, isBeta: true },
+  { code: 'ar', name: 'العربية', flag: '🇸🇦', hasVoice: true, isBeta: true },
   { code: 'ru', name: 'Русский', flag: '🇷🇺', hasVoice: true, isBeta: true },
 ];
 

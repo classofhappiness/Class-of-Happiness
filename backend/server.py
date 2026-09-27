@@ -3814,7 +3814,7 @@ async def get_helpers(request: Request, feeling_colour: Optional[str] = None, st
 VOICE_CLIP_KEYS = ["blue", "green", "yellow", "red"] + [
     f"{zone}_{n}" for zone in ("blue", "green", "yellow", "red") for n in range(1, 7)
 ]
-VOICE_CLIP_LANGUAGES = ("en", "pt", "es", "it", "fr", "hi", "zh", "de", "ru")  # Real feature Aug 25: it - full
+VOICE_CLIP_LANGUAGES = ("en", "pt", "es", "it", "fr", "hi", "zh", "de", "ru", "ar")  # Real feature Aug 25: it - full
 # rollout, all 28 canonical clips (4 colours + 24 helpers) uploaded and live-verified, real
 # converted .m4a files (confirmed by content, not extension - the originals were .opus,
 # genuinely converted before upload this time). es partial rollout Aug 23, completed to full
@@ -3826,6 +3826,12 @@ VOICE_CLIP_LANGUAGES = ("en", "pt", "es", "it", "fr", "hi", "zh", "de", "ru")  #
 # other way around. Safe by design: get_voice_clips only ever returns keys that genuinely
 # have a file in Storage, and the frontend already no-ops silently for any missing key (same
 # code path as pt's own earlier partial rollout), so this doesn't need special handling.
+# ar full rollout Sep 27: first-ever Arabic audio (text was draft-only before this, hasVoice:
+# false in settings.tsx) - real family recordings, all 28 canonical clips (4 colours + 24
+# helpers) uploaded to Storage under ar/ and live-verified byte-for-byte against the source
+# files before this line was added. Mapped against the recording script's own numbered order
+# plus content transliteration (not guessed) - see arabic-naming-convention.txt on Jono's
+# Desktop for the full old-filename -> key mapping this rollout used.
 
 @api_router.get("/voice-clips")
 async def get_voice_clips(language: str = "en"):
@@ -3866,6 +3872,10 @@ VOICE_PHRASE_POOLS = {
         "zh": ["Ni_Jintian_Ganjue_Zenmeyang.m4a", "Jilu_Wo_De_Xinqing.m4a"],
         "de": ["Wie_fuehlst_du_dich_heute.m4a", "Trage_ein_wie_du_dich_fuehlst.m4a"],
         "ru": ["Kak_Ty_Sebya_Chuvstvuesh_Segodnya.m4a", "Otmet_Svoi_Chuvstva.m4a"],
+        # ar added Sep 27, same rollout as the ar 28-clip manifest. Sajjil_Mashairi.m4a is the
+        # corrected "Check in with my feelings!" line (the recording script's own note: an
+        # earlier draft said "your feelings" instead of "my feelings").
+        "ar": ["Kayfa_Tashur_Alyawm.m4a", "Sajjil_Mashairi.m4a"],
     },
     "praise": {
         "en": ["Great_job.m4a", "Well_done.m4a", "You_did_it.m4a", "I_did_it.m4a"],
@@ -3875,6 +3885,7 @@ VOICE_PHRASE_POOLS = {
         "zh": ["Tai_Bang_Le.m4a", "Zuo_De_Hao.m4a", "Ni_Zuodao_Le.m4a", "Wo_Zuodao_Le.m4a"],
         "de": ["Toll_gemacht.m4a", "Gut_gemacht.m4a", "Du_hast_es_geschafft.m4a", "Ich_habe_es_geschafft.m4a"],
         "ru": ["Otlichno.m4a", "Molodets.m4a", "U_Tebya_Poluchilos.m4a", "U_Menya_Poluchilos.m4a"],
+        "ar": ["Ahsant.m4a", "Mumtaz.m4a", "Laqad_Faaltaha.m4a", "Ana_Faaltuha.m4a"],
     },
     "farewell": {
         "en": ["See_you_tomorrow.m4a", "Thank_you_for_checking_in.m4a"],
@@ -3884,6 +3895,7 @@ VOICE_PHRASE_POOLS = {
         "zh": ["Mingtian_Jian.m4a", "Xiexie_Ni_De_Jilu.m4a"],
         "de": ["Bis_morgen.m4a", "Danke_dass_du_dich_eingetragen_hast.m4a"],
         "ru": ["Do_Zavtra.m4a", "Spasibo_Za_Tvoy_Otvet.m4a"],
+        "ar": ["Araka_Ghadan.m4a", "Shukran_Litasjeel.m4a"],
     },
 }
 
