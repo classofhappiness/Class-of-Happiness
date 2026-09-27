@@ -452,6 +452,21 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
   // per-school card already uses - one shared computation, never two). Keyed by
   // school_admin_user_id so re-expanding a card that's already loaded doesn't refetch.
   const [teacherWellbeing, setTeacherWellbeing] = useState<Record<string, any>>({});
+  // Real feature Sep 27: email lookup for revokeSchoolAdmin's confirmation dialog, so it can
+  // name the actual admin account rather than just a raw user_id - `users` (UsersManager's
+  // own state) isn't in scope here, these are sibling components, so a small local fetch of
+  // the same /admin/users list instead of threading a prop through.
+  const [adminEmailById, setAdminEmailById] = useState<Record<string, string>>({});
+  useEffect(() => {
+    apiCall('/admin/users?limit=200', authToken)
+      .then((d: any) => {
+        const list = Array.isArray(d?.users) ? d.users : (Array.isArray(d) ? d : []);
+        const byId: Record<string, string> = {};
+        list.forEach((u: any) => { if (u.user_id && u.email) byId[u.user_id] = u.email; });
+        setAdminEmailById(byId);
+      })
+      .catch(() => setAdminEmailById({}));
+  }, [authToken]);
   const loadTeacherWellbeing = useCallback((adminId: string) => {
     if (!adminId || teacherWellbeing[adminId] !== undefined) return;
     setTeacherWellbeing(prev => ({ ...prev, [adminId]: null }));
@@ -530,19 +545,39 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
     }
   };
 
-  const generateSchoolCode = async (profile: any) => {
-    setGeneratingCodeFor(profile.id);
-    try {
-      await apiCall('/admin/generate-school-code', authToken, {
-        method: 'POST',
-        body: JSON.stringify({ school_name: profile.school_name, tier: tierBySchool[profile.id] || 'school_starter' }),
-      });
-      loadAllSchoolCodes();
-      loadExistingCodesForSchool(profile.school_name);
-    } catch (e: any) {
-      Alert.alert(t('error') || 'Error', e?.message || (t('could_not_generate_invite_code') || 'Could not generate code.'));
-    }
-    setGeneratingCodeFor(null);
+  // Real fix Sep 27 (provisioning-code duplicate-school gap): redeem_school_provisioning_code
+  // has no check for an existing admin - generating a SECOND code for a school that already
+  // has one and having anyone redeem it creates a completely separate, empty school_profiles
+  // row with the same name (confirmed live this session: 3 extra unused Sunshine codes had
+  // exactly this potential, cleaned up). profile.school_admin_user_id is the reliable signal
+  // for "this school already has a real admin" - it's nullable (a superadmin-created
+  // placeholder profile via "+ Add School" has none yet, see create_school_profile), so its
+  // presence specifically means a real account is already linked, not just that the row
+  // exists or its status looks active.
+  const generateSchoolCode = (profile: any) => {
+    const doGenerate = async () => {
+      setGeneratingCodeFor(profile.id);
+      try {
+        await apiCall('/admin/generate-school-code', authToken, {
+          method: 'POST',
+          body: JSON.stringify({ school_name: profile.school_name, tier: tierBySchool[profile.id] || 'school_starter' }),
+        });
+        loadAllSchoolCodes();
+        loadExistingCodesForSchool(profile.school_name);
+      } catch (e: any) {
+        Alert.alert(t('error') || 'Error', e?.message || (t('could_not_generate_invite_code') || 'Could not generate code.'));
+      }
+      setGeneratingCodeFor(null);
+    };
+    if (!profile.school_admin_user_id) { doGenerate(); return; }
+    Alert.alert(
+      t('duplicate_school_code_title') || 'This school already has an admin',
+      t('duplicate_school_code_warning') || 'A new provisioning code will NOT add another admin to this school — it will create a completely separate, empty school with the same name. Are you sure you want to do this?',
+      [
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
+        { text: t('generate_anyway') || 'Generate Anyway', style: 'destructive', onPress: doGenerate },
+      ],
+    );
   };
 
   const copyToClipboard = (text: string) => {
@@ -588,6 +623,42 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
       [
         { text: t('cancel') || 'Cancel', style: 'cancel' },
         { text: t('regenerate') || 'Regenerate', style: 'destructive', onPress: doGenerate },
+      ],
+    );
+  };
+
+  // Real feature Sep 27: undo mechanism for the same duplicate-school-admin gap as
+  // generateSchoolCode's own warning above - lets a superadmin cleanly reverse an accidental/
+  // unwanted provisioning-code redemption. Backend (POST /admin/school-admin/{id}/revoke)
+  // only demotes this one user + detaches them from their school_profiles row - the row
+  // itself, and every teacher/student/checkin under it, is never touched. Checked this
+  // codebase first for an existing "type to confirm" destructive-action pattern (account
+  // deletion, the most serious one, uses a plain two-button Alert like this) - none exists,
+  // so this matches the real established pattern (destructive-styled Alert naming exactly
+  // who/what) rather than inventing a new one-off UI just for this action.
+  const [revokingAdminFor, setRevokingAdminFor] = useState<string | null>(null);
+  const revokeSchoolAdmin = (profile: any) => {
+    const adminId = profile.school_admin_user_id;
+    if (!adminId) return;
+    const adminLabel = adminEmailById[adminId] || adminId;
+    Alert.alert(
+      t('revoke_admin_title') || 'Revoke admin access?',
+      (t('revoke_admin_warning') || '{admin} will be demoted to a regular teacher and detached from {school}. {school}\'s profile, teachers, and students are NOT deleted — only this one person\'s admin access is removed. This can be undone later with a new provisioning code.')
+        .split('{admin}').join(adminLabel).split('{school}').join(profile.school_name),
+      [
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
+        { text: t('revoke') || 'Revoke', style: 'destructive', onPress: async () => {
+          setRevokingAdminFor(profile.id);
+          try {
+            await apiCall(`/admin/school-admin/${adminId}/revoke`, authToken, { method: 'POST', body: JSON.stringify({}) });
+            loadProfiles();
+            loadAllSchoolCodes();
+            Alert.alert(t('success') || 'Success', t('revoke_admin_success') || 'Admin access revoked. The school profile and its data are untouched.');
+          } catch (e: any) {
+            Alert.alert(t('error') || 'Error', e?.message || (t('could_not_revoke_admin') || 'Could not revoke admin access.'));
+          }
+          setRevokingAdminFor(null);
+        }},
       ],
     );
   };
@@ -967,6 +1038,32 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
                                   </TouchableOpacity>
                                 </>
                               )}
+                            </View>
+                          )}
+
+                          {/* Real feature Sep 27: revoke, the undo half of the duplicate-
+                              school-admin fix - deliberately its own visually-separated
+                              "danger zone" (red border/text, not grouped with the routine
+                              green Generate/Regenerate actions above) since this demotes a
+                              real person's account, not just rotates a code. Same
+                              school_admin_user_id gate as the invite-code section right
+                              above - nothing to revoke when this profile has no admin
+                              linked yet. */}
+                          {!!profile.school_admin_user_id && (
+                            <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#FFCDD2' }}>
+                              <Text style={{ fontSize: 11, fontWeight: '800', color: '#C62828', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                                {t('danger_zone_label') || 'Danger Zone'}
+                              </Text>
+                              <TouchableOpacity
+                                onPress={() => revokeSchoolAdmin(profile)}
+                                disabled={revokingAdminFor === profile.id}
+                                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: 'white', borderWidth: 1.5, borderColor: '#F44336', borderRadius: 20, paddingVertical: 8, opacity: revokingAdminFor === profile.id ? 0.6 : 1 }}
+                              >
+                                <MaterialIcons name="remove-circle-outline" size={15} color="#F44336" />
+                                <Text style={{ color: '#F44336', fontWeight: '800', fontSize: 12 }}>
+                                  {revokingAdminFor === profile.id ? (t('revoking') || 'Revoking...') : (t('revoke_admin_btn') || 'Revoke Admin Access')}
+                                </Text>
+                              </TouchableOpacity>
                             </View>
                           )}
                         </View>

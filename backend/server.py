@@ -15792,6 +15792,52 @@ async def create_school_admin(request: Request):
         "note": "User can log in with their email — no password needed"
     }
 
+@api_router.post("/admin/school-admin/{user_id}/revoke")
+async def revoke_school_admin(user_id: str, request: Request):
+    """Real feature Sep 27: safety valve for the duplicate-school-admin gap found this
+    session (redeem_school_provisioning_code has no check for an existing admin - see the
+    pre-generate warning in the frontend's generateSchoolCode/saGenerateProvisioningCode for
+    the other half of this fix). Demotes the target user's role back to a plain teacher and
+    detaches them from their school_profiles row - deliberately does NOT delete the
+    school_profiles row, or touch any of its teachers/students/checkins/data, so the school
+    itself (and anything real already in it) is completely untouched. This only removes
+    THIS ONE person's admin link to it, and is itself reversible (a fresh provisioning code
+    can always re-establish a school_admin link later) - unlike deleting the profile, which
+    would not be."""
+    caller = await get_current_user(request)
+    if not caller or caller.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    target = supabase.table("users").select("*").eq("user_id", user_id).execute()
+    if not target.data:
+        raise HTTPException(status_code=404, detail="User not found")
+    target_user = target.data[0]
+    if target_user.get("role") != "school_admin":
+        raise HTTPException(status_code=400, detail="This user is not currently a school admin")
+
+    old_school_name = target_user.get("school_name")
+    supabase.table("users").update({"role": "teacher", "school_name": None}).eq("user_id", user_id).execute()
+    _auth_cache_evict_user(user_id)  # item 27: role just changed for this account
+
+    detached_profile_id = None
+    try:
+        profile_r = supabase.table("school_profiles").select("id").eq("school_admin_user_id", user_id).execute()
+        if profile_r.data:
+            detached_profile_id = profile_r.data[0]["id"]
+            supabase.table("school_profiles").update({
+                "school_admin_user_id": None,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", detached_profile_id).execute()
+    except Exception as e:
+        logger.warning(f"[revoke_school_admin] could not detach school_profiles row for {user_id}: {e}")
+
+    return {
+        "status": "revoked",
+        "user_id": user_id,
+        "previous_school_name": old_school_name,
+        "new_role": "teacher",
+        "detached_school_profile_id": detached_profile_id,
+    }
+
 # ================== SCHOOL-PROVISIONING CODES (Sep 20) ==================
 # Real feature Sep 20 (fully scoped and logged 2026-09-19/20 before build): a genuinely new,
 # separate code system from invite_codes (teacher-joins-a-school) and parent_links (parent
