@@ -8620,38 +8620,75 @@ def _unregister_push_token_sync(user_id: str, token: str = None) -> None:
     except Exception as e:
         logger.warning(f"[push_tokens] legacy column clear failed for {user_id}: {e}")
 
-async def _send_push(tokens: list, title: str, body: str, data: dict = None, sound: str = "default", priority: str = None, channel_id: str = None) -> int:
+async def _send_push(recipients: list, text_by_lang: dict, data: dict = None, sound: str = "default", priority: str = None, channel_id: str = None) -> int:
     """Shared Expo push sender - extracted Sep 10 (Support Requests build, Phase 0) from
     three copy-pasted inline versions of this exact pattern (help-request, zone-alert,
     parent-message). Same behaviour as all three: filters to real ExponentPushToken
     values, POSTs the whole batch in one call to exp.host, swallows/logs errors so a push
     failure never blocks the caller's own response. channel_id is new - none of the three
     original call sites set it (Expo defaults to the "default" Android channel), but the
-    Support Requests incident path needs to target a distinct high-priority channel."""
+    Support Requests incident path needs to target a distinct high-priority channel.
+
+    Real feature Sep 27 (push notification localization, stage 2 - plumbing only, no
+    translations yet): signature changed from (tokens: list[str], title: str, body: str, ...)
+    to (recipients: list[(user_id, token)], text_by_lang: dict[lang, {"title","body"}], ...)
+    so a recipient's own users.language can drive which text they get, instead of every
+    token receiving the same hardcoded English string regardless of the app's language
+    setting (a real, previously-flagged gap - see COH-REVIEW-PLAN.md's KNOWN LIMITATIONS).
+    Batch-resolves every unique user_id's language in ONE query (not one per recipient),
+    groups tokens by resolved language, sends one Expo batch call per language group so one
+    group's failure can't block another's. text_by_lang only ever has an "en" key populated
+    at any call site today (translations land in a later pass) - any resolved language not
+    yet in text_by_lang falls back to "en", so behaviour is unchanged (100% English) until
+    real translations are added; this stage is purely the plumbing."""
     import httpx
-    valid_tokens = [t for t in (tokens or []) if t and t.startswith("ExponentPushToken")]
-    if not valid_tokens:
+    valid = [(uid, t) for uid, t in (recipients or []) if t and t.startswith("ExponentPushToken")]
+    if not valid:
         return 0
-    msg = {"title": title, "body": body, "sound": sound}
-    if data is not None:
-        msg["data"] = data
-    if priority:
-        msg["priority"] = priority
-    if channel_id:
-        msg["channelId"] = channel_id
-    messages = [{"to": t, **msg} for t in valid_tokens]
-    try:
-        async with httpx.AsyncClient() as client:
-            await client.post(
-                "https://exp.host/--/api/v2/push/send",
-                json=messages,
-                headers={"Content-Type": "application/json"},
-                timeout=10,
-            )
-        return len(messages)
-    except Exception as e:
-        logger.error(f"_send_push error: {e}")
-        return 0
+
+    # Batch-resolve languages: one query for every DISTINCT non-empty user_id in this call,
+    # not one query per recipient. A falsy user_id (e.g. a malformed family_members row with
+    # no user_id) skips the lookup and defaults to "en" below, same as a user whose
+    # users.language is null - _send_push must never fail a caller's own response over this.
+    unique_ids = list({uid for uid, _ in valid if uid})
+    lang_by_user = {}
+    if unique_ids:
+        try:
+            rows = (await asyncio.to_thread(
+                lambda: supabase.table("users").select("user_id,language").in_("user_id", unique_ids).execute()
+            )).data or []
+            lang_by_user = {r["user_id"]: r.get("language") for r in rows if r.get("user_id")}
+        except Exception as e:
+            logger.warning(f"[_send_push] batch language lookup failed, defaulting this batch to en: {e}")
+
+    tokens_by_lang: dict = {}
+    for uid, tok in valid:
+        lang = lang_by_user.get(uid) or "en"
+        tokens_by_lang.setdefault(lang, []).append(tok)
+
+    total_sent = 0
+    async with httpx.AsyncClient() as client:
+        for lang, toks in tokens_by_lang.items():
+            text = text_by_lang.get(lang) or text_by_lang.get("en") or {}
+            msg = {"title": text.get("title", ""), "body": text.get("body", ""), "sound": sound}
+            if data is not None:
+                msg["data"] = data
+            if priority:
+                msg["priority"] = priority
+            if channel_id:
+                msg["channelId"] = channel_id
+            messages = [{"to": t, **msg} for t in toks]
+            try:
+                await client.post(
+                    "https://exp.host/--/api/v2/push/send",
+                    json=messages,
+                    headers={"Content-Type": "application/json"},
+                    timeout=10,
+                )
+                total_sent += len(messages)
+            except Exception as e:
+                logger.error(f"_send_push error (lang={lang}): {e}")
+    return total_sent
 
 # ── Help request (student asks for help with strategy) ───
 @api_router.post("/notifications/help-request")
@@ -8758,7 +8795,7 @@ async def send_help_request(request: Request):
                 # out to every device the teacher is registered on (see
                 # _get_push_tokens_for_user's own docstring for the multi-device rationale).
                 for tok in await _get_push_tokens_for_user(teacher_user_id):
-                    tokens_to_notify.append(("teacher", tok))
+                    tokens_to_notify.append((teacher_user_id, tok))
         except Exception as e:
             logger.warning(f"[notify-teacher-token] teacher push token lookup failed: {e}")
 
@@ -8768,15 +8805,16 @@ async def send_help_request(request: Request):
             parent_links = supabase.table("parent_links").select("parent_id").eq("student_id", student_id).execute()
             for link in (parent_links.data or []):
                 for tok in await _get_push_tokens_for_user(link["parent_id"]):
-                    tokens_to_notify.append(("parent", tok))
+                    tokens_to_notify.append((link["parent_id"], tok))
         except Exception as e:
             logger.warning(f"[notify-parent-tokens] parent_links-based token lookup failed: {e}")
 
         try:
             fm_links = supabase.table("family_members").select("*").eq("student_id", student_id).execute()
             for fm in (fm_links.data or []):
-                for tok in await _get_push_tokens_for_user(fm.get("user_id", "")):
-                    tokens_to_notify.append(("parent", tok))
+                fm_user_id = fm.get("user_id", "")
+                for tok in await _get_push_tokens_for_user(fm_user_id):
+                    tokens_to_notify.append((fm_user_id, tok))
         except Exception as e:
             logger.warning(f"[notify-parent-tokens] family_members-based token lookup failed: {e}")
 
@@ -8788,8 +8826,8 @@ async def send_help_request(request: Request):
         notif_body += f"\n\"{message}\""
 
     sent = await _send_push(
-        [token for _, token in tokens_to_notify],
-        notif_title, notif_body,
+        tokens_to_notify,
+        {"en": {"title": notif_title, "body": notif_body}},
         data={
             "type": "help_request", "student_id": student_id, "student_name": student_name,
             "zone": zone, "strategy_name": strategy_name, "alert_id": alert_id,
@@ -8890,7 +8928,7 @@ async def send_zone_alert(request: Request):
                     settings = _json.loads(setting_r.data[0]["value"])
                     watched_zones = settings.get("zone_alerts", [])
                     if zone in watched_zones and settings.get("enabled", False):
-                        tokens_to_notify.extend(await _get_push_tokens_for_user(teacher_id))
+                        tokens_to_notify.extend((teacher_id, tok) for tok in await _get_push_tokens_for_user(teacher_id))
         except Exception as e:
             logger.error(f"Zone alert teacher check error: {e}")
 
@@ -8909,7 +8947,7 @@ async def send_zone_alert(request: Request):
                     settings = _json.loads(setting_r.data[0]["value"])
                     watched_zones = settings.get("zone_alerts", [])
                     if zone in watched_zones and settings.get("enabled", False):
-                        tokens_to_notify.extend(await _get_push_tokens_for_user(parent_id))
+                        tokens_to_notify.extend((parent_id, tok) for tok in await _get_push_tokens_for_user(parent_id))
         except Exception as e:
             logger.error(f"Zone alert parent check error: {e}")
 
@@ -8921,8 +8959,7 @@ async def send_zone_alert(request: Request):
 
     sent = await _send_push(
         tokens_to_notify,
-        f"{zone_emoji} {student_name} checked in",
-        f"Feeling {zone_label} right now.",
+        {"en": {"title": f"{zone_emoji} {student_name} checked in", "body": f"Feeling {zone_label} right now."}},
         data={"type": "zone_alert", "student_id": student_id, "zone": zone, "log_id": log_id},
     )
 
@@ -8966,14 +9003,13 @@ async def _notify_parent_of_message(student_id: str, student_name: str, message:
     parent_user_ids = await asyncio.to_thread(_resolve_parent_user_ids_sync, student_id)
     try:
         for uid in parent_user_ids:
-            tokens_to_notify.extend(await _get_push_tokens_for_user(uid))
+            tokens_to_notify.extend((uid, tok) for tok in await _get_push_tokens_for_user(uid))
     except Exception as e:
         logger.warning(f"[notify-parents] push_token lookup failed: {e}")
     zone_emoji = {"blue": "🔵", "green": "🟢", "yellow": "🟡", "red": "🔴"}.get(zone, "💙")
     return await _send_push(
         tokens_to_notify,
-        f"{zone_emoji} Message from {student_name}",
-        message[:100],
+        {"en": {"title": f"{zone_emoji} Message from {student_name}", "body": message[:100]}},
         data={"type": "parent_message", "student_id": student_id, "zone": zone},
     )
 
@@ -17224,7 +17260,7 @@ async def create_support_request(request: Request):
     # same defensive pattern already used for the push-sending block in help-request.
     admin_tokens = []
     try:
-        admin_tokens = await _get_push_tokens_for_user(school_admin_id)
+        admin_tokens = [(school_admin_id, tok) for tok in await _get_push_tokens_for_user(school_admin_id)]
     except Exception as e:
         logger.error(f"Could not look up admin push_token for support request {created['id']}: {e}")
     request_type_labels = {
@@ -17245,8 +17281,10 @@ async def create_support_request(request: Request):
     # notifications.ts's IS_EXPO_GO guard).
     await _send_push(
         admin_tokens,
-        "🚨 Incident" if is_incident else "🔔 Support request",
-        f"{who}: {request_type_labels.get(request_type, 'needs support')}",
+        {"en": {
+            "title": "🚨 Incident" if is_incident else "🔔 Support request",
+            "body": f"{who}: {request_type_labels.get(request_type, 'needs support')}",
+        }},
         data={"type": "support_request", "id": created["id"], "is_incident": is_incident},
         priority="high",
         channel_id="incident" if is_incident else "default",
@@ -17411,7 +17449,7 @@ async def respond_support_request(request_id: str, request: Request):
 
     teacher_tokens = []
     try:
-        teacher_tokens = await _get_push_tokens_for_user(row["requested_by"])
+        teacher_tokens = [(row["requested_by"], tok) for tok in await _get_push_tokens_for_user(row["requested_by"])]
     except Exception as e:
         logger.error(f"Could not look up teacher push_token for support request {request_id}: {e}")
     # Real fix Sep 11: this push was a bare "Response: <text>" with no student/classroom
@@ -17431,8 +17469,7 @@ async def respond_support_request(request_id: str, request: Request):
         logger.warning(f"[respond_support_request] could not resolve who for push context: {e}")
     await _send_push(
         teacher_tokens,
-        f"Support request update: {who}" if who else "Support request update",
-        response_text,
+        {"en": {"title": f"Support request update: {who}" if who else "Support request update", "body": response_text}},
         data={"type": "support_request_response", "id": request_id},
     )
     return result.data[0] if result.data else updates
@@ -17492,12 +17529,12 @@ async def cancel_support_request(request_id: str, request: Request):
 
     admin_tokens = []
     try:
-        admin_tokens = await _get_push_tokens_for_user(row["school_admin_id"])
+        admin_tokens = [(row["school_admin_id"], tok) for tok in await _get_push_tokens_for_user(row["school_admin_id"])]
     except Exception as e:
         logger.error(f"Could not look up admin push_token for cancelled support request {request_id}: {e}")
     await _send_push(
         admin_tokens,
-        "Support request cancelled", "The teacher no longer needs this - no action needed.",
+        {"en": {"title": "Support request cancelled", "body": "The teacher no longer needs this - no action needed."}},
         data={"type": "support_request_cancelled", "id": request_id},
         channel_id="default",  # cancel is always the standard channel, even if the cancelled request was an incident
     )
@@ -17628,14 +17665,16 @@ async def _support_requests_rebuzz_loop():
                     # delivery success isn't reliably knowable from Expo's response anyway.
                     admin_tokens = []
                     try:
-                        admin_tokens = await _get_push_tokens_for_user(r["school_admin_id"])
+                        admin_tokens = [(r["school_admin_id"], tok) for tok in await _get_push_tokens_for_user(r["school_admin_id"])]
                     except Exception as e:
                         logger.error(f"[support_requests rebuzz] push_token lookup failed for {r['id']}: {e}")
                     if admin_tokens:
                         await _send_push(
                             admin_tokens,
-                            "🚨 Incident (unacknowledged)" if r.get("is_incident") else "🔔 Support request (unacknowledged)",
-                            "Still waiting for a response",
+                            {"en": {
+                                "title": "🚨 Incident (unacknowledged)" if r.get("is_incident") else "🔔 Support request (unacknowledged)",
+                                "body": "Still waiting for a response",
+                            }},
                             data={"type": "support_request_rebuzz", "id": r["id"]},
                             priority="high", channel_id="incident" if r.get("is_incident") else "default",
                             sound="default" if r.get("is_incident") else "support_buzz.wav",
