@@ -4240,15 +4240,31 @@ def _write_student_rewards(rewards_result, student_id: str, update_data: dict) -
     yet - same defensive try/except-and-retry-without-the-new-field pattern already used
     elsewhere in this file for a column pending its own migration (e.g. /students'
     school_admin_id). Inert (silently drops the field, everything else still writes normally)
-    until that migration lands, not a hard dependency."""
+    until that migration lands, not a hard dependency.
+
+    Root-cause fix Sep 27 (live device report, 500 on add-points - not language-specific,
+    reproduced with a plain traceback, nothing to do with the ar/pt/etc locale in use):
+    rewards_result is captured once at the TOP of add_points, before several other DB calls -
+    if a second request for the SAME student_id (two devices/sessions on one account, or a
+    network retry) inserted the row in the meantime, rewards_result.data is stale ("no row
+    exists yet") and this function's own INSERT collides with student_rewards_pkey (Postgres
+    23505). That was already being caught by the try/except below - but the except block blindly
+    retried the exact same INSERT (just with fewer fields), which fails with the identical
+    error, uncaught the second time, exactly matching the real 500 seen live. Now detects that
+    specific case (a real duplicate-key error, not some other failure) and retries as an UPDATE
+    instead - the row exists, by definition, whenever this error fires, regardless of what
+    rewards_result said at function entry."""
     try:
         if rewards_result.data:
             supabase.table("student_rewards").update(update_data).eq("student_id", student_id).execute()
         else:
             supabase.table("student_rewards").insert({**update_data, "student_id": student_id}).execute()
-    except Exception:
+    except Exception as e:
         fallback_data = {k: v for k, v in update_data.items() if k != "processed_checkin_ids"}
-        if rewards_result.data:
+        is_duplicate_key = getattr(e, "code", None) == "23505" or "duplicate key" in str(e)
+        if is_duplicate_key:
+            supabase.table("student_rewards").update(fallback_data).eq("student_id", student_id).execute()
+        elif rewards_result.data:
             supabase.table("student_rewards").update(fallback_data).eq("student_id", student_id).execute()
         else:
             supabase.table("student_rewards").insert({**fallback_data, "student_id": student_id}).execute()
