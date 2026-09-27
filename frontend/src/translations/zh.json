@@ -42,7 +42,6 @@
   "alerts_lowercase": "提醒",
   "all": "全部",
   "all_arrow": "全部 →",
-  "all_zones": "所有区域",
   "allow_camera_access_settings": "请在设置中允许访问相机。",
   "allow_camera_access_settings_short": "请在设置中允许访问相机。",
   "allow_library_access_settings": "请在设置中允许访问相册。",
@@ -1755,5 +1754,6 @@
   "until_label": "至",
   "open_settings": "打开设置",
   "push_unavailable_expo_go_title": "此预览版本中不可用",
-  "push_unavailable_expo_go_body": "无法在 Expo Go 中测试推送通知。请安装完整版应用以接收支持请求提醒。"
+  "push_unavailable_expo_go_body": "无法在 Expo Go 中测试推送通知。请安装完整版应用以接收支持请求提醒。",
+  "all_emotions": "所有情绪"
 }

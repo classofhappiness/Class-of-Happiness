@@ -926,7 +926,6 @@
   "add_strategy_error": "Failed to add strategy",
   "add_strategy_title": "Add Strategy",
   "adults_label": "Adults",
-  "all_zones": "All Zones",
   "are_you_sure_delete_strategy": "Are you sure you want to delete",
   "article": "Article",
   "assign_to": "Assign to",
@@ -1655,5 +1654,6 @@
   "until_label": "until",
   "open_settings": "Open Settings",
   "push_unavailable_expo_go_title": "Not available in this preview",
-  "push_unavailable_expo_go_body": "Push notifications can't be tested in Expo Go. Install the full app build to receive support request alerts."
+  "push_unavailable_expo_go_body": "Push notifications can't be tested in Expo Go. Install the full app build to receive support request alerts.",
+  "all_emotions": "All Emotions"
 }

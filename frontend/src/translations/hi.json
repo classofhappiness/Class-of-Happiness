@@ -42,7 +42,6 @@
   "alerts_lowercase": "सूचनाएं",
   "all": "सभी",
   "all_arrow": "सभी →",
-  "all_zones": "सभी ज़ोन",
   "allow_camera_access_settings": "कृपया सेटिंग्स में कैमरा एक्सेस की अनुमति दें।",
   "allow_camera_access_settings_short": "सेटिंग्स में कैमरा एक्सेस की अनुमति दें।",
   "allow_library_access_settings": "कृपया सेटिंग्स में फ़ोटो लाइब्रेरी एक्सेस की अनुमति दें।",
@@ -1755,5 +1754,6 @@
   "until_label": "तक",
   "open_settings": "सेटिंग्स खोलें",
   "push_unavailable_expo_go_title": "इस पूर्वावलोकन में उपलब्ध नहीं है",
-  "push_unavailable_expo_go_body": "Expo Go में पुश सूचनाओं का परीक्षण नहीं किया जा सकता। सहायता अनुरोध अलर्ट प्राप्त करने के लिए पूर्ण ऐप बिल्ड इंस्टॉल करें।"
+  "push_unavailable_expo_go_body": "Expo Go में पुश सूचनाओं का परीक्षण नहीं किया जा सकता। सहायता अनुरोध अलर्ट प्राप्त करने के लिए पूर्ण ऐप बिल्ड इंस्टॉल करें।",
+  "all_emotions": "सभी भावनाएं"
 }

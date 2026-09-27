@@ -42,7 +42,6 @@
   "alerts_lowercase": "تنبيهات",
   "all": "الكل",
   "all_arrow": "الكل ←",
-  "all_zones": "كل المناطق",
   "allow_camera_access_settings": "يرجى السماح بالوصول إلى الكاميرا من الإعدادات.",
   "allow_camera_access_settings_short": "اسمح بالوصول إلى الكاميرا من الإعدادات.",
   "allow_library_access_settings": "يرجى السماح بالوصول إلى مكتبة الصور من الإعدادات.",
@@ -1755,5 +1754,6 @@
   "until_label": "حتى",
   "open_settings": "افتح الإعدادات",
   "push_unavailable_expo_go_title": "غير متاح في هذه المعاينة",
-  "push_unavailable_expo_go_body": "لا يمكن اختبار الإشعارات الفورية في Expo Go. ثبّت النسخة الكاملة من التطبيق لتلقي تنبيهات طلبات الدعم."
+  "push_unavailable_expo_go_body": "لا يمكن اختبار الإشعارات الفورية في Expo Go. ثبّت النسخة الكاملة من التطبيق لتلقي تنبيهات طلبات الدعم.",
+  "all_emotions": "كل المشاعر"
 }

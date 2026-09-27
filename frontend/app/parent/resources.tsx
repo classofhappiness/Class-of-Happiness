@@ -340,15 +340,22 @@ export default function ResourcesScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Back button */}
+      {/* Back button — real fix Sep 27 (live device report): plain icons here never got the
+          black-circle treatment the header/nav consistency pass (Sep 15-18) applied
+          everywhere else via TranslatedHeader - this screen has its own hand-rolled header
+          (title needs to sit between a labelled Back button and Home, not the shared
+          component's shape), so matched the exact same 36x36/#1A1A2E/white-icon styling
+          directly rather than migrating the whole header. */}
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
+          <View style={styles.iconCircle}>
+            <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
+          </View>
           <Text style={styles.backText}>{t('back') || 'Back'}</Text>
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>{t('resources') || 'Resources'}</Text>
-        <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={{ padding: 6, width: 40, alignItems: 'center' }}>
-          <MaterialIcons name="home" size={22} color="#333" />
+        <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={styles.iconCircle}>
+          <MaterialIcons name="home" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
@@ -623,9 +630,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
   },
-  backButton: { flexDirection: 'row', alignItems: 'center', gap: 4, width: 60 },
+  backButton: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   backText: { fontSize: 14, color: '#333' },
   topBarTitle: { fontSize: 18, fontWeight: '600', color: '#333' },
+  // Matches TranslatedHeader's own backButton/homeButton exactly (src/components/
+  // TranslatedHeader.tsx) - the app-wide black-circle standard.
+  iconCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' },
   scrollContent: { padding: 16, paddingBottom: 40 },
   tabContainer: {
     flexDirection: 'row',

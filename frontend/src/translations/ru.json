@@ -42,7 +42,6 @@
   "alerts_lowercase": "оповещения",
   "all": "Все",
   "all_arrow": "Все →",
-  "all_zones": "Все зоны",
   "allow_camera_access_settings": "Разрешите доступ к камере в настройках.",
   "allow_camera_access_settings_short": "Разрешите доступ к камере в настройках.",
   "allow_library_access_settings": "Разрешите доступ к галерее фото в настройках.",
@@ -1755,5 +1754,6 @@
   "until_label": "до",
   "open_settings": "Открыть настройки",
   "push_unavailable_expo_go_title": "Недоступно в этой предварительной версии",
-  "push_unavailable_expo_go_body": "Push-уведомления нельзя протестировать в Expo Go. Установите полную сборку приложения, чтобы получать оповещения о запросах поддержки."
+  "push_unavailable_expo_go_body": "Push-уведомления нельзя протестировать в Expo Go. Установите полную сборку приложения, чтобы получать оповещения о запросах поддержки.",
+  "all_emotions": "Все эмоции"
 }

@@ -245,33 +245,17 @@ export default function FamilyStrategiesScreen() {
           </Text>
         </View>
 
-        {/* Zone filter tabs - matching app style */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}
-          style={{ marginBottom: 14, marginHorizontal: -4 }}
-          contentContainerStyle={{ paddingHorizontal: 4, gap: 8, flexDirection: 'row' }}>
-          <TouchableOpacity
-            style={[styles.zoneChip, !selectedZone && styles.zoneChipActive]}
-            onPress={() => setSelectedZone(null)}>
-            <Text style={[styles.zoneChipText, !selectedZone && styles.zoneChipTextActive]}>{t('all_zones') || 'All Zones'}</Text>
-          </TouchableOpacity>
-          {zones.map(zone => (
-            <TouchableOpacity key={zone}
-              style={[styles.zoneChip, selectedZone === zone && { backgroundColor: ZONE_COLORS[zone], borderColor: ZONE_COLORS[zone] }]}
-              onPress={() => setSelectedZone(selectedZone === zone ? null : zone)}>
-              <Text style={[styles.zoneChipText, selectedZone === zone && styles.zoneChipTextActive]}>
-                {zone === 'blue' ? (t('blue_label') || 'Blue') : zone === 'green' ? (t('green_label') || 'Green') : zone === 'yellow' ? (t('yellow_label') || 'Yellow') : (t('red_label') || 'Red')}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* Zone info card */}
-        {selectedZone && (
-          <View style={[styles.zoneInfoCard, { borderLeftColor: ZONE_COLORS[selectedZone], backgroundColor: ZONE_BG[selectedZone] }]}>
-            <Text style={[styles.zoneInfoTitle, { color: ZONE_COLORS[selectedZone] }]}>{selectedZone === 'blue' ? (t('blue_zone_name') || ZONE_NAMES[selectedZone]) : selectedZone === 'green' ? (t('green_zone_name') || ZONE_NAMES[selectedZone]) : selectedZone === 'yellow' ? (t('yellow_zone_name') || ZONE_NAMES[selectedZone]) : (t('red_zone_name') || ZONE_NAMES[selectedZone])}</Text>
-            <Text style={styles.zoneInfoDesc}>{selectedZone === 'blue' ? (t('blue_zone_desc') || ZONE_DESC[selectedZone]) : selectedZone === 'green' ? (t('green_zone_desc') || ZONE_DESC[selectedZone]) : selectedZone === 'yellow' ? (t('yellow_zone_desc') || ZONE_DESC[selectedZone]) : (t('red_zone_desc') || ZONE_DESC[selectedZone])}</Text>
-          </View>
-        )}
+        {/* Real fix Sep 27 (live device report): the 4 individual colour filters (Low
+            Energy/Calm & Ready/Stressed/Overloaded) removed per Jono's explicit call -
+            redundant with the strategies-grouped-by-zone sections already below (each zone
+            gets its own heading there regardless of this row), so jumping to just one zone
+            up here duplicated what scrolling already does. selectedZone/setSelectedZone
+            state is left in place, not dead - it still drives that grouped-by-zone
+            rendering below (line ~284's `(!selectedZone ? zones : [selectedZone])`), it can
+            just never become non-null anymore now that nothing sets it. "All Zones" renamed
+            to "All Emotions" (all 10 languages) as its own explicit ask - kept as a plain
+            label rather than a now-pointless single-option filter chip. */}
+        <Text style={styles.allEmotionsLabel}>{t('all_emotions') || 'All Emotions'}</Text>
 
         {/* Strategies grouped by zone */}
         {activeTab === 'child' && (
@@ -568,13 +552,9 @@ const styles = StyleSheet.create({
   topBarTitle: { fontSize: 17, fontWeight: '700', color: '#333', flex: 1, textAlign: 'center' },
   scrollContent: { padding: 16, paddingBottom: 50 },
   subtitle: { fontSize: 13, color: '#AAA', marginBottom: 14, lineHeight: 18, textAlign: 'center', fontStyle: 'italic' },
-  zoneChip: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, backgroundColor: '#F0F0F0', borderWidth: 1.5, borderColor: '#E0E0E0' },
-  zoneChipActive: { backgroundColor: '#5C6BC0', borderColor: '#5C6BC0' },
-  zoneChipText: { fontSize: 13, fontWeight: '600', color: '#666' },
-  zoneChipTextActive: { color: 'white' },
-  zoneInfoCard: { borderLeftWidth: 4, borderRadius: 10, padding: 12, marginBottom: 14 },
-  zoneInfoTitle: { fontSize: 15, fontWeight: '700', marginBottom: 3 },
-  zoneInfoDesc: { fontSize: 13, color: '#555', lineHeight: 18 },
+  // Real fix Sep 27: replaces the removed 4-colour zoneChip filter row - see its own
+  // removal comment above.
+  allEmotionsLabel: { fontSize: 13, fontWeight: '700', color: '#999', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
   zoneSectionHeader: { borderRadius: 12, padding: 14, marginBottom: 8, marginTop: 8 },
   zoneSectionTitle: { fontSize: 15, fontWeight: '700', color: 'white' },
   zoneSectionDesc: { fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 2 },

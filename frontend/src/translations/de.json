@@ -629,7 +629,6 @@
   "green_zone_desc": "Ruhig, glücklich, fokussiert, bereit für Verbindung",
   "yellow_zone_desc": "Besorgt, frustriert, verliert die Kontrolle",
   "red_zone_desc": "Wütend, ängstlich, überfordert, außer Kontrolle",
-  "all_zones": "Alle Zonen",
   "for_educational_purposes": "Nur zu Bildungszwecken. Kein Ersatz für professionelle Beratung. Siehe rechtlichen Hinweis unten.",
   "child_strategies_note": "Dies sind dieselben Strategien, die Kinder in der Schule verwenden. Sie werden hier gezeigt, damit Familien sie zu Hause verstärken können.",
   "emotion_strategies_children": "Emotionsstrategien für Kinder - dieselben, die in der Schule verwendet werden.",
@@ -1920,5 +1919,6 @@
   "until_label": "bis",
   "open_settings": "Einstellungen öffnen",
   "push_unavailable_expo_go_title": "In dieser Vorschau nicht verfügbar",
-  "push_unavailable_expo_go_body": "Push-Benachrichtigungen können in Expo Go nicht getestet werden. Installieren Sie die vollständige App, um Benachrichtigungen zu Support-Anfragen zu erhalten."
+  "push_unavailable_expo_go_body": "Push-Benachrichtigungen können in Expo Go nicht getestet werden. Installieren Sie die vollständige App, um Benachrichtigungen zu Support-Anfragen zu erhalten.",
+  "all_emotions": "Alle Emotionen"
 }
