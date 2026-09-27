@@ -7,6 +7,7 @@ import { useApp } from '../src/context/AppContext';
 import { ZONE_FACES } from '../src/components/ZoneButton';
 import { EMOTION_COLOURS } from '../src/constants/emotionColours';
 import { getZoneWords, ZoneColour } from '../src/constants/zoneWords';
+import { EmotionColourLoader } from '../src/components/EmotionColourLoader';
 
 // Root cause: no existing local feature-flag constant pattern anywhere in this codebase
 // (checked repo-wide) - the closest thing, server-side allowed_by_superadmin/enabled_by_school
@@ -18,23 +19,35 @@ export const HOME_EMOJI_INTERACTION_ENABLED = true;
 
 const WORD_CYCLE_MS = 1800;
 
+// Correction Sep 27 (live feedback): the easter egg must replay the app's REAL loading
+// animation - EmotionColourLoader (frontend/src/components/EmotionColourLoader.tsx), the one
+// canonical loading indicator used on ~19 other screens - not a bespoke shape. There's no GIF/
+// Lottie asset anywhere in this codebase (confirmed repo-wide); the "animation" IS that
+// component's code, so "same asset" means rendering that exact component. Only its colour
+// palette is swapped (EmotionColourLoader now takes an optional `palette` prop, defaulting to
+// its real blue/green/yellow/red everywhere else) so this can't be mistaken for a real load.
+// Same faces/motion/timing as the real loader, only the 4 colours differ.
+const EASTER_EGG_PALETTE = [
+  { colour: '#FFC94A', face: '😔' },
+  { colour: '#FF6FA1', face: '😊' },
+  { colour: '#B388FF', face: '😬' },
+  { colour: '#4DD0E1', face: '🤯' },
+];
+// One full un-looped pass through all 4 palette steps at the real loader's own 500ms/step
+// pace (4 x 500ms) - "matching the asset's natural length", per the correction, rather than an
+// arbitrary duration or looping it.
+const EGG_DURATION_MS = 2000;
+
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isLoading, isAuthenticated, user, login, t, language, hasActiveSubscription } = useApp();
 
   // ── Logo easter egg (Sep 27, purely cosmetic) ──────────────────────────────
-  // Real feature: tapping the logo plays a short, unmistakably-different variant of the app's
-  // own EmotionColourLoader loading animation (same cycling-colour-circle-with-face concept,
-  // reused rather than inventing a new visual language) - NOT the shared component itself,
-  // since that's the app's real loading indicator elsewhere and must never be touched by a
-  // cosmetic easter egg. Distinct on purpose: a warm gold/pink/purple/teal palette (none of
-  // EmotionColourLoader's real blue/green/yellow/red), a continuous spin, and a sparkle overlay
-  // - so this can never be mistaken for the app actually loading or being stuck.
+  // Real feature: tapping the logo replays the app's real EmotionColourLoader component (see
+  // EGG_DURATION_MS/EASTER_EGG_PALETTE comment above) for one full pass, recoloured, then stops
+  // - not a real loading state, and not a separate bespoke animation.
   const [eggPlaying, setEggPlaying] = useState(false);
-  const eggScale = useRef(new Animated.Value(1)).current;
-  const eggSpin = useRef(new Animated.Value(0)).current;
-  const eggSparkle = useRef(new Animated.Value(0)).current;
   const eggTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleLogoTap = () => {
@@ -43,23 +56,8 @@ export default function HomeScreen() {
     // is true is a no-op, the current play-through just finishes on its own).
     if (eggPlaying) return;
     setEggPlaying(true);
-    eggScale.setValue(1);
-    eggSpin.setValue(0);
-    eggSparkle.setValue(0);
-    Animated.parallel([
-      Animated.sequence([
-        Animated.timing(eggScale, { toValue: 1.25, duration: 220, easing: Easing.out(Easing.back(1.6)), useNativeDriver: true }),
-        Animated.timing(eggScale, { toValue: 1, duration: 220, delay: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ]),
-      Animated.timing(eggSpin, { toValue: 1, duration: 1400, easing: Easing.linear, useNativeDriver: true }),
-      Animated.sequence([
-        Animated.timing(eggSparkle, { toValue: 1, duration: 300, useNativeDriver: true }),
-        Animated.timing(eggSparkle, { toValue: 1, duration: 700, useNativeDriver: true }),
-        Animated.timing(eggSparkle, { toValue: 0, duration: 300, useNativeDriver: true }),
-      ]),
-    ]).start();
     if (eggTimeoutRef.current) clearTimeout(eggTimeoutRef.current);
-    eggTimeoutRef.current = setTimeout(() => setEggPlaying(false), 1500);
+    eggTimeoutRef.current = setTimeout(() => setEggPlaying(false), EGG_DURATION_MS);
   };
   useEffect(() => () => { if (eggTimeoutRef.current) clearTimeout(eggTimeoutRef.current); }, []);
 
@@ -176,26 +174,11 @@ export default function HomeScreen() {
           <Image source={require('../assets/images/logo_coh.png')} style={styles.mainLogo} resizeMode="contain" />
           {eggPlaying && (
             <View pointerEvents="none" style={styles.eggOverlay}>
-              <Animated.View
-                style={{
-                  width: 72, height: 72, borderRadius: 36,
-                  alignItems: 'center', justifyContent: 'center',
-                  transform: [
-                    { scale: eggScale },
-                    { rotate: eggSpin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) },
-                  ],
-                  // Distinct gold/pink/purple/teal palette - never the real loader's blue/
-                  // green/yellow/red - via a soft gradient-like layering (RN has no native
-                  // gradient without an extra lib; two overlapping tinted circles reads as a
-                  // shimmer without one).
-                  backgroundColor: '#FFC94A',
-                }}
-              >
-                <View style={{ position: 'absolute', width: 72, height: 72, borderRadius: 36, backgroundColor: '#B388FF', opacity: 0.5 }} />
-                <Text style={{ fontSize: 34 }}>😊</Text>
-              </Animated.View>
-              <Animated.Text style={{ position: 'absolute', top: -6, right: -2, fontSize: 22, opacity: eggSparkle }}>✨</Animated.Text>
-              <Animated.Text style={{ position: 'absolute', bottom: -4, left: -6, fontSize: 18, opacity: eggSparkle }}>✨</Animated.Text>
+              {/* Real EmotionColourLoader component - the actual app-wide loading animation,
+                  see its own comment - showDelayMs=0 so it appears the instant the logo is
+                  tapped (skipping the "don't flash on quick loads" debounce that's correct for
+                  a real loading context but wrong for a deliberate tap-triggered play). */}
+              <EmotionColourLoader visible={eggPlaying} palette={EASTER_EGG_PALETTE} showDelayMs={0} size={72} />
             </View>
           )}
         </Pressable>
