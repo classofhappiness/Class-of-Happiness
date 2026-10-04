@@ -252,9 +252,6 @@ export default function RewardsScreen() {
       // reward sound. The evolution sound now plays only when the student actually taps
       // Evolve (see handleEvolvePress), not blindly the instant a threshold is crossed.
       playRewardFeedback(true);
-      // Real feature Aug 21, extended Aug 28 (item A): praise-phrase pool (Great_job/
-      // Well_done/You_did_it/I_did_it), randomized so it's not the same line every check-in.
-      playPhraseFromPool('praise', language);
 
     } catch (error) {
       console.error('Error fetching rewards:', error);

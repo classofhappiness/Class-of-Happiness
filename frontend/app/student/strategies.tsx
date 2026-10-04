@@ -12,7 +12,7 @@ import { zoneLogsApi, Strategy } from '../../src/utils/api';
 import { StrategyCard } from '../../src/components/StrategyCard';
 import { CelebrationOverlay } from '../../src/components/CelebrationOverlay';
 import { playButtonFeedback, playSelectFeedback, playSuccessSound, preloadSounds } from '../../src/utils/sounds';
-import { loadVoiceEnabled, loadVoiceManifest, playVoiceClip } from '../../src/utils/voiceClips';
+import { loadVoiceEnabled, loadVoiceManifest, playVoiceClip, playPraisePhraseAtIndex } from '../../src/utils/voiceClips';
 import { VoiceToggleButton } from '../../src/components/VoiceToggleButton';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 
@@ -54,6 +54,7 @@ export default function StrategiesScreen() {
     }
   }, [currentStudent?.id]);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [praiseIndex, setPraiseIndex] = useState(0);
   // Real fix Sep 24 (item2, third device-log pass): the id of the feeling_logs/
   // family_zone_logs row handleDone below writes for this check-in - threaded through to
   // rewards.tsx as a param so its single addPoints call can use it as an idempotency key
@@ -285,6 +286,11 @@ export default function StrategiesScreen() {
       // Navigation now happens from CelebrationOverlay's own onComplete instead of a guessed
       // timeout, so it always plays its full ~3-5s sequence naturally, never gets cut early,
       // and never drifts out of sync if that component's own timing changes later.
+      if (!customSupportMessage) {
+        const roll = Math.floor(Math.random() * 4);
+        setPraiseIndex(roll);
+        if (roll < 3) playPraisePhraseAtIndex(language, roll).catch(() => {});
+      }
       setShowCelebration(true);
     } catch (error) {
       console.error('Error saving:', error);
@@ -334,11 +340,12 @@ export default function StrategiesScreen() {
           well_done: t('well_done') || t('well_done')||'Well Done',
           support_message: customSupportMessage || (() => {
             const GENERIC_MESSAGES = [
-              t('generic_support_1') || 'Well done for owning your emotions! 🌟',
-              t('generic_support_2') || 'Excellent, you are a leader in your life! 👑',
-              t('generic_support_3') || 'Always tell an adult or a trusted friend 💙',
+              t('generic_support_1') || 'Great job! 🌟',
+              t('generic_support_2') || 'Well done! 👍',
+              t('generic_support_3') || 'You did it! 🎉',
+              t('generic_support_4') || 'Always tell an adult or a trusted friend 💙',
             ];
-            return GENERIC_MESSAGES[Math.floor(Date.now() / 1000) % 3];
+            return GENERIC_MESSAGES[praiseIndex];
           })()
         }}
       />

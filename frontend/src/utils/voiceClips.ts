@@ -194,6 +194,24 @@ export const playPhraseFromPool = async (
   }
 };
 
+// Plays a specific clip from the 'praise' pool by index instead of a random one -
+// lets a caller (strategies.tsx) roll the index itself once and keep the sound and the
+// on-screen support_message text in sync (same roll picks both). No-op for the same
+// reasons as playPhraseFromPool (voice off, empty pool), plus an out-of-range index.
+export const playPraisePhraseAtIndex = async (language: string, index: number): Promise<void> => {
+  if (!voiceEnabled) return;
+  try {
+    const urls = await loadPhrasePool('praise', language);
+    if (!urls.length || index < 0 || index >= urls.length) return;
+    const sound = await createResilientSound(urls[index], { shouldPlay: true, volume: 1.0 });
+    sound?.setOnPlaybackStatusUpdate((status) => {
+      if (status.isLoaded && status.didJustFinish) {
+        sound.unloadAsync().catch(() => {});
+      }
+    });
+  } catch (e) { console.error('[utils/voiceClips:playPraisePhraseAtIndex]', e); }
+};
+
 // Real feature Sep 21 (device report): S04 (zone.tsx) is where the delay is most
 // noticed - the opening greeting plays on every visit, and tapping a colour should sound
 // instant, not fetch-on-tap. Called from zone.tsx's mount effect alongside (not instead
