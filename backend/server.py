@@ -3917,10 +3917,11 @@ async def get_voice_clips(language: str = "en"):
 # a handover note. Real fix Oct 4 (cont'd): French now has full "opening"/"farewell"
 # coverage too (4 new clips, re-verified live against Storage before adding below) - French
 # is the only language with all three moments fully recorded from scratch in one pass.
-# Italian still has no "opening"/"farewell" recordings - checked the bucket root directly,
-# nothing Italian-sounding exists for either of those two moments yet - so `it` is still
-# simply absent from those two language dicts below, same "missing key/language quietly
-# returns nothing" convention as the 28-clip manifest above, not a special case.
+# Real fix Oct 4 (cont'd again): Italian now has full "opening"/"farewell" coverage too (4
+# more clips, re-verified live against Storage before adding below - the first two upload
+# attempts for these specific 4 files genuinely hadn't landed in Storage yet despite looking
+# done, so don't trust "looks uploaded" for this language without a live bucket check first).
+# Every language now has all three moments covered.
 VOICE_PHRASE_POOLS = {
     "opening": {
         "en": ["How_are_you_feeling_today.m4a", "Check_in_with_my_feelings.m4a"],
@@ -3936,6 +3937,7 @@ VOICE_PHRASE_POOLS = {
         # earlier draft said "your feelings" instead of "my feelings").
         "ar": ["Kayfa_Tashur_Alyawm.m4a", "Sajjil_Mashairi.m4a"],
         "fr": ["Comment_te_sens_tu_aujourdhui.m4a", "Enregistre_mes_emotions.m4a"],
+        "it": ["Come_stai_oggi.m4a", "Chiediti_come_ti_senti.m4a"],
     },
     "praise": {
         "en": ["Great_job.m4a", "Well_done.m4a", "You_did_it.m4a"],
@@ -3959,6 +3961,7 @@ VOICE_PHRASE_POOLS = {
         "ru": ["Do_Zavtra.m4a", "Spasibo_Za_Tvoy_Otvet.m4a"],
         "ar": ["Araka_Ghadan.m4a", "Shukran_Litasjeel.m4a"],
         "fr": ["A_demain.m4a", "Merci_davoir_fait_ton_checkin.m4a"],
+        "it": ["A_domani.m4a", "Grazie_per_esserti_ascoltato.m4a"],
     },
 }
 
