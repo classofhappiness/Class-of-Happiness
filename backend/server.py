@@ -3914,11 +3914,13 @@ async def get_voice_clips(language: str = "en"):
 # check-in. Real fix Oct 4: Italian praise audio now exists (3 clips, Marisa/Matilda
 # recording) and French praise audio was added from scratch (same 3-phrase set) - both
 # re-verified directly against live Storage root before adding below, not just assumed from
-# a handover note. Neither language has "opening" or "farewell" recordings though - checked
-# the bucket root directly, nothing Italian- or French-sounding exists for either of those
-# two moments - so both are still simply absent from those two language dicts below, same
-# "missing key/language quietly returns nothing" convention as the 28-clip manifest above,
-# not a special case.
+# a handover note. Real fix Oct 4 (cont'd): French now has full "opening"/"farewell"
+# coverage too (4 new clips, re-verified live against Storage before adding below) - French
+# is the only language with all three moments fully recorded from scratch in one pass.
+# Italian still has no "opening"/"farewell" recordings - checked the bucket root directly,
+# nothing Italian-sounding exists for either of those two moments yet - so `it` is still
+# simply absent from those two language dicts below, same "missing key/language quietly
+# returns nothing" convention as the 28-clip manifest above, not a special case.
 VOICE_PHRASE_POOLS = {
     "opening": {
         "en": ["How_are_you_feeling_today.m4a", "Check_in_with_my_feelings.m4a"],
@@ -3933,6 +3935,7 @@ VOICE_PHRASE_POOLS = {
         # corrected "Check in with my feelings!" line (the recording script's own note: an
         # earlier draft said "your feelings" instead of "my feelings").
         "ar": ["Kayfa_Tashur_Alyawm.m4a", "Sajjil_Mashairi.m4a"],
+        "fr": ["Comment_te_sens_tu_aujourdhui.m4a", "Enregistre_mes_emotions.m4a"],
     },
     "praise": {
         "en": ["Great_job.m4a", "Well_done.m4a", "You_did_it.m4a"],
@@ -3955,6 +3958,7 @@ VOICE_PHRASE_POOLS = {
         "de": ["Bis_morgen.m4a", "Danke_dass_du_dich_eingetragen_hast.m4a"],
         "ru": ["Do_Zavtra.m4a", "Spasibo_Za_Tvoy_Otvet.m4a"],
         "ar": ["Araka_Ghadan.m4a", "Shukran_Litasjeel.m4a"],
+        "fr": ["A_demain.m4a", "Merci_davoir_fait_ton_checkin.m4a"],
     },
 }
 
