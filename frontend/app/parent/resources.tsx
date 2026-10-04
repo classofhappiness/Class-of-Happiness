@@ -349,13 +349,13 @@ export default function ResourcesScreen() {
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <View style={styles.iconCircle}>
-            <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
+            <MaterialIcons name="arrow-back" size={20} color="#1A1A2E" />
           </View>
           <Text style={styles.backText}>{t('back') || 'Back'}</Text>
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>{t('resources') || 'Resources'}</Text>
         <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={styles.iconCircle}>
-          <MaterialIcons name="home" size={20} color="#FFFFFF" />
+          <MaterialIcons name="home" size={20} color="#1A1A2E" />
         </TouchableOpacity>
       </View>
 
@@ -634,8 +634,12 @@ const styles = StyleSheet.create({
   backText: { fontSize: 14, color: '#333' },
   topBarTitle: { fontSize: 18, fontWeight: '600', color: '#333' },
   // Matches TranslatedHeader's own backButton/homeButton exactly (src/components/
-  // TranslatedHeader.tsx) - the app-wide black-circle standard.
-  iconCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' },
+  // TranslatedHeader.tsx) - the app-wide back/home button standard. Real fix Oct 3 (Marisa's
+  // button redesign, Option 2 "Stone" pick): navy ring + Stone (#CFCFCF) fill, navy icon,
+  // replacing the old solid-navy-fill/white-icon treatment.
+  // Real fix Oct 4 (Marisa's button redesign, Option 4 "Thin gray outline" pick): faint 1px
+  // #CFCFCF ring, transparent fill, replacing the Oct 3 solid Stone-fill/navy-ring treatment.
+  iconCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#CFCFCF', alignItems: 'center', justifyContent: 'center' },
   scrollContent: { padding: 16, paddingBottom: 40 },
   tabContainer: {
     flexDirection: 'row',

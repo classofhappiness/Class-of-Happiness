@@ -3487,7 +3487,7 @@ export default function AdminDashboard() {
       <View style={[s.header, { paddingTop: 16 + insets.top }]}>
         <View style={s.headerLeft}>
           <TouchableOpacity onPress={() => router.back()} style={s.headerBackBtn}>
-            <MaterialIcons name="arrow-back" size={18} color="#FFFFFF" />
+            <MaterialIcons name="arrow-back" size={18} color="#1A1A2E" />
           </TouchableOpacity>
           <Text style={s.headerEmoji}>😊</Text>
           <View>
@@ -3603,7 +3603,11 @@ const s = StyleSheet.create({
   // Header
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerBackBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' },
+  // Real fix Oct 3 (Marisa's button redesign, Option 2 "Stone" pick): navy ring + Stone
+  // (#CFCFCF) fill, navy icon, replacing the old solid-navy-fill/white-icon treatment.
+  // Real fix Oct 4 (Marisa's button redesign, Option 4 "Thin gray outline" pick): faint 1px
+  // #CFCFCF ring, transparent fill, replacing the Oct 3 solid Stone-fill/navy-ring treatment.
+  headerBackBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#CFCFCF', alignItems: 'center', justifyContent: 'center' },
   headerEmoji: { fontSize: 28 },
   headerTitle: { fontSize: 16, fontWeight: '800', color: INDIGO },
   headerRole: { fontSize: 11, color: '#888', marginTop: 1 },

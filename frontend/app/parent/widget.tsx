@@ -148,9 +148,12 @@ export default function ParentWidgetScreen() {
       <View style={st.header}>
         {/* Real fix Sep 18: restyled to the app-wide black-circle standard. This screen is
             deliberately minimal (kiosk-style family display) - no home button, no logo,
-            same as before, only the back button's own styling changed. */}
-        <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
-          <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
+            same as before, only the back button's own styling changed.
+            Real fix Oct 4 (Marisa's button redesign, Option 4 "Thin gray outline" pick): faint
+            1px #CFCFCF ring, transparent fill, replacing the Oct 3 solid Stone-fill/navy-ring
+            treatment. */}
+        <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#CFCFCF', alignItems: 'center', justifyContent: 'center' }}>
+          <MaterialIcons name="arrow-back" size={20} color="#1A1A2E" />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={st.headerTitle}>😊 {t('family_widget') || 'Family Widget'}</Text>

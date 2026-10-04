@@ -99,7 +99,7 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
             // treatment) - this component previously had plain, background-less icons, one
             // of the inconsistencies she flagged sweeping every TranslatedHeader screen.
             <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-              <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
+              <MaterialIcons name="arrow-back" size={20} color="#1A1A2E" />
             </TouchableOpacity>
           )}
         </View>
@@ -174,7 +174,7 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
           <ColourCycleLogo size={48.4} loop />
           {showHome && (
             <TouchableOpacity onPress={() => router.replace((homeTo || '/') as any)} style={styles.homeButton}>
-              <MaterialIcons name="home" size={20} color="#FFFFFF" />
+              <MaterialIcons name="home" size={20} color="#1A1A2E" />
             </TouchableOpacity>
           )}
         </View>
@@ -220,11 +220,20 @@ const styles = StyleSheet.create({
   // circle used by the native-header back/home buttons (_layout.tsx) - was a plain, no-
   // background 24px icon before. backSlot/rightSlot widths above bumped from 40 to 44 to
   // actually fit this size with a little breathing room either side.
+  // Real fix Oct 3 (Marisa's back/home button redesign, her Option 2 pick, "Stone" swatch):
+  // was a solid navy fill with a white icon - now an outlined ring (navy border) around a
+  // Stone (#CFCFCF) fill, icon switched from white to navy to stay legible against the
+  // lighter fill. Same 36x36 footprint as before - see app/_layout.tsx for the matching
+  // native-header change and every other screen with its own copy of this pattern.
+  // Real fix Oct 4 (Marisa's button redesign, Option 4 "Thin gray outline" pick): faint 1px
+  // #CFCFCF ring, transparent fill, replacing the Oct 3 solid Stone-fill/navy-ring treatment.
   backButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#1A1A2E',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#CFCFCF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -232,7 +241,9 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#1A1A2E',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#CFCFCF',
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -92,7 +92,7 @@ const HeaderWithBackAndLogo = ({ canGoBack }: { canGoBack?: boolean }) => {
           style={styles.backButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
+          <MaterialIcons name="arrow-back" size={20} color="#1A1A2E" />
         </TouchableOpacity>
       )}
 
@@ -664,12 +664,23 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     paddingTop: Platform.OS === 'ios' ? 4 : 8,
   },
+  // Real fix Oct 3 (Marisa's back/home button redesign, her Option 2 pick from the 4-option
+  // PDF, "Stone" swatch): was a solid navy fill (#1A1A2E) with a white icon - now an outlined
+  // ring (navy border, unchanged width) around a Stone (#CFCFCF) fill, with the icon itself
+  // switched from white to navy so it still reads clearly against the lighter fill. Same
+  // 36x36 footprint/radius as before - only the fill/border/icon colours changed, everywhere
+  // this pattern appears (see TranslatedHeader.tsx, kiosk/index.tsx, admin/dashboard.tsx,
+  // parent/resources.tsx and the teacher/parent widget screens for the matching changes).
+  // Real fix Oct 4 (Marisa's button redesign, Option 4 "Thin gray outline" pick): faint 1px
+  // #CFCFCF ring, transparent fill, replacing the Oct 3 solid Stone-fill/navy-ring treatment.
   backButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
     marginRight: 6,
-    backgroundColor: '#1A1A2E',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#CFCFCF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -681,11 +692,15 @@ const styles = StyleSheet.create({
   // Real fix Sep 15 (Marisa build-26 round 2, Group A): was 32x32 - a different size from
   // backButton's 36x36, so back and home read as two different-sized buttons despite being
   // the same visual pattern. Unified to match.
+  // Real fix Oct 4 (Marisa's button redesign, Option 4 "Thin gray outline" pick): faint 1px
+  // #CFCFCF ring, transparent fill, replacing the Oct 3 solid Stone-fill/navy-ring treatment.
   headerCircle: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#1A1A2E',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#CFCFCF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -708,7 +723,7 @@ function HomeToStudents() {
     <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginRight:12 }}>
       <ColourCycleLogo size={48.4} loop />
       <TouchableOpacity onPress={() => r.replace('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-        <MaterialIcons name="home" size={20} color="#FFFFFF" />
+        <MaterialIcons name="home" size={20} color="#1A1A2E" />
       </TouchableOpacity>
     </View>
   );
@@ -720,7 +735,7 @@ function HomeToDashboard() {
     <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginRight:12 }}>
       <ColourCycleLogo size={48.4} loop />
       <TouchableOpacity onPress={() => r.replace('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-        <MaterialIcons name="home" size={20} color="#FFFFFF" />
+        <MaterialIcons name="home" size={20} color="#1A1A2E" />
       </TouchableOpacity>
     </View>
   );

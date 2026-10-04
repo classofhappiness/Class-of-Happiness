@@ -45,7 +45,7 @@ function KioskHeader() {
               home button existed here before - added one, routing to '/' like every other
               screen's home button (resolves to the right role dashboard). */}
           <TouchableOpacity onPress={() => router.back()} style={kh.backButton}>
-            <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
+            <MaterialIcons name="arrow-back" size={20} color="#1A1A2E" />
           </TouchableOpacity>
         </View>
         <View style={kh.titleBlock}>
@@ -55,7 +55,7 @@ function KioskHeader() {
         <View style={kh.rightSlot}>
           <ColourCycleLogo size={48.4} loop />
           <TouchableOpacity onPress={() => router.replace('/')} style={kh.homeButton}>
-            <MaterialIcons name="home" size={20} color="#FFFFFF" />
+            <MaterialIcons name="home" size={20} color="#1A1A2E" />
           </TouchableOpacity>
         </View>
       </View>
@@ -67,12 +67,18 @@ const kh = StyleSheet.create({
   header: { backgroundColor: '#F8F9FA', paddingBottom: 0, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
   headerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 6 },
   backSlot: { width: 44, alignItems: 'flex-start' },
-  backButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' },
+  // Real fix Oct 3 (Marisa's button redesign, Option 2 "Stone" pick): navy ring + Stone
+  // (#CFCFCF) fill, navy icon, replacing the old solid-navy-fill/white-icon treatment.
+  // Real fix Oct 4 (Marisa's button redesign, Option 4 "Thin gray outline" pick): faint 1px
+  // #CFCFCF ring, transparent fill, replacing the Oct 3 solid Stone-fill/navy-ring treatment.
+  backButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#CFCFCF', alignItems: 'center', justifyContent: 'center' },
   titleBlock: { flex: 1, alignItems: 'center' },
   titleLine1: { fontSize: 17, fontWeight: 'bold', color: '#333' },
   titleLine2: { fontSize: 11, color: '#888', marginTop: 1 },
   rightSlot: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 44, justifyContent: 'flex-end' },
-  homeButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' },
+  // Real fix Oct 4 (Marisa's button redesign, Option 4 "Thin gray outline" pick): faint 1px
+  // #CFCFCF ring, transparent fill, replacing the Oct 3 solid Stone-fill/navy-ring treatment.
+  homeButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#CFCFCF', alignItems: 'center', justifyContent: 'center' },
 });
 const INDIGO = '#5C6BC0';
 const ZONE_COLORS: Record<string,string> = EMOTION_COLOURS;
