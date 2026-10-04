@@ -3911,10 +3911,14 @@ async def get_voice_clips(language: str = "en"):
 # "opening" (zone.tsx, the colour-picker screen), "praise" (rewards.tsx, replaces the old
 # single Great_job-only call), "farewell" (rewards.tsx's exit/Continue tap). Each pool is
 # randomized client-side on every play so a kid hears variety, not the same line every
-# check-in. No Italian recordings exist for any of these 15 clips (checked the `it/` folder
-# and every other Storage bucket directly) - `it` is simply absent from the language dict
-# below, same "missing key/language quietly returns nothing" convention as the 28-clip
-# manifest above, not a special case.
+# check-in. Real fix Oct 4: Italian praise audio now exists (3 clips, Marisa/Matilda
+# recording) and French praise audio was added from scratch (same 3-phrase set) - both
+# re-verified directly against live Storage root before adding below, not just assumed from
+# a handover note. Neither language has "opening" or "farewell" recordings though - checked
+# the bucket root directly, nothing Italian- or French-sounding exists for either of those
+# two moments - so both are still simply absent from those two language dicts below, same
+# "missing key/language quietly returns nothing" convention as the 28-clip manifest above,
+# not a special case.
 VOICE_PHRASE_POOLS = {
     "opening": {
         "en": ["How_are_you_feeling_today.m4a", "Check_in_with_my_feelings.m4a"],
@@ -3939,6 +3943,8 @@ VOICE_PHRASE_POOLS = {
         "de": ["Toll_gemacht.m4a", "Gut_gemacht.m4a", "Du_hast_es_geschafft.m4a"],
         "ru": ["Otlichno.m4a", "Molodets.m4a", "U_Tebya_Poluchilos.m4a"],
         "ar": ["Ahsant.m4a", "Mumtaz.m4a", "Laqad_Faaltaha.m4a"],
+        "fr": ["Bravo.m4a", "Bien_joue.m4a", "Tu_as_reussi.m4a"],
+        "it": ["Ottimo_lavoro.m4a", "Ben_fatto.m4a", "Ce_lhai_fatta.m4a"],
     },
     "farewell": {
         "en": ["See_you_tomorrow.m4a", "Thank_you_for_checking_in.m4a"],
