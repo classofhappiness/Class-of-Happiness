@@ -550,9 +550,10 @@ export default function TeacherCheckInScreen() {
         // was "Check in on my own wellbeing" (5 words) - the "'Teacher Check-In' overlapped
         // the pill" framing in the fix above was really this long string wrapping badly, not
         // a short "Teacher Check-In" label (the `|| 'Teacher Check-In'` fallback here never
-        // actually fires - t('teacher_checkin') is always truthy). Shortened to "My wellbeing"
-        // (matching the existing my_wellbeing key's phrasing in all 10 languages) rather than
-        // introducing a separate title+subtitle split, per the explicit "key stays" ask.
+        // actually fires - t('teacher_checkin') is always truthy). Shortened to "My Wellbeing"
+        // (matching the existing my_wellbeing key's phrasing/capitalisation in all 10
+        // languages - en's own value was briefly lowercase "wellbeing", fixed Oct 5) rather
+        // than introducing a separate title+subtitle split, per the explicit "key stays" ask.
         titleNumberOfLines={2}
         showHome
         homeTo="/teacher/dashboard"
