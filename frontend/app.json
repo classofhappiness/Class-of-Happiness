@@ -16,7 +16,8 @@
         "NSPhotoLibraryUsageDescription": "Upload photos for student avatars, strategies, and family check-ins",
         "UIViewControllerBasedStatusBarAppearance": false,
         "ITSAppUsesNonExemptEncryption": false,
-        "NSPhotoLibraryAddUsageDescription": "Save photos from Class of Happiness"
+        "NSPhotoLibraryAddUsageDescription": "Save photos from Class of Happiness",
+        "UIDesignRequiresCompatibility": true
       },
       "buildNumber": "27",
       "entitlements": {
