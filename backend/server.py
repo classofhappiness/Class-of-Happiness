@@ -3323,6 +3323,23 @@ def _build_creatures_colours(student_data: dict, creature_stages: dict, creature
             # the current stage - same real data _get_collection already exposes for the old
             # modal, just not previously threaded through this endpoint.
             "stage_emojis": [s.get("emoji") for s in (cdata.get("stages") or [])],
+            # Real fix Oct 2 (language-gap follow-up): the CREATURES constant has always had a
+            # full 10-language description for every default creature (description/
+            # description_ar/_de/_es/_fr/_hi/_it/_pt/_ru/_zh, right alongside name/emoji above)
+            # - it just never got threaded through this response, so CreatureDetailModal had
+            # nothing to show for a default creature regardless of language (community
+            # creatures got this same flat pass-through on Sep 21, below). Same
+            # send-everything-let-the-client-pick pattern, same pickLocalized() on the client.
+            "description": cdata.get("description"),
+            "description_ar": cdata.get("description_ar"),
+            "description_de": cdata.get("description_de"),
+            "description_es": cdata.get("description_es"),
+            "description_fr": cdata.get("description_fr"),
+            "description_hi": cdata.get("description_hi"),
+            "description_it": cdata.get("description_it"),
+            "description_pt": cdata.get("description_pt"),
+            "description_ru": cdata.get("description_ru"),
+            "description_zh": cdata.get("description_zh"),
         })
 
     for u in unlock_rows:
