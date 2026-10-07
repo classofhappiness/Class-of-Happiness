@@ -7482,6 +7482,20 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         "de": ["Mo","Di","Mi","Do","Fr","Sa","So"],
         "it": ["Lun","Mar","Mer","Gio","Ven","Sab","Dom"],
     }
+    # Real fix Sep 30 (live feedback, PDF question): month_name below used to always come from
+    # Python's strftime("%B %Y"), which follows the server's OS locale (always English on
+    # Railway), completely ignoring `lang` even though this function already localises
+    # ZONE_LABELS/WEEKDAYS. Matches the same 6-language coverage already used for those two,
+    # rather than silently claiming support for the 4 languages (hi/zh/ar/ru) this report
+    # doesn't otherwise localise.
+    MONTH_NAMES_MAP = {
+        "en": ["January","February","March","April","May","June","July","August","September","October","November","December"],
+        "pt": ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"],
+        "es": ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"],
+        "fr": ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"],
+        "de": ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"],
+        "it": ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"],
+    }
     ZONE_LABELS = ZONE_LABELS_MAP.get(lang, ZONE_LABELS_MAP["en"])
     WEEKDAYS    = WEEKDAYS_MAP.get(lang, WEEKDAYS_MAP["en"])
 
@@ -7507,7 +7521,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
 
     elements = []
     total      = sum(feeling_counts.values())
-    month_name = datetime(year, month, 1).strftime("%B %Y")
+    month_name = f"{MONTH_NAMES_MAP.get(lang, MONTH_NAMES_MAP['en'])[month-1]} {year}"
     _, last_day_cal = calendar.monthrange(year, month)
 
     # ════════════════════════════════════════════════════════
