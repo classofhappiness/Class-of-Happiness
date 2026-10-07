@@ -11208,6 +11208,18 @@ async def get_eligible_creatures(request: Request, student_id: Optional[str] = N
     fix (ClassDojo precedent, explicitly requested): peer creator identity (student_name,
     school_name, country) is NEVER included here - only in /creatures/global, which is
     admin/superadmin/school_admin-only moderation tooling, not student-facing.
+
+    What each feed (the student's creature_scope_pref) returns per creature:
+      - Global:    classroom_name is ALWAYS None, and the classrooms table is never queried.
+                   country is only set for global creatures whose country has at least
+                   COUNTRY_MIN_THRESHOLD (5) approved global creatures. No student name,
+                   school name, student id or classroom id is ever returned.
+      - School:    classroom_name is returned (same school community).
+      - Classroom: classroom_name is returned (the viewer's own class).
+      - Any (the default, mixes all scopes and so includes global creatures): treated like
+        Global - classroom_name is None. Visibility is decided by the feed being requested,
+        never by a creature's own visibility_scope.
+    country is None outside global creatures in every feed.
     If student_id is omitted (or the caller isn't authorized for it), falls back to
     global-scope-only creatures so this never breaks for an unresolvable caller.
 
@@ -11311,7 +11323,13 @@ def _get_eligible_creatures_sync(user: dict, student_id: Optional[str] = None) -
         for u in (unlocks_r.data or []):
             my_unlocks[u["creature_id"]] = u.get("stages_unlocked", 0)
 
-    classroom_ids = list({c["classroom_id"] for c in eligible if c.get("classroom_id")})
+    # Real privacy fix Oct 7: a global creature keeps its creator's classroom_id (captured at
+    # submission whatever scope they picked), so resolving names for the whole eligible list
+    # leaked "Saint Antonio Room" etc. onto the Global tab. Decided by the feed being
+    # REQUESTED (scope_pref), never the creature's own visibility_scope: only the School and
+    # Classroom feeds look classroom names up at all; Global and Any never even query them.
+    include_classroom_names = scope_pref in ("school", "classroom")
+    classroom_ids = list({c["classroom_id"] for c in eligible if c.get("classroom_id")}) if include_classroom_names else []
     classroom_names = {}
     if classroom_ids:
         cls_r = supabase.table("classrooms").select("id,name").in_("id", classroom_ids).execute()
@@ -11355,7 +11373,7 @@ def _get_eligible_creatures_sync(user: dict, student_id: Optional[str] = None) -
             "stage4_thumb_url": _thumb_url(c.get("stage4_url")),
             "global_uses": c.get("global_uses", 0),
             "visibility_scope": scope,
-            "classroom_name": classroom_names.get(c.get("classroom_id")),
+            "classroom_name": classroom_names.get(c.get("classroom_id")) if include_classroom_names else None,
             "my_stages_unlocked": my_unlocks.get(c["id"], 0),
             "featured_until": featured_map.get(c["id"]),
             "country": c.get("country") if scope == "global" and c.get("country") in safe_countries else None,
