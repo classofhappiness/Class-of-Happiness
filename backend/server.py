@@ -7024,7 +7024,7 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
         bar_drawing.add(String(x+bw/2, 22+bar_h, str(count), textAnchor='middle', fontSize=9, fontName='Helvetica-Bold', fillColor=colors.HexColor('#333333')))
         bar_drawing.add(String(x+bw/2, 6, ZL[zone].split()[0], textAnchor='middle', fontSize=7, fontName='Helvetica', fillColor=colors.HexColor('#666666')))
 
-    zone_rows = [[Paragraph('<b>Zone</b>',ST_LABEL),Paragraph('<b>Count</b>',ST_LABEL),Paragraph('<b>%</b>',ST_LABEL),Paragraph('<b>State</b>',ST_LABEL)]]
+    zone_rows = [[Paragraph('<b>Emotion</b>',ST_LABEL),Paragraph('<b>Count</b>',ST_LABEL),Paragraph('<b>%</b>',ST_LABEL),Paragraph('<b>State</b>',ST_LABEL)]]
     for zone in zones_order:
         count = feeling_counts[zone]
         pct = f"{(count/total*100):.0f}%" if total > 0 else "—"
@@ -7595,7 +7595,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     # ROW 1: Zone distribution (visual bars) + Zone table side by side
     # ════════════════════════════════════════════════════════
     # Section 1 wrapped to prevent page splits
-    section1_elements = [Paragraph("Emotion Zone Distribution", ST_H2)]
+    section1_elements = [Paragraph("Emotion Distribution", ST_H2)]
     # Compute school-only and home-only counts for split view
     school_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
     home_counts   = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
@@ -7647,7 +7647,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
 
     # Zone stats table (right side)
     zone_rows = [
-        [Paragraph('<b>Zone</b>', ST_LABEL),
+        [Paragraph('<b>Emotion</b>', ST_LABEL),
          Paragraph('<b>Count</b>', ST_LABEL),
          Paragraph('<b>%</b>', ST_LABEL),
          Paragraph('<b>State</b>', ST_LABEL)]
@@ -7901,7 +7901,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
             Paragraph('<b>Date</b>',       ST_LABEL),
             Paragraph('<b>Time</b>',       ST_LABEL),
             Paragraph('<b>Source</b>',     ST_LABEL),
-            Paragraph('<b>Zone</b>',       ST_LABEL),
+            Paragraph('<b>Emotion</b>',       ST_LABEL),
             Paragraph('<b>Strategies</b>', ST_LABEL),
             Paragraph('<b>Comment</b>',    ST_LABEL),
         ]]
@@ -9914,8 +9914,8 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
         elements.append(overview_table)
         elements.append(Spacer(1, 0.4*cm))
 
-        elements.append(Paragraph("Emotion Zone Distribution", section_style))
-        zone_data = [["Zone", "Count", "%"]]
+        elements.append(Paragraph("Emotion Distribution", section_style))
+        zone_data = [["Emotion", "Count", "%"]]
         for z, label, c in [("blue","Blue Emotions",BLUE_C), ("green","Green Emotions",GREEN_C), ("yellow","Yellow Emotions",YELLOW_C), ("red","Red Emotions",RED_C)]:
             pct = round(100*zone_counts[z]/total_checkins) if total_checkins else 0
             zone_data.append([label, str(zone_counts[z]), f"{pct}%"])
@@ -10025,7 +10025,7 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
             ('FONTSIZE', (0,0), (-1,-1), 8),
         ]))
         elements.append(comp_table)
-        elements.append(Paragraph("Percentage of each school's own check-ins by emotional zone.", sub_style))
+        elements.append(Paragraph("Percentage of each school's own check-ins by emotion.", sub_style))
         elements.append(Spacer(1, 0.5*cm))
 
         for name, stats in resolved_schools:
@@ -10048,7 +10048,7 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
             elements.append(overview_table)
             elements.append(Spacer(1, 0.3*cm))
 
-            zone_data = [["Zone", "Count", "%"]]
+            zone_data = [["Emotion", "Count", "%"]]
             for z, label in [("blue","Blue Emotions"), ("green","Green Emotions"), ("yellow","Yellow Emotions"), ("red","Red Emotions")]:
                 pct = round(100*zc[z]/tc) if tc else 0
                 zone_data.append([label, str(zc[z]), f"{pct}%"])
@@ -13997,7 +13997,10 @@ def _send_wellbeing_support_email(contact_name: str, contact_email: str, teacher
     _send_school_renewal_reminder/_send_school_checkin_nudge above."""
     if not RESEND_API_KEY:
         return False, "RESEND_API_KEY not configured"
-    zone_line = f"<p style='color:#888;font-size:13px;margin:4px 0'>Zone at time of message: <b>{zone}</b></p>" if zone else ""
+    # Real fix Oct 7: the raw zone key ("blue") is shown as the human label the app uses
+    # everywhere else ("Blue Emotions"), and the line no longer says "Zone".
+    zone_label = f"{zone.strip().capitalize()} Emotions" if zone and zone.strip().lower() in ("blue", "green", "yellow", "red") else zone
+    zone_line = f"<p style='color:#888;font-size:13px;margin:4px 0'>Feeling at time of message: <b>{zone_label}</b></p>" if zone else ""
     try:
         result = resend.Emails.send({
             "from": RESEND_FROM_EMAIL,
