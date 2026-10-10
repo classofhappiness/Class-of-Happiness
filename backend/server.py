@@ -4074,14 +4074,40 @@ async def get_strategies(request: Request, zone: Optional[str] = None, feeling_c
     }
     lang_map = STRATEGY_TRANSLATIONS.get(lang, {})
 
+    # Translated name AND description from the HELPERS_XX tables (all 9 non-English langs).
+    # Those tables are keyed b1..b6/g1..g6/y1..y6/r1..r6 in zone order, which corresponds to
+    # the DB/default ids blue_1..blue_6 etc. (same order as DEFAULT_HELPERS). Only the
+    # returned text changes - the strategy id is never touched. lang=en/absent/unknown
+    # leaves lang_helpers empty so the response is exactly the old English one.
+    _lang_tables = {
+        "pt": HELPERS_PT, "es": HELPERS_ES, "fr": HELPERS_FR, "de": HELPERS_DE,
+        "it": HELPERS_IT, "hi": HELPERS_HI, "zh": HELPERS_ZH, "ar": HELPERS_AR, "ru": HELPERS_RU,
+    }
+    lang_helpers = _lang_tables.get(lang) or {}
+    _en_name_to_key = {
+        (d.get("name") or "").strip().lower(): f"{z}_{i + 1}"
+        for z, lst in DEFAULT_HELPERS.items() for i, d in enumerate(lst)
+    }
+
+    def _lang_row(hid, english_name):
+        if not lang_helpers:
+            return None
+        key = str(hid) if re.fullmatch(r"(blue|green|yellow|red)_[1-6]", str(hid)) else _en_name_to_key.get((english_name or "").strip().lower())
+        if not key:
+            return None
+        zone_name, n = key.split("_")
+        short = zone_name[0] + n
+        return next((r for r in (lang_helpers.get(zone_name) or []) if r.get("id") == short), None)
+
     # Normalise helpers to strategy format
     strategies = []
     for h in helpers:
         hid = h.get("id", h.get("helper_id", ""))
+        _row = _lang_row(hid, h.get("name"))
         strategies.append({
             "id": hid,
-            "name": lang_map.get(hid, h.get("name", "")),
-            "description": h.get("description", ""),
+            "name": (_row or {}).get("name") or lang_map.get(hid, h.get("name", "")),
+            "description": (_row or {}).get("description") or h.get("description", ""),
             "icon": h.get("icon", "star"),
             "zone": h.get("feeling_colour", effective_zone or "green"),
             "feeling_colour": h.get("feeling_colour", effective_zone or "green"),
