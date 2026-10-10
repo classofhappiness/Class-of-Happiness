@@ -6738,15 +6738,2216 @@ STRATEGY_MAPS_BY_LANG = {
     "es": STRATEGY_NAME_MAP_ES, "fr": STRATEGY_NAME_MAP_FR,
     "de": STRATEGY_NAME_MAP_DE, "it": STRATEGY_NAME_MAP_IT,
 }
+# Oct 10 (PDF translation test): the STRATEGY_NAME_MAP_<lang> tables above are legacy 4-per-colour lists whose
+# numbering does not match the real 6-per-colour ids (blue_2 is "Drink Water", not "Favourite Song") and have no
+# 5/6 entries, so PDFs/pushes showed wrong or English strategy names. Overlay the canonical names from the
+# HELPERS_<lang> tables (keyed b1..b6/g1../y1../r1.. = blue_1..blue_6 etc.). English map is left untouched.
+for _l, _tbl in (("pt", HELPERS_PT), ("es", HELPERS_ES), ("fr", HELPERS_FR), ("de", HELPERS_DE), ("it", HELPERS_IT), ("ru", HELPERS_RU), ("zh", HELPERS_ZH)):
+    _m = STRATEGY_MAPS_BY_LANG.setdefault(_l, {})
+    for _zone, _rows in _tbl.items():
+        for _row in _rows:
+            _hid, _nm = str(_row.get("id") or ""), _row.get("name")
+            if _nm and len(_hid) == 2 and _hid[0] == _zone[0] and _hid[1].isdigit():
+                _m[_hid] = _nm
+                _m[f"{_zone}_{_hid[1]}"] = _nm
 
-PDF_HEADINGS = {
-    "en": {"report": "Emotional Wellbeing Report", "strategies": "Coping Strategies Used", "log": "Check-in Log", "day_of_week": "Day of Week Activity", "emotion_dist": "Emotion Distribution"},
-    "pt": {"report": "Relatório de Bem-Estar Emocional", "strategies": "Estratégias Utilizadas", "log": "Registo de Check-ins", "day_of_week": "Atividade por Dia da Semana", "emotion_dist": "Distribuição de Emoções"},
-    "es": {"report": "Informe de Bienestar Emocional", "strategies": "Estrategias Utilizadas", "log": "Registro de Check-ins", "day_of_week": "Actividad por Día", "emotion_dist": "Distribución de Emociones"},
-    "fr": {"report": "Rapport de Bien-être Émotionnel", "strategies": "Stratégies Utilisées", "log": "Journal des Enregistrements", "day_of_week": "Activité par Jour", "emotion_dist": "Distribution des Émotions"},
-    "de": {"report": "Bericht zum emotionalen Wohlbefinden", "strategies": "Verwendete Strategien", "log": "Check-in-Protokoll", "day_of_week": "Aktivität nach Wochentag", "emotion_dist": "Emotionsverteilung"},
-    "it": {"report": "Rapporto sul Benessere Emotivo", "strategies": "Strategie Utilizzate", "log": "Registro dei Check-in", "day_of_week": "Attività per Giorno", "emotion_dist": "Distribuzione delle Emozioni"},
+# ===== PDF STRINGS: infrastructure (Oct 10) =====
+# Every user-visible PDF string goes through pdf_t(lang, key, **fmt). PDF_STRINGS[lang][key] holds the text
+# (named {placeholders} for numbers/names/dates). Emotion colour names, strategy names and month names keep
+# coming from their existing translated sources, not from this table. Missing key/language falls back to
+# English, then to the key itself.
+# PDF_LANG_READY: the ONE set that decides which languages render PDFs. Gate rule: TECHNICAL readiness only (fonts
+# bundled+embedded, correct shaping/direction, no boxes, no clipped/overlapping text, every generator renders cleanly
+# in mock tests); native review is NOT a gate. Remove a language here to send it back to English with one edit.
+# Stage 1 = en, pt, es, fr, de, it (Helvetica). Stage 2 = ru (Noto Sans), zh (Noto Sans SC): enabled after passing the render checks
+# and the back-translation check; they are removed automatically below if their bundled font fails to register.
+# hi and ar are added by a later script once they pass the same checks.
+PDF_LANG_READY = {"en", "pt", "es", "fr", "de", "it", "ru", "zh"}
+PDF_STRINGS: Dict[str, Dict[str, str]] = {"en": {}}   # populated by the PDF_STRINGS table block below
+_PDF_LANG_BROKEN: set = set()                          # languages that failed the startup validation
+
+def pdf_lang(lang: Optional[str]) -> str:
+    """Language a PDF is rendered in: the viewer's selected app language (the `lang` request parameter),
+    English when missing, not yet enabled (PDF_LANG_READY) or failing validation. Never the student's own language."""
+    code = (lang or "").strip().lower().replace("_", "-").split("-")[0]
+    if code in PDF_LANG_READY and code not in _PDF_LANG_BROKEN and code in PDF_STRINGS:
+        return code
+    return "en"
+
+def pdf_t(lang: Optional[str], key: str, **fmt) -> str:
+    code = pdf_lang(lang)
+    text = PDF_STRINGS.get(code, {}).get(key)
+    if text is None:
+        text = PDF_STRINGS.get("en", {}).get(key, key)
+    if fmt:
+        try:
+            return text.format(**fmt)
+        except Exception:
+            try:
+                return PDF_STRINGS.get("en", {}).get(key, key).format(**fmt)
+            except Exception:
+                return text
+    return text
+
+def _validate_pdf_strings() -> dict:
+    """Startup check: every language has exactly the English key set and the same {placeholders} per key.
+    Returns {lang: [problems]}; a failing language is added to _PDF_LANG_BROKEN (falls back to English) and logged.
+    Never raises."""
+    problems: dict = {}
+    try:
+        en = PDF_STRINGS.get("en", {})
+        for code, table in PDF_STRINGS.items():
+            if code == "en":
+                continue
+            errs = []
+            missing = sorted(set(en) - set(table))
+            extra = sorted(set(table) - set(en))
+            if missing:
+                errs.append(f"missing keys: {missing[:10]}{'...' if len(missing) > 10 else ''}")
+            if extra:
+                errs.append(f"extra keys: {extra[:10]}{'...' if len(extra) > 10 else ''}")
+            for k in set(en) & set(table):
+                if sorted(re.findall(r"\{(\w+)\}", en[k])) != sorted(re.findall(r"\{(\w+)\}", table[k])):
+                    errs.append(f"placeholder mismatch in '{k}'")
+            if errs:
+                problems[code] = errs
+                _PDF_LANG_BROKEN.add(code)
+                logger.error(f"[pdf-strings] language '{code}' failed validation, falling back to English: {errs[:5]}")
+    except Exception as e:
+        logger.error(f"[pdf-strings] validation crashed (English fallback stays safe): {e}")
+    return problems
+# ===== end PDF STRINGS infrastructure =====
+
+# ===== PDF FONTS: bundled Noto Sans (ru, Latin Ext, Cyrillic) + Noto Sans SC (zh, hanzi) (Oct 10) =====
+# Static TrueType subsets in backend/fonts (SIL OFL, see fonts/README.txt). Registered once at import. If registration
+# fails the languages that need them (ru, zh) are removed from PDF_LANG_READY and everything stays on English/Helvetica;
+# the server never crashes because of fonts. Helvetica (WinAnsi) stays the font for en/pt/es/fr/de/it.
+_PDF_FONT_DIR = Path(__file__).resolve().parent / "fonts"
+_PDF_FONT_FAMILIES: Dict[str, Dict[str, str]] = {}   # family -> {regular,bold,italic,bolditalic} registered font names
+_PDF_FONT_COVERAGE: Dict[str, set] = {}              # registered font name -> set of code points it can draw
+_PDF_LANG_FONT_FAMILY = {"ru": "COH-NotoSans", "zh": "COH-NotoSansSC"}   # languages that need a bundled font
+_PDF_HELV = {"regular": "Helvetica", "bold": "Helvetica-Bold", "italic": "Helvetica-Oblique", "bolditalic": "Helvetica-BoldOblique"}
+_PDF_HELV_ALIASES = {"Helvetica": "regular", "Helvetica-Bold": "bold", "Helvetica-Oblique": "italic", "Helvetica-BoldOblique": "bolditalic"}
+
+def _register_pdf_fonts() -> set:
+    """Registers the bundled fonts; returns the set of languages whose font family registered correctly. Never raises."""
+    ok = set()
+    try:
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont as _RLTTFont
+        specs = {
+            "COH-NotoSans": {"regular": "NotoSans-Regular.ttf", "bold": "NotoSans-Bold.ttf",
+                             "italic": "NotoSans-Italic.ttf", "bolditalic": "NotoSans-BoldItalic.ttf"},
+            "COH-NotoSansSC": {"regular": "NotoSansSC-Regular.ttf", "bold": "NotoSansSC-Bold.ttf",
+                               "italic": "NotoSansSC-Regular.ttf", "bolditalic": "NotoSansSC-Bold.ttf"},  # Chinese has no italics
+        }
+        for fam, files in specs.items():
+            try:
+                names = {}
+                for style, fname in files.items():
+                    reg_name = fam if style == "regular" else f"{fam}-{style}"
+                    if reg_name not in pdfmetrics.getRegisteredFontNames():
+                        pdfmetrics.registerFont(_RLTTFont(reg_name, str(_PDF_FONT_DIR / fname)))
+                    names[style] = reg_name
+                    if reg_name not in _PDF_FONT_COVERAGE:
+                        _PDF_FONT_COVERAGE[reg_name] = set(pdfmetrics.getFont(reg_name).face.charToGlyph.keys())
+                pdfmetrics.registerFontFamily(fam, normal=names["regular"], bold=names["bold"],
+                                              italic=names["italic"], boldItalic=names["bolditalic"])
+                _PDF_FONT_FAMILIES[fam] = names
+            except Exception as e:
+                logger.error(f"[pdf-fonts] could not register {fam}: {e}")
+        for lang_code, fam in _PDF_LANG_FONT_FAMILY.items():
+            if fam in _PDF_FONT_FAMILIES:
+                ok.add(lang_code)
+    except Exception as e:
+        logger.error(f"[pdf-fonts] font registration crashed (ru/zh stay on English): {e}")
+    return ok
+
+_PDF_FONT_LANGS_OK = _register_pdf_fonts()
+for _lc in _PDF_LANG_FONT_FAMILY:
+    if _lc not in _PDF_FONT_LANGS_OK:
+        PDF_LANG_READY.discard(_lc)          # no font -> that language stays on English
+
+_WINANSI_CACHE: Dict[str, bool] = {}
+def _helvetica_can_draw(ch: str) -> bool:
+    ok = _WINANSI_CACHE.get(ch)
+    if ok is None:
+        try:
+            ch.encode("cp1252"); ok = True
+        except Exception:
+            ok = False
+        _WINANSI_CACHE[ch] = ok
+    return ok
+
+def pdf_font(lang: Optional[str], face: str = "Helvetica") -> str:
+    """Font name for `face` (any Helvetica variant name) in the PDF language: ru -> Noto Sans, zh -> Noto Sans SC,
+    everything else Helvetica (unchanged). Use for ParagraphStyle fontName, TableStyle FONTNAME, canvas.setFont and chart fonts."""
+    style = _PDF_HELV_ALIASES.get(face)
+    if style is None:
+        return face
+    fam = _PDF_LANG_FONT_FAMILY.get(pdf_lang(lang))
+    if fam and fam in _PDF_FONT_FAMILIES:
+        return _PDF_FONT_FAMILIES[fam][style]
+    return face
+
+def _pdf_char_font(ch: str, base_font_name: str) -> Optional[str]:
+    """Which registered font should draw `ch` when the base font is `base_font_name` (None = nobody has it)."""
+    cp = ord(ch)
+    if base_font_name.startswith("Helvetica"):
+        if _helvetica_can_draw(ch):
+            return base_font_name
+    elif cp in _PDF_FONT_COVERAGE.get(base_font_name, ()):
+        return base_font_name
+    for fam in ("COH-NotoSans", "COH-NotoSansSC"):          # fallback order: Latin/Cyrillic first, then hanzi
+        names = _PDF_FONT_FAMILIES.get(fam)
+        if names and cp in _PDF_FONT_COVERAGE.get(names["regular"], ()):
+            return names["bold"] if base_font_name.endswith(("Bold", "-bold", "BoldOblique", "-bolditalic")) else names["regular"]
+    return None
+
+def pdf_safe(text, lang: Optional[str] = None, base_face: str = "Helvetica") -> str:
+    """Paragraph-markup-safe text for DYNAMIC strings (names, comments, notes) so they never print black boxes:
+    characters the base font cannot draw are wrapped in <font name=...> using the bundled fonts (Cyrillic/Latin Ext via
+    Noto Sans, hanzi via Noto Sans SC); characters NO bundled font has become a visible '?'. Input is the already
+    XML-escaped markup the caller would pass to Paragraph (tags and entities are left untouched). Pure ASCII text returns
+    unchanged. Use only inside Paragraph(); plain-string table cells must be wrapped in Paragraph first."""
+    if text is None:
+        return ""
+    t = str(text)
+    if all(ord(c) < 128 for c in t):
+        return t
+    base = pdf_font(lang, base_face)
+    parts = re.split(r"(<[^>]*>|&[#\w]+;)", t)
+    out = []
+    for part in parts:
+        if not part or part[0] in "<&" and re.fullmatch(r"<[^>]*>|&[#\w]+;", part):
+            out.append(part)
+            continue
+        cur_font, buf = base, []
+        def flush():
+            if buf:
+                seg = "".join(buf)
+                out.append(seg if cur_font == base else f'<font name="{cur_font}">{seg}</font>')
+                buf.clear()
+        for ch in part:
+            if ch in "\n\r\t " or ord(ch) < 128:
+                f = cur_font if cur_font != base and ch == " " else base
+            else:
+                f = _pdf_char_font(ch, base)
+                if f is None:
+                    ch, f = "?", base
+            if f != cur_font:
+                flush()
+                cur_font = f
+            buf.append(ch)
+        flush()
+    return "".join(out)
+# ===== end PDF FONTS =====
+
+# ===== PDF_STRINGS table (Oct 10, Stage 1: en pt es fr de it) =====
+# keys: stu_/fam_ student+family reports, tw_/car_ teacher wellbeing + careers, sch_/cls_ school+classroom overview, ana_/exp_ analytics + table exports
+_PDF_STRINGS_DATA = {
+    "en": {
+        "ana_avg_default_stage": "Avg. Default-Creature Stage",
+        "ana_checkins_period": "Check-ins ({n}d)",
+        "ana_comparison_title": "School Comparison - {n} Schools",
+        "ana_creatures_evolved": "Creatures Fully Evolved",
+        "ana_creatures_obtained": "Creatures Obtained",
+        "ana_home_checkins": "Home Check-ins",
+        "ana_linked_families": "Linked Families",
+        "ana_metric": "Metric",
+        "ana_snapshot_title": "{school} - Analytics Snapshot",
+        "ana_student_mood": "Student Mood - {color}",
+        "ana_students": "Students",
+        "ana_teacher_checkin_rate": "Teacher Check-in Rate",
+        "ana_teacher_mood": "Teacher Mood - {color}",
+        "ana_teachers": "Teachers",
+        "ana_teachers_opted_in": "Teachers Opted Into Wellbeing Sharing",
+        "ana_teachers_suppressed": "— (fewer than 3 teachers opted in)",
+        "ana_value": "Value",
+        "car_act_club": "Club",
+        "car_act_competition": "Competition",
+        "car_act_course": "Course",
+        "car_act_leadership": "Leadership",
+        "car_act_volunteering": "Volunteering",
+        "car_act_work_experience": "Work experience",
+        "car_activities_work_experience": "Activities & Work Experience",
+        "car_agreed_next_actions": "Agreed Next Actions",
+        "car_assess_careers_questionnaire": "Careers Questionnaire",
+        "car_assess_other": "Assessment",
+        "car_assess_riasec": "Careers Questionnaire (RIASEC)",
+        "car_assessment_interpretations": "Assessment Interpretations",
+        "car_cat_aspirational": "Aspirational",
+        "car_cat_match": "Match",
+        "car_cat_safety": "Safety",
+        "car_code": "Code: {code}",
+        "car_col_category": "Category",
+        "car_col_course": "Course",
+        "car_col_current": "Current",
+        "car_col_entry_requirements": "Entry requirements",
+        "car_col_predicted": "Predicted",
+        "car_col_status": "Status",
+        "car_col_subject": "Subject",
+        "car_col_term": "Term",
+        "car_col_university": "University",
+        "car_curriculum_a_level": "A Level",
+        "car_first_language": "First language:",
+        "car_from_meeting": "From the meeting on {date}:",
+        "car_generated": "Generated {date}",
+        "car_interests": "Interests:",
+        "car_latest_grades": "Latest Grades",
+        "car_nationality": "Nationality:",
+        "car_no_academic": "No academic records yet.",
+        "car_no_activities": "No activities recorded yet.",
+        "car_no_assessments": "No assessments recorded yet.",
+        "car_no_meetings": "No guidance meetings logged yet.",
+        "car_no_profile": "No profile details recorded yet.",
+        "car_no_universities": "No university options recorded yet.",
+        "car_other": "Other",
+        "car_other_languages": "Other languages:",
+        "car_primary_secondary": "Primary {primary} / Secondary {secondary}",
+        "car_profile_background": "Profile & Background",
+        "car_schooling_history": "Schooling history:",
+        "car_status_accepted": "Accepted",
+        "car_status_applied": "Applied",
+        "car_status_declined": "Declined",
+        "car_status_offer": "Offer",
+        "car_status_rejected": "Rejected",
+        "car_status_researching": "Researching",
+        "car_status_shortlisted": "Shortlisted",
+        "car_status_withdrawn": "Withdrawn",
+        "car_strengths": "Strengths:",
+        "car_student_default": "Student",
+        "car_title": "Class of Happiness — Pathway Summary",
+        "car_university_pathway": "University Pathway",
+        "cls_all_classrooms": "All Classrooms",
+        "cls_by_classroom": "By Classroom",
+        "cls_class_fallback": "Class",
+        "cls_classroom": "Classroom",
+        "cls_currently_need_support": "Currently Need Support",
+        "cls_footer": "Class of Happiness — Emotional wellbeing, made simple.",
+        "cls_last_checkin": "Last Check-in",
+        "cls_most_used_strategies": "Most Used Strategies",
+        "cls_needs_attention": "Needs Attention",
+        "cls_period": "Period",
+        "cls_scope": "Scope",
+        "cls_selected_classroom": "Selected Classroom",
+        "cls_strategy": "Strategy",
+        "cls_student": "Student",
+        "cls_student_fallback": "Student",
+        "cls_students": "Students",
+        "cls_summary": "Summary",
+        "cls_teacher": "Teacher",
+        "cls_times_used": "Times Used",
+        "cls_title": "Classroom Overview Report",
+        "cls_total_checkins": "Total Check-ins",
+        "cls_trend": "Emotion Trend Over Time",
+        "cls_unassigned": "Unassigned",
+        "exp_action": "Action",
+        "exp_address": "Address",
+        "exp_areas": "Areas",
+        "exp_category": "Category",
+        "exp_concern_summary": "Concern Summary",
+        "exp_contact_name": "Contact Name",
+        "exp_delegate": "Delegate",
+        "exp_email": "Email",
+        "exp_footer": "Generated by Class of Happiness (classofhappiness.app).",
+        "exp_generated": "Generated {date}",
+        "exp_is_emergency": "Emergency",
+        "exp_no": "No",
+        "exp_notes": "Notes",
+        "exp_nothing": "Nothing to export yet.",
+        "exp_phone": "Phone",
+        "exp_review_date": "Review Date",
+        "exp_service_name": "Service Name",
+        "exp_services_directory": "Services Directory",
+        "exp_status": "Status",
+        "exp_student_ref": "Student Ref",
+        "exp_tier": "Tier",
+        "exp_wellbeing_tracker": "Wellbeing Tracker",
+        "exp_year_group": "Year Group",
+        "exp_yes": "Yes",
+        "fam_calendar": "Monthly Calendar",
+        "fam_col_count": "Count",
+        "fam_col_date": "Date",
+        "fam_col_emotion": "Emotion",
+        "fam_col_state": "State",
+        "fam_col_strategies": "Strategies",
+        "fam_col_strategy": "Strategy",
+        "fam_col_time": "Time",
+        "fam_col_times_used": "Times Used",
+        "fam_default_name": "Family Member",
+        "fam_emotion_dist": "Emotion Distribution",
+        "fam_footer": "This report is generated by Class of Happiness · classofhappiness.com · For educational and wellbeing support purposes only.",
+        "fam_green_days": "Green Days",
+        "fam_header_period": "{month} {year} · {report}",
+        "fam_log": "Check-in Log",
+        "fam_most_common": "Most Common",
+        "fam_report": "Home Wellbeing Report",
+        "fam_state_blue": "Sad / Tired",
+        "fam_state_green": "Happy / Ready",
+        "fam_state_red": "Upset / Angry",
+        "fam_state_yellow": "Worried / Anxious",
+        "fam_strategies": "Strategies Used",
+        "fam_subtitle": "Class of Happiness · {report} · classofhappiness.com",
+        "fam_total_checkins": "Total Check-ins",
+        "sch_alerts_raised": "Alerts Raised",
+        "sch_alerts_summary": "Alerts Summary",
+        "sch_all_schools": "All Schools",
+        "sch_checkins": "Check-ins",
+        "sch_class": "Class",
+        "sch_class_perf": "Class Performance Comparison",
+        "sch_classroom_fallback": "Classroom",
+        "sch_count": "Count",
+        "sch_emotion_col": "Emotion",
+        "sch_emotion_dist": "Emotion Distribution",
+        "sch_emotions_label": "{colour} Emotions",
+        "sch_my_school": "My School",
+        "sch_n_schools": "{n} Schools",
+        "sch_no_classroom_data": "No classroom data for this period.",
+        "sch_no_strategy_data": "No strategy data for this period.",
+        "sch_overview": "Overview",
+        "sch_pct_header": "{colour} %",
+        "sch_pct_note": "Percentage of each school's own check-ins by emotion.",
+        "sch_school": "School",
+        "sch_school_comparison": "School Comparison",
+        "sch_strategy": "Strategy",
+        "sch_student_fallback": "Student",
+        "sch_students": "Students",
+        "sch_students_in_red": "Students in {colour} This Period",
+        "sch_subtitle": "{name} · Last {days} days · Generated {date}",
+        "sch_support_line": "{student_name} needed SEND support ×{count} this period.",
+        "sch_support_requests": "Support Requests",
+        "sch_teachers": "Teachers",
+        "sch_title": "Class of Happiness — School Wellbeing Report",
+        "sch_top_strategies": "Top Strategies Used",
+        "sch_total_checkins": "Total Check-ins",
+        "sch_uses": "Uses",
+        "stu_calendar": "Monthly Calendar",
+        "stu_col_blue": "Blue",
+        "stu_col_checkins": "Check-ins",
+        "stu_col_comment": "Comment",
+        "stu_col_count": "Count",
+        "stu_col_date": "Date",
+        "stu_col_day": "Day",
+        "stu_col_emotion": "Emotion",
+        "stu_col_frequency": "Frequency",
+        "stu_col_green": "Green",
+        "stu_col_red": "Red",
+        "stu_col_source": "Source",
+        "stu_col_state": "State",
+        "stu_col_strategies": "Strategies",
+        "stu_col_strategy": "Strategy",
+        "stu_col_time": "Time",
+        "stu_col_total": "Total",
+        "stu_col_used": "Used",
+        "stu_col_yellow": "Yellow",
+        "stu_confidentiality": "CONFIDENTIALITY NOTICE: This report contains personal emotional wellbeing data intended solely for the named student's educational and therapeutic support team. Unauthorised sharing is prohibited. © Class of Happiness",
+        "stu_day_of_week": "Day of Week Activity",
+        "stu_emotion_dist": "Emotion Distribution",
+        "stu_emotion_fallback": "{name} Emotions",
+        "stu_freq_often": "Often",
+        "stu_freq_once": "Once",
+        "stu_freq_sometimes": "Sometimes",
+        "stu_freq_very_often": "Very Often",
+        "stu_generated_by": "Generated by Class of Happiness (classofhappiness.app) using the colour emotion check-in framework. This is an educational tool and does not constitute a clinical assessment or diagnosis.",
+        "stu_home_vs_school": "Home vs School Breakdown",
+        "stu_label_checkins": "Check-ins:",
+        "stu_label_class": "Class:",
+        "stu_label_generated": "Generated:",
+        "stu_label_period": "Period:",
+        "stu_label_student": "Student:",
+        "stu_legend_no_checkin": "No check-in",
+        "stu_log_heading": "Check-in Log",
+        "stu_no_checkins": "No check-ins recorded for this period.",
+        "stu_no_strategies": "No strategies recorded this period.",
+        "stu_not_assigned": "Not assigned",
+        "stu_report": "Emotional Wellbeing Report",
+        "stu_source_home": "Home",
+        "stu_source_school": "School",
+        "stu_state_blue": "Feeling sad or tired",
+        "stu_state_green": "Feeling happy and ready to learn",
+        "stu_state_red": "Feeling very upset or angry",
+        "stu_state_yellow": "Feeling worried or anxious",
+        "stu_strategies_heading": "Coping Strategies Used",
+        "tw_checkin_calendar": "Check-in Calendar",
+        "tw_checkin_history": "Check-in History",
+        "tw_col_count": "Count",
+        "tw_col_date": "Date",
+        "tw_col_date_time": "Date & Time",
+        "tw_col_emotion": "Emotion",
+        "tw_col_message": "Message",
+        "tw_col_note": "Note",
+        "tw_col_strategies": "Strategies",
+        "tw_col_strategy": "Strategy",
+        "tw_col_times_used": "Times Used",
+        "tw_col_visual": "Visual",
+        "tw_disclaimer": "Generated by Class of Happiness (classofhappiness.app). This is an educational tool and does not constitute a clinical assessment or diagnosis. Data is private and confidential.",
+        "tw_email": "Email",
+        "tw_emotion_distribution": "Emotion Distribution",
+        "tw_most_used_strategies": "Most Used Strategies",
+        "tw_name": "Name",
+        "tw_personal_summary": "Personal Summary",
+        "tw_report_period": "Report Period",
+        "tw_support_requested_default": "Support requested",
+        "tw_support_requests": "Support Requests",
+        "tw_title": "Teacher Wellbeing Report",
+        "tw_total_checkins": "Total Check-ins",
+        "tw_week_abbr": "W{n}",
+        "tw_wellbeing_support_requests": "Wellbeing Support Requests",
+    },
+    "pt": {
+        "ana_avg_default_stage": "Fase média das criaturas predefinidas",
+        "ana_checkins_period": "Check-ins ({n}d)",
+        "ana_comparison_title": "Comparação de Escolas - {n} Escolas",
+        "ana_creatures_evolved": "Criaturas totalmente evoluídas",
+        "ana_creatures_obtained": "Criaturas Obtidas",
+        "ana_home_checkins": "Registos em Casa",
+        "ana_linked_families": "Famílias associadas",
+        "ana_metric": "Métrica",
+        "ana_snapshot_title": "{school} - Resumo de Análise",
+        "ana_student_mood": "Humor dos alunos - {color}",
+        "ana_students": "Alunos",
+        "ana_teacher_checkin_rate": "Taxa de Registo dos Professores",
+        "ana_teacher_mood": "Humor dos professores - {color}",
+        "ana_teachers": "Professores",
+        "ana_teachers_opted_in": "Professores que Aderiram à Partilha de Bem-Estar",
+        "ana_teachers_suppressed": "— (menos de 3 professores aderiram)",
+        "ana_value": "Valor",
+        "car_act_club": "Clube",
+        "car_act_competition": "Competição",
+        "car_act_course": "Curso",
+        "car_act_leadership": "Liderança",
+        "car_act_volunteering": "Voluntariado",
+        "car_act_work_experience": "Experiência profissional",
+        "car_activities_work_experience": "Atividades e Experiência Profissional",
+        "car_agreed_next_actions": "Próximas ações acordadas",
+        "car_assess_careers_questionnaire": "Questionário de Carreira",
+        "car_assess_other": "Avaliação",
+        "car_assess_riasec": "Questionário de carreiras (RIASEC)",
+        "car_assessment_interpretations": "Interpretações das Avaliações",
+        "car_cat_aspirational": "Aspiracional",
+        "car_cat_match": "Compatível",
+        "car_cat_safety": "Segurança",
+        "car_code": "Código: {code}",
+        "car_col_category": "Categoria",
+        "car_col_course": "Curso",
+        "car_col_current": "Atual",
+        "car_col_entry_requirements": "Requisitos de acesso",
+        "car_col_predicted": "Previsto",
+        "car_col_status": "Estado",
+        "car_col_subject": "Disciplina",
+        "car_col_term": "Período",
+        "car_col_university": "Universidade",
+        "car_curriculum_a_level": "A Level",
+        "car_first_language": "Primeira língua:",
+        "car_from_meeting": "Da reunião de {date}:",
+        "car_generated": "Gerado em {date}",
+        "car_interests": "Interesses:",
+        "car_latest_grades": "Últimas Notas",
+        "car_nationality": "Nacionalidade:",
+        "car_no_academic": "Ainda sem registos académicos.",
+        "car_no_activities": "Ainda não há atividades registadas.",
+        "car_no_assessments": "Ainda não há avaliações registadas.",
+        "car_no_meetings": "Ainda sem reuniões de orientação registadas.",
+        "car_no_profile": "Ainda não há dados de perfil registados.",
+        "car_no_universities": "Ainda não há opções de universidade registadas.",
+        "car_other": "Outro",
+        "car_other_languages": "Outras línguas:",
+        "car_primary_secondary": "Principal {primary} / Secundário {secondary}",
+        "car_profile_background": "Perfil e Contexto",
+        "car_schooling_history": "Percurso escolar:",
+        "car_status_accepted": "Aceite",
+        "car_status_applied": "Candidatura enviada",
+        "car_status_declined": "Recusado",
+        "car_status_offer": "Oferta",
+        "car_status_rejected": "Rejeitada",
+        "car_status_researching": "Em pesquisa",
+        "car_status_shortlisted": "Pré-selecionado",
+        "car_status_withdrawn": "Retirada",
+        "car_strengths": "Pontos fortes:",
+        "car_student_default": "Aluno",
+        "car_title": "Class of Happiness — Resumo do Percurso",
+        "car_university_pathway": "Percurso Universitário",
+        "cls_all_classrooms": "Todas as turmas",
+        "cls_by_classroom": "Por Turma",
+        "cls_class_fallback": "Turma",
+        "cls_classroom": "Turma",
+        "cls_currently_need_support": "Precisam de Apoio Atualmente",
+        "cls_footer": "Class of Happiness — Bem-estar emocional, de forma simples.",
+        "cls_last_checkin": "Último check-in",
+        "cls_most_used_strategies": "Estratégias Mais Usadas",
+        "cls_needs_attention": "Requer Atenção",
+        "cls_period": "Período",
+        "cls_scope": "Âmbito",
+        "cls_selected_classroom": "Turma Selecionada",
+        "cls_strategy": "Estratégia",
+        "cls_student": "Aluno",
+        "cls_student_fallback": "Aluno",
+        "cls_students": "Alunos",
+        "cls_summary": "Resumo",
+        "cls_teacher": "Professor",
+        "cls_times_used": "Vezes usada",
+        "cls_title": "Relatório Geral da Turma",
+        "cls_total_checkins": "Total de Registos",
+        "cls_trend": "Evolução das emoções ao longo do tempo",
+        "cls_unassigned": "Sem turma",
+        "exp_action": "Ação",
+        "exp_address": "Morada",
+        "exp_areas": "Áreas",
+        "exp_category": "Categoria",
+        "exp_concern_summary": "Resumo da preocupação",
+        "exp_contact_name": "Nome do Contacto",
+        "exp_delegate": "Delegado",
+        "exp_email": "E-mail",
+        "exp_footer": "Gerado por Class of Happiness (classofhappiness.app).",
+        "exp_generated": "Gerado em {date}",
+        "exp_is_emergency": "Emergência",
+        "exp_no": "Não",
+        "exp_notes": "Notas",
+        "exp_nothing": "Ainda não há nada para exportar.",
+        "exp_phone": "Telefone",
+        "exp_review_date": "Data de Revisão",
+        "exp_service_name": "Nome do serviço",
+        "exp_services_directory": "Diretório de Serviços",
+        "exp_status": "Estado",
+        "exp_student_ref": "Ref. do aluno",
+        "exp_tier": "Nível",
+        "exp_wellbeing_tracker": "Registo de Bem-Estar",
+        "exp_year_group": "Ano de escolaridade",
+        "exp_yes": "Sim",
+        "fam_calendar": "Calendário Mensal",
+        "fam_col_count": "N.º",
+        "fam_col_date": "Data",
+        "fam_col_emotion": "Emoção",
+        "fam_col_state": "Estado",
+        "fam_col_strategies": "Estratégias",
+        "fam_col_strategy": "Estratégia",
+        "fam_col_time": "Hora",
+        "fam_col_times_used": "Vezes Usada",
+        "fam_default_name": "Membro da Família",
+        "fam_emotion_dist": "Distribuição de Emoções",
+        "fam_footer": "Este relatório é gerado por Class of Happiness · classofhappiness.com · Apenas para fins educativos e de apoio ao bem-estar.",
+        "fam_green_days": "Dias Verdes",
+        "fam_header_period": "{month} {year} · {report}",
+        "fam_log": "Registo de Check-ins",
+        "fam_most_common": "Mais Frequente",
+        "fam_report": "Relatório de Bem-Estar em Casa",
+        "fam_state_blue": "Triste / Cansado",
+        "fam_state_green": "Feliz / Pronto",
+        "fam_state_red": "Transtornado / Zangado",
+        "fam_state_yellow": "Preocupado / Ansioso",
+        "fam_strategies": "Estratégias Utilizadas",
+        "fam_subtitle": "Class of Happiness · {report} · classofhappiness.com",
+        "fam_total_checkins": "Total de Check-ins",
+        "sch_alerts_raised": "Alertas Emitidos",
+        "sch_alerts_summary": "Resumo de alertas",
+        "sch_all_schools": "Todas as Escolas",
+        "sch_checkins": "Registos",
+        "sch_class": "Turma",
+        "sch_class_perf": "Comparação do Desempenho das Turmas",
+        "sch_classroom_fallback": "Turma",
+        "sch_count": "N.º",
+        "sch_emotion_col": "Emoção",
+        "sch_emotion_dist": "Distribuição das Emoções",
+        "sch_emotions_label": "Emoções {colour}",
+        "sch_my_school": "A Minha Escola",
+        "sch_n_schools": "{n} Escolas",
+        "sch_no_classroom_data": "Sem dados de turmas para este período.",
+        "sch_no_strategy_data": "Sem dados de estratégias para este período.",
+        "sch_overview": "Visão Geral",
+        "sch_pct_header": "{colour} %",
+        "sch_pct_note": "Percentagem dos check-ins de cada escola por emoção.",
+        "sch_school": "Escola",
+        "sch_school_comparison": "Comparação entre escolas",
+        "sch_strategy": "Estratégia",
+        "sch_student_fallback": "Aluno",
+        "sch_students": "Alunos",
+        "sch_students_in_red": "Alunos em {colour} Neste Período",
+        "sch_subtitle": "{name} · Últimos {days} dias · Gerado em {date}",
+        "sch_support_line": "{student_name} precisou de apoio NEE ×{count} neste período.",
+        "sch_support_requests": "Pedidos de Apoio",
+        "sch_teachers": "Professores",
+        "sch_title": "Class of Happiness — Relatório de Bem-Estar da Escola",
+        "sch_top_strategies": "Estratégias Mais Usadas",
+        "sch_total_checkins": "Total de Registos",
+        "sch_uses": "Usos",
+        "stu_calendar": "Calendário Mensal",
+        "stu_col_blue": "Azul",
+        "stu_col_checkins": "Check-ins",
+        "stu_col_comment": "Comentário",
+        "stu_col_count": "N.º",
+        "stu_col_date": "Data",
+        "stu_col_day": "Dia",
+        "stu_col_emotion": "Emoção",
+        "stu_col_frequency": "Frequência",
+        "stu_col_green": "Verde",
+        "stu_col_red": "Vermelho",
+        "stu_col_source": "Origem",
+        "stu_col_state": "Estado",
+        "stu_col_strategies": "Estratégias",
+        "stu_col_strategy": "Estratégia",
+        "stu_col_time": "Hora",
+        "stu_col_total": "Total",
+        "stu_col_used": "Usada",
+        "stu_col_yellow": "Amarelo",
+        "stu_confidentiality": "AVISO DE CONFIDENCIALIDADE: Este relatório contém dados pessoais de bem-estar emocional destinados exclusivamente à equipa de apoio educativo e terapêutico do aluno indicado. A partilha não autorizada é proibida. © Class of Happiness",
+        "stu_day_of_week": "Atividade por Dia da Semana",
+        "stu_emotion_dist": "Distribuição de Emoções",
+        "stu_emotion_fallback": "Emoções de {name}",
+        "stu_freq_often": "Frequente",
+        "stu_freq_once": "Uma vez",
+        "stu_freq_sometimes": "Às vezes",
+        "stu_freq_very_often": "Muito frequente",
+        "stu_generated_by": "Gerado por Class of Happiness (classofhappiness.app) com base no modelo de check-in por emoções coloridas. É uma ferramenta educativa e não constitui uma avaliação ou diagnóstico clínico.",
+        "stu_home_vs_school": "Casa vs Escola",
+        "stu_label_checkins": "Check-ins:",
+        "stu_label_class": "Turma:",
+        "stu_label_generated": "Gerado em:",
+        "stu_label_period": "Período:",
+        "stu_label_student": "Aluno:",
+        "stu_legend_no_checkin": "Sem registo",
+        "stu_log_heading": "Registo de Check-ins",
+        "stu_no_checkins": "Sem check-ins registados neste período.",
+        "stu_no_strategies": "Nenhuma estratégia registada neste período.",
+        "stu_not_assigned": "Não atribuído",
+        "stu_report": "Relatório de Bem-Estar Emocional",
+        "stu_source_home": "Casa",
+        "stu_source_school": "Escola",
+        "stu_state_blue": "Sinto-me triste ou cansado",
+        "stu_state_green": "Sinto-me bem e pronto para aprender",
+        "stu_state_red": "Sinto-me muito perturbado ou zangado",
+        "stu_state_yellow": "Sinto-me preocupado ou ansioso",
+        "stu_strategies_heading": "Estratégias Utilizadas",
+        "tw_checkin_calendar": "Calendário de check-ins",
+        "tw_checkin_history": "Histórico de Check-ins",
+        "tw_col_count": "N.º",
+        "tw_col_date": "Data",
+        "tw_col_date_time": "Data e Hora",
+        "tw_col_emotion": "Emoção",
+        "tw_col_message": "Mensagem",
+        "tw_col_note": "Nota",
+        "tw_col_strategies": "Estratégias",
+        "tw_col_strategy": "Estratégia",
+        "tw_col_times_used": "Vezes Usada",
+        "tw_col_visual": "Gráfico",
+        "tw_disclaimer": "Gerado pela Class of Happiness (classofhappiness.app). Esta é uma ferramenta educativa e não constitui uma avaliação clínica nem um diagnóstico. Os dados são privados e confidenciais.",
+        "tw_email": "E-mail",
+        "tw_emotion_distribution": "Distribuição das Emoções",
+        "tw_most_used_strategies": "Estratégias mais usadas",
+        "tw_name": "Nome",
+        "tw_personal_summary": "Resumo Pessoal",
+        "tw_report_period": "Período do relatório",
+        "tw_support_requested_default": "Apoio solicitado",
+        "tw_support_requests": "Pedidos de Apoio",
+        "tw_title": "Relatório de Bem-Estar do Professor",
+        "tw_total_checkins": "Total de Check-ins",
+        "tw_week_abbr": "S{n}",
+        "tw_wellbeing_support_requests": "Pedidos de apoio ao bem-estar",
+    },
+    "es": {
+        "ana_avg_default_stage": "Etapa media de criaturas predeterminadas",
+        "ana_checkins_period": "Check-ins ({n}d)",
+        "ana_comparison_title": "Comparación de Escuelas - {n} Escuelas",
+        "ana_creatures_evolved": "Criaturas totalmente evolucionadas",
+        "ana_creatures_obtained": "Criaturas Obtenidas",
+        "ana_home_checkins": "Registros en Casa",
+        "ana_linked_families": "Familias vinculadas",
+        "ana_metric": "Métrica",
+        "ana_snapshot_title": "{school} - Resumen de Análisis",
+        "ana_student_mood": "Estado de ánimo de estudiantes - {color}",
+        "ana_students": "Estudiantes",
+        "ana_teacher_checkin_rate": "Tasa de Registro de Docentes",
+        "ana_teacher_mood": "Estado de ánimo de docentes - {color}",
+        "ana_teachers": "Docentes",
+        "ana_teachers_opted_in": "Docentes que Optaron por Compartir su Bienestar",
+        "ana_teachers_suppressed": "— (menos de 3 docentes participan)",
+        "ana_value": "Valor",
+        "car_act_club": "Club",
+        "car_act_competition": "Competición",
+        "car_act_course": "Curso",
+        "car_act_leadership": "Liderazgo",
+        "car_act_volunteering": "Voluntariado",
+        "car_act_work_experience": "Experiencia laboral",
+        "car_activities_work_experience": "Actividades y Experiencia Laboral",
+        "car_agreed_next_actions": "Próximas acciones acordadas",
+        "car_assess_careers_questionnaire": "Cuestionario de Orientación",
+        "car_assess_other": "Evaluación",
+        "car_assess_riasec": "Cuestionario de carreras (RIASEC)",
+        "car_assessment_interpretations": "Interpretaciones de las Evaluaciones",
+        "car_cat_aspirational": "Aspiracional",
+        "car_cat_match": "Afín",
+        "car_cat_safety": "Seguridad",
+        "car_code": "Código: {code}",
+        "car_col_category": "Categoría",
+        "car_col_course": "Curso",
+        "car_col_current": "Actual",
+        "car_col_entry_requirements": "Requisitos de acceso",
+        "car_col_predicted": "Previsto",
+        "car_col_status": "Estado",
+        "car_col_subject": "Asignatura",
+        "car_col_term": "Trimestre",
+        "car_col_university": "Universidad",
+        "car_curriculum_a_level": "A Level",
+        "car_first_language": "Primera lengua:",
+        "car_from_meeting": "De la reunión del {date}:",
+        "car_generated": "Generado el {date}",
+        "car_interests": "Intereses:",
+        "car_latest_grades": "Últimas Calificaciones",
+        "car_nationality": "Nacionalidad:",
+        "car_no_academic": "Aún no hay registros académicos.",
+        "car_no_activities": "Aún no hay actividades registradas.",
+        "car_no_assessments": "Aún no hay evaluaciones registradas.",
+        "car_no_meetings": "Aún no hay reuniones de orientación registradas.",
+        "car_no_profile": "Aún no hay datos de perfil registrados.",
+        "car_no_universities": "Aún no hay opciones de universidad registradas.",
+        "car_other": "Otro",
+        "car_other_languages": "Otros idiomas:",
+        "car_primary_secondary": "Principal {primary} / Secundario {secondary}",
+        "car_profile_background": "Perfil y Contexto",
+        "car_schooling_history": "Historial escolar:",
+        "car_status_accepted": "Aceptado",
+        "car_status_applied": "Solicitado",
+        "car_status_declined": "Rechazado",
+        "car_status_offer": "Oferta",
+        "car_status_rejected": "Rechazada",
+        "car_status_researching": "Investigando",
+        "car_status_shortlisted": "Preseleccionado",
+        "car_status_withdrawn": "Retirada",
+        "car_strengths": "Puntos fuertes:",
+        "car_student_default": "Estudiante",
+        "car_title": "Class of Happiness — Resumen del Itinerario",
+        "car_university_pathway": "Camino Universitario",
+        "cls_all_classrooms": "Todas las aulas",
+        "cls_by_classroom": "Por Aula",
+        "cls_class_fallback": "Clase",
+        "cls_classroom": "Aula",
+        "cls_currently_need_support": "Necesitan Apoyo Actualmente",
+        "cls_footer": "Class of Happiness — Bienestar emocional, de forma sencilla.",
+        "cls_last_checkin": "Último check-in",
+        "cls_most_used_strategies": "Estrategias Más Usadas",
+        "cls_needs_attention": "Requiere Atención",
+        "cls_period": "Período",
+        "cls_scope": "Alcance",
+        "cls_selected_classroom": "Clase Seleccionada",
+        "cls_strategy": "Estrategia",
+        "cls_student": "Estudiante",
+        "cls_student_fallback": "Estudiante",
+        "cls_students": "Estudiantes",
+        "cls_summary": "Resumen",
+        "cls_teacher": "Docente",
+        "cls_times_used": "Veces usada",
+        "cls_title": "Informe General del Aula",
+        "cls_total_checkins": "Total de Registros",
+        "cls_trend": "Evolución de las emociones en el tiempo",
+        "cls_unassigned": "Sin asignar",
+        "exp_action": "Acción",
+        "exp_address": "Dirección",
+        "exp_areas": "Áreas",
+        "exp_category": "Categoría",
+        "exp_concern_summary": "Resumen de la preocupación",
+        "exp_contact_name": "Nombre de Contacto",
+        "exp_delegate": "Delegado",
+        "exp_email": "Correo electrónico",
+        "exp_footer": "Generado por Class of Happiness (classofhappiness.app).",
+        "exp_generated": "Generado el {date}",
+        "exp_is_emergency": "Emergencia",
+        "exp_no": "No",
+        "exp_notes": "Notas",
+        "exp_nothing": "Aún no hay nada que exportar.",
+        "exp_phone": "Teléfono",
+        "exp_review_date": "Fecha de Revisión",
+        "exp_service_name": "Nombre del servicio",
+        "exp_services_directory": "Directorio de Servicios",
+        "exp_status": "Estado",
+        "exp_student_ref": "Ref. del estudiante",
+        "exp_tier": "Nivel",
+        "exp_wellbeing_tracker": "Seguimiento del Bienestar",
+        "exp_year_group": "Curso",
+        "exp_yes": "Sí",
+        "fam_calendar": "Calendario Mensual",
+        "fam_col_count": "Cantidad",
+        "fam_col_date": "Fecha",
+        "fam_col_emotion": "Emoción",
+        "fam_col_state": "Estado",
+        "fam_col_strategies": "Estrategias",
+        "fam_col_strategy": "Estrategia",
+        "fam_col_time": "Hora",
+        "fam_col_times_used": "Veces Usada",
+        "fam_default_name": "Miembro de la Familia",
+        "fam_emotion_dist": "Distribución de Emociones",
+        "fam_footer": "Este informe es generado por Class of Happiness · classofhappiness.com · Solo con fines educativos y de apoyo al bienestar.",
+        "fam_green_days": "Días Verdes",
+        "fam_header_period": "{month} {year} · {report}",
+        "fam_log": "Registro de Check-ins",
+        "fam_most_common": "Más Frecuente",
+        "fam_report": "Informe de Bienestar en Casa",
+        "fam_state_blue": "Triste / Cansado",
+        "fam_state_green": "Feliz / Listo",
+        "fam_state_red": "Alterado / Enfadado",
+        "fam_state_yellow": "Preocupado / Ansioso",
+        "fam_strategies": "Estrategias Utilizadas",
+        "fam_subtitle": "Class of Happiness · {report} · classofhappiness.com",
+        "fam_total_checkins": "Total de Check-ins",
+        "sch_alerts_raised": "Alertas Generadas",
+        "sch_alerts_summary": "Resumen de alertas",
+        "sch_all_schools": "Todas las Escuelas",
+        "sch_checkins": "Registros",
+        "sch_class": "Aula",
+        "sch_class_perf": "Comparación del Rendimiento de las Aulas",
+        "sch_classroom_fallback": "Clase",
+        "sch_count": "Cantidad",
+        "sch_emotion_col": "Emoción",
+        "sch_emotion_dist": "Distribución de Emociones",
+        "sch_emotions_label": "Emociones {colour}",
+        "sch_my_school": "Mi Escuela",
+        "sch_n_schools": "{n} Escuelas",
+        "sch_no_classroom_data": "Sin datos de aulas para este período.",
+        "sch_no_strategy_data": "Sin datos de estrategias para este período.",
+        "sch_overview": "Resumen",
+        "sch_pct_header": "{colour} %",
+        "sch_pct_note": "Porcentaje de los check-ins de cada escuela por emoción.",
+        "sch_school": "Escuela",
+        "sch_school_comparison": "Comparación entre escuelas",
+        "sch_strategy": "Estrategia",
+        "sch_student_fallback": "Estudiante",
+        "sch_students": "Estudiantes",
+        "sch_students_in_red": "Estudiantes en {colour} en Este Período",
+        "sch_subtitle": "{name} · Últimos {days} días · Generado el {date}",
+        "sch_support_line": "{student_name} necesitó apoyo NEE ×{count} en este período.",
+        "sch_support_requests": "Solicitudes de Apoyo",
+        "sch_teachers": "Docentes",
+        "sch_title": "Class of Happiness — Informe de Bienestar de la Escuela",
+        "sch_top_strategies": "Estrategias Más Usadas",
+        "sch_total_checkins": "Total de Registros",
+        "sch_uses": "Usos",
+        "stu_calendar": "Calendario Mensual",
+        "stu_col_blue": "Azul",
+        "stu_col_checkins": "Check-ins",
+        "stu_col_comment": "Comentario",
+        "stu_col_count": "N.º",
+        "stu_col_date": "Fecha",
+        "stu_col_day": "Día",
+        "stu_col_emotion": "Emoción",
+        "stu_col_frequency": "Frecuencia",
+        "stu_col_green": "Verde",
+        "stu_col_red": "Rojo",
+        "stu_col_source": "Origen",
+        "stu_col_state": "Estado",
+        "stu_col_strategies": "Estrategias",
+        "stu_col_strategy": "Estrategia",
+        "stu_col_time": "Hora",
+        "stu_col_total": "Total",
+        "stu_col_used": "Usada",
+        "stu_col_yellow": "Amarillo",
+        "stu_confidentiality": "AVISO DE CONFIDENCIALIDAD: Este informe contiene datos personales de bienestar emocional destinados exclusivamente al equipo de apoyo educativo y terapéutico del estudiante indicado. Se prohíbe compartirlo sin autorización. © Class of Happiness",
+        "stu_day_of_week": "Actividad por Día",
+        "stu_emotion_dist": "Distribución de Emociones",
+        "stu_emotion_fallback": "Emociones de {name}",
+        "stu_freq_often": "A menudo",
+        "stu_freq_once": "Una vez",
+        "stu_freq_sometimes": "A veces",
+        "stu_freq_very_often": "Muy a menudo",
+        "stu_generated_by": "Generado por Class of Happiness (classofhappiness.app) con el modelo de check-in de emociones por colores. Es una herramienta educativa y no constituye una evaluación ni un diagnóstico clínico.",
+        "stu_home_vs_school": "Casa vs Escuela",
+        "stu_label_checkins": "Check-ins:",
+        "stu_label_class": "Aula:",
+        "stu_label_generated": "Generado el:",
+        "stu_label_period": "Período:",
+        "stu_label_student": "Estudiante:",
+        "stu_legend_no_checkin": "Sin registro",
+        "stu_log_heading": "Registro de Check-ins",
+        "stu_no_checkins": "No hay check-ins registrados en este período.",
+        "stu_no_strategies": "Ninguna estrategia registrada en este período.",
+        "stu_not_assigned": "No asignado",
+        "stu_report": "Informe de Bienestar Emocional",
+        "stu_source_home": "Casa",
+        "stu_source_school": "Escuela",
+        "stu_state_blue": "Me siento triste o cansado",
+        "stu_state_green": "Me siento bien y listo para aprender",
+        "stu_state_red": "Me siento muy molesto o enfadado",
+        "stu_state_yellow": "Me siento preocupado o ansioso",
+        "stu_strategies_heading": "Estrategias Utilizadas",
+        "tw_checkin_calendar": "Calendario de check-ins",
+        "tw_checkin_history": "Historial de Check-ins",
+        "tw_col_count": "N.º",
+        "tw_col_date": "Fecha",
+        "tw_col_date_time": "Fecha y Hora",
+        "tw_col_emotion": "Emoción",
+        "tw_col_message": "Mensaje",
+        "tw_col_note": "Nota",
+        "tw_col_strategies": "Estrategias",
+        "tw_col_strategy": "Estrategia",
+        "tw_col_times_used": "Veces Usada",
+        "tw_col_visual": "Gráfico",
+        "tw_disclaimer": "Generado por Class of Happiness (classofhappiness.app). Esta es una herramienta educativa y no constituye una evaluación clínica ni un diagnóstico. Los datos son privados y confidenciales.",
+        "tw_email": "Correo electrónico",
+        "tw_emotion_distribution": "Distribución de Emociones",
+        "tw_most_used_strategies": "Estrategias más usadas",
+        "tw_name": "Nombre",
+        "tw_personal_summary": "Resumen Personal",
+        "tw_report_period": "Período del informe",
+        "tw_support_requested_default": "Apoyo solicitado",
+        "tw_support_requests": "Solicitudes de Apoyo",
+        "tw_title": "Informe de Bienestar del Docente",
+        "tw_total_checkins": "Total de Check-ins",
+        "tw_week_abbr": "S{n}",
+        "tw_wellbeing_support_requests": "Solicitudes de apoyo al bienestar",
+    },
+    "fr": {
+        "ana_avg_default_stage": "Stade moyen des créatures par défaut",
+        "ana_checkins_period": "Check-ins ({n}j)",
+        "ana_comparison_title": "Comparaison des écoles - {n} écoles",
+        "ana_creatures_evolved": "Créatures entièrement évoluées",
+        "ana_creatures_obtained": "Créatures Obtenues",
+        "ana_home_checkins": "Bilans à la maison",
+        "ana_linked_families": "Familles liées",
+        "ana_metric": "Indicateur",
+        "ana_snapshot_title": "{school} - Aperçu analytique",
+        "ana_student_mood": "Humeur des élèves - {color}",
+        "ana_students": "Élèves",
+        "ana_teacher_checkin_rate": "Taux de bilans des enseignants",
+        "ana_teacher_mood": "Humeur des enseignants - {color}",
+        "ana_teachers": "Enseignants",
+        "ana_teachers_opted_in": "Enseignants ayant accepté le partage du bien-être",
+        "ana_teachers_suppressed": "— (moins de 3 enseignants participants)",
+        "ana_value": "Valeur",
+        "car_act_club": "Club",
+        "car_act_competition": "Compétition",
+        "car_act_course": "Cours",
+        "car_act_leadership": "Leadership",
+        "car_act_volunteering": "Bénévolat",
+        "car_act_work_experience": "Expérience pro.",
+        "car_activities_work_experience": "Activités et expérience professionnelle",
+        "car_agreed_next_actions": "Prochaines actions convenues",
+        "car_assess_careers_questionnaire": "Questionnaire d'orientation",
+        "car_assess_other": "Évaluation",
+        "car_assess_riasec": "Questionnaire d'orientation (RIASEC)",
+        "car_assessment_interpretations": "Interprétations des Évaluations",
+        "car_cat_aspirational": "Ambitieux",
+        "car_cat_match": "Compatible",
+        "car_cat_safety": "Sécurité",
+        "car_code": "Code : {code}",
+        "car_col_category": "Catégorie",
+        "car_col_course": "Cours",
+        "car_col_current": "Actuel",
+        "car_col_entry_requirements": "Conditions d'admission",
+        "car_col_predicted": "Prévu",
+        "car_col_status": "Statut",
+        "car_col_subject": "Matière",
+        "car_col_term": "Trimestre",
+        "car_col_university": "Université",
+        "car_curriculum_a_level": "A Level",
+        "car_first_language": "Première langue :",
+        "car_from_meeting": "De la réunion du {date} :",
+        "car_generated": "Généré le {date}",
+        "car_interests": "Centres d'intérêt :",
+        "car_latest_grades": "Dernières notes",
+        "car_nationality": "Nationalité :",
+        "car_no_academic": "Aucun dossier scolaire pour le moment.",
+        "car_no_activities": "Aucune activité enregistrée pour le moment.",
+        "car_no_assessments": "Aucune évaluation enregistrée pour l'instant.",
+        "car_no_meetings": "Aucun entretien d'orientation enregistré.",
+        "car_no_profile": "Aucune information de profil enregistrée pour le moment.",
+        "car_no_universities": "Aucune option d'université enregistrée pour l'instant.",
+        "car_other": "Autre",
+        "car_other_languages": "Autres langues :",
+        "car_primary_secondary": "Principal {primary} / Secondaire {secondary}",
+        "car_profile_background": "Profil et Parcours",
+        "car_schooling_history": "Parcours scolaire :",
+        "car_status_accepted": "Accepté",
+        "car_status_applied": "Candidature envoyée",
+        "car_status_declined": "Refusé",
+        "car_status_offer": "Offre",
+        "car_status_rejected": "Refusée",
+        "car_status_researching": "En recherche",
+        "car_status_shortlisted": "Présélectionné",
+        "car_status_withdrawn": "Retirée",
+        "car_strengths": "Points forts :",
+        "car_student_default": "Élève",
+        "car_title": "Class of Happiness — Résumé du Parcours",
+        "car_university_pathway": "Parcours universitaire",
+        "cls_all_classrooms": "Toutes les classes",
+        "cls_by_classroom": "Par Classe",
+        "cls_class_fallback": "Classe",
+        "cls_classroom": "Classe",
+        "cls_currently_need_support": "Ont Actuellement Besoin de Soutien",
+        "cls_footer": "Class of Happiness — Le bien-être émotionnel, tout simplement.",
+        "cls_last_checkin": "Dernier check-in",
+        "cls_most_used_strategies": "Stratégies les Plus Utilisées",
+        "cls_needs_attention": "À surveiller",
+        "cls_period": "Période",
+        "cls_scope": "Périmètre",
+        "cls_selected_classroom": "Classe sélectionnée",
+        "cls_strategy": "Stratégie",
+        "cls_student": "Élève",
+        "cls_student_fallback": "Élève",
+        "cls_students": "Élèves",
+        "cls_summary": "Résumé",
+        "cls_teacher": "Enseignant",
+        "cls_times_used": "Utilisations",
+        "cls_title": "Rapport Général de la Classe",
+        "cls_total_checkins": "Total des bilans",
+        "cls_trend": "Évolution des émotions dans le temps",
+        "cls_unassigned": "Non affectés",
+        "exp_action": "Action",
+        "exp_address": "Adresse",
+        "exp_areas": "Domaines",
+        "exp_category": "Catégorie",
+        "exp_concern_summary": "Résumé de la préoccupation",
+        "exp_contact_name": "Nom du Contact",
+        "exp_delegate": "Délégué",
+        "exp_email": "E-mail",
+        "exp_footer": "Généré par Class of Happiness (classofhappiness.app).",
+        "exp_generated": "Généré le {date}",
+        "exp_is_emergency": "Urgence",
+        "exp_no": "Non",
+        "exp_notes": "Notes",
+        "exp_nothing": "Rien à exporter pour l'instant.",
+        "exp_phone": "Téléphone",
+        "exp_review_date": "Date de révision",
+        "exp_service_name": "Nom du service",
+        "exp_services_directory": "Annuaire des Services",
+        "exp_status": "Statut",
+        "exp_student_ref": "Réf. de l'élève",
+        "exp_tier": "Niveau",
+        "exp_wellbeing_tracker": "Suivi du bien-être",
+        "exp_year_group": "Niveau",
+        "exp_yes": "Oui",
+        "fam_calendar": "Calendrier Mensuel",
+        "fam_col_count": "Nombre",
+        "fam_col_date": "Date",
+        "fam_col_emotion": "Émotion",
+        "fam_col_state": "État",
+        "fam_col_strategies": "Stratégies",
+        "fam_col_strategy": "Stratégie",
+        "fam_col_time": "Heure",
+        "fam_col_times_used": "Fois Utilisée",
+        "fam_default_name": "Membre de la famille",
+        "fam_emotion_dist": "Distribution des Émotions",
+        "fam_footer": "Ce rapport est généré par Class of Happiness · classofhappiness.com · À des fins éducatives et de soutien au bien-être uniquement.",
+        "fam_green_days": "Jours verts",
+        "fam_header_period": "{month} {year} · {report}",
+        "fam_log": "Journal des Enregistrements",
+        "fam_most_common": "Le plus fréquent",
+        "fam_report": "Rapport de Bien-être à la Maison",
+        "fam_state_blue": "Triste / Fatigué",
+        "fam_state_green": "Heureux / Prêt",
+        "fam_state_red": "Bouleversé / En colère",
+        "fam_state_yellow": "Inquiet / Anxieux",
+        "fam_strategies": "Stratégies Utilisées",
+        "fam_subtitle": "Class of Happiness · {report} · classofhappiness.com",
+        "fam_total_checkins": "Total des Check-ins",
+        "sch_alerts_raised": "Alertes émises",
+        "sch_alerts_summary": "Résumé des alertes",
+        "sch_all_schools": "Toutes les Écoles",
+        "sch_checkins": "Bilans",
+        "sch_class": "Classe",
+        "sch_class_perf": "Comparaison des Classes",
+        "sch_classroom_fallback": "Classe",
+        "sch_count": "Nombre",
+        "sch_emotion_col": "Émotion",
+        "sch_emotion_dist": "Répartition des émotions",
+        "sch_emotions_label": "Émotions {colour}",
+        "sch_my_school": "Mon École",
+        "sch_n_schools": "{n} écoles",
+        "sch_no_classroom_data": "Aucune donnée de classe pour cette période.",
+        "sch_no_strategy_data": "Aucune donnée de stratégie pour cette période.",
+        "sch_overview": "Aperçu",
+        "sch_pct_header": "{colour} %",
+        "sch_pct_note": "Pourcentage des check-ins de chaque école par émotion.",
+        "sch_school": "École",
+        "sch_school_comparison": "Comparaison entre écoles",
+        "sch_strategy": "Stratégie",
+        "sch_student_fallback": "Élève",
+        "sch_students": "Élèves",
+        "sch_students_in_red": "Élèves en {colour} sur cette Période",
+        "sch_subtitle": "{name} · {days} derniers jours · Généré le {date}",
+        "sch_support_line": "{student_name} a eu besoin d'un soutien BEP ×{count} sur cette période.",
+        "sch_support_requests": "Demandes de Soutien",
+        "sch_teachers": "Enseignants",
+        "sch_title": "Class of Happiness — Rapport de bien-être de l'école",
+        "sch_top_strategies": "Stratégies les Plus Utilisées",
+        "sch_total_checkins": "Total des bilans",
+        "sch_uses": "Usages",
+        "stu_calendar": "Calendrier Mensuel",
+        "stu_col_blue": "Bleu",
+        "stu_col_checkins": "Check-ins",
+        "stu_col_comment": "Commentaire",
+        "stu_col_count": "Nb",
+        "stu_col_date": "Date",
+        "stu_col_day": "Jour",
+        "stu_col_emotion": "Émotion",
+        "stu_col_frequency": "Fréquence",
+        "stu_col_green": "Vert",
+        "stu_col_red": "Rouge",
+        "stu_col_source": "Source",
+        "stu_col_state": "État",
+        "stu_col_strategies": "Stratégies",
+        "stu_col_strategy": "Stratégie",
+        "stu_col_time": "Heure",
+        "stu_col_total": "Total",
+        "stu_col_used": "Utilisée",
+        "stu_col_yellow": "Jaune",
+        "stu_confidentiality": "AVIS DE CONFIDENTIALITÉ : Ce rapport contient des données personnelles sur le bien-être émotionnel, destinées uniquement à l'équipe de soutien éducatif et thérapeutique de l'élève concerné. Tout partage non autorisé est interdit. © Class of Happiness",
+        "stu_day_of_week": "Activité par Jour",
+        "stu_emotion_dist": "Distribution des Émotions",
+        "stu_emotion_fallback": "Émotions de {name}",
+        "stu_freq_often": "Souvent",
+        "stu_freq_once": "Une fois",
+        "stu_freq_sometimes": "Parfois",
+        "stu_freq_very_often": "Très souvent",
+        "stu_generated_by": "Généré par Class of Happiness (classofhappiness.app) à partir du modèle de check-in des émotions en couleurs. Il s'agit d'un outil éducatif qui ne constitue pas une évaluation ni un diagnostic clinique.",
+        "stu_home_vs_school": "Maison et école",
+        "stu_label_checkins": "Check-ins :",
+        "stu_label_class": "Classe :",
+        "stu_label_generated": "Généré le :",
+        "stu_label_period": "Période :",
+        "stu_label_student": "Élève :",
+        "stu_legend_no_checkin": "Pas de bilan",
+        "stu_log_heading": "Journal des Enregistrements",
+        "stu_no_checkins": "Aucun check-in enregistré pour cette période.",
+        "stu_no_strategies": "Aucune stratégie enregistrée sur cette période.",
+        "stu_not_assigned": "Non attribué",
+        "stu_report": "Rapport de Bien-être Émotionnel",
+        "stu_source_home": "Maison",
+        "stu_source_school": "École",
+        "stu_state_blue": "Je me sens triste ou fatigué",
+        "stu_state_green": "Je me sens bien et prêt à apprendre",
+        "stu_state_red": "Je me sens très bouleversé ou en colère",
+        "stu_state_yellow": "Je me sens inquiet ou anxieux",
+        "stu_strategies_heading": "Stratégies Utilisées",
+        "tw_checkin_calendar": "Calendrier des check-ins",
+        "tw_checkin_history": "Historique des Check-ins",
+        "tw_col_count": "Nb",
+        "tw_col_date": "Date",
+        "tw_col_date_time": "Date et Heure",
+        "tw_col_emotion": "Émotion",
+        "tw_col_message": "Message",
+        "tw_col_note": "Note",
+        "tw_col_strategies": "Stratégies",
+        "tw_col_strategy": "Stratégie",
+        "tw_col_times_used": "Fois Utilisée",
+        "tw_col_visual": "Graphique",
+        "tw_disclaimer": "Généré par Class of Happiness (classofhappiness.app). Il s'agit d'un outil éducatif qui ne constitue pas une évaluation clinique ni un diagnostic. Les données sont privées et confidentielles.",
+        "tw_email": "E-mail",
+        "tw_emotion_distribution": "Répartition des émotions",
+        "tw_most_used_strategies": "Stratégies les plus utilisées",
+        "tw_name": "Nom",
+        "tw_personal_summary": "Résumé personnel",
+        "tw_report_period": "Période du rapport",
+        "tw_support_requested_default": "Soutien demandé",
+        "tw_support_requests": "Demandes de soutien",
+        "tw_title": "Rapport de bien-être de l'enseignant",
+        "tw_total_checkins": "Total des Check-ins",
+        "tw_week_abbr": "S{n}",
+        "tw_wellbeing_support_requests": "Demandes de soutien au bien-être",
+    },
+    "de": {
+        "ana_avg_default_stage": "Ø Stufe der Standardkreaturen",
+        "ana_checkins_period": "Check-ins ({n} T.)",
+        "ana_comparison_title": "Schulvergleich - {n} Schulen",
+        "ana_creatures_evolved": "Vollständig entwickelte Kreaturen",
+        "ana_creatures_obtained": "Erhaltene Kreaturen",
+        "ana_home_checkins": "Check-ins zu Hause",
+        "ana_linked_families": "Verknüpfte Familien",
+        "ana_metric": "Kennzahl",
+        "ana_snapshot_title": "{school} - Analyse im Überblick",
+        "ana_student_mood": "Stimmung der Schüler - {color}",
+        "ana_students": "Schüler",
+        "ana_teacher_checkin_rate": "Check-in-Quote der Lehrkräfte",
+        "ana_teacher_mood": "Stimmung der Lehrkräfte - {color}",
+        "ana_teachers": "Lehrkräfte",
+        "ana_teachers_opted_in": "Lehrkräfte mit Wohlbefinden-Freigabe",
+        "ana_teachers_suppressed": "— (weniger als 3 Lehrkräfte nehmen teil)",
+        "ana_value": "Wert",
+        "car_act_club": "Club",
+        "car_act_competition": "Wettbewerb",
+        "car_act_course": "Kurs",
+        "car_act_leadership": "Führung",
+        "car_act_volunteering": "Ehrenamt",
+        "car_act_work_experience": "Berufserfahrung",
+        "car_activities_work_experience": "Aktivitäten & Berufserfahrung",
+        "car_agreed_next_actions": "Vereinbarte nächste Schritte",
+        "car_assess_careers_questionnaire": "Berufsorientierungs-Fragebogen",
+        "car_assess_other": "Bewertung",
+        "car_assess_riasec": "Berufsfragebogen (RIASEC)",
+        "car_assessment_interpretations": "Auswertung der Beurteilungen",
+        "car_cat_aspirational": "Wunschziel",
+        "car_cat_match": "Passend",
+        "car_cat_safety": "Sicherheit",
+        "car_code": "Code: {code}",
+        "car_col_category": "Kategorie",
+        "car_col_course": "Kurs",
+        "car_col_current": "Aktuell",
+        "car_col_entry_requirements": "Zulassungsvoraussetzungen",
+        "car_col_predicted": "Prognose",
+        "car_col_status": "Status",
+        "car_col_subject": "Fach",
+        "car_col_term": "Trimester",
+        "car_col_university": "Universität",
+        "car_curriculum_a_level": "A Level",
+        "car_first_language": "Erstsprache:",
+        "car_from_meeting": "Aus dem Gespräch vom {date}:",
+        "car_generated": "Erstellt am {date}",
+        "car_interests": "Interessen:",
+        "car_latest_grades": "Aktuelle Noten",
+        "car_nationality": "Nationalität:",
+        "car_no_academic": "Noch keine Leistungsdaten.",
+        "car_no_activities": "Noch keine Aktivitäten erfasst.",
+        "car_no_assessments": "Noch keine Bewertungen erfasst.",
+        "car_no_meetings": "Noch keine Beratungsgespräche erfasst.",
+        "car_no_profile": "Noch keine Profilangaben erfasst.",
+        "car_no_universities": "Noch keine Universitätsoptionen erfasst.",
+        "car_other": "Sonstiges",
+        "car_other_languages": "Weitere Sprachen:",
+        "car_primary_secondary": "Primär {primary} / Sekundär {secondary}",
+        "car_profile_background": "Profil & Hintergrund",
+        "car_schooling_history": "Schulischer Werdegang:",
+        "car_status_accepted": "Angenommen",
+        "car_status_applied": "Beworben",
+        "car_status_declined": "Abgelehnt",
+        "car_status_offer": "Angebot",
+        "car_status_rejected": "Abgelehnt",
+        "car_status_researching": "In Recherche",
+        "car_status_shortlisted": "Vorausgewählt",
+        "car_status_withdrawn": "Zurückgezogen",
+        "car_strengths": "Stärken:",
+        "car_student_default": "Schüler",
+        "car_title": "Class of Happiness — Laufbahnübersicht",
+        "car_university_pathway": "Weg zur Universität",
+        "cls_all_classrooms": "Alle Klassen",
+        "cls_by_classroom": "Nach Klasse",
+        "cls_class_fallback": "Klasse",
+        "cls_classroom": "Klasse",
+        "cls_currently_need_support": "Brauchen derzeit Unterstützung",
+        "cls_footer": "Class of Happiness — Emotionales Wohlbefinden, einfach gemacht.",
+        "cls_last_checkin": "Letzter Check-in",
+        "cls_most_used_strategies": "Am häufigsten genutzte Strategien",
+        "cls_needs_attention": "Braucht Aufmerksamkeit",
+        "cls_period": "Zeitraum",
+        "cls_scope": "Umfang",
+        "cls_selected_classroom": "Ausgewählte Klasse",
+        "cls_strategy": "Strategie",
+        "cls_student": "Schüler",
+        "cls_student_fallback": "Schüler/in",
+        "cls_students": "Schüler",
+        "cls_summary": "Zusammenfassung",
+        "cls_teacher": "Lehrkraft",
+        "cls_times_used": "Nutzungen",
+        "cls_title": "Klassenübersicht",
+        "cls_total_checkins": "Check-ins gesamt",
+        "cls_trend": "Emotionsverlauf im Zeitverlauf",
+        "cls_unassigned": "Nicht zugeordnet",
+        "exp_action": "Maßnahme",
+        "exp_address": "Adresse",
+        "exp_areas": "Bereiche",
+        "exp_category": "Kategorie",
+        "exp_concern_summary": "Zusammenfassung des Anliegens",
+        "exp_contact_name": "Ansprechpartner",
+        "exp_delegate": "Delegiert",
+        "exp_email": "E-Mail",
+        "exp_footer": "Erstellt von Class of Happiness (classofhappiness.app).",
+        "exp_generated": "Erstellt am {date}",
+        "exp_is_emergency": "Notfall",
+        "exp_no": "Nein",
+        "exp_notes": "Notizen",
+        "exp_nothing": "Noch nichts zu exportieren.",
+        "exp_phone": "Telefon",
+        "exp_review_date": "Prüfdatum",
+        "exp_service_name": "Name des Dienstes",
+        "exp_services_directory": "Serviceverzeichnis",
+        "exp_status": "Status",
+        "exp_student_ref": "Schüler-Ref.",
+        "exp_tier": "Stufe",
+        "exp_wellbeing_tracker": "Wohlbefinden-Tracker",
+        "exp_year_group": "Jahrgangsstufe",
+        "exp_yes": "Ja",
+        "fam_calendar": "Monatskalender",
+        "fam_col_count": "Anzahl",
+        "fam_col_date": "Datum",
+        "fam_col_emotion": "Emotion",
+        "fam_col_state": "Zustand",
+        "fam_col_strategies": "Strategien",
+        "fam_col_strategy": "Strategie",
+        "fam_col_time": "Zeit",
+        "fam_col_times_used": "Anzahl",
+        "fam_default_name": "Familienmitglied",
+        "fam_emotion_dist": "Emotionsverteilung",
+        "fam_footer": "Dieser Bericht wird von Class of Happiness erstellt · classofhappiness.com · Nur für Bildungs- und Wohlbefindenszwecke.",
+        "fam_green_days": "Grüne Tage",
+        "fam_header_period": "{month} {year} · {report}",
+        "fam_log": "Check-in-Protokoll",
+        "fam_most_common": "Am häufigsten",
+        "fam_report": "Wohlbefindensbericht Zuhause",
+        "fam_state_blue": "Traurig / Müde",
+        "fam_state_green": "Glücklich / Bereit",
+        "fam_state_red": "Aufgewühlt / Wütend",
+        "fam_state_yellow": "Besorgt / Ängstlich",
+        "fam_strategies": "Verwendete Strategien",
+        "fam_subtitle": "Class of Happiness · {report} · classofhappiness.com",
+        "fam_total_checkins": "Check-ins gesamt",
+        "sch_alerts_raised": "Ausgelöste Warnungen",
+        "sch_alerts_summary": "Übersicht der Warnungen",
+        "sch_all_schools": "Alle Schulen",
+        "sch_checkins": "Check-ins",
+        "sch_class": "Klasse",
+        "sch_class_perf": "Leistungsvergleich der Klassen",
+        "sch_classroom_fallback": "Klasse",
+        "sch_count": "Anzahl",
+        "sch_emotion_col": "Emotion",
+        "sch_emotion_dist": "Verteilung der Emotionen",
+        "sch_emotions_label": "Emotionen: {colour}",
+        "sch_my_school": "Meine Schule",
+        "sch_n_schools": "{n} Schulen",
+        "sch_no_classroom_data": "Keine Klassendaten für diesen Zeitraum.",
+        "sch_no_strategy_data": "Keine Strategiedaten für diesen Zeitraum.",
+        "sch_overview": "Überblick",
+        "sch_pct_header": "{colour} %",
+        "sch_pct_note": "Anteil der Check-ins jeder Schule nach Emotion.",
+        "sch_school": "Schule",
+        "sch_school_comparison": "Schulvergleich",
+        "sch_strategy": "Strategie",
+        "sch_student_fallback": "Schüler/in",
+        "sch_students": "Schüler",
+        "sch_students_in_red": "Schüler in {colour} in diesem Zeitraum",
+        "sch_subtitle": "{name} · Letzte {days} Tage · Erstellt am {date}",
+        "sch_support_line": "{student_name} benötigte in diesem Zeitraum ×{count} SEND-Unterstützung.",
+        "sch_support_requests": "Unterstützungsanfragen",
+        "sch_teachers": "Lehrkräfte",
+        "sch_title": "Class of Happiness — Wohlbefindensbericht der Schule",
+        "sch_top_strategies": "Meistgenutzte Strategien",
+        "sch_total_checkins": "Check-ins gesamt",
+        "sch_uses": "Nutzungen",
+        "stu_calendar": "Monatskalender",
+        "stu_col_blue": "Blau",
+        "stu_col_checkins": "Check-ins",
+        "stu_col_comment": "Kommentar",
+        "stu_col_count": "Anzahl",
+        "stu_col_date": "Datum",
+        "stu_col_day": "Tag",
+        "stu_col_emotion": "Emotion",
+        "stu_col_frequency": "Häufigkeit",
+        "stu_col_green": "Grün",
+        "stu_col_red": "Rot",
+        "stu_col_source": "Quelle",
+        "stu_col_state": "Zustand",
+        "stu_col_strategies": "Strategien",
+        "stu_col_strategy": "Strategie",
+        "stu_col_time": "Uhrzeit",
+        "stu_col_total": "Gesamt",
+        "stu_col_used": "Genutzt",
+        "stu_col_yellow": "Gelb",
+        "stu_confidentiality": "VERTRAULICHKEITSHINWEIS: Dieser Bericht enthält persönliche Daten zum emotionalen Wohlbefinden, die ausschließlich für das pädagogische und therapeutische Unterstützungsteam der genannten Schülerin bzw. des genannten Schülers bestimmt sind. Eine unbefugte Weitergabe ist untersagt. © Class of Happiness",
+        "stu_day_of_week": "Aktivität nach Wochentag",
+        "stu_emotion_dist": "Emotionsverteilung",
+        "stu_emotion_fallback": "Emotionen von {name}",
+        "stu_freq_often": "Oft",
+        "stu_freq_once": "Einmal",
+        "stu_freq_sometimes": "Manchmal",
+        "stu_freq_very_often": "Sehr oft",
+        "stu_generated_by": "Erstellt von Class of Happiness (classofhappiness.app) mit dem Check-in-Modell der Farb-Emotionen. Dies ist ein Bildungswerkzeug und stellt weder eine klinische Beurteilung noch eine Diagnose dar.",
+        "stu_home_vs_school": "Zuhause vs. Schule",
+        "stu_label_checkins": "Check-ins:",
+        "stu_label_class": "Klasse:",
+        "stu_label_generated": "Erstellt am:",
+        "stu_label_period": "Zeitraum:",
+        "stu_label_student": "Schüler:",
+        "stu_legend_no_checkin": "Kein Check-in",
+        "stu_log_heading": "Check-in-Protokoll",
+        "stu_no_checkins": "Keine Check-ins in diesem Zeitraum.",
+        "stu_no_strategies": "In diesem Zeitraum wurden keine Strategien erfasst.",
+        "stu_not_assigned": "Nicht zugewiesen",
+        "stu_report": "Bericht zum emotionalen Wohlbefinden",
+        "stu_source_home": "Zuhause",
+        "stu_source_school": "Schule",
+        "stu_state_blue": "Ich fühle mich traurig oder müde",
+        "stu_state_green": "Ich fühle mich gut und bereit zu lernen",
+        "stu_state_red": "Ich fühle mich sehr aufgewühlt oder wütend",
+        "stu_state_yellow": "Ich fühle mich besorgt oder ängstlich",
+        "stu_strategies_heading": "Verwendete Strategien",
+        "tw_checkin_calendar": "Check-in-Kalender",
+        "tw_checkin_history": "Check-in-Verlauf",
+        "tw_col_count": "Anzahl",
+        "tw_col_date": "Datum",
+        "tw_col_date_time": "Datum & Uhrzeit",
+        "tw_col_emotion": "Emotion",
+        "tw_col_message": "Nachricht",
+        "tw_col_note": "Notiz",
+        "tw_col_strategies": "Strategien",
+        "tw_col_strategy": "Strategie",
+        "tw_col_times_used": "Anzahl",
+        "tw_col_visual": "Grafik",
+        "tw_disclaimer": "Erstellt von Class of Happiness (classofhappiness.app). Dies ist ein Bildungswerkzeug und stellt keine klinische Beurteilung oder Diagnose dar. Die Daten sind privat und vertraulich.",
+        "tw_email": "E-Mail",
+        "tw_emotion_distribution": "Verteilung der Emotionen",
+        "tw_most_used_strategies": "Am häufigsten genutzte Strategien",
+        "tw_name": "Name",
+        "tw_personal_summary": "Persönliche Zusammenfassung",
+        "tw_report_period": "Berichtszeitraum",
+        "tw_support_requested_default": "Unterstützung angefordert",
+        "tw_support_requests": "Unterstützungsanfragen",
+        "tw_title": "Wohlbefindensbericht der Lehrkraft",
+        "tw_total_checkins": "Check-ins gesamt",
+        "tw_week_abbr": "W{n}",
+        "tw_wellbeing_support_requests": "Anfragen zur Unterstützung des Wohlbefindens",
+    },
+    "it": {
+        "ana_avg_default_stage": "Fase media delle creature predefinite",
+        "ana_checkins_period": "Check-in ({n}g)",
+        "ana_comparison_title": "Confronto tra scuole - {n} scuole",
+        "ana_creatures_evolved": "Creature completamente evolute",
+        "ana_creatures_obtained": "Creature Ottenute",
+        "ana_home_checkins": "Check-in a casa",
+        "ana_linked_families": "Famiglie collegate",
+        "ana_metric": "Metrica",
+        "ana_snapshot_title": "{school} - Quadro analitico",
+        "ana_student_mood": "Umore degli studenti - {color}",
+        "ana_students": "Studenti",
+        "ana_teacher_checkin_rate": "Tasso di check-in dei docenti",
+        "ana_teacher_mood": "Umore dei docenti - {color}",
+        "ana_teachers": "Insegnanti",
+        "ana_teachers_opted_in": "Docenti che hanno aderito alla condivisione del benessere",
+        "ana_teachers_suppressed": "— (meno di 3 docenti aderenti)",
+        "ana_value": "Valore",
+        "car_act_club": "Club",
+        "car_act_competition": "Competizione",
+        "car_act_course": "Corso",
+        "car_act_leadership": "Leadership",
+        "car_act_volunteering": "Volontariato",
+        "car_act_work_experience": "Esperienza lavorativa",
+        "car_activities_work_experience": "Attività ed esperienza lavorativa",
+        "car_agreed_next_actions": "Prossime azioni concordate",
+        "car_assess_careers_questionnaire": "Questionario di Orientamento",
+        "car_assess_other": "Valutazione",
+        "car_assess_riasec": "Questionario sulle carriere (RIASEC)",
+        "car_assessment_interpretations": "Interpretazioni delle Valutazioni",
+        "car_cat_aspirational": "Aspirazionale",
+        "car_cat_match": "Compatibile",
+        "car_cat_safety": "Sicurezza",
+        "car_code": "Codice: {code}",
+        "car_col_category": "Categoria",
+        "car_col_course": "Corso",
+        "car_col_current": "Attuale",
+        "car_col_entry_requirements": "Requisiti di accesso",
+        "car_col_predicted": "Previsto",
+        "car_col_status": "Stato",
+        "car_col_subject": "Materia",
+        "car_col_term": "Periodo",
+        "car_col_university": "Università",
+        "car_curriculum_a_level": "A Level",
+        "car_first_language": "Prima lingua:",
+        "car_from_meeting": "Dalla riunione del {date}:",
+        "car_generated": "Generato il {date}",
+        "car_interests": "Interessi:",
+        "car_latest_grades": "Ultimi voti",
+        "car_nationality": "Nazionalità:",
+        "car_no_academic": "Ancora nessun dato scolastico.",
+        "car_no_activities": "Nessuna attività registrata finora.",
+        "car_no_assessments": "Nessuna valutazione registrata finora.",
+        "car_no_meetings": "Ancora nessun colloquio di orientamento registrato.",
+        "car_no_profile": "Nessun dato del profilo registrato finora.",
+        "car_no_universities": "Nessuna opzione universitaria registrata finora.",
+        "car_other": "Altro",
+        "car_other_languages": "Altre lingue:",
+        "car_primary_secondary": "Primario {primary} / Secondario {secondary}",
+        "car_profile_background": "Profilo e Contesto",
+        "car_schooling_history": "Percorso scolastico:",
+        "car_status_accepted": "Accettato",
+        "car_status_applied": "Candidato",
+        "car_status_declined": "Rifiutato",
+        "car_status_offer": "Offerta",
+        "car_status_rejected": "Rifiutata",
+        "car_status_researching": "In ricerca",
+        "car_status_shortlisted": "Selezionato",
+        "car_status_withdrawn": "Ritirata",
+        "car_strengths": "Punti di forza:",
+        "car_student_default": "Studente",
+        "car_title": "Class of Happiness — Riepilogo del Percorso",
+        "car_university_pathway": "Percorso universitario",
+        "cls_all_classrooms": "Tutte le classi",
+        "cls_by_classroom": "Per Classe",
+        "cls_class_fallback": "Classe",
+        "cls_classroom": "Classe",
+        "cls_currently_need_support": "Hanno Attualmente Bisogno di Supporto",
+        "cls_footer": "Class of Happiness — Il benessere emotivo, in modo semplice.",
+        "cls_last_checkin": "Ultimo check-in",
+        "cls_most_used_strategies": "Strategie Più Usate",
+        "cls_needs_attention": "Richiede attenzione",
+        "cls_period": "Periodo",
+        "cls_scope": "Ambito",
+        "cls_selected_classroom": "Classe selezionata",
+        "cls_strategy": "Strategia",
+        "cls_student": "Studente",
+        "cls_student_fallback": "Studente",
+        "cls_students": "Studenti",
+        "cls_summary": "Riepilogo",
+        "cls_teacher": "Docente",
+        "cls_times_used": "Volte usata",
+        "cls_title": "Rapporto Generale della Classe",
+        "cls_total_checkins": "Check-in totali",
+        "cls_trend": "Andamento delle emozioni nel tempo",
+        "cls_unassigned": "Non assegnati",
+        "exp_action": "Azione",
+        "exp_address": "Indirizzo",
+        "exp_areas": "Aree",
+        "exp_category": "Categoria",
+        "exp_concern_summary": "Sintesi della preoccupazione",
+        "exp_contact_name": "Nome del Contatto",
+        "exp_delegate": "Delegato",
+        "exp_email": "E-mail",
+        "exp_footer": "Generato da Class of Happiness (classofhappiness.app).",
+        "exp_generated": "Generato il {date}",
+        "exp_is_emergency": "Emergenza",
+        "exp_no": "No",
+        "exp_notes": "Note",
+        "exp_nothing": "Ancora nulla da esportare.",
+        "exp_phone": "Telefono",
+        "exp_review_date": "Data di revisione",
+        "exp_service_name": "Nome del servizio",
+        "exp_services_directory": "Elenco dei Servizi",
+        "exp_status": "Stato",
+        "exp_student_ref": "Rif. studente",
+        "exp_tier": "Livello",
+        "exp_wellbeing_tracker": "Monitoraggio del benessere",
+        "exp_year_group": "Anno scolastico",
+        "exp_yes": "Sì",
+        "fam_calendar": "Calendario Mensile",
+        "fam_col_count": "Numero",
+        "fam_col_date": "Data",
+        "fam_col_emotion": "Emozione",
+        "fam_col_state": "Stato",
+        "fam_col_strategies": "Strategie",
+        "fam_col_strategy": "Strategia",
+        "fam_col_time": "Ora",
+        "fam_col_times_used": "Volte Usata",
+        "fam_default_name": "Membro della famiglia",
+        "fam_emotion_dist": "Distribuzione delle Emozioni",
+        "fam_footer": "Questo rapporto è generato da Class of Happiness · classofhappiness.com · Solo a scopo educativo e di supporto al benessere.",
+        "fam_green_days": "Giorni verdi",
+        "fam_header_period": "{month} {year} · {report}",
+        "fam_log": "Registro dei Check-in",
+        "fam_most_common": "Più frequente",
+        "fam_report": "Rapporto sul Benessere a Casa",
+        "fam_state_blue": "Triste / Stanco",
+        "fam_state_green": "Felice / Pronto",
+        "fam_state_red": "Turbato / Arrabbiato",
+        "fam_state_yellow": "Preoccupato / Ansioso",
+        "fam_strategies": "Strategie Utilizzate",
+        "fam_subtitle": "Class of Happiness · {report} · classofhappiness.com",
+        "fam_total_checkins": "Totale Check-in",
+        "sch_alerts_raised": "Avvisi generati",
+        "sch_alerts_summary": "Riepilogo degli avvisi",
+        "sch_all_schools": "Tutte le Scuole",
+        "sch_checkins": "Check-in",
+        "sch_class": "Classe",
+        "sch_class_perf": "Confronto delle Classi",
+        "sch_classroom_fallback": "Classe",
+        "sch_count": "Numero",
+        "sch_emotion_col": "Emozione",
+        "sch_emotion_dist": "Distribuzione delle emozioni",
+        "sch_emotions_label": "Emozioni {colour}",
+        "sch_my_school": "La Mia Scuola",
+        "sch_n_schools": "{n} scuole",
+        "sch_no_classroom_data": "Nessun dato di classe per questo periodo.",
+        "sch_no_strategy_data": "Nessun dato sulle strategie per questo periodo.",
+        "sch_overview": "Panoramica",
+        "sch_pct_header": "{colour} %",
+        "sch_pct_note": "Percentuale dei check-in di ciascuna scuola per emozione.",
+        "sch_school": "Scuola",
+        "sch_school_comparison": "Confronto tra scuole",
+        "sch_strategy": "Strategia",
+        "sch_student_fallback": "Studente",
+        "sch_students": "Studenti",
+        "sch_students_in_red": "Studenti in {colour} in Questo Periodo",
+        "sch_subtitle": "{name} · Ultimi {days} giorni · Generato il {date}",
+        "sch_support_line": "{student_name} ha avuto bisogno di supporto BES ×{count} in questo periodo.",
+        "sch_support_requests": "Richieste di Supporto",
+        "sch_teachers": "Docenti",
+        "sch_title": "Class of Happiness — Rapporto sul benessere della scuola",
+        "sch_top_strategies": "Strategie Più Usate",
+        "sch_total_checkins": "Check-in totali",
+        "sch_uses": "Usi",
+        "stu_calendar": "Calendario Mensile",
+        "stu_col_blue": "Blu",
+        "stu_col_checkins": "Check-in",
+        "stu_col_comment": "Commento",
+        "stu_col_count": "N.",
+        "stu_col_date": "Data",
+        "stu_col_day": "Giorno",
+        "stu_col_emotion": "Emozione",
+        "stu_col_frequency": "Frequenza",
+        "stu_col_green": "Verde",
+        "stu_col_red": "Rosso",
+        "stu_col_source": "Origine",
+        "stu_col_state": "Stato",
+        "stu_col_strategies": "Strategie",
+        "stu_col_strategy": "Strategia",
+        "stu_col_time": "Ora",
+        "stu_col_total": "Totale",
+        "stu_col_used": "Usata",
+        "stu_col_yellow": "Giallo",
+        "stu_confidentiality": "AVVISO DI RISERVATEZZA: Questo rapporto contiene dati personali sul benessere emotivo destinati esclusivamente al team educativo e terapeutico dello studente indicato. La condivisione non autorizzata è vietata. © Class of Happiness",
+        "stu_day_of_week": "Attività per Giorno",
+        "stu_emotion_dist": "Distribuzione delle Emozioni",
+        "stu_emotion_fallback": "Emozioni di {name}",
+        "stu_freq_often": "Spesso",
+        "stu_freq_once": "Una volta",
+        "stu_freq_sometimes": "A volte",
+        "stu_freq_very_often": "Molto spesso",
+        "stu_generated_by": "Generato da Class of Happiness (classofhappiness.app) con il modello di check-in delle emozioni a colori. È uno strumento educativo e non costituisce una valutazione o una diagnosi clinica.",
+        "stu_home_vs_school": "Casa e scuola",
+        "stu_label_checkins": "Check-in:",
+        "stu_label_class": "Classe:",
+        "stu_label_generated": "Generato il:",
+        "stu_label_period": "Periodo:",
+        "stu_label_student": "Studente:",
+        "stu_legend_no_checkin": "Nessun check-in",
+        "stu_log_heading": "Registro dei Check-in",
+        "stu_no_checkins": "Nessun check-in registrato in questo periodo.",
+        "stu_no_strategies": "Nessuna strategia registrata in questo periodo.",
+        "stu_not_assigned": "Non assegnato",
+        "stu_report": "Rapporto sul Benessere Emotivo",
+        "stu_source_home": "Casa",
+        "stu_source_school": "Scuola",
+        "stu_state_blue": "Mi sento triste o stanco",
+        "stu_state_green": "Mi sento bene e pronto ad imparare",
+        "stu_state_red": "Mi sento molto turbato o arrabbiato",
+        "stu_state_yellow": "Mi sento preoccupato o ansioso",
+        "stu_strategies_heading": "Strategie Utilizzate",
+        "tw_checkin_calendar": "Calendario dei check-in",
+        "tw_checkin_history": "Cronologia dei Check-in",
+        "tw_col_count": "N.",
+        "tw_col_date": "Data",
+        "tw_col_date_time": "Data e Ora",
+        "tw_col_emotion": "Emozione",
+        "tw_col_message": "Messaggio",
+        "tw_col_note": "Nota",
+        "tw_col_strategies": "Strategie",
+        "tw_col_strategy": "Strategia",
+        "tw_col_times_used": "Volte Usata",
+        "tw_col_visual": "Grafico",
+        "tw_disclaimer": "Generato da Class of Happiness (classofhappiness.app). Questo è uno strumento educativo e non costituisce una valutazione clinica né una diagnosi. I dati sono privati e riservati.",
+        "tw_email": "E-mail",
+        "tw_emotion_distribution": "Distribuzione delle emozioni",
+        "tw_most_used_strategies": "Strategie più usate",
+        "tw_name": "Nome",
+        "tw_personal_summary": "Riepilogo personale",
+        "tw_report_period": "Periodo del rapporto",
+        "tw_support_requested_default": "Supporto richiesto",
+        "tw_support_requests": "Richieste di supporto",
+        "tw_title": "Rapporto sul benessere del docente",
+        "tw_total_checkins": "Totale Check-in",
+        "tw_week_abbr": "S{n}",
+        "tw_wellbeing_support_requests": "Richieste di supporto al benessere",
+    },
 }
+PDF_STRINGS.update(_PDF_STRINGS_DATA)
+# ===== PDF_STRINGS ru + zh (Oct 10, Stage 2; fonts: Noto Sans / Noto Sans SC) =====
+# Written without native review; back-translation checked (see report-fix10.md). Same 247 keys and placeholders as English.
+_PDF_STRINGS_DATA_RUZH = {
+    "ru": {
+        "ana_avg_default_stage": "Ср. стадия стандартных существ",
+        "ana_checkins_period": "Отметки ({n} дн.)",
+        "ana_comparison_title": "Сравнение школ - всего: {n}",
+        "ana_creatures_evolved": "Полностью развитых существ",
+        "ana_creatures_obtained": "Получено существ",
+        "ana_home_checkins": "Отметки дома",
+        "ana_linked_families": "Связанные семьи",
+        "ana_metric": "Показатель",
+        "ana_snapshot_title": "{school} - Аналитический срез",
+        "ana_student_mood": "Настроение учеников: {color}",
+        "ana_students": "Ученики",
+        "ana_teacher_checkin_rate": "Частота отметок учителей",
+        "ana_teacher_mood": "Настроение учителей - {color}",
+        "ana_teachers": "Учителя",
+        "ana_teachers_opted_in": "Учителя, согласившиеся делиться данными о благополучии",
+        "ana_teachers_suppressed": "— (менее 3 учителей дали согласие)",
+        "ana_value": "Значение",
+        "car_act_club": "Кружок",
+        "car_act_competition": "Соревнования",
+        "car_act_course": "Курс",
+        "car_act_leadership": "Лидерство",
+        "car_act_volunteering": "Волонтёрство",
+        "car_act_work_experience": "Опыт работы",
+        "car_activities_work_experience": "Занятия и опыт работы",
+        "car_agreed_next_actions": "Согласованные дальнейшие шаги",
+        "car_assess_careers_questionnaire": "Профориентационный опросник",
+        "car_assess_other": "Оценивание",
+        "car_assess_riasec": "Профориентационный опросник (RIASEC)",
+        "car_assessment_interpretations": "Интерпретация результатов оценки",
+        "car_cat_aspirational": "Амбициозный",
+        "car_cat_match": "Подходящий",
+        "car_cat_safety": "Запасной",
+        "car_code": "Код: {code}",
+        "car_col_category": "Категория",
+        "car_col_course": "Курс",
+        "car_col_current": "Сейчас",
+        "car_col_entry_requirements": "Требования к поступлению",
+        "car_col_predicted": "Прогноз",
+        "car_col_status": "Статус",
+        "car_col_subject": "Предмет",
+        "car_col_term": "Семестр",
+        "car_col_university": "Университет",
+        "car_curriculum_a_level": "A Level",
+        "car_first_language": "Родной язык:",
+        "car_from_meeting": "По итогам встречи {date}:",
+        "car_generated": "Создано {date}",
+        "car_interests": "Интересы:",
+        "car_latest_grades": "Последние оценки",
+        "car_nationality": "Гражданство:",
+        "car_no_academic": "Данных об успеваемости пока нет.",
+        "car_no_activities": "Пока нет записанной деятельности.",
+        "car_no_assessments": "Результатов оценки пока нет.",
+        "car_no_meetings": "Пока нет записанных консультаций.",
+        "car_no_profile": "Данных профиля пока нет.",
+        "car_no_universities": "Пока нет записанных вариантов университетов.",
+        "car_other": "Другое",
+        "car_other_languages": "Другие языки:",
+        "car_primary_secondary": "Основной: {primary} / Дополнительный: {secondary}",
+        "car_profile_background": "Профиль и общие сведения",
+        "car_schooling_history": "История обучения:",
+        "car_status_accepted": "Принято",
+        "car_status_applied": "Подана заявка",
+        "car_status_declined": "Предложение отклонено",
+        "car_status_offer": "Предложение о зачислении",
+        "car_status_rejected": "Отказ",
+        "car_status_researching": "Изучается",
+        "car_status_shortlisted": "В шорт-листе",
+        "car_status_withdrawn": "Заявка отозвана",
+        "car_strengths": "Сильные стороны:",
+        "car_student_default": "Ученик",
+        "car_title": "Class of Happiness — Сводка по карьерному пути",
+        "car_university_pathway": "Путь в университет",
+        "cls_all_classrooms": "Все классы",
+        "cls_by_classroom": "По классам",
+        "cls_class_fallback": "Класс",
+        "cls_classroom": "Класс",
+        "cls_currently_need_support": "Сейчас нужна поддержка",
+        "cls_footer": "Class of Happiness — эмоциональное благополучие, это просто и понятно",
+        "cls_last_checkin": "Последняя отметка",
+        "cls_most_used_strategies": "Самые используемые стратегии",
+        "cls_needs_attention": "Требует внимания",
+        "cls_period": "Период",
+        "cls_scope": "Охват",
+        "cls_selected_classroom": "Выбранный класс",
+        "cls_strategy": "Стратегия",
+        "cls_student": "Ученик",
+        "cls_student_fallback": "Ученик",
+        "cls_students": "Ученики",
+        "cls_summary": "Сводка",
+        "cls_teacher": "Учитель",
+        "cls_times_used": "Использований",
+        "cls_title": "Отчёт: обзор класса",
+        "cls_total_checkins": "Всего отметок",
+        "cls_trend": "Динамика эмоций",
+        "cls_unassigned": "Без класса",
+        "exp_action": "Действие",
+        "exp_address": "Адрес",
+        "exp_areas": "Области",
+        "exp_category": "Категория",
+        "exp_concern_summary": "Краткое описание беспокойства",
+        "exp_contact_name": "Контактное лицо",
+        "exp_delegate": "Ответственный",
+        "exp_email": "Эл. почта",
+        "exp_footer": "Создано в Class of Happiness (classofhappiness.app).",
+        "exp_generated": "Создано {date}",
+        "exp_is_emergency": "Экстренный случай",
+        "exp_no": "Нет",
+        "exp_notes": "Заметки",
+        "exp_nothing": "Пока нечего экспортировать.",
+        "exp_phone": "Телефон",
+        "exp_review_date": "Дата пересмотра",
+        "exp_service_name": "Название службы",
+        "exp_services_directory": "Справочник служб",
+        "exp_status": "Статус",
+        "exp_student_ref": "Номер ученика",
+        "exp_tier": "Уровень",
+        "exp_wellbeing_tracker": "Журнал благополучия",
+        "exp_year_group": "Класс/год обучения",
+        "exp_yes": "Да",
+        "fam_calendar": "Календарь месяца",
+        "fam_col_count": "Кол-во",
+        "fam_col_date": "Дата",
+        "fam_col_emotion": "Эмоция",
+        "fam_col_state": "Состояние",
+        "fam_col_strategies": "Стратегии",
+        "fam_col_strategy": "Стратегия",
+        "fam_col_time": "Время",
+        "fam_col_times_used": "Использований",
+        "fam_default_name": "Член семьи",
+        "fam_emotion_dist": "Распределение эмоций",
+        "fam_footer": "Этот отчёт создан в Class of Happiness · classofhappiness.com · Только для образовательной поддержки и поддержки благополучия.",
+        "fam_green_days": "Зелёные дни",
+        "fam_header_period": "{month} {year} · {report}",
+        "fam_log": "Журнал отметок",
+        "fam_most_common": "Чаще всего",
+        "fam_report": "Отчёт о благополучии дома",
+        "fam_state_blue": "Грусть / усталость",
+        "fam_state_green": "Радость / готовность",
+        "fam_state_red": "Расстройство / злость",
+        "fam_state_yellow": "Тревожно / Беспокойно",
+        "fam_strategies": "Использованные стратегии",
+        "fam_subtitle": "Class of Happiness · {report} · classofhappiness.com",
+        "fam_total_checkins": "Всего отметок",
+        "sch_alerts_raised": "Тревожных сигналов",
+        "sch_alerts_summary": "Сводка по сигналам",
+        "sch_all_schools": "Все школы",
+        "sch_checkins": "Отметки",
+        "sch_class": "Класс",
+        "sch_class_perf": "Сравнение показателей классов",
+        "sch_classroom_fallback": "Класс",
+        "sch_count": "Кол-во",
+        "sch_emotion_col": "Эмоция",
+        "sch_emotion_dist": "Распределение эмоций",
+        "sch_emotions_label": "Эмоции: {colour}",
+        "sch_my_school": "Моя школа",
+        "sch_n_schools": "Школ: {n}",
+        "sch_no_classroom_data": "Нет данных по классам за этот период.",
+        "sch_no_strategy_data": "Нет данных о стратегиях за этот период.",
+        "sch_overview": "Обзор",
+        "sch_pct_header": "{colour} %",
+        "sch_pct_note": "Доля отметок каждой школы по эмоциям.",
+        "sch_school": "Школа",
+        "sch_school_comparison": "Сравнение школ",
+        "sch_strategy": "Стратегия",
+        "sch_student_fallback": "Ученик",
+        "sch_students": "Ученики",
+        "sch_students_in_red": "Ученики в эмоции «{colour}» за период",
+        "sch_subtitle": "{name} · Последние {days} дн. · Создано {date}",
+        "sch_support_line": "{student_name}: поддержка SEND потребовалась ×{count} за период.",
+        "sch_support_requests": "Запросы о помощи",
+        "sch_teachers": "Учителя",
+        "sch_title": "Class of Happiness — Отчёт о благополучии школы",
+        "sch_top_strategies": "Самые используемые стратегии",
+        "sch_total_checkins": "Всего отметок",
+        "sch_uses": "Использований",
+        "stu_calendar": "Календарь месяца",
+        "stu_col_blue": "Синий",
+        "stu_col_checkins": "Отметки",
+        "stu_col_comment": "Комментарий",
+        "stu_col_count": "Кол-во",
+        "stu_col_date": "Дата",
+        "stu_col_day": "День",
+        "stu_col_emotion": "Эмоция",
+        "stu_col_frequency": "Частота",
+        "stu_col_green": "Зелёный",
+        "stu_col_red": "Красный",
+        "stu_col_source": "Источник",
+        "stu_col_state": "Состояние",
+        "stu_col_strategies": "Стратегии",
+        "stu_col_strategy": "Стратегия",
+        "stu_col_time": "Время",
+        "stu_col_total": "Всего",
+        "stu_col_used": "Раз",
+        "stu_col_yellow": "Жёлтый",
+        "stu_confidentiality": "УВЕДОМЛЕНИЕ О КОНФИДЕНЦИАЛЬНОСТИ: этот отчёт содержит личные данные об эмоциональном благополучии и предназначен исключительно для команды образовательной и терапевтической поддержки указанного ученика. Несанкционированная передача запрещена. © Class of Happiness",
+        "stu_day_of_week": "Активность по дням недели",
+        "stu_emotion_dist": "Распределение эмоций",
+        "stu_emotion_fallback": "Эмоции: {name}",
+        "stu_freq_often": "Часто",
+        "stu_freq_once": "Один раз",
+        "stu_freq_sometimes": "Иногда",
+        "stu_freq_very_often": "Очень часто",
+        "stu_generated_by": "Создано в Class of Happiness (classofhappiness.app) на основе системы цветных эмоций и отметок. Это образовательный инструмент, он не является клинической оценкой или диагнозом.",
+        "stu_home_vs_school": "Дом и школа: разбивка",
+        "stu_label_checkins": "Отметки:",
+        "stu_label_class": "Класс:",
+        "stu_label_generated": "Создано:",
+        "stu_label_period": "Период:",
+        "stu_label_student": "Ученик:",
+        "stu_legend_no_checkin": "Нет отметки",
+        "stu_log_heading": "Журнал отметок",
+        "stu_no_checkins": "За этот период отметок нет.",
+        "stu_no_strategies": "В этом периоде стратегии не отмечены.",
+        "stu_not_assigned": "Не назначено",
+        "stu_report": "Отчёт об эмоциональном благополучии",
+        "stu_source_home": "Дом",
+        "stu_source_school": "Школа",
+        "stu_state_blue": "Грусть или усталость",
+        "stu_state_green": "Радость и готовность учиться",
+        "stu_state_red": "Сильное расстройство или злость",
+        "stu_state_yellow": "Тревожно или беспокойно",
+        "stu_strategies_heading": "Использованные стратегии совладания",
+        "tw_checkin_calendar": "Календарь отметок",
+        "tw_checkin_history": "История отметок",
+        "tw_col_count": "Кол-во",
+        "tw_col_date": "Дата",
+        "tw_col_date_time": "Дата и время",
+        "tw_col_emotion": "Эмоция",
+        "tw_col_message": "Сообщение",
+        "tw_col_note": "Заметка",
+        "tw_col_strategies": "Стратегии",
+        "tw_col_strategy": "Стратегия",
+        "tw_col_times_used": "Использований",
+        "tw_col_visual": "Диаграмма",
+        "tw_disclaimer": "Создано в Class of Happiness (classofhappiness.app). Это образовательный инструмент, он не является клинической оценкой или диагнозом. Данные приватны и конфиденциальны.",
+        "tw_email": "Эл. почта",
+        "tw_emotion_distribution": "Распределение эмоций",
+        "tw_most_used_strategies": "Самые используемые стратегии",
+        "tw_name": "Имя",
+        "tw_personal_summary": "Личная сводка",
+        "tw_report_period": "Период отчёта",
+        "tw_support_requested_default": "Запрошена помощь",
+        "tw_support_requests": "Запросы поддержки",
+        "tw_title": "Отчёт о благополучии учителя",
+        "tw_total_checkins": "Всего отметок",
+        "tw_week_abbr": "Нед.{n}",
+        "tw_wellbeing_support_requests": "Запросы поддержки по благополучию",
+    },
+    "zh": {
+        "ana_avg_default_stage": "默认生物的平均成长阶段",
+        "ana_checkins_period": "打卡（{n}天）",
+        "ana_comparison_title": "学校对比 - {n}所学校",
+        "ana_creatures_evolved": "完全进化的生物",
+        "ana_creatures_obtained": "已获得生物数",
+        "ana_home_checkins": "家庭打卡",
+        "ana_linked_families": "已关联家庭",
+        "ana_metric": "指标",
+        "ana_snapshot_title": "{school} - 数据分析概览",
+        "ana_student_mood": "学生情绪 - {color}",
+        "ana_students": "学生",
+        "ana_teacher_checkin_rate": "教师打卡率",
+        "ana_teacher_mood": "教师情绪 - {color}",
+        "ana_teachers": "教师",
+        "ana_teachers_opted_in": "同意分享身心健康数据的教师",
+        "ana_teachers_suppressed": "—（选择参与的教师不足3名）",
+        "ana_value": "数值",
+        "car_act_club": "社团",
+        "car_act_competition": "竞赛",
+        "car_act_course": "课程",
+        "car_act_leadership": "领导力",
+        "car_act_volunteering": "志愿服务",
+        "car_act_work_experience": "工作经历",
+        "car_activities_work_experience": "活动与工作经历",
+        "car_agreed_next_actions": "商定的后续行动",
+        "car_assess_careers_questionnaire": "职业问卷",
+        "car_assess_other": "测评",
+        "car_assess_riasec": "职业问卷（RIASEC）",
+        "car_assessment_interpretations": "测评结果解读",
+        "car_cat_aspirational": "冲刺",
+        "car_cat_match": "稳妥",
+        "car_cat_safety": "保底",
+        "car_code": "代码：{code}",
+        "car_col_category": "类别",
+        "car_col_course": "课程",
+        "car_col_current": "当前",
+        "car_col_entry_requirements": "入学要求",
+        "car_col_predicted": "预测",
+        "car_col_status": "状态",
+        "car_col_subject": "科目",
+        "car_col_term": "学期",
+        "car_col_university": "大学",
+        "car_curriculum_a_level": "A Level",
+        "car_first_language": "第一语言：",
+        "car_from_meeting": "来自{date}会面：",
+        "car_generated": "生成日期：{date}",
+        "car_interests": "兴趣：",
+        "car_latest_grades": "最新成绩",
+        "car_nationality": "国籍：",
+        "car_no_academic": "暂无学业记录。",
+        "car_no_activities": "暂无活动记录。",
+        "car_no_assessments": "暂无评估记录。",
+        "car_no_meetings": "暂无指导会面记录。",
+        "car_no_profile": "暂无个人资料。",
+        "car_no_universities": "暂无大学选项记录。",
+        "car_other": "其他",
+        "car_other_languages": "其他语言：",
+        "car_primary_secondary": "主要 {primary} / 次要 {secondary}",
+        "car_profile_background": "个人简介与背景",
+        "car_schooling_history": "就读经历：",
+        "car_status_accepted": "已接受录取",
+        "car_status_applied": "已申请",
+        "car_status_declined": "已婉拒",
+        "car_status_offer": "已获录取",
+        "car_status_rejected": "被拒绝",
+        "car_status_researching": "调研中",
+        "car_status_shortlisted": "入围",
+        "car_status_withdrawn": "已撤回",
+        "car_strengths": "优势：",
+        "car_student_default": "学生",
+        "car_title": "Class of Happiness — 发展路径总结",
+        "car_university_pathway": "大学升学路径",
+        "cls_all_classrooms": "所有班级",
+        "cls_by_classroom": "按班级",
+        "cls_class_fallback": "班级",
+        "cls_classroom": "班级",
+        "cls_currently_need_support": "目前需要支持",
+        "cls_footer": "Class of Happiness — 让情绪健康变得简单。",
+        "cls_last_checkin": "最近签到",
+        "cls_most_used_strategies": "最常用策略",
+        "cls_needs_attention": "需要关注",
+        "cls_period": "周期",
+        "cls_scope": "范围",
+        "cls_selected_classroom": "所选班级",
+        "cls_strategy": "策略",
+        "cls_student": "学生",
+        "cls_student_fallback": "学生",
+        "cls_students": "学生",
+        "cls_summary": "概要",
+        "cls_teacher": "教师",
+        "cls_times_used": "使用次数",
+        "cls_title": "班级概览报告",
+        "cls_total_checkins": "签到总次数",
+        "cls_trend": "情绪变化趋势",
+        "cls_unassigned": "未分配",
+        "exp_action": "操作",
+        "exp_address": "地址",
+        "exp_areas": "服务范围",
+        "exp_category": "类别",
+        "exp_concern_summary": "关注事项摘要",
+        "exp_contact_name": "联系人",
+        "exp_delegate": "指定代表",
+        "exp_email": "电子邮箱",
+        "exp_footer": "由 Class of Happiness（classofhappiness.app）生成。",
+        "exp_generated": "生成于 {date}",
+        "exp_is_emergency": "紧急",
+        "exp_no": "否",
+        "exp_notes": "备注",
+        "exp_nothing": "暂无可导出内容。",
+        "exp_phone": "电话",
+        "exp_review_date": "复查日期",
+        "exp_service_name": "服务名称",
+        "exp_services_directory": "服务机构名录",
+        "exp_status": "状态",
+        "exp_student_ref": "学生编号",
+        "exp_tier": "级别",
+        "exp_wellbeing_tracker": "身心健康记录表",
+        "exp_year_group": "年级",
+        "exp_yes": "是",
+        "fam_calendar": "月度日历",
+        "fam_col_count": "次数",
+        "fam_col_date": "日期",
+        "fam_col_emotion": "情绪",
+        "fam_col_state": "状态",
+        "fam_col_strategies": "策略",
+        "fam_col_strategy": "策略",
+        "fam_col_time": "时间",
+        "fam_col_times_used": "使用次数",
+        "fam_default_name": "家庭成员",
+        "fam_emotion_dist": "情绪分布",
+        "fam_footer": "本报告由 Class of Happiness 生成 · classofhappiness.com · 仅用于教育和身心健康支持。",
+        "fam_green_days": "绿色天数",
+        "fam_header_period": "{year}年{month} · {report}",
+        "fam_log": "打卡记录",
+        "fam_most_common": "最常见",
+        "fam_report": "家庭身心健康报告",
+        "fam_state_blue": "难过 / 疲倦",
+        "fam_state_green": "开心 / 准备好了",
+        "fam_state_red": "心烦 / 生气",
+        "fam_state_yellow": "担心 / 焦虑",
+        "fam_strategies": "已使用的策略",
+        "fam_subtitle": "Class of Happiness · {report} · classofhappiness.com",
+        "fam_total_checkins": "签到总次数",
+        "sch_alerts_raised": "提醒次数",
+        "sch_alerts_summary": "提醒概要",
+        "sch_all_schools": "所有学校",
+        "sch_checkins": "签到",
+        "sch_class": "班级",
+        "sch_class_perf": "班级表现对比",
+        "sch_classroom_fallback": "班级",
+        "sch_count": "次数",
+        "sch_emotion_col": "情绪",
+        "sch_emotion_dist": "情绪分布",
+        "sch_emotions_label": "{colour}情绪",
+        "sch_my_school": "我的学校",
+        "sch_n_schools": "{n}所学校",
+        "sch_no_classroom_data": "本期暂无班级数据。",
+        "sch_no_strategy_data": "本周期暂无策略数据。",
+        "sch_overview": "总览",
+        "sch_pct_header": "{colour}%",
+        "sch_pct_note": "各学校自身签到中每种情绪所占的百分比。",
+        "sch_school": "学校",
+        "sch_school_comparison": "学校对比",
+        "sch_strategy": "策略",
+        "sch_student_fallback": "学生",
+        "sch_students": "学生",
+        "sch_students_in_red": "本期处于{colour}的学生",
+        "sch_subtitle": "{name} · 近{days}天 · 生成日期：{date}",
+        "sch_support_line": "{student_name}本期有{count}次需要SEND（特殊教育需求与残障）支持。",
+        "sch_support_requests": "支持请求",
+        "sch_teachers": "教师",
+        "sch_title": "Class of Happiness — 学校身心健康报告",
+        "sch_top_strategies": "最常用策略",
+        "sch_total_checkins": "打卡总数",
+        "sch_uses": "使用次数",
+        "stu_calendar": "月度日历",
+        "stu_col_blue": "蓝色",
+        "stu_col_checkins": "打卡",
+        "stu_col_comment": "备注",
+        "stu_col_count": "次数",
+        "stu_col_date": "日期",
+        "stu_col_day": "日",
+        "stu_col_emotion": "情绪",
+        "stu_col_frequency": "频率",
+        "stu_col_green": "绿色",
+        "stu_col_red": "红色",
+        "stu_col_source": "来源",
+        "stu_col_state": "状态",
+        "stu_col_strategies": "策略",
+        "stu_col_strategy": "策略",
+        "stu_col_time": "时间",
+        "stu_col_total": "合计",
+        "stu_col_used": "使用次数",
+        "stu_col_yellow": "黄色",
+        "stu_confidentiality": "保密声明：本报告包含个人情绪身心健康数据，仅供该学生的教育及心理支持团队使用。严禁未经授权分享。© Class of Happiness",
+        "stu_day_of_week": "按星期活跃度",
+        "stu_emotion_dist": "情绪分布",
+        "stu_emotion_fallback": "{name}情绪",
+        "stu_freq_often": "经常",
+        "stu_freq_once": "一次",
+        "stu_freq_sometimes": "有时",
+        "stu_freq_very_often": "非常频繁",
+        "stu_generated_by": "由 Class of Happiness（classofhappiness.app）基于彩色情绪签到框架生成。本工具为教育工具，不构成临床评估或诊断。",
+        "stu_home_vs_school": "家庭与学校对比",
+        "stu_label_checkins": "签到次数：",
+        "stu_label_class": "班级：",
+        "stu_label_generated": "生成时间：",
+        "stu_label_period": "周期：",
+        "stu_label_student": "学生：",
+        "stu_legend_no_checkin": "未打卡",
+        "stu_log_heading": "签到记录",
+        "stu_no_checkins": "本周期暂无打卡记录。",
+        "stu_no_strategies": "本期暂无策略记录。",
+        "stu_not_assigned": "未分配",
+        "stu_report": "情绪与身心健康报告",
+        "stu_source_home": "家庭",
+        "stu_source_school": "学校",
+        "stu_state_blue": "感到难过或疲惫",
+        "stu_state_green": "心情愉快，准备好学习",
+        "stu_state_red": "感到非常心烦或生气",
+        "stu_state_yellow": "感到担心或焦虑",
+        "stu_strategies_heading": "使用的应对策略",
+        "tw_checkin_calendar": "签到日历",
+        "tw_checkin_history": "打卡历史",
+        "tw_col_count": "次数",
+        "tw_col_date": "日期",
+        "tw_col_date_time": "日期和时间",
+        "tw_col_emotion": "情绪",
+        "tw_col_message": "留言",
+        "tw_col_note": "备注",
+        "tw_col_strategies": "策略",
+        "tw_col_strategy": "策略",
+        "tw_col_times_used": "使用次数",
+        "tw_col_visual": "图示",
+        "tw_disclaimer": "由 Class of Happiness（classofhappiness.app）生成。本工具为教育工具，不构成临床评估或诊断。数据为私密信息，严格保密。",
+        "tw_email": "邮箱",
+        "tw_emotion_distribution": "情绪分布",
+        "tw_most_used_strategies": "最常用策略",
+        "tw_name": "姓名",
+        "tw_personal_summary": "个人摘要",
+        "tw_report_period": "报告周期",
+        "tw_support_requested_default": "已请求支持",
+        "tw_support_requests": "支持请求",
+        "tw_title": "教师身心健康报告",
+        "tw_total_checkins": "签到总次数",
+        "tw_week_abbr": "第{n}周",
+        "tw_wellbeing_support_requests": "身心健康支持请求",
+    },
+}
+PDF_STRINGS.update(_PDF_STRINGS_DATA_RUZH)   # validated by _validate_pdf_strings() right below (a failing language falls back to English)
+# ===== end PDF_STRINGS ru + zh =====
+_PDF_STRINGS_PROBLEMS = _validate_pdf_strings()  # logs + falls back to English per failing language; never raises
+# ===== end PDF_STRINGS table =====
 
 def resolve_strategy_name(sid: str, lang: str = "en") -> str:
     """Return human-readable strategy name from ID or raw string."""
@@ -6866,15 +9067,27 @@ async def _generate_family_member_pdf_bytes(fm: dict, family_member_id: str, yea
     to_thread offloads the entire thing; both call sites already awaited it, unchanged."""
     return await asyncio.to_thread(_generate_family_member_pdf_bytes_sync, fm, family_member_id, year, month, lang)
 
+def _pdf_pstyle(lang, name, **kw):
+    """ParagraphStyle for PDF language `lang`: font mapped through pdf_font (identical Helvetica for en/pt/es/fr/de/it),
+    leading >= 1.3 x fontSize for ru/zh (taller Noto metrics) and per-character wrapping for zh."""
+    lang = pdf_lang(lang)
+    kw["fontName"] = pdf_font(lang, kw.get("fontName", "Helvetica"))
+    if lang in ("ru", "zh"):
+        kw["leading"] = max(kw.get("leading", 12), round(kw.get("fontSize", 10) * 1.3))
+        if lang == "zh":
+            kw.setdefault("wordWrap", "CJK")
+    return ParagraphStyle(name, **kw)
+
 def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year: int, month: int, lang: str = ""):
     """Builds one family member's PDF (home check-ins only) and returns (pdf_bytes, safe_name).
     Real fix Aug 21: extracted out of generate_family_pdf_report so both the single-member
     route and the family-wide ZIP export (generate_family_pdf_all, below) share this exact
     ReportLab-building logic instead of duplicating ~330 lines of it. fm/family_member_id are
     passed in already-resolved and already-ownership-checked by the caller."""
+    lang = pdf_lang(lang)
     # Use student record if available, else create synthetic student_data
     student_data = {
-        "name": fm.get("name", "Family Member"),
+        "name": fm.get("name", pdf_t(lang, "fam_default_name")),
         "id": family_member_id,
         "classroom_id": None,
         "language": lang or "en",
@@ -6920,7 +9133,7 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
     has_home_data = True
 
     # Detect language
-    report_lang = lang if lang in ["pt","es","fr","de","it","en"] else "en"
+    report_lang = lang
     student_data["language"] = report_lang
 
     # Reuse the same PDF builder by forwarding to generate_pdf_report logic
@@ -6987,19 +9200,16 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
         "fr":{"blue":"Émotions Bleues","green":"Émotions Vertes","yellow":"Émotions Jaunes","red":"Émotions Rouges"},
         "de":{"blue":"Blaue Emotionen","green":"Grüne Emotionen","yellow":"Gelbe Emotionen","red":"Rote Emotionen"},
         "it":{"blue":"Emozioni Blu","green":"Emozioni Verdi","yellow":"Emozioni Gialle","red":"Emozioni Rosse"},
+        "ru":{"blue":"Синие эмоции","green":"Зелёные эмоции","yellow":"Жёлтые эмоции","red":"Красные эмоции"},
+        "zh":{"blue":"蓝色情绪","green":"绿色情绪","yellow":"黄色情绪","red":"红色情绪"},
     }
     ZL = ZONE_LABELS_BY_LANG.get(report_lang, ZONE_LABELS_BY_LANG["en"])
-    HOME_REPORT_LABELS = {'en': 'Home Wellbeing Report', 'pt': 'Relatório de Bem-Estar em Casa', 'es': 'Informe de Bienestar en Casa', 'fr': 'Rapport de Bien-être à la Maison', 'de': 'Wohlbefindensbericht Zuhause', 'it': 'Rapporto sul Benessere a Casa'}
-    STRATEGIES_LABELS  = {'en': 'Strategies Used', 'pt': 'Estratégias Utilizadas', 'es': 'Estrategias Utilizadas', 'fr': 'Stratégies Utilisées', 'de': 'Verwendete Strategien', 'it': 'Strategie Utilizzate'}
-    CALENDAR_LABELS    = {'en': 'Monthly Calendar', 'pt': 'Calendário Mensal', 'es': 'Calendario Mensual', 'fr': 'Calendrier Mensuel', 'de': 'Monatskalender', 'it': 'Calendario Mensile'}
-    CHECKIN_LOG_LABELS = {'en': 'Check-in Log', 'pt': 'Registo de Check-ins', 'es': 'Registro de Check-ins', 'fr': 'Journal des Enregistrements', 'de': 'Check-in-Protokoll', 'it': 'Registro dei Check-in'}
-    EMOTION_DIST_LABELS= {'en': 'Emotion Distribution', 'pt': 'Distribuição de Emoções', 'es': 'Distribución de Emociones', 'fr': 'Distribution des Émotions', 'de': 'Emotionsverteilung', 'it': 'Distribuzione delle Emozioni'}
-    lbl_report   = HOME_REPORT_LABELS.get(report_lang, HOME_REPORT_LABELS["en"])
-    lbl_strats   = STRATEGIES_LABELS.get(report_lang, STRATEGIES_LABELS["en"])
-    lbl_calendar = CALENDAR_LABELS.get(report_lang, CALENDAR_LABELS["en"])
-    lbl_log      = CHECKIN_LOG_LABELS.get(report_lang, CHECKIN_LOG_LABELS["en"])
-    lbl_emotions = EMOTION_DIST_LABELS.get(report_lang, EMOTION_DIST_LABELS["en"])
-    ZONE_DESCS = {"blue":"Sad / Tired","green":"Happy / Ready","yellow":"Worried / Anxious","red":"Upset / Angry"}
+    lbl_report   = pdf_t(report_lang, "fam_report")
+    lbl_strats   = pdf_t(report_lang, "fam_strategies")
+    lbl_calendar = pdf_t(report_lang, "fam_calendar")
+    lbl_log      = pdf_t(report_lang, "fam_log")
+    lbl_emotions = pdf_t(report_lang, "fam_emotion_dist")
+    ZONE_DESCS = {"blue": pdf_t(report_lang, "fam_state_blue"), "green": pdf_t(report_lang, "fam_state_green"), "yellow": pdf_t(report_lang, "fam_state_yellow"), "red": pdf_t(report_lang, "fam_state_red")}
     MONTH_NAMES = {
         "en":["January","February","March","April","May","June","July","August","September","October","November","December"],
         "pt":["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"],
@@ -7007,10 +9217,16 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
         "fr":["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"],
         "de":["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"],
         "it":["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"],
+        "ru":["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"],
+        "zh":[f"{_m}月" for _m in range(1,13)],
     }
     month_name = MONTH_NAMES.get(report_lang, MONTH_NAMES["en"])[month-1]
+    if report_lang == "zh": month_name = f"{month}月"   # fam_header_period (zh) is "{year}年{month} · ..."
+    MON_ABBR = [m[:3] for m in MONTH_NAMES.get(report_lang, MONTH_NAMES["en"])]
+    if report_lang == "ru": MON_ABBR = ["янв.","февр.","мар.","апр.","мая","июн.","июл.","авг.","сент.","окт.","нояб.","дек."]
+    WEEKDAYS_F = {"en":["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],"pt":["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"],"es":["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"],"fr":["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"],"de":["Mo","Di","Mi","Do","Fr","Sa","So"],"it":["Lun","Mar","Mer","Gio","Ven","Sab","Dom"],"ru":["Пн","Вт","Ср","Чт","Пт","Сб","Вс"],"zh":["周一","周二","周三","周四","周五","周六","周日"]}.get(report_lang)
 
-    def s(name, **kw): return ParagraphStyle(name, **kw)
+    def s(name, **kw): return _pdf_pstyle(report_lang, name, **kw)
     ST_H2    = s('FH2',  fontSize=12, textColor=INDIGO, fontName='Helvetica-Bold', spaceBefore=10, spaceAfter=4)
     ST_BODY  = s('FBody',fontSize=9,  textColor=colors.HexColor('#444444'), leading=13)
     ST_SMALL = s('FSml', fontSize=8,  textColor=colors.HexColor('#888888'), leading=11)
@@ -7031,16 +9247,16 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
             colWidths=[52, 180],
             style=[('VALIGN',(0,0),(-1,-1),'MIDDLE'),('PADDING',(0,0),(-1,-1),0),('LEFTPADDING',(1,0),(1,0),6)])
     except Exception:
-        logo_cell = Paragraph("<font color='#FFC107'>●</font><font color='#4CAF50'>●</font><font color='#4A90D9'>●</font> Class of Happiness", ST_LOGO)
+        logo_cell = Paragraph("<font color='#FFC107'>&bull;</font><font color='#4CAF50'>&bull;</font><font color='#4A90D9'>&bull;</font> Class of Happiness", ST_LOGO)
 
     header_data = [[logo_cell,
-        Paragraph(f"<b>{fm.get('name','Family Member')}</b><br/><font size='9'>{month_name} {year} · Home Wellbeing Report</font>",
+        Paragraph(f"<b>{pdf_safe(fm.get('name', pdf_t(report_lang, 'fam_default_name')), report_lang, 'Helvetica-Bold')}</b><br/><font size='9'>{pdf_t(report_lang, 'fam_header_period', month=month_name, year=year, report=lbl_report)}</font>",
                   s('FHR', fontSize=14, textColor=colors.HexColor('#5C6BC0'), leading=20, alignment=2))]]
     header_table = Table(header_data, colWidths=[PAGE_W*0.45, PAGE_W*0.45])
     header_table.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),colors.white),("BOX",(0,0),(-1,-1),1,colors.HexColor("#E0E0E0")),("PADDING",(0,0),(-1,-1),14),("VALIGN",(0,0),(-1,-1),"MIDDLE")]))
     story.append(header_table)
     story.append(Spacer(1,4))
-    story.append(Paragraph("Class of Happiness · Home Wellbeing Report · classofhappiness.com",
+    story.append(Paragraph(pdf_t(report_lang, "fam_subtitle", report=lbl_report),
                             s('FSub',fontSize=8,textColor=colors.HexColor('#888888'),alignment=1)))
     story.append(Spacer(1,12))
 
@@ -7050,10 +9266,10 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
     summary_items = [
         [Paragraph(f"<b>{total}</b>", s('FN1',fontSize=22,textColor=INDIGO,alignment=1,fontName='Helvetica-Bold')),
          Paragraph(f"<b>{feeling_counts.get('green',0)}</b>", s('FN2',fontSize=22,textColor=GREEN_C,alignment=1,fontName='Helvetica-Bold')),
-         Paragraph(f"<b>{ZL.get(dominant,'').split()[0]}</b>", s('FN3',fontSize=18,textColor=ZONE_COLORS_PDF.get(dominant,INDIGO),alignment=1,fontName='Helvetica-Bold'))],
-        [Paragraph("Total Check-ins", s('FL1',fontSize=8,textColor=colors.HexColor('#888'),alignment=1)),
-         Paragraph("Green Days",      s('FL2',fontSize=8,textColor=colors.HexColor('#888'),alignment=1)),
-         Paragraph("Most Common",     s('FL3',fontSize=8,textColor=colors.HexColor('#888'),alignment=1))],
+         Paragraph(f"<b>{pdf_t(report_lang, 'stu_col_' + dominant)}</b>", s('FN3',fontSize=18,textColor=ZONE_COLORS_PDF.get(dominant,INDIGO),alignment=1,fontName='Helvetica-Bold'))],
+        [Paragraph(pdf_t(report_lang, "fam_total_checkins"), s('FL1',fontSize=8,textColor=colors.HexColor('#888'),alignment=1)),
+         Paragraph(pdf_t(report_lang, "fam_green_days"), s('FL2',fontSize=8,textColor=colors.HexColor('#888'),alignment=1)),
+         Paragraph(pdf_t(report_lang, "fam_most_common"), s('FL3',fontSize=8,textColor=colors.HexColor('#888'),alignment=1))],
     ]
     summary_table = Table(summary_items, colWidths=[col_w3]*3, rowHeights=[36, 18])
     summary_table.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),LIGHT),("BOX",(0,0),(-1,-1),1,LIGHT_GREY),
@@ -7063,7 +9279,7 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
     story.append(Spacer(1,14))
 
     # ── EMOTION DISTRIBUTION — bar chart + zone table ──
-    story.append(Paragraph("Emotion Distribution", ST_H2))
+    story.append(Paragraph(lbl_emotions, ST_H2))
     BAR_W, BAR_H = 240, 90
     bar_drawing = Drawing(BAR_W, BAR_H)
     zones_order = ["blue","green","yellow","red"]
@@ -7077,19 +9293,19 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
         bw = bar_slot_w - bar_margin*2
         r = Rect(x, 20, bw, bar_h); r.fillColor = ZONE_COLORS_PDF[zone]; r.strokeColor = None
         bar_drawing.add(r)
-        bar_drawing.add(String(x+bw/2, 22+bar_h, str(count), textAnchor='middle', fontSize=9, fontName='Helvetica-Bold', fillColor=colors.HexColor('#333333')))
-        bar_drawing.add(String(x+bw/2, 6, ZL[zone].split()[0], textAnchor='middle', fontSize=7, fontName='Helvetica', fillColor=colors.HexColor('#666666')))
+        bar_drawing.add(String(x+bw/2, 22+bar_h, str(count), textAnchor='middle', fontSize=9, fontName=pdf_font(report_lang,'Helvetica-Bold'), fillColor=colors.HexColor('#333333')))
+        bar_drawing.add(String(x+bw/2, 6, pdf_t(report_lang, 'stu_col_' + zone), textAnchor='middle', fontSize=7, fontName=pdf_font(report_lang,'Helvetica'), fillColor=colors.HexColor('#666666')))
 
-    zone_rows = [[Paragraph('<b>Emotion</b>',ST_LABEL),Paragraph('<b>Count</b>',ST_LABEL),Paragraph('<b>%</b>',ST_LABEL),Paragraph('<b>State</b>',ST_LABEL)]]
+    zone_rows = [[Paragraph('<b>' + pdf_t(report_lang, "fam_col_emotion") + '</b>',ST_LABEL),Paragraph('<b>' + pdf_t(report_lang, "fam_col_count") + '</b>',ST_LABEL),Paragraph('<b>%</b>',ST_LABEL),Paragraph('<b>' + pdf_t(report_lang, "fam_col_state") + '</b>',ST_LABEL)]]
     for zone in zones_order:
         count = feeling_counts[zone]
         pct = f"{(count/total*100):.0f}%" if total > 0 else "—"
         zone_rows.append([Paragraph(ZL[zone],ST_BODY),Paragraph(str(count),ST_VALUE),Paragraph(pct,ST_BODY),Paragraph(ZONE_DESCS[zone],ST_SMALL)])
-    zone_tbl = Table(zone_rows, colWidths=[72,36,30,110])
+    zone_tbl = Table(zone_rows, colWidths=[62,48,36,106])
     zts = [('BACKGROUND',(0,0),(-1,0),INDIGO),('TEXTCOLOR',(0,0),(-1,0),WHITE),('GRID',(0,0),(-1,-1),0.4,LIGHT_GREY),
            ('PADDING',(0,0),(-1,-1),5),('ROWBACKGROUNDS',(0,1),(-1,-1),[WHITE,LIGHT]),('VALIGN',(0,0),(-1,-1),'MIDDLE')]
     for i, zone in enumerate(zones_order, 1):
-        zts += [('TEXTCOLOR',(0,i),(0,i),ZONE_COLORS_PDF[zone]),('FONTNAME',(0,i),(0,i),'Helvetica-Bold')]
+        zts += [('TEXTCOLOR',(0,i),(0,i),ZONE_COLORS_PDF[zone]),('FONTNAME',(0,i),(0,i),pdf_font(report_lang,'Helvetica-Bold'))]
     zone_tbl.setStyle(TableStyle(zts))
     dist_row = Table([[bar_drawing, zone_tbl]], colWidths=[250,255])
     dist_row.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(1,0),(1,0),10),('RIGHTPADDING',(0,0),(0,0),10)]))
@@ -7105,23 +9321,25 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
     except Exception as e:
         logger.warning(f"[top-strategies-name-map] could not load helpers name map: {e}")
     if helper_counts:
-        story.append(Paragraph("Strategies Used", ST_H2))
+        story.append(Paragraph(lbl_strats, ST_H2))
         sorted_helpers = sorted(helper_counts.items(), key=lambda x: x[1], reverse=True)[:8]
-        strat_data = [["Strategy","Times Used"]]
+        _st_hdr = s('FStH', fontSize=9, textColor=WHITE, fontName='Helvetica-Bold', leading=10.8)
+        _st_body = s('FStB', fontSize=9, textColor=colors.black, fontName='Helvetica', leading=10.8)
+        strat_data = [[Paragraph(pdf_t(report_lang, "fam_col_strategy"), _st_hdr), Paragraph(pdf_t(report_lang, "fam_col_times_used"), _st_hdr)]]
         for hid, cnt in sorted_helpers:
             name = strat_name_map.get(hid) or resolve_strategy_name(hid, report_lang)
             if name.lower() in ["blue","green","yellow","red"]: continue
-            strat_data.append([name, str(cnt)])
+            strat_data.append([Paragraph(pdf_safe(name, report_lang), _st_body), Paragraph(str(cnt), _st_body)])
         if len(strat_data) > 1:
-            strat_table = Table(strat_data, colWidths=[360,80])
+            strat_table = Table(strat_data, colWidths=([330,110] if report_lang in ("ru","zh") else [360,80]))
             strat_table.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),INDIGO),("TEXTCOLOR",(0,0),(-1,0),WHITE),
-                ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),("FONTSIZE",(0,0),(-1,-1),9),
+                ("FONTNAME",(0,0),(-1,0),pdf_font(report_lang,"Helvetica-Bold")),("FONTSIZE",(0,0),(-1,-1),9),
                 ("ROWBACKGROUNDS",(0,1),(-1,-1),[LIGHT,WHITE]),("GRID",(0,0),(-1,-1),0.5,LIGHT_GREY),("PADDING",(0,0),(-1,-1),6)]))
             story.append(strat_table)
             story.append(Spacer(1,14))
 
     # ── MONTHLY CALENDAR ──
-    story.append(Paragraph("Monthly Calendar", ST_H2))
+    story.append(Paragraph(lbl_calendar, ST_H2))
     first_weekday, _ = cal_mod.monthrange(year, month)
     cal_cells = ['']*first_weekday
     for day in range(1, last_day_cal+1):
@@ -7132,7 +9350,7 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
         cal_cells.append((day, dominant_day, day_total))
     while len(cal_cells) % 7 != 0: cal_cells.append('')
 
-    cal_rows = [['Mon','Tue','Wed','Thu','Fri','Sat','Sun']]
+    cal_rows = [list(WEEKDAYS_F)]
     for i in range(0, len(cal_cells), 7):
         row = []
         for cell in cal_cells[i:i+7]:
@@ -7140,7 +9358,7 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
             else:
                 day_num, dominant_day, day_total = cell
                 if dominant_day:
-                    row.append(Paragraph(f'<b>{day_num}</b><br/><font size="6">{day_total}✓</font>',
+                    row.append(Paragraph(f'<b>{day_num}</b><br/><font size="6">{day_total}x</font>',
                         s('FC1',fontSize=8,textColor=WHITE,fontName='Helvetica-Bold',alignment=1,leading=10)))
                 else:
                     row.append(Paragraph(f'<font color="#999">{day_num}</font>',
@@ -7150,7 +9368,7 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
     col_w = (PAGE_W-72)/7
     cal_tbl = Table(cal_rows, colWidths=[col_w]*7, rowHeights=[18]+[28]*(len(cal_rows)-1))
     cal_style = [('BACKGROUND',(0,0),(-1,0),INDIGO),('TEXTCOLOR',(0,0),(-1,0),WHITE),
-        ('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),('FONTSIZE',(0,0),(-1,0),8),
+        ('FONTNAME',(0,0),(-1,0),pdf_font(report_lang,'Helvetica-Bold')),('FONTSIZE',(0,0),(-1,0),8),
         ('ALIGN',(0,0),(-1,-1),'CENTER'),('VALIGN',(0,0),(-1,-1),'MIDDLE'),
         ('GRID',(0,0),(-1,-1),0.3,LIGHT_GREY),('PADDING',(0,0),(-1,-1),3)]
     row_idx = 1
@@ -7166,12 +9384,17 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
     story.append(Spacer(1,14))
 
     # ── CHECK-IN LOG ──
-    story.append(Paragraph("Check-in Log", ST_H2))
-    log_data = [["Date","Time","Emotion","Strategies"]]
+    if report_lang in ("ru", "zh"):
+        from reportlab.platypus import CondPageBreak
+        story.append(CondPageBreak(90))  # keep the heading with the first table rows (ru/zh only: en/pt layout untouched)
+    story.append(Paragraph(lbl_log, ST_H2))
+    _lg_hdr = s('FLgH', fontSize=8, textColor=WHITE, fontName='Helvetica-Bold', leading=9.6)
+    _lg_body = s('FLgB', fontSize=8, textColor=colors.black, fontName='Helvetica', leading=9.6)
+    log_data = [[Paragraph(pdf_t(report_lang, "fam_col_date"), _lg_hdr), Paragraph(pdf_t(report_lang, "fam_col_time"), _lg_hdr), Paragraph(pdf_t(report_lang, "fam_col_emotion"), _lg_hdr), Paragraph(pdf_t(report_lang, "fam_col_strategies"), _lg_hdr)]]
     for log in logs_data[-40:]:
         try:
             ts = datetime.fromisoformat(log["timestamp"].replace("Z","+00:00"))
-            date_str = ts.strftime("%d %b"); time_str = ts.strftime("%H:%M")
+            date_str = (f"{ts.month}月{ts.day}日" if report_lang == "zh" else f"{ts.day:02d} {MON_ABBR[ts.month-1]}"); time_str = ts.strftime("%H:%M")
         except Exception as e:
             logger.debug(f"[checkin-log-pdf-date] malformed timestamp: {e}")
             date_str = time_str = "—"
@@ -7181,10 +9404,10 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
         for sv in (strats or [])[:3]:
             if sv and sv.lower() not in ["blue","green","yellow","red"]:
                 strat_names.append(strat_name_map.get(sv) or resolve_strategy_name(sv, report_lang))
-        log_data.append([date_str, time_str, ZL.get(zone,zone), ", ".join(strat_names) or "—"])
-    log_table = Table(log_data, colWidths=[50,40,100,255])
+        log_data.append([Paragraph(date_str, _lg_body), Paragraph(time_str, _lg_body), Paragraph(pdf_safe(ZL.get(zone,zone), report_lang), _lg_body), Paragraph(pdf_safe(", ".join(strat_names) or "—", report_lang), _lg_body)])
+    log_table = Table(log_data, colWidths=([62,40,92,251] if report_lang in ("ru","zh") else [50,40,100,255]), repeatRows=1)
     log_table.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),INDIGO),("TEXTCOLOR",(0,0),(-1,0),WHITE),
-        ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),("FONTSIZE",(0,0),(-1,-1),8),
+        ("FONTNAME",(0,0),(-1,0),pdf_font(report_lang,"Helvetica-Bold")),("FONTSIZE",(0,0),(-1,-1),8),
         ("ROWBACKGROUNDS",(0,1),(-1,-1),[LIGHT,WHITE]),("GRID",(0,0),(-1,-1),0.4,LIGHT_GREY),
         ("PADDING",(0,0),(-1,-1),5),("VALIGN",(0,0),(-1,-1),"MIDDLE")]))
     story.append(log_table)
@@ -7193,7 +9416,7 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
     # ── FOOTER ──
     story.append(HRFlowable(width="100%", thickness=0.5, color=LIGHT_GREY))
     story.append(Spacer(1,4))
-    story.append(Paragraph("This report is generated by Class of Happiness · classofhappiness.com · For educational and wellbeing support purposes only.",
+    story.append(Paragraph(pdf_t(report_lang, "fam_footer"),
         s('FFtr',fontSize=7,textColor=GREY,alignment=1)))
 
     doc.build(story)
@@ -7207,6 +9430,7 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
 @api_router.get("/reports/pdf/family/{family_member_id}/month/{year}/{month}")
 async def generate_family_pdf_report(family_member_id: str, year: int, month: int, request: Request, lang: str = ""):
     """Generate PDF report for a family member (home check-ins only)."""
+    lang = pdf_lang(lang)
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -7239,6 +9463,7 @@ async def generate_family_pdf_report(family_member_id: str, year: int, month: in
 # school package covers them.
 @api_router.get("/reports/pdf/family-all/month/{year}/{month}")
 async def generate_family_pdf_all(year: int, month: int, request: Request, lang: str = ""):
+    lang = pdf_lang(lang)
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -7280,6 +9505,7 @@ async def generate_family_pdf_all(year: int, month: int, request: Request, lang:
 
 @api_router.get("/reports/pdf/student/{student_id}/month/{year}/{month}")
 async def generate_pdf_report(student_id: str, year: int, month: int, request: Request, lang: str = ""):
+    lang = pdf_lang(lang)  # PDF language = the viewer's selected app language (route param), never the student's own
     # Real authentication + authorization — this endpoint previously had NONE at all, meaning
     # anyone with a valid student_id/year/month could generate any student's PDF. Fixed to
     # require login AND a real relationship to this specific student (owns them directly, owns
@@ -7423,7 +9649,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     logs_data = sorted(school_logs + home_logs, key=lambda x: x.get("timestamp", ""))
 
     # Also get classroom info
-    classroom_name = "Not assigned"
+    classroom_name = pdf_t(lang, "stu_not_assigned")
     if student_data.get("classroom_id"):
         try:
             cr = supabase.table("classrooms").select("name").eq("id", student_data["classroom_id"]).execute()
@@ -7432,33 +9658,8 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         except Exception as e:
             logger.debug(f"[pdf-classroom-name] classroom lookup failed: {e}")
 
-    # Detect report language — check request header, then student, then classroom
-    report_lang = "en"
-    try:
-        # Check URL lang param first (most reliable)
-        if lang and lang in ["pt", "es", "fr", "de", "it", "en"]:
-            report_lang = lang
-        else:
-            # Check Accept-Language header from request
-            accept_lang = request.headers.get("Accept-Language", "")
-            if accept_lang:
-                lang_code = accept_lang.split(",")[0].split("-")[0].lower()
-                if lang_code in ["pt", "es", "fr", "de", "it", "en"]:
-                    report_lang = lang_code
-        # Override with student's saved language if set
-        if student_data.get("language"):
-            lang_code = student_data["language"][:2].lower()
-            if lang_code in ["pt", "es", "fr", "de", "it", "en"]:
-                report_lang = lang_code
-        elif student_data.get("classroom_id"):
-            cr_lang = supabase.table("classrooms").select("language").eq("id", student_data["classroom_id"]).execute()
-            if cr_lang.data and cr_lang.data[0].get("language"):
-                lang_code = cr_lang.data[0]["language"][:2].lower()
-                if lang_code in ["pt", "es", "fr", "de", "it", "en"]:
-                    report_lang = lang_code
-    except Exception as e:
-        logger.debug(f"[pdf-report-lang] classroom language lookup failed: {e}")
-    # Inject into student_data so the PDF builder can read it
+    # Report language = viewer's selected language (route `lang`, normalised at the top); not the student's/classroom's/Accept-Language
+    report_lang = lang
     student_data["language"] = report_lang
 
     # Aggregate data
@@ -7512,15 +9713,6 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
 
     ZONE_COLORS_PDF  = {"blue": BLUE_C, "green": GREEN_C, "yellow": YELLOW_C, "red": RED_C}
     # Language-aware zone labels
-    lang = "en"
-    try:
-        if student_data.get("language"):
-            lang = student_data["language"]
-        else:
-            # Try to get from classroom/teacher settings
-            pass
-    except Exception as e:
-        logger.debug(f"[pdf-lang-resolve] language resolution failed: {e}")
 
     ZONE_LABELS_MAP = {
         "en": {"blue": "Blue Emotions",      "green": "Green Emotions",      "yellow": "Yellow Emotions",      "red": "Red Emotions", "about_app": "About App", "about_privacy": "About & Privacy", "access_expires_30_days": "Access expires in 30 days", "add": "Add", "add_comment": "Add Comment", "add_custom_strategy": "Add Custom Strategy", "add_family_member": "Add Family Member", "add_family_strategy": "Add Family Strategy", "add_family_to_track": "Add a family member to track wellbeing", "add_first_student": "Add your first student", "add_member": "Add Member", "add_new_student": "Add New Student", "add_note_optional": "Add a note (optional)", "add_strategy": "Add Strategy", "add_strategy_title": "Add Strategy", "add_strategy_to_students": "Add strategy to students", "add_widget_android": "Add to Home Screen (Android)", "add_widget_ios": "Add Widget (iOS)", "add_widget_title": "Add Widget", "adding": "Adding...", "admin_access": "Admin Access", "admin_dashboard": "Admin Dashboard", "administration": "Administration", "alert_sent": "Alert Sent", "alert_sent_desc": "Your teacher has been notified", "all_arrow": "All →", "all_zones": "All Emotions", "are_you_sure_delete_strategy": "Are you sure you want to delete this strategy?", "as_default_language": "as default language", "assign_classroom": "Assign Classroom", "assign_to": "Assign to", "blue_emotions": "Blue Emotions", "blue_emotions_label": "Blue Emotions", "blue_short": "Blue", "blue_short_label": "Blue", "blue_zone_desc": "Feeling sad or tired", "blue_zone_name": "Blue Emotions", "by": "by", "change": "Change", "change_language_confirm": "Change language?", "change_photo": "Change Photo", "check_ins": "Check-ins", "checkin_btn": "Check In", "checkin_calendar": "Check-in Calendar", "checkin_complete": "Check-in Complete!", "checkin_for": "Check-in for", "checkin_saved": "Check-in Saved!", "checkin_saved_private": "Saved privately", "checkin_saved_shared": "Saved and shared with teacher", "child_not_found": "Child not found", "child_strategies_note": "Strategies assigned to this child", "children_school": "Children at School", "choose_helpful_strategies": "Choose helpful strategies", "choose_icon": "Choose Icon", "classroom": "Classroom", "classroom_name": "Classroom Name", "classroom_name_placeholder": "e.g. Year 3 Sunshine", "classroom_widget": "Classroom Widget", "classrooms": "Classrooms", "comment_optional": "Comment (optional)", "confirm_delete_member": "Delete this family member?", "confirm_delete_resource": "Delete this resource?", "confirm_unlink_student": "Unlink this student from parent?", "create_classroom": "Create Classroom", "create_new_classroom": "Create New Classroom", "create_new_student": "Create New Student", "creating": "Creating...", "creatures": "Creatures", "custom_strategies_for": "Custom strategies for", "data_shared_desc": "Emotional wellbeing data is being shared between school and home", "days_14": "2 Weeks", "days_30": "30 Days", "days_7": "7 Days", "days_ago": "days ago", "default_badge": "Default", "default_zone_strategies": "Default strategies", "delete_btn": "Delete", "delete_classroom": "Delete Classroom", "delete_member": "Delete Member", "delete_student": "Delete Student", "description": "Description", "description_label": "Description", "deselect_all": "Deselect All", "disclaimer_1": "This app supports emotional awareness, not clinical diagnosis.", "disclaimer_2": "Data is kept private and secure.", "disclaimer_3": "Always consult a professional for mental health concerns.", "disclaimer_privacy_terms": "Privacy & Terms", "download_error": "Download Error", "download_monthly_reports": "Download Monthly Reports", "download_report": "Download Report", "edit_family_strategy": "Edit Family Strategy", "edit_member": "Edit Member", "edit_note": "Edit Note", "edit_strategy": "Edit Strategy", "emotion_colour": "Emotion Colour", "emotion_distribution": "Emotion Distribution", "emotion_strategies_children": "Emotion strategies for children", "emotions": "Emotions", "emotions_topic": "Emotions", "enter_admin_code": "Enter admin code to unlock", "enter_code": "Enter the 6-character code from your child's teacher", "enter_description": "Enter description", "enter_invite_code_desc": "Enter your school invite code", "enter_name": "Enter name", "error": "Error", "everyone": "Everyone", "evolves": "Evolves!", "failed_delete_member": "Failed to delete member", "failed_update_member": "Failed to update member", "family": "Family", "family_emotional_status": "Family Emotional Status", "family_emotions": "Family Emotions", "family_widget": "Family Widget", "for_educational_purposes": "For educational purposes only", "for_student": "for student", "free_trial_label": "Free Trial", "from_teacher": "From Teacher", "full_access_no_card": "Full access — no credit card needed", "generate_code": "Generate Code", "generate_code_desc": "Generate a code to share with the parent", "generate_invite_code": "Generate Invite Code", "generate_parent_code": "Generate Parent Code", "generate_teacher_code": "Generate Teacher Code", "generating": "Generating...", "go_back": "Go Back", "got_it": "Got it!", "green_emotions": "Green Emotions", "green_emotions_label": "Green Emotions", "green_short": "Green", "green_short_label": "Green", "green_zone_desc": "Feeling happy and ready to learn", "green_zone_name": "Green Emotions", "has_been_removed": "has been removed", "has_been_updated": "has been updated", "healthy_relationships": "Healthy Relationships", "home": "Home", "home_check_in": "Home Check-in", "home_checkins": "Home Check-ins", "home_data": "Home Data", "home_legend": "H = Home", "home_sharing_disabled": "Home sharing disabled", "home_sharing_enabled": "Home sharing enabled", "home_sharing_off": "Home data sharing is OFF", "home_sharing_on": "Home data sharing is ON", "hours_ago": "hours ago", "how_feeling": "How are you feeling?", "how_to_do_optional": "How to do it (optional)", "how_to_use": "How to use this strategy", "i_agree_and_continue": "I Agree & Continue", "icon": "Icon", "icon_label": "Icon", "image_label": "Image", "important_notice": "Important Notice", "invite_code_placeholder": "Enter invite code", "join_school_btn": "Join School", "join_your_school": "Join Your School", "joining": "Joining...", "just_now": "Just now", "keep_private": "Keep Private", "large_widget": "Large Widget", "leader_online": "Leader Online", "legal": "Legal", "link_child": "Link Child", "link_child_school": "Link Child from School", "link_children_school": "Link Children from School", "linked_students_filter": "Linked Students", "linking": "Linking...", "loading_resources": "Loading resources...", "logged_in_required": "Please log in to continue", "manage_strategies_title": "Manage Strategies", "medium_widget": "Medium Widget", "minutes_ago": "minutes ago", "month": "Month", "more_points_until": "more points until", "most_used_strategies": "Most Used Strategies", "mutual_consent": "Mutual Consent Active", "my_strategies": "My Strategies", "name": "Name", "name_required": "Name required", "no_checkin_yet": "No check-ins yet", "no_checkins": "No check-ins yet", "no_classroom": "No Classroom", "no_classrooms_yet": "No classrooms yet", "no_data_period": "No data for this period", "no_family_strategies": "No family strategies yet", "no_home_data_yet": "No home data yet", "no_recent_activity": "No recent activity", "no_resources_yet": "No resources yet", "no_students_found": "No students found", "no_students_yet": "No students yet", "parent_link_code": "Parent Link Code", "parent_sharing_disabled": "Parent has not enabled home data sharing", "parent_sharing_hint": "The parent can enable sharing from their dashboard", "per_week_avg": "per week avg", "personal_support_message": "Personal support message", "photo": "Photo", "photo_label": "Photo", "please_enter_name": "Please enter a name", "please_try_again": "Please try again", "private_message_note": "This message is private", "recent_checkins": "Recent Check-ins", "red_emotions": "Red Emotions", "red_emotions_label": "Red Emotions", "red_short": "Red", "red_short_label": "Red", "red_zone_desc": "Feeling very upset or angry", "red_zone_name": "Red Emotions", "relationship": "Relationship", "request_support": "Request Support", "research_basis": "Evidence-based emotional learning", "resources": "Resources", "save_changes": "Save Changes", "save_check_in": "Save Check-in", "save_message": "Save Message", "save_school_profile": "Save School Profile", "saving": "Saving...", "school": "School", "school_admin_dashboard": "School Admin Dashboard", "school_admin_label": "School Admin", "school_invite_code": "School Invite Code", "school_legend": "S = School", "school_strategies": "School Strategies", "search_students": "Search students", "select": "Select", "select_all": "Select All", "select_classroom_for": "Select classroom for", "select_emotion": "Select an emotion", "select_helpful_strategies": "Select helpful strategies", "select_month": "Select Month", "select_month_pdf": "Select a month to download a PDF report", "select_pdf": "Select PDF", "select_strategy": "Select Strategy", "select_students": "Select Students", "selected": "Selected", "selected_count": "selected", "share_code": "Share Code", "share_code_instructions": "Share this code with the parent so they can link their account", "share_student_tracking": "Share Student Emotion Tracking", "share_wellbeing": "Share Wellbeing", "share_with_home": "Share with Home", "share_with_home_desc": "Parent will see this strategy in the app", "share_with_teacher": "Share with Teacher", "share_with_teachers": "Share with Teachers", "shared_strategies": "Shared Strategies", "shared_with_teacher_check": "Shared with teacher", "sharing_disclaimer_text": "By sharing, you consent to emotional wellbeing data being shared between school and home for this student's support.", "sharing_disclaimer_title": "Consent to Share Access", "sharing_paused": "Sharing Paused", "sharing_paused_desc": "Parent has not enabled home sharing. Home check-in data is not visible.", "skip_strategies": "Skip strategies", "small_widget": "Small Widget", "special_needs_education": "Special Needs Education", "start_free_trial": "Start Free Trial", "start_free_trial_btn": "Start Free Trial", "starting": "Starting...", "stats": "Stats", "steady": "Steady", "strat_5_senses": "5 Senses", "strat_bubble_breathing": "Bubble Breathing", "strat_count_to_10": "Count to 10", "strat_favourite_song": "Favourite Song", "strat_gentle_stretch": "Gentle Stretch", "strat_gratitude": "Gratitude", "strat_help_friend": "Help a Friend", "strat_keep_going": "Keep Going!", "strat_safe_space_name": "Safe Space", "strat_set_goal": "Set a Goal", "strat_slow_breathing": "Slow Breathing", "strat_squeeze_release": "Squeeze & Release", "strat_talk_about_it": "Talk About It", "strat_tell_someone": "Tell Someone", "strat_walk_away": "Walk Away", "strategy_added": "Strategy added!", "strategy_btn": "Strategies", "strategy_desc_ph": "Describe how to use this strategy...", "strategy_example": "e.g. Deep breathing, Take a walk...", "strategy_name": "Strategy Name", "strategy_name_example": "e.g. Bubble Breathing", "strategy_name_ph": "Strategy name", "strategy_shared": "Strategy shared with teacher", "strategy_unshared": "Strategy no longer shared", "streak_bonus": "Streak Bonus!", "stressed": "Stressed", "student_linked": "Student is Linked", "student_linked_desc": "This student is connected to a parent account", "student_not_found": "Student not found", "student_unlinked": "Student unlinked from parent", "students": "Students", "students_in_class": "Students in class", "success": "Success!", "super_admin": "Super Admin", "support": "Support", "support_message_hint": "Tap the hand icon to ask for support", "support_message_hint2": "Your teacher will be notified", "support_message_placeholder": "Tell your teacher how you feel...", "synced": "Synced", "tab_child_strategies": "Child Strategies", "tab_my_strategies": "My Strategies", "tab_parent_strategies": "Parent Strategies", "tap_to_check_in": "Tap to check in", "teacher_can_see": "Teacher can see this", "teacher_can_see_strategy": "Teacher can see this strategy", "teacher_cannot_see": "Teacher cannot see this", "teacher_checkin": "Teacher Check-in", "teacher_link_code": "Teacher Link Code", "teacher_name_optional": "Teacher name (optional)", "teacher_name_placeholder": "e.g. Ms Smith", "teacher_resources": "Teacher Resources", "thank_you": "Thank you!", "this_week": "This Week", "trial": "Free Trial", "trial_active": "Trial Active", "trial_active_desc": "Your free trial is active", "trial_desc": "No credit card needed", "try_again": "Try Again", "try_different_search": "Try a different search", "unlink": "Unlink", "unlink_student": "Unlink Student", "updated_just_now": "Updated just now", "updating": "Updating...", "upload_photo": "Upload Photo", "use_icon": "Use Icon", "view_my_wellbeing": "View My Wellbeing", "wellbeing_journal": "Add journal note", "wellbeing_journal_ph": "Write how you feel today...", "wellbeing_pin_confirm": "Confirm PIN", "wellbeing_pin_desc": "Only you can see this.", "wellbeing_pin_enter": "Enter your PIN", "wellbeing_pin_forgot": "Forgot PIN?", "wellbeing_pin_forgot_msg": "Try again or reset your PIN", "wellbeing_pin_hint_label": "PIN hint (optional)", "wellbeing_pin_hint_show": "Your hint:", "wellbeing_pin_mismatch": "PINs do not match", "wellbeing_pin_reset": "Reset PIN", "wellbeing_pin_setup": "Create your private PIN", "wellbeing_pin_wrong": "Incorrect PIN", "wellbeing_total": "total check-ins", "widget_preview": "Widget Preview", "widget_preview_desc": "See how your family is feeling at a glance", "widget_preview_desc_teacher": "See how your class is feeling at a glance", "write_custom_strategy": "Write a custom strategy", "write_short_note": "Write a short note...", "yellow_emotions": "Yellow Emotions", "yellow_emotions_label": "Yellow Emotions", "yellow_short": "Yellow", "yellow_short_label": "Yellow", "yellow_zone_desc": "Feeling worried or anxious", "yellow_zone_name": "Yellow Emotions", "you_are_what_you_eat": "You are what you eat", "your_recent_checkins": "Your Recent Check-ins", "zone_all": "All", "zone_blue": "Blue", "zone_comparison": "Emotion Comparison", "zone_green": "Green", "zone_red": "Red", "zone_yellow": "Yellow", "class_code_label": "Class Code", "class_code_optional": "Ask your teacher for your class code (optional)", "invalid_class_code": "Code not found — check with your teacher", "class_joined": "Joined class!", "class_code_placeholder": "e.g. ABC123", "family_dashboard": "Family Dashboard"},
@@ -7529,6 +9721,8 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         "fr": {"blue": "Émotions Bleues",    "green": "Émotions Vertes",     "yellow": "Émotions Jaunes",      "red": "Émotions Rouges", "about_app": "À propos de l'App", "about_privacy": "À propos et Confidentialité", "access_expires_30_days": "L'accès expire dans 30 jours", "add": "Ajouter", "add_comment": "Ajouter un Commentaire", "add_custom_strategy": "Ajouter une Stratégie Personnalisée", "add_family_member": "Ajouter un Membre de la Famille", "add_family_to_track": "Ajoute un membre de la famille pour suivre le bien-être", "add_first_student": "Ajoute ton premier élève", "add_new_student": "Ajouter un Nouvel Élève", "add_note_optional": "Ajouter une note (optionnel)", "add_strategy_title": "Ajouter une Stratégie", "add_strategy_to_students": "Ajouter une stratégie aux élèves", "add_widget_android": "Ajouter à l'écran d'accueil (Android)", "add_widget_ios": "Ajouter un Widget (iOS)", "add_widget_title": "Ajouter un Widget", "adding": "Ajout en cours...", "admin_access": "Accès Admin", "admin_dashboard": "Tableau de Bord Admin", "administration": "Administration", "alert_sent": "Alerte Envoyée", "alert_sent_desc": "Ton professeur a été notifié", "all_arrow": "Tous →", "all_zones": "Toutes les Émotions", "are_you_sure_delete_strategy": "Es-tu sûr de vouloir supprimer cette stratégie?", "as_default_language": "comme langue par défaut", "assign_classroom": "Assigner une Classe", "blue_emotions_label": "Émotions Bleues", "blue_short": "Bleu", "blue_short_label": "Bleu", "blue_zone_desc": "Je me sens triste ou fatigué", "blue_zone_name": "Émotions Bleues", "by": "par", "change": "Modifier", "change_language_confirm": "Changer de langue?", "change_photo": "Changer la Photo", "checkin_btn": "S'enregistrer", "checkin_calendar": "Calendrier des Enregistrements", "checkin_complete": "Enregistrement Terminé!", "checkin_for": "Enregistrement pour", "checkin_saved": "Enregistrement Sauvegardé!", "checkin_saved_private": "Sauvegardé en privé", "checkin_saved_shared": "Sauvegardé et partagé avec le professeur", "child_not_found": "Enfant non trouvé", "child_strategies_note": "Stratégies assignées à cet enfant", "children_school": "Enfants à l'École", "choose_helpful_strategies": "Choisir des stratégies utiles", "choose_icon": "Choisir une Icône", "classroom": "Classe", "classroom_name": "Nom de la Classe", "classroom_name_placeholder": "ex. CM2 Les Étoiles", "classroom_widget": "Widget de Classe", "classrooms": "Classes", "comment_optional": "Commentaire (optionnel)", "confirm_delete_member": "Supprimer ce membre de la famille?", "confirm_delete_resource": "Supprimer cette ressource?", "confirm_unlink_student": "Dissocier cet élève du parent?", "create_classroom": "Créer une Classe", "create_new_classroom": "Créer une Nouvelle Classe", "create_new_student": "Créer un Nouvel Élève", "creating": "Création en cours...", "creatures": "Créatures", "custom_strategies_for": "Stratégies personnalisées pour", "data_shared_desc": "Données de bien-être émotionnel partagées entre école et maison", "days_14": "2 Semaines", "days_30": "30 Jours", "days_7": "7 Jours", "days_ago": "jours auparavant", "default_badge": "Par défaut", "default_zone_strategies": "Stratégies par défaut", "delete_btn": "Supprimer", "delete_classroom": "Supprimer la Classe", "delete_member": "Supprimer le Membre", "delete_student": "Supprimer l'Élève", "description_label": "Description", "deselect_all": "Tout Désélectionner", "disclaimer_1": "Cette app soutient la conscience émotionnelle, pas le diagnostic clinique.", "disclaimer_2": "Les données sont gardées privées et sécurisées.", "disclaimer_3": "Consulte toujours un professionnel pour les problèmes de santé mentale.", "disclaimer_privacy_terms": "Confidentialité et Conditions", "download_error": "Erreur de Téléchargement", "download_monthly_reports": "Télécharger les Rapports Mensuels", "edit_family_strategy": "Modifier la Stratégie Familiale", "edit_member": "Modifier le Membre", "edit_note": "Modifier la Note", "edit_strategy": "Modifier la Stratégie", "emotion_distribution": "Distribution des Émotions", "emotion_strategies_children": "Stratégies émotionnelles pour les enfants", "emotions": "Émotions", "emotions_topic": "Émotions", "enter_admin_code": "Entrer le code admin", "enter_code": "Entre le code à 6 caractères de ton professeur", "enter_description": "Entrer une description", "enter_invite_code_desc": "Entre le code d'invitation de ton école", "enter_name": "Entrer un nom", "error": "Erreur", "failed_delete_member": "Échec de la suppression du membre", "failed_update_member": "Échec de la mise à jour du membre", "family": "Famille", "family_emotional_status": "État Émotionnel Familial", "family_emotions": "Émotions Familiales", "family_widget": "Widget Famille", "for_educational_purposes": "À des fins éducatives uniquement", "for_student": "pour l'élève", "free_trial_label": "Essai Gratuit", "from_teacher": "Du Professeur", "full_access_no_card": "Accès complet — sans carte de crédit", "generate_code": "Générer un Code", "generate_code_desc": "Génère un code à partager avec le parent", "generate_invite_code": "Générer un Code d'Invitation", "generate_parent_code": "Générer le Code du Parent", "generate_teacher_code": "Générer le Code du Professeur", "generating": "Génération...", "go_back": "Retour", "got_it": "Compris!", "green_emotions_label": "Émotions Vertes", "green_short": "Vert", "green_short_label": "Vert", "green_zone_desc": "Je me sens bien et prêt à apprendre", "green_zone_name": "Émotions Vertes", "has_been_removed": "a été supprimé", "has_been_updated": "a été mis à jour", "healthy_relationships": "Relations Saines", "home_check_in": "Enregistrement à la Maison", "home_checkins": "Enregistrements à la Maison", "home_legend": "M = Maison", "home_sharing_disabled": "Partage à la maison désactivé", "home_sharing_enabled": "Partage à la maison activé", "home_sharing_off": "Partage de données à la maison DÉSACTIVÉ", "home_sharing_on": "Partage de données à la maison ACTIVÉ", "hours_ago": "heures auparavant", "how_feeling": "Comment tu te sens?", "how_to_do_optional": "Comment le faire (optionnel)", "how_to_use": "Comment utiliser cette stratégie", "i_agree_and_continue": "J'accepte et Continuer", "icon": "Icône", "icon_label": "Icône", "image_label": "Image", "important_notice": "Avis Important", "invite_code_placeholder": "Entrer le code d'invitation", "join_school_btn": "Rejoindre l'École", "join_your_school": "Rejoins ton École", "joining": "Rejoindre...", "just_now": "À l'instant", "keep_private": "Garder Privé", "large_widget": "Grand Widget", "leader_online": "Leader En Ligne", "legal": "Légal", "link_child": "Lier l'Enfant", "link_child_school": "Lier l'Enfant depuis l'École", "link_children_school": "Lier les Enfants depuis l'École", "linked_students_filter": "Élèves Liés", "linking": "Liaison...", "loading_resources": "Chargement des ressources...", "logged_in_required": "Veuillez vous connecter pour continuer", "manage_strategies_title": "Gérer les Stratégies", "medium_widget": "Widget Moyen", "minutes_ago": "minutes auparavant", "month": "Mois", "more_points_until": "points de plus jusqu'à", "most_used_strategies": "Stratégies les Plus Utilisées", "name_required": "Nom requis", "no_checkin_yet": "Pas encore d'enregistrements", "no_classroom": "Pas de Classe", "no_classrooms_yet": "Pas encore de classes", "no_data_period": "Pas de données pour cette période", "no_family_strategies": "Pas encore de stratégies familiales", "no_home_data_yet": "Pas encore de données à la maison", "no_recent_activity": "Pas d'activité récente", "no_resources_yet": "Pas encore de ressources", "no_students_found": "Aucun élève trouvé", "no_students_yet": "Pas encore d'élèves", "parent_link_code": "Code de Liaison du Parent", "parent_sharing_disabled": "Le parent n'a pas activé le partage des données à la maison", "parent_sharing_hint": "Le parent peut activer le partage depuis son tableau de bord", "per_week_avg": "moyenne par semaine", "personal_support_message": "Message de soutien personnel", "photo": "Photo", "photo_label": "Photo", "please_enter_name": "Veuillez entrer un nom", "please_try_again": "Veuillez réessayer", "private_message_note": "Ce message est privé", "recent_checkins": "Enregistrements Récents", "red_emotions_label": "Émotions Rouges", "red_short": "Rouge", "red_short_label": "Rouge", "red_zone_desc": "Je me sens très bouleversé ou en colère", "red_zone_name": "Émotions Rouges", "relationship": "Relation", "request_support": "Demander du Soutien", "research_basis": "Apprentissage émotionnel basé sur des preuves", "save_changes": "Sauvegarder les Modifications", "save_check_in": "Sauvegarder l'Enregistrement", "save_message": "Sauvegarder le Message", "save_school_profile": "Sauvegarder le Profil Scolaire", "saving": "Sauvegarde...", "school": "École", "school_admin_dashboard": "Tableau de Bord Admin Scolaire", "school_admin_label": "Admin Scolaire", "school_invite_code": "Code d'Invitation Scolaire", "school_legend": "É = École", "school_strategies": "Stratégies Scolaires", "select": "Sélectionner", "select_all": "Tout Sélectionner", "select_classroom_for": "Sélectionner la classe pour", "select_emotion": "Sélectionner une émotion", "select_helpful_strategies": "Sélectionner des stratégies utiles", "select_month": "Sélectionner un Mois", "select_month_pdf": "Sélectionne un mois pour télécharger le rapport PDF", "select_pdf": "Sélectionner PDF", "select_strategy": "Sélectionner une Stratégie", "select_students": "Sélectionner des Élèves", "selected": "Sélectionné", "selected_count": "sélectionnés", "share_code": "Partager le Code", "share_code_instructions": "Partage ce code avec le parent", "share_student_tracking": "Partager le Suivi Émotionnel", "share_wellbeing": "Partager le Bien-être", "share_with_teachers": "Partager avec les Professeurs", "shared_strategies": "Stratégies Partagées", "shared_with_teacher_check": "Partagé avec le professeur", "sharing_disclaimer_text": "En partageant, tu consens à ce que les données de bien-être émotionnel soient partagées entre l'école et la maison.", "sharing_disclaimer_title": "Consentement au Partage", "sharing_paused_desc": "Le parent n'a pas activé le partage. Les données à la maison ne sont pas visibles.", "skip_strategies": "Passer les stratégies", "small_widget": "Petit Widget", "special_needs_education": "Éducation pour Besoins Spéciaux", "start_free_trial_btn": "Commencer l'Essai Gratuit", "starting": "Démarrage...", "stats": "Statistiques", "steady": "Stable", "strat_5_senses": "5 Sens", "strat_bubble_breathing": "Respiration en Bulles", "strat_count_to_10": "Compter jusqu'à 10", "strat_favourite_song": "Chanson Préférée", "strat_gentle_stretch": "Étirement Doux", "strat_gratitude": "Gratitude", "strat_help_friend": "Aider un Ami", "strat_keep_going": "Continue!", "strat_safe_space_name": "Espace Sécurisé", "strat_set_goal": "Fixer un Objectif", "strat_slow_breathing": "Respiration Lente", "strat_squeeze_release": "Serrer et Relâcher", "strat_talk_about_it": "En Parler", "strat_tell_someone": "Le Dire à Quelqu'un", "strat_walk_away": "S'éloigner", "strategy_added": "Stratégie ajoutée!", "strategy_btn": "Stratégies", "strategy_desc_ph": "Décris comment utiliser cette stratégie...", "strategy_example": "ex. Respiration profonde, Faire une promenade...", "strategy_name_example": "ex. Respiration en Bulles", "strategy_name_ph": "Nom de la stratégie", "strategy_shared": "Stratégie partagée avec le professeur", "strategy_unshared": "Stratégie plus partagée", "streak_bonus": "Bonus de Série!", "stressed": "Stressé", "student_linked": "Élève Lié", "student_linked_desc": "Cet élève est connecté à un compte parent", "student_not_found": "Élève non trouvé", "student_unlinked": "Élève dissocié du parent", "students": "Élèves", "students_in_class": "Élèves en classe", "success": "Succès!", "super_admin": "Super Admin", "support": "Soutien", "support_message_hint": "Appuie sur l'icône de main pour demander du soutien", "support_message_hint2": "Ton professeur sera notifié", "support_message_placeholder": "Dis à ton professeur comment tu te sens...", "synced": "Synchronisé", "tab_child_strategies": "Stratégies de l'Enfant", "tab_my_strategies": "Mes Stratégies", "tab_parent_strategies": "Stratégies du Parent", "tap_to_check_in": "Appuie pour t'enregistrer", "teacher_can_see": "Le professeur peut voir ceci", "teacher_can_see_strategy": "Le professeur peut voir cette stratégie", "teacher_cannot_see": "Le professeur ne peut pas voir ceci", "teacher_link_code": "Code de Liaison du Professeur", "teacher_name_optional": "Nom du professeur (optionnel)", "teacher_name_placeholder": "ex. M. Dupont", "thank_you": "Merci!", "this_week": "Cette Semaine", "trial": "Essai Gratuit", "trial_active": "Essai Actif", "trial_active_desc": "Ton essai gratuit est actif", "trial_desc": "Sans carte de crédit requise", "try_again": "Réessayer", "try_different_search": "Essaie une autre recherche", "unlink": "Dissocier", "unlink_student": "Dissocier l'Élève", "updated_just_now": "Mis à jour à l'instant", "updating": "Mise à jour...", "upload_photo": "Télécharger une Photo", "use_icon": "Utiliser l'Icône", "view_my_wellbeing": "Voir Mon Bien-être", "wellbeing_journal": "Ajouter une note de journal", "wellbeing_journal_ph": "Écris comment tu te sens aujourd'hui...", "wellbeing_pin_forgot_msg": "Réessaie ou réinitialise ton PIN", "wellbeing_total": "enregistrements au total", "widget_preview": "Aperçu du Widget", "widget_preview_desc": "Vois comment se sent ta famille en un coup d'œil", "widget_preview_desc_teacher": "Vois comment se sent ta classe en un coup d'œil", "write_custom_strategy": "Écrire une stratégie personnalisée", "write_short_note": "Écris une courte note...", "yellow_emotions_label": "Émotions Jaunes", "yellow_short": "Jaune", "yellow_short_label": "Jaune", "yellow_zone_desc": "Je me sens inquiet ou anxieux", "yellow_zone_name": "Émotions Jaunes", "you_are_what_you_eat": "Tu es ce que tu manges", "your_recent_checkins": "Tes Enregistrements Récents", "zone_all": "Tous", "zone_blue": "Bleu", "zone_comparison": "Comparaison des Émotions", "zone_green": "Vert", "zone_red": "Rouge", "zone_yellow": "Jaune", "class_code_label": "Code de Classe", "class_code_optional": "Demande le code de classe à ton professeur (optionnel)", "invalid_class_code": "Code introuvable — vérifie avec ton professeur", "class_joined": "Classe rejointe!", "class_code_placeholder": "ex. ABC123", "today": "Aujourd'hui", "fortnight": "Quinzaine", "family_dashboard": "Tableau de Bord Famille", "silly": "Idiot", "nervous": "Nerveux", "frustrated": "Frustré", "worried": "Inquiet", "tired": "Fatigué", "sad": "Triste", "angry": "En colère", "out_of_control": "Hors de Contrôle", "very_upset": "Très Bouleversé", "bored": "Ennuyé", "calm": "Calme", "happy": "Heureux", "focused": "Concentré", "ready_to_learn": "Prêt à Apprendre", "lonely": "Seul", "loading": "Chargement..."},
         "de": {"blue": "Blaue Emotionen",    "green": "Grüne Emotionen",     "yellow": "Gelbe Emotionen",      "red": "Rote Emotionen", "about_app": "Über die App", "about_privacy": "Über & Datenschutz", "access_expires_30_days": "Zugang läuft in 30 Tagen ab", "add": "Hinzufügen", "add_comment": "Kommentar hinzufügen", "add_custom_strategy": "Eigene Strategie hinzufügen", "add_family_member": "Familienmitglied hinzufügen", "add_family_to_track": "Füge ein Familienmitglied hinzu, um das Wohlbefinden zu verfolgen", "add_first_student": "Füge deinen ersten Schüler hinzu", "add_new_student": "Neuen Schüler hinzufügen", "add_note_optional": "Notiz hinzufügen (optional)", "add_strategy_title": "Strategie hinzufügen", "add_strategy_to_students": "Strategie zu Schülern hinzufügen", "add_widget_android": "Zum Startbildschirm hinzufügen (Android)", "add_widget_ios": "Widget hinzufügen (iOS)", "add_widget_title": "Widget hinzufügen", "adding": "Wird hinzugefügt...", "admin_access": "Admin-Zugang", "admin_dashboard": "Admin-Dashboard", "administration": "Verwaltung", "alert_sent": "Benachrichtigung gesendet", "alert_sent_desc": "Dein Lehrer wurde benachrichtigt", "all_arrow": "Alle →", "all_zones": "Alle Emotionen", "are_you_sure_delete_strategy": "Bist du sicher, dass du diese Strategie löschen möchtest?", "as_default_language": "als Standardsprache", "assign_classroom": "Klasse zuweisen", "blue_emotions_label": "Blaue Emotionen", "blue_short": "Blau", "blue_short_label": "Blau", "blue_zone_desc": "Ich fühle mich traurig oder müde", "blue_zone_name": "Blaue Emotionen", "by": "von", "change": "Ändern", "change_language_confirm": "Sprache ändern?", "change_photo": "Foto ändern", "checkin_btn": "Einchecken", "checkin_calendar": "Check-in Kalender", "checkin_complete": "Check-in abgeschlossen!", "checkin_for": "Check-in für", "checkin_saved": "Check-in gespeichert!", "checkin_saved_private": "Privat gespeichert", "checkin_saved_shared": "Gespeichert und mit dem Lehrer geteilt", "child_not_found": "Kind nicht gefunden", "child_strategies_note": "Diesem Kind zugewiesene Strategien", "children_school": "Kinder in der Schule", "choose_helpful_strategies": "Hilfreiche Strategien wählen", "choose_icon": "Symbol wählen", "classroom": "Klasse", "classroom_name": "Klassenname", "classroom_name_placeholder": "z.B. Klasse 3 Sonnenblumen", "classroom_widget": "Klassen-Widget", "classrooms": "Klassen", "comment_optional": "Kommentar (optional)", "confirm_delete_member": "Dieses Familienmitglied löschen?", "confirm_delete_resource": "Diese Ressource löschen?", "confirm_unlink_student": "Diesen Schüler vom Elternteil trennen?", "create_classroom": "Klasse erstellen", "create_new_classroom": "Neue Klasse erstellen", "create_new_student": "Neuen Schüler erstellen", "creating": "Wird erstellt...", "creatures": "Kreaturen", "custom_strategies_for": "Eigene Strategien für", "data_shared_desc": "Emotionale Wellbeing-Daten werden zwischen Schule und Zuhause geteilt", "days_14": "2 Wochen", "days_30": "30 Tage", "days_7": "7 Tage", "days_ago": "Tage zuvor", "default_badge": "Standard", "default_zone_strategies": "Standardstrategien", "delete_btn": "Löschen", "delete_classroom": "Klasse löschen", "delete_member": "Mitglied löschen", "delete_student": "Schüler löschen", "description_label": "Beschreibung", "deselect_all": "Alle abwählen", "disclaimer_1": "Diese App unterstützt emotionales Bewusstsein, keine klinische Diagnose.", "disclaimer_2": "Die Daten werden privat und sicher gehalten.", "disclaimer_3": "Konsultiere immer einen Fachmann bei psychischen Gesundheitsproblemen.", "disclaimer_privacy_terms": "Datenschutz & Bedingungen", "download_error": "Download-Fehler", "download_monthly_reports": "Monatsberichte herunterladen", "edit_family_strategy": "Familienstrategie bearbeiten", "edit_member": "Mitglied bearbeiten", "edit_note": "Notiz bearbeiten", "edit_strategy": "Strategie bearbeiten", "emotion_distribution": "Emotionsverteilung", "emotion_strategies_children": "Emotionsstrategien für Kinder", "emotions": "Emotionen", "emotions_topic": "Emotionen", "enter_admin_code": "Admin-Code eingeben", "enter_code": "Gib den 6-stelligen Code deines Lehrers ein", "enter_description": "Beschreibung eingeben", "enter_invite_code_desc": "Gib den Einladungscode deiner Schule ein", "enter_name": "Name eingeben", "error": "Fehler", "evolves": "Entwickelt sich!", "failed_delete_member": "Mitglied konnte nicht gelöscht werden", "failed_update_member": "Mitglied konnte nicht aktualisiert werden", "family": "Familie", "family_emotional_status": "Emotionaler Status der Familie", "family_emotions": "Familienemotionen", "family_widget": "Familien-Widget", "for_educational_purposes": "Nur zu Bildungszwecken", "for_student": "für den Schüler", "free_trial_label": "Kostenlose Testversion", "from_teacher": "Vom Lehrer", "full_access_no_card": "Vollzugang — keine Kreditkarte erforderlich", "generate_code": "Code generieren", "generate_code_desc": "Generiere einen Code zum Teilen mit dem Elternteil", "generate_invite_code": "Einladungscode generieren", "generate_parent_code": "Eltern-Code generieren", "generate_teacher_code": "Lehrer-Code generieren", "generating": "Wird generiert...", "go_back": "Zurück", "got_it": "Verstanden!", "green_emotions_label": "Grüne Emotionen", "green_short": "Grün", "green_short_label": "Grün", "green_zone_desc": "Ich fühle mich gut und bereit zu lernen", "green_zone_name": "Grüne Emotionen", "has_been_removed": "wurde entfernt", "has_been_updated": "wurde aktualisiert", "healthy_relationships": "Gesunde Beziehungen", "home_check_in": "Check-in Zuhause", "home_checkins": "Check-ins Zuhause", "home_legend": "Z = Zuhause", "home_sharing_disabled": "Teilen Zuhause deaktiviert", "home_sharing_enabled": "Teilen Zuhause aktiviert", "home_sharing_off": "Datenaustausch Zuhause DEAKTIVIERT", "home_sharing_on": "Datenaustausch Zuhause AKTIVIERT", "hours_ago": "Stunden zuvor", "how_feeling": "Wie fühlst du dich?", "how_to_do_optional": "Wie man es macht (optional)", "how_to_use": "Wie man diese Strategie verwendet", "i_agree_and_continue": "Ich stimme zu & Weiter", "icon": "Symbol", "icon_label": "Symbol", "image_label": "Bild", "important_notice": "Wichtiger Hinweis", "invite_code_placeholder": "Einladungscode eingeben", "join_school_btn": "Schule beitreten", "join_your_school": "Tritt deiner Schule bei", "joining": "Beitreten...", "just_now": "Gerade eben", "keep_private": "Privat halten", "large_widget": "Großes Widget", "leader_online": "Leiter Online", "legal": "Rechtliches", "link_child": "Kind verknüpfen", "link_child_school": "Kind von der Schule verknüpfen", "link_children_school": "Kinder von der Schule verknüpfen", "linked_students_filter": "Verknüpfte Schüler", "linking": "Verknüpfung...", "loading_resources": "Ressourcen werden geladen...", "logged_in_required": "Bitte melde dich an, um fortzufahren", "manage_strategies_title": "Strategien verwalten", "medium_widget": "Mittleres Widget", "minutes_ago": "Minuten zuvor", "month": "Monat", "more_points_until": "weitere Punkte bis", "most_used_strategies": "Meistgenutzte Strategien", "name_required": "Name erforderlich", "no_checkin_yet": "Noch keine Check-ins", "no_classroom": "Keine Klasse", "no_classrooms_yet": "Noch keine Klassen", "no_data_period": "Keine Daten für diesen Zeitraum", "no_family_strategies": "Noch keine Familienstrategien", "no_home_data_yet": "Noch keine Daten von Zuhause", "no_recent_activity": "Keine aktuellen Aktivitäten", "no_resources_yet": "Noch keine Ressourcen", "no_students_found": "Keine Schüler gefunden", "no_students_yet": "Noch keine Schüler", "parent_link_code": "Eltern-Verknüpfungscode", "parent_sharing_disabled": "Elternteil hat das Teilen von Heimdaten nicht aktiviert", "parent_sharing_hint": "Das Elternteil kann das Teilen über sein Dashboard aktivieren", "per_week_avg": "Durchschnitt pro Woche", "personal_support_message": "Persönliche Unterstützungsnachricht", "photo": "Foto", "photo_label": "Foto", "please_enter_name": "Bitte einen Namen eingeben", "please_try_again": "Bitte versuche es erneut", "private_message_note": "Diese Nachricht ist privat", "recent_checkins": "Letzte Check-ins", "red_emotions_label": "Rote Emotionen", "red_short": "Rot", "red_short_label": "Rot", "red_zone_desc": "Ich fühle mich sehr aufgewühlt oder wütend", "red_zone_name": "Rote Emotionen", "relationship": "Beziehung", "request_support": "Unterstützung anfordern", "research_basis": "Evidenzbasiertes emotionales Lernen", "save_changes": "Änderungen speichern", "save_check_in": "Check-in speichern", "save_message": "Nachricht speichern", "save_school_profile": "Schulprofil speichern", "saving": "Wird gespeichert...", "school": "Schule", "school_admin_dashboard": "Schul-Admin-Dashboard", "school_admin_label": "Schul-Admin", "school_invite_code": "Schul-Einladungscode", "school_legend": "S = Schule", "school_strategies": "Schulstrategien", "select": "Auswählen", "select_all": "Alle auswählen", "select_classroom_for": "Klasse auswählen für", "select_emotion": "Eine Emotion auswählen", "select_helpful_strategies": "Hilfreiche Strategien auswählen", "select_month": "Monat auswählen", "select_month_pdf": "Wähle einen Monat zum Herunterladen des PDF-Berichts", "select_pdf": "PDF auswählen", "select_strategy": "Strategie auswählen", "select_students": "Schüler auswählen", "selected": "Ausgewählt", "selected_count": "ausgewählt", "share_code": "Code teilen", "share_code_instructions": "Teile diesen Code mit dem Elternteil", "share_student_tracking": "Emotionales Tracking teilen", "share_wellbeing": "Wohlbefinden teilen", "share_with_teachers": "Mit Lehrern teilen", "shared_strategies": "Geteilte Strategien", "shared_with_teacher_check": "Mit dem Lehrer geteilt", "sharing_disclaimer_text": "Mit dem Teilen stimmst du zu, dass emotionale Wellbeing-Daten zwischen Schule und Zuhause geteilt werden.", "sharing_disclaimer_title": "Einwilligung zum Teilen", "sharing_paused_desc": "Das Elternteil hat das Teilen nicht aktiviert. Heimdaten sind nicht sichtbar.", "skip_strategies": "Strategien überspringen", "small_widget": "Kleines Widget", "special_needs_education": "Sonderpädagogik", "start_free_trial_btn": "Kostenlose Testversion starten", "starting": "Wird gestartet...", "stats": "Statistiken", "steady": "Stabil", "strat_5_senses": "5 Sinne", "strat_bubble_breathing": "Blasen-Atmung", "strat_count_to_10": "Bis 10 zählen", "strat_favourite_song": "Lieblingslied", "strat_gentle_stretch": "Sanfte Dehnung", "strat_gratitude": "Dankbarkeit", "strat_help_friend": "Einem Freund helfen", "strat_keep_going": "Weitermachen!", "strat_safe_space_name": "Sicherer Ort", "strat_set_goal": "Ein Ziel setzen", "strat_slow_breathing": "Langsames Atmen", "strat_squeeze_release": "Drücken und Loslassen", "strat_talk_about_it": "Darüber sprechen", "strat_tell_someone": "Jemandem sagen", "strat_walk_away": "Weggehen", "strategy_added": "Strategie hinzugefügt!", "strategy_btn": "Strategien", "strategy_desc_ph": "Beschreibe, wie man diese Strategie anwendet...", "strategy_example": "z.B. Tiefes Atmen, Spazieren gehen...", "strategy_name_example": "z.B. Blasen-Atmung", "strategy_name_ph": "Strategiename", "strategy_shared": "Strategie mit dem Lehrer geteilt", "strategy_unshared": "Strategie nicht mehr geteilt", "streak_bonus": "Serien-Bonus!", "stressed": "Gestresst", "student_linked": "Schüler verknüpft", "student_linked_desc": "Dieser Schüler ist mit einem Elternkonto verbunden", "student_not_found": "Schüler nicht gefunden", "student_unlinked": "Schüler vom Elternteil getrennt", "students": "Schüler", "students_in_class": "Schüler in der Klasse", "success": "Erfolg!", "super_admin": "Super Admin", "support": "Unterstützung", "support_message_hint": "Tippe auf das Hand-Symbol, um Unterstützung anzufordern", "support_message_hint2": "Dein Lehrer wird benachrichtigt", "support_message_placeholder": "Sag deinem Lehrer, wie du dich fühlst...", "synced": "Synchronisiert", "tab_child_strategies": "Kind-Strategien", "tab_my_strategies": "Meine Strategien", "tab_parent_strategies": "Eltern-Strategien", "tap_to_check_in": "Tippe zum Einchecken", "teacher_can_see": "Der Lehrer kann das sehen", "teacher_can_see_strategy": "Der Lehrer kann diese Strategie sehen", "teacher_cannot_see": "Der Lehrer kann das nicht sehen", "teacher_link_code": "Lehrer-Verknüpfungscode", "teacher_name_optional": "Lehrername (optional)", "teacher_name_placeholder": "z.B. Frau Müller", "thank_you": "Danke!", "this_week": "Diese Woche", "trial": "Kostenlose Testversion", "trial_active": "Testversion Aktiv", "trial_active_desc": "Deine kostenlose Testversion ist aktiv", "trial_desc": "Keine Kreditkarte erforderlich", "try_again": "Erneut versuchen", "try_different_search": "Versuche eine andere Suche", "unlink": "Trennen", "unlink_student": "Schüler trennen", "updated_just_now": "Gerade eben aktualisiert", "updating": "Wird aktualisiert...", "upload_photo": "Foto hochladen", "use_icon": "Symbol verwenden", "view_my_wellbeing": "Mein Wohlbefinden anzeigen", "wellbeing_journal": "Tagebuchnotiz hinzufügen", "wellbeing_journal_ph": "Schreibe, wie du dich heute fühlst...", "wellbeing_pin_forgot_msg": "Versuche es erneut oder setze deinen PIN zurück", "wellbeing_total": "Check-ins insgesamt", "widget_preview": "Widget-Vorschau", "widget_preview_desc": "Sieh, wie sich deine Familie auf einen Blick fühlt", "widget_preview_desc_teacher": "Sieh, wie sich deine Klasse auf einen Blick fühlt", "write_custom_strategy": "Eigene Strategie schreiben", "write_short_note": "Schreibe eine kurze Notiz...", "yellow_emotions_label": "Gelbe Emotionen", "yellow_short": "Gelb", "yellow_short_label": "Gelb", "yellow_zone_desc": "Ich fühle mich besorgt oder ängstlich", "yellow_zone_name": "Gelbe Emotionen", "you_are_what_you_eat": "Du bist, was du isst", "your_recent_checkins": "Deine letzten Check-ins", "zone_all": "Alle", "zone_blue": "Blau", "zone_comparison": "Emotionsvergleich", "zone_green": "Grün", "zone_red": "Rot", "zone_yellow": "Gelb", "class_code_label": "Klassencode", "class_code_optional": "Frag deinen Lehrer nach dem Klassencode (optional)", "invalid_class_code": "Code nicht gefunden — frag deinen Lehrer", "class_joined": "Klasse beigetreten!", "class_code_placeholder": "z.B. ABC123", "today": "Heute", "fortnight": "Zwei Wochen", "family_dashboard": "Familien-Dashboard", "silly": "Albern", "nervous": "Nervös", "frustrated": "Frustriert", "worried": "Besorgt", "tired": "Müde", "sad": "Traurig", "angry": "Wütend", "out_of_control": "Außer Kontrolle", "very_upset": "Sehr Aufgewühlt", "bored": "Gelangweilt", "calm": "Ruhig", "happy": "Glücklich", "focused": "Konzentriert", "ready_to_learn": "Lernbereit", "lonely": "Einsam", "loading": "Laden..."},
         "it": {"blue": "Emozioni Blu",       "green": "Emozioni Verdi",      "yellow": "Emozioni Gialle",      "red": "Emozioni Rosse", "about_app": "Informazioni sull'App", "about_privacy": "Informazioni e Privacy", "access_expires_30_days": "L'accesso scade tra 30 giorni", "add": "Aggiungi", "add_comment": "Aggiungi Commento", "add_custom_strategy": "Aggiungi Strategia Personalizzata", "add_family_member": "Aggiungi Membro della Famiglia", "add_family_strategy": "Aggiungi Strategia Familiare", "add_family_to_track": "Aggiungi un membro della famiglia per monitorare il benessere", "add_first_student": "Aggiungi il tuo primo studente", "add_member": "Aggiungi Membro", "add_new_student": "Aggiungi Nuovo Studente", "add_note_optional": "Aggiungi una nota (opzionale)", "add_profile": "Aggiungi Profilo", "add_strategy": "Aggiungi Strategia", "add_strategy_title": "Aggiungi Strategia", "add_strategy_to_students": "Aggiungi strategia agli studenti", "add_widget_android": "Aggiungi alla schermata iniziale (Android)", "add_widget_ios": "Aggiungi Widget (iOS)", "add_widget_title": "Aggiungi Widget", "adding": "Aggiunta in corso...", "admin_access": "Accesso Admin", "admin_dashboard": "Dashboard Admin", "administration": "Amministrazione", "alert_sent": "Avviso Inviato", "alert_sent_desc": "Il tuo insegnante è stato notificato", "all_arrow": "Tutti →", "all_zones": "Tutte le Emozioni", "angry": "Arrabbiato", "are_you_sure_delete_strategy": "Sei sicuro di voler eliminare questa strategia?", "as_default_language": "come lingua predefinita", "assign_classroom": "Assegna Classe", "assign_to": "Assegna a", "blue_description": "Mi sento triste o stanco", "blue_emotions": "Emozioni Blu", "blue_emotions_label": "Emozioni Blu", "blue_feeling": "Blu", "blue_feelings": "Sentimenti Blu", "blue_short": "Blu", "blue_short_label": "Blu", "blue_zone": "Zona Blu", "blue_zone_desc": "Mi sento triste o stanco", "blue_zone_name": "Emozioni Blu", "bored": "Annoiato", "by": "di", "calm": "Calmo", "change": "Modifica", "change_language": "Cambia Lingua", "change_language_confirm": "Cambiare lingua?", "change_photo": "Cambia Foto", "check_in_feelings": "Registra i Sentimenti", "check_ins": "Check-in", "checkin_btn": "Registra", "checkin_calendar": "Calendario Check-in", "checkin_complete": "Check-in Completato!", "checkin_for": "Check-in per", "checkin_saved": "Check-in Salvato!", "checkin_saved_private": "Salvato in modo privato", "checkin_saved_shared": "Salvato e condiviso con l'insegnante", "child_not_found": "Bambino non trovato", "child_strategies_note": "Strategie assegnate a questo bambino", "children_school": "Bambini a Scuola", "choose_helpers": "Scegli gli Aiutanti", "choose_helpful_strategies": "Scegli strategie utili", "choose_icon": "Scegli Icona", "classroom": "Classe", "classroom_name": "Nome della Classe", "classroom_name_placeholder": "es. Classe 3 Sole", "classroom_widget": "Widget Classe", "classrooms": "Classi", "comment_optional": "Commento (opzionale)", "confirm": "Conferma", "confirm_delete_member": "Eliminare questo membro della famiglia?", "confirm_delete_resource": "Eliminare questa risorsa?", "confirm_logout": "Sei sicuro di voler uscire?", "confirm_unlink_student": "Scollegare questo studente dal genitore?", "continue": "Continua", "create_classroom": "Crea Classe", "create_first_profile": "Crea il Primo Profilo", "create_new_classroom": "Crea Nuova Classe", "create_new_student": "Crea Nuovo Studente", "creating": "Creazione in corso...", "creatures": "Creature", "custom_strategies_for": "Strategie personalizzate per", "data_shared_desc": "Dati di benessere emotivo condivisi tra scuola e casa", "day_streak": "Giorni di fila", "days_14": "2 Settimane", "days_30": "30 Giorni", "days_7": "7 Giorni", "days_ago": "giorni fa", "default_badge": "Predefinito", "default_zone_strategies": "Strategie predefinite", "delete": "Elimina", "delete_btn": "Elimina", "delete_classroom": "Elimina Classe", "delete_member": "Elimina Membro", "delete_student": "Elimina Studente", "description": "Descrizione", "description_label": "Descrizione", "deselect_all": "Deseleziona Tutti", "disclaimer_1": "Questa app supporta la consapevolezza emotiva, non la diagnosi clinica.", "disclaimer_2": "I dati sono mantenuti privati e sicuri.", "disclaimer_3": "Consulta sempre un professionista per problemi di salute mentale.", "disclaimer_privacy_terms": "Privacy e Termini", "download_error": "Errore di Download", "download_monthly_reports": "Scarica Rapporti Mensili", "download_report": "Scarica Rapporto", "edit": "Modifica", "edit_family_strategy": "Modifica Strategia Familiare", "edit_member": "Modifica Membro", "edit_note": "Modifica Nota", "edit_strategy": "Modifica Strategia", "emotion_colour": "Colore dell'Emozione", "emotion_distribution": "Distribuzione delle Emozioni", "emotion_strategies_children": "Strategie emotive per bambini", "emotions": "Emozioni", "emotions_topic": "Emozioni", "enter_admin_code": "Inserisci il codice admin", "enter_code": "Inserisci il codice a 6 caratteri del tuo insegnante", "enter_description": "Inserisci una descrizione", "enter_invite_code_desc": "Inserisci il codice di invito della tua scuola", "enter_name": "Inserisci un nome", "error": "Errore", "everyone": "Tutti", "evolves": "Si evolve!", "failed_delete_member": "Impossibile eliminare il membro", "failed_update_member": "Impossibile aggiornare il membro", "family": "Famiglia", "family_emotional_status": "Stato Emotivo della Famiglia", "family_emotions": "Emozioni della Famiglia", "family_widget": "Widget Famiglia", "focused": "Concentrato", "for_educational_purposes": "Solo per scopi educativi", "for_student": "per lo studente", "free_trial": "Prova Gratuita", "free_trial_label": "Prova Gratuita", "from_teacher": "Dall'Insegnante", "frustrated": "Frustrato", "full_access_no_card": "Accesso completo — nessuna carta di credito richiesta", "generate_code": "Genera Codice", "generate_code_desc": "Genera un codice da condividere con il genitore", "generate_invite_code": "Genera Codice di Invito", "generate_parent_code": "Genera Codice Genitore", "generate_teacher_code": "Genera Codice Insegnante", "generating": "Generazione...", "go_back": "Torna Indietro", "got_it": "Capito!", "great_job_title": "Bravissimo!", "green_description": "Mi sento bene e pronto", "green_emotions": "Emozioni Verdi", "green_emotions_label": "Emozioni Verdi", "green_feeling": "Verde", "green_feelings": "Sentimenti Verdi", "green_short": "Verde", "green_short_label": "Verde", "green_zone": "Zona Verde", "green_zone_desc": "Mi sento bene e pronto ad imparare", "green_zone_name": "Emozioni Verdi", "happy": "Felice", "has_been_removed": "è stato rimosso", "has_been_updated": "è stato aggiornato", "have_trial_code": "Ho un codice di prova", "healthy_relationships": "Relazioni Sane", "home": "Casa", "home_check_in": "Check-in a Casa", "home_checkins": "Check-in a Casa", "home_data": "Dati Casa", "home_legend": "C = Casa", "home_sharing_disabled": "Condivisione a casa disattivata", "home_sharing_enabled": "Condivisione a casa attivata", "home_sharing_off": "Condivisione dati a casa DISATTIVATA", "home_sharing_on": "Condivisione dati a casa ATTIVATA", "hours_ago": "ore fa", "how_feeling": "Come ti senti?", "how_to_do_optional": "Come farlo (opzionale)", "how_to_use": "Come usare questa strategia", "i_agree_and_continue": "Accetto e Continua", "icon": "Icona", "icon_label": "Icona", "image_label": "Immagine", "important_notice": "Avviso Importante", "invite_code_placeholder": "Inserisci codice di invito", "is_now_default": "è ora il predefinito", "join_school_btn": "Unisciti alla Scuola", "join_your_school": "Unisciti alla Tua Scuola", "joining": "Iscrizione...", "just_now": "Proprio ora", "keep_it_up": "Continua così!", "keep_private": "Mantieni Privato", "language_changed": "Lingua cambiata", "large_widget": "Widget Grande", "leader_online": "Leader Online", "legal": "Legale", "link_child": "Collega Bambino", "link_child_school": "Collega Bambino dalla Scuola", "link_children_school": "Collega Bambini dalla Scuola", "linked_students_filter": "Studenti Collegati", "linking": "Collegamento...", "loading_creature": "Caricamento creatura...", "loading_helpers": "Caricamento aiutanti...", "loading_resources": "Caricamento risorse...", "logged_in_required": "Effettua il login per continuare", "lonely": "Solo", "manage_strategies_title": "Gestisci Strategie", "medium_widget": "Widget Medio", "minutes_ago": "minuti fa", "month": "Mese", "more_points_until": "altri punti fino a", "most_used_strategies": "Strategie Più Usate", "mutual_consent": "Consenso Reciproco Attivo", "my_creatures": "Le Mie Creature", "my_strategies": "Le Mie Strategie", "name": "Nome", "name_required": "Nome obbligatorio", "nervous": "Nervoso", "no_checkin_yet": "Ancora nessun check-in", "no_checkins": "Ancora nessun check-in", "no_classroom": "Nessuna Classe", "no_classrooms_yet": "Ancora nessuna classe", "no_data_period": "Nessun dato per questo periodo", "no_family_strategies": "Ancora nessuna strategia familiare", "no_home_data_yet": "Ancora nessun dato a casa", "no_profiles_yet": "Ancora nessun profilo", "no_recent_activity": "Nessuna attività recente", "no_resources_yet": "Ancora nessuna risorsa", "no_students_found": "Nessuno studente trovato", "no_students_yet": "Ancora nessuno studente", "out_of_control": "Fuori Controllo", "parent_link_code": "Codice di Collegamento Genitore", "parent_sharing_disabled": "Il genitore non ha attivato la condivisione dei dati a casa", "parent_sharing_hint": "Il genitore può attivare la condivisione dal suo pannello", "per_week_avg": "media a settimana", "personal_support_message": "Messaggio di supporto personale", "photo": "Foto", "photo_label": "Foto", "please_enter_name": "Inserisci un nome", "please_try_again": "Riprova", "points": "Punti", "private_message_note": "Questo messaggio è privato", "ready_to_learn": "Pronto per imparare", "recent_checkins": "Check-in Recenti", "red_description": "Mi sento molto arrabbiato", "red_emotions": "Emozioni Rosse", "red_emotions_label": "Emozioni Rosse", "red_feeling": "Rosso", "red_feelings": "Sentimenti Rossi", "red_short": "Rosso", "red_short_label": "Rosso", "red_zone": "Zona Rossa", "red_zone_desc": "Mi sento molto turbato o arrabbiato", "red_zone_name": "Emozioni Rosse", "redeem_code": "Usa Codice", "redeeming": "Utilizzo...", "relationship": "Relazione", "request_support": "Richiedi Supporto", "research_basis": "Apprendimento emotivo basato su evidenze", "resources": "Risorse", "sad": "Triste", "save_changes": "Salva Modifiche", "save_check_in": "Salva Check-in", "save_message": "Salva Messaggio", "save_school_profile": "Salva Profilo Scolastico", "saving": "Salvataggio...", "school": "Scuola", "school_admin_dashboard": "Dashboard Admin Scolastico", "school_admin_label": "Admin Scolastico", "school_invite_code": "Codice di Invito Scolastico", "school_legend": "S = Scuola", "school_strategies": "Strategie Scolastiche", "search_students": "Cerca studenti", "select": "Seleziona", "select_all": "Seleziona Tutti", "select_classroom_for": "Seleziona classe per", "select_emotion": "Seleziona un'emozione", "select_helpful_strategies": "Seleziona strategie utili", "select_month": "Seleziona Mese", "select_month_pdf": "Seleziona un mese per scaricare il rapporto PDF", "select_pdf": "Seleziona PDF", "select_profile": "Seleziona Profilo", "select_strategy": "Seleziona Strategia", "select_students": "Seleziona Studenti", "selected": "Selezionato", "selected_count": "selezionati", "share_code": "Condividi Codice", "share_code_instructions": "Condividi questo codice con il genitore", "share_student_tracking": "Condividi Monitoraggio Emotivo", "share_wellbeing": "Condividi Benessere", "share_with_home": "Condividi con Casa", "share_with_home_desc": "Il genitore vedrà questa strategia nell'app", "share_with_teacher": "Condividi con l'Insegnante", "share_with_teachers": "Condividi con gli Insegnanti", "shared_strategies": "Strategie Condivise", "shared_with_teacher_check": "Condiviso con l'insegnante", "sharing_disclaimer_text": "Condividendo, acconsenti che i dati di benessere emotivo siano condivisi tra scuola e casa.", "sharing_disclaimer_title": "Consenso alla Condivisione", "sharing_paused": "Condivisione in Pausa", "sharing_paused_desc": "Il genitore non ha attivato la condivisione. I dati a casa non sono visibili.", "silly": "Sciocco", "skip": "Salta", "skip_strategies": "Salta le strategie", "small_widget": "Widget Piccolo", "special_needs_education": "Educazione per Bisogni Speciali", "start_free_trial": "Inizia la Prova Gratuita", "start_free_trial_btn": "Inizia la Prova Gratuita", "starting": "Avvio...", "stats": "Statistiche", "steady": "Stabile", "strat_5_senses": "5 Sensi", "strat_bubble_breathing": "Respirazione a Bolle", "strat_count_to_10": "Conta fino a 10", "strat_favourite_song": "Canzone Preferita", "strat_gentle_stretch": "Stretching Leggero", "strat_gratitude": "Gratitudine", "strat_help_friend": "Aiuta un Amico", "strat_keep_going": "Continua!", "strat_safe_space_name": "Spazio Sicuro", "strat_set_goal": "Fissa un Obiettivo", "strat_slow_breathing": "Respirazione Lenta", "strat_squeeze_release": "Stringi e Rilascia", "strat_talk_about_it": "Parlane", "strat_tell_someone": "Dillo a Qualcuno", "strat_walk_away": "Allontanati", "strategy_added": "Strategia aggiunta!", "strategy_btn": "Strategie", "strategy_desc_ph": "Descrivi come usare questa strategia...", "strategy_example": "es. Respirazione profonda, Fare una passeggiata...", "strategy_name": "Nome Strategia", "strategy_name_example": "es. Respirazione a Bolle", "strategy_name_ph": "Nome della strategia", "strategy_shared": "Strategia condivisa con l'insegnante", "strategy_unshared": "Strategia non più condivisa", "streak_bonus": "Bonus Serie!", "stressed": "Stressato", "student_linked": "Studente Collegato", "student_linked_desc": "Questo studente è collegato a un account genitore", "student_not_found": "Studente non trovato", "student_unlinked": "Studente scollegato dal genitore", "students": "Studenti", "students_in_class": "Studenti in classe", "subscribe": "Abbonati", "subscription": "Abbonamento", "success": "Successo!", "super_admin": "Super Admin", "super_charged": "Super Carico!", "support": "Supporto", "support_message_hint": "Tocca l'icona della mano per chiedere supporto", "support_message_hint2": "Il tuo insegnante verrà notificato", "support_message_placeholder": "Di' al tuo insegnante come ti senti...", "synced": "Sincronizzato", "tab_child_strategies": "Strategie del Bambino", "tab_my_strategies": "Le Mie Strategie", "tab_parent_strategies": "Strategie del Genitore", "tap_helpers_green": "Tocca un aiutante per continuare bene!", "tap_helpers_other": "Tocca un aiutante per stare meglio", "tap_to_check_in": "Tocca per registrarti", "teacher_can_see": "L'insegnante può vedere questo", "teacher_can_see_strategy": "L'insegnante può vedere questa strategia", "teacher_cannot_see": "L'insegnante non può vedere questo", "teacher_checkin": "Check-in Insegnante", "teacher_link_code": "Codice di Collegamento Insegnante", "teacher_name_optional": "Nome insegnante (opzionale)", "teacher_name_placeholder": "es. Prof. Rossi", "teacher_resources": "Risorse per Insegnanti", "thank_you": "Grazie!", "this_week": "Questa Settimana", "tired": "Stanco", "trial": "Prova Gratuita", "trial_active": "Prova Attiva", "trial_active_desc": "La tua prova gratuita è attiva", "trial_code_invalid": "Codice non valido", "trial_code_placeholder": "Inserisci codice", "trial_desc": "Nessuna carta di credito richiesta", "try_again": "Riprova", "try_different_search": "Prova una ricerca diversa", "unlink": "Scollega", "unlink_student": "Scollega Studente", "unlocked": "Sbloccato!", "updated_just_now": "Aggiornato proprio ora", "updating": "Aggiornamento...", "upload_photo": "Carica Foto", "use_icon": "Usa Icona", "very_upset": "Molto Turbato", "view_my_wellbeing": "Vedi Il Mio Benessere", "want_to_say": "Vuoi dire qualcosa?", "week_overview": "Panoramica della Settimana", "wellbeing_journal": "Aggiungi nota di diario", "wellbeing_journal_ph": "Scrivi come ti senti oggi...", "wellbeing_pin_forgot_msg": "Riprova o reimposta il tuo PIN", "wellbeing_total": "check-in totali", "what_colours_mean": "Cosa significano i colori", "widget_preview": "Anteprima Widget", "widget_preview_desc": "Vedi come si sente la tua famiglia a colpo d'occhio", "widget_preview_desc_teacher": "Vedi come si sente la tua classe a colpo d'occhio", "worried": "Preoccupato", "write_custom_strategy": "Scrivi una strategia personalizzata", "write_sentence": "Scrivi una frase", "write_short_note": "Scrivi una nota breve...", "yellow_description": "Mi sento ansioso o agitato", "yellow_emotions": "Emozioni Gialle", "yellow_emotions_label": "Emozioni Gialle", "yellow_feeling": "Giallo", "yellow_feelings": "Sentimenti Gialli", "yellow_short": "Giallo", "yellow_short_label": "Giallo", "yellow_zone": "Zona Gialla", "yellow_zone_desc": "Mi sento preoccupato o ansioso", "yellow_zone_name": "Emozioni Gialle", "you_are_what_you_eat": "Sei quello che mangi", "your_recent_checkins": "I Tuoi Check-in Recenti", "zone_all": "Tutti", "zone_blue": "Blu", "zone_comparison": "Confronto delle Emozioni", "zone_green": "Verde", "zone_red": "Rosso", "zone_yellow": "Giallo", "class_code_label": "Codice Classe", "class_code_optional": "Chiedi il codice classe al tuo insegnante (opzionale)", "invalid_class_code": "Codice non trovato — verifica con il tuo insegnante", "class_joined": "Classe aggiunta!", "class_code_placeholder": "es. ABC123", "today": "Oggi", "fortnight": "Quindicina", "family_dashboard": "Dashboard Famiglia", "loading": "Caricamento..."},
+        "ru": {"blue": "Синие эмоции", "green": "Зелёные эмоции", "yellow": "Жёлтые эмоции", "red": "Красные эмоции"},
+        "zh": {"blue": "蓝色情绪", "green": "绿色情绪", "yellow": "黄色情绪", "red": "红色情绪"},
     }
     WEEKDAYS_MAP = {
         "en": ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
@@ -7537,6 +9731,8 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         "fr": ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"],
         "de": ["Mo","Di","Mi","Do","Fr","Sa","So"],
         "it": ["Lun","Mar","Mer","Gio","Ven","Sab","Dom"],
+        "ru": ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"],
+        "zh": ["周一","周二","周三","周四","周五","周六","周日"],
     }
     # Real fix Sep 30 (live feedback, PDF question): month_name below used to always come from
     # Python's strftime("%B %Y"), which follows the server's OS locale (always English on
@@ -7551,20 +9747,22 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         "fr": ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"],
         "de": ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"],
         "it": ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"],
+        "ru": ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"],
+        "zh": [f"{_m}月" for _m in range(1,13)],
     }
     ZONE_LABELS = ZONE_LABELS_MAP.get(lang, ZONE_LABELS_MAP["en"])
     WEEKDAYS    = WEEKDAYS_MAP.get(lang, WEEKDAYS_MAP["en"])
 
     ZONE_DESCS = {
-        "blue":   ZONE_LABELS.get("blue_zone_desc", "Calm / Low energy"),
-        "green":  ZONE_LABELS.get("green_zone_desc", "Happy / Ready to learn"),
-        "yellow": ZONE_LABELS.get("yellow_zone_desc", "Worried / Frustrated"),
-        "red":    ZONE_LABELS.get("red_zone_desc", "Overwhelmed / Angry"),
+        "blue":   pdf_t(lang, "stu_state_blue"),
+        "green":  pdf_t(lang, "stu_state_green"),
+        "yellow": pdf_t(lang, "stu_state_yellow"),
+        "red":    pdf_t(lang, "stu_state_red"),
     }
 
     # ── Styles ──
     def s(name, **kw):
-        return ParagraphStyle(name, **kw)
+        return _pdf_pstyle(lang, name, **kw)
 
     ST_LOGO    = s('Logo',    fontSize=20, textColor=WHITE,  fontName='Helvetica-Bold', leading=24)
     ST_LOGSUB  = s('LogoS',  fontSize=10, textColor=colors.HexColor('#C5CAE9'), leading=13)
@@ -7572,12 +9770,17 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     ST_BODY    = s('Body',   fontSize=9,  textColor=colors.HexColor('#333333'), spaceAfter=3, leading=13)
     ST_SMALL   = s('Small',  fontSize=7.5,textColor=GREY, leading=10)
     ST_DISC    = s('Disc',   fontSize=7,  textColor=colors.HexColor('#999999'), fontName='Helvetica-Oblique', leading=9)
-    ST_LABEL   = s('Label',  fontSize=8,  textColor=GREY,   fontName='Helvetica-Bold')
+    ST_LABEL   = s('Label',  fontSize=8,  textColor=WHITE,  fontName='Helvetica-Bold')  # only used for header cells on INDIGO (was GREY = unreadable)
     ST_VALUE   = s('Val',    fontSize=9,  textColor=colors.HexColor('#222222'), fontName='Helvetica-Bold')
 
     elements = []
     total      = sum(feeling_counts.values())
     month_name = f"{MONTH_NAMES_MAP.get(lang, MONTH_NAMES_MAP['en'])[month-1]} {year}"
+    if lang == "zh":
+        month_name = f"{year}年{month}月"
+    MON_ABBR = [m[:3] for m in MONTH_NAMES_MAP.get(lang, MONTH_NAMES_MAP['en'])]
+    if lang == "ru":
+        MON_ABBR = ["янв.","февр.","мар.","апр.","мая","июн.","июл.","авг.","сент.","окт.","нояб.","дек."]
     _, last_day_cal = calendar.monthrange(year, month)
 
     # ════════════════════════════════════════════════════════
@@ -7604,8 +9807,8 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     except Exception as logo_err:
         # Fallback: rainbow emoji + text (no image dependency)
         logo_cell = Paragraph(
-            "<font color='#FFC107'>●</font><font color='#4CAF50'>●</font>"
-            "<font color='#4A90D9'>●</font> Class of Happiness",
+            "<font color='#FFC107'>&bull;</font><font color='#4CAF50'>&bull;</font>"
+            "<font color='#4A90D9'>&bull;</font> Class of Happiness",
             s('LogoFB', fontSize=16, textColor=WHITE, fontName='Helvetica-Bold',
               leading=20)
         )
@@ -7613,7 +9816,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     header_data = [[
         logo_cell,
         Paragraph(
-            f"<b>" + PDF_HEADINGS.get(lang, PDF_HEADINGS["en"])["report"] + "</b><br/>" + month_name,
+            "<b>" + pdf_t(lang, "stu_report") + "</b><br/>" + month_name,
             s('HRight', fontSize=11, textColor=colors.HexColor('#5C6BC0'), fontName='Helvetica-Bold',
               alignment=2, leading=15)
         ),
@@ -7630,12 +9833,14 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     elements.append(Spacer(1, 10))
 
     # ── Student info strip ──
+    _gen_now = datetime.now()
+    gen_str = f"{_gen_now.year}年{_gen_now.month}月{_gen_now.day}日" if lang == "zh" else f"{_gen_now.day:02d} {MON_ABBR[_gen_now.month-1]} {_gen_now.year}"
     info_data = [[
-        Paragraph(f"<b>Student:</b> {student_data['name']}", ST_BODY),
-        Paragraph(f"<b>Class:</b> {classroom_name}", ST_BODY),
-        Paragraph(f"<b>Period:</b> {month_name}", ST_BODY),
-        Paragraph(f"<b>Check-ins:</b> {len(logs_data)}", ST_BODY),
-        Paragraph(f"<b>Generated:</b> {datetime.now().strftime('%d %b %Y')}", ST_BODY),
+        Paragraph(f"<b>{pdf_t(lang, 'stu_label_student')}</b> {pdf_safe(student_data['name'], lang)}", ST_BODY),
+        Paragraph(f"<b>{pdf_t(lang, 'stu_label_class')}</b> {pdf_safe(classroom_name, lang)}", ST_BODY),
+        Paragraph(f"<b>{pdf_t(lang, 'stu_label_period')}</b> {month_name}", ST_BODY),
+        Paragraph(f"<b>{pdf_t(lang, 'stu_label_checkins')}</b> {len(logs_data)}", ST_BODY),
+        Paragraph(f"<b>{pdf_t(lang, 'stu_label_generated')}</b> {gen_str}", ST_BODY),
     ]]
     info_strip = Table(info_data, colWidths=[103, 103, 103, 79, 117])
     info_strip.setStyle(TableStyle([
@@ -7651,7 +9856,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     # ROW 1: Zone distribution (visual bars) + Zone table side by side
     # ════════════════════════════════════════════════════════
     # Section 1 wrapped to prevent page splits
-    section1_elements = [Paragraph("Emotion Distribution", ST_H2)]
+    section1_elements = [Paragraph(pdf_t(lang, "stu_emotion_dist"), ST_H2)]
     # Compute school-only and home-only counts for split view
     school_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
     home_counts   = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
@@ -7690,23 +9895,23 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         # Count label above bar
         lbl = String(x + bw / 2, 22 + bar_h, str(count),
                      textAnchor='middle', fontSize=9,
-                     fontName='Helvetica-Bold',
+                     fontName=pdf_font(lang, 'Helvetica-Bold'),
                      fillColor=colors.HexColor('#333333'))
         bar_drawing.add(lbl)
 
         # Zone label below
-        zlbl = String(x + bw / 2, 6, ZONE_LABELS[zone].split()[0],
+        zlbl = String(x + bw / 2, 6, pdf_t(lang, 'stu_col_' + zone),  # colour word only (first word of 'Émotions Bleues' was 'Émotions')
                       textAnchor='middle', fontSize=7,
-                      fontName='Helvetica',
+                      fontName=pdf_font(lang, 'Helvetica'),
                       fillColor=colors.HexColor('#666666'))
         bar_drawing.add(zlbl)
 
     # Zone stats table (right side)
     zone_rows = [
-        [Paragraph('<b>Emotion</b>', ST_LABEL),
-         Paragraph('<b>Count</b>', ST_LABEL),
+        [Paragraph('<b>' + pdf_t(lang, "stu_col_emotion") + '</b>', ST_LABEL),
+         Paragraph('<b>' + pdf_t(lang, "stu_col_count") + '</b>', ST_LABEL),
          Paragraph('<b>%</b>', ST_LABEL),
-         Paragraph('<b>State</b>', ST_LABEL)]
+         Paragraph('<b>' + pdf_t(lang, "stu_col_state") + '</b>', ST_LABEL)]
     ]
     for zone in zones_order:
         count = feeling_counts[zone]
@@ -7718,7 +9923,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
             Paragraph(ZONE_DESCS[zone], ST_SMALL),
         ])
 
-    zone_tbl = Table(zone_rows, colWidths=[72, 36, 30, 110])
+    zone_tbl = Table(zone_rows, colWidths=[68, 42, 36, 106])
     zone_style_list = [
         ('BACKGROUND', (0,0), (-1,0), INDIGO),
         ('TEXTCOLOR',  (0,0), (-1,0), WHITE),
@@ -7736,7 +9941,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
             ('TEXTCOLOR', (0,i), (0,i), ZONE_COLORS_PDF[zone])
         )
         zone_style_list.append(
-            ('FONTNAME', (0,i), (0,i), 'Helvetica-Bold')
+            ('FONTNAME', (0,i), (0,i), pdf_font(lang, 'Helvetica-Bold'))
         )
     zone_tbl.setStyle(TableStyle(zone_style_list))
 
@@ -7759,21 +9964,21 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     # Add home/school split note if home data exists
     if has_home_data:
         split_rows = [[
-            Paragraph('<b>Source</b>', ST_LABEL),
-            Paragraph('<b>Blue</b>', ST_LABEL),
-            Paragraph('<b>Green</b>', ST_LABEL),
-            Paragraph('<b>Yellow</b>', ST_LABEL),
-            Paragraph('<b>Red</b>', ST_LABEL),
-            Paragraph('<b>Total</b>', ST_LABEL),
+            Paragraph('<b>' + pdf_t(lang, "stu_col_source") + '</b>', ST_LABEL),
+            Paragraph('<b>' + pdf_t(lang, "stu_col_blue") + '</b>', ST_LABEL),
+            Paragraph('<b>' + pdf_t(lang, "stu_col_green") + '</b>', ST_LABEL),
+            Paragraph('<b>' + pdf_t(lang, "stu_col_yellow") + '</b>', ST_LABEL),
+            Paragraph('<b>' + pdf_t(lang, "stu_col_red") + '</b>', ST_LABEL),
+            Paragraph('<b>' + pdf_t(lang, "stu_col_total") + '</b>', ST_LABEL),
         ],[
-            Paragraph('🏫 School', ST_BODY),
+            Paragraph(pdf_t(lang, "stu_source_school"), ST_BODY),
             Paragraph(str(school_counts['blue']), ST_SMALL),
             Paragraph(str(school_counts['green']), ST_SMALL),
             Paragraph(str(school_counts['yellow']), ST_SMALL),
             Paragraph(str(school_counts['red']), ST_SMALL),
             Paragraph(str(sum(school_counts.values())), ST_VALUE),
         ],[
-            Paragraph('🏠 Home', ST_BODY),
+            Paragraph(pdf_t(lang, "stu_source_home"), ST_BODY),
             Paragraph(str(home_counts['blue']), ST_SMALL),
             Paragraph(str(home_counts['green']), ST_SMALL),
             Paragraph(str(home_counts['yellow']), ST_SMALL),
@@ -7788,9 +9993,9 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
             ('PADDING',    (0,0), (-1,-1), 5),
             ('ROWBACKGROUNDS', (0,1), (-1,-1), [WHITE, LIGHT]),
         ]))
-        section1_elements.extend([Spacer(1,8), Paragraph("Home vs School Breakdown", ST_H2), split_tbl])
+        section1_elements.extend([Spacer(1,8), Paragraph(pdf_t(lang, "stu_home_vs_school"), ST_H2), split_tbl])
 
-    section2_elements = [Paragraph("Monthly Calendar", ST_H2)]
+    section2_elements = [Paragraph(pdf_t(lang, "stu_calendar"), ST_H2)]
 
     # Build 7-col calendar grid
     import calendar as cal_mod
@@ -7809,7 +10014,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     while len(cal_cells) % 7 != 0:
         cal_cells.append('')
 
-    cal_rows = [['Mon','Tue','Wed','Thu','Fri','Sat','Sun']]
+    cal_rows = [list(WEEKDAYS)]
     for i in range(0, len(cal_cells), 7):
         week = cal_cells[i:i+7]
         row = []
@@ -7820,7 +10025,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
                 day_num, dominant, day_total = cell
                 if dominant:
                     row.append(Paragraph(
-                        f'<b>{day_num}</b><br/><font size="6">{day_total}✓</font>',
+                        f'<b>{day_num}</b><br/><font size="6">{day_total}x</font>',
                         s('CalCell', fontSize=8, textColor=WHITE,
                           fontName='Helvetica-Bold', alignment=1, leading=10)
                     ))
@@ -7839,7 +10044,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     cal_style = [
         ('BACKGROUND',  (0,0), (-1,0), INDIGO),
         ('TEXTCOLOR',   (0,0), (-1,0), WHITE),
-        ('FONTNAME',    (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTNAME',    (0,0), (-1,0), pdf_font(lang, 'Helvetica-Bold')),
         ('FONTSIZE',    (0,0), (-1,0), 8),
         ('ALIGN',       (0,0), (-1,-1), 'CENTER'),
         ('VALIGN',      (0,0), (-1,-1), 'MIDDLE'),
@@ -7870,11 +10075,11 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
 
     # Legend
     legend_items = [[
-        Paragraph(f"<font color='#{zc.hexval()[2:]}'>■</font> {ZONE_LABELS[z]}"
-                  if hasattr(zc, 'hexval') else f"■ {ZONE_LABELS[z]}",
+        Paragraph(f"<span backColor='#{zc.hexval()[2:]}'>&nbsp;&nbsp;&nbsp;&nbsp;</span> {ZONE_LABELS[z]}"
+                  if hasattr(zc, 'hexval') else f"{ZONE_LABELS[z]}",
                   ST_SMALL)
         for z, zc in ZONE_COLORS_PDF.items()
-    ] + [Paragraph("□ No check-in", ST_SMALL)]]
+    ] + [Paragraph("<span backColor='#E0E0E0'>&nbsp;&nbsp;&nbsp;&nbsp;</span> " + pdf_t(lang, "stu_legend_no_checkin"), ST_SMALL)]]
     legend_tbl = Table(legend_items, colWidths=[(PAGE_W - 72) / 5] * 5)
     legend_tbl.setStyle(TableStyle([('PADDING', (0,0), (-1,-1), 3)]))
     section2_elements.extend([legend_tbl, Spacer(1, 12)])
@@ -7883,26 +10088,26 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     # ════════════════════════════════════════════════════════
     # ROW 3: Strategies + Day-of-week side by side
     # ════════════════════════════════════════════════════════
-    section3_elements = [Paragraph(PDF_HEADINGS.get(lang, PDF_HEADINGS["en"])["strategies"], ST_H2)]
+    section3_elements = [Paragraph(pdf_t(lang, "stu_strategies_heading"), ST_H2)]
 
     if helper_counts:
         top_helpers = sorted(helper_counts.items(), key=lambda x: x[1], reverse=True)[:8]
         strat_rows = [[
-            Paragraph('<b>Strategy</b>', ST_LABEL),
-            Paragraph('<b>Used</b>', ST_LABEL),
-            Paragraph('<b>Frequency</b>', ST_LABEL),
+            Paragraph('<b>' + pdf_t(lang, "stu_col_strategy") + '</b>', ST_LABEL),
+            Paragraph('<b>' + pdf_t(lang, "stu_col_used") + '</b>', ST_LABEL),
+            Paragraph('<b>' + pdf_t(lang, "stu_col_frequency") + '</b>', ST_LABEL),
         ]]
         max_strat = max(c for _, c in top_helpers)
         for sid, count in top_helpers:
             name = resolve_strategy_name(sid, lang=lang)
-            bar  = '█' * int((count / max_strat) * 8) if max_strat > 0 else ''
-            freq = "Very Often" if count >= 5 else "Often" if count >= 3 else "Sometimes" if count >= 2 else "Once"
+            bar  = '#' * int((count / max_strat) * 8) if max_strat > 0 else ''
+            freq = pdf_t(lang, "stu_freq_very_often") if count >= 5 else pdf_t(lang, "stu_freq_often") if count >= 3 else pdf_t(lang, "stu_freq_sometimes") if count >= 2 else pdf_t(lang, "stu_freq_once")
             strat_rows.append([
-                Paragraph(name, ST_BODY),
+                Paragraph(pdf_safe(name, lang), ST_BODY),
                 Paragraph(str(count), ST_VALUE),
                 Paragraph(f'<font color="#5C6BC0">{bar}</font> {freq}', ST_SMALL),
             ])
-        strat_tbl = Table(strat_rows, colWidths=[140, 35, 95])
+        strat_tbl = Table(strat_rows, colWidths=([118, 57, 95] if lang in ("ru", "zh") else [133, 42, 95]))
         strat_tbl.setStyle(TableStyle([
             ('BACKGROUND',     (0,0), (-1,0), INDIGO),
             ('TEXTCOLOR',      (0,0), (-1,0), WHITE),
@@ -7912,14 +10117,14 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
             ('VALIGN',         (0,0), (-1,-1), 'MIDDLE'),
         ]))
     else:
-        strat_tbl = Paragraph("No strategies recorded this period.", ST_BODY)
+        strat_tbl = Paragraph(pdf_t(lang, "stu_no_strategies"), ST_BODY)
 
     # Day of week mini chart
     max_week = max(week_counts.values()) if week_counts else 1
-    week_rows = [[Paragraph('<b>Day</b>', ST_LABEL), Paragraph('<b>Check-ins</b>', ST_LABEL)]]
+    week_rows = [[Paragraph('<b>' + pdf_t(lang, "stu_col_day") + '</b>', ST_LABEL), Paragraph('<b>' + pdf_t(lang, "stu_col_checkins") + '</b>', ST_LABEL)]]
     for day_idx in range(7):
         count = week_counts.get(day_idx, 0)
-        bar   = '█' * int((count / max_week) * 6) if max_week > 0 else ''
+        bar   = '#' * int((count / max_week) * 6) if max_week > 0 else ''
         week_rows.append([
             Paragraph(WEEKDAYS[day_idx], ST_BODY),
             Paragraph(f'<font color="#5C6BC0">{bar}</font> {count}', ST_SMALL),
@@ -7950,21 +10155,21 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     # ════════════════════════════════════════════════════════
     # Check-in log — heading must stay with table (never orphaned at page bottom)
     # We'll build heading + table together in a KeepTogether block if small enough
-    log_heading = Paragraph(PDF_HEADINGS.get(lang, PDF_HEADINGS["en"])["log"], ST_H2)
+    log_heading = Paragraph(pdf_t(lang, "stu_log_heading"), ST_H2)
 
     if logs_data:
         log_rows = [[
-            Paragraph('<b>Date</b>',       ST_LABEL),
-            Paragraph('<b>Time</b>',       ST_LABEL),
-            Paragraph('<b>Source</b>',     ST_LABEL),
-            Paragraph('<b>Emotion</b>',       ST_LABEL),
-            Paragraph('<b>Strategies</b>', ST_LABEL),
-            Paragraph('<b>Comment</b>',    ST_LABEL),
+            Paragraph('<b>' + pdf_t(lang, "stu_col_date") + '</b>', ST_LABEL),
+            Paragraph('<b>' + pdf_t(lang, "stu_col_time") + '</b>', ST_LABEL),
+            Paragraph('<b>' + pdf_t(lang, "stu_col_source") + '</b>', ST_LABEL),
+            Paragraph('<b>' + pdf_t(lang, "stu_col_emotion") + '</b>', ST_LABEL),
+            Paragraph('<b>' + pdf_t(lang, "stu_col_strategies") + '</b>', ST_LABEL),
+            Paragraph('<b>' + pdf_t(lang, "stu_col_comment") + '</b>', ST_LABEL),
         ]]
         for log in logs_data:
             try:
                 ts       = datetime.fromisoformat(log["timestamp"].replace("Z", "+00:00"))
-                date_str = ts.strftime("%d %b")
+                date_str = f"{ts.month}月{ts.day}日" if lang == "zh" else f"{ts.day:02d} {MON_ABBR[ts.month-1]}"
                 time_str = ts.strftime("%H:%M")
             except Exception as e:
                 logger.debug(f"[pdf-checkin-log-date] malformed timestamp: {e}")
@@ -7983,14 +10188,14 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
             comment = comment or "—"
 
             source = log.get("_source", "school")
-            source_label = "🏠 Home" if source == "home" else "🏫 School"
+            source_label = pdf_t(lang, "stu_source_home") if source == "home" else pdf_t(lang, "stu_source_school")
             log_rows.append([
                 Paragraph(date_str,                              ST_SMALL),
                 Paragraph(time_str,                              ST_SMALL),
                 Paragraph(source_label,                          ST_SMALL),
-                Paragraph(ZONE_LABELS.get(zone, zone.capitalize() + " Emotions"),  ST_SMALL),
-                Paragraph(strats_str,                            ST_SMALL),
-                Paragraph(comment,                               ST_SMALL),
+                Paragraph(pdf_safe(ZONE_LABELS.get(zone, pdf_t(lang, "stu_emotion_fallback", name=zone.capitalize())), lang),  ST_SMALL),
+                Paragraph(pdf_safe(strats_str, lang),                ST_SMALL),
+                Paragraph(pdf_safe(comment, lang),                   ST_SMALL),
             ])
 
         # Real fix (fix/pdf-report-pagination): splitByRow=0 told ReportLab this table could
@@ -8002,7 +10207,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         # already here) exists specifically so a table CAN split across pages while repeating
         # its header row - splitByRow=1 (the actual default; set explicitly here since this is
         # the exact property that was disabled) lets it actually do that.
-        log_tbl = Table(log_rows, colWidths=[38, 32, 48, 68, 140, 129],
+        log_tbl = Table(log_rows, colWidths=([42, 40, 56, 64, 128, 125] if lang == "ru" else [44, 36, 48, 68, 134, 123] if lang == "zh" else [38, 36, 48, 68, 140, 125]),
                         repeatRows=1, splitByRow=1)
         log_style_list = [
             ('BACKGROUND',     (0,0), (-1,0), INDIGO),
@@ -8016,7 +10221,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
             zone = log.get("feeling_colour", log.get("zone", ""))
             if zone in ZONE_COLORS_PDF:
                 log_style_list.append(('TEXTCOLOR',  (3,i), (3,i), ZONE_COLORS_PDF[zone]))
-                log_style_list.append(('FONTNAME',   (3,i), (3,i), 'Helvetica-Bold'))
+                log_style_list.append(('FONTNAME',   (3,i), (3,i), pdf_font(lang, 'Helvetica-Bold')))
             # Colour source column
             src = log.get("_source", "school")
             src_color = colors.HexColor('#4CAF50') if src == "home" else colors.HexColor('#5C6BC0')
@@ -8034,25 +10239,23 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         elements.append(KeepTogether([log_heading, Spacer(1, 4)]))
         elements.append(log_tbl)
     else:
-        elements.append(Paragraph("No check-ins recorded for this period.", ST_BODY))
+        elements.append(Paragraph(pdf_t(lang, "stu_no_checkins"), ST_BODY))
 
     elements.append(Spacer(1, 14))
 
     # ── Footer disclaimer ──
     elements.append(Paragraph(
-        "CONFIDENTIALITY NOTICE: This report contains personal emotional wellbeing data intended solely for the named "
-        "student's educational and therapeutic support team. Unauthorised sharing is prohibited. © Class of Happiness",
+        pdf_t(lang, "stu_confidentiality"),
         ST_DISC
     ))
     elements.append(Paragraph(
-        "Generated by Class of Happiness (classofhappiness.app) using the colour emotion check-in framework. "
-        "This is an educational tool and does not constitute a clinical assessment or diagnosis.",
+        pdf_t(lang, "stu_generated_by"),
         ST_DISC
     ))
 
     doc.build(elements)
     buffer.seek(0)
-    safe_name = student_data['name'].replace(' ', '_')
+    safe_name = __import__('unicodedata').normalize('NFKD', student_data['name']).encode('ascii', 'ignore').decode().replace(' ', '_')  # header values must be latin-1: fold accents / drop other scripts (a name like 'Çavuşoğlu' 500'd)
     filename = f"CoH_Report_{safe_name}_{year}_{month:02d}.pdf"
     return StreamingResponse(buffer, media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"})
@@ -8060,8 +10263,9 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
 
 
 @api_router.get("/reports/pdf/teacher-wellbeing/{user_id}/month/{year}/{month}")
-async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, request: Request, lang: str = "en"):
+async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, request: Request, lang: str = ""):
     """Generate a monthly wellbeing PDF report for a teacher."""
+    lang = pdf_lang(lang)  # viewer's selected app language; English when missing/unsupported
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -8107,7 +10311,51 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     start = datetime(year, month, 1, tzinfo=timezone.utc).isoformat()
     _, last_day = cal_mod.monthrange(year, month)
     end = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc).isoformat()
-    month_name = datetime(year, month, 1).strftime("%B %Y")
+    _TW_MONTHS = {
+        "en": ["January","February","March","April","May","June","July","August","September","October","November","December"],
+        "pt": ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"],
+        "es": ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"],
+        "fr": ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"],
+        "de": ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"],
+        "it": ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"],
+        "ru": ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"],
+        "zh": ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"],
+    }
+    # ru: genitive abbreviations for day-month dates ('10 окт.'); other languages keep the first 3 letters of the month name
+    _TW_MONTHS_DM_RU = ["янв.","февр.","мар.","апр.","мая","июн.","июл.","авг.","сент.","окт.","нояб.","дек."]
+    _TW_WEEKDAYS = {
+        "en": ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
+        "pt": ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"],
+        "es": ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"],
+        "fr": ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"],
+        "de": ["Mo","Di","Mi","Do","Fr","Sa","So"],
+        "it": ["Lun","Mar","Mer","Gio","Ven","Sab","Dom"],
+        "ru": ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"],
+        "zh": ["周一","周二","周三","周四","周五","周六","周日"],
+    }
+    _TW_ZONE_LABELS = {
+        "en": {"blue": "Blue Emotions", "green": "Green Emotions", "yellow": "Yellow Emotions", "red": "Red Emotions"},
+        "pt": {"blue": "Emoções Azuis", "green": "Emoções Verdes", "yellow": "Emoções Amarelas", "red": "Emoções Vermelhas"},
+        "es": {"blue": "Emociones Azules", "green": "Emociones Verdes", "yellow": "Emociones Amarillas", "red": "Emociones Rojas"},
+        "fr": {"blue": "Émotions Bleues", "green": "Émotions Vertes", "yellow": "Émotions Jaunes", "red": "Émotions Rouges"},
+        "de": {"blue": "Blaue Emotionen", "green": "Grüne Emotionen", "yellow": "Gelbe Emotionen", "red": "Rote Emotionen"},
+        "it": {"blue": "Emozioni Blu", "green": "Emozioni Verdi", "yellow": "Emozioni Gialle", "red": "Emozioni Rosse"},
+        "ru": {"blue": "Синие эмоции", "green": "Зелёные эмоции", "yellow": "Жёлтые эмоции", "red": "Красные эмоции"},
+        "zh": {"blue": "蓝色情绪", "green": "绿色情绪", "yellow": "黄色情绪", "red": "红色情绪"},
+    }
+    _tw_months = _TW_MONTHS.get(lang, _TW_MONTHS["en"])
+
+    def _tw_dt(ts, with_year, with_time=True):
+        # localised 'day month [year] [HH:MM]' (en/pt/es/fr/de/it unchanged: '05 Oct 2026 09:30')
+        hm = ts.strftime('%H:%M')
+        if lang == "zh":
+            d = f"{ts.year}年{ts.month}月{ts.day}日" if with_year else f"{ts.month}月{ts.day}日"
+            return f"{d} {hm}" if with_time else d
+        mon = _TW_MONTHS_DM_RU[ts.month - 1] if lang == "ru" else _tw_months[ts.month - 1][:3]
+        d = f"{ts.day:02d} {mon}" + (f" {ts.year}" if with_year else "")
+        return f"{d} {hm}" if with_time else d
+    _tw_short_zone = PUSH_ZONE_LABELS_BY_LANG.get(lang, PUSH_ZONE_LABELS_BY_LANG["en"])
+    month_name = f"{year}年{month}月" if lang == "zh" else f"{_tw_months[month - 1]} {year}"
 
     # Fetch teacher check-ins
     logs_r = supabase.table("teacher_checkins").select("*").eq("user_id", user_id).gte("timestamp", start).lte("timestamp", end).order("timestamp", desc=False).execute()
@@ -8145,7 +10393,7 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
 
     def resolve_strategy_name(sid):
         if not sid or sid.lower() in ("blue","green","yellow","red"): return None
-        known = strategy_name_map.get(sid) or STRATEGY_NAMES_LOCAL.get(sid)
+        known = (STRATEGY_MAPS_BY_LANG.get(lang, {}).get(sid) if lang != "en" else None) or strategy_name_map.get(sid) or STRATEGY_NAMES_LOCAL.get(sid)
         if known:
             return known
         # Not a built-in short code — check real custom/family strategy tables before falling
@@ -8204,11 +10452,23 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     GREY        = colors.HexColor("#666666")
     WHITE       = colors.white
     ZONE_COLORS_PDF = {"blue": BLUE_C, "green": GREEN_C, "yellow": YELLOW_C, "red": RED_C}
-    ZONE_LABELS = {"blue": "Blue Emotions", "green": "Green Emotions", "yellow": "Yellow Emotions", "red": "Red Emotions"}
+    ZONE_LABELS = _TW_ZONE_LABELS.get(lang, _TW_ZONE_LABELS["en"])
     ZONE_HEX    = {"blue": "4A90D9", "green": "4CAF50", "yellow": "FFC107", "red": "F44336"}
 
     def s(name, **kw):
+        kw["fontName"] = pdf_font(lang, kw.get("fontName", "Helvetica"))
+        if lang in ("ru", "zh"):  # Noto fonts are taller than Helvetica: leading at least 1.3 x fontSize
+            _fs = kw.get("fontSize", 10)
+            kw["leading"] = max(kw.get("leading", _fs * 1.2), round(_fs * 1.3))
+        if lang == "zh":
+            kw["wordWrap"] = "CJK"
         return ParagraphStyle(name, **kw)
+    _FB = pdf_font(lang, "Helvetica-Bold")
+    ST_TH = s("TH", fontSize=8, textColor=colors.white, fontName="Helvetica-Bold")
+    def th(txt):
+        # header cell: plain string in Latin languages (unchanged output), wrapping Paragraph for ru/zh
+        return Paragraph(txt, ST_TH) if lang in ("ru", "zh") else txt
+    _ru = lang == "ru"
 
     ST_LOGO   = s("Logo",  fontSize=18, textColor=colors.HexColor("#5C6BC0"), fontName="Helvetica-Bold", leading=22)
     ST_LOGSUB = s("LogoS", fontSize=9,  textColor=colors.HexColor("#5C6BC0"), leading=12)
@@ -8235,9 +10495,9 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
             style=[("VALIGN",(0,0),(-1,-1),"MIDDLE"),("PADDING",(0,0),(-1,-1),0),("LEFTPADDING",(1,0),(1,0),6)])
     except Exception as e:
         logger.debug(f"[pdf-logo] logo image unavailable, using text fallback: {e}")
-        logo_cell = Paragraph("🎓 Class of Happiness", ST_LOGO)
+        logo_cell = Paragraph("Class of Happiness", ST_LOGO)  # emoji removed (Helvetica cannot render it)
 
-    header_data = [[logo_cell, Paragraph(f"<b>Teacher Wellbeing Report</b><br/>{month_name}", s("HR", fontSize=11, textColor=colors.HexColor("#5C6BC0"), fontName="Helvetica-Bold", alignment=2, leading=15))]]
+    header_data = [[logo_cell, Paragraph(f"<b>{pdf_t(lang, 'tw_title')}</b><br/>{month_name}", s("HR", fontSize=11, textColor=colors.HexColor("#5C6BC0"), fontName="Helvetica-Bold", alignment=2, leading=15))]]
     header_table = Table(header_data, colWidths=[PAGE_W*0.55, PAGE_W*0.35])
     header_table.setStyle(TableStyle([
         ("BACKGROUND", (0,0), (-1,-1), colors.white),
@@ -8249,15 +10509,15 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     elements.append(Spacer(1, 10))
 
     # ── PERSONAL SUMMARY ──
-    elements.append(Paragraph("Personal Summary", ST_H2))
+    elements.append(Paragraph(pdf_t(lang, "tw_personal_summary"), ST_H2))
     summary_rows = [
-        [Paragraph("Name", ST_LABEL),         Paragraph(display_name, ST_VALUE)],
-        [Paragraph("Email", ST_LABEL),         Paragraph(teacher_email, ST_VALUE)],
-        [Paragraph("Report Period", ST_LABEL), Paragraph(month_name, ST_VALUE)],
-        [Paragraph("Total Check-ins", ST_LABEL), Paragraph(str(total), ST_VALUE)],
+        [Paragraph(pdf_t(lang, "tw_name"), ST_LABEL),         Paragraph(pdf_safe(display_name, lang, "Helvetica-Bold"), ST_VALUE)],
+        [Paragraph(pdf_t(lang, "tw_email"), ST_LABEL),         Paragraph(pdf_safe(teacher_email, lang, "Helvetica-Bold"), ST_VALUE)],
+        [Paragraph(pdf_t(lang, "tw_report_period"), ST_LABEL), Paragraph(month_name, ST_VALUE)],
+        [Paragraph(pdf_t(lang, "tw_total_checkins"), ST_LABEL), Paragraph(str(total), ST_VALUE)],
     ]
     if support_requests:
-        summary_rows.append([Paragraph("Support Requests", ST_LABEL), Paragraph(str(len(support_requests)), ST_ALERT)])
+        summary_rows.append([Paragraph(pdf_t(lang, "tw_support_requests"), ST_LABEL), Paragraph(str(len(support_requests)), ST_ALERT)])
     summary_table = Table(summary_rows, colWidths=[130, PAGE_W - 130 - 72])
     summary_table.setStyle(TableStyle([
         ("ROWBACKGROUNDS", (0,0), (-1,-1), [WHITE, LIGHT]),
@@ -8269,21 +10529,21 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
 
     # ── CALENDAR HEATMAP ──
     if daily_zones:
-        elements.append(Paragraph("Check-in Calendar", ST_H2))
+        elements.append(Paragraph(pdf_t(lang, "tw_checkin_calendar"), ST_H2))
         cal_rows = []
-        week_days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+        week_days = _TW_WEEKDAYS.get(lang, _TW_WEEKDAYS["en"])
         header_row = [Paragraph(d, ST_LABEL) for d in [""] + week_days]
         cal_rows.append(header_row)
         first_day = datetime(year, month, 1)
         first_weekday = first_day.weekday()
-        week_row = [Paragraph("W1", ST_SMALL)] + [Paragraph("", ST_SMALL)] * first_weekday
+        week_row = [Paragraph(pdf_t(lang, "tw_week_abbr", n=1), ST_SMALL)] + [Paragraph("", ST_SMALL)] * first_weekday
         week_num = 1
         for day in range(1, last_day + 1):
             date_str = f"{year}-{month:02d}-{day:02d}"
             zone = daily_zones.get(date_str, "")
             hex_color = ZONE_HEX.get(zone, "333333")
             if zone:
-                cell = Paragraph(f'<font color="#{hex_color}">●</font> <font color="#333">{day}</font>', ST_SMALL)
+                cell = Paragraph(f'<font color="#{hex_color}">&bull;</font> <font color="#333">{day}</font>', ST_SMALL)  # was U+25CF, not in Helvetica
             else:
                 cell = Paragraph(f'<font color="#CCCCCC">{day}</font>', ST_SMALL)
             week_row.append(cell)
@@ -8293,7 +10553,7 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
                     week_row.append(Paragraph("", ST_SMALL))
                 cal_rows.append(week_row)
                 week_num += 1
-                week_row = [Paragraph(f"W{week_num}", ST_SMALL)]
+                week_row = [Paragraph(pdf_t(lang, "tw_week_abbr", n=week_num), ST_SMALL)]
         col_w = (PAGE_W - 72) / 8
         cal_table = Table(cal_rows, colWidths=[col_w]*8)
         cal_table.setStyle(TableStyle([
@@ -8306,10 +10566,10 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
         elements.append(cal_table)
         elements.append(Spacer(1, 6))
         legend_data = [[
-            Paragraph('<font color="#4A90D9">●</font> Blue  ', ST_SMALL),
-            Paragraph('<font color="#4CAF50">●</font> Green  ', ST_SMALL),
-            Paragraph('<font color="#FFC107">●</font> Yellow  ', ST_SMALL),
-            Paragraph('<font color="#F44336">●</font> Red', ST_SMALL),
+            Paragraph(f'<font color="#4A90D9">&bull;</font> {_tw_short_zone["blue"]}  ', ST_SMALL),
+            Paragraph(f'<font color="#4CAF50">&bull;</font> {_tw_short_zone["green"]}  ', ST_SMALL),
+            Paragraph(f'<font color="#FFC107">&bull;</font> {_tw_short_zone["yellow"]}  ', ST_SMALL),
+            Paragraph(f'<font color="#F44336">&bull;</font> {_tw_short_zone["red"]}', ST_SMALL),
         ]]
         legend_table = Table(legend_data, colWidths=[(PAGE_W-72)/4]*4)
         legend_table.setStyle(TableStyle([("ALIGN",(0,0),(-1,-1),"CENTER"),("PADDING",(0,0),(-1,-1),2)]))
@@ -8318,22 +10578,28 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
 
     # ── EMOTION DISTRIBUTION ──
     if total > 0:
-        elements.append(Paragraph("Emotion Distribution", ST_H2))
-        zone_data = [["Emotion", "Count", "%", "Visual"]]
+        elements.append(Paragraph(pdf_t(lang, "tw_emotion_distribution"), ST_H2))
+        zone_data = [[th(pdf_t(lang, "tw_col_emotion")), th(pdf_t(lang, "tw_col_count")), th("%"), th(pdf_t(lang, "tw_col_visual"))]]
         for zone, count in zone_counts.items():
             pct = round(count / total * 100) if total else 0
-            bar = "█" * max(1, int(pct / 4)) if count > 0 else ""
+            # was a run of U+2588 block characters (not in Helvetica): draw the bar as a filled cell instead
+            if count > 0:
+                _bar_w = max(1, int(pct / 4)) * 5.5
+                bar = Table([[""]], colWidths=[_bar_w], rowHeights=[8],
+                            style=[("BACKGROUND", (0,0), (-1,-1), ZONE_COLORS_PDF[zone]), ("PADDING", (0,0), (-1,-1), 0)], hAlign="LEFT")
+            else:
+                bar = Paragraph("", ST_BODY)
             zone_data.append([
                 Paragraph(ZONE_LABELS[zone], ST_BODY),
                 Paragraph(str(count), ST_VALUE),
                 Paragraph(f"{pct}%", ST_BODY),
-                Paragraph(f'<font color="#{ZONE_HEX[zone]}">{bar}</font>', ST_BODY),
+                bar,
             ])
-        zone_table = Table(zone_data, colWidths=[140, 45, 45, PAGE_W - 266])
+        zone_table = Table(zone_data, colWidths=[140, 45, 45, PAGE_W - 266] if not _ru else [120, 80, 45, PAGE_W - 317])
         zone_table.setStyle(TableStyle([
             ("BACKGROUND", (0,0), (-1,0), INDIGO),
             ("TEXTCOLOR",  (0,0), (-1,0), WHITE),
-            ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
+            ("FONTNAME",   (0,0), (-1,0), _FB),
             ("FONTSIZE",   (0,0), (-1,0), 8),
             ("ROWBACKGROUNDS", (0,1), (-1,-1), [WHITE, LIGHT]),
             ("PADDING", (0,0), (-1,-1), 7),
@@ -8344,16 +10610,16 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
 
     # ── TOP STRATEGIES ──
     if strategy_counts:
-        elements.append(Paragraph("Most Used Strategies", ST_H2))
+        elements.append(Paragraph(pdf_t(lang, "tw_most_used_strategies"), ST_H2))
         top_strats = sorted(strategy_counts.items(), key=lambda x: x[1], reverse=True)[:8]
-        strat_data = [["Strategy", "Times Used"]]
+        strat_data = [[th(pdf_t(lang, "tw_col_strategy")), th(pdf_t(lang, "tw_col_times_used"))]]
         for name, count in top_strats:
-            strat_data.append([Paragraph(name, ST_BODY), Paragraph(str(count), ST_VALUE)])
+            strat_data.append([Paragraph(pdf_safe(name, lang), ST_BODY), Paragraph(str(count), ST_VALUE)])
         strat_table = Table(strat_data, colWidths=[PAGE_W - 130, 80])
         strat_table.setStyle(TableStyle([
             ("BACKGROUND", (0,0), (-1,0), INDIGO),
             ("TEXTCOLOR",  (0,0), (-1,0), WHITE),
-            ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
+            ("FONTNAME",   (0,0), (-1,0), _FB),
             ("FONTSIZE",   (0,0), (-1,0), 8),
             ("ROWBACKGROUNDS", (0,1), (-1,-1), [WHITE, LIGHT]),
             ("PADDING", (0,0), (-1,-1), 7),
@@ -8364,22 +10630,22 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
 
     # ── WELLBEING SUPPORT REQUESTS ──
     if support_requests:
-        elements.append(Paragraph("Wellbeing Support Requests", ST_H2))
-        req_data = [["Date & Time", "Message"]]
+        elements.append(Paragraph(pdf_t(lang, "tw_wellbeing_support_requests"), ST_H2))
+        req_data = [[th(pdf_t(lang, "tw_col_date_time")), th(pdf_t(lang, "tw_col_message"))]]
         for req in support_requests:
             try:
                 ts = datetime.fromisoformat(req["created_at"].replace("Z", "+00:00"))
-                dt_str = ts.strftime("%d %b %Y %H:%M")
+                dt_str = _tw_dt(ts, True)
             except Exception as e:
                 logger.debug(f"[pdf-support-request-date] malformed timestamp: {e}")
                 dt_str = req.get("created_at", "")[:16]
-            msg = (req.get("message") or "Support requested")[:80]
-            req_data.append([Paragraph(dt_str, ST_SMALL), Paragraph(msg, ST_SMALL)])
-        req_table = Table(req_data, colWidths=[110, PAGE_W - 150])
+            msg = (req.get("message") or pdf_t(lang, "tw_support_requested_default"))[:80]
+            req_data.append([Paragraph(dt_str, ST_SMALL), Paragraph(pdf_safe(msg, lang), ST_SMALL)])
+        req_table = Table(req_data, colWidths=[110, PAGE_W - 150] if not (_ru or lang == "zh") else [130, PAGE_W - 170])
         req_table.setStyle(TableStyle([
             ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#F44336")),
             ("TEXTCOLOR",  (0,0), (-1,0), WHITE),
-            ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
+            ("FONTNAME",   (0,0), (-1,0), _FB),
             ("FONTSIZE",   (0,0), (-1,0), 8),
             ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.HexColor("#FFF3F3"), colors.HexColor("#FFEBEE")]),
             ("PADDING", (0,0), (-1,-1), 7),
@@ -8390,12 +10656,12 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
 
     # ── CHECK-IN LOG ──
     if logs:
-        elements.append(Paragraph("Check-in History", ST_H2))
-        log_data = [["Date", "Emotion", "Strategies", "Note"]]
+        elements.append(Paragraph(pdf_t(lang, "tw_checkin_history"), ST_H2))
+        log_data = [[th(pdf_t(lang, "tw_col_date")), th(pdf_t(lang, "tw_col_emotion")), th(pdf_t(lang, "tw_col_strategies")), th(pdf_t(lang, "tw_col_note"))]]
         for log in logs[-25:]:
             try:
                 ts = datetime.fromisoformat(log["timestamp"].replace("Z", "+00:00"))
-                date_str = ts.strftime("%d %b %H:%M")
+                date_str = _tw_dt(ts, False)
             except Exception as e:
                 logger.debug(f"[pdf-checkin-history-date] malformed timestamp: {e}")
                 date_str = log.get("timestamp", "")[:10]
@@ -8405,15 +10671,15 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
             note = (log.get("notes") or "—")[:40]
             log_data.append([
                 Paragraph(date_str, ST_SMALL),
-                Paragraph(ZONE_LABELS.get(zone, zone).replace(" Emotions", ""), ST_SMALL),
-                Paragraph(strats, ST_SMALL),
-                Paragraph(note, ST_SMALL),
+                Paragraph(pdf_safe(_tw_short_zone.get(zone, zone), lang), ST_SMALL),
+                Paragraph(pdf_safe(strats, lang), ST_SMALL),
+                Paragraph(pdf_safe(note, lang), ST_SMALL),
             ])
-        log_table = Table(log_data, colWidths=[70, 60, 170, PAGE_W - 336])
+        log_table = Table(log_data, colWidths=[70, 60, 170, PAGE_W - 336] if not (_ru or lang == "zh") else [84, 62, 160, PAGE_W - 342])
         log_table.setStyle(TableStyle([
             ("BACKGROUND", (0,0), (-1,0), INDIGO),
             ("TEXTCOLOR",  (0,0), (-1,0), WHITE),
-            ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
+            ("FONTNAME",   (0,0), (-1,0), _FB),
             ("FONTSIZE",   (0,0), (-1,0), 8),
             ("ROWBACKGROUNDS", (0,1), (-1,-1), [WHITE, LIGHT]),
             ("PADDING", (0,0), (-1,-1), 6),
@@ -8425,16 +10691,11 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     # ── DISCLAIMER ──
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#E0E0E0")))
     elements.append(Spacer(1, 6))
-    elements.append(Paragraph(
-        "Generated by Class of Happiness (classofhappiness.app). "
-        "This is an educational tool and does not constitute a clinical assessment or diagnosis. "
-        "Data is private and confidential.",
-        ST_DISC
-    ))
+    elements.append(Paragraph(pdf_t(lang, "tw_disclaimer"), ST_DISC))
 
     doc.build(elements)
     buffer.seek(0)
-    safe = display_name.replace(" ", "_")
+    safe = __import__('unicodedata').normalize('NFKD', display_name).encode('ascii', 'ignore').decode().replace(" ", "_")  # latin-1-safe header value
     filename = f"CoH_Teacher_{safe}_{year}_{month:02d}.pdf"
     return StreamingResponse(buffer, media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"})
@@ -9695,19 +11956,78 @@ async def start_trial(request: Request):
     }).eq("user_id", user["user_id"]).execute()
     return {"message": "Trial started", "trial_ends": (now + timedelta(days=TRIAL_DURATION_DAYS)).isoformat()}
 
-def _month_buckets(end_year, end_month, n_months):
+# Oct 10 (PDF translation, G3): abbreviated month names per PDF language (en matches strftime("%b")).
+_PDF_MONTH_ABBR = {
+    "en": ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+    "pt": ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"],
+    "es": ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"],
+    "fr": ["Janv.","Févr.","Mars","Avr.","Mai","Juin","Juil.","Août","Sept.","Oct.","Nov.","Déc."],
+    "de": ["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"],
+    "it": ["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"],
+    "ru": ["Янв","Фев","Мар","Апр","Май","Июн","Июл","Авг","Сен","Окт","Ноя","Дек"],
+    "zh": ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"],
+}
+# ru day-month dates need the genitive ('10 окт.'); the nominative table above is for headings/chart labels.
+_PDF_MONTH_ABBR_GEN_RU = ["янв.","февр.","мар.","апр.","мая","июн.","июл.","авг.","сент.","окт.","нояб.","дек."]
+
+def _pdf_month_abbr(month: int, lang: str = "en") -> str:
+    return _PDF_MONTH_ABBR.get(pdf_lang(lang), _PDF_MONTH_ABBR["en"])[month - 1]
+
+def _pdf_month_year(month: int, year: int, lang: str = "en") -> str:
+    """Month + year label ('Oct 2026'; zh '2026年10月') used for period headings and chart buckets."""
+    if pdf_lang(lang) == "zh":
+        return f"{year}年{month}月"
+    return f"{_pdf_month_abbr(month, lang)} {year}"
+
+def _pdf_para_kw(lang: str, font_size: float, leading=None) -> dict:
+    """ParagraphStyle kwargs for ru/zh: Noto fonts are taller than Helvetica (leading >= 1.3 x size) and zh wraps per
+    character. Returns {} for every other language so their styles stay exactly as before."""
+    pl = pdf_lang(lang)
+    if pl not in ("ru", "zh"):
+        return {}
+    kw = {"leading": max(leading or 0, round(font_size * 1.3, 1))}
+    if pl == "zh":
+        kw["wordWrap"] = "CJK"
+    return kw
+
+def _pdf_tbl_base(lang: str) -> list:
+    """TableStyle commands applied first: base font (Noto for ru/zh so plain-string cells draw) + roomy leading."""
+    cmds = [("FONTNAME", (0, 0), (-1, -1), pdf_font(lang, "Helvetica"))]
+    if pdf_lang(lang) in ("ru", "zh"):
+        cmds.append(("LEADING", (0, 0), (-1, -1), 13))
+    return cmds
+
+def _pdf_fmt_date(dt, lang: str = "en", with_year: bool = True, with_time: bool = False) -> str:
+    """'%d %b %Y' / '%d %b, %H:%M' with the month abbreviation in the PDF language."""
+    _pl = pdf_lang(lang)
+    if _pl == "zh":
+        out = (f"{dt.year}年" if with_year else "") + f"{dt.month}月{dt.day}日"
+        if with_time:
+            out += dt.strftime(" %H:%M")
+        return out
+    if _pl == "ru":
+        out = f"{dt.day} {_PDF_MONTH_ABBR_GEN_RU[dt.month - 1]}"
+    else:
+        out = f"{dt.day:02d} {_pdf_month_abbr(dt.month, lang)}"
+    if with_year:
+        out += f" {dt.year}"
+    if with_time:
+        out += dt.strftime(", %H:%M")
+    return out
+
+def _month_buckets(end_year, end_month, n_months, lang: str = "en"):
     """Return n_months of (year, month, label) working backwards from end_year/end_month, oldest first."""
     buckets = []
     y, m = end_year, end_month
     for _ in range(n_months):
-        buckets.append((y, m, datetime(y, m, 1).strftime("%b %Y")))
+        buckets.append((y, m, _pdf_month_year(m, y, lang)))
         m -= 1
         if m == 0:
             m = 12
             y -= 1
     return list(reversed(buckets))
 
-def _gather_school_pdf_stats(school_name: Optional[str], start_date: str, admin_id: Optional[str] = None) -> dict:
+def _gather_school_pdf_stats(school_name: Optional[str], start_date: str, admin_id: Optional[str] = None, lang: str = "en") -> dict:
     """Real feature Aug 28 (item 6): extracted so the school-overview PDF can report on
     multiple schools (a real comparison + per-school sections) instead of only ever
     flattening every requested school into one combined total. admin_id is only passed for
@@ -9769,7 +12089,7 @@ def _gather_school_pdf_stats(school_name: Optional[str], start_date: str, admin_
             zone_counts[colour] += 1
         for h in log.get("helpers_selected", log.get("strategies_selected", [])):
             strategy_counts[h] = strategy_counts.get(h, 0) + 1
-    top_strategies = [(resolve_strategy_name(sid), count) for sid, count in sorted(strategy_counts.items(), key=lambda x: x[1], reverse=True)[:5]]
+    top_strategies = [(resolve_strategy_name(sid, pdf_lang(lang)), count) for sid, count in sorted(strategy_counts.items(), key=lambda x: x[1], reverse=True)[:5]]
 
     # Class performance comparison - same per-classroom aggregation as
     # /school-admin/analytics's classroom_breakdown, reused here for the Overview PDF
@@ -9786,7 +12106,7 @@ def _gather_school_pdf_stats(school_name: Optional[str], start_date: str, admin_
             if z in c_zones:
                 c_zones[z] += 1
         classroom_breakdown.append({
-            "classroom_name": c.get("name", "Classroom"),
+            "classroom_name": c.get("name") or pdf_t(lang, "sch_classroom_fallback"),
             "checkin_count": len(c_logs),
             "zone_distribution": c_zones,
         })
@@ -9817,7 +12137,7 @@ def _gather_school_pdf_stats(school_name: Optional[str], start_date: str, admin_
             if sr_counts:
                 sr_names = {s["id"]: s["name"] for s in (supabase.table("students").select("id,name").in_("id", list(sr_counts.keys())).execute().data or [])}
                 support_request_summary = sorted(
-                    [{"student_name": sr_names.get(sid, "Student"), "count": c} for sid, c in sr_counts.items()],
+                    [{"student_name": sr_names.get(sid) or pdf_t(lang, "sch_student_fallback"), "count": c} for sid, c in sr_counts.items()],
                     key=lambda x: -x["count"]
                 )
         except Exception as e:
@@ -9837,7 +12157,7 @@ def _gather_school_pdf_stats(school_name: Optional[str], start_date: str, admin_
 
 
 @api_router.get("/reports/pdf/school-overview")
-async def school_overview_pdf(request: Request, days: int = 30, school_name: Optional[str] = None, school_names: Optional[str] = None):
+async def school_overview_pdf(request: Request, days: int = 30, school_name: Optional[str] = None, school_names: Optional[str] = None, lang: str = ""):
     """Real new feature, built Aug 15: school-level aggregate PDF export for superadmin
     and school_admin, reusing the exact same real branding/colours already proven in the
     per-student report (confirmed against a real downloaded PDF before building this).
@@ -9852,6 +12172,8 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
     user = await get_current_user(request)
     if not user or user.get("role") not in ["admin", "superadmin", "school_admin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
+    lang = pdf_lang(lang)
+    COLOUR = PUSH_ZONE_LABELS_BY_LANG.get(lang, PUSH_ZONE_LABELS_BY_LANG["en"])
 
     # Real feature Aug 19 (A8): free-tier access is current-month-only. Unlike
     # classroom-overview's year/month/period shape, this endpoint takes a rolling `days`
@@ -9875,7 +12197,7 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
 
     if user.get("role") == "school_admin":
         real_school_name = school_name or user.get("school_name", "")
-        resolved_schools = [(real_school_name or "My School", _gather_school_pdf_stats(real_school_name, start_date, admin_id=user.get("user_id")))]
+        resolved_schools = [(real_school_name or pdf_t(lang, "sch_my_school"), _gather_school_pdf_stats(real_school_name, start_date, admin_id=user.get("user_id"), lang=lang))]
     else:
         if school_names:
             requested = [s.strip() for s in school_names.split(",") if s.strip()]
@@ -9891,12 +12213,16 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
             requested = sorted({p["school_name"] for p in profiles if p.get("school_name")})
         if not requested:
             requested = ["All Schools"]
-            resolved_schools = [("All Schools", _gather_school_pdf_stats(None, start_date))]
+            resolved_schools = [(pdf_t(lang, "sch_all_schools"), _gather_school_pdf_stats(None, start_date, lang=lang))]
         else:
-            resolved_schools = [(name, _gather_school_pdf_stats(name, start_date)) for name in requested]
+            resolved_schools = [(name, _gather_school_pdf_stats(name, start_date, lang=lang)) for name in requested]
 
     is_multi_school = len(resolved_schools) > 1
-    display_name = resolved_schools[0][0] if not is_multi_school else f"{len(resolved_schools)} Schools"
+    display_name = resolved_schools[0][0] if not is_multi_school else pdf_t(lang, "sch_n_schools", n=len(resolved_schools))
+    # Filename stays English/ASCII-stable regardless of PDF language (Content-Disposition header safety).
+    file_display_name = resolved_schools[0][0] if not is_multi_school else f"{len(resolved_schools)} Schools"
+    if not is_multi_school and resolved_schools[0][0] in (pdf_t(lang, "sch_all_schools"), pdf_t(lang, "sch_my_school")):
+        file_display_name = "All Schools" if resolved_schools[0][0] == pdf_t(lang, "sch_all_schools") else "My School"
 
     # Single-school path keeps the exact original variable names/shape used below.
     if not is_multi_school:
@@ -9932,108 +12258,125 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
     WHITE = colors.white
 
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle('CoHTitle', parent=styles['Heading1'], textColor=INDIGO, fontSize=18, spaceAfter=2)
-    sub_style = ParagraphStyle('CoHSub', parent=styles['Normal'], textColor=GREY, fontSize=10)
-    section_style = ParagraphStyle('CoHSection', parent=styles['Heading2'], textColor=INDIGO, fontSize=13, spaceBefore=14, spaceAfter=8)
+    _FB, _FR = pdf_font(lang, 'Helvetica-Bold'), pdf_font(lang, 'Helvetica')
+    title_style = ParagraphStyle('CoHTitle', parent=styles['Heading1'], textColor=INDIGO, fontSize=18, spaceAfter=2, fontName=_FB, **_pdf_para_kw(lang, 18, 22))
+    sub_style = ParagraphStyle('CoHSub', parent=styles['Normal'], textColor=GREY, fontSize=10, fontName=_FR, **_pdf_para_kw(lang, 10, 12))
+    section_style = ParagraphStyle('CoHSection', parent=styles['Heading2'], textColor=INDIGO, fontSize=13, spaceBefore=14, spaceAfter=8, fontName=_FB, **_pdf_para_kw(lang, 13, 16))
+
+    # Table cells holding free-text names (classrooms, schools, strategies) wrap instead of overflowing into the next column.
+    from xml.sax.saxutils import escape as xml_escape
+    cell_name_style = ParagraphStyle('CoHCellName', parent=styles['Normal'], fontName=_FR, **(_pdf_para_kw(lang, 10, 12) or {'leading': 12}), fontSize=10)
+    cell_name_style_sm = ParagraphStyle('CoHCellNameSm', parent=styles['Normal'], fontName=_FR, **(_pdf_para_kw(lang, 8, 10) or {'leading': 10}), fontSize=8)
+    hdr_style = ParagraphStyle('CoHHdr', parent=styles['Normal'], fontSize=10, textColor=WHITE, fontName=_FB, **_pdf_para_kw(lang, 10, 12))
+    hdr_style_sm = ParagraphStyle('CoHHdrSm', parent=styles['Normal'], fontSize=8, textColor=WHITE, fontName=_FB, **_pdf_para_kw(lang, 8, 10))
+    def _hc(text, st=None):
+        # ru/zh header cells wrap (Paragraph); other languages keep the original plain-string cell.
+        return Paragraph(pdf_safe(xml_escape(str(text)), lang, 'Helvetica-Bold'), st or hdr_style) if lang in ('ru', 'zh') else text
 
     elements = []
     logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_coh.png")
     try:
         if not os.path.exists(logo_path): raise FileNotFoundError()
         coh_logo = RLImage(logo_path, width=44, height=44)
-        logo_cell = Table([[coh_logo, Paragraph("Class of Happiness — School Wellbeing Report", title_style)]],
+        logo_cell = Table([[coh_logo, Paragraph(pdf_t(lang, "sch_title"), title_style)]],
             colWidths=[52, 400],
             style=[('VALIGN',(0,0),(-1,-1),'MIDDLE'),('PADDING',(0,0),(-1,-1),0),('LEFTPADDING',(1,0),(1,0),6)])
         elements.append(logo_cell)
     except Exception:
-        elements.append(Paragraph("Class of Happiness — School Wellbeing Report", title_style))
-    elements.append(Paragraph(f"{display_name} · Last {days} days · Generated {datetime.now(timezone.utc).strftime('%d %b %Y')}", sub_style))
+        elements.append(Paragraph(pdf_t(lang, "sch_title"), title_style))
+    elements.append(Paragraph(pdf_safe(pdf_t(lang, "sch_subtitle", name=display_name, days=days, date=_pdf_fmt_date(datetime.now(timezone.utc), lang)), lang), sub_style))
     elements.append(Spacer(1, 0.4*cm))
     elements.append(HRFlowable(width="100%", color=LIGHT_GREY))
     elements.append(Spacer(1, 0.3*cm))
 
     if not is_multi_school:
-        elements.append(Paragraph("Overview", section_style))
+        elements.append(Paragraph(pdf_t(lang, "sch_overview"), section_style))
         overview_data = [
-            ["Total Check-ins", str(total_checkins)],
-            ["Students", str(len(student_ids))],
-            ["Teachers", str(len(teacher_ids))],
+            [pdf_t(lang, "sch_total_checkins"), str(total_checkins)],
+            [pdf_t(lang, "sch_students"), str(len(student_ids))],
+            [pdf_t(lang, "sch_teachers"), str(len(teacher_ids))],
         ]
         overview_table = Table(overview_data, colWidths=[8*cm, 8*cm])
         overview_table.setStyle(TableStyle([
+            *_pdf_tbl_base(lang),
             ('BACKGROUND', (0,0), (0,-1), colors.HexColor('#F8F9FA')),
             ('TEXTCOLOR', (0,0), (0,-1), GREY),
-            ('FONTNAME', (1,0), (1,-1), 'Helvetica-Bold'),
+            ('FONTNAME', (1,0), (1,-1), pdf_font(lang, 'Helvetica-Bold')),
             ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
             ('PADDING', (0,0), (-1,-1), 8),
         ]))
         elements.append(overview_table)
         elements.append(Spacer(1, 0.4*cm))
 
-        elements.append(Paragraph("Emotion Distribution", section_style))
-        zone_data = [["Emotion", "Count", "%"]]
-        for z, label, c in [("blue","Blue Emotions",BLUE_C), ("green","Green Emotions",GREEN_C), ("yellow","Yellow Emotions",YELLOW_C), ("red","Red Emotions",RED_C)]:
+        elements.append(Paragraph(pdf_t(lang, "sch_emotion_dist"), section_style))
+        zone_data = [[_hc(pdf_t(lang, "sch_emotion_col")), _hc(pdf_t(lang, "sch_count")), _hc("%")]]
+        for z, c in [("blue",BLUE_C), ("green",GREEN_C), ("yellow",YELLOW_C), ("red",RED_C)]:
+            label = pdf_t(lang, "sch_emotions_label", colour=COLOUR[z])
             pct = round(100*zone_counts[z]/total_checkins) if total_checkins else 0
             zone_data.append([label, str(zone_counts[z]), f"{pct}%"])
         zone_table = Table(zone_data, colWidths=[6*cm, 5*cm, 5*cm])
         zone_table.setStyle(TableStyle([
+            *_pdf_tbl_base(lang),
             ('BACKGROUND', (0,0), (-1,0), INDIGO),
             ('TEXTCOLOR', (0,0), (-1,0), WHITE),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTNAME', (0,0), (-1,0), pdf_font(lang, 'Helvetica-Bold')),
             ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
             ('PADDING', (0,0), (-1,-1), 6),
         ]))
         elements.append(zone_table)
         elements.append(Spacer(1, 0.4*cm))
 
-        elements.append(Paragraph("Top Strategies Used", section_style))
+        elements.append(Paragraph(pdf_t(lang, "sch_top_strategies"), section_style))
         if top_strategies:
-            strat_data = [["Strategy", "Uses"]] + [[name, str(count)] for name, count in top_strategies]
+            strat_data = [[_hc(pdf_t(lang, "sch_strategy")), _hc(pdf_t(lang, "sch_uses"))]] + [[Paragraph(pdf_safe(xml_escape(str(name)), lang), cell_name_style), str(count)] for name, count in top_strategies]
             strat_table = Table(strat_data, colWidths=[10*cm, 6*cm])
             strat_table.setStyle(TableStyle([
+            *_pdf_tbl_base(lang),
                 ('BACKGROUND', (0,0), (-1,0), INDIGO),
                 ('TEXTCOLOR', (0,0), (-1,0), WHITE),
-                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('FONTNAME', (0,0), (-1,0), pdf_font(lang, 'Helvetica-Bold')),
                 ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
                 ('PADDING', (0,0), (-1,-1), 6),
             ]))
             elements.append(strat_table)
         else:
-            elements.append(Paragraph("No strategy data for this period.", sub_style))
+            elements.append(Paragraph(pdf_t(lang, "sch_no_strategy_data"), sub_style))
         elements.append(Spacer(1, 0.4*cm))
 
-        elements.append(Paragraph("Class Performance Comparison", section_style))
+        elements.append(Paragraph(pdf_t(lang, "sch_class_perf"), section_style))
         if classroom_breakdown:
-            class_data = [["Class", "Check-ins", "Green", "Blue", "Yellow", "Red"]]
+            class_data = [[_hc(h) for h in [pdf_t(lang, "sch_class"), pdf_t(lang, "sch_checkins"), COLOUR["green"], COLOUR["blue"], COLOUR["yellow"], COLOUR["red"]]]]
             for c in classroom_breakdown:
                 zd = c["zone_distribution"]
-                class_data.append([c["classroom_name"], str(c["checkin_count"]), str(zd["green"]), str(zd["blue"]), str(zd["yellow"]), str(zd["red"])])
+                class_data.append([Paragraph(pdf_safe(xml_escape(str(c["classroom_name"])), lang), cell_name_style), str(c["checkin_count"]), str(zd["green"]), str(zd["blue"]), str(zd["yellow"]), str(zd["red"])])
             # Real fix (fix/pdf-report-pagination): splitByRow=1 + repeatRows=1 so this
             # table can break across a page for a school with many classrooms, instead of
             # demanding it all fit on one page (the original LayoutError cause).
-            class_table = Table(class_data, colWidths=[6*cm, 2.5*cm, 2*cm, 2*cm, 2*cm, 2*cm], repeatRows=1, splitByRow=1)
+            class_table = Table(class_data, colWidths=([4.4*cm, 2.5*cm] + [2.4*cm]*4 if lang == 'ru' else [6*cm, 2.5*cm, 2*cm, 2*cm, 2*cm, 2*cm]), repeatRows=1, splitByRow=1)
             class_table.setStyle(TableStyle([
+            *_pdf_tbl_base(lang),
                 ('BACKGROUND', (0,0), (-1,0), INDIGO),
                 ('TEXTCOLOR', (0,0), (-1,0), WHITE),
-                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('FONTNAME', (0,0), (-1,0), pdf_font(lang, 'Helvetica-Bold')),
                 ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
                 ('PADDING', (0,0), (-1,-1), 6),
             ]))
             elements.append(class_table)
         else:
-            elements.append(Paragraph("No classroom data for this period.", sub_style))
+            elements.append(Paragraph(pdf_t(lang, "sch_no_classroom_data"), sub_style))
         elements.append(Spacer(1, 0.4*cm))
 
-        elements.append(Paragraph("Alerts Summary", section_style))
+        elements.append(Paragraph(pdf_t(lang, "sch_alerts_summary"), section_style))
         alerts_data = [
-            ["Alerts Raised", str(alert_volume)],
-            ["Students in Red This Period", str(students_needing_support)],
+            [pdf_t(lang, "sch_alerts_raised"), str(alert_volume)],
+            [pdf_t(lang, "sch_students_in_red", colour=COLOUR["red"]), str(students_needing_support)],
         ]
         alerts_table = Table(alerts_data, colWidths=[8*cm, 8*cm])
         alerts_table.setStyle(TableStyle([
+            *_pdf_tbl_base(lang),
             ('BACKGROUND', (0,0), (0,-1), colors.HexColor('#F8F9FA')),
             ('TEXTCOLOR', (0,0), (0,-1), GREY),
-            ('FONTNAME', (1,0), (1,-1), 'Helvetica-Bold'),
+            ('FONTNAME', (1,0), (1,-1), pdf_font(lang, 'Helvetica-Bold')),
             ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
             ('PADDING', (0,0), (-1,-1), 8),
         ]))
@@ -10045,9 +12388,9 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
         # that had a real student_id to begin with (enforced in _gather_school_pdf_stats).
         if support_request_summary:
             elements.append(Spacer(1, 0.4*cm))
-            elements.append(Paragraph("Support Requests", section_style))
+            elements.append(Paragraph(pdf_t(lang, "sch_support_requests"), section_style))
             for row in support_request_summary:
-                elements.append(Paragraph(f"{row['student_name']} needed SEND support ×{row['count']} this period.", sub_style))
+                elements.append(Paragraph(pdf_safe(pdf_t(lang, "sch_support_line", student_name=row['student_name'], count=row['count']), lang), sub_style))
     else:
         # Real feature Aug 28 (item 6): multi-school comparison table + a full per-school
         # detail section each - the actual fix for "all schools is too basic", not just a
@@ -10060,59 +12403,65 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
         # in every zone purely from having more overall activity - percentage of that
         # school's own check-ins is the actual apples-to-apples comparison, and matches the
         # same % calculation already used in each school's own detail table below.
-        elements.append(Paragraph("School Comparison", section_style))
-        comp_data = [["School", "Check-ins", "Students", "Teachers", "Blue %", "Green %", "Yellow %", "Red %"]]
+        elements.append(Paragraph(pdf_t(lang, "sch_school_comparison"), section_style))
+        comp_data = [[_hc(h, hdr_style_sm) for h in [pdf_t(lang, "sch_school"), pdf_t(lang, "sch_checkins"), pdf_t(lang, "sch_students"), pdf_t(lang, "sch_teachers"),
+                      pdf_t(lang, "sch_pct_header", colour=COLOUR["blue"]), pdf_t(lang, "sch_pct_header", colour=COLOUR["green"]),
+                      pdf_t(lang, "sch_pct_header", colour=COLOUR["yellow"]), pdf_t(lang, "sch_pct_header", colour=COLOUR["red"])]]]
         for name, stats in resolved_schools:
             zc = stats["zone_counts"]
             tc = stats["total_checkins"]
             def _pct(z):
                 return f"{round(100*zc[z]/tc)}%" if tc else "—"
             comp_data.append([
-                name, str(tc), str(len(stats["student_ids"])), str(len(stats["teacher_ids"])),
+                Paragraph(pdf_safe(xml_escape(str(name)), lang), cell_name_style_sm), str(tc), str(len(stats["student_ids"])), str(len(stats["teacher_ids"])),
                 _pct("blue"), _pct("green"), _pct("yellow"), _pct("red"),
             ])
-        comp_table = Table(comp_data, colWidths=[5.5*cm, 2*cm, 2*cm, 2*cm, 1.2*cm, 1.2*cm, 1.2*cm, 1.2*cm])
+        comp_table = Table(comp_data, colWidths=([3.9*cm, 1.9*cm, 1.9*cm, 1.9*cm] + [2.1*cm]*4 if lang == 'ru' else [5.5*cm, 2*cm, 2*cm, 2*cm, 1.2*cm, 1.2*cm, 1.2*cm, 1.2*cm]))
         comp_table.setStyle(TableStyle([
+            *_pdf_tbl_base(lang),
             ('BACKGROUND', (0,0), (-1,0), INDIGO),
             ('TEXTCOLOR', (0,0), (-1,0), WHITE),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTNAME', (0,0), (-1,0), pdf_font(lang, 'Helvetica-Bold')),
             ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
             ('PADDING', (0,0), (-1,-1), 5),
             ('FONTSIZE', (0,0), (-1,-1), 8),
         ]))
         elements.append(comp_table)
-        elements.append(Paragraph("Percentage of each school's own check-ins by emotion.", sub_style))
+        elements.append(Paragraph(pdf_t(lang, "sch_pct_note"), sub_style))
         elements.append(Spacer(1, 0.5*cm))
 
         for name, stats in resolved_schools:
             elements.append(HRFlowable(width="100%", color=LIGHT_GREY))
-            elements.append(Paragraph(name, section_style))
+            elements.append(Paragraph(pdf_safe(name, lang, 'Helvetica-Bold'), section_style))
             zc, tc = stats["zone_counts"], stats["total_checkins"]
             overview_data = [
-                ["Total Check-ins", str(tc)],
-                ["Students", str(len(stats["student_ids"]))],
-                ["Teachers", str(len(stats["teacher_ids"]))],
+                [pdf_t(lang, "sch_total_checkins"), str(tc)],
+                [pdf_t(lang, "sch_students"), str(len(stats["student_ids"]))],
+                [pdf_t(lang, "sch_teachers"), str(len(stats["teacher_ids"]))],
             ]
             overview_table = Table(overview_data, colWidths=[8*cm, 8*cm])
             overview_table.setStyle(TableStyle([
+            *_pdf_tbl_base(lang),
                 ('BACKGROUND', (0,0), (0,-1), colors.HexColor('#F8F9FA')),
                 ('TEXTCOLOR', (0,0), (0,-1), GREY),
-                ('FONTNAME', (1,0), (1,-1), 'Helvetica-Bold'),
+                ('FONTNAME', (1,0), (1,-1), pdf_font(lang, 'Helvetica-Bold')),
                 ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
                 ('PADDING', (0,0), (-1,-1), 8),
             ]))
             elements.append(overview_table)
             elements.append(Spacer(1, 0.3*cm))
 
-            zone_data = [["Emotion", "Count", "%"]]
-            for z, label in [("blue","Blue Emotions"), ("green","Green Emotions"), ("yellow","Yellow Emotions"), ("red","Red Emotions")]:
+            zone_data = [[_hc(pdf_t(lang, "sch_emotion_col")), _hc(pdf_t(lang, "sch_count")), _hc("%")]]
+            for z in ("blue", "green", "yellow", "red"):
+                label = pdf_t(lang, "sch_emotions_label", colour=COLOUR[z])
                 pct = round(100*zc[z]/tc) if tc else 0
                 zone_data.append([label, str(zc[z]), f"{pct}%"])
             zone_table = Table(zone_data, colWidths=[6*cm, 5*cm, 5*cm])
             zone_table.setStyle(TableStyle([
+            *_pdf_tbl_base(lang),
                 ('BACKGROUND', (0,0), (-1,0), INDIGO),
                 ('TEXTCOLOR', (0,0), (-1,0), WHITE),
-                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('FONTNAME', (0,0), (-1,0), pdf_font(lang, 'Helvetica-Bold')),
                 ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
                 ('PADDING', (0,0), (-1,-1), 6),
             ]))
@@ -10121,18 +12470,19 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
 
             top_strats = stats["top_strategies"]
             if top_strats:
-                strat_data = [["Strategy", "Uses"]] + [[sname, str(count)] for sname, count in top_strats]
+                strat_data = [[_hc(pdf_t(lang, "sch_strategy")), _hc(pdf_t(lang, "sch_uses"))]] + [[Paragraph(pdf_safe(xml_escape(str(sname)), lang), cell_name_style), str(count)] for sname, count in top_strats]
                 strat_table = Table(strat_data, colWidths=[10*cm, 6*cm])
                 strat_table.setStyle(TableStyle([
+            *_pdf_tbl_base(lang),
                     ('BACKGROUND', (0,0), (-1,0), INDIGO),
                     ('TEXTCOLOR', (0,0), (-1,0), WHITE),
-                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('FONTNAME', (0,0), (-1,0), pdf_font(lang, 'Helvetica-Bold')),
                     ('GRID', (0,0), (-1,-1), 0.5, LIGHT_GREY),
                     ('PADDING', (0,0), (-1,-1), 6),
                 ]))
                 elements.append(strat_table)
             else:
-                elements.append(Paragraph("No strategy data for this period.", sub_style))
+                elements.append(Paragraph(pdf_t(lang, "sch_no_strategy_data"), sub_style))
             elements.append(Spacer(1, 0.4*cm))
 
     doc.build(elements)
@@ -10141,15 +12491,15 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
     # name it asked for; every other caller (superadmin app dashboard) keeps the existing
     # CoH_School_Report_... convention unchanged, since this endpoint is shared.
     if user.get("role") == "school_admin":
-        filename = f"Overview_{display_name.replace(' ','_')}_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.pdf"
+        filename = f"Overview_{file_display_name.replace(' ','_')}_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.pdf"
     else:
-        filename = f"CoH_School_Report_{display_name.replace(' ','_')}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.pdf"
+        filename = f"CoH_School_Report_{file_display_name.replace(' ','_')}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.pdf"
     return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
 @api_router.get("/reports/pdf/classroom-overview/{user_id}/month/{year}/{month}")
 async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, request: Request,
-                                            period: str = "1", classroom_id: str = "all", lang: str = "en"):
+                                            period: str = "1", classroom_id: str = "all", lang: str = ""):
     """Generate an overview PDF across a teacher's classrooms. period = '1'|'3'|'6'|'12' months
     ending at year/month. classroom_id = 'all' or a specific classroom id. Matches the same
     visual design as the teacher wellbeing / student PDFs (real ReportLab style constants,
@@ -10163,6 +12513,8 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
     # any other teacher's classroom PDF (real student wellbeing data) just by changing the URL.
     if user_id != user["user_id"] and user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Not authorized to view this report")
+    lang = pdf_lang(lang)
+    COLOUR = PUSH_ZONE_LABELS_BY_LANG.get(lang, PUSH_ZONE_LABELS_BY_LANG["en"])
 
     import io, calendar as cal_mod, os
     from reportlab.lib.pagesizes import A4
@@ -10188,22 +12540,24 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
         _now = datetime.now(timezone.utc)
         if n_months != 1 or (year, month) != (_now.year, _now.month):
             raise HTTPException(status_code=403, detail="Historical reports require an active plan for you or your school. Free access covers the current month only.")
-    buckets = _month_buckets(year, month, n_months)
+    buckets_en = _month_buckets(year, month, n_months)   # English labels: used for the download filename only
+    buckets = _month_buckets(year, month, n_months, lang)
     range_start = datetime(buckets[0][0], buckets[0][1], 1, tzinfo=timezone.utc).isoformat()
     _, last_day_end = cal_mod.monthrange(buckets[-1][0], buckets[-1][1])
     range_end = datetime(buckets[-1][0], buckets[-1][1], last_day_end, 23, 59, 59, tzinfo=timezone.utc).isoformat()
     period_label = buckets[0][2] if n_months == 1 else (buckets[0][2] + " – " + buckets[-1][2])
+    period_label_en = buckets_en[0][2] if n_months == 1 else (buckets_en[0][2] + " – " + buckets_en[-1][2])
 
     owner_id = user_id
     classrooms_result = supabase.table("classrooms").select("id,name").eq("user_id", owner_id).execute()
     classrooms = classrooms_result.data or []
-    classroom_names = {c["id"]: c.get("name", "Class") for c in classrooms}
+    classroom_names = {c["id"]: c.get("name") or pdf_t(lang, "cls_class_fallback") for c in classrooms}
     if classroom_id and classroom_id != "all":
         owned_classroom_ids = [classroom_id] if classroom_id in classroom_names else []
-        classroom_scope_label = classroom_names.get(classroom_id, "Selected Classroom")
+        classroom_scope_label = classroom_names.get(classroom_id) or pdf_t(lang, "cls_selected_classroom")
     else:
         owned_classroom_ids = list(classroom_names.keys())
-        classroom_scope_label = "All Classrooms"
+        classroom_scope_label = pdf_t(lang, "cls_all_classrooms")
 
     students_result = supabase.table("students").select("id,name,classroom_id").in_("classroom_id", owned_classroom_ids).execute() if owned_classroom_ids else type("R", (), {"data": []})()
     students_by_id = {s["id"]: s for s in (students_result.data or [])}
@@ -10219,7 +12573,13 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
         "r1":"Freeze","r2":"Big Breaths","r3":"Count Backwards","r4":"Safe Space","r5":"Ask for Help","r6":"Self Hug",
     }
     def resolve_strat(sid):
-        return STRAT_NAMES_LOCAL.get(sid, sid.replace("_"," ").title() if sid else "")
+        if not sid:
+            return ""
+        if lang != "en" and sid in STRATEGY_MAPS_BY_LANG.get(lang, {}):
+            return STRATEGY_MAPS_BY_LANG[lang][sid]
+        if sid in STRAT_NAMES_LOCAL:
+            return STRAT_NAMES_LOCAL[sid]
+        return resolve_strategy_name(sid, lang)
 
     zone_counts = {"green":0,"blue":0,"yellow":0,"red":0}
     by_classroom = {}
@@ -10234,12 +12594,12 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
         # dict verbatim (comment included) for its "latest check-in" summary per student. See
         # _filter_home_logs_for_staff_viewer's own comment for the full audit.
         student_logs = _filter_home_logs_for_staff_viewer(logs_r.data or [], sid, user)
-        cls_name = classroom_names.get(s.get("classroom_id"), "Unassigned")
+        cls_name = classroom_names.get(s.get("classroom_id"), pdf_t(lang, "cls_unassigned"))
         if cls_name not in by_classroom:
             by_classroom[cls_name] = {"green":0,"blue":0,"yellow":0,"red":0,"students":0}
         by_classroom[cls_name]["students"] += 1
         if student_logs:
-            latest_per_student[sid] = {**student_logs[0], "student_name": s.get("name","Student"), "classroom_name": cls_name}
+            latest_per_student[sid] = {**student_logs[0], "student_name": s.get("name") or pdf_t(lang, "cls_student_fallback"), "classroom_name": cls_name}
         for log in student_logs:
             zone = log.get("feeling_colour") or log.get("zone") or ""
             if zone in zone_counts:
@@ -10247,7 +12607,7 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
                 by_classroom[cls_name][zone] += 1
                 try:
                     ts = datetime.fromisoformat(log["timestamp"].replace("Z","+00:00"))
-                    bkey = ts.strftime("%b %Y")
+                    bkey = _pdf_month_year(ts.month, ts.year, lang)
                     if bkey in bucket_zone_counts:
                         bucket_zone_counts[bkey][zone] += 1
                 except Exception as e:
@@ -10271,6 +12631,9 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
     WHITE       = colors.white
 
     def s(name, **kw):
+        kw["fontName"] = pdf_font(lang, kw.get("fontName", "Helvetica"))
+        if lang in ("ru", "zh"):
+            kw.update(_pdf_para_kw(lang, kw.get("fontSize", 10), kw.get("leading")))
         return ParagraphStyle(name, **kw)
     ST_LOGO   = s("Logo",  fontSize=18, textColor=colors.HexColor("#5C6BC0"), fontName="Helvetica-Bold", leading=22)
     ST_H2     = s("H2",    fontSize=12, textColor=INDIGO, fontName="Helvetica-Bold", spaceBefore=8, spaceAfter=4)
@@ -10294,7 +12657,7 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
     except Exception:
         logo_cell = Paragraph("Class of Happiness", ST_LOGO)
 
-    header_data = [[logo_cell, Paragraph(f"<b>Classroom Overview Report</b><br/>{classroom_scope_label} &middot; {period_label}", s("HR", fontSize=10, textColor=INDIGO, fontName="Helvetica-Bold", alignment=2, leading=14))]]
+    header_data = [[logo_cell, Paragraph(pdf_safe(f"<b>{pdf_t(lang, 'cls_title')}</b><br/>{classroom_scope_label} &middot; {period_label}", lang, 'Helvetica-Bold'), s("HR", fontSize=10, textColor=INDIGO, fontName="Helvetica-Bold", alignment=2, leading=14))]]
     header_table = Table(header_data, colWidths=[PAGE_W*0.5, PAGE_W*0.4])
     header_table.setStyle(TableStyle([
         ("BACKGROUND", (0,0), (-1,-1), colors.white),
@@ -10305,16 +12668,16 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
     elements.append(header_table)
     elements.append(Spacer(1, 10))
 
-    elements.append(Paragraph("Summary", ST_H2))
+    elements.append(Paragraph(pdf_t(lang, "cls_summary"), ST_H2))
     summary_rows = [
-        [Paragraph("Teacher", ST_LABEL), Paragraph(display_name, ST_VALUE)],
-        [Paragraph("Scope", ST_LABEL), Paragraph(classroom_scope_label, ST_VALUE)],
-        [Paragraph("Period", ST_LABEL), Paragraph(period_label, ST_VALUE)],
-        [Paragraph("Students", ST_LABEL), Paragraph(str(len(students_by_id)), ST_VALUE)],
-        [Paragraph("Total Check-ins", ST_LABEL), Paragraph(str(total), ST_VALUE)],
+        [Paragraph(pdf_t(lang, "cls_teacher"), ST_LABEL), Paragraph(pdf_safe(display_name, lang, 'Helvetica-Bold'), ST_VALUE)],
+        [Paragraph(pdf_t(lang, "cls_scope"), ST_LABEL), Paragraph(pdf_safe(classroom_scope_label, lang, 'Helvetica-Bold'), ST_VALUE)],
+        [Paragraph(pdf_t(lang, "cls_period"), ST_LABEL), Paragraph(period_label, ST_VALUE)],
+        [Paragraph(pdf_t(lang, "cls_students"), ST_LABEL), Paragraph(str(len(students_by_id)), ST_VALUE)],
+        [Paragraph(pdf_t(lang, "cls_total_checkins"), ST_LABEL), Paragraph(str(total), ST_VALUE)],
     ]
     if needs_attention:
-        summary_rows.append([Paragraph("Currently Need Support", ST_LABEL), Paragraph(str(len(needs_attention)), ST_ALERT)])
+        summary_rows.append([Paragraph(pdf_t(lang, "cls_currently_need_support"), ST_LABEL), Paragraph(str(len(needs_attention)), ST_ALERT)])
     summary_table = Table(summary_rows, colWidths=[150, PAGE_W - 150 - 72])
     summary_table.setStyle(TableStyle([
         ("ROWBACKGROUNDS", (0,0), (-1,-1), [WHITE, LIGHT]),
@@ -10325,7 +12688,7 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
     elements.append(Spacer(1, 10))
 
     if n_months > 1:
-        elements.append(Paragraph("Emotion Trend Over Time", ST_H2))
+        elements.append(Paragraph(pdf_t(lang, "cls_trend"), ST_H2))
         bucket_labels = [b[2] for b in buckets]
         g = [bucket_zone_counts[l]["green"] for l in bucket_labels]
         b_ = [bucket_zone_counts[l]["blue"] for l in bucket_labels]
@@ -10345,31 +12708,34 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
         lp.lines[3].strokeColor = RED_C; lp.lines[3].strokeWidth = 2
         lp.xValueAxis.valueMin = 0
         lp.xValueAxis.valueMax = max(1, len(bucket_labels)-1)
-        lp.xValueAxis.valueSteps = list(range(len(bucket_labels)))
+        # 12-month view: labelling every month overlaps (e.g. 'Janv. 2026Févr. 2026'), so label every 2nd one beyond 6.
+        lp.xValueAxis.valueSteps = list(range(0, len(bucket_labels), 2 if len(bucket_labels) > 6 else 1))
+        lp.xValueAxis.labels.fontName = pdf_font(lang, "Helvetica"); lp.xValueAxis.labels.fontSize = 8
+        lp.yValueAxis.labels.fontName = pdf_font(lang, "Helvetica"); lp.yValueAxis.labels.fontSize = 8
         lp.xValueAxis.labelTextFormat = lambda x, _labels=bucket_labels: _labels[int(x)] if 0<=int(x)<len(_labels) else ''
         lp.yValueAxis.valueMin = 0
         lp.yValueAxis.valueMax = max_val + 2
         drawing.add(lp)
         legend_y = 175
-        for i, (lbl, col) in enumerate([("Green",GREEN_C),("Blue",BLUE_C),("Yellow",YELLOW_C),("Red",RED_C)]):
+        for i, (lbl, col) in enumerate([(COLOUR["green"],GREEN_C),(COLOUR["blue"],BLUE_C),(COLOUR["yellow"],YELLOW_C),(COLOUR["red"],RED_C)]):
             lx = 35 + i * 110
-            drawing.add(String(lx, legend_y, "—", fontSize=11, fillColor=col, fontName="Helvetica-Bold"))
-            drawing.add(String(lx+12, legend_y, lbl, fontSize=8, fillColor=GREY))
+            drawing.add(String(lx, legend_y, "—", fontSize=11, fillColor=col, fontName=pdf_font(lang, "Helvetica-Bold")))
+            drawing.add(String(lx+12, legend_y, lbl, fontSize=8, fillColor=GREY, fontName=pdf_font(lang, "Helvetica")))
         elements.append(drawing)
         elements.append(Spacer(1, 6))
 
     if by_classroom and (classroom_id == "all" or len(by_classroom) > 1):
-        elements.append(Paragraph("By Classroom", ST_H2))
-        rows = [[Paragraph(h, ST_LABEL) for h in ["Classroom","Students","Green","Blue","Yellow","Red"]]]
+        elements.append(Paragraph(pdf_t(lang, "cls_by_classroom"), ST_H2))
+        rows = [[Paragraph(h, ST_LABEL) for h in [pdf_t(lang, "cls_classroom"), pdf_t(lang, "cls_students"), COLOUR["green"], COLOUR["blue"], COLOUR["yellow"], COLOUR["red"]]]]
         for cls, d in by_classroom.items():
             rows.append([
-                Paragraph(cls, ST_VALUE), Paragraph(str(d["students"]), ST_VALUE),
+                Paragraph(pdf_safe(cls, lang, 'Helvetica-Bold'), ST_VALUE), Paragraph(str(d["students"]), ST_VALUE),
                 Paragraph(str(d["green"]), s("G",fontSize=9,textColor=GREEN_C,fontName="Helvetica-Bold")),
                 Paragraph(str(d["blue"]), s("B",fontSize=9,textColor=BLUE_C,fontName="Helvetica-Bold")),
                 Paragraph(str(d["yellow"]), s("Y",fontSize=9,textColor=colors.HexColor("#F57F17"),fontName="Helvetica-Bold")),
                 Paragraph(str(d["red"]), s("R",fontSize=9,textColor=RED_C,fontName="Helvetica-Bold")),
             ])
-        cls_table = Table(rows, colWidths=[(PAGE_W-72)*0.34]+[(PAGE_W-72)*0.132]*5)
+        cls_table = Table(rows, colWidths=[(PAGE_W-72)*0.34]+[(PAGE_W-72)*0.132]*5, repeatRows=1)
         cls_table.setStyle(TableStyle([
             ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#E8EAF6")),
             ("ROWBACKGROUNDS", (0,1), (-1,-1), [WHITE, LIGHT]),
@@ -10380,17 +12746,17 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
         elements.append(Spacer(1, 10))
 
     if needs_attention:
-        elements.append(Paragraph("Needs Attention", ST_H2))
-        na_rows = [[Paragraph(h, ST_LABEL) for h in ["Student","Classroom","Last Check-in"]]]
+        elements.append(Paragraph(pdf_t(lang, "cls_needs_attention"), ST_H2))
+        na_rows = [[Paragraph(h, ST_LABEL) for h in [pdf_t(lang, "cls_student"), pdf_t(lang, "cls_classroom"), pdf_t(lang, "cls_last_checkin")]]]
         for v in needs_attention[:20]:
             when = ""
             if v.get("timestamp"):
                 try:
-                    when = datetime.fromisoformat(v["timestamp"].replace("Z","+00:00")).strftime("%d %b, %H:%M")
+                    when = _pdf_fmt_date(datetime.fromisoformat(v["timestamp"].replace("Z","+00:00")), lang, with_year=False, with_time=True)
                 except Exception as e:
                     logger.debug(f"[pdf-needs-attention-date] malformed timestamp: {e}")
-            na_rows.append([Paragraph(v.get("student_name","Student"), ST_VALUE), Paragraph(v.get("classroom_name",""), ST_VALUE), Paragraph(when, ST_SMALL)])
-        na_table = Table(na_rows, colWidths=[(PAGE_W-72)*0.4,(PAGE_W-72)*0.35,(PAGE_W-72)*0.25])
+            na_rows.append([Paragraph(pdf_safe(v.get("student_name") or pdf_t(lang, "cls_student_fallback"), lang, 'Helvetica-Bold'), ST_VALUE), Paragraph(pdf_safe(v.get("classroom_name",""), lang, 'Helvetica-Bold'), ST_VALUE), Paragraph(when, ST_SMALL)])
+        na_table = Table(na_rows, colWidths=[(PAGE_W-72)*0.4,(PAGE_W-72)*0.35,(PAGE_W-72)*0.25], repeatRows=1)
         na_table.setStyle(TableStyle([
             ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#FFEBEE")),
             ("ROWBACKGROUNDS", (0,1), (-1,-1), [WHITE, colors.HexColor("#FFF5F5")]),
@@ -10401,11 +12767,11 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
         elements.append(Spacer(1, 10))
 
     if top_strategies:
-        elements.append(Paragraph("Most Used Strategies", ST_H2))
-        strat_rows = [[Paragraph(h, ST_LABEL) for h in ["Strategy","Times Used"]]]
+        elements.append(Paragraph(pdf_t(lang, "cls_most_used_strategies"), ST_H2))
+        strat_rows = [[Paragraph(h, ST_LABEL) for h in [pdf_t(lang, "cls_strategy"), pdf_t(lang, "cls_times_used")]]]
         for name, count in top_strategies:
-            strat_rows.append([Paragraph(name, ST_VALUE), Paragraph(str(count), ST_VALUE)])
-        strat_table = Table(strat_rows, colWidths=[(PAGE_W-72)*0.7,(PAGE_W-72)*0.3])
+            strat_rows.append([Paragraph(pdf_safe(name, lang, 'Helvetica-Bold'), ST_VALUE), Paragraph(str(count), ST_VALUE)])
+        strat_table = Table(strat_rows, colWidths=[(PAGE_W-72)*0.7,(PAGE_W-72)*0.3], repeatRows=1)
         strat_table.setStyle(TableStyle([
             ("BACKGROUND", (0,0), (-1,0), LIGHT),
             ("ROWBACKGROUNDS", (0,1), (-1,-1), [WHITE, LIGHT]),
@@ -10415,12 +12781,12 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
         elements.append(strat_table)
 
     elements.append(Spacer(1, 16))
-    elements.append(Paragraph("Class of Happiness — Emotional wellbeing, made simple.", ST_SMALL))
+    elements.append(Paragraph(pdf_t(lang, "cls_footer"), ST_SMALL))
 
     doc.build(elements)
     buffer.seek(0)
     return StreamingResponse(buffer, media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="classroom-overview-{period_label.replace(" ","-").replace(chr(8211),"to")}.pdf"'})
+        headers={"Content-Disposition": f'attachment; filename="classroom-overview-{period_label_en.replace(" ","-").replace(chr(8211),"to")}.pdf"'})
 
 @api_router.get("/subscription/status")
 async def get_subscription_status(request: Request):
@@ -15317,7 +17683,7 @@ async def get_superadmin_school_analytics(school_admin_id: str, request: Request
         classroom_id=classroom_id,
     )
 
-def _school_analytics_metric_rows(d: dict) -> list:
+def _school_analytics_metric_rows(d: dict, lang: str = "") -> list:
     """Flattens a _compute_school_admin_analytics result into the same label/value pairs
     the portal's per-school card already shows (renderSchoolAnalyticsHTML) - shared by both
     the single-school PDF export and the cross-school comparison export below, so the two
@@ -15334,26 +17700,28 @@ def _school_analytics_metric_rows(d: dict) -> list:
     # would have rendered the literal string "None%" in this PDF instead of an honest "—".
     suppressed = bool(d.get("teacher_wellbeing_suppressed"))
     tzd = {} if suppressed else (d.get("teacher_zone_distribution") or {})
-    teacher_rate_cell = "— (fewer than 3 teachers opted in)" if suppressed else f"{d.get('teacher_checkin_rate') or 0}%"
+    lang = pdf_lang(lang)
+    CL = PUSH_ZONE_LABELS_BY_LANG.get(lang, PUSH_ZONE_LABELS_BY_LANG["en"])
+    teacher_rate_cell = pdf_t(lang, "ana_teachers_suppressed") if suppressed else f"{d.get('teacher_checkin_rate') or 0}%"
     return [
-        ("Students", d.get("total_students", 0)),
-        ("Teachers", d.get("total_teachers", 0)),
-        (f"Check-ins ({d.get('period_days', 30)}d)", d.get("total_checkins", 0)),
-        ("Student Mood - Blue", zone_pct(zd, "blue")),
-        ("Student Mood - Green", zone_pct(zd, "green")),
-        ("Student Mood - Yellow", zone_pct(zd, "yellow")),
-        ("Student Mood - Red", zone_pct(zd, "red")),
-        ("Teachers Opted Into Wellbeing Sharing", d.get("teacher_opted_in_count", 0)),
-        ("Teacher Check-in Rate", teacher_rate_cell),
-        ("Teacher Mood - Blue", "—" if suppressed else zone_pct(tzd, "blue")),
-        ("Teacher Mood - Green", "—" if suppressed else zone_pct(tzd, "green")),
-        ("Teacher Mood - Yellow", "—" if suppressed else zone_pct(tzd, "yellow")),
-        ("Teacher Mood - Red", "—" if suppressed else zone_pct(tzd, "red")),
-        ("Home Check-ins", d.get("home_checkins_total", 0)),
-        ("Linked Families", d.get("linked_families", 0)),
-        ("Creatures Obtained", d.get("creatures_obtained", 0)),
-        ("Creatures Fully Evolved", d.get("creatures_fully_evolved", 0)),
-        ("Avg. Default-Creature Stage", d.get("default_creatures_avg_stage", 0)),
+        (pdf_t(lang, "ana_students"), d.get("total_students", 0)),
+        (pdf_t(lang, "ana_teachers"), d.get("total_teachers", 0)),
+        (pdf_t(lang, "ana_checkins_period", n=d.get('period_days', 30)), d.get("total_checkins", 0)),
+        (pdf_t(lang, "ana_student_mood", color=CL["blue"]), zone_pct(zd, "blue")),
+        (pdf_t(lang, "ana_student_mood", color=CL["green"]), zone_pct(zd, "green")),
+        (pdf_t(lang, "ana_student_mood", color=CL["yellow"]), zone_pct(zd, "yellow")),
+        (pdf_t(lang, "ana_student_mood", color=CL["red"]), zone_pct(zd, "red")),
+        (pdf_t(lang, "ana_teachers_opted_in"), d.get("teacher_opted_in_count", 0)),
+        (pdf_t(lang, "ana_teacher_checkin_rate"), teacher_rate_cell),
+        (pdf_t(lang, "ana_teacher_mood", color=CL["blue"]), "—" if suppressed else zone_pct(tzd, "blue")),
+        (pdf_t(lang, "ana_teacher_mood", color=CL["green"]), "—" if suppressed else zone_pct(tzd, "green")),
+        (pdf_t(lang, "ana_teacher_mood", color=CL["yellow"]), "—" if suppressed else zone_pct(tzd, "yellow")),
+        (pdf_t(lang, "ana_teacher_mood", color=CL["red"]), "—" if suppressed else zone_pct(tzd, "red")),
+        (pdf_t(lang, "ana_home_checkins"), d.get("home_checkins_total", 0)),
+        (pdf_t(lang, "ana_linked_families"), d.get("linked_families", 0)),
+        (pdf_t(lang, "ana_creatures_obtained"), d.get("creatures_obtained", 0)),
+        (pdf_t(lang, "ana_creatures_evolved"), d.get("creatures_fully_evolved", 0)),
+        (pdf_t(lang, "ana_avg_default_stage"), d.get("default_creatures_avg_stage", 0)),
     ]
 
 async def _resolve_school_admin_analytics(school_admin_id: str, period: int, classroom_id: str = None) -> tuple:
@@ -15371,7 +17739,7 @@ async def _resolve_school_admin_analytics(school_admin_id: str, period: int, cla
     return school_name, d
 
 @api_router.get("/admin/school-analytics/{school_admin_id}/pdf")
-async def export_school_analytics_pdf(school_admin_id: str, request: Request, period: int = 30, format: str = "pdf"):
+async def export_school_analytics_pdf(school_admin_id: str, request: Request, period: int = 30, format: str = "pdf", lang: str = ""):
     """Real feature Sep 20 (analytics extension 2b): single-school PDF export of the same
     7-metric snapshot the portal's per-school card shows. Deliberately reuses the generic
     _build_export_response/_export_to_pdf machinery (indigo branding, repeatRows table)
@@ -15380,13 +17748,14 @@ async def export_school_analytics_pdf(school_admin_id: str, request: Request, pe
     user = await get_current_user(request)
     if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
+    lang = pdf_lang(lang)
     school_name, d = await _resolve_school_admin_analytics(school_admin_id, period)
-    rows = [{"metric": label, "value": value} for label, value in _school_analytics_metric_rows(d)]
-    columns = [("metric", "Metric"), ("value", "Value")]
+    rows = [{"metric": label, "value": value} for label, value in _school_analytics_metric_rows(d, lang)]
+    columns = [("metric", pdf_t(lang, "ana_metric")), ("value", pdf_t(lang, "ana_value"))]
     safe_name = re.sub(r"[^A-Za-z0-9_-]+", "_", school_name).strip("_") or "school"
-    return _build_export_response(format, f"{school_name} - Analytics Snapshot", columns, rows, f"{safe_name}_analytics")
+    return _build_export_response(format, pdf_t(lang, "ana_snapshot_title", school=school_name), columns, rows, f"{safe_name}_analytics", lang)
 
-async def _gather_school_comparison_data(school_admin_ids: str, period: int) -> list:
+async def _gather_school_comparison_data(school_admin_ids: str, period: int, lang: str = "") -> list:
     ids = [s.strip() for s in school_admin_ids.split(",") if s.strip()]
     if len(ids) < 2:
         raise HTTPException(status_code=400, detail="Select at least 2 schools to compare")
@@ -15406,7 +17775,7 @@ async def _gather_school_comparison_data(school_admin_ids: str, period: int) -> 
             logger.warning(f"[school-comparison] failed to resolve {sid}: {result}")
             continue
         name, d = result
-        school_data.append((sid, name, _school_analytics_metric_rows(d)))
+        school_data.append((sid, name, _school_analytics_metric_rows(d, lang)))
     if len(school_data) < 2:
         raise HTTPException(status_code=404, detail="Not enough valid schools found to compare")
     return school_data
@@ -15430,24 +17799,25 @@ async def get_school_analytics_comparison(request: Request, school_admin_ids: st
     }
 
 @api_router.get("/admin/school-analytics-comparison/pdf")
-async def export_school_analytics_comparison_pdf(request: Request, school_admin_ids: str, period: int = 30, format: str = "pdf"):
+async def export_school_analytics_comparison_pdf(request: Request, school_admin_ids: str, period: int = 30, format: str = "pdf", lang: str = ""):
     """PDF twin of get_school_analytics_comparison - same rows=metrics/columns=schools
     table shape, via the generic _build_export_response so branding matches every other
     export in the app."""
     user = await get_current_user(request)
     if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
-    school_data = await _gather_school_comparison_data(school_admin_ids, period)
+    lang = pdf_lang(lang)
+    school_data = await _gather_school_comparison_data(school_admin_ids, period, lang)
     metric_labels = [label for label, _ in school_data[0][2]]
-    columns = [("metric", "Metric")] + [(f"school_{i}", name) for i, (_, name, _) in enumerate(school_data)]
+    columns = [("metric", pdf_t(lang, "ana_metric"))] + [(f"school_{i}", name) for i, (_, name, _) in enumerate(school_data)]
     rows = []
     for label in metric_labels:
         row = {"metric": label}
         for i, (_, _, metrics) in enumerate(school_data):
             row[f"school_{i}"] = dict(metrics).get(label, "")
         rows.append(row)
-    title = f"School Comparison - {len(school_data)} Schools"
-    return _build_export_response(format, title, columns, rows, f"school_comparison_{len(school_data)}")
+    title = pdf_t(lang, "ana_comparison_title", n=len(school_data))
+    return _build_export_response(format, title, columns, rows, f"school_comparison_{len(school_data)}", lang)
 
 @api_router.get("/school-admin/users")
 async def get_school_admin_users(request: Request, limit: int = 200):
@@ -16319,17 +18689,28 @@ _EXPORT_MEDIA_TYPES = {
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
 
-def _export_cell_value(row: dict, key: str):
+_EXPORT_MONTH_ABBR = {
+    "en": ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+    "pt": ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"],
+    "es": ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"],
+    "fr": ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."],
+    "de": ["Jan.","Feb.","März","Apr.","Mai","Juni","Juli","Aug.","Sep.","Okt.","Nov.","Dez."],
+    "it": ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"],
+    "ru": ["янв.","февр.","март","апр.","май","июнь","июль","авг.","сент.","окт.","нояб.","дек."],
+    "zh": ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"],
+}
+
+def _export_cell_value(row: dict, key: str, lang: str = ""):
     val = row.get(key, "")
     if isinstance(val, list):
         return ", ".join(str(v) for v in val)
     if val is None:
         return ""
     if isinstance(val, bool):
-        return "Yes" if val else "No"
+        return pdf_t(lang, "exp_yes") if val else pdf_t(lang, "exp_no")
     return val
 
-def _export_to_pdf(title: str, columns: list, rows: list) -> bytes:
+def _export_to_pdf(title: str, columns: list, rows: list, lang: str = "") -> bytes:
     """Real fix Sep 20 (Jono correction): this was the only PDF-producing path in the file
     with no logo/header/footer branding at all - a bare title + table, while every other
     real PDF (student reports, school-overview, classroom-overview, pathway summary) uses
@@ -16339,39 +18720,85 @@ def _export_to_pdf(title: str, columns: list, rows: list) -> bytes:
     every current _build_export_response caller (wellbeing-tracker export, the single-
     school analytics PDF, and the school comparison PDF) - fixing it here fixes all three."""
     from reportlab.platypus import Image as RLImage, HRFlowable
+    import math
+    lang = pdf_lang(lang)
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=letter, topMargin=0.6*inch, bottomMargin=0.6*inch, leftMargin=0.5*inch, rightMargin=0.5*inch)
+    # Explicit column widths: without them ReportLab sized a wide table (8-10 columns of free
+    # text) so badly on long values that one cell became taller than a page and the build died
+    # with a LayoutError. Each column gets at least the width of its longest header/cell word
+    # (so words are not cut mid-word), the rest is shared by typical content length; if even
+    # the minimums do not fit portrait, the page goes landscape.
+    from reportlab.pdfbase.pdfmetrics import stringWidth as _sw_raw
+    _fb = pdf_font(lang, 'Helvetica')
+    def _sw(w, _face, _size):
+        # width measured with the font(s) that will really draw the text (Noto for ru/zh and for
+        # Cyrillic/CJK names in any language), not always Helvetica; Helvetica-only text is unchanged
+        if all(ord(c) < 128 for c in w):
+            return _sw_raw(w, _fb, _size)
+        return sum(_sw_raw(c, (_pdf_char_font(c, _fb) or _fb), _size) for c in w)
+    _cjk = (lang == 'zh')
+    _lead = (lambda fs, ld: max(ld, math.ceil(fs * 1.3))) if lang in ('ru', 'zh') else (lambda fs, ld: ld)
+    _cw_final = None
+    _page = letter
+    if rows:
+        _mins, _wts = [], []
+        for _key, _label in columns:
+            _vals = [str(_export_cell_value(r, _key, lang)) for r in rows]
+            _lw = max([_sw(w, 'Helvetica', 8) for w in str(_label).split()] or [0])
+            _vw = max([_sw(w, 'Helvetica', 8) for v in _vals for w in (v.split() + [x.strip() for x in re.split(r'[^\x00-\u02ff]+', v) if len(x.strip()) <= 30] if _cjk else v.split())] or [0])
+            _mins.append(max(_lw, min(_vw, 64)) + 14)
+            _lens = sorted(len(v) for v in _vals)
+            _wts.append(max(8, len(str(_label)) * 0.6, _lens[int(len(_lens) * 0.75)] ** 0.75))
+        _avail = letter[0] - 1.0 * inch
+        if sum(_mins) > _avail:
+            _page = (letter[1], letter[0])
+            _avail = _page[0] - 1.0 * inch
+        if sum(_mins) >= _avail:
+            _cw_final = [m * _avail / sum(_mins) for m in _mins]
+        else:
+            _extra = _avail - sum(_mins)
+            _cw_final = [m + _extra * w / sum(_wts) for m, w in zip(_mins, _wts)]
+    doc = SimpleDocTemplate(buf, pagesize=_page, topMargin=0.6*inch, bottomMargin=0.6*inch, leftMargin=0.5*inch, rightMargin=0.5*inch)
     styles = getSampleStyleSheet()
-    cell_style = ParagraphStyle('ExportCell', parent=styles['Normal'], fontSize=8, leading=10)
-    title_style = ParagraphStyle('ExportTitle', parent=styles['Heading1'], textColor=_EXPORT_INDIGO, fontSize=16, spaceAfter=2)
-    sub_style = ParagraphStyle('ExportSub', parent=styles['Normal'], textColor=colors.HexColor('#666666'), fontSize=10)
-    disc_style = ParagraphStyle('ExportDisc', fontSize=7, textColor=colors.HexColor('#999999'), fontName='Helvetica-Oblique', leading=9)
+    _wrap = 'CJK' if _cjk else 'LTR'
+    cell_style = ParagraphStyle('ExportCell', parent=styles['Normal'], fontName=pdf_font(lang, 'Helvetica'), fontSize=8, leading=_lead(8, 10), wordWrap=_wrap)
+    title_style = ParagraphStyle('ExportTitle', parent=styles['Heading1'], fontName=pdf_font(lang, 'Helvetica-Bold'), textColor=_EXPORT_INDIGO, fontSize=16, leading=_lead(16, 22), spaceAfter=2, wordWrap=_wrap)
+    sub_style = ParagraphStyle('ExportSub', parent=styles['Normal'], fontName=pdf_font(lang, 'Helvetica'), textColor=colors.HexColor('#666666'), fontSize=10, leading=_lead(10, 12), wordWrap=_wrap)
+    disc_style = ParagraphStyle('ExportDisc', fontSize=7, textColor=colors.HexColor('#999999'), fontName=pdf_font(lang, 'Helvetica-Oblique'), leading=_lead(7, 9), wordWrap=_wrap)
+    normal_style = ParagraphStyle('ExportNormal', parent=styles['Normal'], fontName=pdf_font(lang, 'Helvetica'), leading=_lead(10, 12), wordWrap=_wrap)
+    _title_p = pdf_safe(title, lang, 'Helvetica-Bold')
 
     elements = []
     logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_coh.png")
     try:
         if not os.path.exists(logo_path): raise FileNotFoundError()
         coh_logo = RLImage(logo_path, width=44, height=44)
-        logo_cell = Table([[coh_logo, Paragraph(title, title_style)]],
+        logo_cell = Table([[coh_logo, Paragraph(_title_p, title_style)]],
             colWidths=[52, 400],
             style=[('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('PADDING', (0, 0), (-1, -1), 0), ('LEFTPADDING', (1, 0), (1, 0), 6)])
         elements.append(logo_cell)
     except Exception:
-        elements.append(Paragraph(title, title_style))
-    elements.append(Paragraph(f"Generated {datetime.now(timezone.utc).strftime('%d %b %Y')}", sub_style))
+        elements.append(Paragraph(_title_p, title_style))
+    _now = datetime.now(timezone.utc)
+    if lang == 'zh':
+        _date_txt = f"{_now.year}年{_now.month}月{_now.day}日"
+    else:
+        _date_txt = f"{_now.strftime('%d')} {_EXPORT_MONTH_ABBR.get(lang, _EXPORT_MONTH_ABBR['en'])[_now.month - 1]} {_now.strftime('%Y')}"
+    elements.append(Paragraph(pdf_t(lang, "exp_generated", date=_date_txt), sub_style))
     elements.append(Spacer(1, 10))
     elements.append(HRFlowable(width="100%", color=colors.HexColor('#E0E0E0')))
     elements.append(Spacer(1, 10))
     if not rows:
-        elements.append(Paragraph("Nothing to export yet.", styles['Normal']))
+        elements.append(Paragraph(pdf_t(lang, "exp_nothing"), normal_style))
     else:
-        data = [[Paragraph(label, cell_style) for _, label in columns]]
+        data = [[Paragraph(pdf_safe(label, lang), cell_style) for _, label in columns]]
         for row in rows:
-            data.append([Paragraph(str(_export_cell_value(row, key)), cell_style) for key, _ in columns])
+            data.append([Paragraph(pdf_safe(str(_export_cell_value(row, key, lang)), lang), cell_style) for key, _ in columns])
         # Real convention already used elsewhere in this file (Overview PDF's Class
         # Performance/Alerts Summary tables) - repeatRows=1 so the header survives
         # pagination on a long export, same pagination-safety discipline.
-        table = Table(data, repeatRows=1)
+        _cw = _cw_final
+        table = Table(data, colWidths=_cw, repeatRows=1)
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), _EXPORT_INDIGO),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -16381,7 +18808,7 @@ def _export_to_pdf(title: str, columns: list, rows: list) -> bytes:
         ]))
         elements.append(table)
     elements.append(Spacer(1, 14))
-    elements.append(Paragraph("Generated by Class of Happiness (classofhappiness.app).", disc_style))
+    elements.append(Paragraph(pdf_t(lang, "exp_footer"), disc_style))
     doc.build(elements)
     buf.seek(0)
     return buf.read()
@@ -16430,11 +18857,11 @@ def _export_to_docx(title: str, columns: list, rows: list) -> bytes:
     buf.seek(0)
     return buf.read()
 
-def _build_export_response(format: str, title: str, columns: list, rows: list, filename_base: str) -> StreamingResponse:
+def _build_export_response(format: str, title: str, columns: list, rows: list, filename_base: str, lang: str = "") -> StreamingResponse:
     if format not in _EXPORT_MEDIA_TYPES:
         raise HTTPException(status_code=400, detail="format must be pdf, xlsx, or docx")
     builder = {"pdf": _export_to_pdf, "xlsx": _export_to_xlsx, "docx": _export_to_docx}[format]
-    content = builder(title, columns, rows)
+    content = builder(title, columns, rows, lang) if format == "pdf" else builder(title, columns, rows)
     return StreamingResponse(
         io.BytesIO(content),
         media_type=_EXPORT_MEDIA_TYPES[format],
@@ -16442,33 +18869,30 @@ def _build_export_response(format: str, title: str, columns: list, rows: list, f
     )
 
 @api_router.get("/school-admin/wellbeing-tracker/export")
-async def export_wellbeing_tracker(request: Request, format: str = "pdf"):
+async def export_wellbeing_tracker(request: Request, format: str = "pdf", lang: str = ""):
     user = await get_current_user(request)
     if not user or user.get("role") not in ["school_admin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
     _require_feature_access(user, "wellbeing_welfare", "Wellbeing Tracker")
     records = supabase.table("school_wellbeing_tracker").select("*").eq("school_admin_id", user["user_id"]).order("updated_at", desc=True).execute().data or []
-    columns = [
-        ("student_ref", "Student Ref"), ("year_group", "Year Group"), ("tier", "Tier"),
-        ("areas", "Areas"), ("concern_summary", "Concern Summary"), ("action", "Action"),
-        ("delegate", "Delegate"), ("review_date", "Review Date"), ("status", "Status"),
-        ("notes", "Notes"),
-    ]
-    return _build_export_response(format, "Wellbeing Tracker", columns, records, "wellbeing-tracker")
+    lang = pdf_lang(lang)
+    columns = [(k, pdf_t(lang, "exp_" + k)) for k in (
+        "student_ref", "year_group", "tier", "areas", "concern_summary", "action",
+        "delegate", "review_date", "status", "notes")]
+    return _build_export_response(format, pdf_t(lang, "exp_wellbeing_tracker"), columns, records, "wellbeing-tracker", lang)
 
 @api_router.get("/school-admin/services-directory/export")
-async def export_services_directory(request: Request, format: str = "pdf"):
+async def export_services_directory(request: Request, format: str = "pdf", lang: str = ""):
     user = await get_current_user(request)
     if not user or user.get("role") not in ["school_admin"]:
         raise HTTPException(status_code=403, detail="School admin access required")
     _require_feature_access(user, "services_directory", "Services Directory")
     services = supabase.table("school_services_directory").select("*").eq("school_admin_id", user["user_id"]).order("category").execute().data or []
-    columns = [
-        ("category", "Category"), ("service_name", "Service Name"), ("contact_name", "Contact Name"),
-        ("phone", "Phone"), ("email", "Email"), ("address", "Address"),
-        ("is_emergency", "Emergency"), ("notes", "Notes"),
-    ]
-    return _build_export_response(format, "Services Directory", columns, services, "services-directory")
+    lang = pdf_lang(lang)
+    columns = [(k, pdf_t(lang, "exp_" + k)) for k in (
+        "category", "service_name", "contact_name", "phone", "email", "address",
+        "is_emergency", "notes")]
+    return _build_export_response(format, pdf_t(lang, "exp_services_directory"), columns, services, "services-directory", lang)
 
 
 # ── SCHOOL ADMIN CONFIDENTIAL ENDPOINTS ─────────────────────────────────
@@ -17268,7 +19692,7 @@ async def delete_careers_destination(destination_id: str, request: Request):
 
 
 @api_router.get("/careers/reports/pathway-summary/{student_id}")
-async def careers_pathway_summary_pdf(student_id: str, request: Request):
+async def careers_pathway_summary_pdf(student_id: str, request: Request, lang: str = ""):
     """Read-only, printable one-page(ish) pathway summary for a parent/student handout.
     Reuses the exact same ReportLab branding/colours as /reports/pdf/school-overview (real
     INDIGO #5C6BC0 header style already proven there - not the prototype's navy #1A1A2E,
@@ -17279,6 +19703,7 @@ async def careers_pathway_summary_pdf(student_id: str, request: Request):
     splitByRow=0 or wrapping a long table in KeepTogether raises a hard LayoutError once a
     table's real height exceeds one page) so a student with many activities/university
     options still paginates correctly instead of 500ing."""
+    lang = pdf_lang(lang)  # viewer's selected app language; English when missing/unsupported
     user = await get_current_user(request)
     if not user or user.get("role") != "school_admin":
         raise HTTPException(status_code=403, detail="School admin access required")
@@ -17288,7 +19713,7 @@ async def careers_pathway_summary_pdf(student_id: str, request: Request):
     student_r = supabase.table("students").select("id,name").eq("id", student_id).execute()
     if not student_r.data:
         raise HTTPException(status_code=404, detail="Student not found")
-    student_name = student_r.data[0].get("name") or "Student"
+    student_name = student_r.data[0].get("name") or pdf_t(lang, "car_student_default")
     bundle = _fetch_careers_bundle(student_id, user["user_id"])
     profile = bundle["profile"] or {}
 
@@ -17309,16 +19734,37 @@ async def careers_pathway_summary_pdf(student_id: str, request: Request):
     WHITE = colors.white
 
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle('CoHTitle', parent=styles['Heading1'], textColor=INDIGO, fontSize=18, spaceAfter=2)
-    sub_style = ParagraphStyle('CoHSub', parent=styles['Normal'], textColor=GREY, fontSize=10)
-    section_style = ParagraphStyle('CoHSection', parent=styles['Heading2'], textColor=INDIGO, fontSize=13, spaceBefore=14, spaceAfter=8)
-    body_style = ParagraphStyle('CoHBody', parent=styles['Normal'], fontSize=9.5, leading=13)
-    cell_style = ParagraphStyle('CoHCell', parent=styles['Normal'], fontSize=8.5, leading=11)
+    # ru/zh: Noto fonts via pdf_font (other languages keep Helvetica unchanged); leading >= 1.3 x fontSize; zh wraps per character
+    _cx = {"wordWrap": "CJK"} if lang == "zh" else {}
+    def _ld(fs, lead):
+        return max(lead, round(fs * 1.3)) if lang in ("ru", "zh") else lead
+    title_style = ParagraphStyle('CoHTitle', parent=styles['Heading1'], textColor=INDIGO, fontSize=18, spaceAfter=2, fontName=pdf_font(lang, 'Helvetica-Bold'), leading=_ld(18, styles['Heading1'].leading), **_cx)
+    sub_style = ParagraphStyle('CoHSub', parent=styles['Normal'], textColor=GREY, fontSize=10, fontName=pdf_font(lang, 'Helvetica'), leading=_ld(10, styles['Normal'].leading), **_cx)
+    section_style = ParagraphStyle('CoHSection', parent=styles['Heading2'], textColor=INDIGO, fontSize=13, spaceBefore=14, spaceAfter=8, fontName=pdf_font(lang, 'Helvetica-Bold'), leading=_ld(13, styles['Heading2'].leading), **_cx)
+    body_style = ParagraphStyle('CoHBody', parent=styles['Normal'], fontSize=9.5, leading=_ld(9.5, 13), fontName=pdf_font(lang, 'Helvetica'), **_cx)
+    cell_style = ParagraphStyle('CoHCell', parent=styles['Normal'], fontSize=8.5, leading=_ld(8.5, 11), fontName=pdf_font(lang, 'Helvetica'), **_cx)
+    hdr_style = ParagraphStyle('CoHHdr', parent=cell_style, textColor=WHITE)  # header cells sit on INDIGO (were black = hard to read)
+    _S = lambda t, face='Helvetica': pdf_safe(t, lang, face)  # dynamic text: never print boxes
 
-    CURRICULUM_LABELS = {"IGCSE": "IGCSE", "IB": "IB", "A_LEVEL": "A Level", "OTHER": "Other"}
-    CATEGORY_LABELS = {"ASPIRATIONAL": "Aspirational", "MATCH": "Match", "SAFETY": "Safety"}
-    ACTIVITY_LABELS = {"WORK_EXPERIENCE": "Work experience", "VOLUNTEERING": "Volunteering", "CLUB": "Club",
-                        "COMPETITION": "Competition", "LEADERSHIP": "Leadership", "COURSE": "Course", "OTHER": "Other"}
+    CURRICULUM_LABELS = {"IGCSE": "IGCSE", "IB": "IB", "A_LEVEL": pdf_t(lang, "car_curriculum_a_level"), "OTHER": pdf_t(lang, "car_other")}
+    CATEGORY_LABELS = {"ASPIRATIONAL": pdf_t(lang, "car_cat_aspirational"), "MATCH": pdf_t(lang, "car_cat_match"), "SAFETY": pdf_t(lang, "car_cat_safety")}
+    ACTIVITY_LABELS = {"WORK_EXPERIENCE": pdf_t(lang, "car_act_work_experience"), "VOLUNTEERING": pdf_t(lang, "car_act_volunteering"), "CLUB": pdf_t(lang, "car_act_club"),
+                        "COMPETITION": pdf_t(lang, "car_act_competition"), "LEADERSHIP": pdf_t(lang, "car_act_leadership"), "COURSE": pdf_t(lang, "car_act_course"), "OTHER": pdf_t(lang, "car_other")}
+    STATUS_KEYS = {"RESEARCHING": "car_status_researching", "SHORTLISTED": "car_status_shortlisted", "APPLIED": "car_status_applied",
+                   "OFFER": "car_status_offer", "ACCEPTED": "car_status_accepted",
+                   "REJECTED": "car_status_rejected", "DECLINED": "car_status_declined", "WITHDRAWN": "car_status_withdrawn"}
+    _car_months = {
+        "en": ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+        "pt": ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"],
+        "es": ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"],
+        "fr": ["Janv","Févr","Mars","Avr","Mai","Juin","Juil","Août","Sept","Oct","Nov","Déc"],
+        "de": ["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"],
+        "it": ["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"],
+        "ru": ["янв.","февр.","мар.","апр.","мая","июн.","июл.","авг.","сент.","окт.","нояб.","дек."],
+        "zh": ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"],
+    }.get(lang) or ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+    _car_now = datetime.now(timezone.utc)
+    _car_today = f"{_car_now.year}年{_car_now.month}月{_car_now.day}日" if lang == "zh" else f"{_car_now.day:02d} {_car_months[_car_now.month - 1]} {_car_now.year}"
 
     elements = []
     logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_coh.png")
@@ -17326,62 +19772,62 @@ async def careers_pathway_summary_pdf(student_id: str, request: Request):
         if not os.path.exists(logo_path):
             raise FileNotFoundError()
         coh_logo = RLImage(logo_path, width=44, height=44)
-        logo_cell = Table([[coh_logo, Paragraph("Class of Happiness — Pathway Summary", title_style)]],
+        logo_cell = Table([[coh_logo, Paragraph(pdf_t(lang, "car_title"), title_style)]],
             colWidths=[52, 400],
             style=[('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('PADDING', (0, 0), (-1, -1), 0), ('LEFTPADDING', (1, 0), (1, 0), 6)])
         elements.append(logo_cell)
     except Exception:
-        elements.append(Paragraph("Class of Happiness — Pathway Summary", title_style))
+        elements.append(Paragraph(pdf_t(lang, "car_title"), title_style))
     meta_bits = [student_name]
     if profile.get("year_group"):
         meta_bits.append(profile["year_group"])
     if profile.get("curriculum"):
         meta_bits.append(CURRICULUM_LABELS.get(profile["curriculum"], profile["curriculum"]))
-    elements.append(Paragraph(f"{' · '.join(meta_bits)} · Generated {datetime.now(timezone.utc).strftime('%d %b %Y')}", sub_style))
+    elements.append(Paragraph(_S(f"{' · '.join(meta_bits)} · {pdf_t(lang, 'car_generated', date=_car_today)}"), sub_style))
     elements.append(Spacer(1, 0.4 * cm))
     elements.append(HRFlowable(width="100%", color=LIGHT_GREY))
     elements.append(Spacer(1, 0.3 * cm))
 
     # Profile & background - explicitly excludes send_notes (SEND-relevant context is for
     # advisor eyes only, never a printed parent/student handout).
-    elements.append(Paragraph("Profile & Background", section_style))
+    elements.append(Paragraph(pdf_t(lang, "car_profile_background"), section_style))
     profile_lines = []
     if profile.get("first_language"):
-        profile_lines.append(f"<b>First language:</b> {profile['first_language']}")
+        profile_lines.append(f"<b>{pdf_t(lang, 'car_first_language')}</b> " + _S(f"{profile['first_language']}"))
     other_langs = profile.get("other_languages") or []
     if other_langs:
-        profile_lines.append("<b>Other languages:</b> " + ", ".join(
-            f"{l.get('language','')} ({l.get('level','')})" if isinstance(l, dict) else str(l) for l in other_langs))
+        profile_lines.append(f"<b>{pdf_t(lang, 'car_other_languages')}</b> " + ", ".join(
+            _S(f"{l.get('language','')} ({l.get('level','')})" if isinstance(l, dict) else str(l)) for l in other_langs))
     if profile.get("nationality"):
-        profile_lines.append(f"<b>Nationality:</b> {profile['nationality']}")
+        profile_lines.append(f"<b>{pdf_t(lang, 'car_nationality')}</b> " + _S(f"{profile['nationality']}"))
     if profile.get("schooling_history"):
-        profile_lines.append(f"<b>Schooling history:</b> {profile['schooling_history']}")
+        profile_lines.append(f"<b>{pdf_t(lang, 'car_schooling_history')}</b> " + _S(f"{profile['schooling_history']}"))
     if profile.get("strengths"):
-        profile_lines.append(f"<b>Strengths:</b> {profile['strengths']}")
+        profile_lines.append(f"<b>{pdf_t(lang, 'car_strengths')}</b> " + _S(f"{profile['strengths']}"))
     interests = profile.get("interests") or []
     if interests:
-        profile_lines.append("<b>Interests:</b> " + ", ".join(str(i) for i in interests))
+        profile_lines.append(f"<b>{pdf_t(lang, 'car_interests')}</b> " + ", ".join(_S(str(i)) for i in interests))
     if profile_lines:
         for line in profile_lines:
             elements.append(Paragraph(line, body_style))
             elements.append(Spacer(1, 0.1 * cm))
     else:
-        elements.append(Paragraph("No profile details recorded yet.", sub_style))
+        elements.append(Paragraph(pdf_t(lang, "car_no_profile"), sub_style))
     elements.append(Spacer(1, 0.3 * cm))
 
     # Academic progress - latest record per subject only ("latest grades with predicted").
-    elements.append(Paragraph("Latest Grades", section_style))
+    elements.append(Paragraph(pdf_t(lang, "car_latest_grades"), section_style))
     latest_by_subject: dict = {}
     for rec in bundle["academic"]:
         subj = rec.get("subject") or "—"
         if subj not in latest_by_subject or (rec.get("created_at") or "") > (latest_by_subject[subj].get("created_at") or ""):
             latest_by_subject[subj] = rec
     if latest_by_subject:
-        grade_rows = [[Paragraph("<b>Subject</b>", cell_style), Paragraph("<b>Term</b>", cell_style),
-                       Paragraph("<b>Current</b>", cell_style), Paragraph("<b>Predicted</b>", cell_style)]]
+        grade_rows = [[Paragraph(f"<b>{pdf_t(lang, 'car_col_subject')}</b>", hdr_style), Paragraph(f"<b>{pdf_t(lang, 'car_col_term')}</b>", hdr_style),
+                       Paragraph(f"<b>{pdf_t(lang, 'car_col_current')}</b>", hdr_style), Paragraph(f"<b>{pdf_t(lang, 'car_col_predicted')}</b>", hdr_style)]]
         for subj, rec in sorted(latest_by_subject.items()):
-            grade_rows.append([Paragraph(subj, cell_style), Paragraph(rec.get("term_label") or "—", cell_style),
-                                Paragraph(rec.get("grade") or "—", cell_style), Paragraph(rec.get("predicted_grade") or "—", cell_style)])
+            grade_rows.append([Paragraph(_S(subj), cell_style), Paragraph(_S(rec.get("term_label") or "—"), cell_style),
+                                Paragraph(_S(rec.get("grade") or "—"), cell_style), Paragraph(_S(rec.get("predicted_grade") or "—"), cell_style)])
         grade_table = Table(grade_rows, colWidths=[5.5 * cm, 4.5 * cm, 3 * cm, 3 * cm], repeatRows=1, splitByRow=1)
         grade_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), INDIGO), ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
@@ -17390,34 +19836,34 @@ async def careers_pathway_summary_pdf(student_id: str, request: Request):
         ]))
         elements.append(grade_table)
     else:
-        elements.append(Paragraph("No academic records yet.", sub_style))
+        elements.append(Paragraph(pdf_t(lang, "car_no_academic"), sub_style))
     elements.append(Spacer(1, 0.3 * cm))
 
     # Assessments - interpretation text (and categorical primary/secondary/Holland code)
     # only. No raw DISC D/I/S/C or RIASEC numeric scores anywhere in this document.
-    elements.append(Paragraph("Assessment Interpretations", section_style))
+    elements.append(Paragraph(pdf_t(lang, "car_assessment_interpretations"), section_style))
     if bundle["assessments"]:
         for a in bundle["assessments"]:
             result = a.get("result") or {}
-            label = {"DISC": "DISC", "RIASEC": "Careers Questionnaire (RIASEC)",
-                      "CAREERS_QUESTIONNAIRE": "Careers Questionnaire", "OTHER": "Assessment"}.get(a.get("assessment_type"), "Assessment")
+            label = {"DISC": "DISC", "RIASEC": pdf_t(lang, "car_assess_riasec"),
+                      "CAREERS_QUESTIONNAIRE": pdf_t(lang, "car_assess_careers_questionnaire"), "OTHER": pdf_t(lang, "car_assess_other")}.get(a.get("assessment_type"), pdf_t(lang, "car_assess_other"))
             head_bits = [label]
             if a.get("assessment_type") == "DISC" and (result.get("primary") or result.get("secondary")):
-                head_bits.append(f"Primary {result.get('primary','—')} / Secondary {result.get('secondary','—')}")
+                head_bits.append(pdf_t(lang, "car_primary_secondary", primary=result.get('primary','—'), secondary=result.get('secondary','—')))
             if result.get("code"):
-                head_bits.append(f"Code: {result['code']}")
+                head_bits.append(pdf_t(lang, "car_code", code=result['code']))
             if a.get("taken_on"):
                 head_bits.append(str(a["taken_on"]))
-            elements.append(Paragraph(" · ".join(head_bits), ParagraphStyle('AssessHead', parent=body_style, fontName='Helvetica-Bold')))
+            elements.append(Paragraph(_S(" · ".join(head_bits), 'Helvetica-Bold'), ParagraphStyle('AssessHead', parent=body_style, fontName=pdf_font(lang, 'Helvetica-Bold'))))
             if a.get("interpretation"):
-                elements.append(Paragraph(a["interpretation"], body_style))
+                elements.append(Paragraph(_S(a["interpretation"]), body_style))
             elements.append(Spacer(1, 0.2 * cm))
     else:
-        elements.append(Paragraph("No assessments recorded yet.", sub_style))
+        elements.append(Paragraph(pdf_t(lang, "car_no_assessments"), sub_style))
     elements.append(Spacer(1, 0.1 * cm))
 
     # Activities highlights
-    elements.append(Paragraph("Activities & Work Experience", section_style))
+    elements.append(Paragraph(pdf_t(lang, "car_activities_work_experience"), section_style))
     if bundle["activities"]:
         for act in bundle["activities"]:
             dates = " – ".join(d for d in [act.get("start_date"), act.get("end_date")] if d)
@@ -17426,29 +19872,29 @@ async def careers_pathway_summary_pdf(student_id: str, request: Request):
                 bits.append(act["organisation"])
             if dates:
                 bits.append(dates)
-            elements.append(Paragraph(" · ".join(b for b in bits if b), body_style))
+            elements.append(Paragraph(_S(" · ".join(b for b in bits if b)), body_style))
         elements.append(Spacer(1, 0.2 * cm))
     else:
-        elements.append(Paragraph("No activities recorded yet.", sub_style))
+        elements.append(Paragraph(pdf_t(lang, "car_no_activities"), sub_style))
     elements.append(Spacer(1, 0.1 * cm))
 
     # University pathway
-    elements.append(Paragraph("University Pathway", section_style))
+    elements.append(Paragraph(pdf_t(lang, "car_university_pathway"), section_style))
     if bundle["universities"]:
-        uni_rows = [[Paragraph("<b>University</b>", cell_style), Paragraph("<b>Course</b>", cell_style),
-                     Paragraph("<b>Category</b>", cell_style), Paragraph("<b>Status</b>", cell_style),
-                     Paragraph("<b>Entry requirements</b>", cell_style)]]
+        uni_rows = [[Paragraph(f"<b>{pdf_t(lang, 'car_col_university')}</b>", hdr_style), Paragraph(f"<b>{pdf_t(lang, 'car_col_course')}</b>", hdr_style),
+                     Paragraph(f"<b>{pdf_t(lang, 'car_col_category')}</b>", hdr_style), Paragraph(f"<b>{pdf_t(lang, 'car_col_status')}</b>", hdr_style),
+                     Paragraph(f"<b>{pdf_t(lang, 'car_col_entry_requirements')}</b>", hdr_style)]]
         for u in bundle["universities"]:
             name_bits = u.get("university_name") or "—"
             if u.get("country"):
                 name_bits += f" ({u['country']})"
             uni_rows.append([
-                Paragraph(name_bits, cell_style), Paragraph(u.get("course_name") or "—", cell_style),
-                Paragraph(CATEGORY_LABELS.get(u.get("category"), u.get("category") or "—"), cell_style),
-                Paragraph((u.get("status") or "—").replace("_", " ").title(), cell_style),
-                Paragraph(u.get("entry_requirements") or "—", cell_style),
+                Paragraph(_S(name_bits), cell_style), Paragraph(_S(u.get("course_name") or "—"), cell_style),
+                Paragraph(_S(CATEGORY_LABELS.get(u.get("category"), u.get("category") or "—")), cell_style),
+                Paragraph(_S(pdf_t(lang, STATUS_KEYS[str(u.get("status")).upper()]) if str(u.get("status") or "").upper() in STATUS_KEYS else (u.get("status") or "—").replace("_", " ").title()), cell_style),
+                Paragraph(_S(u.get("entry_requirements") or "—"), cell_style),
             ])
-        uni_table = Table(uni_rows, colWidths=[4.2 * cm, 3.5 * cm, 2.3 * cm, 2.3 * cm, 3.7 * cm], repeatRows=1, splitByRow=1)
+        uni_table = Table(uni_rows, colWidths=([3.6 * cm, 3.1 * cm, 3.2 * cm, 3.0 * cm, 5.0 * cm] if lang == "ru" else [3.9 * cm, 3.3 * cm, 2.5 * cm, 3.0 * cm, 5.2 * cm]), repeatRows=1, splitByRow=1)
         uni_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), INDIGO), ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
             ('GRID', (0, 0), (-1, -1), 0.5, LIGHT_GREY), ('PADDING', (0, 0), (-1, -1), 6),
@@ -17456,25 +19902,25 @@ async def careers_pathway_summary_pdf(student_id: str, request: Request):
         ]))
         elements.append(uni_table)
     else:
-        elements.append(Paragraph("No university options recorded yet.", sub_style))
+        elements.append(Paragraph(pdf_t(lang, "car_no_universities"), sub_style))
     elements.append(Spacer(1, 0.3 * cm))
 
     # Next actions - from the latest meeting only.
-    elements.append(Paragraph("Agreed Next Actions", section_style))
+    elements.append(Paragraph(pdf_t(lang, "car_agreed_next_actions"), section_style))
     latest_meeting = bundle["meetings"][0] if bundle["meetings"] else None
     if latest_meeting and (latest_meeting.get("actions") or latest_meeting.get("summary")):
         if latest_meeting.get("met_on"):
-            elements.append(Paragraph(f"From the meeting on {latest_meeting['met_on']}:", ParagraphStyle('MeetHead', parent=body_style, fontName='Helvetica-Bold')))
+            elements.append(Paragraph(_S(pdf_t(lang, "car_from_meeting", date=latest_meeting['met_on']), 'Helvetica-Bold'), ParagraphStyle('MeetHead', parent=body_style, fontName=pdf_font(lang, 'Helvetica-Bold'))))
         if latest_meeting.get("actions"):
-            elements.append(Paragraph(latest_meeting["actions"], body_style))
+            elements.append(Paragraph(_S(latest_meeting["actions"]), body_style))
         elif latest_meeting.get("summary"):
-            elements.append(Paragraph(latest_meeting["summary"], body_style))
+            elements.append(Paragraph(_S(latest_meeting["summary"]), body_style))
     else:
-        elements.append(Paragraph("No guidance meetings logged yet.", sub_style))
+        elements.append(Paragraph(pdf_t(lang, "car_no_meetings"), sub_style))
 
     doc.build(elements)
     buffer.seek(0)
-    safe_name = student_name.replace(" ", "_")
+    safe_name = __import__('unicodedata').normalize('NFKD', student_name).encode('ascii', 'ignore').decode().replace(" ", "_").replace('"', '')  # latin-1-safe header value
     filename = f"PathwaySummary_{safe_name}_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.pdf"
     return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
