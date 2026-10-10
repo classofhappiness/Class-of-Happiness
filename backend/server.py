@@ -3869,6 +3869,14 @@ async def get_helpers(request: Request, feeling_colour: Optional[str] = None, st
                     for h in custom.data:
                         if not feeling_colour or h.get("feeling_colour") == feeling_colour:
                             helpers.append(h)
+                # Oct 10: the student's SCHOOL strategies (school_strategies, type student, matching colour),
+                # only for a caller authorised for this student; fails closed to none.
+                try:
+                    school_admin_id = await asyncio.to_thread(_student_school_admin_id, student_id)
+                    if school_admin_id:
+                        helpers.extend(await asyncio.to_thread(_fetch_school_strategies_sync, [school_admin_id], {"student"}, feeling_colour))
+                except Exception as e:
+                    logger.warning(f"school strategies for student {student_id} skipped: {e}")
         except Exception as e:
             logger.error(f"Error fetching custom helpers: {e}")
 
@@ -6723,6 +6731,14 @@ def resolve_strategy_name(sid: str, lang: str = "en") -> str:
         if bare_id.endswith(suffix):
             bare_id = bare_id[:-len(suffix)]
             break
+    if bare_id.startswith("school_"):
+        # Oct 10: ids of school_strategies rows served as strategy cards ("school_<uuid>")
+        try:
+            ss = supabase.table("school_strategies").select("name").eq("id", bare_id[len("school_"):]).execute()
+            if ss.data and ss.data[0].get("name"):
+                return ss.data[0]["name"]
+        except Exception as e:
+            logger.debug(f"[strategy-name-resolve] school_strategies lookup failed for {bare_id}: {e}")
     try:
         ch = supabase.table("custom_helpers").select("name").eq("id", bare_id).execute()
         if ch.data and ch.data[0].get("name"):
@@ -6781,8 +6797,17 @@ def _batch_resolve_strategy_names(ids: list, lang: str = "en") -> dict:
                 fa_by_id = {r["id"]: r.get("strategy_name") for r in (fa.data or []) if r.get("strategy_name")}
             except Exception as e:
                 logger.debug(f"[strategy-name-resolve] batched family_assigned_strategies lookup failed: {e}")
+        # Oct 10: "school_<uuid>" ids (school_strategies cards)
+        school_ids = [b[len("school_"):] for b in bare_ids if b.startswith("school_") and b not in ch_by_id]
+        ss_by_id: dict = {}
+        if school_ids:
+            try:
+                ss = supabase.table("school_strategies").select("id,name").in_("id", school_ids).execute()
+                ss_by_id = {"school_" + r["id"]: r.get("name") for r in (ss.data or []) if r.get("name")}
+            except Exception as e:
+                logger.debug(f"[strategy-name-resolve] batched school_strategies lookup failed: {e}")
         for sid, bare_id in unresolved_bare.items():
-            result[sid] = ch_by_id.get(bare_id) or fa_by_id.get(bare_id) or str(sid).strip().replace("_", " ").title()
+            result[sid] = ch_by_id.get(bare_id) or fa_by_id.get(bare_id) or ss_by_id.get(bare_id) or str(sid).strip().replace("_", " ").title()
     return result
 
 @api_router.get("/reports/available-months/{student_id}")
@@ -14218,16 +14243,18 @@ async def get_admin_teacher_strategies(request: Request, strategy_type: str = No
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Oct 10: teachers/parents also receive their own school's active school_strategies (source: "school").
+    school_rows = await asyncio.to_thread(_school_strategies_for_user_sync, user, strategy_type)
     query = supabase.table("admin_teacher_strategies").select("*").eq("is_active", True)
     if strategy_type:
         query = query.eq("strategy_type", strategy_type)
     result = query.order("created_at").execute()
     if result.data:
-        return result.data
+        return result.data + school_rows
     # Return defaults if none set (only for teacher — these 5 are teacher-specific fallbacks)
     if strategy_type and strategy_type != "teacher":
-        return []
-    return [
+        return school_rows
+    return school_rows + [
         {"id": "admin_1", "zone": "blue", "name": "Talk to a trusted colleague", "description": "Peer support reduces isolation.", "icon": "chat", "is_builtin": True},
         {"id": "admin_2", "zone": "blue", "name": "Brief outdoor walk", "description": "Light and movement reset the nervous system.", "icon": "directions-walk", "is_builtin": True},
         {"id": "admin_3", "zone": "green", "name": "Positive micro-moment", "description": "Name one student success from today.", "icon": "thumb-up", "is_builtin": True},
@@ -17524,6 +17551,98 @@ def _student_school_admin_id(student_id: str) -> Optional[str]:
     except Exception as e:
         logger.warning(f"_student_school_admin_id resolution failed for {student_id}: {e}")
         return None
+
+# ================== SCHOOL STRATEGY READERS (Oct 10) ==================
+# school_strategies rows (written by POST /school-admin/school-strategies, e.g. from the web portal)
+# were never read by the student, teacher or parent screens. These helpers are the single read path.
+# Everything here fails CLOSED: any error or missing school link means "no school strategies",
+# never an exception to the client, and never another school's rows.
+# type mapping (portal value -> reader type): student -> student; teacher / teacher_checkin -> teacher;
+# parent -> parent. A NULL type is treated as "student" (the POST default). Anything else is ignored.
+_SCHOOL_STRATEGY_TYPE_MAP = {"student": "student", "teacher": "teacher", "teacher_checkin": "teacher", "parent": "parent"}
+
+def _school_strategy_icon(icon) -> str:
+    """The portal may store a MaterialIcons name ('star') or an emoji. The apps render either via
+    StrategyIcon (valid icon name -> icon, anything else -> text), so keep a valid name or a short
+    emoji-ish value as is and fall back to a default emoji for empty/free-text values."""
+    import re as _re
+    v = (icon or "").strip()
+    if not v:
+        return "⭐"
+    if _re.fullmatch(r"[a-z0-9-]+", v):
+        return v
+    if len(v) <= 8 and any(ord(ch) > 127 for ch in v):
+        return v
+    return "⭐"
+
+def _fetch_school_strategies_sync(school_admin_ids: list, wanted_types: set, zone: Optional[str] = None) -> list:
+    try:
+        ids = [i for i in (school_admin_ids or []) if i]
+        if not ids or not wanted_types:
+            return []
+        rows = supabase.table("school_strategies").select(
+            "id,name,description,icon,zone,strategy_type,order_index,created_at,is_active,school_admin_id,school_name"
+        ).in_("school_admin_id", ids).execute().data or []
+        out = []
+        for r in rows:
+            if r.get("is_active") is False or not r.get("name") or r.get("school_admin_id") not in ids:
+                continue
+            mapped = _SCHOOL_STRATEGY_TYPE_MAP.get((r.get("strategy_type") or "student"))
+            if mapped is None or mapped not in wanted_types:
+                continue
+            row_zone = r.get("zone") or "green"
+            if zone and row_zone != zone:
+                continue
+            out.append({
+                "id": f"school_{r['id']}",
+                "name": r.get("name"),
+                "description": r.get("description") or "",
+                "icon": _school_strategy_icon(r.get("icon")),
+                "feeling_colour": row_zone,
+                "zone": row_zone,
+                "strategy_type": mapped,
+                "source": "school",
+                "_o": (r.get("order_index") or 0, r.get("created_at") or ""),
+            })
+        out.sort(key=lambda c: c["_o"])
+        for c in out:
+            c.pop("_o", None)
+        return out
+    except Exception as e:
+        logger.warning(f"school strategies read failed (returning none): {e}")
+        return []
+
+def _school_admin_ids_for_user_sync(user: dict) -> list:
+    """Schools whose strategies this caller may see. teacher -> their own school (users.school_admin_id,
+    same field _teacher_school_admin_id uses); parent -> the schools of their LINKED children only (a
+    family-only parent with no linked school gets none). Other roles (school_admin, superadmin) manage
+    school strategies through /school-admin/school-strategies and get nothing merged here."""
+    try:
+        role = user.get("role")
+        if role == "teacher":
+            sid = _teacher_school_admin_id(user)
+            return [sid] if sid else []
+        if role == "parent":
+            links = supabase.table("parent_links").select("student_id").eq("parent_user_id", user["user_id"]).execute().data or []
+            ids = []
+            for link in links:
+                sid = _student_school_admin_id(link.get("student_id")) if link.get("student_id") else None
+                if sid and sid not in ids:
+                    ids.append(sid)
+            return ids
+    except Exception as e:
+        logger.warning(f"school resolution for user failed (returning none): {e}")
+    return []
+
+def _school_strategies_for_user_sync(user: dict, strategy_type: Optional[str]) -> list:
+    if user.get("role") not in ("teacher", "parent"):
+        return []
+    if strategy_type:
+        mapped = _SCHOOL_STRATEGY_TYPE_MAP.get(strategy_type)
+        wanted = {mapped} if mapped else set()
+    else:
+        wanted = {"student", "teacher", "parent"}
+    return _fetch_school_strategies_sync(_school_admin_ids_for_user_sync(user), wanted)
 
 # ================== ENGAGEMENT ANALYTICS ==================
 @api_router.post("/analytics/log-event")
