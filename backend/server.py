@@ -23024,6 +23024,12 @@ async def get_student_sharing_status(student_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Authorisation gap closed (Oct 10): this endpoint used to check authentication only, so any
+    # logged-in user could read any student's parent-link status and the linked parent's name. Same
+    # check /custom-strategies uses. Outside the try below (its bare except would turn a 403 into the
+    # default 200).
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     try:
         # Check if any parent is linked to this student
         links = supabase.table("parent_links").select("*").eq("student_id", student_id).execute()
@@ -23242,6 +23248,11 @@ async def get_student_all_strategies(student_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Authorisation gap closed (Oct 10): authentication-only before, so any logged-in user could read
+    # any student's school and family-shared strategies. Same check /custom-strategies uses; outside
+    # the try below (its bare except would turn the 403 into an empty 200).
+    if not await _is_authorized_for_student(user, student_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
     try:
         # School strategies - normalize zone/feeling_colour
         try:
