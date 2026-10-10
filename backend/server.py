@@ -11141,8 +11141,8 @@ PUSH_REQUEST_TYPE_LABELS = {
         "fr": "se dirige vers l'espace de recentrage - a besoin de supervision",
         "de": "geht zum Ruhebereich - braucht Aufsicht",
         "it": "si sta dirigendo verso lo spazio di ricentraggio - ha bisogno di supervisione",
-        "hi": "शांत होने की जगह जा रहा है - निगरानी चाहिए", "zh": "正前往情绪调节区 - 需要看护",
-        "ar": "متجه إلى مساحة الهدوء - بحاجة إلى إشراف", "ru": "направляется в зону восстановления - нужен присмотр",
+        "hi": "शांत होने की जगह जा रहा है - निगरानी चाहिए", "zh": "正前往情绪调节空间 - 需要看护",
+        "ar": "متجه إلى مساحة الهدوء - بحاجة إلى إشراف", "ru": "направляется в пространство восстановления - нужен присмотр",
     },
     "INCIDENT": {
         "en": "INCIDENT - needs immediate support", "pt": "INCIDENTE - precisa de apoio imediato",
