@@ -6598,6 +6598,11 @@ async def get_shared_strategies_for_student(student_id: str, request: Request):
                 for s in (fam_result.data or []):
                     if s["id"] in seen_ids:
                         continue
+                    # Oct 10 leak fix: a row created for a SPECIFIC other student (student_id set, e.g. a strategy made
+                    # for one child) must never show on this child, even if its creator is also this child's guardian.
+                    row_student = s.get("student_id")
+                    if row_student and row_student != student_id:
+                        continue
                     assigned = s.get("assigned_to", "all") or "all"
                     # Show if assigned to all, or to this specific student
                     if assigned in ("all", student_id):
