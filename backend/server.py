@@ -3366,7 +3366,7 @@ def _build_creatures_colours(student_data: dict, creature_stages: dict, creature
         if is_complete:
             total_collected += 1
         name = (is_complete and u.get("creature_name_snapshot")) or cs.get("creature_name")
-        stage_img = (is_complete and u.get("stage_image_snapshot")) or cs.get(f"stage{max(1, min(stages_unlocked, 4))}_url") or cs.get("stage1_url")
+        stage_img = _creature_img_url((is_complete and u.get("stage_image_snapshot")) or cs.get(f"stage{max(1, min(stages_unlocked, 4))}_url") or cs.get("stage1_url"))
         checkins_30d = checkins_30d_fn(colour)
         # Real fix Sep 15 (B1 core-loop bug): My Creatures needs the same eligible_stage
         # signal as the reward screen, so CreatureDetailModal can show its Evolve button for
@@ -3399,7 +3399,7 @@ def _build_creatures_colours(student_data: dict, creature_stages: dict, creature
             # detail view can show the whole evolution row the same way a default creature's
             # stage_emojis does - the photos already exist on the submission row, just weren't
             # threaded through this endpoint before.
-            "stage_urls": [cs.get("stage1_url"), cs.get("stage2_url"), cs.get("stage3_url"), cs.get("stage4_url")],
+            "stage_urls": [_creature_img_url(cs.get(f"stage{n}_url")) for n in (1, 2, 3, 4)],
             "stage_urls_thumb": [_thumb_url(cs.get("stage1_url")), _thumb_url(cs.get("stage2_url")), _thumb_url(cs.get("stage3_url")), _thumb_url(cs.get("stage4_url"))],
             # Real feature Sep 21: all 10 language variants passed through flat (same
             # send-everything-let-the-client-pick pattern as the default CREATURES constant's
@@ -4551,8 +4551,8 @@ async def add_points(student_id: str, req: AddPointsRequest, request: Request):
             "current_creature": {
                 "id": progress["id"], "name": progress["name"], "feeling_colour": progress["emotion_colour"],
                 "creature_type": "community",
-                "stage1_url": progress.get("stage1_url"), "stage2_url": progress.get("stage2_url"),
-                "stage3_url": progress.get("stage3_url"), "stage4_url": progress.get("stage4_url"),
+                "stage1_url": _creature_img_url(progress.get("stage1_url")), "stage2_url": _creature_img_url(progress.get("stage2_url")),
+                "stage3_url": _creature_img_url(progress.get("stage3_url")), "stage4_url": _creature_img_url(progress.get("stage4_url")),
             },
             "current_stage": progress["current_stage"],
             "current_points": progress["current_stage"],
@@ -4785,8 +4785,8 @@ async def evolve_creature(student_id: str, req: EvolveRequest, request: Request)
             "current_creature": {
                 "id": progress["id"], "name": progress["name"], "feeling_colour": progress["emotion_colour"],
                 "creature_type": "community",
-                "stage1_url": progress.get("stage1_url"), "stage2_url": progress.get("stage2_url"),
-                "stage3_url": progress.get("stage3_url"), "stage4_url": progress.get("stage4_url"),
+                "stage1_url": _creature_img_url(progress.get("stage1_url")), "stage2_url": _creature_img_url(progress.get("stage2_url")),
+                "stage3_url": _creature_img_url(progress.get("stage3_url")), "stage4_url": _creature_img_url(progress.get("stage4_url")),
             },
             "current_stage": eligible_stage,
             "current_points": progress.get("total_checkins", 0),
@@ -6078,10 +6078,10 @@ def _progress_community_creature(real_student_id: str, submission_id: str):
         "id": submission_id,
         "name": creature.get("creature_name"),
         "emotion_colour": creature.get("emotion_colour"),
-        "stage1_url": creature.get("stage1_url"),
-        "stage2_url": creature.get("stage2_url"),
-        "stage3_url": creature.get("stage3_url"),
-        "stage4_url": creature.get("stage4_url"),
+        "stage1_url": _creature_img_url(creature.get("stage1_url")),
+        "stage2_url": _creature_img_url(creature.get("stage2_url")),
+        "stage3_url": _creature_img_url(creature.get("stage3_url")),
+        "stage4_url": _creature_img_url(creature.get("stage4_url")),
         "current_stage": current_stage,
         "eligible_stage": eligible_stage,
         "evolution_ready": evolution_ready,
@@ -14016,6 +14016,11 @@ async def submit_creature(request: Request):
             result = supabase.table("creature_submissions").insert(fallback).execute()
     # Increment code usage
     supabase.table("submission_codes").update({"used_count": c["used_count"]+1}).eq("code", code).execute()
+    # Script 16: normalise the 4 images in the background (best effort, see _schedule_creature_normalisation)
+    _schedule_creature_normalisation(
+        result.data[0]["id"],
+        [submission["stage1_url"], submission["stage2_url"], submission["stage3_url"], submission["stage4_url"]],
+    )
     return {"status": "submitted", "id": result.data[0]["id"], "message": "Your creature is under review!"}
 
 @api_router.get("/creatures/pending")
@@ -14391,8 +14396,8 @@ async def get_global_creatures_by_country(request: Request):
             "id": c["id"],
             "creature_name": c.get("creature_name") or "Unnamed",
             "emotion_colour": c.get("emotion_colour"),
-            "stage1_url": c.get("stage1_url"), "stage2_url": c.get("stage2_url"),
-            "stage3_url": c.get("stage3_url"), "stage4_url": c.get("stage4_url"),
+            "stage1_url": _creature_img_url(c.get("stage1_url")), "stage2_url": _creature_img_url(c.get("stage2_url")),
+            "stage3_url": _creature_img_url(c.get("stage3_url")), "stage4_url": _creature_img_url(c.get("stage4_url")),
             "global_uses": c.get("global_uses") or 0,
             "times_fully_evolved": evolved_counts.get(c["id"], 0),
         })
@@ -14584,10 +14589,10 @@ def _get_eligible_creatures_sync(user: dict, student_id: Optional[str] = None) -
             "id": c["id"],
             "creature_name": c["creature_name"],
             "emotion_colour": c["emotion_colour"],
-            "stage1_url": c.get("stage1_url"),
-            "stage2_url": c.get("stage2_url"),
-            "stage3_url": c.get("stage3_url"),
-            "stage4_url": c.get("stage4_url"),
+            "stage1_url": _creature_img_url(c.get("stage1_url")),
+            "stage2_url": _creature_img_url(c.get("stage2_url")),
+            "stage3_url": _creature_img_url(c.get("stage3_url")),
+            "stage4_url": _creature_img_url(c.get("stage4_url")),
             # Real feature Sep 26 (item 16): World Creatures' own grid cards - the same 200px
             # variant, full-size stageN_url above untouched for whatever still needs it.
             "stage1_thumb_url": _thumb_url(c.get("stage1_url")),
@@ -24086,6 +24091,27 @@ def _thumb_object_path(full_object_path: str) -> str:
     base = base or full_object_path
     return f"{base}_thumb.png"
 
+# --- Creature image cache version (creature image normalisation) ---------------------------------------------------
+# Every creature image url (full-size stage image, thumbnail, snapshot) leaves the backend through
+# _creature_img_url, which forces ONE query version regardless of what is stored ("?v=2", no
+# version, "?v=anything", other params kept). Bump this number after re-processing images in
+# storage and every device re-downloads them: no database rows need to change.
+CREATURE_IMG_VERSION = 3
+
+def _creature_img_url(url):
+    """Returns url with its v= parameter set to CREATURE_IMG_VERSION. Never raises; None/empty and
+    urls that are not creature-images storage urls are returned unchanged."""
+    try:
+        if not url or not isinstance(url, str) or "/creature-images/" not in url:
+            return url
+        from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+        parts = urlsplit(url)
+        query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k != "v"]
+        query.append(("v", str(CREATURE_IMG_VERSION)))
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+    except Exception:
+        return url
+
 def _thumb_url(full_url: Optional[str]) -> Optional[str]:
     """Same derivation as _thumb_object_path, applied to a full PUBLIC url (strips any ?v=
     cache-busting query string first, then re-derives the thumb's own public url) - used
@@ -24099,7 +24125,7 @@ def _thumb_url(full_url: Optional[str]) -> Optional[str]:
     idx = base_url.index(marker) + len(marker)
     object_path = base_url[idx:]
     thumb_path = _thumb_object_path(object_path)
-    return base_url[:idx] + thumb_path
+    return _creature_img_url(base_url[:idx] + thumb_path)
 
 def _generate_thumbnail_bytes(img_bytes: bytes, size: int = 200) -> Optional[bytes]:
     """Real feature Sep 26 (item 16). Never raises - a thumbnail failure must never block the
@@ -24119,6 +24145,107 @@ def _generate_thumbnail_bytes(img_bytes: bytes, size: int = 200) -> Optional[byt
     except Exception as e:
         logger.warning(f"[creature-thumbnail] generation failed: {e}")
         return None
+
+# --- Creature image normalisation (Script 16) -------------------------------------------------
+# Community creature art arrives at any canvas size with any amount of empty margin, so the
+# same creature looks tiny or huge in the app. This trims each stage to its visible pixels and
+# re-centres all four stages on one 1024x1024 transparent canvas with ONE shared scale (taken
+# from the largest stage) so growth between stages is preserved. Never crops, never distorts.
+# Fail-safe by construction: any problem (no alpha, animated, unreadable, storage error) leaves
+# the original images and the submission exactly as they were; the originals are never
+# overwritten (normalised copies get new object names and only then are the row's urls swapped).
+CREATURE_NORM_CANVAS = 1024
+CREATURE_NORM_FILL = 0.80
+CREATURE_NORM_ALPHA_THRESHOLD = 12   # alpha <= this counts as transparent when finding the bounding box
+_creature_norm_tasks: set = set()    # keeps references so background tasks are not garbage collected
+
+def _creature_norm_bbox(rgba):
+    mask = rgba.getchannel("A").point(lambda v: 255 if v > CREATURE_NORM_ALPHA_THRESHOLD else 0)
+    return mask.getbbox()
+
+def normalise_creature_stages(stage_bytes: list) -> Optional[list]:
+    """stage_bytes: 4 raw image byte strings. Returns 4 normalised PNG byte strings, or None
+    when the creature must be left alone (any stage unreadable, animated, without real
+    transparency or empty). Pure function, never raises."""
+    try:
+        import io
+        from PIL import Image
+        stages = []
+        for b in stage_bytes:
+            im = Image.open(io.BytesIO(b))
+            if getattr(im, "n_frames", 1) > 1:
+                return None
+            has_alpha = im.mode in ("RGBA", "LA", "PA") or (im.mode == "P" and "transparency" in im.info)
+            rgba = im.convert("RGBA")
+            if not has_alpha or rgba.getchannel("A").getextrema()[0] >= 250:
+                return None
+            bbox = _creature_norm_bbox(rgba)
+            if bbox is None:
+                return None
+            stages.append((rgba, bbox))
+        ref_w, ref_h = max(((bb[2] - bb[0], bb[3] - bb[1]) for _, bb in stages), key=lambda wh: max(wh))
+        scale = CREATURE_NORM_CANVAS * CREATURE_NORM_FILL / max(ref_w, ref_h)
+        bottom = (CREATURE_NORM_CANVAS + ref_h * scale) / 2.0
+        out_list = []
+        for rgba, (l, t, r, b) in stages:
+            crop = rgba.crop((l, t, r, b)).convert("RGBa")   # premultiplied: no halos when resizing
+            nw, nh = max(1, round((r - l) * scale)), max(1, round((b - t) * scale))
+            crop = crop.resize((nw, nh), Image.LANCZOS).convert("RGBA")
+            canvas = Image.new("RGBA", (CREATURE_NORM_CANVAS, CREATURE_NORM_CANVAS), (0, 0, 0, 0))
+            canvas.paste(crop, (round((CREATURE_NORM_CANVAS - nw) / 2.0), round(bottom - nh)))  # no mask: keeps edge alpha
+            buf = io.BytesIO()
+            canvas.save(buf, format="PNG", optimize=True)
+            out_list.append(buf.getvalue())
+        return out_list
+    except Exception as e:
+        logger.warning(f"[creature-normalise] left alone, could not normalise: {e}")
+        return None
+
+def _creature_object_path(public_url: Optional[str]) -> Optional[str]:
+    if not public_url or "/creature-images/" not in public_url:
+        return None
+    return public_url.split("?")[0].split("/creature-images/", 1)[1]
+
+def _normalise_submission_images_sync(submission_id: str, urls: list) -> None:
+    """Blocking worker (runs in a thread). Downloads the 4 stage images, normalises them,
+    uploads the PNGs + 200px thumbnails under NEW object names, then swaps the row's
+    stageN_url columns. Any failure before the final update leaves everything untouched."""
+    try:
+        paths = [_creature_object_path(u) for u in urls]
+        if not all(paths):
+            logger.info(f"[creature-normalise] {submission_id}: non-storage url, left alone")
+            return
+        bucket = supabase.storage.from_("creature-images")
+        originals = [bucket.download(p) for p in paths]
+        normalised = normalise_creature_stages(originals)
+        if not normalised:
+            logger.info(f"[creature-normalise] {submission_id}: left alone (no usable alpha / unreadable)")
+            return
+        import uuid
+        tag = uuid.uuid4().hex[:8]
+        new_urls = {}
+        for i, (p, png) in enumerate(zip(paths, normalised), start=1):
+            base = p.rsplit(".", 1)[0]
+            new_path = f"{base}_n{tag}.png"
+            bucket.upload(new_path, png, {"content-type": "image/png", "upsert": "true"})
+            thumb = _generate_thumbnail_bytes(png)
+            if thumb:
+                bucket.upload(_thumb_object_path(new_path), thumb, {"content-type": "image/png", "upsert": "true"})
+            new_urls[f"stage{i}_url"] = bucket.get_public_url(new_path)
+        supabase.table("creature_submissions").update(new_urls).eq("id", submission_id).execute()
+        logger.info(f"[creature-normalise] {submission_id}: normalised 4 stages")
+    except Exception as e:
+        logger.warning(f"[creature-normalise] {submission_id}: failed, originals kept: {e}")
+
+def _schedule_creature_normalisation(submission_id: str, urls: list) -> None:
+    """Fire-and-forget: the submit request has already returned its answer by the time this
+    does any work, so it can never slow down or fail a submission."""
+    try:
+        task = asyncio.ensure_future(asyncio.to_thread(_normalise_submission_images_sync, submission_id, urls))
+        _creature_norm_tasks.add(task)
+        task.add_done_callback(_creature_norm_tasks.discard)
+    except Exception as e:
+        logger.warning(f"[creature-normalise] could not schedule for {submission_id}: {e}")
 
 @api_router.post("/creatures/upload-image")
 async def upload_creature_image(request: Request):
