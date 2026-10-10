@@ -16,3 +16,6 @@ requests>=2.31.0
 stripe
 resend
 Pillow>=10.0.0
+
+# HarfBuzz text shaping for Hindi/Arabic PDF reports (backend/pdf_shaping.py). Has py3.12 manylinux wheels (0.56.x, abi3).
+uharfbuzz>=0.40
