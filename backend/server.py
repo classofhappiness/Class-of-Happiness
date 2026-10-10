@@ -11250,7 +11250,7 @@ def _get_eligible_creatures_sync(user: dict, student_id: Optional[str] = None) -
             scope_pref = student_data.get("creature_scope_pref") or "any"
 
     base_fields = ("id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,"
-                   "global_uses,approved_at,visibility_scope,school_name,classroom_id,country,student_id")
+                   "global_uses,approved_at,visibility_scope,school_name,classroom_id,country,student_id,ai_moderation_flag")
     # URGENT real security fix Aug 23 (corrected): superadmin_approved_at is a genuine new
     # column (global_uses turned out to have a DB default of 0, never actually NULL - see
     # global_approve_creature). If the migration hasn't landed yet, fail CLOSED - nothing is
@@ -11286,7 +11286,11 @@ def _get_eligible_creatures_sync(user: dict, student_id: Optional[str] = None) -
         # _passes_creature_approval_gate. Still fails CLOSED for a global-scope creature if
         # the migration hasn't landed yet (has_approval_gate False) - never silently widen.
         scope = c.get("visibility_scope") or "global"
-        if scope == "global" and (not has_approval_gate or not c.get("superadmin_approved_at")):
+        # Oct 10: use the shared gate (same rule as the other callers) so an AI-flagged
+        # classroom/school creature also needs superadmin_approved_at, not just a global one.
+        if not has_approval_gate or not _passes_creature_approval_gate(
+            "approved", scope, c.get("superadmin_approved_at"), c.get("ai_moderation_flag")
+        ):
             continue
         # Real feature Aug 21: student scope-preference (classroom/school/global/any) - once
         # eligibility is computed as before, further narrow to just the preferred scope unless
@@ -11294,7 +11298,14 @@ def _get_eligible_creatures_sync(user: dict, student_id: Optional[str] = None) -
         # classroom/school/global eligibility check below regardless of preference - the
         # preference can only narrow what's shown, never widen it beyond what's genuinely
         # eligible.
-        if scope_pref != "any" and scope != scope_pref:
+        # Oct 10: the My Classroom tab also shows school-scoped creatures that came from the
+        # viewer's OWN classroom (classroom_id match, handled below); a school creature from
+        # another classroom still only appears under My School.
+        if scope_pref != "any" and scope != scope_pref and not (scope_pref == "classroom" and scope == "school"):
+            continue
+        if scope == "school" and scope_pref == "classroom":
+            if classroom_id and c.get("classroom_id") == classroom_id:
+                eligible.append(c)
             continue
         if scope == "global":
             eligible.append(c)
