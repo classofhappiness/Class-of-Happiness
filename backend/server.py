@@ -3362,7 +3362,7 @@ def _build_creatures_colours(student_data: dict, creature_stages: dict, creature
         # its OWN creator-level approver has signed off - superadmin is only required for
         # visibility_scope=='global' (or, since Sep 18, a flagged submission). See
         # _passes_creature_approval_gate.
-        if not _passes_creature_approval_gate(cs.get("status"), cs.get("visibility_scope"), cs.get("superadmin_approved_at"), cs.get("ai_moderation_flag")):
+        if not _passes_creature_approval_gate(cs.get("status"), cs.get("visibility_scope"), cs.get("superadmin_approved_at"), cs.get("ai_moderation_flag"), cs.get("approved_at")):
             continue
         colour = cs.get("emotion_colour")
         if colour not in buckets:
@@ -3470,7 +3470,7 @@ async def get_my_creatures_batch(request: Request, student_ids: str = ""):
 
     try:
         unlocks_r = supabase.table("creature_unlocks").select(
-            "*, creature_submissions(id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,visibility_scope,status,superadmin_approved_at,ai_moderation_flag,"
+            "*, creature_submissions(id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,visibility_scope,status,superadmin_approved_at,ai_moderation_flag,approved_at,"
             "description,description_ar,description_de,description_es,description_fr,description_hi,description_it,description_pt,description_ru,description_zh)"
         ).in_("real_student_id", authorized_ids).execute()
         unlock_rows = unlocks_r.data or []
@@ -4463,11 +4463,11 @@ async def add_points(student_id: str, req: AddPointsRequest, request: Request):
     # outright over this.
     if active_id not in DEFAULT_CREATURE_IDS:
         try:
-            gate_r = supabase.table("creature_submissions").select("status,visibility_scope,superadmin_approved_at,ai_moderation_flag").eq("id", active_id).execute()
+            gate_r = supabase.table("creature_submissions").select("status,visibility_scope,superadmin_approved_at,ai_moderation_flag,approved_at").eq("id", active_id).execute()
             gate = gate_r.data[0] if gate_r.data else None
         except Exception:
             gate = None
-        if not gate or not _passes_creature_approval_gate(gate.get("status"), gate.get("visibility_scope"), gate.get("superadmin_approved_at"), gate.get("ai_moderation_flag")):
+        if not gate or not _passes_creature_approval_gate(gate.get("status"), gate.get("visibility_scope"), gate.get("superadmin_approved_at"), gate.get("ai_moderation_flag"), gate.get("approved_at")):
             active_id = FEELING_COLOUR_MAP.get(feeling_colour, "aqua_buddy")
 
     if active_id not in DEFAULT_CREATURE_IDS:
@@ -14092,7 +14092,24 @@ async def get_pending_creatures(request: Request):
     # which account submitted it - see _annotate_real_student_names below.
     return _annotate_real_student_names(data)
 
-def _passes_creature_approval_gate(status: str, visibility_scope: str, superadmin_approved_at, ai_moderation_flag: str = None) -> bool:
+# Oct 11: a FAILED AI image check (ai_moderation_flag == "error": key missing, Vision API down, every
+# image unreadable) is treated like "flagged" - it cannot fully publish on a teacher/school_admin/parent
+# approval alone and shows in superadmin's review queue - but ONLY for approvals made on or after this
+# cutoff. Creatures approved before it (every live creature today) keep exactly the result they had, whatever
+# their flag says; a row with no approved_at (legacy / seeded) is never affected either.
+AI_ERROR_GATE_CUTOFF = datetime(2026, 10, 11, tzinfo=timezone.utc)
+
+def _ai_check_needs_superadmin(ai_moderation_flag, approved_at=None) -> bool:
+    if ai_moderation_flag == "flagged":
+        return True
+    if ai_moderation_flag != "error" or not approved_at:
+        return False
+    try:
+        return _parse_supabase_timestamp(str(approved_at)) >= AI_ERROR_GATE_CUTOFF
+    except Exception:
+        return False   # unreadable timestamp: leave the row as it was (never unpublish by accident)
+
+def _passes_creature_approval_gate(status: str, visibility_scope: str, superadmin_approved_at, ai_moderation_flag: str = None, approved_at=None) -> bool:
     """Real product fix Sep 12: the tiered creature-moderation model (Jono, confirmed) - a
     classroom/school/family-scoped creature is fully published the moment its own creator-level
     approver (teacher/school_admin/parent respectively) approves it; superadmin is never
@@ -14111,7 +14128,7 @@ def _passes_creature_approval_gate(status: str, visibility_scope: str, superadmi
     global creatures."""
     if status != "approved":
         return False
-    if ai_moderation_flag == "flagged":
+    if _ai_check_needs_superadmin(ai_moderation_flag, approved_at):
         return bool(superadmin_approved_at)
     return (visibility_scope or "global") != "global" or bool(superadmin_approved_at)
 
@@ -14294,7 +14311,7 @@ async def get_global_creatures(request: Request):
         has_approval_gate = False
     creatures = [
         c for c in (rows.data or [])
-        if has_approval_gate and _passes_creature_approval_gate("approved", c.get("visibility_scope"), c.get("superadmin_approved_at"), c.get("ai_moderation_flag"))
+        if has_approval_gate and _passes_creature_approval_gate("approved", c.get("visibility_scope"), c.get("superadmin_approved_at"), c.get("ai_moderation_flag"), c.get("approved_at"))
     ]
     creature_ids = [c["id"] for c in creatures]
 
@@ -14514,7 +14531,7 @@ def _get_eligible_creatures_sync(user: dict, student_id: Optional[str] = None) -
         # Oct 10: use the shared gate (same rule as the other callers) so an AI-flagged
         # classroom/school creature also needs superadmin_approved_at, not just a global one.
         if not has_approval_gate or not _passes_creature_approval_gate(
-            "approved", scope, c.get("superadmin_approved_at"), c.get("ai_moderation_flag")
+            "approved", scope, c.get("superadmin_approved_at"), c.get("ai_moderation_flag"), c.get("approved_at")
         ):
             continue
         # Real feature Aug 21: student scope-preference (classroom/school/global/any) - once
@@ -14861,7 +14878,7 @@ async def start_creature(submission_id: str, request: Request):
 
     try:
         creature_r = supabase.table("creature_submissions").select(
-            "visibility_scope,school_name,classroom_id,status,emotion_colour,creature_name,student_id,superadmin_approved_at"
+            "visibility_scope,school_name,classroom_id,status,emotion_colour,creature_name,student_id,superadmin_approved_at,ai_moderation_flag,approved_at"
         ).eq("id", submission_id).execute()
         has_approval_gate = True
     except Exception:
@@ -14879,6 +14896,11 @@ async def start_creature(submission_id: str, request: Request):
     # second gate too. See _passes_creature_approval_gate. Still fails CLOSED for a
     # global-scope creature if the migration hasn't landed yet.
     if scope == "global" and (not has_approval_gate or not creature.get("superadmin_approved_at")):
+        raise HTTPException(status_code=404, detail="Creature not found")
+    # Oct 11: the AI-check rule (flagged, or a new failed check) is applied here too - the browse lists
+    # already hide such a creature until superadmin approves it, but this endpoint only ever checked the
+    # global case, so a direct start by id was not blocked.
+    if _ai_check_needs_superadmin(creature.get("ai_moderation_flag"), creature.get("approved_at")) and not creature.get("superadmin_approved_at"):
         raise HTTPException(status_code=404, detail="Creature not found")
     is_eligible = (
         scope == "global"
@@ -15017,7 +15039,7 @@ async def get_my_creatures(student_id: str, request: Request):
     # attempt which looked gated but never actually was.
     try:
         unlocks_r = supabase.table("creature_unlocks").select(
-            "*, creature_submissions(id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,visibility_scope,status,superadmin_approved_at,ai_moderation_flag,"
+            "*, creature_submissions(id,creature_name,emotion_colour,stage1_url,stage2_url,stage3_url,stage4_url,visibility_scope,status,superadmin_approved_at,ai_moderation_flag,approved_at,"
             "description,description_ar,description_de,description_es,description_fr,description_hi,description_it,description_pt,description_ru,description_zh)"
         ).eq("real_student_id", student_id).execute()
         unlock_rows = unlocks_r.data or []
@@ -24057,7 +24079,7 @@ async def get_awaiting_global_approval(request: Request):
     # the admin picks, same as it always has - a flagged item is never forced to "global").
     rows = [
         r for r in (result.data or [])
-        if (r.get("visibility_scope") or "global") == "global" or r.get("ai_moderation_flag") == "flagged"
+        if (r.get("visibility_scope") or "global") == "global" or _ai_check_needs_superadmin(r.get("ai_moderation_flag"), r.get("approved_at"))
     ]
     # Real feature Aug 23 (item 4): same real-student-name resolution as
     # /creatures/pending and /creatures/my-submissions, so superadmin's final-approval
