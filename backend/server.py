@@ -6867,6 +6867,10 @@ _PDF_FONT_LANGS_OK = _register_pdf_fonts()
 for _lc in _PDF_LANG_FONT_FAMILY:
     if _lc not in _PDF_FONT_LANGS_OK:
         PDF_LANG_READY.discard(_lc)          # no font -> that language stays on English
+_PDF_READY_ORDER = ["en", "pt", "es", "fr", "de", "it", "ru", "zh", "hi", "ar"]
+logger.info("PDF_LANG_READY: " + " ".join(c for c in _PDF_READY_ORDER if c in PDF_LANG_READY)
+            + "; fonts: " + ", ".join(n for fam, n in (("COH-NotoSans", "Noto Sans"), ("COH-NotoSansSC", "Noto Sans SC")) if fam in _PDF_FONT_FAMILIES)
+            + " (Helvetica for the others)")   # positive startup line; the failure paths above log errors
 
 _WINANSI_CACHE: Dict[str, bool] = {}
 def _helvetica_can_draw(ch: str) -> bool:
@@ -6941,6 +6945,18 @@ def pdf_safe(text, lang: Optional[str] = None, base_face: str = "Helvetica") -> 
             buf.append(ch)
         flush()
     return "".join(out)
+_PDF_MONTH_LOGGED: set = set()
+def _pdf_months_for(table: dict, lang: Optional[str], name: str):
+    """Month list for `lang` from a month table; if a language that is in PDF_LANG_READY has no list, log it ONCE
+    (never a silent English fallback) and use English."""
+    code = pdf_lang(lang)
+    lst = table.get(code)
+    if lst:
+        return lst
+    if code in PDF_LANG_READY and (name, code) not in _PDF_MONTH_LOGGED:
+        _PDF_MONTH_LOGGED.add((name, code))
+        logger.error(f"[pdf-months] table '{name}' has no month names for ready language '{code}': falling back to English")
+    return table["en"]
 # ===== end PDF FONTS =====
 
 # ===== PDF_STRINGS table (Oct 10, Stage 1: en pt es fr de it) =====
@@ -9219,10 +9235,13 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
         "it":["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"],
         "ru":["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"],
         "zh":[f"{_m}月" for _m in range(1,13)],
+        "hi": ["जनवरी","फ़रवरी","मार्च","अप्रैल","मई","जून","जुलाई","अगस्त","सितंबर","अक्टूबर","नवंबर","दिसंबर"],
+        "ar": ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"],
     }
-    month_name = MONTH_NAMES.get(report_lang, MONTH_NAMES["en"])[month-1]
+    month_name = _pdf_months_for(MONTH_NAMES, report_lang, "family MONTH_NAMES")[month-1]
     if report_lang == "zh": month_name = f"{month}月"   # fam_header_period (zh) is "{year}年{month} · ..."
-    MON_ABBR = [m[:3] for m in MONTH_NAMES.get(report_lang, MONTH_NAMES["en"])]
+    MON_ABBR = [m[:3] for m in _pdf_months_for(MONTH_NAMES, report_lang, "family MONTH_NAMES")]
+    if report_lang in ("hi", "ar"): MON_ABBR = _PDF_MONTH_ABBR[report_lang]   # truncating Devanagari/Arabic to 3 characters would break the word
     if report_lang == "ru": MON_ABBR = ["янв.","февр.","мар.","апр.","мая","июн.","июл.","авг.","сент.","окт.","нояб.","дек."]
     WEEKDAYS_F = {"en":["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],"pt":["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"],"es":["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"],"fr":["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"],"de":["Mo","Di","Mi","Do","Fr","Sa","So"],"it":["Lun","Mar","Mer","Gio","Ven","Sab","Dom"],"ru":["Пн","Вт","Ср","Чт","Пт","Сб","Вс"],"zh":["周一","周二","周三","周四","周五","周六","周日"]}.get(report_lang)
 
@@ -9505,7 +9524,9 @@ async def generate_family_pdf_all(year: int, month: int, request: Request, lang:
 
 @api_router.get("/reports/pdf/student/{student_id}/month/{year}/{month}")
 async def generate_pdf_report(student_id: str, year: int, month: int, request: Request, lang: str = ""):
+    _raw_pdf_lang = lang
     lang = pdf_lang(lang)  # PDF language = the viewer's selected app language (route param), never the student's own
+    logger.info(f"[pdf] student month report: lang param {_raw_pdf_lang!r} -> rendering in {lang!r}")
     # Real authentication + authorization — this endpoint previously had NONE at all, meaning
     # anyone with a valid student_id/year/month could generate any student's PDF. Fixed to
     # require login AND a real relationship to this specific student (owns them directly, owns
@@ -9749,6 +9770,8 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         "it": ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"],
         "ru": ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"],
         "zh": [f"{_m}月" for _m in range(1,13)],
+        "hi": ["जनवरी","फ़रवरी","मार्च","अप्रैल","मई","जून","जुलाई","अगस्त","सितंबर","अक्टूबर","नवंबर","दिसंबर"],
+        "ar": ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"],
     }
     ZONE_LABELS = ZONE_LABELS_MAP.get(lang, ZONE_LABELS_MAP["en"])
     WEEKDAYS    = WEEKDAYS_MAP.get(lang, WEEKDAYS_MAP["en"])
@@ -9775,10 +9798,11 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
 
     elements = []
     total      = sum(feeling_counts.values())
-    month_name = f"{MONTH_NAMES_MAP.get(lang, MONTH_NAMES_MAP['en'])[month-1]} {year}"
+    month_name = f"{_pdf_months_for(MONTH_NAMES_MAP, lang, 'student MONTH_NAMES_MAP')[month-1]} {year}"
     if lang == "zh":
         month_name = f"{year}年{month}月"
-    MON_ABBR = [m[:3] for m in MONTH_NAMES_MAP.get(lang, MONTH_NAMES_MAP['en'])]
+    MON_ABBR = [m[:3] for m in _pdf_months_for(MONTH_NAMES_MAP, lang, 'student MONTH_NAMES_MAP')]
+    if lang in ("hi", "ar"): MON_ABBR = _PDF_MONTH_ABBR[lang]   # truncating Devanagari/Arabic to 3 characters would break the word
     if lang == "ru":
         MON_ABBR = ["янв.","февр.","мар.","апр.","мая","июн.","июл.","авг.","сент.","окт.","нояб.","дек."]
     _, last_day_cal = calendar.monthrange(year, month)
@@ -9834,7 +9858,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
 
     # ── Student info strip ──
     _gen_now = datetime.now()
-    gen_str = f"{_gen_now.year}年{_gen_now.month}月{_gen_now.day}日" if lang == "zh" else f"{_gen_now.day:02d} {MON_ABBR[_gen_now.month-1]} {_gen_now.year}"
+    gen_str = _pdf_date_line(_gen_now.day, _gen_now.month, _gen_now.year, lang) or f"{_gen_now.day:02d} {MON_ABBR[_gen_now.month-1]} {_gen_now.year}"
     info_data = [[
         Paragraph(f"<b>{pdf_t(lang, 'stu_label_student')}</b> {pdf_safe(student_data['name'], lang)}", ST_BODY),
         Paragraph(f"<b>{pdf_t(lang, 'stu_label_class')}</b> {pdf_safe(classroom_name, lang)}", ST_BODY),
@@ -10320,6 +10344,8 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
         "it": ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"],
         "ru": ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"],
         "zh": ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"],
+        "hi": ["जनवरी","फ़रवरी","मार्च","अप्रैल","मई","जून","जुलाई","अगस्त","सितंबर","अक्टूबर","नवंबर","दिसंबर"],
+        "ar": ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"],
     }
     # ru: genitive abbreviations for day-month dates ('10 окт.'); other languages keep the first 3 letters of the month name
     _TW_MONTHS_DM_RU = ["янв.","февр.","мар.","апр.","мая","июн.","июл.","авг.","сент.","окт.","нояб.","дек."]
@@ -10343,7 +10369,7 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
         "ru": {"blue": "Синие эмоции", "green": "Зелёные эмоции", "yellow": "Жёлтые эмоции", "red": "Красные эмоции"},
         "zh": {"blue": "蓝色情绪", "green": "绿色情绪", "yellow": "黄色情绪", "red": "红色情绪"},
     }
-    _tw_months = _TW_MONTHS.get(lang, _TW_MONTHS["en"])
+    _tw_months = _pdf_months_for(_TW_MONTHS, lang, "teacher _TW_MONTHS")
 
     def _tw_dt(ts, with_year, with_time=True):
         # localised 'day month [year] [HH:MM]' (en/pt/es/fr/de/it unchanged: '05 Oct 2026 09:30')
@@ -10351,7 +10377,7 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
         if lang == "zh":
             d = f"{ts.year}年{ts.month}月{ts.day}日" if with_year else f"{ts.month}月{ts.day}日"
             return f"{d} {hm}" if with_time else d
-        mon = _TW_MONTHS_DM_RU[ts.month - 1] if lang == "ru" else _tw_months[ts.month - 1][:3]
+        mon = _TW_MONTHS_DM_RU[ts.month - 1] if lang == "ru" else (_PDF_MONTH_ABBR[lang][ts.month - 1] if lang in ("hi", "ar") else _tw_months[ts.month - 1][:3])
         d = f"{ts.day:02d} {mon}" + (f" {ts.year}" if with_year else "")
         return f"{d} {hm}" if with_time else d
     _tw_short_zone = PUSH_ZONE_LABELS_BY_LANG.get(lang, PUSH_ZONE_LABELS_BY_LANG["en"])
@@ -11966,12 +11992,32 @@ _PDF_MONTH_ABBR = {
     "it": ["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"],
     "ru": ["Янв","Фев","Мар","Апр","Май","Июн","Июл","Авг","Сен","Окт","Ноя","Дек"],
     "zh": ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"],
+    "hi": ["जन.","फ़र.","मार्च","अप्रैल","मई","जून","जुल.","अग.","सित.","अक्टू.","नव.","दिस."],
+    "ar": ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"],
 }
 # ru day-month dates need the genitive ('10 окт.'); the nominative table above is for headings/chart labels.
 _PDF_MONTH_ABBR_GEN_RU = ["янв.","февр.","мар.","апр.","мая","июн.","июл.","авг.","сент.","окт.","нояб.","дек."]
+# ru full GENITIVE for date lines ("10 октября 2026"); the nominative ("Октябрь 2026") is used in headings/chart labels.
+_PDF_MONTH_GEN_RU = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"]
+# hi/ar: full month names for date lines (prepared for the Stage 3 languages; not used until they are in PDF_LANG_READY)
+_PDF_MONTH_FULL_HI = ["जनवरी","फ़रवरी","मार्च","अप्रैल","मई","जून","जुलाई","अगस्त","सितंबर","अक्टूबर","नवंबर","दिसंबर"]
+_PDF_MONTH_FULL_AR = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"]
+
+def _pdf_date_line(day: int, month: int, year: int, lang: Optional[str]) -> Optional[str]:
+    """Long date for 'Generated ...' lines in ru/zh/hi/ar; None = caller keeps its existing en/pt/es/fr/de/it format."""
+    code = pdf_lang(lang)
+    if code == "ru":
+        return f"{day} {_PDF_MONTH_GEN_RU[month - 1]} {year}"
+    if code == "zh":
+        return f"{year}年{month}月{day}日"
+    if code == "hi":
+        return f"{day} {_PDF_MONTH_FULL_HI[month - 1]} {year}"
+    if code == "ar":
+        return f"{day} {_PDF_MONTH_FULL_AR[month - 1]} {year}"
+    return None
 
 def _pdf_month_abbr(month: int, lang: str = "en") -> str:
-    return _PDF_MONTH_ABBR.get(pdf_lang(lang), _PDF_MONTH_ABBR["en"])[month - 1]
+    return _pdf_months_for(_PDF_MONTH_ABBR, lang, "_PDF_MONTH_ABBR")[month - 1]
 
 def _pdf_month_year(month: int, year: int, lang: str = "en") -> str:
     """Month + year label ('Oct 2026'; zh '2026年10月') used for period headings and chart buckets."""
@@ -12006,7 +12052,9 @@ def _pdf_fmt_date(dt, lang: str = "en", with_year: bool = True, with_time: bool 
             out += dt.strftime(" %H:%M")
         return out
     if _pl == "ru":
-        out = f"{dt.day} {_PDF_MONTH_ABBR_GEN_RU[dt.month - 1]}"
+        out = f"{dt.day} {_PDF_MONTH_GEN_RU[dt.month - 1] if (not with_time and with_year) else _PDF_MONTH_ABBR_GEN_RU[dt.month - 1]}"
+    elif _pl in ("hi", "ar"):
+        out = f"{dt.day} {(_PDF_MONTH_FULL_HI if _pl == 'hi' else _PDF_MONTH_FULL_AR)[dt.month - 1]}"
     else:
         out = f"{dt.day:02d} {_pdf_month_abbr(dt.month, lang)}"
     if with_year:
@@ -18698,7 +18746,21 @@ _EXPORT_MONTH_ABBR = {
     "it": ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"],
     "ru": ["янв.","февр.","март","апр.","май","июнь","июль","авг.","сент.","окт.","нояб.","дек."],
     "zh": ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"],
+    "hi": ["जन.","फ़र.","मार्च","अप्रैल","मई","जून","जुल.","अग.","सित.","अक्टू.","नव.","दिस."],
+    "ar": ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"],
 }
+
+def _validate_pdf_month_tables() -> None:
+    """Startup check (logs only, never raises): the module-level month tables must have 12 entries for every PDF language,
+    so a ru/zh (or later hi/ar) PDF can never silently fall back to English month names."""
+    try:
+        for tname, table in (("_PDF_MONTH_ABBR", _PDF_MONTH_ABBR), ("_EXPORT_MONTH_ABBR", _EXPORT_MONTH_ABBR)):
+            for code in ("en", "pt", "es", "fr", "de", "it", "ru", "zh", "hi", "ar"):
+                if len(table.get(code, [])) != 12:
+                    logger.error(f"[pdf-months] {tname} has no 12-month list for '{code}' (would fall back to English)")
+    except Exception as e:
+        logger.error(f"[pdf-months] validation crashed: {e}")
+_validate_pdf_month_tables()
 
 def _export_cell_value(row: dict, key: str, lang: str = ""):
     val = row.get(key, "")
@@ -18780,10 +18842,7 @@ def _export_to_pdf(title: str, columns: list, rows: list, lang: str = "") -> byt
     except Exception:
         elements.append(Paragraph(_title_p, title_style))
     _now = datetime.now(timezone.utc)
-    if lang == 'zh':
-        _date_txt = f"{_now.year}年{_now.month}月{_now.day}日"
-    else:
-        _date_txt = f"{_now.strftime('%d')} {_EXPORT_MONTH_ABBR.get(lang, _EXPORT_MONTH_ABBR['en'])[_now.month - 1]} {_now.strftime('%Y')}"
+    _date_txt = _pdf_date_line(_now.day, _now.month, _now.year, lang) or f"{_now.strftime('%d')} {_pdf_months_for(_EXPORT_MONTH_ABBR, lang, '_EXPORT_MONTH_ABBR')[_now.month - 1]} {_now.strftime('%Y')}"
     elements.append(Paragraph(pdf_t(lang, "exp_generated", date=_date_txt), sub_style))
     elements.append(Spacer(1, 10))
     elements.append(HRFlowable(width="100%", color=colors.HexColor('#E0E0E0')))
@@ -19762,9 +19821,11 @@ async def careers_pathway_summary_pdf(student_id: str, request: Request, lang: s
         "it": ["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"],
         "ru": ["янв.","февр.","мар.","апр.","мая","июн.","июл.","авг.","сент.","окт.","нояб.","дек."],
         "zh": ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"],
+        "hi": ["जन.","फ़र.","मार्च","अप्रैल","मई","जून","जुल.","अग.","सित.","अक्टू.","नव.","दिस."],
+        "ar": ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"],
     }.get(lang) or ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
     _car_now = datetime.now(timezone.utc)
-    _car_today = f"{_car_now.year}年{_car_now.month}月{_car_now.day}日" if lang == "zh" else f"{_car_now.day:02d} {_car_months[_car_now.month - 1]} {_car_now.year}"
+    _car_today = _pdf_date_line(_car_now.day, _car_now.month, _car_now.year, lang) or f"{_car_now.day:02d} {_car_months[_car_now.month - 1]} {_car_now.year}"
 
     elements = []
     logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_coh.png")
