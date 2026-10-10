@@ -14206,7 +14206,18 @@ async def get_admin_teacher_strategies(request: Request, strategy_type: str = No
     via its own real strategy_type field, but this endpoint never filtered by it — every
     caller got everything mixed together, undifferentiated. Added real optional filtering.
     Also added stable ordering (was previously unordered, causing apparent "random"
-    reordering on every refetch, e.g. right after saving an edit)."""
+    reordering on every refetch, e.g. right after saving an edit).
+    Real fix Sep 30 (dedicated missing-auth-check sweep, requested after the 3 zero-auth
+    endpoints found ad-hoc this week): this had NO auth check at all - every real caller
+    (teacher/checkin.tsx, admin/dashboard.tsx, parent/my-wellbeing.tsx, parent/checkin.tsx)
+    already sends a Bearer token, so requiring one is zero behaviour change for anything
+    live; it only closes off an anonymous caller who never had a legitimate reason to hit
+    this. Content itself isn't sensitive (shared strategy suggestions every authenticated
+    role already sees), so a broad "any authenticated user" gate is enough - no role
+    restriction, matching how every real caller already uses it."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     query = supabase.table("admin_teacher_strategies").select("*").eq("is_active", True)
     if strategy_type:
         query = query.eq("strategy_type", strategy_type)
