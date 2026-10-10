@@ -246,6 +246,11 @@ class _RequestTimingMiddleware(BaseHTTPMiddleware):
             f"[timing] {request.method} {path_template} status={response.status_code} "
             f"duration_ms={duration_ms:.1f} db_calls={counter.count}"
         )
+        # Script 17: one extra, greppable line for anything slower than 1.5 s - route TEMPLATE (never
+        # the raw path, so no ids), duration and database call count, nothing else. An unmatched route
+        # (404) is logged as "(no route)" because its raw path could contain an id.
+        if duration_ms > 1500:
+            logger.warning(f"[slow-request] route={route.path if route else '(no route)'} duration_ms={duration_ms:.0f} db_calls={counter.count}")
         # Real feature Sep 25 (item 13): "any request >3s as a performance event" - explicit
         # rather than relying on tracesSampleRate's random sampling (which can't know a
         # request's duration in advance, so it can't be made to always sample slow ones).
@@ -3735,17 +3740,19 @@ async def get_feeling_logs(student_id: str, request: Request, days: int = 7):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Script 17: the authorisation check and the log read are independent, so they run together.
+    # The rows are only used once the check has passed (403 otherwise), exactly as before.
+    logs_task = _swallow(asyncio.ensure_future(asyncio.to_thread(_feeling_logs_for_student_sync, student_id, days)))
     if not await _is_authorized_for_student(user, student_id):
         raise HTTPException(status_code=403, detail="Not authorized to view this student's logs")
-    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    result = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
+    logs_rows = await logs_task
     # CRITICAL privacy fix Sep 21 (live incident, real family - Matilda): this endpoint (and
     # its zone-logs/{id} and zone-logs/student/{id} aliases below) returned every feeling_logs
     # row verbatim - comment included - regardless of the parent's home_sharing_enabled
     # choice. This was the actual leak: teacher/student-detail.tsx's "Recent Check-ins"
     # renders log.comment directly from this exact response. See
     # _filter_home_logs_for_staff_viewer's own comment for the full audit.
-    logs = _filter_home_logs_for_staff_viewer(result.data or [], student_id, user)
+    logs = await asyncio.to_thread(_filter_home_logs_for_staff_viewer, logs_rows, student_id, user)
     return [{
         **log,
         "zone": log.get("feeling_colour", log.get("zone")),
@@ -4209,25 +4216,30 @@ async def get_custom_strategies(request: Request, student_id: Optional[str] = No
     # user. With a student_id, it had no authorization check on that student either. Now:
     # no student_id -> scoped to strategies the caller themselves created; a student_id ->
     # requires real authorization for that specific student.
+    def _query():
+        try:
+            query = supabase.table("custom_helpers").select("*")
+            if student_id:
+                query = query.eq("student_id", student_id)
+            else:
+                query = query.eq("user_id", user["user_id"])
+            result = query.execute()
+            # Normalise: add zone field from feeling_colour for frontend compatibility
+            data = result.data or []
+            for row in data:
+                fc = row.get("feeling_colour", "")
+                z  = row.get("zone", "")
+                row["zone"]           = z or fc or "green"
+                row["feeling_colour"] = fc or z or "green"
+            return data
+        except Exception as e:
+            return []
+    # Script 17: query runs off the event loop, together with the authorisation check; its rows are
+    # only returned if the check passes (same 403 as before otherwise).
+    query_task = _swallow(asyncio.ensure_future(asyncio.to_thread(_query)))
     if student_id and not await _is_authorized_for_student(user, student_id):
         raise HTTPException(status_code=403, detail="Not authorized for this student")
-    try:
-        query = supabase.table("custom_helpers").select("*")
-        if student_id:
-            query = query.eq("student_id", student_id)
-        else:
-            query = query.eq("user_id", user["user_id"])
-        result = query.execute()
-        # Normalise: add zone field from feeling_colour for frontend compatibility
-        data = result.data or []
-        for row in data:
-            fc = row.get("feeling_colour", "")
-            z  = row.get("zone", "")
-            row["zone"]           = z or fc or "green"
-            row["feeling_colour"] = fc or z or "green"
-        return data
-    except Exception as e:
-        return []
+    return await query_task
 
 @api_router.post("/helpers/custom")
 async def create_custom_helper(helper: CustomHelperCreate, request: Request):
@@ -4947,7 +4959,10 @@ async def get_student_analytics(student_id: str, request: Request, days: int = 3
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    student = supabase.table("students").select("*").eq("id", student_id).execute()
+    # Script 17: the log read does not depend on the student/authorisation lookups, so it starts at
+    # once; its rows are only used after both checks pass.
+    logs_task = _swallow(asyncio.ensure_future(asyncio.to_thread(_feeling_logs_for_student_sync, student_id, days)))
+    student = await asyncio.to_thread(lambda: supabase.table("students").select("*").eq("id", student_id).execute())
     if not student.data:
         raise HTTPException(status_code=404, detail="Student not found")
     student_data = student.data[0]
@@ -4958,8 +4973,9 @@ async def get_student_analytics(student_id: str, request: Request, days: int = 3
     if not await _is_authorized_for_student(user, student_id, student_data):
         raise HTTPException(status_code=403, detail="Not authorized to view this student's analytics")
 
-    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    logs = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).execute()
+    # newest-first rows from the shared read, walked oldest-first (the order the unordered query
+    # returned them in before) so daily_data keeps its chronological key order
+    logs_rows = list(reversed(await logs_task))
     # CRITICAL privacy fix Sep 21 (live incident, real family - Matilda): this endpoint is
     # shared by both a teacher's view AND a parent's own view of their own child (see the
     # _is_authorized_for_student comment above) - feeds student-detail.tsx's trend chart with
@@ -4967,7 +4983,7 @@ async def get_student_analytics(student_id: str, request: Request, days: int = 3
     # helper below only ever filters for a staff viewer (teacher/school_admin/superadmin), so
     # a parent viewing their own child's analytics is untouched - see
     # _filter_home_logs_for_staff_viewer's own comment for the full audit.
-    logs_data = _filter_home_logs_for_staff_viewer(logs.data or [], student_id, user)
+    logs_data = await asyncio.to_thread(_filter_home_logs_for_staff_viewer, logs_rows, student_id, user)
 
     feeling_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
     helper_counts = {}
@@ -5476,6 +5492,65 @@ async def delete_family_member(member_id: str, request: Request):
     supabase.table("family_members").delete().eq("id", member_id).execute()
     return {"message": "Member deleted"}
 
+# --- Script 17: student-detail load time (single-flight reads, shared DB thread pool) ---------------
+# Several endpoints that one screen loads at the same moment (analytics, zone-logs, combined-checkins,
+# home-data, ...) used to repeat the same query once each. _singleflight makes callers that ask for the
+# same thing at the same time share ONE query. Nothing is kept afterwards (no TTL, no stored result), so
+# there is nothing to invalidate and no stale window beyond a read that is already in flight: the next
+# caller after it finishes always reads fresh data. (A multi-second cache was deliberately NOT added:
+# Railway runs 2 workers and the app refetches right after a check-in, so a second worker's cache could
+# hide the teacher's own new entry; invalidation cannot cross workers.)
+import concurrent.futures
+_singleflight_lock = threading.Lock()
+_singleflight_inflight: dict = {}
+_db_pool = concurrent.futures.ThreadPoolExecutor(max_workers=16, thread_name_prefix="dbfan")
+
+def _singleflight(key, fn, copy_fn=None):
+    with _singleflight_lock:
+        fut = _singleflight_inflight.get(key)
+        owner = fut is None
+        if owner:
+            fut = concurrent.futures.Future()
+            _singleflight_inflight[key] = fut
+    if not owner:
+        result = fut.result()
+        return copy_fn(result) if copy_fn else result
+    try:
+        result = fn()
+    except BaseException as e:
+        with _singleflight_lock:
+            _singleflight_inflight.pop(key, None)
+        fut.set_exception(e)
+        raise
+    with _singleflight_lock:
+        _singleflight_inflight.pop(key, None)
+    fut.set_result(result)
+    return copy_fn(result) if copy_fn else result
+
+def _copy_rows(rows):
+    return [dict(r) for r in rows]
+
+def _feeling_logs_for_student_sync(student_id: str, days: int) -> list:
+    """The one raw feeling_logs read the student-detail endpoints share (same query each of them ran
+    on its own before: select *, this student, since now-days, newest first). Callers apply their own
+    privacy filtering afterwards."""
+    def fetch():
+        start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        return supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).order("timestamp", desc=True).execute().data or []
+    return _singleflight(("feeling_logs", student_id, days), fetch, _copy_rows)
+
+def _parent_links_for_student_sync(student_id: str) -> list:
+    """Every parent_links row of a student (select *, shared by sharing-status, home-data and the home
+    check-in privacy filter)."""
+    def fetch():
+        return supabase.table("parent_links").select("*").eq("student_id", student_id).execute().data or []
+    return _singleflight(("parent_links", student_id), fetch, _copy_rows)
+
+def _swallow(task):
+    """Marks a background task's exception as retrieved when its result is never used."""
+    task.add_done_callback(lambda t: t.cancelled() or t.exception())
+    return task
+
 async def _is_authorized_for_student(user: dict, student_id: str, student_data: dict = None) -> bool:
     """Async wrapper - see _is_authorized_for_student_sync's own docstring. Root cause fix
     Sep 26 (blocking-call audit, prompted by the same bug found in _batch_resolve_strategy_names):
@@ -5486,6 +5561,13 @@ async def _is_authorized_for_student(user: dict, student_id: str, student_data: 
     return await asyncio.to_thread(_is_authorized_for_student_sync, user, student_id, student_data)
 
 def _is_authorized_for_student_sync(user: dict, student_id: str, student_data: dict = None) -> bool:
+    """Script 17: callers that ask the same question at the same moment (the 7 student-detail
+    endpoints, one screen) share one evaluation; nothing is cached afterwards, so every later call is
+    evaluated fresh against the database. See _singleflight."""
+    key = ("auth", user.get("user_id"), user.get("role"), user.get("school_name"), user.get("kiosk_classroom_id"), student_id)
+    return _singleflight(key, lambda: _is_authorized_for_student_core(user, student_id, student_data))
+
+def _is_authorized_for_student_core(user: dict, student_id: str, student_data: dict = None) -> bool:
     """Shared authorization check for viewing an individual student's data (analytics, zone
     logs, available months). Real feature Aug 21: adds school_admin as a real authorized
     role for their own school's students - mirrors the dual-match (school_admin_id OR
@@ -5522,9 +5604,22 @@ def _is_authorized_for_student_sync(user: dict, student_id: str, student_data: d
             logger.debug(f"[classroom-owner] could not resolve classroom owner {classroom_id}: {e}")
         if classroom_owner_id and classroom_owner_id == user["user_id"]:
             return True
-    if user.get("role") == "school_admin" and classroom_owner_id:
+    # Script 17: the three remaining lookups are independent of each other, so they run together (one
+    # round trip of waiting instead of up to three). Their results are then evaluated in exactly the
+    # same order and with exactly the same per-lookup error handling as before.
+    def _lookup_owner():
+        return supabase.table("users").select("school_admin_id,school_name").eq("user_id", classroom_owner_id).execute()
+    def _lookup_parent_link():
+        return supabase.table("parent_links").select("id,expires_at").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
+    def _lookup_family_member():
+        return supabase.table("family_members").select("id").eq("user_id", user["user_id"]).eq("student_id", student_id).execute()
+    want_owner = user.get("role") == "school_admin" and bool(classroom_owner_id)
+    f_owner = _db_pool.submit(_lookup_owner) if want_owner else None
+    f_pl = _db_pool.submit(_lookup_parent_link)
+    f_fm = _db_pool.submit(_lookup_family_member)
+    if f_owner is not None:
         try:
-            owner_r = supabase.table("users").select("school_admin_id,school_name").eq("user_id", classroom_owner_id).execute()
+            owner_r = f_owner.result()
             if owner_r.data:
                 owner = owner_r.data[0]
                 if owner.get("school_admin_id") == user["user_id"]:
@@ -5535,14 +5630,14 @@ def _is_authorized_for_student_sync(user: dict, student_id: str, student_data: d
         except Exception as e:
             logger.debug(f"[auth-check] classroom-owner match failed: {e}")
     try:
-        pl = supabase.table("parent_links").select("id,expires_at").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
+        pl = f_pl.result()
         for l in (pl.data or []):
             if not l.get("expires_at") or datetime.fromisoformat(l["expires_at"].replace("Z", "+00:00")) > datetime.now(timezone.utc):
                 return True
     except Exception as e:
         logger.debug(f"[parent-link-check] parent_links lookup failed: {e}")
     try:
-        fm = supabase.table("family_members").select("id").eq("user_id", user["user_id"]).eq("student_id", student_id).execute()
+        fm = f_fm.result()
         if fm.data:
             return True
     except Exception as e:
@@ -5664,8 +5759,7 @@ def _filter_home_logs_for_staff_viewer(logs: list, student_id: str, user: dict) 
     if not any(l.get("logged_by") in ("parent", "family") for l in logs):
         return logs
     try:
-        links = supabase.table("parent_links").select("home_sharing_enabled").eq("student_id", student_id).execute()
-        sharing_enabled = any(l.get("home_sharing_enabled") is True for l in (links.data or []))
+        sharing_enabled = any(l.get("home_sharing_enabled") is True for l in _parent_links_for_student_sync(student_id))
     except Exception as e:
         logger.error(f"_filter_home_logs_for_staff_viewer: could not check sharing for {student_id}: {e}")
         sharing_enabled = False
@@ -9634,14 +9728,47 @@ async def get_available_months(student_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    months_task = _swallow(asyncio.ensure_future(asyncio.to_thread(_available_months_sync, student_id)))
     if not await _is_authorized_for_student(user, student_id):
         raise HTTPException(status_code=403, detail="Not authorized to view this student's reports")
-    logs = supabase.table("feeling_logs").select("timestamp").eq("student_id", student_id).execute()
-    months = set()
-    for log in (logs.data or []):
-        month = log["timestamp"][:7]
-        months.add(month)
-    return sorted(list(months), reverse=True)
+    return await months_task
+
+_MONTHS_PAGE = 1000
+def _available_months_sync(student_id: str) -> list:
+    """Script 17: the months (YYYY-MM, newest first) in which a student has at least one check-in.
+    Used to read the student's whole history unordered (and PostgREST silently caps an unpaginated read
+    at 1000 rows, so a long history could lose months). Now: one ordered, timestamp-only, capped query
+    for the newest 1000 check-ins; only if that page is full (more history exists) the older months are
+    found with one tiny existence probe per calendar month between the oldest check-in and the page,
+    run in parallel. Same output as the full scan, bounded work."""
+    base = lambda: supabase.table("feeling_logs").select("timestamp").eq("student_id", student_id)
+    page = base().order("timestamp", desc=True).limit(_MONTHS_PAGE).execute().data or []
+    months = {log["timestamp"][:7] for log in page}
+    if len(page) >= _MONTHS_PAGE:
+        oldest_page_month = min(months)
+        first = base().order("timestamp").limit(1).execute().data or []
+        if first:
+            y, m = int(first[0]["timestamp"][:4]), int(first[0]["timestamp"][5:7])
+            wanted = []
+            while f"{y:04d}-{m:02d}" < oldest_page_month:
+                wanted.append((y, m))
+                y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+            def probe(ym):
+                y0, m0 = ym
+                y1, m1 = (y0 + 1, 1) if m0 == 12 else (y0, m0 + 1)
+                r = base().gte("timestamp", f"{y0:04d}-{m0:02d}-01T00:00:00+00:00").lt("timestamp", f"{y1:04d}-{m1:02d}-01T00:00:00+00:00").limit(1).execute().data or []
+                return f"{y0:04d}-{m0:02d}" if r else None
+            if len(wanted) <= 240:
+                months.update(x for x in _db_pool.map(probe, wanted) if x)
+            else:   # absurdly long history: fall back to a paginated full scan
+                offset = 0
+                while True:
+                    chunk = base().order("timestamp", desc=True).range(offset, offset + _MONTHS_PAGE - 1).execute().data or []
+                    months.update(log["timestamp"][:7] for log in chunk)
+                    if len(chunk) < _MONTHS_PAGE:
+                        break
+                    offset += _MONTHS_PAGE
+    return sorted(months, reverse=True)
 
 async def _generate_family_member_pdf_bytes(fm: dict, family_member_id: str, year: int, month: int, lang: str = ""):
     """Async wrapper - see _generate_family_member_pdf_bytes_sync's own docstring. Root cause
@@ -23024,28 +23151,29 @@ async def get_student_sharing_status(student_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    # Authorisation gap closed (Oct 10): this endpoint used to check authentication only, so any
+    # Script 17 (authorisation gap closed): this endpoint used to check authentication only, so any
     # logged-in user could read any student's parent-link status and the linked parent's name. Same
-    # check /custom-strategies uses. Outside the try below (its bare except would turn a 403 into the
-    # default 200).
+    # check /custom-strategies uses. The links read starts at once and is only used if it passes.
+    links_task = _swallow(asyncio.ensure_future(asyncio.to_thread(_parent_links_for_student_sync, student_id)))
     if not await _is_authorized_for_student(user, student_id):
         raise HTTPException(status_code=403, detail="Not authorized for this student")
     try:
         # Check if any parent is linked to this student
-        links = supabase.table("parent_links").select("*").eq("student_id", student_id).execute()
-        is_linked = len(links.data or []) > 0
+        # Script 17: shared read (see _parent_links_for_student_sync), off the event loop.
+        links_rows = await links_task
+        is_linked = len(links_rows) > 0
         home_sharing = False
         school_sharing = True
         parent_name = None
-        if is_linked and links.data:
-            link = links.data[0]
+        if is_linked and links_rows:
+            link = links_rows[0]
             home_sharing = link.get("home_sharing_enabled", False)
             school_sharing = link.get("school_sharing_enabled", True)
             if school_sharing is None:
                 school_sharing = True
             # Get parent name
             try:
-                parent = supabase.table("users").select("name,email").eq("user_id", link["parent_user_id"]).execute()
+                parent = await asyncio.to_thread(lambda: supabase.table("users").select("name,email").eq("user_id", link["parent_user_id"]).execute())
                 if parent.data:
                     parent_name = parent.data[0].get("name") or parent.data[0].get("email", "Parent")
             except Exception as e:
@@ -23055,7 +23183,7 @@ async def get_student_sharing_status(student_id: str, request: Request):
             "home_sharing_enabled": home_sharing,
             "school_sharing_enabled": school_sharing,
             "parent_name": parent_name,
-            "link_count": len(links.data or []),
+            "link_count": len(links_rows),
         }
     except Exception as e:
         logger.error(f"get_student_sharing_status error: {e}")
@@ -23127,7 +23255,14 @@ async def get_student_home_data(student_id: str, request: Request, days: int = 3
         # Real fix Aug 26 (security audit): the comment here said "Verify teacher owns this
         # student" but the code below only ever checked the student EXISTS, never who was
         # asking - any authenticated user could pull any student's home check-in history.
-        student = supabase.table("students").select("*").eq("id", student_id).execute()
+        # Script 17: the student row, the parent link rows and the raw check-in rows are independent
+        # reads, so they run together. The links and rows are only used after the authorisation
+        # checks below pass AND the parent has turned sharing on (nothing is returned or exposed
+        # otherwise); the rows are the same read the analytics/zone-logs/combined endpoints share.
+        student_task = _swallow(asyncio.ensure_future(asyncio.to_thread(lambda: supabase.table("students").select("*").eq("id", student_id).execute())))
+        links_task = _swallow(asyncio.ensure_future(asyncio.to_thread(_parent_links_for_student_sync, student_id)))
+        logs_task = _swallow(asyncio.ensure_future(asyncio.to_thread(_feeling_logs_for_student_sync, student_id, days)))
+        student = await student_task
         if not student.data:
             raise HTTPException(status_code=404, detail="Student not found")
         if user.get("role") not in ("teacher", "school_admin", "superadmin"):
@@ -23147,24 +23282,30 @@ async def get_student_home_data(student_id: str, request: Request, days: int = 3
         # normal 200 with an empty result when sharing is off/absent, not an error - a paused
         # or private link must look identical to "no home data yet" from the teacher's side,
         # never reveal that a hidden link exists.
-        links = supabase.table("parent_links").select("home_sharing_enabled").eq("student_id", student_id).execute()
-        sharing_enabled = any(l.get("home_sharing_enabled") is True for l in (links.data or []))
+        sharing_enabled = any(l.get("home_sharing_enabled") is True for l in (await links_task))
         if not sharing_enabled:
             return {"sharing_enabled": False, "home_checkins": [], "family_strategies": [], "total_home_checkins": 0}
 
         start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
+        # Script 17: the two family tables are read together (each keeps its own error handling)
+        def _fam_zone():
+            try:
+                fam_logs_result = supabase.table("family_zone_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
+                return [{**l, "logged_by": "parent"} for l in (fam_logs_result.data or [])]
+            except Exception:
+                return []
+        def _fam_strats():
+            try:
+                fam_strats = supabase.table("family_assigned_strategies").select("*").eq("student_id", student_id).eq("share_with_teacher", True).execute()
+                return fam_strats.data or []
+            except Exception:
+                return []
+        fam_zone_logs, family_strategies = await asyncio.gather(asyncio.to_thread(_fam_zone), asyncio.to_thread(_fam_strats))
         # Home check-ins - check feeling_logs (logged_by=parent) AND family_zone_logs
-        home_logs = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
-        all_feeling_logs = home_logs.data or []
+        all_feeling_logs = await logs_task
         # Filter for home/parent logs
         parent_feeling_logs = [l for l in all_feeling_logs if l.get("logged_by") in ("parent", "family")]
-        # Also check family_zone_logs table
-        try:
-            fam_logs_result = supabase.table("family_zone_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
-            fam_zone_logs = [{**l, "logged_by": "parent"} for l in (fam_logs_result.data or [])]
-        except Exception:
-            fam_zone_logs = []
         combined_home = parent_feeling_logs + fam_zone_logs
         # deduplicate by timestamp
         seen = set()
@@ -23179,13 +23320,6 @@ async def get_student_home_data(student_id: str, request: Request, days: int = 3
         class MockResult:
             def __init__(self, data): self.data = data
         home_logs = MockResult(home_only)
-
-        # Family strategies
-        try:
-            fam_strats = supabase.table("family_assigned_strategies").select("*").eq("student_id", student_id).eq("share_with_teacher", True).execute()
-            family_strategies = fam_strats.data or []
-        except Exception:
-            family_strategies = []
 
         home_checkins = [{
             **log,
@@ -23220,17 +23354,18 @@ async def get_student_combined_checkins(student_id: str, request: Request, days:
     # a raised HTTPException into a silent empty list instead of a real 403.
     if user.get("role") not in ("teacher", "school_admin", "superadmin"):
         raise HTTPException(status_code=403, detail="Teacher access required")
+    # Script 17: authorisation check and the shared log read run together (rows used only after it passes)
+    logs_task = _swallow(asyncio.ensure_future(asyncio.to_thread(_feeling_logs_for_student_sync, student_id, days)))
     if not await _is_authorized_for_student(user, student_id):
         raise HTTPException(status_code=403, detail="Not authorized for this student")
     try:
-        start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-        result = supabase.table("feeling_logs").select("*").eq("student_id", student_id).gte("timestamp", start_date).order("timestamp", desc=True).execute()
+        logs_rows = await logs_task
         # CRITICAL privacy fix Sep 21 (live incident, real family - Matilda): this fed
         # student-detail.tsx's Combined Calendar (an explicit "H" badge per day) and Zone
         # Distribution tabs (a "Home" filter showing the real colour breakdown) with zero
         # regard for home_sharing_enabled. See _filter_home_logs_for_staff_viewer's own
         # comment for the full audit.
-        logs = _filter_home_logs_for_staff_viewer(result.data or [], student_id, user)
+        logs = await asyncio.to_thread(_filter_home_logs_for_staff_viewer, logs_rows, student_id, user)
         return [{
             **log,
             "zone": log.get("feeling_colour", log.get("zone", "")),
@@ -23248,32 +23383,45 @@ async def get_student_all_strategies(student_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    # Authorisation gap closed (Oct 10): authentication-only before, so any logged-in user could read
-    # any student's school and family-shared strategies. Same check /custom-strategies uses; outside
-    # the try below (its bare except would turn the 403 into an empty 200).
-    if not await _is_authorized_for_student(user, student_id):
-        raise HTTPException(status_code=403, detail="Not authorized for this student")
+    # Script 17 (authorisation gap closed): authentication-only before, so any logged-in user could read
+    # any student's school and family-shared strategies. Same check /custom-strategies uses; checked
+    # outside the try below (its bare except would otherwise turn the 403 into an empty 200).
+    auth_task = _swallow(asyncio.ensure_future(_is_authorized_for_student(user, student_id)))
     try:
-        # School strategies - normalize zone/feeling_colour
-        try:
-            school = supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute()
-            school_strats = []
-            for s in (school.data or []):
-                normalized = {**s, "source": "school"}
-                if not normalized.get("zone"):
-                    normalized["zone"] = normalized.get("feeling_colour", "green")
-                if not normalized.get("feeling_colour"):
-                    normalized["feeling_colour"] = normalized.get("zone", "green")
-                school_strats.append(normalized)
-        except Exception as e:
-            logger.error(f"school strategies fetch error: {e}")
-            school_strats = []
-        # Family strategies (shared with teacher)
-        try:
-            family = supabase.table("family_assigned_strategies").select("*").eq("student_id", student_id).eq("share_with_teacher", True).execute()
-            family_strats = [{**s, "source": "home", "name": s.get("strategy_name",""), "description": s.get("strategy_description","")} for s in (family.data or [])]
-        except Exception:
-            family_strats = []
+        # Script 17: the two reads are independent; each keeps its own error handling.
+        def _school():
+            # School strategies - normalize zone/feeling_colour
+            try:
+                school = supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute()
+                school_strats = []
+                for s in (school.data or []):
+                    normalized = {**s, "source": "school"}
+                    if not normalized.get("zone"):
+                        normalized["zone"] = normalized.get("feeling_colour", "green")
+                    if not normalized.get("feeling_colour"):
+                        normalized["feeling_colour"] = normalized.get("zone", "green")
+                    school_strats.append(normalized)
+                return school_strats
+            except Exception as e:
+                logger.error(f"school strategies fetch error: {e}")
+                return []
+        def _family():
+            # Family strategies (shared with teacher)
+            try:
+                family = supabase.table("family_assigned_strategies").select("*").eq("student_id", student_id).eq("share_with_teacher", True).execute()
+                return [{**s, "source": "home", "name": s.get("strategy_name",""), "description": s.get("strategy_description","")} for s in (family.data or [])]
+            except Exception:
+                return []
+        reads_task = _swallow(asyncio.ensure_future(asyncio.gather(asyncio.to_thread(_school), asyncio.to_thread(_family))))
+    except Exception as e:
+        logger.error(f"get_student_all_strategies error: {e}")
+        reads_task = None
+    if not await auth_task:
+        raise HTTPException(status_code=403, detail="Not authorized for this student")
+    if reads_task is None:
+        return {"school_strategies": [], "family_strategies": []}
+    try:
+        school_strats, family_strats = await reads_task
         return {"school_strategies": school_strats, "family_strategies": family_strats}
     except Exception as e:
         logger.error(f"get_student_all_strategies error: {e}")
