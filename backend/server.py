@@ -47,6 +47,12 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 logging.basicConfig(level=logging.INFO)
+# Oct 11: never log outbound request URLs. At INFO, httpx/httpcore print every request URL, and the
+# Supabase client's URLs carry values in the query string (session_token=eq.<token>, codes, ids), so
+# session tokens and similar secrets ended up in the Railway logs; the Vision API key did too (it was
+# in the URL). WARNING keeps real transport problems visible and drops the per-request lines.
+for _noisy_logger in ("httpx", "httpcore", "hpack"):
+    logging.getLogger(_noisy_logger).setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Real feature Sep 27 (live incident - a genuine httpcore.ReadTimeout talking to Supabase
@@ -13874,9 +13880,11 @@ async def _run_ai_moderation(image_urls: list) -> str:
             ]
         }
         async with httpx.AsyncClient(timeout=15.0) as client:
+            # Oct 11: the key goes in the X-Goog-Api-Key header, never in the URL (URLs get logged).
             resp = await client.post(
-                f"https://vision.googleapis.com/v1/images:annotate?key={GOOGLE_VISION_API_KEY}",
+                "https://vision.googleapis.com/v1/images:annotate",
                 json=payload,
+                headers={"X-Goog-Api-Key": GOOGLE_VISION_API_KEY},
             )
         if resp.status_code != 200:
             logger.warning(f"[ai_moderation] Vision API returned {resp.status_code}: {resp.text[:300]}")
