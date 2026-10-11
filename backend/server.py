@@ -3864,8 +3864,161 @@ async def get_zone_logs_all(
     } for log in logs]
 
 # ================== HELPERS / STRATEGIES ==================
+# ================== STUDENT-FLOW STRATEGY RESOLUTION (Oct 11, fix41) ==================
+# ONE place decides which strategies a child sees, from the SESSION ROLE and the sharing flags, and labels each
+# with where it comes from (origin). Used by /helpers (student flow), /strategies/shared, /custom-strategies?student_id=
+# and /strategies?student_id=, so no old or new build can read around it.
+#   school context (teacher, school_admin, admin, superadmin, kiosk): a guardian's strategy appears only when the
+#       guardian shared it (custom_helpers.is_shared / family_assigned_strategies.share_with_teacher).
+#   home context (parent, family): a staff/teacher strategy appears only when it is shared with the parent
+#       (is_shared) AND school sharing for the child is not paused (parent_links.school_sharing_enabled); school-wide
+#       (school_strategies type student) strategies follow the same pause flag.
+#   origin: 'home' = only home uses it, 'school' = only school uses it, 'both' = made on one side and shared to the other.
+# Not used for strategies: parent_links.home_sharing_enabled (it governs home CHECK-INS going to the teacher).
+_HOME_CONTEXT_ROLES = ("parent", "family")
+
+def _strategy_context(user: dict) -> str:
+    return "home" if (user or {}).get("role") in _HOME_CONTEXT_ROLES else "school"
+
+def _colour_matches(value, colour: Optional[str]) -> bool:
+    """True when the row's colour value covers `colour`. Tolerates the comma list / 'all' used by teacher personal rows."""
+    if not colour:
+        return True
+    v = str(value or "").strip().lower()
+    if v == "all":
+        return True
+    return colour in [x.strip() for x in v.split(",")]
+
+def _resolve_student_strategies_sync(user: dict, student_id: str, colour: Optional[str] = None, include_inactive: bool = False) -> list:
+    """Visible, labelled strategies of one STUDENT row for this session. Items are the raw row plus: _kind
+    (custom_student | custom_family | family_assigned | school_wide), origin, source ('home'|'school'),
+    creator_role. Fails closed: a lookup that errors removes the rows it would have judged."""
+    from concurrent.futures import ThreadPoolExecutor
+    ctx = _strategy_context(user)
+    uid = user.get("user_id")
+    def _q(fn):
+        try:
+            return fn()
+        except Exception as e:
+            logger.warning(f"strategy resolution lookup failed: {e}")
+            return None
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        f_links = ex.submit(_q, lambda: supabase.table("parent_links").select("parent_user_id,school_sharing_enabled,expires_at").eq("student_id", student_id).execute().data or [])
+        f_fm = ex.submit(_q, lambda: supabase.table("family_members").select("user_id").eq("student_id", student_id).execute().data or [])
+        f_rows = ex.submit(_q, lambda: supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute().data or [])
+        f_fa = ex.submit(_q, lambda: supabase.table("family_assigned_strategies").select("*").eq("student_id", student_id).execute().data or [])
+        f_school = ex.submit(_q, lambda: _fetch_school_strategies_sync([a for a in [_student_school_admin_id(student_id)] if a], {"student"}))
+        links, fms, rows, fam_assigned, school_wide = (f.result() for f in (f_links, f_fm, f_rows, f_fa, f_school))
+    now_iso = datetime.now(timezone.utc).isoformat()
+    # an expired link keeps its owner a guardian (rows stay hidden unless shared) but no longer counts as "someone at home"
+    live_links = [l for l in (links or []) if not l.get("expires_at") or str(l.get("expires_at")) > now_iso]
+    guardians = None
+    if links is not None and fms is not None:
+        guardians = {l.get("parent_user_id") for l in links if l.get("parent_user_id")} | {m.get("user_id") for m in fms if m.get("user_id")}
+    # can the home side see school-made items? (someone at home exists and school sharing is not paused for this session)
+    if guardians is None:
+        home_sees_school = False
+    elif ctx == "home":
+        own = [l for l in live_links if l.get("parent_user_id") == uid]
+        mine = own or live_links
+        home_sees_school = bool(mine) and any(l.get("school_sharing_enabled") is not False for l in mine) or (not live_links and uid in guardians)
+    else:
+        home_sees_school = bool(guardians) and (bool(fms) or any(l.get("school_sharing_enabled") is not False for l in live_links))
+    out = []
+    def _add(row, kind, origin, source, creator_role, item_id=None):
+        if not _colour_matches(row.get("feeling_colour") or row.get("zone") or row.get("strategy_zone"), colour) and kind != "family_assigned":
+            return
+        item = dict(row)
+        fc = row.get("feeling_colour") or row.get("zone") or "green"
+        item.update({"_kind": kind, "origin": origin, "source": source, "creator_role": creator_role,
+                     "feeling_colour": colour if (colour and str(fc).lower() != colour) else fc,
+                     "zone": colour if (colour and str(fc).lower() != colour) else fc})
+        if item_id:
+            item["id"] = item_id
+        out.append(item)
+    seen = set()
+    for r in (rows or []):
+        if r.get("id") in seen or (r.get("is_active") is False and not include_inactive):
+            continue
+        is_shared = r.get("is_shared") is True
+        is_guardian = guardians is not None and r.get("user_id") in guardians
+        if guardians is None and r.get("user_id") != uid:      # cannot tell who made it: only shared rows, as both
+            if not is_shared:
+                continue
+            seen.add(r.get("id")); _add(r, "custom_student", "both", "school", "teacher"); continue
+        if is_guardian:
+            if ctx == "school" and not is_shared:
+                continue
+            seen.add(r.get("id")); _add(r, "custom_student", "both" if is_shared else "home", "home", "parent")
+        else:
+            if ctx == "home" and not (is_shared and home_sees_school):
+                continue
+            seen.add(r.get("id")); _add(r, "custom_student", "both" if (is_shared and home_sees_school) else "school", "school", "teacher")
+    # a guardian's family-level rows (student_id NULL): assigned to all children or to this one
+    if guardians:
+        fam_rows = _q(lambda: supabase.table("custom_helpers").select("*").in_("user_id", list(guardians)).is_("student_id", "null").execute().data or []) or []
+        for r in fam_rows:
+            if r.get("id") in seen or (r.get("is_active") is False and not include_inactive):
+                continue
+            if (r.get("assigned_to") or "all") not in ("all", student_id):
+                continue
+            is_shared = r.get("is_shared") is True
+            if ctx == "school" and not is_shared:
+                continue
+            seen.add(r.get("id")); _add(r, "custom_family", "both" if is_shared else "home", "home", "parent")
+    for r in (fam_assigned or []):
+        if r.get("is_active") is False:
+            continue
+        shared = r.get("share_with_teacher") is True
+        if ctx == "school" and not shared:
+            continue
+        if not _colour_matches(r.get("zone"), colour):
+            continue
+        item = {**r, "name": r.get("strategy_name") or "", "description": r.get("strategy_description") or "",
+                "feeling_colour": r.get("zone") or "green", "is_shared": shared}
+        _add(item, "family_assigned", "both" if shared else "home", "home", "parent", item_id=f"{r.get('id')}_family")
+    for r in (school_wide or []):
+        if ctx == "home" and not home_sees_school:
+            continue
+        if not _colour_matches(r.get("feeling_colour") or r.get("zone"), colour):
+            continue
+        item = dict(r)
+        item.update({"_kind": "school_wide", "origin": "both" if home_sees_school else "school", "source": "school", "creator_role": "school_admin"})
+        out.append(item)
+    return out
+
+def _resolve_family_only_strategies_sync(user: dict, member_id: str, colour: Optional[str] = None) -> list:
+    """A child that exists only as a family member (no students row): the parent's own home strategies for it."""
+    try:
+        fm = supabase.table("family_members").select("id,user_id").eq("id", member_id).execute().data or []
+        if not fm or fm[0].get("user_id") != user.get("user_id"):
+            return []
+        rows = supabase.table("custom_helpers").select("*").eq("user_id", user["user_id"]).execute().data or []
+        out = []
+        for r in rows:
+            if r.get("is_active") is False or r.get("student_id") not in (None, "", member_id):
+                continue
+            if (r.get("assigned_to") or "all") not in ("all", member_id) or not _colour_matches(r.get("feeling_colour") or r.get("zone"), colour):
+                continue
+            item = dict(r)
+            fc = r.get("feeling_colour") or r.get("zone") or "green"
+            item.update({"_kind": "custom_family", "origin": "home", "source": "home", "creator_role": "parent",
+                         "feeling_colour": colour if (colour and str(fc).lower() != colour) else fc,
+                         "zone": colour if (colour and str(fc).lower() != colour) else fc})
+            out.append(item)
+        return out
+    except Exception as e:
+        logger.warning(f"family-only strategies skipped: {e}")
+        return []
+
+def _public_strategy_item(item: dict) -> dict:
+    """Student-flow shape: the row plus origin/source; internal keys and the owner id are dropped."""
+    o = {k: v for k, v in item.items() if k not in ("_kind", "user_id", "parent_user_id", "assigned_to")}
+    o["is_custom"] = True
+    return o
+
 @api_router.get("/helpers")
-async def get_helpers(request: Request, feeling_colour: Optional[str] = None, student_id: Optional[str] = None, lang: str = "en"):
+async def get_helpers(request: Request, feeling_colour: Optional[str] = None, student_id: Optional[str] = None, lang: str = "en", resolve: Optional[str] = None):
     helpers = []
     colours = [feeling_colour] if feeling_colour else FEELING_COLOURS
     # Use language-specific helper cards if available
@@ -3893,19 +4046,23 @@ async def get_helpers(request: Request, feeling_colour: Optional[str] = None, st
         try:
             user = await get_current_user(request)
             if user and await _is_authorized_for_student(user, student_id):
-                custom = supabase.table("custom_helpers").select("*").eq("student_id", student_id).eq("is_active", True).execute()
-                if custom.data:
-                    for h in custom.data:
-                        if not feeling_colour or h.get("feeling_colour") == feeling_colour:
-                            helpers.append(h)
-                # Oct 10: the student's SCHOOL strategies (school_strategies, type student, matching colour),
-                # only for a caller authorised for this student; fails closed to none.
+                # Oct 11 (fix41): the child's strategies now come from ONE resolution that applies the sharing rules
+                # for this session (see _resolve_student_strategies_sync). Without resolve=1 (older app builds) the
+                # same two groups as before are returned (this student's custom rows and the school-wide ones), now
+                # filtered; with resolve=1 the home-made family strategies are included too, all labelled with origin.
                 try:
-                    school_admin_id = await asyncio.to_thread(_student_school_admin_id, student_id)
-                    if school_admin_id:
-                        helpers.extend(await asyncio.to_thread(_fetch_school_strategies_sync, [school_admin_id], {"student"}, feeling_colour))
+                    resolved = await asyncio.to_thread(_resolve_student_strategies_sync, user, student_id, feeling_colour)
+                    if resolve:
+                        helpers.extend(_public_strategy_item(i) for i in resolved)
+                    else:
+                        # exactly the old shapes: raw custom row (no new keys), school-wide item as _fetch_school_strategies_sync gives it
+                        helpers.extend({k: v for k, v in i.items() if k not in ("_kind", "origin", "creator_role", "is_custom")} if i.get("_kind") == "school_wide" else
+                                       {k: v for k, v in i.items() if k not in ("_kind", "origin", "creator_role", "is_custom", "source")}
+                                       for i in resolved if i.get("_kind") in ("custom_student", "school_wide"))
                 except Exception as e:
-                    logger.warning(f"school strategies for student {student_id} skipped: {e}")
+                    logger.warning(f"strategy resolution for student {student_id} skipped: {e}")
+            elif user and resolve and _strategy_context(user) == "home":
+                helpers.extend(_public_strategy_item(i) for i in await asyncio.to_thread(_resolve_family_only_strategies_sync, user, student_id, feeling_colour))
         except Exception as e:
             logger.error(f"Error fetching custom helpers: {e}")
 
@@ -4062,8 +4219,10 @@ async def get_strategies(request: Request, zone: Optional[str] = None, feeling_c
             user = await get_current_user(request)
             if user and await _is_authorized_for_student(user, student_id):
                 custom_result = supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute()
+                # Oct 11 (fix41): same sharing rules as the student flow (school-admin portal and teacher screens read this)
+                allowed = {i.get("id") for i in _resolve_student_strategies_sync(user, student_id, None, True) if i.get("_kind") == "custom_student"}
                 for h in (custom_result.data or []):
-                    if not effective_zone or h.get("feeling_colour") == effective_zone:
+                    if h.get("id") in allowed and (not effective_zone or h.get("feeling_colour") == effective_zone):
                         custom.append({
                             **h,
                             "zone": h.get("feeling_colour", h.get("zone", effective_zone)),
@@ -4267,6 +4426,12 @@ async def get_custom_strategies(request: Request, student_id: Optional[str] = No
             result = query.execute()
             # Normalise: add zone field from feeling_colour for frontend compatibility
             data = result.data or []
+            # Oct 11 (fix41): for a student, only rows this session may see (sharing rules, see
+            # _resolve_student_strategies_sync): school context hides unshared guardian rows, home context hides
+            # unshared staff rows. Inactive rows are kept as before.
+            if student_id:
+                allowed = {i.get("id") for i in _resolve_student_strategies_sync(user, student_id, None, True) if i.get("_kind") == "custom_student"}
+                data = [r for r in data if r.get("id") in allowed]
             # Oct 11: creator_role/source added (additive). Same values /strategies/shared uses: "parent" for a
             # guardian's row, "teacher" for staff; source is "home" for guardian rows, "school" for staff.
             if student_id:
@@ -6718,73 +6883,12 @@ async def get_shared_strategies_for_student(student_id: str, request: Request):
     if not await _is_authorized_for_student(user, student_id):
         raise HTTPException(status_code=403, detail="Not authorized for this student")
     try:
-        data = []
-        seen_ids = set()
-
-        # Root cause fix Sep 26 (item 23): this used to be 1 (teacher) + 1 (parent_links) +
-        # N (one custom_helpers query PER linked parent) + 1 (family_members) + M (one PER
-        # family-member parent) sequential round trips - confirmed live via the timing
-        # middleware at 5 db_calls/1.2s for a single-parent student, growing with every extra
-        # guardian. The 3 top-level lookups (teacher strategies, parent_links, family_members)
-        # don't depend on each other, so they now run concurrently; the two per-parent loops
-        # collapse into one batched .in_("user_id", ...) query covering every linked parent AND
-        # family member at once, so total round trips stay fixed regardless of guardian count.
-        teacher_result, links_result, fm_result = await asyncio.gather(
-            asyncio.to_thread(lambda: supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute()),
-            asyncio.to_thread(lambda: supabase.table("parent_links").select("parent_user_id").eq("student_id", student_id).execute()),
-            asyncio.to_thread(lambda: supabase.table("family_members").select("user_id").eq("student_id", student_id).execute()),
-            return_exceptions=True,
-        )
-
-        # 1. Teacher-added custom strategies for this student
-        if isinstance(teacher_result, Exception):
-            logger.error(f"teacher strategies fetch error: {teacher_result}")
-        else:
-            for s in (teacher_result.data or []):
-                if s["id"] not in seen_ids:
-                    s["creator_role"] = "teacher"
-                    data.append(s)
-                    seen_ids.add(s["id"])
-
-        # 2/3. Parent + family-member custom strategies - one batched query for all guardians
-        try:
-            parent_ids = set()
-            if not isinstance(links_result, Exception):
-                parent_ids.update(l.get("parent_user_id") for l in (links_result.data or []) if l.get("parent_user_id"))
-            else:
-                logger.error(f"parent strategies fetch error: {links_result}")
-            if not isinstance(fm_result, Exception):
-                parent_ids.update(fm.get("user_id") for fm in (fm_result.data or []) if fm.get("user_id"))
-            else:
-                logger.error(f"family member strategies fetch error: {fm_result}")
-            if parent_ids:
-                fam_result = supabase.table("custom_helpers").select("*").in_("user_id", list(parent_ids)).execute()
-                for s in (fam_result.data or []):
-                    if s["id"] in seen_ids:
-                        continue
-                    # Oct 10 leak fix: a row created for a SPECIFIC other student (student_id set, e.g. a strategy made
-                    # for one child) must never show on this child, even if its creator is also this child's guardian.
-                    row_student = s.get("student_id")
-                    if row_student and row_student != student_id:
-                        continue
-                    assigned = s.get("assigned_to", "all") or "all"
-                    # Show if assigned to all, or to this specific student
-                    if assigned in ("all", student_id):
-                        s["creator_role"] = "parent"
-                        data.append(s)
-                        seen_ids.add(s["id"])
-        except Exception as e:
-            logger.error(f"guardian strategies fetch error: {e}")
-
-        # Normalise zone/feeling_colour for all
-        for row in data:
-            fc = row.get("feeling_colour", "")
-            z  = row.get("zone", "")
-            row["zone"] = z or fc or "green"
-            row["feeling_colour"] = fc or z or "green"
-            if "creator_role" not in row:
-                row["creator_role"] = "teacher"
-
+        # Oct 11 (fix41): the lists this endpoint used to build by hand (staff rows for the student + every guardian's
+        # rows) now come from the shared resolution, so an unshared guardian row is never returned to a school-context
+        # session (and an unshared staff row never to a home-context one). Same keys as before plus origin/source;
+        # the internal _kind key is dropped.
+        resolved = await asyncio.to_thread(_resolve_student_strategies_sync, user, student_id)
+        data = [{k: v for k, v in i.items() if k != "_kind"} for i in resolved if i.get("_kind") in ("custom_student", "custom_family")]
         return data
     except Exception as e:
         logger.error(f"get_shared_strategies error: {e}")
