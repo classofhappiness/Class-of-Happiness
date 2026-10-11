@@ -22013,6 +22013,8 @@ async def delete_staff_shortcut(shortcut_id: str, request: Request):
     supabase.table("support_staff_shortcuts").delete().eq("id", shortcut_id).eq("school_admin_id", user["user_id"]).execute()
     return {"status": "deleted"}
 
+_claim_rows_seen: set = set()   # fix52: lock keys this process has already seen (or seeded) in admin_settings
+
 async def _try_claim_recurring_tick(lock_key: str, min_interval_seconds: int) -> bool:
     """Cross-worker mutual exclusion for a recurring background loop tick, without a real
     Postgres advisory lock. Root cause fix Sep 26 (multi-worker duplication audit):
@@ -22051,9 +22053,24 @@ async def _try_claim_recurring_tick(lock_key: str, min_interval_seconds: int) ->
             .lt("value", threshold_iso)
             .execute()
         )
+    def _ensure_row():
+        """fix52: a missing lock row used to mean nobody ever wins (the job silently never runs). Seed it with an old value
+        (so the NEXT tick can claim) and report that this tick did not claim; duplicate rows from a startup race are harmless:
+        one UPDATE moves all of them at once, so the claim stays exclusive."""
+        ex = supabase.table("admin_settings").select("key").eq("key", lock_key).is_("school_admin_id", "null").execute().data
+        if not ex:
+            supabase.table("admin_settings").insert({"key": lock_key, "value": "1970-01-01T00:00:00+00:00", "school_admin_id": None}).execute()
+            logger.warning(f"[recurring-tick-lock] seeded missing lock row {lock_key}")
+        return True
     try:
         result = await asyncio.to_thread(_claim)
-        return bool(result.data)
+        if result.data:
+            _claim_rows_seen.add(lock_key)
+            return True
+        if lock_key not in _claim_rows_seen:
+            await asyncio.to_thread(_ensure_row)
+            _claim_rows_seen.add(lock_key)
+        return False
     except Exception as e:
         logger.error(f"[recurring-tick-lock] claim failed for {lock_key}: {e}")
         return False
@@ -22064,7 +22081,8 @@ async def _support_requests_rebuzz_loop():
     last (re)buzz is older than its own cadence - ~2min standard, ~30s (every tick) for
     incidents. Acknowledging a request stops it immediately since the query only ever
     selects unacknowledged rows. See _try_claim_recurring_tick's own docstring for why only
-    one of the 2 --workers processes actually runs this tick's body."""
+    one of the 2 --workers processes actually runs this tick's body (fix52: verified in the
+    production log - exactly one worker claims each tick, the other logs "skipped")."""
     while True:
         try:
             await asyncio.sleep(30)
@@ -22072,55 +22090,68 @@ async def _support_requests_rebuzz_loop():
                 logger.info(f"[support_requests rebuzz] pid={os.getpid()} skipped this tick - another worker already claimed it")
                 continue
             logger.info(f"[support_requests rebuzz] pid={os.getpid()} claimed this tick - processing")
-            now = datetime.now(timezone.utc)
-            standard_cutoff = (now - timedelta(minutes=2)).isoformat()
-            # Root cause fix Sep 26 (blocking-call audit): this ran as a direct blocking call
-            # on EVERY 30s tick of a loop that runs forever - unlike a one-off endpoint, this
-            # blocked the event loop repeatedly and indefinitely for as long as the process
-            # runs, not just once.
-            pending = (await asyncio.to_thread(lambda: supabase.table("support_requests").select("*").eq("status", "PENDING").is_("acknowledged_at", "null").execute())).data or []
-            for r in pending:
-                # Real fix Sep 10: each request handled in its own try/except - an error on
-                # one row (e.g. the missing users.push_token column found live today, or any
-                # future transient issue) used to unwind this whole for-loop via the outer
-                # try/except, silently skipping every OTHER pending request for that tick too.
-                try:
-                    last = r.get("last_rebuzz_at") or r.get("created_at")
-                    due = r.get("is_incident") or (last and last < standard_cutoff)
-                    if not due:
-                        continue
-                    # Real fix Sep 10: push lookup/send failure must NOT prevent last_rebuzz_at
-                    # from advancing (confirmed live: it was inside the same try as the update
-                    # below, so a push_token lookup error silently meant this row re-attempted
-                    # every single tick forever instead of respecting its own cadence). This
-                    # timestamp tracks "we attempted to re-notify," not "delivery succeeded" -
-                    # delivery success isn't reliably knowable from Expo's response anyway.
-                    admin_tokens = []
-                    try:
-                        admin_tokens = [(r["school_admin_id"], tok) for tok in await _get_push_tokens_for_user(r["school_admin_id"])]
-                    except Exception as e:
-                        logger.error(f"[support_requests rebuzz] push_token lookup failed for {r['id']}: {e}")
-                    if admin_tokens:
-                        is_incident_rebuzz = r.get("is_incident")
-                        text_by_lang = {
-                            lang: {
-                                "title": f"{(PUSH_SUPPORT_TITLE_INCIDENT if is_incident_rebuzz else PUSH_SUPPORT_TITLE_NORMAL)[lang]} {PUSH_REBUZZ_UNACKNOWLEDGED_SUFFIX[lang]}",
-                                "body": PUSH_REBUZZ_BODY[lang],
-                            }
-                            for lang in PUSH_NOTIFICATION_LANGUAGES
-                        }
-                        await _send_push(
-                            admin_tokens,
-                            text_by_lang,
-                            data={"type": "support_request_rebuzz", "id": r["id"]},
-                            priority="high", channel_id="incident" if is_incident_rebuzz else "default",
-                            sound="default" if is_incident_rebuzz else "support_buzz.wav",
-                        )
-                    await asyncio.to_thread(lambda: supabase.table("support_requests").update({"last_rebuzz_at": now.isoformat()}).eq("id", r["id"]).execute())
-                except Exception as e:
-                    logger.error(f"[support_requests rebuzz] row {r.get('id')} error: {e}")
+            await _support_requests_rebuzz_tick()
         except Exception as e:
             logger.error(f"[support_requests rebuzz] loop error: {e}")
+
+async def _claim_rebuzz_row(r: dict, now_iso: str) -> bool:
+    """fix52: advance last_rebuzz_at BEFORE sending, as one conditional UPDATE (only if it still holds the value this tick read):
+    whichever tick/worker wins the row sends, anything else (a second worker whose tick-level claim also passed, a restart
+    that re-runs the tick) finds the value changed and skips, so a push is never sent twice for the same due window. If the
+    send then fails the row simply waits for its next cadence window (this timestamp has always meant "we attempted")."""
+    old = r.get("last_rebuzz_at")
+    def _do():
+        q = supabase.table("support_requests").update({"last_rebuzz_at": now_iso}).eq("id", r["id"])
+        q = q.eq("last_rebuzz_at", old) if old else q.is_("last_rebuzz_at", "null")
+        return q.execute()
+    try:
+        res = await asyncio.to_thread(_do)
+        return bool(res.data)
+    except Exception as e:
+        logger.error(f"[support_requests rebuzz] could not claim row {r.get('id')}: {e}")
+        return False
+
+async def _support_requests_rebuzz_tick():
+    now = datetime.now(timezone.utc)
+    standard_cutoff = (now - timedelta(minutes=2)).isoformat()
+    # Root cause fix Sep 26 (blocking-call audit): this ran as a direct blocking call
+    # on EVERY 30s tick of a loop that runs forever - unlike a one-off endpoint, this
+    # blocked the event loop repeatedly and indefinitely for as long as the process
+    # runs, not just once.
+    pending = (await asyncio.to_thread(lambda: supabase.table("support_requests").select("*").eq("status", "PENDING").is_("acknowledged_at", "null").execute())).data or []
+    for r in pending:
+        # Real fix Sep 10: each request handled in its own try/except - an error on one row
+        # must not skip every OTHER pending request for that tick.
+        try:
+            last = r.get("last_rebuzz_at") or r.get("created_at")
+            due = r.get("is_incident") or (last and last < standard_cutoff)
+            if not due:
+                continue
+            if not await _claim_rebuzz_row(r, now.isoformat()):
+                continue          # another tick/worker already took this row for this window
+            admin_tokens = []
+            try:
+                admin_tokens = [(r["school_admin_id"], tok) for tok in await _get_push_tokens_for_user(r["school_admin_id"])]
+            except Exception as e:
+                logger.error(f"[support_requests rebuzz] push_token lookup failed for {r['id']}: {e}")
+            if admin_tokens:
+                is_incident_rebuzz = r.get("is_incident")
+                text_by_lang = {
+                    lang: {
+                        "title": f"{(PUSH_SUPPORT_TITLE_INCIDENT if is_incident_rebuzz else PUSH_SUPPORT_TITLE_NORMAL)[lang]} {PUSH_REBUZZ_UNACKNOWLEDGED_SUFFIX[lang]}",
+                        "body": PUSH_REBUZZ_BODY[lang],
+                    }
+                    for lang in PUSH_NOTIFICATION_LANGUAGES
+                }
+                await _send_push(
+                    admin_tokens,
+                    text_by_lang,
+                    data={"type": "support_request_rebuzz", "id": r["id"]},
+                    priority="high", channel_id="incident" if is_incident_rebuzz else "default",
+                    sound="default" if is_incident_rebuzz else "support_buzz.wav",
+                )
+        except Exception as e:
+            logger.error(f"[support_requests rebuzz] row {r.get('id')} error: {e}")
 
 # Real feature Sep 20 (subscription renewal system, Jono-approved policy): 30-day and 7-day
 # reminder emails to Jono before a school's renewal_date, and a 14-day post-activation
@@ -22132,22 +22163,76 @@ async def _support_requests_rebuzz_loop():
 # adding schema (no direct DB/DDL access from this environment - see the
 # school_provisioning_codes table note from earlier the same night) for a low-stakes,
 # recoverable-by-just-ignoring-it duplicate.
-SCHOOL_RENEWAL_LOOP_SECONDS = 86400
+SCHOOL_RENEWAL_LOOP_SECONDS = 86400   # kept for reference; fix52: the daily jobs now tick hourly, see _daily_job_loop
+SCHOOL_DAILY_JOB_FIRST_TICK_SECONDS = 120
+SCHOOL_DAILY_JOB_TICK_SECONDS = 3600
+SCHOOL_DAILY_JOB_CLAIM_SECONDS = 3300
 
-async def _school_renewal_reminder_loop():
-    """Same multi-worker duplication risk and fix as _support_requests_rebuzz_loop - see
-    _try_claim_recurring_tick's own docstring. 23h threshold (not the full 24h) gives margin
-    below the sleep interval so a worker's own timing drift can't starve a real day boundary."""
+# fix52: why this changed. (1) The claim (_try_claim_recurring_tick) already keeps the 2 workers apart, but the old loops
+# slept a full 24 hours BEFORE their first tick, and every deploy restarts the process: with deploys more often than every 24
+# hours the reminder and the nudge never ran at all (their lock rows still held the seed value of 10 Oct). (2) A claim that is
+# taken and then lost (crash before the send) skipped the day, and the exact-day match (days_left == 30) then moved on.
+# Now both jobs tick every hour (first tick 2 minutes after start); a tick is claimed by exactly one worker (DB claim, 55
+# minute window, survives restarts, a dead holder only blocks the next 55 minutes); every individual email is guarded by a
+# "sent" marker row in admin_settings written BEFORE the send (and removed again if the send fails), so a restart or a second
+# tick the same day can never send it twice and a failed send is retried on the next hourly tick of the same day.
+async def _claim_sent_marker(marker_key: str) -> bool:
+    """True when this call created the marker (the caller may send). Fails closed: any error means "do not send"."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    def _do():
+        ex = supabase.table("admin_settings").select("key").eq("key", marker_key).is_("school_admin_id", "null").execute().data
+        if ex:
+            return False
+        supabase.table("admin_settings").insert({"key": marker_key, "value": now_iso, "school_admin_id": None}).execute()
+        return True
+    try:
+        return bool(await asyncio.to_thread(_do))
+    except Exception as e:
+        logger.error(f"[sent-marker] could not claim {marker_key[:60]}: {type(e).__name__}")
+        return False
+
+async def _release_sent_marker(marker_key: str) -> None:
+    try:
+        await asyncio.to_thread(lambda: supabase.table("admin_settings").delete().eq("key", marker_key).is_("school_admin_id", "null").execute())
+    except Exception as e:
+        logger.error(f"[sent-marker] could not release {marker_key[:60]}: {type(e).__name__}")
+
+async def _send_once(marker_key: str, send_fn, label: str) -> bool:
+    """Marker first, then send. A failed send removes the marker so the next tick retries; a successful one leaves it."""
+    if not await _claim_sent_marker(marker_key):
+        return False
+    try:
+        ok, detail = await asyncio.to_thread(send_fn)
+    except Exception as e:
+        ok, detail = False, type(e).__name__
+    if not ok:
+        await _release_sent_marker(marker_key)
+        logger.warning(f"[{label}] send failed, will retry on the next tick ({str(detail)[:80]})")
+        return False
+    logger.info(f"[{label}] sent")
+    return True
+
+async def _daily_job_tick(lock_key: str, label: str, job) -> bool:
+    """One tick of an hourly job: exactly one worker claims it and runs `job`; the other logs a skip. Returns True if run."""
+    if not await _try_claim_recurring_tick(lock_key, min_interval_seconds=SCHOOL_DAILY_JOB_CLAIM_SECONDS):
+        logger.info(f"[{label}] pid={os.getpid()} skipped this tick - another worker already claimed it")
+        return False
+    logger.info(f"[{label}] pid={os.getpid()} claimed this tick - processing")
+    await job()
+    return True
+
+async def _daily_job_loop(lock_key: str, label: str, job):
+    await asyncio.sleep(SCHOOL_DAILY_JOB_FIRST_TICK_SECONDS)
     while True:
         try:
-            await asyncio.sleep(SCHOOL_RENEWAL_LOOP_SECONDS)
-            if not await _try_claim_recurring_tick("loop_lock::school_renewal_reminders", min_interval_seconds=82800):
-                logger.info(f"[school-renewal-reminders] pid={os.getpid()} skipped this tick - another worker already claimed it")
-                continue
-            logger.info(f"[school-renewal-reminders] pid={os.getpid()} claimed this tick - processing")
-            await _check_school_renewal_reminders()
+            await _daily_job_tick(lock_key, label, job)
         except Exception as e:
-            logger.error(f"[school-renewal-reminders] loop error: {e}")
+            logger.error(f"[{label}] loop error: {e}")
+        await asyncio.sleep(SCHOOL_DAILY_JOB_TICK_SECONDS)
+
+async def _school_renewal_reminder_loop():
+    """Same multi-worker claim as _support_requests_rebuzz_loop (see fix52 note above): hourly ticks, one worker per tick."""
+    await _daily_job_loop("loop_lock::school_renewal_reminders", "school-renewal-reminders", _check_school_renewal_reminders)
 
 async def _check_school_renewal_reminders():
     now = datetime.now(timezone.utc)
@@ -22164,7 +22249,9 @@ async def _check_school_renewal_reminders():
             continue
         days_left = (renewal.date() - now.date()).days
         if days_left in (30, 7):
-            _send_school_renewal_reminder(p.get("school_name", "Unknown school"), days_left, renewal)
+            name = p.get("school_name", "Unknown school")
+            marker = f"sent::renewal::{name}::{renewal.date().isoformat()}::{days_left}"
+            await _send_once(marker, lambda n=name, d=days_left, r=renewal: _send_school_renewal_reminder(n, d, r), "school-renewal-reminders")
 
 def _send_school_renewal_reminder(school_name: str, days_left: int, renewal_date) -> tuple:
     """Never raises - see _send_school_activation_notification's own docstring for why."""
@@ -22195,18 +22282,8 @@ def _send_school_renewal_reminder(school_name: str, days_left: int, renewal_date
         return False, str(e)[:150]
 
 async def _school_checkin_nudge_loop():
-    """Same multi-worker duplication risk and fix as _support_requests_rebuzz_loop - see
-    _try_claim_recurring_tick's own docstring."""
-    while True:
-        try:
-            await asyncio.sleep(SCHOOL_RENEWAL_LOOP_SECONDS)
-            if not await _try_claim_recurring_tick("loop_lock::school_checkin_nudges", min_interval_seconds=82800):
-                logger.info(f"[school-checkin-nudge] pid={os.getpid()} skipped this tick - another worker already claimed it")
-                continue
-            logger.info(f"[school-checkin-nudge] pid={os.getpid()} claimed this tick - processing")
-            await _check_school_checkin_nudges()
-        except Exception as e:
-            logger.error(f"[school-checkin-nudge] loop error: {e}")
+    """Same multi-worker claim as _support_requests_rebuzz_loop (see fix52 note above): hourly ticks, one worker per tick."""
+    await _daily_job_loop("loop_lock::school_checkin_nudges", "school-checkin-nudge", _check_school_checkin_nudges)
 
 async def _check_school_checkin_nudges():
     now = datetime.now(timezone.utc)
@@ -22222,7 +22299,9 @@ async def _check_school_checkin_nudges():
             continue
         days_since = (now.date() - used.date()).days
         if days_since == 14:
-            _send_school_checkin_nudge(c.get("school_name", "Unknown school"), c.get("tier", ""))
+            name = c.get("school_name", "Unknown school")
+            marker = f"sent::nudge::{name}::{used.date().isoformat()}"
+            await _send_once(marker, lambda n=name, t=c.get("tier", ""): _send_school_checkin_nudge(n, t), "school-checkin-nudge")
 
 def _send_school_checkin_nudge(school_name: str, tier: str) -> tuple:
     """Never raises - see _send_school_activation_notification's own docstring for why."""
