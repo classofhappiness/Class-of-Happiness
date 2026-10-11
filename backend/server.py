@@ -23076,11 +23076,17 @@ async def toggle_strategy_sharing(student_id: str, strategy_id: str, request: Re
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        current = supabase.table("family_assigned_strategies").select("*").eq("id", strategy_id).execute()
+        # Oct 11 (security): the caller must be linked to this student, and the strategy must be THEIR OWN
+        # (parent_user_id) and belong to this student. Before this any signed-in user could flip any
+        # family strategy by id.
+        link = supabase.table("parent_links").select("id").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
+        if not link.data:
+            raise HTTPException(status_code=403, detail="Not linked to this student")
+        current = supabase.table("family_assigned_strategies").select("*").eq("id", strategy_id).eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
         if not current.data:
             raise HTTPException(status_code=404, detail="Strategy not found")
         new_value = not current.data[0].get("share_with_teacher", False)
-        supabase.table("family_assigned_strategies").update({"share_with_teacher": new_value}).eq("id", strategy_id).execute()
+        supabase.table("family_assigned_strategies").update({"share_with_teacher": new_value}).eq("id", strategy_id).eq("parent_user_id", user["user_id"]).execute()
         return {"share_with_teacher": new_value}
     except HTTPException:
         raise
