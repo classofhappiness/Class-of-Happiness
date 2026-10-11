@@ -14461,7 +14461,10 @@ async def delete_creature(submission_id: str, request: Request):
         for field in ("stage1_url", "stage2_url", "stage3_url", "stage4_url"):
             url = c.get(field) or ""
             if marker in url:
-                paths.append(url.split(marker, 1)[1])
+                p = url.split(marker, 1)[1].split("?")[0]
+                # fix46: the urls were supplied by the submitter; never delete anything that is not a plain object path
+                if p and ".." not in p and not p.startswith("/") and "\\" not in p and "//" not in p and all(ord(ch) > 31 for ch in p):
+                    paths.append(p)
         if paths:
             supabase.storage.from_("creature-images").remove(paths)
             deleted_images = len(paths)
@@ -24637,9 +24640,12 @@ def normalise_creature_stages(stage_bytes: list) -> Optional[list]:
         return None
 
 def _creature_object_path(public_url: Optional[str]) -> Optional[str]:
+    """Object path of a creature image url, or None unless it has exactly the shape the upload endpoint creates
+    (fix46: submit takes the urls from the request body, so they are not trusted)."""
     if not public_url or "/creature-images/" not in public_url:
         return None
-    return public_url.split("?")[0].split("/creature-images/", 1)[1]
+    path = public_url.split("?")[0].split("/creature-images/", 1)[1]
+    return path if _CREATURE_OBJECT_RE.match(path) else None
 
 def _normalise_submission_images_sync(submission_id: str, urls: list) -> None:
     """Blocking worker (runs in a thread). Downloads the 4 stage images, normalises them,
@@ -24682,25 +24688,129 @@ def _schedule_creature_normalisation(submission_id: str, urls: list) -> None:
     except Exception as e:
         logger.warning(f"[creature-normalise] could not schedule for {submission_id}: {e}")
 
+# --- Creature image upload hardening (fix46) ----------------------------------------------------------------------
+# Everything that reaches the object name is built here from validated parts only: the user id (checked against a strict
+# character set), the stage (an int 1-4) and the DETECTED image type (never the client's string). The object is created
+# with upsert OFF, so an upload can never replace an existing object. The bytes must be a PNG, JPEG or WebP that Pillow can
+# fully decode, single frame, at most 8 MB decoded and 40 megapixels. At most 12 uploads per user per 10 minutes.
+import re as _re_up
+_CREATURE_UPLOAD_EXTS = ("png", "jpg", "jpeg", "webp")
+_CREATURE_UPLOAD_MAX_BYTES = 8 * 1024 * 1024
+_CREATURE_UPLOAD_MAX_PIXELS = 40_000_000
+_CREATURE_UPLOAD_RATE = (12, 600)            # uploads, seconds (per user, per server process)
+_CREATURE_UPLOAD_STRICT_EXT = False          # True = a claimed ext that differs from the detected type is refused (False: the detected type wins)
+_CREATURE_UPLOAD_USER_RE = _re_up.compile(r"^[A-Za-z0-9_\-]{1,64}$")
+_CREATURE_OBJECT_RE = _re_up.compile(r"^creatures/[A-Za-z0-9_\-]{1,64}_stage[1-4]_[0-9a-f]{8}(_n[0-9a-f]{8})?\.(png|jpg|jpeg|webp)$")
+_creature_upload_hits: dict = {}
+_CREATURE_MAGIC = ((b"\x89PNG\r\n\x1a\n", "PNG", "png", "image/png"), (b"\xff\xd8\xff", "JPEG", "jpg", "image/jpeg"))
+
+def _creature_upload_rate_ok(user_id: str, now: Optional[float] = None) -> bool:
+    """Minimal in-process sliding window (the codebase has no shared rate limiter, only the login-attempt counter)."""
+    import time as _t
+    now = _t.time() if now is None else now
+    limit, window = _CREATURE_UPLOAD_RATE
+    hits = [t for t in _creature_upload_hits.get(user_id, []) if now - t < window]
+    if len(hits) >= limit:
+        _creature_upload_hits[user_id] = hits
+        return False
+    hits.append(now)
+    _creature_upload_hits[user_id] = hits
+    if len(_creature_upload_hits) > 5000:        # keep the table bounded
+        for k in [k for k, v in _creature_upload_hits.items() if not v or now - v[-1] >= window]:
+            _creature_upload_hits.pop(k, None)
+    return True
+
+def _validate_creature_upload(b64, ext, stage):
+    """Returns (img_bytes, stored_ext, stage_int, content_type). Raises HTTPException (400/413) for anything else."""
+    import base64, io, binascii
+    # stage: an int 1-4 (bool, float, "2.0", "../" etc. are refused)
+    if isinstance(stage, bool) or not (isinstance(stage, int) or (isinstance(stage, str) and stage.isascii() and stage.isdigit() and len(stage) <= 2)):
+        raise HTTPException(status_code=400, detail="Invalid stage")
+    stage_i = int(stage)
+    if stage_i < 1 or stage_i > 4:
+        raise HTTPException(status_code=400, detail="Invalid stage")
+    # ext: allow-list, case-insensitive; no separators, dots or spaces can survive an exact match
+    if not isinstance(ext, str) or ext.strip().lower() not in _CREATURE_UPLOAD_EXTS:
+        raise HTTPException(status_code=400, detail="Unsupported image type")
+    claimed = ext.strip().lower()
+    # base64: strict, size-capped BEFORE decoding
+    if not isinstance(b64, str) or not b64:
+        raise HTTPException(status_code=400, detail="No image data")
+    payload = b64.split(",", 1)[1] if b64.lstrip().lower().startswith("data:") and "," in b64 else b64
+    payload = payload.replace("\r", "").replace("\n", "").strip()
+    if len(payload) > (_CREATURE_UPLOAD_MAX_BYTES * 4) // 3 + 8:
+        raise HTTPException(status_code=413, detail="Image too large")
+    try:
+        img_bytes = base64.b64decode(payload, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid image data")
+    if not img_bytes:
+        raise HTTPException(status_code=400, detail="No image data")
+    if len(img_bytes) > _CREATURE_UPLOAD_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Image too large")
+    # magic bytes -> detected type
+    detected = None
+    for magic, fmt, e, ct in _CREATURE_MAGIC:
+        if img_bytes.startswith(magic):
+            detected = (fmt, e, ct)
+    if detected is None and img_bytes[:4] == b"RIFF" and img_bytes[8:12] == b"WEBP":
+        detected = ("WEBP", "webp", "image/webp")
+    if detected is None:
+        raise HTTPException(status_code=400, detail="Not a supported image")
+    fmt, stored_ext, content_type = detected
+    if _CREATURE_UPLOAD_STRICT_EXT and (claimed.replace("jpeg", "jpg") != stored_ext):
+        raise HTTPException(status_code=400, detail="Image type does not match")
+    # Pillow: header first (pixel cap before any decoding), then a full decode; single frame only
+    try:
+        from PIL import Image
+        im = Image.open(io.BytesIO(img_bytes))
+        if im.format != fmt:
+            raise HTTPException(status_code=400, detail="Not a supported image")
+        w, h = im.size
+        if w < 1 or h < 1 or w * h > _CREATURE_UPLOAD_MAX_PIXELS:
+            raise HTTPException(status_code=413, detail="Image too large")
+        if getattr(im, "n_frames", 1) > 1 or getattr(im, "is_animated", False):
+            raise HTTPException(status_code=400, detail="Animated images are not supported")
+        im.load()
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="Corrupt or unreadable image")
+    return img_bytes, stored_ext, stage_i, content_type
+
+def _creature_upload_object_name(user_id: str, stage_i: int, stored_ext: str) -> str:
+    import uuid
+    if not isinstance(user_id, str) or not _CREATURE_UPLOAD_USER_RE.match(user_id):
+        raise HTTPException(status_code=400, detail="Invalid account")
+    name = f"creatures/{user_id}_stage{stage_i}_{uuid.uuid4().hex[:8]}.{stored_ext}"
+    if not _CREATURE_OBJECT_RE.match(name):      # belt and braces: the name must match the one allowed shape
+        raise HTTPException(status_code=400, detail="Invalid upload")
+    return name
+
 @api_router.post("/creatures/upload-image")
 async def upload_creature_image(request: Request):
-    """Receives a base64 image, uploads to Supabase Storage, returns public URL."""
+    """Receives a base64 image, validates it (see the block above), uploads to Supabase Storage, returns public URL."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    import base64, uuid
-    body = await request.json()
-    b64 = body.get("image_base64", "")
-    stage = body.get("stage", 1)
-    ext = body.get("ext", "jpg")
-    if not b64:
-        raise HTTPException(status_code=400, detail="No image data")
-    img_bytes = base64.b64decode(b64.split(",")[-1])
-    filename = f"creatures/{user['user_id']}_stage{stage}_{uuid.uuid4().hex[:8]}.{ext}"
-    supabase.storage.from_("creature-images").upload(
-        filename, img_bytes,
-        {"content-type": f"image/{ext}", "upsert": "true"}
-    )
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid request")
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Invalid request")
+    user_id = user.get("user_id")
+    if not _creature_upload_rate_ok(str(user_id)):
+        raise HTTPException(status_code=429, detail="Too many uploads. Please wait a few minutes and try again.")
+    img_bytes, stored_ext, stage_i, content_type = await asyncio.to_thread(
+        _validate_creature_upload, body.get("image_base64", ""), body.get("ext", "jpg"), body.get("stage", 1))
+    filename = _creature_upload_object_name(user_id, stage_i, stored_ext)
+    try:
+        await asyncio.to_thread(lambda: supabase.storage.from_("creature-images").upload(
+            filename, img_bytes, {"content-type": content_type, "upsert": "false"}))
+    except Exception as e:
+        logger.warning(f"[creature-upload] storage upload failed: {e}")
+        raise HTTPException(status_code=500, detail="Upload failed")
     url = supabase.storage.from_("creature-images").get_public_url(filename)
     # Real feature Sep 26 (item 16): generates the 200px thumbnail at upload time, right
     # alongside the full-size image, rather than waiting for a separate batch/cron pass - a
@@ -24712,7 +24822,7 @@ async def upload_creature_image(request: Request):
         try:
             supabase.storage.from_("creature-images").upload(
                 _thumb_object_path(filename), thumb_bytes,
-                {"content-type": "image/png", "upsert": "true"},
+                {"content-type": "image/png", "upsert": "false"},
             )
         except Exception as e:
             logger.warning(f"[creature-thumbnail] upload failed for {filename}: {e}")
