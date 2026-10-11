@@ -3957,8 +3957,13 @@ def _resolve_student_strategies_sync(user: dict, student_id: str, colour: Option
     # a guardian's family-level rows (student_id NULL): assigned to all children or to this one
     if guardians:
         fam_rows = _q(lambda: supabase.table("custom_helpers").select("*").in_("user_id", list(guardians)).is_("student_id", "null").execute().data or []) or []
+        # Oct 11 (fix42): a staff member's PERSONAL strategies (student_id NULL) must never be read as a guardian's family
+        # strategies, even if the same account is also a guardian; an owner whose role cannot be read is skipped.
+        owner_roles = _q(lambda: {u.get("user_id"): u.get("role") for u in (supabase.table("users").select("user_id,role").in_("user_id", list({r.get("user_id") for r in fam_rows if r.get("user_id")})).execute().data or [])}) if fam_rows else {}
         for r in fam_rows:
             if r.get("id") in seen or (r.get("is_active") is False and not include_inactive):
+                continue
+            if owner_roles is None or owner_roles.get(r.get("user_id")) in _PERSONAL_STRATEGY_ROLES or r.get("user_id") not in owner_roles:
                 continue
             if (r.get("assigned_to") or "all") not in ("all", student_id):
                 continue
@@ -4222,7 +4227,7 @@ async def get_strategies(request: Request, zone: Optional[str] = None, feeling_c
                 # Oct 11 (fix41): same sharing rules as the student flow (school-admin portal and teacher screens read this)
                 allowed = {i.get("id") for i in _resolve_student_strategies_sync(user, student_id, None, True) if i.get("_kind") == "custom_student"}
                 for h in (custom_result.data or []):
-                    if h.get("id") in allowed and (not effective_zone or h.get("feeling_colour") == effective_zone):
+                    if h.get("id") in allowed and h.get("is_active") is not False and (not effective_zone or h.get("feeling_colour") == effective_zone):
                         custom.append({
                             **h,
                             "zone": h.get("feeling_colour", h.get("zone", effective_zone)),
@@ -4237,10 +4242,12 @@ async def get_strategies(request: Request, zone: Optional[str] = None, feeling_c
         # the requesting user directly via user_id instead.
         try:
             user = await get_current_user(request)
-            if user:
+            # Oct 11 (fix42): a teacher's PERSONAL strategies (student_id NULL, owned by a staff role) are served only by
+            # /teacher/personal-strategies, never by this list; inactive (soft-deleted) rows never come back.
+            if user and user.get("role") not in _PERSONAL_STRATEGY_ROLES:
                 custom_result = supabase.table("custom_helpers").select("*").eq("user_id", user["user_id"]).is_("student_id", "null").execute()
                 for h in (custom_result.data or []):
-                    if not effective_zone or h.get("feeling_colour") == effective_zone:
+                    if h.get("is_active") is not False and (not effective_zone or h.get("feeling_colour") == effective_zone):
                         custom.append({
                             **h,
                             "zone": h.get("feeling_colour", h.get("zone", effective_zone)),
@@ -4432,6 +4439,9 @@ async def get_custom_strategies(request: Request, student_id: Optional[str] = No
             if student_id:
                 allowed = {i.get("id") for i in _resolve_student_strategies_sync(user, student_id, None, True) if i.get("_kind") == "custom_student"}
                 data = [r for r in data if r.get("id") in allowed]
+            elif user.get("role") in _PERSONAL_STRATEGY_ROLES:
+                # Oct 11 (fix42): staff personal strategies (student_id NULL) are served only by /teacher/personal-strategies
+                data = [r for r in data if r.get("student_id")]
             # Oct 11: creator_role/source added (additive). Same values /strategies/shared uses: "parent" for a
             # guardian's row, "teacher" for staff; source is "home" for guardian rows, "school" for staff.
             if student_id:
