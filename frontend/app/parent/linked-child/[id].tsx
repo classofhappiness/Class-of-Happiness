@@ -7,6 +7,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
+import { StrategyIcon } from '../../../src/components/StrategyIcon';
+import { SourceChip } from '../../../src/components/SourceChip';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { BarChart } from 'react-native-gifted-charts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -16,7 +18,9 @@ import { EMOTION_COLOURS } from '../../../src/constants/emotionColours';
 import { linkedChildApi, LinkedChild, FamilyAssignedStrategy, familyApi } from '../../../src/utils/api';
 import { EmotionColourLoader } from '../../../src/components/EmotionColourLoader';
 import { TranslatedHeader } from '../../../src/components/TranslatedHeader';
-import { resolveStrategyName } from '../../../src/utils/resolveStrategyName';
+import { formatMonthYear as formatMonthYearLabel } from '../../../src/utils/monthLabel';
+import { formatShortDateTime } from '../../../src/utils/dateLabel';
+import { resolveStrategyName, strategyLabel } from '../../../src/utils/resolveStrategyName';
 
 const ZONE_COLORS: Record<string, string> = EMOTION_COLOURS;
 const ZONE_CONFIG: Record<string, { color: string; emoji: string; label: string }> = {
@@ -25,6 +29,41 @@ const ZONE_CONFIG: Record<string, { color: string; emoji: string; label: string 
   yellow: { color: EMOTION_COLOURS.yellow, emoji: '\u{1F630}', label: 'Yellow Emotions' },
   red:    { color: EMOTION_COLOURS.red, emoji: '\u{1F620}', label: 'Red Emotions' },
 };
+// Real fix Sep 30 (live feedback, item 2): ZONE_CONFIG.label above is a hardcoded English
+// dict read with no t() call anywhere on this page (recent check-ins, filter pills, emotion
+// distribution, zone comparison chart) - these two helpers translate zone names consistently
+// everywhere on the page, reusing the same t() keys already used elsewhere in the app
+// (blue_zone/blue_emotions for the long form, blue_short_label for chart/pill labels).
+const getZoneLabel = (zone: string, t: (key: string) => string): string =>
+  t(`${zone}_zone`) || t(`${zone}_emotions`) || ZONE_CONFIG[zone]?.label || zone;
+const getZoneShortLabel = (zone: string, t: (key: string) => string): string =>
+  t(`${zone}_short_label`) || (zone.charAt(0).toUpperCase() + zone.slice(1));
+// Locale map for Intl date formatting - matches the same fix applied to
+// teacher/student-detail.tsx, teacher/dashboard.tsx and teacher/checkin.tsx for the identical
+// bug (toLocaleDateString(undefined, ...) follows the DEVICE's OS locale, not the app's own
+// in-app language setting).
+const LOCALE_FOR_LANG: Record<string,string> = { en:'en-US', pt:'pt-PT', es:'es-ES', fr:'fr-FR', de:'de-DE', it:'it-IT', hi:'hi-IN', zh:'zh-CN', ar:'ar-u-nu-latn-ca-gregory', ru:'ru-RU' };
+// Real fix Oct 5 (month-picker capitalisation): Intl's long-month formatting lowercases the
+// month name by default for several Latin-script locales (fr/es/it/etc. all do this
+// natively, correctly, per their own grammar rules) - capitalised here purely for this
+// picker's visual consistency with English. zh/ar/hi have no letter case, so left untouched.
+const NO_CASE_LANGS = new Set(['zh', 'ar', 'hi']);
+const capitalizeMonth = (label: string, lang: string): string =>
+  NO_CASE_LANGS.has(lang) ? label : label.charAt(0).toUpperCase() + label.slice(1);
+// Translated calendar day letters - matches teacher/student-detail.tsx's CALENDAR_DAY_LETTERS.
+const CALENDAR_DAY_LETTERS: Record<string, string[]> = {
+  en: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+  pt: ['Do', 'Se', 'Te', 'Qu', 'Qu', 'Se', 'Sa'],
+  es: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
+  fr: ['Di', 'Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa'],
+  de: ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'],
+  it: ['Do', 'Lu', 'Ma', 'Me', 'Gi', 'Ve', 'Sa'],
+  hi: ['र', 'सो', 'मं', 'बु', 'गु', 'शु', 'श'],
+  zh: ['日', '一', '二', '三', '四', '五', '六'],
+  ar: ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'],
+  ru: ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'],
+};
+
 const STRATEGY_ICONS = [
   { id: 'star', name: 'star' }, { id: 'favorite', name: 'favorite' },
   { id: 'self-improvement', name: 'self-improvement' }, { id: 'music-note', name: 'music-note' },
@@ -151,18 +190,18 @@ export default function LinkedChildDetailScreen() {
         let detail = '';
         try { detail = (await checkRes.json())?.detail || ''; } catch (e) { console.error('[parent/linked-child/[id]:152]', e); }
         if (detail.startsWith('free_tier_limit|')) {
-          Alert.alert('Free Plan Limit Reached', detail.split('|')[1] || 'Upgrade for unlimited reports.', [
-            { text: 'Not Now', style: 'cancel' },
-            { text: 'See Plans', onPress: () => router.push('/subscription') },
+          Alert.alert(t('free_plan_limit_title') || 'Free Plan Limit Reached', detail.split('|')[1] || (t('upgrade_unlimited_reports') || 'Upgrade for unlimited reports.'), [
+            { text: t('not_now') || 'Not Now', style: 'cancel' },
+            { text: t('see_plans') || 'See Plans', onPress: () => router.push('/subscription') },
           ]);
         } else {
-          Alert.alert('Error', 'Cannot generate PDF');
+          Alert.alert(t('error') || 'Error', t('cannot_generate_pdf') || 'Cannot generate PDF');
         }
         return;
       }
       await Linking.openURL(fullUrl);
     } catch (error: any) {
-      Alert.alert('Download Error', error.message || 'Could not download report');
+      Alert.alert(t('download_error') || 'Download Error', error.message || (t('could_not_download_report') || 'Could not download report'));
     } finally {
       setDownloadingMonth(null);
     }
@@ -195,14 +234,12 @@ export default function LinkedChildDetailScreen() {
           linkedChildApi.getFamilyStrategies(id),
         ]);
         if (schoolStratData?.sharing_disabled) setSchoolSharingPaused(true);
-        // Root cause fix Sep 27 (live feedback, item 2): lang was hardcoded to 'en' - /api/
-        // helpers is fully localized for all 10 languages already (confirmed live), this
-        // screen just never passed the real one. custom_strategies below is real
-        // user-authored content, deliberately left as typed.
-        const genericRes = await Promise.all(['blue','green','yellow','red'].map(zone =>
-          fetch(`${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=${language || 'en'}`).then(r => r.json()).catch(() => [])
-        ));
-        setSchoolStrats([...genericRes.flat(), ...(schoolStratData.custom_strategies || [])]);
+        // Oct 11: the generic /api/helpers colour lists are gone. Only what is meaningful is listed: strategies from
+        // school (shared teacher-made ones + the school's own student strategies) and from home. `strategies` is
+        // the unified list; an older backend only has custom_strategies.
+        setSchoolStrats(Array.isArray(schoolStratData?.strategies)
+          ? schoolStratData.strategies
+          : [...(schoolStratData?.custom_strategies || []), ...(schoolStratData?.school_strategies || [])]);
         setFamilyStrats(familyStratData || []);
       } else {
         const membersRes = await fetch(`${BACKEND_URL}/api/family/members`, { headers });
@@ -237,10 +274,7 @@ export default function LinkedChildDetailScreen() {
           strategy_description: s.description || s.strategy_description,
           zone: s.zone, icon: s.icon, share_with_teacher: false,
         })));
-        const genericRes2 = await Promise.all(['blue','green','yellow','red'].map(zone =>
-          fetch(`${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=${language || 'en'}`).then(r => r.json()).catch(() => [])
-        ));
-        setSchoolStrats(genericRes2.flat());
+        setSchoolStrats([]);
       }
     } catch (err) { console.error('LinkedChild fetchData error:', err); }
     finally { setLoading(false); setRefreshing(false); }
@@ -264,10 +298,10 @@ export default function LinkedChildDetailScreen() {
           body: JSON.stringify({ zone: selectedZone, strategies_selected: [], comment: comment.trim() || undefined }),
         });
       }
-      Alert.alert('Success', 'Check-in saved!');
+      Alert.alert(t('success') || 'Success', t('check_in_saved_excl') || 'Check-in saved!');
       setShowCheckIn(false); setSelectedZone(''); setComment('');
       fetchData();
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: any) { Alert.alert(t('error') || 'Error', e.message); }
     finally { setSubmitting(false); }
   };
 
@@ -289,26 +323,26 @@ export default function LinkedChildDetailScreen() {
             zone: newStrat.zone, icon: newStrat.icon, member_id: familyMemberId }),
         });
       }
-      Alert.alert('Success', 'Strategy added!');
+      Alert.alert(t('success') || 'Success', t('strategy_added_excl') || 'Strategy added!');
       setShowAddStrat(false);
       setNewStrat({ name: '', description: '', zone: 'green', icon: 'star', shareWithTeacher: false });
       fetchData();
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: any) { Alert.alert(t('error') || 'Error', e.message); }
   };
 
   const handleToggleShare = async (stratId: string) => {
     if (!id || childType !== 'school_linked') return;
     try {
       const r = await linkedChildApi.toggleStrategySharing(id, stratId);
-      Alert.alert('Updated', r.share_with_teacher ? 'Now shared with teacher' : 'No longer shared');
+      Alert.alert(t('updated_title') || 'Updated', r.share_with_teacher ? (t('strategy_now_shared_teacher') || 'Now shared with teacher') : (t('strategy_no_longer_shared') || 'No longer shared'));
       fetchData();
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: any) { Alert.alert(t('error') || 'Error', e.message); }
   };
 
   const handleToggleHomeSharing = async () => {
     if (!id || childType !== 'school_linked') return;
     try { const r = await linkedChildApi.toggleHomeSharing(id); setHomeSharingEnabled(r.home_sharing_enabled); }
-    catch (e: any) { Alert.alert('Error', e.message); }
+    catch (e: any) { Alert.alert(t('error') || 'Error', e.message); }
   };
 
   // Real feature Sep 15 (B1, "Class of Happiness Shop", Jono-approved): family-level toggle -
@@ -338,15 +372,16 @@ export default function LinkedChildDetailScreen() {
   const zoneCounts    = buildZoneCounts(allCheckIns);
   const stratCounts   = buildStrategyCounts(allCheckIns);
   const totalCheckins = allCheckIns.length;
+  const dashLocale = LOCALE_FOR_LANG[language] || 'en-US';
   const barData = (['blue','green','yellow','red'] as const).map(z => ({
-    value: zoneCounts[z] || 0, frontColor: ZONE_COLORS[z], label: z.charAt(0).toUpperCase() + z.slice(1),
+    value: zoneCounts[z] || 0, frontColor: ZONE_COLORS[z], label: getZoneShortLabel(z, t),
   }));
   const formatDate = (d: string) =>
-    new Date(d).toLocaleDateString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    formatShortDateTime(d, language, { twoDigitHour: true });
 
   if (loading) return (
     <SafeAreaView style={s.container}><View style={s.center}>
-      <EmotionColourLoader visible size={64} /><Text style={s.loadingText}>Loading...</Text>
+      <EmotionColourLoader visible size={64} /><Text style={s.loadingText}>{t('loading') || 'Loading...'}</Text>
     </View></SafeAreaView>
   );
   if (!child) return (
@@ -374,7 +409,7 @@ export default function LinkedChildDetailScreen() {
           <View style={s.childAvatar}><Text style={{ fontSize: 28 }}>{'\u{1F467}'}</Text></View>
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={s.childName}>{child.name}</Text>
-            <Text style={s.childSub}>{isFamilyChild ? 'Family Member' : (child.classroom_name || 'School Linked')}</Text>
+            <Text style={s.childSub}>{isFamilyChild ? (t('family_member_label') || 'Family Member') : (child.classroom_name || (t('children_school') || 'School Linked'))}</Text>
           </View>
           <TouchableOpacity style={s.checkInBtn} onPress={() => setShowCheckIn(true)}>
             <MaterialIcons name="add-circle" size={20} color="#fff" />
@@ -387,10 +422,10 @@ export default function LinkedChildDetailScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <View style={{ flex: 1, marginRight: 12 }}>
                 <Text style={[s.cardTitle, { color: homeSharingEnabled ? '#2E7D32' : '#E65100' }]}>
-                  {homeSharingEnabled ? '\u2705 Sharing Active' : '\u23F8 Sharing Paused'}
+                  {homeSharingEnabled ? `\u2705 ${t('sharing_active') || 'Sharing Active'}` : `\u23F8 ${t('sharing_paused') || 'Sharing Paused'}`}
                 </Text>
                 <Text style={s.cardSub}>
-                  {homeSharingEnabled ? 'Teacher can see home check-ins' : 'Teacher cannot see home data'}
+                  {homeSharingEnabled ? (t('teacher_can_see_home_checkins') || 'Teacher can see home check-ins') : (t('teacher_cannot_see_home_data') || 'Teacher cannot see home data')}
                 </Text>
               </View>
               <Switch value={homeSharingEnabled} onValueChange={handleToggleHomeSharing}
@@ -427,7 +462,7 @@ export default function LinkedChildDetailScreen() {
           {([1, 7, 14, 30] as const).map(d => (
             <TouchableOpacity key={d} style={[s.periodBtn, selectedPeriod === d && s.periodBtnActive]} onPress={() => setSelectedPeriod(d)}>
               <Text style={[s.periodBtnText, selectedPeriod === d && s.periodBtnTextActive]}>
-                {d === 1 ? t('today') || 'Today' : d === 7 ? t('days_7') || '7 Days' : d === 14 ? '2 Weeks' : t('days_30') || '30 Days'}
+                {d === 1 ? t('today') || 'Today' : d === 7 ? t('days_7') || '7 Days' : d === 14 ? t('fortnight') || '2 Weeks' : t('days_30') || '30 Days'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -446,8 +481,8 @@ export default function LinkedChildDetailScreen() {
           <View style={s.statCard}><Text style={s.statVal}>{totalCheckins}</Text><Text style={s.statLbl}>{t('wellbeing_total') || t('wellbeing_total') || 'Total'}</Text></View>
           <View style={s.statCard}><Text style={[s.statVal,{color:EMOTION_COLOURS.green}]}>{zoneCounts.green||0}</Text><Text style={s.statLbl}>{t('steady') || t('steady') || 'Positive'}</Text></View>
           {!isFamilyChild && <>
-            <View style={s.statCard}><Text style={s.statVal}>{homeCheckIns.length}</Text><Text style={s.statLbl}>{'\u{1F3E0}'} Home</Text></View>
-            <View style={s.statCard}><Text style={s.statVal}>{schoolCheckIns.length}</Text><Text style={s.statLbl}>{'\u{1F3EB}'} School</Text></View>
+            <View style={s.statCard}><Text style={s.statVal}>{homeCheckIns.length}</Text><Text style={s.statLbl}>{'\u{1F3E0}'} {t('home') || 'Home'}</Text></View>
+            <View style={s.statCard}><Text style={s.statVal}>{schoolCheckIns.length}</Text><Text style={s.statLbl}>{'\u{1F3EB}'} {t('school') || 'School'}</Text></View>
           </>}
           <View style={s.statCard}><Text style={s.statVal}>{Object.keys(stratCounts).length}</Text><Text style={s.statLbl}>{t('strategy_btn') || t('strategy_btn') || 'Strategies'}</Text></View>
         </View>
@@ -470,16 +505,16 @@ export default function LinkedChildDetailScreen() {
                 {(['combined','home','school'] as const).map(tab => (
                   <TouchableOpacity key={tab} style={[s.tab,activeTab===tab&&s.tabActive]} onPress={() => setActiveTab(tab)}>
                     <MaterialIcons name={tab==='combined'?'merge-type':tab==='home'?'home':'school'} size={14} color={activeTab===tab?'#fff':'#666'} />
-                    <Text style={[s.tabText,activeTab===tab&&s.tabTextActive]}>{tab==='combined'?'All':tab==='home'?'Home':'School'}</Text>
+                    <Text style={[s.tabText,activeTab===tab&&s.tabTextActive]}>{tab==='combined'?(t('all')||'All'):tab==='home'?(t('home')||'Home'):(t('school')||'School')}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
             )}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginVertical:8}}
               contentContainerStyle={{flexDirection:'row',gap:6,paddingHorizontal:2}}>
-              {[{id:null,label:'All',color:'#5C6BC0'},{id:'blue',label:'\u{1F622} Blue',color:EMOTION_COLOURS.blue},
-                {id:'green',label:'\u{1F60A} Green',color:EMOTION_COLOURS.green},{id:'yellow',label:'\u{1F630} Yellow',color:EMOTION_COLOURS.yellow},
-                {id:'red',label:'\u{1F620} Red',color:EMOTION_COLOURS.red}].map(z => (
+              {[{id:null,label:t('all')||'All',color:'#5C6BC0'},{id:'blue',label:`\u{1F622} ${getZoneShortLabel('blue',t)}`,color:EMOTION_COLOURS.blue},
+                {id:'green',label:`\u{1F60A} ${getZoneShortLabel('green',t)}`,color:EMOTION_COLOURS.green},{id:'yellow',label:`\u{1F630} ${getZoneShortLabel('yellow',t)}`,color:EMOTION_COLOURS.yellow},
+                {id:'red',label:`\u{1F620} ${getZoneShortLabel('red',t)}`,color:EMOTION_COLOURS.red}].map(z => (
                 <TouchableOpacity key={z.id||'all'} style={[s.pill,activeZone===z.id&&{backgroundColor:z.color,borderColor:z.color}]}
                   onPress={() => setActiveZone(z.id)}>
                   <Text style={[s.pillText,activeZone===z.id&&{color:'white'}]}>{z.label}</Text>
@@ -501,9 +536,9 @@ export default function LinkedChildDetailScreen() {
                           <Text>{zEmoji[zone]||'\u{1F60A}'}</Text>
                         </View>
                         <View style={{flex:1,marginLeft:10}}>
-                          <Text style={s.ciZone}>{ZONE_CONFIG[zone]?.label||zone}</Text>
+                          <Text style={s.ciZone}>{getZoneLabel(zone, t)}</Text>
                           <Text style={s.ciTime}>{formatDate(ci.timestamp||ci.created_at)}</Text>
-                          {(ci.strategies_selected?.length>0 || ci.helpers_selected?.length>0) && <Text style={s.ciStrats}>{(ci.strategies_selected || ci.helpers_selected || []).map((sid: string) => resolveStrategyName(sid, t, STRATEGY_NAMES)).join(', ')}</Text>}
+                          {(ci.strategies_selected?.length>0 || ci.helpers_selected?.length>0) && <Text style={s.ciStrats}>{(ci.strategies_selected || ci.helpers_selected || []).map((sid: string) => strategyLabel(sid, t, STRATEGY_NAMES)).join(', ')}</Text>}
                           {ci.comment && <Text style={s.ciComment}>"{ci.comment}"</Text>}
                         </View>
                         {/* Round 3 (Sep 5): this badge already existed but was gated behind
@@ -533,7 +568,7 @@ export default function LinkedChildDetailScreen() {
                 {(['combined','home','school'] as const).map(tab => (
                   <TouchableOpacity key={tab} style={[s.tab, activeDistTab===tab && s.tabActive]} onPress={() => setActiveDistTab(tab)}>
                     <Text style={[s.tabText, activeDistTab===tab && s.tabTextActive]}>
-                      {tab==='combined'?'All':tab==='home'?'\u{1F3E0} Home':'\u{1F3EB} School'}
+                      {tab==='combined'?(t('all')||'All'):tab==='home'?`\u{1F3E0} ${t('home')||'Home'}`:`\u{1F3EB} ${t('school')||'School'}`}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -550,14 +585,14 @@ export default function LinkedChildDetailScreen() {
                     return (
                       <View key={zone} style={{flexDirection:'row',alignItems:'center',gap:8}}>
                         <View style={[s.dot,{backgroundColor:ZONE_COLORS[zone]}]} />
-                        <Text style={s.zoneLabel}>{zone.charAt(0).toUpperCase()+zone.slice(1)}</Text>
+                        <Text style={s.zoneLabel}>{getZoneShortLabel(zone, t)}</Text>
                         <View style={s.barBg}><View style={[s.barFill,{width:`${pct}%` as any,backgroundColor:ZONE_COLORS[zone]}]} /></View>
                         <Text style={s.pctText}>{pct}%</Text>
                         <Text style={s.countText}>({counts[zone]})</Text>
                       </View>
                     );
                   })}
-                  {total===0 && <Text style={s.empty}>No check-ins for this period</Text>}
+                  {total===0 && <Text style={s.empty}>{t('no_checkins_this_view') || 'No check-ins for this view'}</Text>}
                 </View>
               );
             })()}
@@ -595,7 +630,7 @@ export default function LinkedChildDetailScreen() {
                 return (
                   <View key={stratId} style={s.stratRow}>
                     <View style={[s.stratDot,{backgroundColor:zc}]} />
-                    <Text style={s.stratName}>{resolveStrategyName(stratId, t, STRATEGY_NAMES)}</Text>
+                    <Text style={s.stratName}>{strategyLabel(stratId, t, STRATEGY_NAMES)}</Text>
                     <View style={s.stratCount}><Text style={s.stratCountText}>{count as number}x</Text></View>
                   </View>
                 );
@@ -607,7 +642,7 @@ export default function LinkedChildDetailScreen() {
         {/* CHECK-IN CALENDAR */}
         <View style={s.section}>
           <TouchableOpacity onPress={() => setSecCalendar(e => !e)} style={s.sectionHeader}>
-            <View style={s.sectionHeaderLeft}><MaterialIcons name="calendar-today" size={17} color="#5C6BC0" /><Text style={s.sectionTitle}>Check-in Calendar</Text></View>
+            <View style={s.sectionHeaderLeft}><MaterialIcons name="calendar-today" size={17} color="#5C6BC0" /><Text style={s.sectionTitle}>{t('checkin_calendar') || 'Check-in Calendar'}</Text></View>
             <MaterialIcons name={secCalendar ? 'expand-less' : 'expand-more'} size={20} color="#666" />
           </TouchableOpacity>
           {secCalendar && (() => {
@@ -617,13 +652,13 @@ export default function LinkedChildDetailScreen() {
               if (d) { if (!grouped[d]) grouped[d]=[]; grouped[d].push(ci); }
             });
             const dates = Object.keys(grouped).sort().slice(-14);
-            if (!dates.length) return <Text style={[s.empty,{marginTop:8}]}>No check-in data yet</Text>;
+            if (!dates.length) return <Text style={[s.empty,{marginTop:8}]}>{t('no_checkin_data_yet') || 'No check-in data yet'}</Text>;
             return (<>
               <View style={s.calGrid}>
                 {dates.map(date => {
                   const dayLogs = grouped[date];
                   const d       = new Date(date);
-                  const dayName = ['Su','Mo','Tu','We','Th','Fr','Sa'][d.getDay()];
+                  const dayName = (CALENDAR_DAY_LETTERS[language] || CALENDAR_DAY_LETTERS.en)[d.getDay()];
                   const dayNum  = d.getDate();
                   const homeN   = isFamilyChild ? dayLogs.length
                     : dayLogs.filter((l:any)=>l.location==='home'||l.logged_by==='parent'||l.logged_by==='family').length;
@@ -647,10 +682,10 @@ export default function LinkedChildDetailScreen() {
               </View>
               <View style={{flexDirection:'row',gap:16,marginTop:8,justifyContent:'center'}}>
                 {!isFamilyChild && <View style={{flexDirection:'row',alignItems:'center',gap:4}}>
-                  <View style={[s.dot,{backgroundColor:'#5C6BC0'}]}/><Text style={s.legend}>S = School</Text>
+                  <View style={[s.dot,{backgroundColor:'#5C6BC0'}]}/><Text style={s.legend}>{t('legend_school_short') || 'S = School'}</Text>
                 </View>}
                 <View style={{flexDirection:'row',alignItems:'center',gap:4}}>
-                  <View style={[s.dot,{backgroundColor:'#4CAF50'}]}/><Text style={s.legend}>H = Home</Text>
+                  <View style={[s.dot,{backgroundColor:'#4CAF50'}]}/><Text style={s.legend}>{t('legend_home_short') || 'H = Home'}</Text>
                 </View>
               </View>
             </>);
@@ -669,32 +704,46 @@ export default function LinkedChildDetailScreen() {
             </View>
           </TouchableOpacity>
           {secStrategies && (<>
-            {!isFamilyChild && schoolStrats.length>0 && (<>
-              <Text style={s.stratSubtitle}>{'\u{1F3EB}'} School Strategies</Text>
-              {schoolStrats.slice(0,8).map((st:any,i:number) => (
-                <View key={st.id||i} style={s.stratCard}>
-                  <MaterialIcons name={(st.icon||'star') as any} size={20} color="#5C6BC0" />
-                  <View style={{flex:1,marginLeft:10}}>
-                    <Text style={s.stratName}>{st.name||resolveStrategyName(st.id||'', t, STRATEGY_NAMES)}</Text>
-                    {st.description?<Text style={s.stratDesc}>{st.description}</Text>:null}
-                  </View>
-                  {st.feeling_colour && <View style={[s.zonePill,{backgroundColor:ZONE_COLORS[st.feeling_colour]+'25'}]}>
-                    <Text style={{color:ZONE_COLORS[st.feeling_colour],fontSize:10}}>{st.feeling_colour}</Text>
-                  </View>}
-                </View>
-              ))}
+            {!isFamilyChild && (<>
+              <View style={{flexDirection:'row',alignItems:'center',gap:6,marginBottom:6,marginTop:4}}>
+                <MaterialIcons name="school" size={15} color="#3F51B5" />
+                <Text style={[s.stratSubtitle,{marginBottom:0,marginTop:0}]}>{t('strategies_from_school') || 'From school'}</Text>
+              </View>
+              {schoolSharingPaused
+                ? <Text style={s.empty}>{t('school_strategies_paused') || 'School sharing is paused, so school strategies are hidden.'}</Text>
+                : schoolStrats.length===0
+                  ? <Text style={s.empty}>{t('no_school_strategies_shared') || 'No school strategies shared yet'}</Text>
+                  : schoolStrats.map((st:any,i:number) => {
+                      const col = ZONE_COLORS[st.feeling_colour || st.zone] || '#5C6BC0';
+                      return (
+                        <View key={st.id||i} style={s.stratCard}>
+                          <View style={{width:34,height:34,borderRadius:17,backgroundColor:col,alignItems:'center',justifyContent:'center'}}>
+                            <StrategyIcon icon={st.icon || 'star'} size={20} color="white" />
+                          </View>
+                          <View style={{flex:1,marginLeft:10}}>
+                            <Text style={s.stratName}>{st.name||strategyLabel(st.id||'', t, STRATEGY_NAMES)}</Text>
+                            {st.description?<Text style={s.stratDesc}>{st.description}</Text>:null}
+                            <SourceChip source="school" />
+                          </View>
+                        </View>
+                      );
+                    })}
             </>)}
-            <Text style={[s.stratSubtitle,{marginTop:!isFamilyChild&&schoolStrats.length>0?10:0}]}>
-              {'\u{1F3E0}'} {isFamilyChild?t('strategy_btn') || t('strategy_btn') || 'Strategies':'Family Strategies'}
-            </Text>
+            <View style={{flexDirection:'row',alignItems:'center',gap:6,marginBottom:6,marginTop:10}}>
+              <MaterialIcons name="home" size={15} color="#2E7D32" />
+              <Text style={[s.stratSubtitle,{marginBottom:0,marginTop:0}]}>{isFamilyChild?(t('strategy_btn') || 'Strategies'):(t('strategies_from_home') || 'From home')}</Text>
+            </View>
             {familyStrats.length===0
-              ? <Text style={s.empty}>{t('no_strategies_tap_add') || 'No strategies yet - tap Add to create one'}</Text>
+              ? <Text style={s.empty}>{t('add_strategies_for_home') || 'Add your own strategies for home'}</Text>
               : familyStrats.map((st:any) => (
                 <View key={st.id} style={s.stratCard}>
-                  <MaterialIcons name={(st.icon)||'star'} size={20} color="#4CAF50" />
+                  <View style={{width:34,height:34,borderRadius:17,backgroundColor:ZONE_COLORS[st.zone||st.feeling_colour]||'#4CAF50',alignItems:'center',justifyContent:'center'}}>
+                    <StrategyIcon icon={st.icon || 'star'} size={20} color="white" />
+                  </View>
                   <View style={{flex:1,marginLeft:10}}>
                     <Text style={s.stratName}>{st.strategy_name}</Text>
                     {st.strategy_description?<Text style={s.stratDesc}>{st.strategy_description}</Text>:null}
+                    <SourceChip source="home" />
                   </View>
                   {!isFamilyChild && (
                     <TouchableOpacity style={[s.visBtn,st.share_with_teacher&&s.visBtnActive]} onPress={()=>handleToggleShare(st.id)}>
@@ -730,8 +779,7 @@ export default function LinkedChildDetailScreen() {
                 </Text>
                 {months.map(m => {
                   const [y, mo] = m.split('-');
-                  const label = new Date(parseInt(y), parseInt(mo) - 1, 1)
-                    .toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+                  const label = formatMonthYearLabel(parseInt(y), parseInt(mo), language);
                   return (
                     <TouchableOpacity
                       key={m}
@@ -781,17 +829,17 @@ export default function LinkedChildDetailScreen() {
                 <TouchableOpacity key={zone} style={[s.zoneOpt,{borderColor:cfg.color},selectedZone===zone&&{backgroundColor:cfg.color}]}
                   onPress={()=>setSelectedZone(zone)}>
                   <Text style={{fontSize:24}}>{cfg.emoji}</Text>
-                  <Text style={[s.zoneOptLabel,selectedZone===zone&&{color:'#fff'}]}>{cfg.label}</Text>
+                  <Text style={[s.zoneOptLabel,selectedZone===zone&&{color:'#fff'}]}>{getZoneLabel(zone, t)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <Text style={s.inputLabel}>Comment (optional)</Text>
-            <TextInput style={s.textarea} value={comment} onChangeText={setComment} placeholder="Add a comment..." multiline maxLength={100} />
+            <Text style={s.inputLabel}>{t('comment_optional_label') || 'Comment (optional)'}</Text>
+            <TextInput style={s.textarea} value={comment} onChangeText={setComment} placeholder={t('add_comment_placeholder') || 'Add a comment...'} multiline maxLength={100} />
           </ScrollView>
           <View style={s.sheetActions}>
             <TouchableOpacity style={s.cancelBtn} onPress={()=>setShowCheckIn(false)}><Text style={s.cancelBtnText}>{t('go_back') || t('go_back') || 'Cancel'}</Text></TouchableOpacity>
             <TouchableOpacity style={[s.submitBtn,!selectedZone&&{opacity:0.5}]} onPress={handleCheckIn} disabled={!selectedZone||submitting}>
-              {submitting?<ActivityIndicator size="small" color="#fff"/>:<Text style={s.submitBtnText}>Save Check-in</Text>}
+              {submitting?<ActivityIndicator size="small" color="#fff"/>:<Text style={s.submitBtnText}>{t('save_checkin') || 'Save Check-in'}</Text>}
             </TouchableOpacity>
           </View>
           </View>
@@ -812,11 +860,11 @@ export default function LinkedChildDetailScreen() {
             <TouchableOpacity onPress={()=>setShowAddStrat(false)}><MaterialIcons name="close" size={24} color="#666" /></TouchableOpacity>
           </View>
           <ScrollView style={s.sheetScroll}>
-            <Text style={s.inputLabel}>Strategy Name *</Text>
-            <TextInput style={s.input} value={newStrat.name} onChangeText={v=>setNewStrat({...newStrat,name:v})} placeholder="e.g. Deep breathing" />
+            <Text style={s.inputLabel}>{(t('strategy_name') || 'Strategy Name') + ' *'}</Text>
+            <TextInput style={s.input} value={newStrat.name} onChangeText={v=>setNewStrat({...newStrat,name:v})} placeholder={t('strategy_name_ph') || 'e.g. Deep breathing'} />
             <Text style={s.inputLabel}>{t('description_label') || t('description_label') || 'Description'}</Text>
-            <TextInput style={[s.input,s.textarea]} value={newStrat.description} onChangeText={v=>setNewStrat({...newStrat,description:v})} placeholder="How to use this..." multiline />
-            <Text style={s.inputLabel}>Zone</Text>
+            <TextInput style={[s.input,s.textarea]} value={newStrat.description} onChangeText={v=>setNewStrat({...newStrat,description:v})} placeholder={t('strategy_description_ph') || 'How to use this...'} multiline />
+            <Text style={s.inputLabel}>{t('zone_label') || 'Emotion'}</Text>
             <View style={s.zoneGrid}>
               {Object.entries(ZONE_CONFIG).map(([zone,cfg]:[string,any]) => (
                 <TouchableOpacity key={zone} style={[s.zoneOpt,{borderColor:cfg.color},newStrat.zone===zone&&{backgroundColor:cfg.color}]}
@@ -825,7 +873,7 @@ export default function LinkedChildDetailScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-            <Text style={s.inputLabel}>Icon</Text>
+            <Text style={s.inputLabel}>{t('strategy_icon_label') || 'Icon'}</Text>
             <View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>
               {STRATEGY_ICONS.map(ic=>(
                 <TouchableOpacity key={ic.id} style={[s.iconOpt,newStrat.icon===ic.id&&{backgroundColor:'#4CAF50'}]}

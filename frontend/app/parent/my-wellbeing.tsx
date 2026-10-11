@@ -9,12 +9,39 @@ import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
-import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
+import { resolveStrategyName, strategyLabel } from '../../src/utils/resolveStrategyName';
+import { formatMonthYear as formatMonthYearLabel, monthShort as monthShortLabel } from '../../src/utils/monthLabel';
+import { formatShortDate, formatTime, formatNumericDate } from '../../src/utils/dateLabel';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const ZONE_COLORS: Record<string, string> = EMOTION_COLOURS;
 const ZONE_EMOJI: Record<string, string> = {
   blue: '😔', green: '😊', yellow: '😟', red: '😣',
+};
+
+// Real fix Sep 30 (live feedback follow-up audit): matches the locale fix already applied
+// across teacher/student-detail.tsx, teacher/dashboard.tsx, parent/linked-child/[id].tsx and
+// parent/dashboard.tsx - toLocaleDateString(undefined,...)/toLocaleTimeString(undefined/[],...)
+// both follow the DEVICE's OS locale, not the app's own in-app language.
+const LOCALE_FOR_LANG: Record<string,string> = { en:'en-US', pt:'pt-PT', es:'es-ES', fr:'fr-FR', de:'de-DE', it:'it-IT', hi:'hi-IN', zh:'zh-CN', ar:'ar-u-nu-latn-ca-gregory', ru:'ru-RU' };
+// Real fix Oct 5 (month-picker capitalisation): Intl's long-month formatting lowercases the
+// month name by default for several Latin-script locales (fr/es/it/etc. all do this
+// natively, correctly, per their own grammar rules) - capitalised here purely for this
+// picker's visual consistency with English. zh/ar/hi have no letter case, so left untouched.
+const NO_CASE_LANGS = new Set(['zh', 'ar', 'hi']);
+const capitalizeMonth = (label: string, lang: string): string =>
+  NO_CASE_LANGS.has(lang) ? label : label.charAt(0).toUpperCase() + label.slice(1);
+const CALENDAR_DAY_LETTERS: Record<string, string[]> = {
+  en: ['Su','Mo','Tu','We','Th','Fr','Sa'],
+  pt: ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'],
+  es: ['Do','Lu','Ma','Mi','Ju','Vi','Sá'],
+  fr: ['Di','Lu','Ma','Me','Je','Ve','Sa'],
+  de: ['So','Mo','Di','Mi','Do','Fr','Sa'],
+  it: ['Do','Lu','Ma','Me','Gi','Ve','Sa'],
+  hi: ['रवि','सोम','मंगल','बुध','गुरु','शुक्र','शनि'],
+  zh: ['日','一','二','三','四','五','六'],
+  ar: ['أحد','إثن','ثلا','أرب','خمي','جمع','سبت'],
+  ru: ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'],
 };
 
 const STRATEGY_NAMES: Record<string, string> = {
@@ -35,7 +62,7 @@ const resolveName = (id: string, customNames?: Record<string,string>, t?: (key: 
   // Delegates to the shared resolver (src/utils/resolveStrategyName.ts) — same
   // t()-first / customNames / legacy-dict / prettify order this function used to
   // implement inline, now shared with the other 8 screens that show strategy names.
-  return resolveStrategyName(id, t || ((k: string) => ''), STRATEGY_NAMES, customNames);
+  return strategyLabel(id, t || ((k: string) => ''), STRATEGY_NAMES, customNames);
 };
 
 type Entry = {
@@ -50,7 +77,9 @@ type RangeKey = '1' | '7' | '14' | '30';
 
 export default function MyWellbeingScreen() {
   const router = useRouter();
-  const { t } = useApp();
+  const { t, language } = useApp();
+  const wbLocale = LOCALE_FOR_LANG[language] || 'en-US';
+  const dayLetters = CALENDAR_DAY_LETTERS[language] || CALENDAR_DAY_LETTERS.en;
   const [strategyNames, setStrategyNames] = useState<Record<string,string>>({});
   useEffect(() => {
     const fetchStrategyNames = async () => {
@@ -327,28 +356,28 @@ export default function MyWellbeingScreen() {
         let detail = '';
         try { detail = (await checkRes.json())?.detail || ''; } catch (e) { console.error('[parent/my-wellbeing:328]', e); }
         if (detail.startsWith('free_tier_limit|')) {
-          Alert.alert('Free Plan Limit Reached', detail.split('|')[1] || 'Upgrade for unlimited reports.', [
-            { text: 'Not Now', style: 'cancel' },
-            { text: 'See Plans', onPress: () => router.push('/subscription') },
+          Alert.alert(t('free_plan_limit_title') || 'Free Plan Limit Reached', detail.split('|')[1] || (t('upgrade_unlimited_reports') || 'Upgrade for unlimited reports.'), [
+            { text: t('not_now') || 'Not Now', style: 'cancel' },
+            { text: t('see_plans') || 'See Plans', onPress: () => router.push('/subscription') },
           ]);
         } else {
-          Alert.alert('Error', 'No check-ins found for this month yet');
+          Alert.alert(t('error') || 'Error', t('no_checkins_month_yet') || 'No check-ins found for this month yet');
         }
         return;
       }
       await Linking.openURL(fullUrl);
     } catch (error: any) {
-      Alert.alert('Download Error', error.message || 'Could not download report');
+      Alert.alert(t('download_error') || 'Download Error', error.message || (t('could_not_download_report') || 'Could not download report'));
     } finally { setDownloading(false); }
   };
 
   const handleExport = async () => {
     if (entries.length === 0) {
-      Alert.alert('No Data', 'No wellbeing entries to export yet.');
+      Alert.alert(t('no_data_title') || 'No Data', t('no_wellbeing_entries_export') || 'No wellbeing entries to export yet.');
       return;
     }
     const zoneEmoji: Record<string,string> = { blue:'😔', green:'😊', yellow:'😟', red:'😣' };
-    const zoneLabel: Record<string,string> = { blue:'Blue', green:'Green', yellow:'Yellow', red:'Red' };
+    const zoneLabel: Record<string,string> = { blue:t('blue_short') || 'Blue', green:t('green_short') || 'Green', yellow:t('yellow_short') || 'Yellow', red:t('red_short') || 'Red' };
     const zoneCounts: Record<string,number> = { blue:0, green:0, yellow:0, red:0 };
     entries.forEach(e => { if (e.zone in zoneCounts) zoneCounts[e.zone]++; });
     const total = entries.length;
@@ -357,24 +386,24 @@ export default function MyWellbeingScreen() {
     const lines = [
       '╔══════════════════════════════════════╗',
       '║     CLASS OF HAPPINESS               ║',
-      '║     Wellbeing Report                 ║',
+      '║     ' + (t('export_report_title') || 'Wellbeing Report').padEnd(33) + '║',
       '╚══════════════════════════════════════╝',
       '',
       `👤 ${memberName}`,
-      `📅 Period: Last ${range} days`,
-      `🗓  Exported: ${new Date().toLocaleDateString()}`,
-      `📊 Total check-ins: ${total}`,
+      `📅 ${(t('export_period_line') || 'Period: Last {days} days').replace('{days}', String(range))}`,
+      `🗓  ${(t('export_exported_line') || 'Exported: {date}').replace('{date}', formatNumericDate(new Date(), language))}`,
+      `📊 ${(t('export_total_checkins_line') || 'Total check-ins: {total}').replace('{total}', String(total))}`,
       '',
-      '─── Emotion Summary ───────────────────',
-      `😔 Blue:   ${bar('blue')} ${zoneCounts.blue} (${pct('blue')}%)`,
-      `😊 Green:  ${bar('green')} ${zoneCounts.green} (${pct('green')}%)`,
-      `😟 Yellow: ${bar('yellow')} ${zoneCounts.yellow} (${pct('yellow')}%)`,
-      `😣 Red:    ${bar('red')} ${zoneCounts.red} (${pct('red')}%)`,
+      `─── ${t('export_emotion_summary') || 'Emotion Summary'} ───────────────────`,
+      `😔 ${(zoneLabel.blue + ':').padEnd(8)}${bar('blue')} ${zoneCounts.blue} (${pct('blue')}%)`,
+      `😊 ${(zoneLabel.green + ':').padEnd(8)}${bar('green')} ${zoneCounts.green} (${pct('green')}%)`,
+      `😟 ${(zoneLabel.yellow + ':').padEnd(8)}${bar('yellow')} ${zoneCounts.yellow} (${pct('yellow')}%)`,
+      `😣 ${(zoneLabel.red + ':').padEnd(8)}${bar('red')} ${zoneCounts.red} (${pct('red')}%)`,
       '',
-      '─── Check-in Log ──────────────────────',
+      `─── ${t('export_checkin_log') || 'Check-in Log'} ──────────────────────`,
       ...entries.slice(0,50).map(e => {
-        const d = new Date(e.timestamp).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-        const time = new Date(e.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+        const d = formatShortDate(e.timestamp, language, { weekday: 'short' });
+        const time = formatTime(e.timestamp, language, { twoDigitHour: true });
         const note = e.comment ? `
     💬 "${e.comment}"` : '';
         const journal = journals[e.id] ? `
@@ -386,10 +415,10 @@ export default function MyWellbeingScreen() {
       '',
       '─────────────────────────────────────',
       '  Class of Happiness',
-      '  This report is private and confidential.',
+      `  ${t('export_private_notice') || 'This report is private and confidential.'}`,
     ];
     try {
-      await Share.share({ title: `Wellbeing Report - ${memberName}`, message: lines.join('\n') });
+      await Share.share({ title: `${t('export_report_title') || 'Wellbeing Report'} - ${memberName}`, message: lines.join('\n') });
     } catch(e) { console.log('Export error:', e); }
   };
 
@@ -456,7 +485,7 @@ export default function MyWellbeingScreen() {
                     ).sort((a,b) => b[1]-a[1])[0][0]
                   : null;
                 const dayLabel = d.getDate().toString();
-                const monthLabel = d.toLocaleDateString(undefined, { month: 'short' });
+                const monthLabel = monthShortLabel(d.getMonth() + 1, language);
                 return (
                   <View key={i} style={{ alignItems: 'center', gap: 4, minWidth: parseInt(range) <= 7 ? 40 : 28 }}>
                     <View style={{
@@ -507,7 +536,7 @@ export default function MyWellbeingScreen() {
             <MaterialIcons name={secDistrib ? 'expand-less' : 'expand-more'} size={20} color="#666" />
           </TouchableOpacity>
           {secDistrib && (total === 0 ? (
-            <Text style={st.noData}>No check-ins yet</Text>
+            <Text style={st.noData}>{t('wellbeing_no_data') || 'No check-ins yet'}</Text>
           ) : (
             <View style={{gap:10,marginTop:12}}>
               {(Object.keys(counts) as (keyof typeof counts)[]).map(zone => (
@@ -534,7 +563,7 @@ export default function MyWellbeingScreen() {
               <BarChart
                 data={(['blue','green','yellow','red'] as const).map(z => ({
                   value: counts[z]||0, frontColor: ZONE_COLORS[z],
-                  label: z.charAt(0).toUpperCase()+z.slice(1),
+                  label: t(`${z}_short_label`) || (z.charAt(0).toUpperCase()+z.slice(1)),
                 }))}
                 barWidth={42} spacing={18} roundedTop roundedBottom
                 xAxisThickness={0} yAxisThickness={0}
@@ -581,12 +610,12 @@ export default function MyWellbeingScreen() {
             <MaterialIcons name={secTimeline ? 'expand-less' : 'expand-more'} size={20} color="#666" />
           </TouchableOpacity>
           {secTimeline && (entries.length === 0 ? (
-            <Text style={st.noData}>No check-ins yet</Text>
+            <Text style={st.noData}>{t('wellbeing_no_data') || 'No check-ins yet'}</Text>
           ) : (
             entries.slice(0, 20).map(entry => {
               const d = new Date(entry.timestamp);
-              const dateStr = d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
-              const timeStr = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+              const dateStr = formatShortDate(d, language, { weekday: 'long' });
+              const timeStr = formatShortDate(d, language, { weekday: 'short' }) + ' · ' + formatTime(d, language, { twoDigitHour: true });
               const strats = ((entry as any).strategies_selected || []).map((id: string) => resolveName(id, strategyNames, t)).join(', ');
               const j = journals[entry.id] || '';
               return (
@@ -648,13 +677,13 @@ export default function MyWellbeingScreen() {
             const grouped: Record<string,any[]> = {};
             entries.forEach(e => { const d=(e.timestamp||'').split('T')[0]; if(d){if(!grouped[d])grouped[d]=[];grouped[d].push(e);} });
             const dates = Object.keys(grouped).sort().slice(-14);
-            if (!dates.length) return <Text style={[st.noData,{marginTop:8}]}>No check-in data yet</Text>;
+            if (!dates.length) return <Text style={[st.noData,{marginTop:8}]}>{t('no_checkin_data_yet') || 'No check-in data yet'}</Text>;
             return (
               <View style={{flexDirection:'row',flexWrap:'wrap',gap:6,marginTop:8}}>
                 {dates.map(date => {
                   const dayLogs = grouped[date];
                   const d = new Date(date);
-                  const dayName = ['Su','Mo','Tu','We','Th','Fr','Sa'][d.getDay()];
+                  const dayName = dayLetters[d.getDay()];
                   const dayNum = d.getDate();
                   const zcnts: Record<string,number> = {};
                   dayLogs.forEach((l:any)=>{const z=l.zone;if(z)zcnts[z]=(zcnts[z]||0)+1;});
@@ -688,7 +717,7 @@ export default function MyWellbeingScreen() {
               <View style={{gap:8,marginTop:12}}>
                 {months.map(m => {
                   const [y,mo] = m.split('-');
-                  const label = new Date(parseInt(y),parseInt(mo)-1,1).toLocaleDateString(undefined,{month:'long',year:'numeric'});
+                  const label = formatMonthYearLabel(parseInt(y), parseInt(mo), language);
                   return (
                     <TouchableOpacity key={m}
                       style={{flexDirection:'row',alignItems:'center',backgroundColor:'#FFF3F3',borderRadius:10,padding:12,gap:10,borderWidth:1,borderColor:'#FFCDD2'}}

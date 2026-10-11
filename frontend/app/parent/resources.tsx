@@ -20,8 +20,18 @@ import { File, Directory, Paths } from 'expo-file-system/next';
 import * as Sharing from 'expo-sharing';
 import { resourcesApi, teacherResourcesApi, Resource, TeacherResource, TeacherResourceRating } from '../../src/utils/api';
 import { useApp } from '../../src/context/AppContext';
+import { formatNumericDate } from '../../src/utils/dateLabel';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
+
+// Real fix Sep 30 (live feedback, item 3): matches the same notice added to
+// teacher/resources.tsx - resource files stay English-only by design, so a non-English
+// parent gets an explicit, translated note instead of just silently-English PDFs. Native
+// endonyms match the exact strings already used in the language picker (app/settings.tsx).
+const NATIVE_LANG_NAMES: Record<string, string> = {
+  en: 'English', es: 'Español', fr: 'Français', pt: 'Português', de: 'Deutsch',
+  it: 'Italiano', hi: 'हिन्दी', zh: '中文', ar: 'العربية', ru: 'Русский',
+};
 
 // Real bug fix Aug 28 (item 8): 'emotions' and 'emotions_program' were two separate, near-
 // identical-looking tabs - confirmed live (both here and on the portal) that literally every
@@ -110,7 +120,7 @@ async function fetchResourcesShared(force: boolean): Promise<{ generalData: Reso
 
 export default function ResourcesScreen() {
   const router = useRouter();
-  const { t, isAuthenticated, user } = useApp();
+  const { t, isAuthenticated, user, language } = useApp();
   const TOPICS = getTopics(t);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [resources, setResources] = useState<Resource[]>([]);
@@ -231,14 +241,14 @@ export default function ResourcesScreen() {
         });
 
         if (!downloadedFile.exists) {
-          throw new Error('Downloaded file does not exist');
+          throw new Error(t('downloaded_file_missing') || 'Downloaded file does not exist');
         }
 
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
           await Sharing.shareAsync(downloadedFile.uri, {
             mimeType: 'application/pdf',
-            dialogTitle: `Share ${resource.title}`,
+            dialogTitle: (t('share_resource_title') || 'Share {title}').replace('{title}', resource.title),
             UTI: 'com.adobe.pdf',
           });
         } else {
@@ -247,7 +257,7 @@ export default function ResourcesScreen() {
       }
     } catch (error: any) {
       console.error('Download error:', error);
-      Alert.alert(t('download_error') || 'Download Error', `Failed to download PDF: ${error.message || 'Unknown error'}`);
+      Alert.alert(t('download_error') || 'Download Error', (t('pdf_download_failed_detail') || 'Failed to download PDF: {error}').replace('{error}', error.message || (t('unknown_error') || 'Unknown error')));
     } finally {
       setDownloading(false);
     }
@@ -347,14 +357,16 @@ export default function ResourcesScreen() {
           component's shape), so matched the exact same 36x36/#1A1A2E/white-icon styling
           directly rather than migrating the whole header. */}
       <View style={styles.topBar}>
+        {/* Real fix Sep 30 (live feedback, item 1): icon-only back button per Jono's request -
+            the "Voltar"/"Back" label next to it was redundant with the arrow icon and just
+            added visual clutter, especially in longer-word languages. */}
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <View style={styles.iconCircle}>
             <MaterialIcons name="arrow-back" size={20} color="#1A1A2E" />
           </View>
-          <Text style={styles.backText}>{t('back') || 'Back'}</Text>
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>{t('resources') || 'Resources'}</Text>
-        <TouchableOpacity onPress={() => router.replace('/parent/dashboard')} style={styles.iconCircle}>
+        <TouchableOpacity onPress={() => router.dismissTo('/')} style={styles.iconCircle}>
           <MaterialIcons name="home" size={20} color="#1A1A2E" />
         </TouchableOpacity>
       </View>
@@ -378,6 +390,12 @@ export default function ResourcesScreen() {
             </TouchableOpacity>
           ))}
         </ScrollView>
+
+        {language && language !== 'en' && (
+          <Text style={{ fontSize: 11, fontStyle: 'italic', color: '#999', textAlign: 'center', marginTop: 2, marginBottom: 8 }}>
+            {(t('resources_language_notice') || 'Not available in {language} yet, only in English.').replace('{language}', NATIVE_LANG_NAMES[language] || language)}
+          </Text>
+        )}
 
         {/* Freemium notice banner — dismissible, reappears each visit unless subscribed */}
         {!bannerDismissed && !(user?.subscription_status === 'active' || user?.subscription_status === 'trial') && (
@@ -563,7 +581,7 @@ export default function ResourcesScreen() {
                                 <MaterialIcons key={star} name={star <= rating.rating ? 'star' : 'star-border'} size={16} color="#4CAF50" />
                               ))}
                             </View>
-                            <Text style={styles.reviewDate}>{new Date(rating.created_at).toLocaleDateString()}</Text>
+                            <Text style={styles.reviewDate}>{formatNumericDate(rating.created_at, language)}</Text>
                           </View>
                           {rating.comment && <Text style={styles.reviewComment}>{rating.comment}</Text>}
                         </View>

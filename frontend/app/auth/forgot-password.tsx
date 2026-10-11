@@ -121,7 +121,7 @@ export default function ForgotPasswordScreen() {
               bar, same fix as login.tsx's own back button. */}
           <View style={[styles.headerRow, { marginTop: insets.top }]}>
             <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-              <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
+              <MaterialIcons name="arrow-back" size={20} color="#1A1A2E" />
             </TouchableOpacity>
             <ColourCycleLogo size={48.4} loop />
           </View>
@@ -216,11 +216,17 @@ const styles = StyleSheet.create({
   inner: { flex: 1 },
   scrollContent: { flexGrow: 1, padding: 24, paddingTop: 16 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  // Real fix Oct 6 (auth-screen sweep straggler): matches login.tsx/verify-email-
+  // required.tsx - this screen's back button was missed by the app-wide button redesign
+  // entirely, still the original solid-navy-fill/white-icon style. Updated to
+  // TranslatedHeader's own backButton (same 36x36 footprint, transparent fill + thin
+  // #CFCFCF ring).
   backButton: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E',
+    width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent',
+    borderWidth: 1, borderColor: '#CFCFCF',
     alignItems: 'center', justifyContent: 'center',
   },
-  title: { fontSize: 24, fontWeight: '900', color: '#1A1A2E', marginBottom: 8, fontFamily: 'Nunito' },
+  title: { fontSize: 24, fontWeight: '900', color: '#1A1A2E', marginBottom: 8 },
   subtitle: { fontSize: 14, color: '#666', marginBottom: 20 },
   label: { fontSize: 13, fontWeight: '700', color: '#333', marginBottom: 6, marginTop: 12 },
   input: {

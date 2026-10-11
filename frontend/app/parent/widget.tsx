@@ -180,7 +180,7 @@ export default function ParentWidgetScreen() {
           <View style={st.emptyBox}>
             <Text style={{ fontSize: 48 }}>👨‍👩‍👧</Text>
             <Text style={st.emptyText}>{t('add_family_to_track') || 'Add family members to track wellbeing'}</Text>
-            <TouchableOpacity style={st.addBtn} onPress={() => router.push('/parent/dashboard')}>
+            <TouchableOpacity style={st.addBtn} onPress={() => router.dismissTo('/parent/dashboard')}>
               <Text style={st.addBtnText}>{t('add_family_member') || 'Add Family Member'}</Text>
             </TouchableOpacity>
           </View>
@@ -218,7 +218,7 @@ export default function ParentWidgetScreen() {
           {alerts.length > 0 && (
             <View style={[st.distCard, { borderLeftWidth: 4, borderLeftColor: '#F44336' }]}>
               <Text style={[st.sectionTitle, { color: '#F44336' }]}>
-                🚨 {alerts.length} {t('request_support') || 'Support Request'}{alerts.length > 1 ? 's' : ''}
+                🚨 {alerts.length} {alerts.length > 1 ? (t('support_requests_plural') || 'Support Requests') : (t('request_support') || 'Support Request')}
               </Text>
               <TouchableOpacity onPress={() => router.push('/parent/alerts')} style={{ marginTop: 6 }}>
                 <Text style={{ fontSize: 12, color: '#F44336', fontWeight: '700' }}>
@@ -249,7 +249,7 @@ export default function ParentWidgetScreen() {
           )}
 
           {/* Go to dashboard */}
-          <TouchableOpacity style={st.dashBtn} onPress={() => router.push('/parent/dashboard')}>
+          <TouchableOpacity style={st.dashBtn} onPress={() => router.dismissTo('/parent/dashboard')}>
             <MaterialIcons name="dashboard" size={18} color={INDIGO} />
             <Text style={st.dashBtnText}>{t('family_dashboard') || 'Open Family Dashboard'}</Text>
             <MaterialIcons name="chevron-right" size={18} color={INDIGO} />

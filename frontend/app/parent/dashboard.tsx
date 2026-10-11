@@ -15,7 +15,7 @@ import {
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, usePathname } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -24,13 +24,14 @@ import { registerForPushNotifications } from '../../src/utils/notifications';
 import { PieChart, BarChart } from 'react-native-gifted-charts';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
+import { formatShortDate, formatTime as formatTimeLabel } from '../../src/utils/dateLabel';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import {
   parentApi, Student, zoneLogsApi, ZoneLog, analyticsApi,
   familyApi, FamilyMember, FamilyZoneLog, teacherApi, rewardsApi, linkedChildApi, creaturesApi
 } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
-import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
+import { resolveStrategyName, strategyLabel } from '../../src/utils/resolveStrategyName';
 
 
 // Pick image with camera or library choice
@@ -108,6 +109,30 @@ const STRATEGY_NAMES: Record<string, string> = {
 };
 
 const ZONE_COLORS: Record<string, string> = EMOTION_COLOURS;
+// Real fix Sep 30 (live feedback follow-up audit): matches the same locale fix applied across
+// teacher/student-detail.tsx, teacher/dashboard.tsx and parent/linked-child/[id].tsx -
+// toLocaleTimeString([]...)/toLocaleDateString(undefined,...) both follow the DEVICE's OS
+// locale, not the app's own in-app language setting.
+const LOCALE_FOR_LANG: Record<string,string> = { en:'en-US', pt:'pt-PT', es:'es-ES', fr:'fr-FR', de:'de-DE', it:'it-IT', hi:'hi-IN', zh:'zh-CN', ar:'ar-u-nu-latn-ca-gregory', ru:'ru-RU' };
+
+// Real fix Sep 30 (live feedback follow-up audit): the weekly table's day-of-week header only
+// branched for pt vs everything-else-English, so the other 8 in-app languages all showed
+// English day letters. Keys here stay the internal English lookup keys (Sun/Mon/... - used to
+// index weekData) while the on-screen letters are now looked up per in-app language, matching
+// the CALENDAR_DAY_LETTERS pattern already used in teacher/student-detail.tsx and
+// parent/linked-child/[id].tsx.
+const CALENDAR_DAY_LETTERS: Record<string, string[]> = {
+  en: ['Su','Mo','Tu','We','Th','Fr','Sa'],
+  pt: ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'],
+  es: ['Do','Lu','Ma','Mi','Ju','Vi','Sá'],
+  fr: ['Di','Lu','Ma','Me','Je','Ve','Sa'],
+  de: ['So','Mo','Di','Mi','Do','Fr','Sa'],
+  it: ['Do','Lu','Ma','Me','Gi','Ve','Sa'],
+  hi: ['रवि','सोम','मंगल','बुध','गुरु','शुक्र','शनि'],
+  zh: ['日','一','二','三','四','五','六'],
+  ar: ['أحد','إثن','ثلا','أرب','خمي','جمع','سبت'],
+  ru: ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'],
+};
 
 // Use translations for zone labels - will be populated from context
 const getZoneLabel = (zone: string, t: (key: string) => string) => {
@@ -158,8 +183,10 @@ const COLOUR_TIPS_PARENT: Record<string, {tip: string, action: string, tipKey: s
 
 export default function ParentDashboard() {
   const router = useRouter();
+  const currentPath = usePathname();
   const { editMember: editMemberParam, openLinkModal: openLinkModalParam } = useLocalSearchParams<{ editMember?: string; openLinkModal?: string }>();
   const { user, presetAvatars, t, language, setCurrentStudent, hasActiveSubscription, students, refreshStudents, lastCheckinMutationAt } = useApp();
+  const pdLocale = LOCALE_FOR_LANG[language] || 'en-US';
 
   // Real fix Sep 26 (live feedback): family cards were a fixed 100px - readable on no real
   // device, hard to tap accurately. Sized so exactly 2 cards fill the screen width (the
@@ -194,7 +221,7 @@ export default function ParentDashboard() {
   // same pattern already in place for superadmin). Only a role with no legitimate parent-data
   // access at all (school_admin, admin, kiosk) still gets redirected away.
   useEffect(() => {
-    if (user && user.role !== 'parent' && user.role !== 'teacher' && user.role !== 'superadmin') {
+    if (user && user.role !== 'parent' && user.role !== 'teacher' && user.role !== 'superadmin' && currentPath !== '/teacher/dashboard') {
       router.replace('/teacher/dashboard');
     }
   }, [user?.role]);
@@ -461,7 +488,7 @@ export default function ParentDashboard() {
       if (!ts) return;
       const day = getDayOfWeek(ts);
       if (weekData[day]) {
-        const time = new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        const time = formatTimeLabel(ts, language, { force24: true });
         weekData[day].logs.push(log);
         weekData[day].times.push(time);
       }
@@ -875,7 +902,9 @@ export default function ParentDashboard() {
   // check-in happened since - force a real refetch (fetchData cascades into fetchMemberData
   // via its own [fetchMemberData] effect below, refreshing whatever period is currently
   // selected). A focus with nothing new is a no-op, not a blanket refetch-on-every-focus.
-  const lastCheckinMutationAtRef = React.useRef(0);
+  // Starts at the CURRENT value so the mount load and the first focus cannot both load (see
+  // teacher/student-detail.tsx); a check-in saved later still raises the value above the ref.
+  const lastCheckinMutationAtRef = React.useRef(lastCheckinMutationAt);
   useFocusEffect(
     React.useCallback(() => {
       if (lastCheckinMutationAt > lastCheckinMutationAtRef.current) {
@@ -1024,13 +1053,18 @@ export default function ParentDashboard() {
   const handleShareCode = () => {
     if (!generatedCode) return;
     Share.share({
-      message: `Teacher link code: ${generatedCode}\n\nUse this code in the Class of Happiness app to link to my child.`,
+      message: (t('share_teacher_link_code_msg') || 'Teacher link code: {code}\n\nUse this code in the Class of Happiness app to link to my child.').replace('{code}', generatedCode),
     });
   };
 
+  // Real fix Oct 5 (time-format consistency): this manually built a plain 24-hour "HH:MM"
+  // string regardless of language - correct for fr/pt (their own 24h convention) but wrong
+  // for English, whose normal convention is a 12-hour clock with AM/PM (eg "2:30 PM", not
+  // "14:30"). Using Intl with pdLocale and no hour12 override lets each language's own
+  // default convention apply, matching every other screen in this sweep.
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
-    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    return formatTimeLabel(date, language);
   };
 
   // Prepare pie chart data
@@ -1040,7 +1074,7 @@ export default function ParentDashboard() {
       value: count,
       color: ZONE_COLORS[zone],
       text: `${count}`,
-      label: zone.charAt(0).toUpperCase() + zone.slice(1),
+      label: t(`${zone}_short_label`) || (zone.charAt(0).toUpperCase() + zone.slice(1)),
     })) : [];
 
   const totalLogs = pieData.reduce((sum, item) => sum + item.value, 0);
@@ -1275,11 +1309,8 @@ export default function ParentDashboard() {
               {/* Weekly Table View - All 7 days */}
               <View style={styles.weeklyTable}>
                 <View style={styles.weeklyHeader}>
-                  {(language === 'pt'
-                    ? ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
-                    : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-                  ).map((day) => (
-                    <View key={day} style={styles.weeklyDayHeader}>
+                  {(CALENDAR_DAY_LETTERS[language] || CALENDAR_DAY_LETTERS.en).map((day, idx) => (
+                    <View key={`${day}-${idx}`} style={styles.weeklyDayHeader}>
                       <Text style={styles.weeklyDayText}>{day}</Text>
                     </View>
                   ))}
@@ -1354,7 +1385,7 @@ export default function ParentDashboard() {
                         </View>
                       </View>
                       <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                        <Text style={styles.logTime}>{new Date((log as any).timestamp||(log as any).created_at).toLocaleDateString(undefined,{month:'short',day:'numeric'})} · {formatTime((log as any).timestamp||(log as any).created_at)}</Text>
+                        <Text style={styles.logTime}>{formatShortDate((log as any).timestamp||(log as any).created_at, language)} · {formatTime((log as any).timestamp||(log as any).created_at)}</Text>
                         {/* Home/school icon added (round 3, Sep 5) - was text-only before.
                             Build 26 (Sep 6): was an exact match on logged_by==='parent' /
                             'student' - missed 'teacher_bulk' (bulk check-in never sets
@@ -1368,7 +1399,7 @@ export default function ParentDashboard() {
                       </View>
                       {(log as any).strategies_selected?.length > 0 && (
                         <Text style={[styles.logTime, { color: '#AAA', fontSize: 10 }]} numberOfLines={1}>
-                          {(log as any).strategies_selected.slice(0,2).map((s:string)=>strategyNames[s]||resolveStrategyName(s, t, STRATEGY_NAMES)).join(', ')}
+                          {(log as any).strategies_selected.slice(0,2).map((s:string)=>strategyNames[s]||strategyLabel(s, t, STRATEGY_NAMES)).join(', ')}
                           {(log as any).strategies_selected.length > 2 ? ` +${(log as any).strategies_selected.length-2}` : ''}
                         </Text>
                       )}
@@ -1611,7 +1642,7 @@ export default function ParentDashboard() {
                               student_id: (member as any).student_id,
                             } as any);
                           }
-                          router.push('/student/creatures');
+                          router.navigate('/student/creatures');
                         }}
                       >
                         <View style={{ flexDirection:'row', justifyContent:'center', flexWrap:'wrap', gap:2 * cardScale }}>

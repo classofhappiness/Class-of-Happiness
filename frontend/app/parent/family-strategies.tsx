@@ -53,7 +53,7 @@ const FAMILY_STRATEGIES = [
   { zone:'green', nameKey:'strat_dance_name', descKey:'strat_dance_desc', name:'Family Dance Break', description:'Put on a favourite upbeat song and move together. Music + movement + laughter = powerful social bonding.', icon:'music-note', research:'Social rhythm therapy' },
   { zone:'green', nameKey:'strat_strength_name', descKey:'strat_strength_desc', name:'Strength Spotting', description:'Point out a specific strength: "I noticed how patient you were today." Specific praise builds a secure self-concept.', icon:'star', research:'Growth mindset (Dweck)' },
   { zone:'green', nameKey:'strat_creative_name', descKey:'strat_creative_desc', name:'Creative Together Time', description:'Draw, build, cook or make something with no goal in mind. Open-ended play activates curiosity and strengthens connection.', icon:'palette', research:'Play therapy research' },
-  { zone:'green', nameKey:'strat_calm_problem_name', descKey:'strat_calm_problem_desc', name:'Calm Problem-Solving', description:'When things are calm, solve problems together: "What could we do differently next time?" Green zone is ideal for collaborative planning.', icon:'lightbulb', research:'Collaborative Problem Solving (Greene)' },
+  { zone:'green', nameKey:'strat_calm_problem_name', descKey:'strat_calm_problem_desc', name:'Calm Problem-Solving', description:'When things are calm, solve problems together: "What could we do differently next time?" Calm, green feelings are ideal for collaborative planning.', icon:'lightbulb', research:'Collaborative Problem Solving (Greene)' },
   { zone:'green', nameKey:'strat_one_on_one_name', descKey:'strat_one_on_one_desc', name:'Special One-on-One Time', description:'10-15 minutes of undivided attention where your child leads. Non-negotiable. Significantly reduces attention-seeking behaviour.', icon:'child-care', research:'Attachment-based parenting' },
   // YELLOW
   { zone:'yellow', nameKey:'strat_box_breathing_name', descKey:'strat_box_breathing_desc', name:'Box Breathing Together', description:'Breathe in 4, hold 4, out 4, hold 4. Do it WITH your child. Modelling is more powerful than instruction.', icon:'air', research:'HRV & vagal tone research' },
@@ -66,7 +66,7 @@ const FAMILY_STRATEGIES = [
   { zone:'red', nameKey:'strat_regulate_name', descKey:'strat_regulate_desc', name:'Regulate Yourself First', description:'Your nervous system regulates theirs. Take one slow breath before responding. Children co-regulate through adult calm, not words.', icon:'self-improvement', research:'Polyvagal Theory (Porges)' },
   { zone:'red', nameKey:'strat_safe_space_name', descKey:'strat_safe_space_desc', name:'Safe Space - Not Isolation', description:'Guide your child to a quiet corner WITH you nearby. Isolation increases shame; proximity while calm reduces it.', icon:'home', research:'Attachment-based discipline' },
   { zone:'red', nameKey:'strat_cold_water_name', descKey:'strat_cold_water_desc', name:'Cold Water Reset', description:'Splash cold water on the face or hold a cold drink. This activates the dive reflex, rapidly reducing heart rate.', icon:'water', research:'Physiological self-regulation' },
-  { zone:'red', nameKey:'strat_no_teaching_name', descKey:'strat_no_teaching_desc', name:'No Teaching in the Storm', description:'Wait until the red zone passes before discussing what happened. The reasoning brain goes offline during high arousal.', icon:'do-not-disturb', research:'Siegel - Window of Tolerance' },
+  { zone:'red', nameKey:'strat_no_teaching_name', descKey:'strat_no_teaching_desc', name:'No Teaching in the Storm', description:'Wait until the red feelings pass before discussing what happened. The reasoning brain goes offline during high arousal.', icon:'do-not-disturb', research:'Siegel - Window of Tolerance' },
   { zone:'red', nameKey:'strat_reconnect_name', descKey:'strat_reconnect_desc', name:'Reconnect Before Redirect', description:'After the storm, reconnect with warmth first: a hug, eye contact, soft voice. Only then address behaviour, calmly.', icon:'favorite-border', research:'Gottman Emotion Coaching' },
   { zone:'red', nameKey:'strat_repair_name', descKey:'strat_repair_desc', name:'Model Repair', description:'If you lost your cool, model repair: "I\'m sorry I raised my voice. Let\'s try again." Repair is more powerful than perfection.', icon:'handshake', research:'Rupture-repair cycle (Tronick)' },
 ];
@@ -96,7 +96,7 @@ export default function FamilyStrategiesScreen() {
   const [newStrat, setNewStrat] = useState({ name: '', description: '', zone: 'green', share_with_teacher: false, assigned_to: 'all' });
   const [saving, setSaving] = useState(false);
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'parent' | 'child' | 'custom'>('parent');
+  const [activeTab, setActiveTab] = useState<'parent' | 'child' | 'custom'>('child'); // Oct 11: opens on Child Strategies (state is per visit, nothing persisted)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
 

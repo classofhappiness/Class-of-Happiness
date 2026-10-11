@@ -7,6 +7,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Linking } from 'react-native';
 import { EmotionColourLoader } from '../../../src/components/EmotionColourLoader';
 import { TranslatedHeader } from '../../../src/components/TranslatedHeader';
+import { formatMonthYear as formatMonthYearLabel } from '../../../src/utils/monthLabel';
+import { formatShortDate, formatTime } from '../../../src/utils/dateLabel';
 
 // Fallback for old-format strategy codes
 const STRATEGY_NAMES_LOCAL: Record<string,string> = {
@@ -36,11 +38,11 @@ const STRATEGY_NAMES_LOCAL: Record<string,string> = {
 const ZONE_KEYS_SET = new Set(['blue','green','yellow','red','Blue','Green','Yellow','Red']);
 const resolveStratName = (id: string, nameMap: Record<string,string>, t: (key: string) => string): string => {
   if (!id || ZONE_KEYS_SET.has(id)) return '';
-  return resolveStrategyName(id, t, STRATEGY_NAMES_LOCAL, nameMap);
+  return strategyLabel(id, t, STRATEGY_NAMES_LOCAL, nameMap);
 };
 import { useApp } from '../../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../../src/constants/emotionColours';
-import { resolveStrategyName } from '../../../src/utils/resolveStrategyName';
+import { resolveStrategyName, strategyLabel } from '../../../src/utils/resolveStrategyName';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const ZONE_COLORS: Record<string,string> = EMOTION_COLOURS;
@@ -51,6 +53,19 @@ export default function FamilyMemberStatsScreen() {
   const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
   const router = useRouter();
   const { t, language } = useApp();
+  // Real fix Sep 30 (live feedback follow-up audit): matches the same locale fix applied
+  // across teacher/student-detail.tsx, teacher/dashboard.tsx, teacher/checkin.tsx and
+  // parent/linked-child/[id].tsx - toLocaleDateString(undefined, ...) follows the DEVICE's
+  // OS locale, not the app's own in-app language setting.
+  const LOCALE_FOR_LANG: Record<string,string> = { en:'en-US', pt:'pt-PT', es:'es-ES', fr:'fr-FR', de:'de-DE', it:'it-IT', hi:'hi-IN', zh:'zh-CN', ar:'ar-u-nu-latn-ca-gregory', ru:'ru-RU' };
+  const fmsLocale = LOCALE_FOR_LANG[language] || 'en-US';
+  // Real fix Oct 5 (month-picker capitalisation): Intl's long-month formatting lowercases the
+  // month name by default for several Latin-script locales (fr/es/it/etc. all do this
+  // natively, correctly, per their own grammar rules) - capitalised here purely for this
+  // picker's visual consistency with English. zh/ar/hi have no letter case, so left untouched.
+  const NO_CASE_LANGS = new Set(['zh', 'ar', 'hi']);
+  const capitalizeMonth = (label: string, lang: string): string =>
+    NO_CASE_LANGS.has(lang) ? label : label.charAt(0).toUpperCase() + label.slice(1);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [logs, setLogs] = useState<any[]>([]);
@@ -143,10 +158,10 @@ export default function FamilyMemberStatsScreen() {
         await Linking.openURL(url);
       } else {
         const errText = await res.text().catch(()=>'');
-        Alert.alert('No Data', `No check-ins found for this month (${res.status})`);
+        Alert.alert(t('no_data_title') || 'No Data', (t('no_checkins_month_status') || 'No check-ins found for this month ({status})').replace('{status}', String(res.status)));
       }
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Could not download PDF');
+      Alert.alert(t('error') || 'Error', e.message || (t('could_not_download_pdf') || 'Could not download PDF'));
     }
     setDownloadingMonth(null);
   };
@@ -231,7 +246,7 @@ export default function FamilyMemberStatsScreen() {
         {([1, 7, 14, 30] as const).map(d => (
           <TouchableOpacity key={d} style={[s.periodBtn, selectedPeriod === d && s.periodBtnActive]} onPress={() => setSelectedPeriod(d)}>
             <Text style={[s.periodBtnText, selectedPeriod === d && s.periodBtnTextActive]}>
-              {d === 1 ? t('today') || 'Today' : d === 7 ? t('days_7') || '7 Days' : d === 14 ? '2 Weeks' : t('days_30') || '30 Days'}
+              {d === 1 ? t('today') || 'Today' : d === 7 ? t('days_7') || '7 Days' : d === 14 ? t('days_14') || '2 Weeks' : t('days_30') || '30 Days'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -280,7 +295,7 @@ export default function FamilyMemberStatsScreen() {
           </TouchableOpacity>
           <TouchableOpacity style={s.actionBtn} onPress={() => router.push({ pathname: '/parent/dashboard', params: { openLinkModal: '1' } })}>
             <MaterialIcons name="family-restroom" size={20} color="#4A90D9" />
-            <Text style={s.actionBtnLabel}>{t('family') || 'School-Family Link'}</Text>
+            <Text style={s.actionBtnLabel} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>{t('school_home_link') || 'School Home Link'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -303,8 +318,12 @@ export default function FamilyMemberStatsScreen() {
                       </View>
                       <View style={{flex:1}}>
                         <Text style={{fontSize:13, fontWeight:'600', color:'#333'}}>
-                          {new Date(log.timestamp).toLocaleDateString(undefined, {weekday:'short', month:'short', day:'numeric'})}
-                          {' · '}{new Date(log.timestamp).toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit', hour12:true})}
+                          {formatShortDate(log.timestamp, language, { weekday: 'short' })}
+                          {/* Real fix Oct 5 (time-format consistency): hour12:true forced a
+                              12-hour AM/PM clock even for locales (fr-FR, pt-PT, etc.) whose
+                              own convention is 24-hour - omitting it lets each locale's
+                              default apply, matching the date formatting right above. */}
+                          {' · '}{formatTime(log.timestamp, language)}
                         </Text>
                         {strats.length > 0 && (
                           <Text style={{fontSize:11, color:'#5C6BC0', marginTop:2}}>
@@ -340,7 +359,7 @@ export default function FamilyMemberStatsScreen() {
                     </View>
                   );
                 })}
-                <Text style={{fontSize:11, color:'#999', marginTop:4}}>🏠 Home · School: not linked</Text>
+                <Text style={{fontSize:11, color:'#999', marginTop:4}}>🏠 {t('home_school_not_linked') || 'Home · School: not linked'}</Text>
               </View>
             )}
           </View>
@@ -375,7 +394,7 @@ export default function FamilyMemberStatsScreen() {
                   const [yr, mo] = m.split('-').map(Number);
                   const daysInMonth = new Date(yr, mo, 0).getDate();
                   const firstDay = new Date(yr, mo-1, 1).getDay();
-                  const monthLabel = new Date(yr, mo-1, 15).toLocaleDateString(undefined, {month:'long', year:'numeric'});
+                  const monthLabel = formatMonthYearLabel(yr, mo, language);
                   return (
                     <View key={m} style={{marginBottom:16}}>
                       <Text style={{fontSize:13, fontWeight:'700', color:'#333', marginBottom:8}}>{monthLabel}</Text>
@@ -422,7 +441,7 @@ export default function FamilyMemberStatsScreen() {
                 {months.length === 0
                   ? <Text style={s.emptyText}>{t('no_checkin_yet')||t('no_checkin_yet') || 'No check-ins yet'}</Text>
                   : months.map(m => {
-                      const label = new Date(m+'-15').toLocaleDateString(undefined, {month:'long', year:'numeric'});
+                      const label = formatMonthYearLabel(parseInt(m.split('-')[0]), parseInt(m.split('-')[1]), language);
                       return (
                         <TouchableOpacity key={m}
                           style={{flexDirection:'row', alignItems:'center', backgroundColor:'#FFF3F3', borderRadius:10, padding:12, gap:10, borderWidth:1, borderColor:'#FFCDD2'}}

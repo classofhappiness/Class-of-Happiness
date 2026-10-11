@@ -19,6 +19,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useAndroidKeyboardOffset } from '../../src/utils/useAndroidKeyboardOffset';
 import { SafeAreaView as EdgeSafeAreaView } from 'react-native-safe-area-context';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
+import { StrategyIcon } from '../../src/components/StrategyIcon';
 import { familyApi, FamilyMember, strategiesApi, Strategy } from '../../src/utils/api';
 import { useDataGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
 
@@ -38,31 +39,41 @@ const MAX_COMMENT_LENGTH = 100;
 // Research-backed parent strategies per zone
 
 // Child strategies - same as student app (for family members with relationship='child')
+// Oct 11: ids are the CANONICAL ones (blue_1..red_6) that resolveStrategyName and the student flow use, chosen by NAME.
+// They used to be b1..r4 numbered by this list's own order, which the resolver reads as a different strategy.
 const CHILD_STRATEGIES: Record<string, Array<{id:string; name:string; description:string; icon:string}>> = {
   blue: [
-    {id:'b1', name:'Gentle Stretch', description:'Move your body slowly and gently', icon:'fitness-center'},
-    {id:'b2', name:'Favourite Song', description:'Listen to a calming favourite song', icon:'music-note'},
-    {id:'b3', name:'Tell Someone', description:'Share how you feel with a trusted person', icon:'chat'},
-    {id:'b4', name:'Slow Breathing', description:'Breathe in slowly, hold, breathe out', icon:'air'},
+    {id:'blue_1', name:'Gentle Stretch', description:'Move your body slowly and gently', icon:'fitness-center'},
+    {id:'blue_3', name:'Favourite Song', description:'Listen to a calming favourite song', icon:'music-note'},
+    {id:'blue_5', name:'Tell Someone', description:'Share how you feel with a trusted person', icon:'chat'},
+    {id:'blue_6', name:'Slow Breathing', description:'Breathe in slowly, hold, breathe out', icon:'air'},
   ],
   green: [
-    {id:'g1', name:'Keep Going!', description:'You are in a great zone - keep it up!', icon:'thumb-up'},
-    {id:'g2', name:'Help a Friend', description:'Use your good energy to help someone else', icon:'favorite'},
-    {id:'g3', name:'Set a Goal', description:'Plan something you want to achieve today', icon:'lightbulb'},
-    {id:'g4', name:'Gratitude', description:'Think of three things you are grateful for', icon:'star'},
+    {id:'green_1', name:'Keep Going!', description:'You are feeling great - keep it up!', icon:'thumb-up'},
+    {id:'green_2', name:'Help a Friend', description:'Use your good energy to help someone else', icon:'favorite'},
+    {id:'green_5', name:'Set a Goal', description:'Plan something you want to achieve today', icon:'lightbulb'},
+    {id:'green_6', name:'Gratitude', description:'Think of three things you are grateful for', icon:'star'},
   ],
   yellow: [
-    {id:'y1', name:'Bubble Breathing', description:'Breathe out slowly like blowing a bubble', icon:'air'},
-    {id:'y2', name:'Count to 10', description:'Count slowly from 1 to 10 before reacting', icon:'filter-9-plus'},
-    {id:'y3', name:'5 Senses', description:'Name 5 things you can see, hear, feel', icon:'visibility'},
-    {id:'y4', name:'Talk About It', description:'Find a safe person to share your feelings', icon:'chat'},
+    {id:'yellow_1', name:'Bubble Breathing', description:'Breathe out slowly like blowing a bubble', icon:'air'},
+    {id:'yellow_3', name:'Count to 10', description:'Count slowly from 1 to 10 before reacting', icon:'filter-9-plus'},
+    {id:'yellow_4', name:'5 Senses', description:'Name 5 things you can see, hear, feel', icon:'visibility'},
+    {id:'yellow_6', name:'Talk About It', description:'Find a safe person to share your feelings', icon:'chat'},
   ],
   red: [
-    {id:'r1', name:'Freeze', description:'Stop and hold very still for 10 seconds', icon:'front-hand'},
-    {id:'r2', name:'Big Breaths', description:'Take 3 big deep breaths right now', icon:'air'},
-    {id:'r3', name:'Safe Space', description:'Move to a quiet safe place to calm down', icon:'home'},
-    {id:'r4', name:'Ask for Help', description:'Tell an adult you need support right now', icon:'support-agent'},
+    {id:'red_1', name:'Freeze', description:'Stop and hold very still for 10 seconds', icon:'front-hand'},
+    {id:'red_2', name:'Big Breaths', description:'Take 3 big deep breaths right now', icon:'air'},
+    {id:'red_4', name:'Safe Space', description:'Move to a quiet safe place to calm down', icon:'home'},
+    {id:'red_5', name:'Ask for Help', description:'Tell an adult you need support right now', icon:'support-agent'},
   ],
+};
+
+// id -> existing translation key whose English text is identical to the name below
+const PARENT_NAME_KEYS: Record<string, string> = {
+  p_b1: 'strat_side_by_side_name', p_b3: 'strat_name_it_name', p_b5: 'strat_p_b5',
+  p_g1: 'strat_gratitude_name', p_g2: 'strat_strength_name', p_g4: 'strat_p_g4', p_g5: 'strat_p_g5',
+  p_y1: 'strat_box_breathing_name', p_y3: 'strat_body_checkin_name', p_y4: 'strat_p_y4', p_y5: 'strat_p_y5',
+  p_r1: 'strat_p_r1', p_r2: 'strat_p_r2', p_r3: 'strat_cold_water_name', p_r4: 'strat_p_r4', p_r5: 'strat_p_r5',
 };
 
 const PARENT_STRATEGIES: Record<string, Array<{id:string; name:string; description:string; icon:string}>> = {
@@ -146,8 +157,15 @@ export default function FamilyCheckInScreen() {
     }
 
     // Adults: parent strategies + admin-authored parent strategies + any custom family strategies
-    const baseStrats = PARENT_STRATEGIES[selectedZone] || [];
-    const allNames = new Set(baseStrats.map((s: any) => s.name.toLowerCase()));
+    const rawBaseStrats = PARENT_STRATEGIES[selectedZone] || [];
+    // Oct 11: built-in parent strategies are translated (names reuse the existing strat_* keys where the English
+    // text is identical; the rest and every description have pc_* keys). Dedup below stays on the English names.
+    const baseStrats = rawBaseStrats.map((s) => ({
+      ...s,
+      name: t(PARENT_NAME_KEYS[s.id] || `pc_${s.id}_name`) || s.name,
+      description: t(`pc_${s.id}_desc`) || s.description,
+    }));
+    const allNames = new Set(rawBaseStrats.map((s: any) => s.name.toLowerCase()));
     let merged = [...baseStrats];
     try {
       const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -340,7 +358,7 @@ export default function FamilyCheckInScreen() {
 
   return (
     // Real fix Sep 19 (header/nav remainder): converted to the shared TranslatedHeader (two-line
-    // title = its title + subtitle; homeTo keeps the home button on parent/dashboard). That also
+    // title = its title + subtitle; showHome goes to the landing page ('/')). That also
     // fixes this screen having the logo LEFT of the title instead of the app-wide right-hand
     // cluster. The main return switches to the cross-platform SafeAreaView with no 'top' edge,
     // because TranslatedHeader applies the top inset itself and React Native's own SafeAreaView
@@ -365,26 +383,13 @@ export default function FamilyCheckInScreen() {
           title={step === 'zone' ? (t('how_are_you_feeling') || 'How are you feeling?') : (t('choose_helpful_strategies') || 'Choose a Strategy')}
           subtitle={`${t('checkin_for') || 'Check-in for'} ${memberName}`}
           showHome
-          homeTo="/parent/dashboard"
         />
 
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps='handled'>
           {step === 'zone' ? (
             /* Zone Selection */
             <>
-            <View style={{ flexDirection:'row', justifyContent:'center', gap:16, marginBottom:10, flexWrap:'wrap' }}>
-              {[
-                { color:'#4A90D9', emoji:'😢', label: t('blue_feeling_short')||'Sad / Tired' },
-                { color:'#4CAF50', emoji:'😊', label: t('green_feeling_short')||'Happy / Calm' },
-                { color:'#FFC107', emoji:'😟', label: t('yellow_feeling_short')||'Worried / Silly' },
-                { color:'#F44336', emoji:'😣', label: t('red_feeling_short')||'Angry / Scared' },
-              ].map(z => (
-                <View key={z.color} style={{ alignItems:'center', gap:2 }}>
-                  <Text style={{ fontSize:18 }}>{z.emoji}</Text>
-                  <Text style={{ fontSize:9, color:z.color, fontWeight:'600', textAlign:'center', maxWidth:60 }}>{z.label}</Text>
-                </View>
-              ))}
-            </View>
+            {/* Oct 11: the row of emotion words that sat here duplicated the words on the colour buttons below */}
             <View style={styles.zonesStack}>
               {getZones(t).map((zone) => (
                 <TouchableOpacity
@@ -439,8 +444,8 @@ export default function FamilyCheckInScreen() {
                     ]}
                     onPress={() => toggleStrategy(strategy.id)}
                   >
-                    <MaterialIcons
-                      name={strategy.icon as any || 'star'}
+                    <StrategyIcon
+                      icon={strategy.icon || 'star'}
                       size={20}
                       color={selectedStrategies.includes(strategy.id) ? zoneConfig?.color : '#666'}
                     />
