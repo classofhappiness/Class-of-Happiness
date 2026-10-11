@@ -14070,6 +14070,11 @@ async def _run_ai_moderation(image_urls: list) -> str:
     urls = [u for u in image_urls if u]
     if not urls:
         return "clean"
+    # fix48 (defence in depth): Google fetches these urls itself; never hand it anything that is not a public url of our own
+    # creature-images bucket (no redirects can be followed to other hosts because only our exact host/path shape is sent).
+    if any(_creature_public_url_path(u) is None for u in urls):
+        logger.warning("[ai_moderation] refusing to send a url that is not on our own storage; flag set to error")
+        return "error"
     try:
         payload = {
             "requests": [
@@ -14116,6 +14121,26 @@ async def submit_creature(request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     body = await request.json()
+    # fix48: the 4 image urls must be this caller's own uploads for these stages (see the block above); rejected before any
+    # other work, and the stored url is rebuilt from the validated object path.
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Invalid request")
+    _own_paths = []
+    for _n in (1, 2, 3, 4):
+        _p = _creature_submit_object_path(body.get(f"stage{_n}_url"), user.get("user_id"), _n)
+        if not _p:
+            raise HTTPException(status_code=400, detail=f"Invalid image for stage {_n}. Please upload the pictures again.")
+        _own_paths.append(_p)
+    if len(set(_own_paths)) != 4:
+        raise HTTPException(status_code=400, detail="Invalid images")
+    try:
+        _exists = await asyncio.gather(*[asyncio.to_thread(_creature_object_exists_sync, _p) for _p in _own_paths])
+    except Exception as _e:
+        logger.warning(f"[creatures/submit] could not verify the uploaded images: {_e}")
+        raise HTTPException(status_code=503, detail="Could not verify the uploaded pictures. Please try again.")
+    if not all(_exists):
+        raise HTTPException(status_code=400, detail="An uploaded picture was not found. Please upload the pictures again.")
+    _canonical = [supabase.storage.from_("creature-images").get_public_url(_p) for _p in _own_paths]
     code = body.get("code", "").upper().strip()
     emotion = body.get("emotion_colour", "").lower()
     if emotion not in ["green","blue","yellow","red"]:
@@ -14190,10 +14215,10 @@ async def submit_creature(request: Request):
         "emotion_colour": emotion,
         "creature_name": body.get("name", "My Creature")[:50],
         "description": body.get("description", "")[:200],
-        "stage1_url": body["stage1_url"],
-        "stage2_url": body["stage2_url"],
-        "stage3_url": body["stage3_url"],
-        "stage4_url": body["stage4_url"],
+        "stage1_url": _canonical[0],
+        "stage2_url": _canonical[1],
+        "stage3_url": _canonical[2],
+        "stage4_url": _canonical[3],
         "submission_code": code,
         "status": "pending",
         "visibility_scope": requested_scope,
@@ -24630,6 +24655,8 @@ def normalise_creature_stages(stage_bytes: list) -> Optional[list]:
         stages = []
         for b in stage_bytes:
             im = Image.open(io.BytesIO(b))
+            if im.size[0] * im.size[1] > _CREATURE_UPLOAD_MAX_PIXELS:         # fix48: pixel cap before any decoding
+                return None
             if getattr(im, "n_frames", 1) > 1:
                 return None
             has_alpha = im.mode in ("RGBA", "LA", "PA") or (im.mode == "P" and "transparency" in im.info)
@@ -24670,8 +24697,8 @@ def _creature_object_path(public_url: Optional[str]) -> Optional[str]:
     (fix46: submit takes the urls from the request body, so they are not trusted)."""
     if not public_url or "/creature-images/" not in public_url:
         return None
-    path = public_url.split("?")[0].split("/creature-images/", 1)[1]
-    return path if _CREATURE_OBJECT_RE.match(path) else None
+    path = _creature_public_url_path(public_url)              # fix48: our host, https, exact public path, no encodings
+    return path if (path and _CREATURE_OBJECT_RE.match(path)) else None
 
 def _normalise_submission_images_sync(submission_id: str, urls: list) -> None:
     """Blocking worker (runs in a thread). Downloads the 4 stage images, normalises them,
@@ -24684,6 +24711,9 @@ def _normalise_submission_images_sync(submission_id: str, urls: list) -> None:
             return
         bucket = supabase.storage.from_("creature-images")
         originals = [bucket.download(p) for p in paths]
+        if any(len(b) > _CREATURE_UPLOAD_MAX_BYTES for b in originals):      # fix48: size cap on what the worker downloads
+            logger.info(f"[creature-normalise] {submission_id}: an image is over the size cap, left alone")
+            return
         normalised = normalise_creature_stages(originals)
         if not normalised:
             logger.info(f"[creature-normalise] {submission_id}: left alone (no usable alpha / unreadable)")
@@ -24812,6 +24842,70 @@ def _creature_upload_object_name(user_id: str, stage_i: int, stored_ext: str) ->
     if not _CREATURE_OBJECT_RE.match(name):      # belt and braces: the name must match the one allowed shape
         raise HTTPException(status_code=400, detail="Invalid upload")
     return name
+
+# --- Creature submit: only the caller's own uploaded image urls (fix48) ----------------------------------------------
+# /creatures/submit used to store the 4 stage urls exactly as sent; the moderation call then handed them to Google Vision
+# and the background normaliser used them to pick objects, so any url (internal addresses, other hosts, someone else's
+# upload) could be submitted. Now every url must be an https public url of OUR Supabase `creature-images` bucket whose
+# object path is exactly creatures/<caller user_id>_stage<N>_<8 hex>.<png|jpg|jpeg|webp> for the stage it is submitted
+# as (only a ?v=<digits> query is tolerated, it is ignored), the object must exist in the bucket, and the url that is
+# stored is rebuilt from the validated object path (never the client's string). Nothing here fetches a url over http.
+_CREATURE_PUBLIC_PREFIX = "/storage/v1/object/public/creature-images/"
+_CREATURE_URL_MAX_LEN = 600
+
+def _our_storage_host() -> str:
+    try:
+        from urllib.parse import urlsplit
+        return (urlsplit(SUPABASE_URL).hostname or "").lower()
+    except Exception:
+        return ""
+
+def _creature_public_url_path(url) -> Optional[str]:
+    """Object path (after the bucket) of a url that is EXACTLY a public url of our creature-images bucket, else None.
+    Rejects: non-strings, whitespace/control characters, other schemes (only https), other hosts, userinfo, ports,
+    fragments, any query except a single v=<digits>, percent-encoding, backslashes, '.', '..' or empty segments."""
+    try:
+        from urllib.parse import urlsplit, parse_qsl
+        host = _our_storage_host()
+        if not host or not isinstance(url, str) or not url or len(url) > _CREATURE_URL_MAX_LEN:
+            return None
+        if any(ord(ch) <= 32 or ord(ch) == 127 for ch in url):
+            return None
+        parts = urlsplit(url)
+        if parts.scheme != "https" or parts.username is not None or parts.password is not None:
+            return None
+        if parts.netloc.lower() != host or parts.port is not None or parts.fragment:
+            return None
+        if parts.query:
+            q = parse_qsl(parts.query, keep_blank_values=True, strict_parsing=True)
+            if len(q) != 1 or q[0][0] != "v" or not q[0][1].isascii() or not q[0][1].isdigit():
+                return None
+        if not parts.path.startswith(_CREATURE_PUBLIC_PREFIX):
+            return None
+        rest = parts.path[len(_CREATURE_PUBLIC_PREFIX):]
+        if "%" in parts.path or "\\" in rest or "//" in rest or rest.startswith("/") or any(seg in ("", ".", "..") for seg in rest.split("/")):
+            return None
+        return rest
+    except Exception:
+        return None
+
+def _creature_submit_object_path(url, user_id: str, stage: int) -> Optional[str]:
+    """The caller's own upload for this stage, or None. Normalised copies (_n<tag>) only ever come from the server."""
+    path = _creature_public_url_path(url)
+    if not path or not isinstance(user_id, str) or not _CREATURE_UPLOAD_USER_RE.match(user_id):
+        return None
+    if _re_up.match(r"^creatures/" + _re_up.escape(user_id) + r"_stage" + str(int(stage)) + r"_[0-9a-f]{8}\.(png|jpg|jpeg|webp)$", path):
+        return path
+    return None
+
+def _creature_object_exists_sync(path: str) -> bool:
+    """True when the object is in the bucket (storage client; never an http fetch of the url). Raises on a storage error."""
+    bucket = supabase.storage.from_("creature-images")
+    try:
+        return bool(bucket.exists(path))
+    except AttributeError:                      # older storage clients have no exists(): look the file up in its folder
+        folder, name = path.rsplit("/", 1)
+        return any((it or {}).get("name") == name for it in (bucket.list(folder, {"search": name, "limit": 10}) or []))
 
 @api_router.post("/creatures/upload-image")
 async def upload_creature_image(request: Request):
