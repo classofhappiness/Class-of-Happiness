@@ -4168,7 +4168,9 @@ async def create_custom_strategy_alias(request: Request):
             "description": body.get("description", ""),
             "feeling_colour": body.get("feeling_colour", body.get("zone", "green")),
             "icon": body.get("icon", "star"),
-            "is_shared": body.get("is_shared", True),
+            # Oct 11: share_with_parent (what teacher/strategies.tsx sends) is an alias of is_shared; an explicit
+            # value is honoured, and when neither is sent the old default (shared) is kept for older app builds.
+            "is_shared": body.get("is_shared", body.get("share_with_parent", True)),
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         result = supabase.table("custom_helpers").insert(strategy).execute()
@@ -4200,6 +4202,9 @@ async def update_custom_strategy(strategy_id: str, request: Request):
                 update_data[field] = body[field]
         if "zone" in update_data:
             update_data["feeling_colour"] = update_data["zone"]
+        # Oct 11: share_with_parent is an alias of is_shared (is_shared wins when both are sent)
+        if "share_with_parent" in body and "is_shared" not in body:
+            update_data["is_shared"] = body["share_with_parent"]
         result = supabase.table("custom_helpers").update(update_data).eq("id", strategy_id).execute()
         row = result.data[0] if result.data else update_data
         row["zone"] = row.get("zone") or row.get("feeling_colour", "green")
@@ -22990,18 +22995,60 @@ async def get_school_strategies_for_linked_child(student_id: str, request: Reque
         # generic app-wide content, not this student's private school data, so it stays
         # visible either way - pausing sharing shouldn't hide content nobody chose to share.
         school_sharing = link.data[0].get("school_sharing_enabled")
-        # Get custom strategies for this student
+        # Oct 11: what a parent may see of the school side: (a) strategies a STAFF member made for THIS student
+        # that are shared with the parent, (b) the school-wide student strategies of the school resolved for this
+        # student. Rows created by a guardian are excluded (they belong to the Home list). Paused sharing returns
+        # nothing school-related. Old keys stay; `school_strategies` and the unified `strategies` are additive.
         custom = []
+        school_wide = []
         if school_sharing is not False:
             try:
                 strats = supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute()
-                custom = strats.data or []
-                # Normalise zone field
-                for row in custom:
-                    if not row.get("zone"):
-                        row["zone"] = row.get("feeling_colour", "green")
+                rows = [r for r in (strats.data or []) if r.get("is_shared") is True and r.get("is_active") is not False]
+                guardian_ids = set()
+                try:
+                    pl = supabase.table("parent_links").select("parent_user_id").eq("student_id", student_id).execute()
+                    guardian_ids.update(x.get("parent_user_id") for x in (pl.data or []) if x.get("parent_user_id"))
+                    fmr = supabase.table("family_members").select("user_id").eq("student_id", student_id).execute()
+                    guardian_ids.update(x.get("user_id") for x in (fmr.data or []) if x.get("user_id"))
+                except Exception as e:
+                    logger.warning(f"school-strategies: guardian lookup failed (showing none): {e}")
+                    rows = []
+                creator_ids = list({r.get("user_id") for r in rows if r.get("user_id")})
+                creator_role = {}
+                if creator_ids:
+                    ur = supabase.table("users").select("user_id,role").in_("user_id", creator_ids).execute()
+                    creator_role = {u["user_id"]: u.get("role") for u in (ur.data or [])}
+                for row in rows:
+                    role = creator_role.get(row.get("user_id"))
+                    if row.get("user_id") in guardian_ids or role not in ("teacher", "school_admin", "admin", "superadmin"):
+                        continue   # guardian-created, or creator unknown: fail closed
+                    row["zone"] = row.get("zone") or row.get("feeling_colour") or "green"
+                    row["feeling_colour"] = row.get("feeling_colour") or row["zone"]
+                    row["source"] = "school"
+                    row["created_by_role"] = role
+                    custom.append(row)
             except Exception:
                 custom = []
+            try:
+                sa_id = _student_school_admin_id(student_id)
+                if sa_id:
+                    for sw in _fetch_school_strategies_sync([sa_id], {"student"}):
+                        sw["created_by_role"] = "school_admin"
+                        sw["is_shared"] = True
+                        school_wide.append(sw)
+            except Exception as e:
+                logger.warning(f"school-strategies: school-wide read failed (showing none): {e}")
+                school_wide = []
+        unified = [
+            {"id": r.get("id"), "name": r.get("name"), "description": r.get("description") or "", "feeling_colour": r.get("feeling_colour"),
+             "zone": r.get("zone"), "icon": r.get("icon") or "star", "source": "school", "created_by_role": r.get("created_by_role"),
+             "is_shared": True, "kind": "teacher"} for r in custom
+        ] + [
+            {"id": r.get("id"), "name": r.get("name"), "description": r.get("description") or "", "feeling_colour": r.get("feeling_colour"),
+             "zone": r.get("zone"), "icon": r.get("icon") or "star", "source": "school", "created_by_role": "school_admin",
+             "is_shared": True, "kind": "school_wide"} for r in school_wide
+        ]
         # Get global strategies
         try:
             global_strats = supabase.table("strategies").select("*").execute()
@@ -23010,6 +23057,8 @@ async def get_school_strategies_for_linked_child(student_id: str, request: Reque
             global_list = []
         return {
             "custom_strategies": custom,
+            "school_strategies": school_wide,
+            "strategies": unified,
             "global_strategies": global_list[:8],  # limit
             "sharing_disabled": school_sharing is False,
         }
@@ -23552,7 +23601,7 @@ async def add_student_strategy(student_id: str, request: Request):
             "description": body.get("description", ""),
             "feeling_colour": body.get("feeling_colour", body.get("zone", "green")),
             "icon": body.get("icon", "star"),
-            "is_shared": body.get("share_with_parent", False),
+            "is_shared": body.get("share_with_parent", body.get("is_shared", False)),
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         result = supabase.table("custom_helpers").insert(new_strategy).execute()
