@@ -574,7 +574,7 @@
   "family_wellbeing_desc": "Эмоциональное благополучие моей семьи",
   "family_widget": "Семейный виджет",
   "feature_access_label": "Доступ к функциям",
-  "feature_access_no_admin": "Пока не привязано к аккаунту school_admin - разрешения применятся, как только будет привязано.",
+  "feature_access_no_admin": "Пока не привязано к аккаунту администратора школы - разрешения применятся, как только будет привязано.",
   "feature_btn": "Выделить",
   "featured_title": "Выделено",
   "feelings": "Чувства",
@@ -2188,5 +2188,14 @@
   "delete_personal_strategy_confirm": "Удалить эту стратегию? В прошлых чекинах её название сохранится.",
   "origin_home_label": "Используется дома",
   "origin_school_label": "Используется в школе",
-  "origin_both_label": "Общая для дома и школы"
+  "origin_both_label": "Общая для дома и школы",
+  "bulk_checkin_save_failed": "Не удалось сохранить отметки. Попробуйте ещё раз.",
+  "bulk_checkin_header_hint": "{day} · учеников: {count} · нажмите на цвет, чтобы выбрать, нажмите ещё раз, чтобы снять",
+  "failed_delete_student": "Не удалось удалить ученика.",
+  "failed_update_students": "Не удалось обновить учеников.",
+  "students_updated_success": "Обновлено учеников: {count}!",
+  "n_ratings": "оценок: {count}",
+  "could_not_read_image": "Не удалось прочитать изображение",
+  "upload_failed": "Не удалось загрузить",
+  "country_other": "Другое"
 }

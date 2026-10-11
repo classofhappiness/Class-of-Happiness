@@ -574,7 +574,7 @@
   "family_wellbeing_desc": "我家人的情绪健康",
   "family_widget": "家庭小组件",
   "feature_access_label": "功能访问权限",
-  "feature_access_no_admin": "尚未关联到school_admin账户 - 关联后授权才会生效。",
+  "feature_access_no_admin": "尚未关联到学校管理员账户 - 关联后授权才会生效。",
   "feature_btn": "精选",
   "featured_title": "已精选",
   "feelings": "感受",
@@ -2188,5 +2188,14 @@
   "delete_personal_strategy_confirm": "删除此策略？以往的签到仍会显示其名称。",
   "origin_home_label": "在家中使用",
   "origin_school_label": "在学校使用",
-  "origin_both_label": "家庭和学校共享"
+  "origin_both_label": "家庭和学校共享",
+  "bulk_checkin_save_failed": "无法保存打卡记录，请重试。",
+  "bulk_checkin_header_hint": "{day} · {count} 名学生 · 点按颜色选择，再次点按取消",
+  "failed_delete_student": "无法删除学生。",
+  "failed_update_students": "无法更新学生。",
+  "students_updated_success": "已成功更新 {count} 名学生！",
+  "n_ratings": "{count} 条评分",
+  "could_not_read_image": "无法读取图片",
+  "upload_failed": "上传失败",
+  "country_other": "其他"
 }

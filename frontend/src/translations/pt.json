@@ -1840,7 +1840,7 @@
   "search_schools_placeholder": "Pesquisar escolas por nome, cidade ou país",
   "no_schools_match_search": "Nenhuma escola corresponde a \"{query}\"",
   "feature_access_label": "Acesso a funcionalidades",
-  "feature_access_no_admin": "Ainda não associada a uma conta school_admin - as permissões aplicam-se assim que estiver.",
+  "feature_access_no_admin": "Ainda não associada a uma conta de administrador escolar - as permissões aplicam-se assim que estiver.",
   "school_has_it_off": "a escola tem isto desativado",
   "ai_flagged_badge": "Sinalizado por IA",
   "ai_check_flagged_review": "A verificação por IA sinalizou esta imagem: por favor, revise",
@@ -2336,5 +2336,14 @@
   "delete_personal_strategy_confirm": "Eliminar esta estratégia? Os check-ins anteriores continuarão a mostrar o nome.",
   "origin_home_label": "Usada em casa",
   "origin_school_label": "Usada na escola",
-  "origin_both_label": "Partilhada entre casa e escola"
+  "origin_both_label": "Partilhada entre casa e escola",
+  "bulk_checkin_save_failed": "Não foi possível guardar os check-ins. Tente novamente.",
+  "bulk_checkin_header_hint": "{day} · {count} alunos · toque numa cor para selecionar, toque de novo para limpar",
+  "failed_delete_student": "Não foi possível eliminar o aluno.",
+  "failed_update_students": "Não foi possível atualizar os alunos.",
+  "students_updated_success": "{count} aluno(s) atualizado(s) com sucesso!",
+  "n_ratings": "{count} avaliações",
+  "could_not_read_image": "Não foi possível ler a imagem",
+  "upload_failed": "Falha no envio",
+  "country_other": "Outro"
 }

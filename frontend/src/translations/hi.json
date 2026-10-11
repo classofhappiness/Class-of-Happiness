@@ -574,7 +574,7 @@
   "family_wellbeing_desc": "मेरे परिवार की भावनात्मक भलाई",
   "family_widget": "परिवार विजेट",
   "feature_access_label": "सुविधा पहुंच",
-  "feature_access_no_admin": "अभी तक किसी school_admin खाते से जुड़ा नहीं है - जुड़ने पर अनुमतियां लागू होंगी।",
+  "feature_access_no_admin": "अभी तक किसी स्कूल एडमिन खाते से जुड़ा नहीं है - जुड़ने पर अनुमतियां लागू होंगी।",
   "feature_btn": "फ़ीचर करें",
   "featured_title": "फ़ीचर किया गया",
   "feelings": "भावनाएँ",
@@ -2188,5 +2188,14 @@
   "delete_personal_strategy_confirm": "इस रणनीति को हटाएँ? पिछले चेक-इन में इसका नाम दिखता रहेगा।",
   "origin_home_label": "घर पर इस्तेमाल होती है",
   "origin_school_label": "स्कूल में इस्तेमाल होती है",
-  "origin_both_label": "घर और स्कूल के बीच साझा"
+  "origin_both_label": "घर और स्कूल के बीच साझा",
+  "bulk_checkin_save_failed": "चेक-इन सहेजे नहीं जा सके। कृपया फिर कोशिश करें।",
+  "bulk_checkin_header_hint": "{day} · {count} छात्र · चुनने के लिए रंग पर टैप करें, हटाने के लिए फिर टैप करें",
+  "failed_delete_student": "छात्र को हटाया नहीं जा सका।",
+  "failed_update_students": "छात्रों को अपडेट नहीं किया जा सका।",
+  "students_updated_success": "{count} छात्र सफलतापूर्वक अपडेट किए गए!",
+  "n_ratings": "{count} रेटिंग",
+  "could_not_read_image": "छवि पढ़ी नहीं जा सकी",
+  "upload_failed": "अपलोड विफल रहा",
+  "country_other": "अन्य"
 }

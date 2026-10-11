@@ -2345,5 +2345,14 @@
   "delete_personal_strategy_confirm": "Diese Strategie löschen? Frühere Check-ins zeigen weiterhin den Namen.",
   "origin_home_label": "Wird zu Hause genutzt",
   "origin_school_label": "Wird in der Schule genutzt",
-  "origin_both_label": "Zwischen Zuhause und Schule geteilt"
+  "origin_both_label": "Zwischen Zuhause und Schule geteilt",
+  "bulk_checkin_save_failed": "Die Check-ins konnten nicht gespeichert werden. Bitte versuche es erneut.",
+  "bulk_checkin_header_hint": "{day} · {count} Schüler · Farbe antippen zum Auswählen, erneut antippen zum Löschen",
+  "failed_delete_student": "Der Schüler konnte nicht gelöscht werden.",
+  "failed_update_students": "Die Schüler konnten nicht aktualisiert werden.",
+  "students_updated_success": "{count} Schüler erfolgreich aktualisiert!",
+  "n_ratings": "{count} Bewertungen",
+  "could_not_read_image": "Das Bild konnte nicht gelesen werden",
+  "upload_failed": "Upload fehlgeschlagen",
+  "country_other": "Andere"
 }

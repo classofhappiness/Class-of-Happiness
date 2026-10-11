@@ -2184,5 +2184,14 @@
   "delete_personal_strategy_confirm": "Delete this strategy? Past check-ins will still show its name.",
   "origin_home_label": "Used at home",
   "origin_school_label": "Used at school",
-  "origin_both_label": "Shared between home and school"
+  "origin_both_label": "Shared between home and school",
+  "bulk_checkin_save_failed": "Could not save check-ins. Please try again.",
+  "bulk_checkin_header_hint": "{day} · {count} students · tap colour to select, tap again to clear",
+  "failed_delete_student": "Failed to delete student.",
+  "failed_update_students": "Failed to update students.",
+  "students_updated_success": "{count} student(s) updated successfully!",
+  "n_ratings": "{count} ratings",
+  "could_not_read_image": "Could not read image",
+  "upload_failed": "Upload failed",
+  "country_other": "Other"
 }

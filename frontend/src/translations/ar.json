@@ -2188,5 +2188,14 @@
   "delete_personal_strategy_confirm": "حذف هذه الاستراتيجية؟ ستظل عمليات تسجيل الدخول السابقة تعرض اسمها.",
   "origin_home_label": "تُستخدم في المنزل",
   "origin_school_label": "تُستخدم في المدرسة",
-  "origin_both_label": "مشتركة بين المنزل والمدرسة"
+  "origin_both_label": "مشتركة بين المنزل والمدرسة",
+  "bulk_checkin_save_failed": "تعذّر حفظ التسجيلات. يرجى المحاولة مرة أخرى.",
+  "bulk_checkin_header_hint": "{day} · {count} طلاب · اضغط على اللون للاختيار، واضغط مرة أخرى للإلغاء",
+  "failed_delete_student": "تعذّر حذف الطالب.",
+  "failed_update_students": "تعذّر تحديث الطلاب.",
+  "students_updated_success": "تم تحديث {count} طالب بنجاح!",
+  "n_ratings": "{count} تقييمات",
+  "could_not_read_image": "تعذّرت قراءة الصورة",
+  "upload_failed": "فشل الرفع",
+  "country_other": "أخرى"
 }

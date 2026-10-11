@@ -1851,7 +1851,7 @@
   "search_schools_placeholder": "Rechercher des écoles par nom, ville ou pays",
   "no_schools_match_search": "Aucune école ne correspond à « {query} »",
   "feature_access_label": "Accès aux fonctionnalités",
-  "feature_access_no_admin": "Pas encore lié à un compte school_admin - les autorisations s'appliqueront une fois que ce sera le cas.",
+  "feature_access_no_admin": "Pas encore lié à un compte d'administrateur scolaire - les autorisations s'appliqueront une fois que ce sera le cas.",
   "school_has_it_off": "l'école l'a désactivé",
   "ai_flagged_badge": "Signalé par l'IA",
   "ai_check_flagged_review": "La vérification par IA a signalé cette image : merci de la revoir",
@@ -2345,5 +2345,14 @@
   "delete_personal_strategy_confirm": "Supprimer cette stratégie ? Les check-ins passés afficheront toujours son nom.",
   "origin_home_label": "Utilisée à la maison",
   "origin_school_label": "Utilisée à l'école",
-  "origin_both_label": "Partagée entre la maison et l'école"
+  "origin_both_label": "Partagée entre la maison et l'école",
+  "bulk_checkin_save_failed": "Impossible d'enregistrer les check-ins. Réessayez.",
+  "bulk_checkin_header_hint": "{day} · {count} élèves · touchez une couleur pour sélectionner, touchez à nouveau pour effacer",
+  "failed_delete_student": "Impossible de supprimer l'élève.",
+  "failed_update_students": "Impossible de mettre à jour les élèves.",
+  "students_updated_success": "{count} élève(s) mis à jour avec succès !",
+  "n_ratings": "{count} avis",
+  "could_not_read_image": "Impossible de lire l'image",
+  "upload_failed": "Échec de l'envoi",
+  "country_other": "Autre"
 }
