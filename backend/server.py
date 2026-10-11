@@ -3683,8 +3683,15 @@ async def create_feeling_log(log: FeelingLogCreate, request: Request):
         "location": log.location,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
-    if log.logged_by:
-        new_log["logged_by"] = log.logged_by
+    # Oct 11 (privacy): a check-in made through the student flow on a PARENT's or FAMILY account is a home
+    # check-in. The app sends logged_by "student" (or nothing) from that flow, so it was stored like a school
+    # check-in and the teacher-facing home-sharing filter (_filter_home_logs_for_staff_viewer) never hid it.
+    # Only the signed-in role decides this; values like teacher_bulk / teacher_individual / parent are kept.
+    logged_by_value = log.logged_by
+    if user.get("role") in ("parent", "family") and logged_by_value in (None, "", "student"):
+        logged_by_value = "parent"
+    if logged_by_value:
+        new_log["logged_by"] = logged_by_value
     if log.support_request_type:
         new_log["support_request_type"] = log.support_request_type
     result = supabase.table("feeling_logs").insert(new_log).execute()
@@ -9734,20 +9741,40 @@ async def get_available_months(student_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    months_task = _swallow(asyncio.ensure_future(asyncio.to_thread(_available_months_sync, student_id)))
+    months_task = _swallow(asyncio.ensure_future(asyncio.to_thread(_available_months_for_viewer_sync, user, student_id)))
     if not await _is_authorized_for_student(user, student_id):
         raise HTTPException(status_code=403, detail="Not authorized to view this student's reports")
     return await months_task
 
 _MONTHS_PAGE = 1000
-def _available_months_sync(student_id: str) -> list:
+# PostgREST: rows whose logged_by is NULL or not parent/family (a plain not.in would also drop the NULL rows,
+# which are most school check-ins - verified against the live table).
+_NOT_HOME_LOGGED_BY = "logged_by.is.null,logged_by.not.in.(parent,family)"
+
+def _available_months_for_viewer_sync(user: dict, student_id: str) -> list:
+    """Oct 11 (privacy): a teacher or school admin must not learn which months have HOME check-ins while the
+    parent's home sharing is off. Same rule as _filter_home_logs_for_staff_viewer (sharing on if any linked
+    parent has explicitly turned it on, fail closed), applied to the months scan itself. Parents, owners and
+    superadmin see every month as before."""
+    hide_home = False
+    if user.get("role") in ("teacher", "school_admin"):
+        try:
+            hide_home = not any(l.get("home_sharing_enabled") is True for l in _parent_links_for_student_sync(student_id))
+        except Exception as e:
+            logger.error(f"_available_months_for_viewer_sync: could not check sharing for {student_id}: {e}")
+            hide_home = True
+    return _available_months_sync(student_id, hide_home)
+
+def _available_months_sync(student_id: str, hide_home: bool = False) -> list:
     """Script 17: the months (YYYY-MM, newest first) in which a student has at least one check-in.
     Used to read the student's whole history unordered (and PostgREST silently caps an unpaginated read
     at 1000 rows, so a long history could lose months). Now: one ordered, timestamp-only, capped query
     for the newest 1000 check-ins; only if that page is full (more history exists) the older months are
     found with one tiny existence probe per calendar month between the oldest check-in and the page,
     run in parallel. Same output as the full scan, bounded work."""
-    base = lambda: supabase.table("feeling_logs").select("timestamp").eq("student_id", student_id)
+    def base():
+        q = supabase.table("feeling_logs").select("timestamp").eq("student_id", student_id)
+        return q.or_(_NOT_HOME_LOGGED_BY) if hide_home else q
     page = base().order("timestamp", desc=True).limit(_MONTHS_PAGE).execute().data or []
     months = {log["timestamp"][:7] for log in page}
     if len(page) >= _MONTHS_PAGE:
