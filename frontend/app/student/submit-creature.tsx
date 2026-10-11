@@ -160,11 +160,11 @@ export default function SubmitCreatureScreen() {
             body: JSON.stringify({ image_base64: b64, stage, ext: 'jpg' }),
           });
           const data = await res.json();
-          if (!res.ok) throw new Error(data.detail || 'Upload failed');
+          if (!res.ok) throw new Error(data.detail || t('upload_failed') || 'Upload failed');
           resolve(data.url);
         } catch (e) { reject(e); }
       };
-      reader.onerror = () => reject(new Error('Could not read image'));
+      reader.onerror = () => reject(new Error(t('could_not_read_image') || 'Could not read image'));
       reader.readAsDataURL(blob);
     });
   };

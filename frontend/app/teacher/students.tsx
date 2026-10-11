@@ -69,7 +69,7 @@ export default function ManageStudentsScreen() {
               // refreshStudents' new 30s TTL cache - a student was just deleted.
               await refreshStudents({ force: true });
             } catch (error) {
-              Alert.alert(t('error') || 'Error', 'Failed to delete student.');
+              Alert.alert(t('error') || 'Error', t('failed_delete_student') || 'Failed to delete student.');
             }
           },
         },
@@ -124,10 +124,10 @@ export default function ManageStudentsScreen() {
       setSelectionMode(false);
       Alert.alert(
         t('success') || 'Success', 
-        `${selectedStudents.size} student(s) updated successfully!`
+        (t('students_updated_success') || '{count} student(s) updated successfully!').replace('{count}', String(selectedStudents.size))
       );
     } catch (error) {
-      Alert.alert(t('error') || 'Error', 'Failed to update students.');
+      Alert.alert(t('error') || 'Error', t('failed_update_students') || 'Failed to update students.');
     }
   };
 

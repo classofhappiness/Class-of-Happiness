@@ -16,6 +16,7 @@ import { StrategyIcon } from '../../src/components/StrategyIcon';
 import { resolveStrategyName, strategyLabel } from '../../src/utils/resolveStrategyName';
 import { PersonalStrategy, PersonalColour, PERSONAL_COLOURS, loadLocalPersonalStrategies, syncPersonalStrategies, addPersonalStrategy, updatePersonalStrategy, deletePersonalStrategy } from '../../src/utils/personalStrategies';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
+import { getDownloadUrl } from '../../src/utils/downloadLink';
 import { useWellbeingSharing } from '../../src/utils/useWellbeingSharing';
 import { useAndroidKeyboardOffset } from '../../src/utils/useAndroidKeyboardOffset';
 import { formatMonthYear as formatMonthYearLabel } from '../../src/utils/monthLabel';
@@ -494,8 +495,10 @@ export default function TeacherCheckInScreen() {
       const token = await AsyncStorage.getItem('session_token');
       const lang = await AsyncStorage.getItem('app_language') || 'en';
       const [yr, mo] = monthStr.split('-');
-      const url = `${BACKEND_URL_CONST}/api/reports/pdf/teacher-wellbeing/${user?.user_id}/month/${yr}/${parseInt(mo)}?token=${token}&lang=${lang}`;
-      const checkRes = await fetch(url);
+      const dlPath = `/reports/pdf/teacher-wellbeing/${user?.user_id}/month/${yr}/${parseInt(mo)}`;
+      const plainUrl = `${BACKEND_URL_CONST}/api${dlPath}?lang=${lang}`;
+      // fix51: pre-check with the Authorization header; the browser gets a short-lived signed link
+      const checkRes = await fetch(plainUrl, { headers: { Authorization: `Bearer ${token}` } });
       if (!checkRes.ok) {
         let detail = '';
         try { detail = (await checkRes.json())?.detail || ''; } catch (e) { console.error('[teacher/checkin:391]', e); }
@@ -509,6 +512,7 @@ export default function TeacherCheckInScreen() {
         }
         return;
       }
+      const url = await getDownloadUrl(dlPath, { lang }, () => `${plainUrl}&token=${token}`);
       await Linking.openURL(url);
     } catch { Alert.alert(t('error') || 'Error', t('no_data_this_month') || 'No data for this month yet'); }
   };

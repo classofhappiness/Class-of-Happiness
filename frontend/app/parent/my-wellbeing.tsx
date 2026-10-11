@@ -12,6 +12,7 @@ import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { resolveStrategyName, strategyLabel } from '../../src/utils/resolveStrategyName';
 import { formatMonthYear as formatMonthYearLabel, monthShort as monthShortLabel } from '../../src/utils/monthLabel';
 import { formatShortDate, formatTime, formatNumericDate } from '../../src/utils/dateLabel';
+import { getDownloadUrl } from '../../src/utils/downloadLink';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const ZONE_COLORS: Record<string, string> = EMOTION_COLOURS;
@@ -348,10 +349,12 @@ export default function MyWellbeingScreen() {
       }
       const lang = await AsyncStorage.getItem('app_language') || 'en';
       // Use family member PDF endpoint if memberId is a family member, else student endpoint
-      const fullUrl = memberId
-        ? `${BACKEND_URL}/api/reports/pdf/family/${memberId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}&lang=${lang}`
-        : `${BACKEND_URL}/api/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}&lang=${lang}`;
-      const checkRes = await fetch(fullUrl);
+      const dlPath = memberId
+        ? `/reports/pdf/family/${memberId}/month/${yearStr}/${parseInt(monthNum)}`
+        : `/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}`;
+      const plainUrl = `${BACKEND_URL}/api${dlPath}?lang=${lang}`;
+      // fix51: pre-check with the Authorization header; the browser gets a short-lived signed link
+      const checkRes = await fetch(plainUrl, { headers: { Authorization: `Bearer ${token}` } });
       if (!checkRes.ok) {
         let detail = '';
         try { detail = (await checkRes.json())?.detail || ''; } catch (e) { console.error('[parent/my-wellbeing:328]', e); }
@@ -365,6 +368,7 @@ export default function MyWellbeingScreen() {
         }
         return;
       }
+      const fullUrl = await getDownloadUrl(dlPath, { lang }, () => `${plainUrl}&token=${token}`);
       await Linking.openURL(fullUrl);
     } catch (error: any) {
       Alert.alert(t('download_error') || 'Download Error', error.message || (t('could_not_download_report') || 'Could not download report'));

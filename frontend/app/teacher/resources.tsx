@@ -29,6 +29,8 @@ import {
   TeacherResourceRating,
 } from '../../src/utils/api';
 import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
+import { getDownloadUrl } from '../../src/utils/downloadLink';
+import { formatRating } from '../../src/utils/numberLabel';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
@@ -297,10 +299,10 @@ export default function TeacherResourcesScreen() {
       // get_current_user() already supports a token-as-query-param fallback specifically
       // for this case — append it here rather than relying on a header that never arrives.
       const dlToken = await AsyncStorage.getItem('session_token');
-      const pdfUrl = `${BACKEND_URL}/api/teacher-resources/${resource.id}/download?token=${encodeURIComponent(dlToken || '')}`;
+      // fix51: short-lived signed link (used by Linking and by FileSystem.downloadAsync, which sends no auth header)
+      const pdfUrl = await getDownloadUrl(`/teacher-resources/${resource.id}/download`, {}, () => `${BACKEND_URL}/api/teacher-resources/${resource.id}/download?token=${encodeURIComponent(dlToken || '')}`);
       const filename = resource.pdf_filename || `${resource.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
       
-      console.log('Teacher resource download URL:', pdfUrl);
       
       if (Platform.OS === 'web') {
         // Web: Open in new tab
@@ -548,7 +550,7 @@ export default function TeacherResourcesScreen() {
                 <View style={styles.resourceMeta}>
                   {renderStars(resource.average_rating)}
                   <Text style={styles.ratingText}>
-                    {resource.average_rating.toFixed(1)} ({resource.total_ratings})
+                    {formatRating(resource.average_rating, language)} ({resource.total_ratings})
                   </Text>
                 </View>
                 )}
@@ -708,7 +710,7 @@ export default function TeacherResourcesScreen() {
                 <View style={styles.currentRating}>
                   {renderStars(selectedResource?.average_rating || 0, 24)}
                   <Text style={styles.currentRatingText}>
-                    {selectedResource?.average_rating.toFixed(1)} ({selectedResource?.total_ratings} ratings)
+                    {formatRating(selectedResource?.average_rating, language)} ({(t('n_ratings') || '{count} ratings').replace('{count}', String(selectedResource?.total_ratings ?? 0))})
                   </Text>
                 </View>
               </View>
@@ -790,7 +792,7 @@ export default function TeacherResourcesScreen() {
                 <View style={styles.currentRating}>
                   {renderStars(viewingResource?.average_rating || 0, 24)}
                   <Text style={styles.currentRatingText}>
-                    {(viewingResource?.average_rating || 0).toFixed(1)} ({viewingResource?.total_ratings || 0} ratings)
+                    {formatRating(viewingResource?.average_rating, language)} ({(t('n_ratings') || '{count} ratings').replace('{count}', String(viewingResource?.total_ratings || 0))})
                   </Text>
                 </View>
               </View>

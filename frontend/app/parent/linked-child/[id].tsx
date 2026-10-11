@@ -21,6 +21,7 @@ import { TranslatedHeader } from '../../../src/components/TranslatedHeader';
 import { formatMonthYear as formatMonthYearLabel } from '../../../src/utils/monthLabel';
 import { formatShortDateTime } from '../../../src/utils/dateLabel';
 import { resolveStrategyName, strategyLabel } from '../../../src/utils/resolveStrategyName';
+import { getDownloadUrl } from '../../../src/utils/downloadLink';
 
 const ZONE_COLORS: Record<string, string> = EMOTION_COLOURS;
 const ZONE_CONFIG: Record<string, { color: string; emoji: string; label: string }> = {
@@ -184,8 +185,10 @@ export default function LinkedChildDetailScreen() {
       const [yearStr, monthNum] = monthStr.split('-');
       const studentId = child?.student_id || id;
       const lang = await AsyncStorage.getItem('app_language') || 'en';
-      const fullUrl = `${BACKEND_URL}/api/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}&lang=${lang}`;
-      const checkRes = await fetch(fullUrl);
+      const dlPath = `/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}`;
+      const plainUrl = `${BACKEND_URL}/api${dlPath}?lang=${lang}`;
+      // fix51: the pre-check uses the Authorization header, the browser gets a short-lived signed link (not the session token)
+      const checkRes = await fetch(plainUrl, { headers: { Authorization: `Bearer ${token}` } });
       if (!checkRes.ok) {
         let detail = '';
         try { detail = (await checkRes.json())?.detail || ''; } catch (e) { console.error('[parent/linked-child/[id]:152]', e); }
@@ -199,6 +202,7 @@ export default function LinkedChildDetailScreen() {
         }
         return;
       }
+      const fullUrl = await getDownloadUrl(dlPath, { lang }, () => `${plainUrl}&token=${token}`);
       await Linking.openURL(fullUrl);
     } catch (error: any) {
       Alert.alert(t('download_error') || 'Download Error', error.message || (t('could_not_download_report') || 'Could not download report'));

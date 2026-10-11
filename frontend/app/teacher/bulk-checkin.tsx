@@ -134,7 +134,7 @@ export default function BulkCheckinScreen() {
                 router.back();
               }, 1500);
             } catch (error) {
-              Alert.alert(t('error') || 'Error', 'Could not save check-ins. Please try again.');
+              Alert.alert(t('error') || 'Error', t('bulk_checkin_save_failed') || 'Could not save check-ins. Please try again.');
             } finally {
               setSaving(false);
             }
@@ -198,7 +198,7 @@ export default function BulkCheckinScreen() {
               <MaterialIcons name="school" size={24} color="#FF7043" />
               <View style={{flex:1}}>
                 <Text style={{fontSize:15, fontWeight:'700', color:'#333'}}>{c.name}</Text>
-                <Text style={{fontSize:12, color:'#888'}}>{students.filter((s:any)=>s.classroom_id===c.id).length} students</Text>
+                <Text style={{fontSize:12, color:'#888'}}>{(t('support_request_student_count') || '{count} students').replace('{count}', String(students.filter((s:any)=>s.classroom_id===c.id).length))}</Text>
               </View>
               <MaterialIcons name="chevron-right" size={20} color="#999" />
             </TouchableOpacity>
@@ -228,7 +228,7 @@ export default function BulkCheckinScreen() {
           <Text style={styles.headerTitle} numberOfLines={1}>
             {selectedClassroomName || classroomName || t('classrooms') || 'Classroom'}
           </Text>
-          <Text style={styles.headerSub}>{getDayLabel()} · {classroomStudents.length} students · tap colour to select, tap again to clear</Text>
+          <Text style={styles.headerSub}>{(t('bulk_checkin_header_hint') || '{day} · {count} students · tap colour to select, tap again to clear').replace('{day}', getDayLabel()).replace('{count}', String(classroomStudents.length))}</Text>
         </View>
         <TouchableOpacity
           style={[styles.submitBtn, selectedCount === 0 && styles.submitBtnDisabled]}

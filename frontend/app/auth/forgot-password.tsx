@@ -15,7 +15,7 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { t } = useApp();
+  const { t, language } = useApp();
   const [step, setStep] = useState<'request' | 'reset'>('request');
   const [email, setEmail] = useState('');
   const [token, setToken] = useState('');
@@ -44,7 +44,7 @@ export default function ForgotPasswordScreen() {
       const res = await fetch(`${BACKEND_URL}/api/auth/reset-password-request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: trimmed }),
+        body: JSON.stringify({ email: trimmed, lang: language }),   // fix51: the reset email is sent in the app's language
       });
       const data = await res.json();
       setRequestMessage(data.status || "If this email exists, please contact jono@classofhappiness.com to reset your password for now.");

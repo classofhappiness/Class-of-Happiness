@@ -23,6 +23,7 @@ import { ColourCycleLogo } from '../../src/components/ColourCycleLogo';
 import { BarChart } from 'react-native-gifted-charts';
 import { STRAT } from '../../src/components/AlertCard';
 import { resolveStrategyName, strategyLabel } from '../../src/utils/resolveStrategyName';
+import { getDownloadUrl } from '../../src/utils/downloadLink';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const INDIGO = '#5C6BC0';
@@ -1380,11 +1381,12 @@ function DataExportCard({ authToken }: { authToken: string|null }) {
   const [dateTo, setDateTo] = useState('');
 
   const doExport = async () => {
-    const params = new URLSearchParams({ type: exportType, format, token: authToken || '' });
-    if (dateFrom.trim()) params.set('date_from', dateFrom.trim());
-    if (dateTo.trim()) params.set('date_to', dateTo.trim());
-    const url = `${BACKEND_URL}/api/admin/export?${params.toString()}`;
+    const q: Record<string, string> = { type: exportType, format };
+    if (dateFrom.trim()) q.date_from = dateFrom.trim();
+    if (dateTo.trim()) q.date_to = dateTo.trim();
     try {
+      // fix51: short-lived signed link instead of the session token in the url
+      const url = await getDownloadUrl('/admin/export', q, () => `${BACKEND_URL}/api/admin/export?${new URLSearchParams({ ...q, token: authToken || '' }).toString()}`);
       await Linking.openURL(url);
     } catch {
       Alert.alert(t('error') || 'Error', t('could_not_start_export') || 'Could not start the export.');
@@ -2135,13 +2137,15 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
       const lang = await AsyncStorage.getItem('app_language') || 'en';
       const allSelected = selectedSchools.length === 0 || selectedSchools.length === pickerSchools.length;
       const namesParam = allSelected ? '' : `&school_names=${encodeURIComponent(selectedSchools.join(','))}`;
-      const url = `${BACKEND_URL}/api/reports/pdf/school-overview?days=${statsPeriod}${namesParam}&token=${token}&lang=${lang}`;
-      const checkRes = await fetch(url);
+      const plainUrl = `${BACKEND_URL}/api/reports/pdf/school-overview?days=${statsPeriod}${namesParam}&lang=${lang}`;
+      // fix51: pre-check with the Authorization header; the browser gets a short-lived signed link (not the session token)
+      const checkRes = await fetch(plainUrl, { headers: { Authorization: `Bearer ${token}` } });
       if (!checkRes.ok) {
         Alert.alert(t('error') || 'Error', t('could_not_generate_report') || 'Could not generate report right now.');
         setDownloadingPdf(false);
         return;
       }
+      const url = await getDownloadUrl('/reports/pdf/school-overview', { days: statsPeriod, school_names: allSelected ? '' : selectedSchools.join(','), lang }, () => `${plainUrl}&token=${token}`);
       await Linking.openURL(url);
     } catch { Alert.alert(t('error') || 'Error', t('could_not_generate_report') || 'Could not generate report right now.'); }
     setDownloadingPdf(false);
@@ -2385,13 +2389,14 @@ function SchoolAdminDashboard({ authToken, stats, statsLoading, statsPeriod, set
       const token = await AsyncStorage.getItem('session_token');
       const lang = await AsyncStorage.getItem('app_language') || 'en';
       const schoolName = encodeURIComponent(user?.school_name || '');
-      const url = `${BACKEND_URL}/api/reports/pdf/school-overview?days=${statsPeriod}&school_name=${schoolName}&token=${token}&lang=${lang}`;
-      const checkRes = await fetch(url);
+      const plainUrl = `${BACKEND_URL}/api/reports/pdf/school-overview?days=${statsPeriod}&school_name=${schoolName}&lang=${lang}`;
+      const checkRes = await fetch(plainUrl, { headers: { Authorization: `Bearer ${token}` } });   // fix51: header pre-check, signed link below
       if (!checkRes.ok) {
         Alert.alert(t('error') || 'Error', t('could_not_generate_report') || 'Could not generate report right now.');
         setDownloadingPdf(false);
         return;
       }
+      const url = await getDownloadUrl('/reports/pdf/school-overview', { days: statsPeriod, school_name: user?.school_name || '', lang }, () => `${plainUrl}&token=${token}`);
       await Linking.openURL(url);
     } catch { Alert.alert(t('error') || 'Error', t('could_not_generate_report') || 'Could not generate report right now.'); }
     setDownloadingPdf(false);
@@ -2657,19 +2662,28 @@ function WellbeingSupportRequests({ authToken }: any) {
 // ── School Settings ───────────────────────────────────────────────────────────
 
 const COUNTRY_FLAGS = [
-  { flag: '🇵🇹', name: 'Portugal' }, { flag: '🇦🇺', name: 'Australia' },
-  { flag: '🇬🇧', name: 'United Kingdom' }, { flag: '🇺🇸', name: 'United States' },
-  { flag: '🇪🇸', name: 'Spain' }, { flag: '🇫🇷', name: 'France' },
-  { flag: '🇩🇪', name: 'Germany' }, { flag: '🇮🇹', name: 'Italy' },
-  { flag: '🇳🇿', name: 'New Zealand' }, { flag: '🇮🇪', name: 'Ireland' },
-  { flag: '🇿🇦', name: 'South Africa' }, { flag: '🇨🇦', name: 'Canada' },
-  { flag: '🇧🇷', name: 'Brazil' }, { flag: '🌍', name: 'Other' },
+  { flag: '🇵🇹', name: 'Portugal', code: 'PT' }, { flag: '🇦🇺', name: 'Australia', code: 'AU' },
+  { flag: '🇬🇧', name: 'United Kingdom', code: 'GB' }, { flag: '🇺🇸', name: 'United States', code: 'US' },
+  { flag: '🇪🇸', name: 'Spain', code: 'ES' }, { flag: '🇫🇷', name: 'France', code: 'FR' },
+  { flag: '🇩🇪', name: 'Germany', code: 'DE' }, { flag: '🇮🇹', name: 'Italy', code: 'IT' },
+  { flag: '🇳🇿', name: 'New Zealand', code: 'NZ' }, { flag: '🇮🇪', name: 'Ireland', code: 'IE' },
+  { flag: '🇿🇦', name: 'South Africa', code: 'ZA' }, { flag: '🇨🇦', name: 'Canada', code: 'CA' },
+  { flag: '🇧🇷', name: 'Brazil', code: 'BR' }, { flag: '🌍', name: 'Other', code: '' },
 ];
+// fix51: country names in the app language (Intl.DisplayNames when the phone has it, else the English name). 'Other' is translated by key.
+function countryLabel(c: { name: string; code: string }, language: string, t: (k: string) => string | undefined): string {
+  if (!c.code) return t('country_other') || c.name;
+  try {
+    const DN = (Intl as any).DisplayNames;
+    if (DN) return new DN([language || 'en'], { type: 'region' }).of(c.code) || c.name;
+  } catch { /* keep the English name */ }
+  return c.name;
+}
 const SCHOOL_TYPES = ['International', 'Public', 'Private', 'Charter', 'Faith-based'];
 const CURRICULA = ['IB (International Baccalaureate)', 'National', 'Cambridge', 'Montessori', 'Mixed/Other'];
 
 function SchoolSettings({ authToken, user }: any) {
-  const { t } = useApp();
+  const { t, language } = useApp();
   const [schoolName, setSchoolName] = useState('');
   const [city, setCity] = useState('');
   const [country, setCountry] = useState('🌍');
@@ -2839,7 +2853,7 @@ function SchoolSettings({ authToken, user }: any) {
             {COUNTRY_FLAGS.map(c => (
               <TouchableOpacity key={c.flag} style={[s.flagBtn, country === c.flag && s.flagBtnActive]} onPress={() => setCountry(c.flag)}>
                 <Text style={{ fontSize: 22 }}>{c.flag}</Text>
-                <Text style={{ fontSize: 9, color: country === c.flag ? INDIGO : '#888' }}>{c.name}</Text>
+                <Text style={{ fontSize: 9, color: country === c.flag ? INDIGO : '#888' }}>{countryLabel(c, language, t)}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -3163,10 +3177,8 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
   const handleDownload = async (resource: any) => {
     try {
       const dlToken = authToken;
-      const pdfUrl = `${BACKEND_URL}/api/teacher-resources/${resource.id}/download?token=${encodeURIComponent(dlToken || '')}`;
-      console.log('🟡 Attempting to open:', pdfUrl);
-      const supported = await Linking.canOpenURL(pdfUrl);
-      console.log('🟡 canOpenURL result:', supported);
+      // fix51: short-lived signed link instead of the session token in the url
+      const pdfUrl = await getDownloadUrl(`/teacher-resources/${resource.id}/download`, {}, () => `${BACKEND_URL}/api/teacher-resources/${resource.id}/download?token=${encodeURIComponent(dlToken || '')}`);
       await Linking.openURL(pdfUrl);
     } catch (err: any) {
       console.log('🔴 handleDownload error:', err?.message || err);

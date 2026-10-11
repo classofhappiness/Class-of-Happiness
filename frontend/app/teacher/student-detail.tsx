@@ -35,6 +35,7 @@ import { StrategyIcon } from '../../src/components/StrategyIcon';
 import { SourceChip, strategySource } from '../../src/components/SourceChip';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { resolveStrategyName, strategyLabel, loadLocalCustomStrategyNames } from '../../src/utils/resolveStrategyName';
+import { getDownloadUrl } from '../../src/utils/downloadLink';
 
 // Complete strategy name lookup - matches student/strategies.tsx fallback IDs.
 // Kept only as a safety-net fallback for resolveStrategyName() (see
@@ -475,8 +476,10 @@ export default function StudentDetailScreen() {
       const [yearStr, monthNum] = monthStr.split('-');
       // Pass language preference in URL
       const lang = await AsyncStorage.getItem('app_language') || 'en';
-      const fullUrl = `${BACKEND_URL}/api/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}?token=${token}&lang=${lang}`;
-      const checkRes = await fetch(fullUrl);
+      const dlPath = `/reports/pdf/student/${studentId}/month/${yearStr}/${parseInt(monthNum)}`;
+      const plainUrl = `${BACKEND_URL}/api${dlPath}?lang=${lang}`;
+      // fix51: pre-check with the Authorization header; the browser gets a short-lived signed link
+      const checkRes = await fetch(plainUrl, { headers: { Authorization: `Bearer ${token}` } });
       if (!checkRes.ok) {
         let detail = '';
         try { detail = (await checkRes.json())?.detail || ''; } catch (e) { console.error('[teacher/student-detail:366]', e); }
@@ -490,6 +493,7 @@ export default function StudentDetailScreen() {
         }
         return;
       }
+      const fullUrl = await getDownloadUrl(dlPath, { lang }, () => `${plainUrl}&token=${token}`);
       await Linking.openURL(fullUrl);
     } catch (error: any) {
       Alert.alert(t('download_error') || 'Download Error', error.message || t('please_try_again') || 'Could not download report');

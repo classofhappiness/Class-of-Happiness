@@ -43,6 +43,7 @@ const resolveStratName = (id: string, nameMap: Record<string,string>, t: (key: s
 import { useApp } from '../../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../../src/constants/emotionColours';
 import { resolveStrategyName, strategyLabel } from '../../../src/utils/resolveStrategyName';
+import { getDownloadUrl } from '../../../src/utils/downloadLink';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const ZONE_COLORS: Record<string,string> = EMOTION_COLOURS;
@@ -154,7 +155,8 @@ export default function FamilyMemberStatsScreen() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
-        const url = `${BACKEND_URL}/api/reports/pdf/family/${id}/month/${year}/${parseInt(month)}?token=${token}&lang=${lang}`;
+        // fix51: short-lived signed link instead of the session token in the url
+        const url = await getDownloadUrl(`/reports/pdf/family/${id}/month/${year}/${parseInt(month)}`, { lang }, () => `${BACKEND_URL}/api/reports/pdf/family/${id}/month/${year}/${parseInt(month)}?token=${token}&lang=${lang}`);
         await Linking.openURL(url);
       } else {
         const errText = await res.text().catch(()=>'');

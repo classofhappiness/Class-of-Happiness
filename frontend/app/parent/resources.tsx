@@ -23,6 +23,8 @@ import { useApp } from '../../src/context/AppContext';
 import { formatNumericDate } from '../../src/utils/dateLabel';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
+import { getDownloadUrl } from '../../src/utils/downloadLink';
+import { formatRating } from '../../src/utils/numberLabel';
 
 // Real fix Sep 30 (live feedback, item 3): matches the same notice added to
 // teacher/resources.tsx - resource files stay English-only by design, so a non-English
@@ -219,7 +221,8 @@ export default function ResourcesScreen() {
       const downloadUrl = `${BACKEND_URL}${endpoint}`;
 
       if (Platform.OS === 'web') {
-        Linking.openURL(downloadUrl);
+        // fix51: the web branch sends no Authorization header: use a short-lived signed link (falls back to the plain url as before)
+        Linking.openURL(await getDownloadUrl(endpoint.replace(/^\/api/, ''), {}, () => downloadUrl));
       } else {
         // Real bug fix Aug 28 (item 10): `timestamp` was already declared here but never
         // actually used - downloadFileAsync was passed a bare Directory, which derives its
@@ -292,7 +295,7 @@ export default function ResourcesScreen() {
   const getAverageRating = () => {
     if (ratings.length === 0) return 0;
     const sum = ratings.reduce((acc, r) => acc + r.rating, 0);
-    return (sum / ratings.length).toFixed(1);
+    return formatRating(sum / ratings.length, language);
   };
 
   // Real fix Aug 14: merged both sources into one unified, ACTUALLY topic-filtered list.
