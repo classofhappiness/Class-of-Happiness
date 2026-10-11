@@ -14555,7 +14555,7 @@ async def get_global_creatures(request: Request):
         c["times_fully_evolved"] = evolved_counts.get(c["id"], 0)
         c["featured_until"] = featured_map.get(c["id"])
 
-    return creatures
+    return _creature_img_urls_in(creatures)
 
 @api_router.get("/creatures/global/by-country")
 async def get_global_creatures_by_country(request: Request):
@@ -15183,11 +15183,11 @@ async def get_my_unlocks(request: Request, student_id: Optional[str] = None):
     if real_student_id:
         try:
             rows = supabase.table("creature_unlocks").select(select_fields).eq("real_student_id", real_student_id).execute()
-            return rows.data or []
+            return _creature_img_urls_in(rows.data or [])
         except Exception as e:
             logger.warning(f"[creature-unlocks-query] query failed for real_student_id={real_student_id}: {e}")
     rows = supabase.table("creature_unlocks").select(select_fields).eq("student_id", user["user_id"]).execute()
-    return rows.data or []
+    return _creature_img_urls_in(rows.data or [])
 
 @api_router.get("/students/{student_id}/active-creatures")
 async def get_active_creatures_endpoint(student_id: str, request: Request):
@@ -15265,7 +15265,7 @@ def _annotate_real_student_names(rows: list) -> list:
         real_name_map = {s["id"]: s.get("name") for s in (students_r.data or [])}
     for r in rows:
         r["real_student_name"] = real_name_map.get(r.get("real_student_id"))
-    return rows
+    return _creature_img_urls_in(rows)      # fix47: submission lists carry the same cache version as every other creature url
 
 @api_router.get("/creatures/my-submissions")
 async def get_my_submissions(request: Request):
@@ -24534,7 +24534,7 @@ def _thumb_object_path(full_object_path: str) -> str:
 # _creature_img_url, which forces ONE query version regardless of what is stored ("?v=2", no
 # version, "?v=anything", other params kept). Bump this number after re-processing images in
 # storage and every device re-downloads them: no database rows need to change.
-CREATURE_IMG_VERSION = 3
+CREATURE_IMG_VERSION = 4   # 4 (fix47): the normalised images of all 14 creatures replaced the stored objects in place; 3 -> 4 makes every device refetch them
 
 def _creature_img_url(url):
     """Returns url with its v= parameter set to CREATURE_IMG_VERSION. Never raises; None/empty and
@@ -24549,6 +24549,25 @@ def _creature_img_url(url):
         return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
     except Exception:
         return url
+
+_CREATURE_URL_KEYS = ("stage1_url", "stage2_url", "stage3_url", "stage4_url", "stage_image", "stage_image_snapshot")
+
+def _creature_img_urls_in(obj):
+    """fix47: applies _creature_img_url, in place, to every creature image url key found in a response structure (rows,
+    nested creature_submissions dicts, lists). Used by the list endpoints that return raw table rows. Never raises."""
+    try:
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                if k in _CREATURE_URL_KEYS and isinstance(v, str):
+                    obj[k] = _creature_img_url(v)
+                elif isinstance(v, (dict, list)):
+                    _creature_img_urls_in(v)
+        elif isinstance(obj, list):
+            for v in obj:
+                _creature_img_urls_in(v)
+    except Exception:
+        pass
+    return obj
 
 def _thumb_url(full_url: Optional[str]) -> Optional[str]:
     """Same derivation as _thumb_object_path, applied to a full PUBLIC url (strips any ?v=
