@@ -4232,6 +4232,20 @@ async def delete_custom_strategy(strategy_id: str, request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+def _guardian_ids_for_student_sync(student_id: str) -> Optional[set]:
+    """Oct 11: user ids of this student's guardians (linked parents + family members). None when the lookup
+    failed, so callers can fail closed instead of treating every row as staff-made."""
+    try:
+        ids = set()
+        pl = supabase.table("parent_links").select("parent_user_id").eq("student_id", student_id).execute()
+        ids.update(x.get("parent_user_id") for x in (pl.data or []) if x.get("parent_user_id"))
+        fm = supabase.table("family_members").select("user_id").eq("student_id", student_id).execute()
+        ids.update(x.get("user_id") for x in (fm.data or []) if x.get("user_id"))
+        return ids
+    except Exception as e:
+        logger.warning(f"guardian lookup failed: {e}")
+        return None
+
 @api_router.get("/custom-strategies")
 async def get_custom_strategies(request: Request, student_id: Optional[str] = None):
     """Get custom strategies for a student."""
@@ -4253,11 +4267,20 @@ async def get_custom_strategies(request: Request, student_id: Optional[str] = No
             result = query.execute()
             # Normalise: add zone field from feeling_colour for frontend compatibility
             data = result.data or []
+            # Oct 11: creator_role/source added (additive). Same values /strategies/shared uses: "parent" for a
+            # guardian's row, "teacher" for staff; source is "home" for guardian rows, "school" for staff.
+            if student_id:
+                guardian_ids = _guardian_ids_for_student_sync(student_id) or set()
+            else:
+                guardian_ids = {user["user_id"]} if user.get("role") in ("parent", "family") else set()
             for row in data:
                 fc = row.get("feeling_colour", "")
                 z  = row.get("zone", "")
                 row["zone"]           = z or fc or "green"
                 row["feeling_colour"] = fc or z or "green"
+                is_home = row.get("user_id") in guardian_ids
+                row["creator_role"] = "parent" if is_home else "teacher"
+                row["source"] = "home" if is_home else "school"
             return data
         except Exception as e:
             return []
@@ -23542,9 +23565,15 @@ async def get_student_all_strategies(student_id: str, request: Request):
             # School strategies - normalize zone/feeling_colour
             try:
                 school = supabase.table("custom_helpers").select("*").eq("student_id", student_id).execute()
+                # Oct 11: a guardian's row is labelled "home" and only shown when the guardian shared it
+                # (is_shared true). If the guardian lookup fails, unshared rows are hidden (fail closed).
+                guardian_ids = _guardian_ids_for_student_sync(student_id)
                 school_strats = []
                 for s in (school.data or []):
-                    normalized = {**s, "source": "school"}
+                    is_home = guardian_ids is not None and s.get("user_id") in guardian_ids
+                    if (is_home or guardian_ids is None) and s.get("is_shared") is not True:
+                        continue
+                    normalized = {**s, "source": "home" if is_home else "school"}
                     if not normalized.get("zone"):
                         normalized["zone"] = normalized.get("feeling_colour", "green")
                     if not normalized.get("feeling_colour"):
