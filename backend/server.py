@@ -6252,6 +6252,12 @@ def _batch_authorized_student_ids_sync(user: dict, student_ids: list, students_b
 # also authorizes the student's OWN linked parent, and a parent must always see their own
 # submitted home check-ins in full regardless of this toggle - only a staff viewer
 # (teacher/school_admin/superadmin) is ever the audience this setting is about.
+def _log_is_home(log: dict) -> bool:
+    """fix53: the ONE rule for "this check-in was made at home": logged_by is parent or family (the same values the staff privacy
+    filters below key on, and what the app's parent screens/teacher detail show with the house icon). `location` is NOT used:
+    it is "school" on every row, including parent-made ones."""
+    return (log or {}).get("logged_by") in ("parent", "family")
+
 def _filter_home_logs_for_staff_viewer(logs: list, student_id: str, user: dict) -> list:
     if user.get("role") not in ("teacher", "school_admin", "superadmin"):
         return logs
@@ -7270,6 +7276,19 @@ STRATEGY_MAPS_BY_LANG = {
     "es": STRATEGY_NAME_MAP_ES, "fr": STRATEGY_NAME_MAP_FR,
     "de": STRATEGY_NAME_MAP_DE, "it": STRATEGY_NAME_MAP_IT,
 }
+# fix53: names of the 20 parent strategies (p_b1 .. p_r5) in the 9 non-English languages, copied EXACTLY from the app's own
+# translation files (the app key whose English text equals the English name in STRATEGY_NAME_MAP).
+_PARENT_STRATEGY_NAMES_I18N = {
+    'pt': {'p_b1': "Presença Lado a Lado", 'p_b2': "Ritual da Bebida Quente", 'p_b3': "Nomear para Acalmar", 'p_b4': "Convite ao Movimento", 'p_b5': "Conforto e Proximidade", 'p_g1': "Ronda de Gratidão", 'p_g2': "Detetar Pontos Fortes", 'p_g3': "Criativos Juntos", 'p_g4': "Dança em Família", 'p_g5': "Resolução Calma de Problemas", 'p_y1': "Respiração em Caixa Juntos", 'p_y2': "Validar os Sentimentos Primeiro", 'p_y3': "Check-in Corporal", 'p_y4': "Diário de Sentimentos", 'p_y5': "Dar Espaço com Amor", 'p_r1': "Mantém-te Calmo", 'p_r2': "Espaço Seguro Juntos", 'p_r3': "Reinício com Água Fria", 'p_r4': "Sem Lições Agora", 'p_r5': "Reconectar com Carinho"},
+    'es': {'p_b1': "Presencia Lado a Lado", 'p_b2': "Ritual de Bebida Caliente", 'p_b3': "Nombrarlo para Calmarlo", 'p_b4': "Invitación al Movimiento", 'p_b5': "Consuelo y Cercanía", 'p_g1': "Ronda de Gratitud", 'p_g2': "Detectar Fortalezas", 'p_g3': "Creativos Juntos", 'p_g4': "Baile Familiar", 'p_g5': "Resolución Tranquila de Problemas", 'p_y1': "Respiración en Caja Juntos", 'p_y2': "Validar los Sentimientos Primero", 'p_y3': "Check-in Corporal", 'p_y4': "Diario de Sentimientos", 'p_y5': "Dar Espacio con Amor", 'p_r1': "Mantente Calmado", 'p_r2': "Espacio Seguro Juntos", 'p_r3': "Reinicio con Agua Fría", 'p_r4': "Sin Lecciones Ahora", 'p_r5': "Reconectar con Cariño"},
+    'fr': {'p_b1': "Présence Côte à Côte", 'p_b2': "Rituel de la Boisson Chaude", 'p_b3': "Nommer pour Calmer", 'p_b4': "Invitation au Mouvement", 'p_b5': "Réconfort et Proximité", 'p_g1': "Tour de Gratitude", 'p_g2': "Repérer les Points Forts", 'p_g3': "Créatifs Ensemble", 'p_g4': "Danse Familiale", 'p_g5': "Résolution Calme de Problèmes", 'p_y1': "Respiration en Carré Ensemble", 'p_y2': "Valider les Émotions d'Abord", 'p_y3': "Check-in Corporel", 'p_y4': "Journal des Émotions", 'p_y5': "Donner de l'Espace avec Amour", 'p_r1': "Reste Calme Toi-Même", 'p_r2': "Espace Sûr Ensemble", 'p_r3': "Réinitialisation à l'Eau Froide", 'p_r4': "Pas de Leçon Maintenant", 'p_r5': "Se Reconnecter avec Chaleur"},
+    'de': {'p_b1': "Seite an Seite Präsenz", 'p_b2': "Warmgetränk-Ritual", 'p_b3': "Benennen zum Beruhigen", 'p_b4': "Einladung zur Bewegung", 'p_b5': "Trost & Nähe", 'p_g1': "Dankbarkeitsrunde", 'p_g2': "Stärken Erkennen", 'p_g3': "Gemeinsam Kreativ", 'p_g4': "Familientanz", 'p_g5': "Ruhige Problemlösung", 'p_y1': "Box-Atmung Zusammen", 'p_y2': "Gefühle Zuerst Anerkennen", 'p_y3': "Körper-Check-in", 'p_y4': "Gefühlstagebuch", 'p_y5': "Mit Liebe Raum Geben", 'p_r1': "Bleib Selbst Ruhig", 'p_r2': "Gemeinsam ein Sicherer Ort", 'p_r3': "Kaltwasser-Neustart", 'p_r4': "Jetzt Nicht Belehren", 'p_r5': "Mit Wärme Wieder Verbinden"},
+    'it': {'p_b1': "Presenza Fianco a Fianco", 'p_b2': "Rituale della Bevanda Calda", 'p_b3': "Nominare per Calmare", 'p_b4': "Invito al Movimento", 'p_b5': "Conforto e Vicinanza", 'p_g1': "Giro della Gratitudine", 'p_g2': "Individuare i Punti di Forza", 'p_g3': "Creativi Insieme", 'p_g4': "Ballo di Famiglia", 'p_g5': "Risoluzione Calma dei Problemi", 'p_y1': "Respirazione a Scatola Insieme", 'p_y2': "Convalidare Prima le Emozioni", 'p_y3': "Check-in Corporeo", 'p_y4': "Diario delle Emozioni", 'p_y5': "Dare Spazio con Amore", 'p_r1': "Rimani Calmo Tu Stesso", 'p_r2': "Spazio Sicuro Insieme", 'p_r3': "Reset con Acqua Fredda", 'p_r4': "Niente Lezioni Ora", 'p_r5': "Riconnettersi con Calore"},
+    'ru': {'p_b1': "Присутствие рядом", 'p_b2': "Ритуал тёплого напитка", 'p_b3': "Назови, чтобы успокоить", 'p_b4': "Приглашение подвигаться", 'p_b5': "Утешение и близость", 'p_g1': "Круг благодарности", 'p_g2': "Замечать сильные стороны", 'p_g3': "Творчество вместе", 'p_g4': "Семейные танцы", 'p_g5': "Решение проблем в спокойствии", 'p_y1': "Квадратное дыхание вместе", 'p_y2': "Сначала признать чувства", 'p_y3': "Проверка тела", 'p_y4': "Дневник чувств", 'p_y5': "Дать пространство с любовью", 'p_r1': "Сохраняй спокойствие сам", 'p_r2': "Безопасное пространство вместе", 'p_r3': "Перезагрузка холодной водой", 'p_r4': "Сейчас не время учить", 'p_r5': "Снова сблизиться с теплом"},
+    'zh': {'p_b1': "陪伴在侧", 'p_b2': "热饮仪式", 'p_b3': "说出情绪，平复情绪", 'p_b4': "邀请活动身体", 'p_b5': "安慰与亲密", 'p_g1': "感恩分享时刻", 'p_g2': "发现优点", 'p_g3': "一起创作", 'p_g4': "家庭舞会", 'p_g5': "平静地解决问题", 'p_y1': "一起做方块呼吸", 'p_y2': "先认可感受", 'p_y3': "身体检查", 'p_y4': "情绪日记", 'p_y5': "带着爱给予空间", 'p_r1': "自己保持冷静", 'p_r2': "一起待在安全空间", 'p_r3': "冷水复位", 'p_r4': "此刻不说教", 'p_r5': "以温暖重新联结"},
+    'hi': {'p_b1': "साथ-साथ मौजूदगी", 'p_b2': "गर्म पेय की रस्म", 'p_b3': "नाम देकर शांत करना", 'p_b4': "गति का निमंत्रण", 'p_b5': "सांत्वना और निकटता", 'p_g1': "आभार का दौर", 'p_g2': "शक्तियों की पहचान", 'p_g3': "साथ में रचनात्मकता", 'p_g4': "परिवार का नृत्य", 'p_g5': "शांति से समस्या समाधान", 'p_y1': "साथ में बॉक्स ब्रीदिंग", 'p_y2': "पहले भावनाओं को स्वीकार करें", 'p_y3': "शरीर की जांच", 'p_y4': "भावनाओं की डायरी", 'p_y5': "प्यार से जगह देना", 'p_r1': "खुद शांत रहें", 'p_r2': "साथ में सुरक्षित स्थान", 'p_r3': "ठंडे पानी से तरोताज़ा", 'p_r4': "अभी सिखाने का समय नहीं", 'p_r5': "गर्मजोशी से फिर जुड़ें"},
+    'ar': {'p_b1': "الحضور جنبًا إلى جنب", 'p_b2': "طقس المشروب الدافئ", 'p_b3': "تسميتها لتهدئتها", 'p_b4': "دعوة للحركة", 'p_b5': "الراحة والقرب", 'p_g1': "جولة الامتنان", 'p_g2': "اكتشاف نقاط القوة", 'p_g3': "الإبداع معًا", 'p_g4': "رقصة عائلية", 'p_g5': "حل المشكلات بهدوء", 'p_y1': "التنفس المربع معًا", 'p_y2': "تصديق المشاعر أولاً", 'p_y3': "تفقّد الجسد", 'p_y4': "دفتر المشاعر", 'p_y5': "منح المساحة بحب", 'p_r1': "حافظ على هدوئك أنت أولاً", 'p_r2': "مساحة آمنة معًا", 'p_r3': "إعادة الضبط بالماء البارد", 'p_r4': "لا وقت للتعليم الآن", 'p_r5': "إعادة التواصل بدفء"},
+}
 # Oct 10 (PDF translation test): the STRATEGY_NAME_MAP_<lang> tables above are legacy 4-per-colour lists whose
 # numbering does not match the real 6-per-colour ids (blue_2 is "Drink Water", not "Favourite Song") and have no
 # 5/6 entries, so PDFs/pushes showed wrong or English strategy names. Overlay the canonical names from the
@@ -7282,6 +7301,21 @@ for _l, _tbl in (("pt", HELPERS_PT), ("es", HELPERS_ES), ("fr", HELPERS_FR), ("d
             if _nm and len(_hid) == 2 and _hid[0] == _zone[0] and _hid[1].isdigit():
                 _m[_hid] = _nm
                 _m[f"{_zone}_{_hid[1]}"] = _nm
+# fix53: (a) parent strategy names; (b) the legacy slug ids (bubble_breathing, slow_breathing, ...) get the SAME translated name as
+# the canonical strategy with the identical English name (so no new wording is invented); walk_away has no canonical twin and
+# stays English.
+for _l, _names in _PARENT_STRATEGY_NAMES_I18N.items():
+    STRATEGY_MAPS_BY_LANG.setdefault(_l, {}).update(_names)
+_canon_by_en = {}
+for _cid in [f"{z}_{n}" for z in ("blue", "green", "yellow", "red") for n in range(1, 7)]:
+    _canon_by_en.setdefault(re.sub(r"[^a-z0-9]", "", STRATEGY_NAME_MAP[_cid].lower()), _cid)
+for _slug, _en_name in list(STRATEGY_NAME_MAP.items()):
+    if re.match(r"^[a-z0-9]+(_[a-z0-9]+)*$", _slug) and not re.match(r"^(blue|green|yellow|red)_\d$|^[brgy]\d$|^p_", _slug):
+        _cid = _canon_by_en.get(re.sub(r"[^a-z0-9]", "", _en_name.lower()))
+        if _cid:
+            for _l, _m in STRATEGY_MAPS_BY_LANG.items():
+                if _l != "en" and _cid in _m:
+                    _m[_slug] = _m[_cid]
 
 # ===== PDF STRINGS: infrastructure (Oct 10) =====
 # Every user-visible PDF string goes through pdf_t(lang, key, **fmt). PDF_STRINGS[lang][key] holds the text
@@ -7772,6 +7806,8 @@ _PDF_STRINGS_DATA = {
         "stu_log_heading": "Check-in Log",
         "stu_no_checkins": "No check-ins recorded for this period.",
         "stu_no_strategies": "No strategies recorded this period.",
+        "stu_strategy_custom": "Custom strategy",
+        "stu_strategy_generic": "Strategy",
         "stu_not_assigned": "Not assigned",
         "stu_report": "Emotional Wellbeing Report",
         "stu_source_home": "Home",
@@ -8021,6 +8057,8 @@ _PDF_STRINGS_DATA = {
         "stu_log_heading": "Registo de Check-ins",
         "stu_no_checkins": "Sem check-ins registados neste período.",
         "stu_no_strategies": "Nenhuma estratégia registada neste período.",
+        "stu_strategy_custom": "Estratégia personalizada",
+        "stu_strategy_generic": "Estratégia",
         "stu_not_assigned": "Não atribuído",
         "stu_report": "Relatório de Bem-Estar Emocional",
         "stu_source_home": "Casa",
@@ -8270,6 +8308,8 @@ _PDF_STRINGS_DATA = {
         "stu_log_heading": "Registro de Check-ins",
         "stu_no_checkins": "No hay check-ins registrados en este período.",
         "stu_no_strategies": "Ninguna estrategia registrada en este período.",
+        "stu_strategy_custom": "Estrategia personalizada",
+        "stu_strategy_generic": "Estrategia",
         "stu_not_assigned": "No asignado",
         "stu_report": "Informe de Bienestar Emocional",
         "stu_source_home": "Casa",
@@ -8519,6 +8559,8 @@ _PDF_STRINGS_DATA = {
         "stu_log_heading": "Journal des Enregistrements",
         "stu_no_checkins": "Aucun check-in enregistré pour cette période.",
         "stu_no_strategies": "Aucune stratégie enregistrée sur cette période.",
+        "stu_strategy_custom": "Stratégie personnalisée",
+        "stu_strategy_generic": "Stratégie",
         "stu_not_assigned": "Non attribué",
         "stu_report": "Rapport de Bien-être Émotionnel",
         "stu_source_home": "Maison",
@@ -8768,6 +8810,8 @@ _PDF_STRINGS_DATA = {
         "stu_log_heading": "Check-in-Protokoll",
         "stu_no_checkins": "Keine Check-ins in diesem Zeitraum.",
         "stu_no_strategies": "In diesem Zeitraum wurden keine Strategien erfasst.",
+        "stu_strategy_custom": "Eigene Strategie",
+        "stu_strategy_generic": "Strategie",
         "stu_not_assigned": "Nicht zugewiesen",
         "stu_report": "Bericht zum emotionalen Wohlbefinden",
         "stu_source_home": "Zuhause",
@@ -9017,6 +9061,8 @@ _PDF_STRINGS_DATA = {
         "stu_log_heading": "Registro dei Check-in",
         "stu_no_checkins": "Nessun check-in registrato in questo periodo.",
         "stu_no_strategies": "Nessuna strategia registrata in questo periodo.",
+        "stu_strategy_custom": "Strategia personalizzata",
+        "stu_strategy_generic": "Strategia",
         "stu_not_assigned": "Non assegnato",
         "stu_report": "Rapporto sul Benessere Emotivo",
         "stu_source_home": "Casa",
@@ -9271,6 +9317,8 @@ _PDF_STRINGS_DATA_RUZH = {
         "stu_log_heading": "Журнал отметок",
         "stu_no_checkins": "За этот период отметок нет.",
         "stu_no_strategies": "В этом периоде стратегии не отмечены.",
+        "stu_strategy_custom": "Своя стратегия",
+        "stu_strategy_generic": "Стратегия",
         "stu_not_assigned": "Не назначено",
         "stu_report": "Отчёт об эмоциональном благополучии",
         "stu_source_home": "Дом",
@@ -9520,6 +9568,8 @@ _PDF_STRINGS_DATA_RUZH = {
         "stu_log_heading": "签到记录",
         "stu_no_checkins": "本周期暂无打卡记录。",
         "stu_no_strategies": "本期暂无策略记录。",
+        "stu_strategy_custom": "自定义策略",
+        "stu_strategy_generic": "策略",
         "stu_not_assigned": "未分配",
         "stu_report": "情绪与身心健康报告",
         "stu_source_home": "家庭",
@@ -9775,6 +9825,8 @@ _PDF_STRINGS_DATA_HIAR = {
         "stu_log_heading": "चेक-इन लॉग",
         "stu_no_checkins": "इस अवधि के लिए कोई चेक-इन दर्ज नहीं।",
         "stu_no_strategies": "इस अवधि में कोई रणनीति दर्ज नहीं हुई।",
+        "stu_strategy_custom": "कस्टम रणनीति",
+        "stu_strategy_generic": "रणनीति",
         "stu_not_assigned": "आवंटित नहीं",
         "stu_report": "भावनात्मक भलाई रिपोर्ट",
         "stu_source_home": "घर",
@@ -10024,6 +10076,8 @@ _PDF_STRINGS_DATA_HIAR = {
         "stu_log_heading": "سجل التسجيلات",
         "stu_no_checkins": "لا توجد تسجيلات مشاعر في هذه الفترة.",
         "stu_no_strategies": "لم تُسجَّل أي استراتيجيات في هذه الفترة.",
+        "stu_strategy_custom": "استراتيجية مخصصة",
+        "stu_strategy_generic": "استراتيجية",
         "stu_not_assigned": "غير معيّن",
         "stu_report": "تقرير الرفاهية العاطفية",
         "stu_source_home": "المنزل",
@@ -10065,6 +10119,26 @@ PDF_STRINGS.update(_PDF_STRINGS_DATA_HIAR)   # validated by _validate_pdf_string
 _PDF_STRINGS_PROBLEMS = _validate_pdf_strings()  # logs + falls back to English per failing language; never raises
 # ===== end PDF_STRINGS table =====
 
+_NON_STRATEGY_IDS = ("comment_support",)   # the hand button on the comment box (a request for support), never a strategy
+_PLACEHOLDER_STRATEGY_IDS = ("strategy_used", "strategy", "unknown", "none", "null", "undefined")
+_PREFIXED_STRATEGY_ID = re.compile(r"^(custom|school|global|family|teacher|admin)[_-]", re.I)
+_UUID_STRATEGY_ID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
+
+def _unresolved_strategy_label(sid_clean: str, lang: str = "en") -> str:
+    """fix53: what a PDF prints for a strategy id that matches no built-in code and no stored strategy. Same rule as the app's
+    strategyLabel: a custom/school/uuid style id (a strategy that was deleted or never stored) -> the translated "Custom
+    strategy"; a placeholder or other opaque code (strategy_used, ids with digits) -> the translated "Strategy"; a plain
+    word or phrase (an old row that stored a name) is kept as written. Never prints a raw id."""
+    v = (sid_clean or "").strip()
+    low = v.lower()
+    if low in ("blue", "green", "yellow", "red"):
+        return v.title()
+    if _PREFIXED_STRATEGY_ID.match(v) or _UUID_STRATEGY_ID.match(v):
+        return pdf_t(lang, "stu_strategy_custom")
+    if low in _PLACEHOLDER_STRATEGY_IDS or (re.search(r"\d", v) and " " not in v):
+        return pdf_t(lang, "stu_strategy_generic")
+    return v.replace("_", " ").title()
+
 def resolve_strategy_name(sid: str, lang: str = "en") -> str:
     """Return human-readable strategy name from ID or raw string."""
     lang_map = STRATEGY_MAPS_BY_LANG.get(lang, STRATEGY_NAME_MAP)
@@ -10099,7 +10173,7 @@ def resolve_strategy_name(sid: str, lang: str = "en") -> str:
             return fa.data[0]["strategy_name"]
     except Exception as e:
         logger.debug(f"[strategy-name-resolve] family_assigned_strategies lookup failed for {bare_id}: {e}")
-    return sid_clean.replace("_", " ").title()
+    return _unresolved_strategy_label(sid_clean, lang)
 
 def _batch_resolve_strategy_names(ids: list, lang: str = "en") -> dict:
     """Batched sibling of resolve_strategy_name, for resolving MANY ids in one pass instead of
@@ -10155,7 +10229,7 @@ def _batch_resolve_strategy_names(ids: list, lang: str = "en") -> dict:
             except Exception as e:
                 logger.debug(f"[strategy-name-resolve] batched school_strategies lookup failed: {e}")
         for sid, bare_id in unresolved_bare.items():
-            result[sid] = ch_by_id.get(bare_id) or fa_by_id.get(bare_id) or ss_by_id.get(bare_id) or str(sid).strip().replace("_", " ").title()
+            result[sid] = ch_by_id.get(bare_id) or fa_by_id.get(bare_id) or ss_by_id.get(bare_id) or _unresolved_strategy_label(str(sid).strip(), lang)
     return result
 
 @api_router.get("/reports/available-months/{student_id}")
@@ -10782,9 +10856,10 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     # label bug can't also become a privacy bug. Parent viewers untouched - see
     # _filter_home_logs_for_staff_viewer's own comment for the full audit.
     school_logs = _filter_home_logs_for_staff_viewer(school_logs, student_id, user)
-    # Tag school logs with source
+    # Tag logs with their real source (fix53: this used to tag EVERY feeling_logs row "school", so a parent's own home
+    # check-ins printed "School" in the parent's PDF; the staff filter above already removed home rows for a viewer without sharing)
     for l in school_logs:
-        l["_source"] = "school"
+        l["_source"] = "home" if _log_is_home(l) else "school"
     # Real hardening Sep 11 (PDF/parent-leak audit): this endpoint is shared by BOTH a
     # linked parent and the owning teacher/school_admin/superadmin (see the authorization
     # block above) - the "Check-in Log" table below only ever draws Date/Time/Source/
@@ -10857,7 +10932,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         if colour in feeling_counts:
             feeling_counts[colour] += 1
         for h in log.get("helpers_selected", log.get("strategies_selected", [])):
-            if h:
+            if h and h not in _NON_STRATEGY_IDS:
                 helper_counts[h] = helper_counts.get(h, 0) + 1
         try:
             ts = datetime.fromisoformat(log["timestamp"].replace("Z", "+00:00"))
@@ -11369,7 +11444,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
                 time_str = ""
 
             zone     = log.get("feeling_colour", log.get("zone", ""))
-            raw_strats = log.get("helpers_selected", log.get("strategies_selected", []))
+            raw_strats = [x for x in (log.get("helpers_selected", log.get("strategies_selected", [])) or []) if x not in _NON_STRATEGY_IDS]
             strat_names = [resolve_strategy_name(s, lang=lang) for s in raw_strats[:3]]
             strats_str  = ("، " if lang == "ar" else ", ").join(strat_names) if strat_names else "—"
             if len(raw_strats) > 3:
