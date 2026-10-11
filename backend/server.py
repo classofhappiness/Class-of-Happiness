@@ -78,16 +78,30 @@ class _RetryTransport(httpx.HTTPTransport):
     _MAX_RETRIES = 2
     _BACKOFF_BASE_SECONDS = 0.5
 
+    # fix51: Supabase closes idle HTTP/2 connections; the next request on a dead one fails with "Server disconnected" /
+    # "ConnectionTerminated" (httpx.RemoteProtocolError, or a ReadError/WriteError). The pool drops that connection, so ONE
+    # immediate retry opens a fresh one. GET only, like the timeouts: a write may already have reached Supabase.
+    _DISCONNECT_ERRORS = (httpx.RemoteProtocolError, httpx.ReadError, httpx.WriteError, httpx.CloseError)
+
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         if request.method != "GET":
             return super().handle_request(request)
         last_exc: Optional[Exception] = None
-        for attempt in range(self._MAX_RETRIES + 1):
+        disconnect_retried = False
+        for attempt in range(self._MAX_RETRIES + 2):
             try:
                 return super().handle_request(request)
+            except self._DISCONNECT_ERRORS as e:
+                if disconnect_retried:
+                    raise
+                disconnect_retried = True
+                last_exc = e
+                logger.warning(f"[supabase-retry] GET {request.url.path} connection dropped ({type(e).__name__}), retrying once on a fresh connection")
+                time.sleep(0.05)
+                continue
             except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.ConnectError) as e:
                 last_exc = e
-                if attempt < self._MAX_RETRIES:
+                if attempt < self._MAX_RETRIES + (1 if disconnect_retried else 0):
                     logger.warning(f"[supabase-retry] {request.method} {request.url.path} attempt {attempt + 1} failed ({type(e).__name__}), retrying in {self._BACKOFF_BASE_SECONDS * (2 ** attempt)}s")
                     time.sleep(self._BACKOFF_BASE_SECONDS * (2 ** attempt))
                     continue
@@ -276,6 +290,44 @@ class _RequestTimingMiddleware(BaseHTTPMiddleware):
         return response
 
 app.add_middleware(_RequestTimingMiddleware)
+
+# ================== SECURITY HEADERS (fix51) ==================
+# Added to every response that does not already carry the header. CORS is deliberately unchanged. X-Frame-Options is not
+# added to PDF / image / file responses (a portal that previews a report in a frame keeps working); everything else, incl.
+# JSON, gets DENY. A pure ASGI middleware (no body buffering), so streaming PDFs and the Stripe webhook are untouched.
+_SECURITY_HEADERS = (
+    (b"strict-transport-security", b"max-age=31536000"),
+    (b"x-content-type-options", b"nosniff"),
+    (b"referrer-policy", b"no-referrer"),
+    (b"permissions-policy", b"camera=(), microphone=(), geolocation=(), payment=()"),
+)
+
+class _SecurityHeadersMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            return await self.app(scope, receive, send)
+        async def send_with_headers(message):
+            if message.get("type") == "http.response.start":
+                try:
+                    headers = list(message.get("headers") or [])
+                    present = {k.lower() for k, _ in headers}
+                    ctype = next((v.lower() for k, v in headers if k.lower() == b"content-type"), b"")
+                    is_file = ctype.startswith((b"application/pdf", b"image/", b"application/octet-stream", b"application/vnd", b"text/csv", b"audio/"))
+                    for k, v in _SECURITY_HEADERS:
+                        if k not in present:
+                            headers.append((k, v))
+                    if b"x-frame-options" not in present and not is_file:
+                        headers.append((b"x-frame-options", b"DENY"))
+                    message = {**message, "headers": headers}
+                except Exception:
+                    pass
+            await send(message)
+        await self.app(scope, receive, send_with_headers)
+
+app.add_middleware(_SecurityHeadersMiddleware)
 
 # ================== SUBSCRIPTION PLANS ==================
 SUBSCRIPTION_PLANS = {
@@ -25522,6 +25574,70 @@ async def get_creature_analytics(request: Request):
 
     return {"featured": featured, "top_creatures": top_creatures, "top_users": top_users, "top_schools": top_schools}
 
+# ================== EXPIRED SESSION CLEANUP (fix51) ==================
+# user_sessions rows are never removed after they expire (77% of the table was expired). Every 6 hours (first run 10 minutes
+# after start) the rows whose expiry is more than 7 days in the past are deleted in batches of 200; unexpired and recently
+# expired sessions are never touched. Two workers each start this loop, so every pass takes a non-blocking file lock first:
+# only the worker that gets it runs, the other skips that pass. Only a COUNT is logged.
+_SESSION_CLEANUP_BATCH = 200
+_SESSION_CLEANUP_MAX_BATCHES = 50
+_SESSION_CLEANUP_GRACE_DAYS = 7
+_SESSION_CLEANUP_INTERVAL = 6 * 3600
+_SESSION_CLEANUP_LOCK = "/tmp/coh_session_cleanup.lock"
+
+def _cleanup_expired_sessions_sync(now=None, batch=None, max_batches=None) -> int:
+    """Deletes expired sessions older than the grace period; returns how many were deleted. Never raises."""
+    deleted = 0
+    try:
+        batch = batch or _SESSION_CLEANUP_BATCH
+        cutoff = ((now or datetime.now(timezone.utc)) - timedelta(days=_SESSION_CLEANUP_GRACE_DAYS)).isoformat()
+        for _ in range(max_batches or _SESSION_CLEANUP_MAX_BATCHES):
+            rows = supabase.table("user_sessions").select("id").lt("expires_at", cutoff).limit(batch).execute().data or []
+            ids = [r["id"] for r in rows if r.get("id")]
+            if not ids:
+                break
+            supabase.table("user_sessions").delete().in_("id", ids).execute()
+            deleted += len(ids)
+            if len(ids) < batch:
+                break
+    except Exception as e:
+        logger.warning(f"[session-cleanup] stopped early: {type(e).__name__}")
+    return deleted
+
+def _session_cleanup_pass_sync() -> Optional[int]:
+    """One guarded pass: None when another worker holds the lock, else the number of deleted rows."""
+    try:
+        import fcntl
+        fh = open(_SESSION_CLEANUP_LOCK, "a+")
+    except Exception:
+        fh = None
+        fcntl = None
+    try:
+        if fh is not None:
+            try:
+                fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                return None
+        n = _cleanup_expired_sessions_sync()
+        if n:
+            logger.info(f"[session-cleanup] deleted {n} expired sessions")
+        return n
+    finally:
+        if fh is not None:
+            try:
+                fh.close()
+            except Exception:
+                pass
+
+async def _expired_sessions_cleanup_loop():
+    await asyncio.sleep(600)
+    while True:
+        try:
+            await asyncio.to_thread(_session_cleanup_pass_sync)
+        except Exception as e:
+            logger.warning(f"[session-cleanup] pass failed: {type(e).__name__}")
+        await asyncio.sleep(_SESSION_CLEANUP_INTERVAL)
+
 @app.on_event("startup")
 async def _start_support_requests_rebuzz():
     """Fires the re-buzz background loop once, when this worker process boots. Relies on
@@ -25530,6 +25646,7 @@ async def _start_support_requests_rebuzz():
     re-buzzes, so this assumption needs re-checking before scaling this service out."""
     install_log_redaction()   # fix51: re-applied after uvicorn has finished configuring logging in this worker
     asyncio.create_task(_support_requests_rebuzz_loop())
+    asyncio.create_task(_expired_sessions_cleanup_loop())   # fix51: guarded against the 2-worker double run by a file lock
     asyncio.create_task(_school_renewal_reminder_loop())
     asyncio.create_task(_school_checkin_nudge_loop())
 
