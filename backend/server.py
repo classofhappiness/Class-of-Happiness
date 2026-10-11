@@ -4312,6 +4312,25 @@ async def get_rewards(student_id: str, request: Request):
     supabase.table("student_rewards").insert(default).execute()
     return default
 
+def _school_admin_id_for_staff_owner(owner_id: Optional[str]) -> Optional[str]:
+    """Oct 11: school link of a student who has NO classroom, through the user that owns the student
+    (students.user_id). Only a teacher (-> their school_admin_id) or a school_admin (-> themselves) counts;
+    a parent / family / any other owner never resolves to a school. Fails closed (None)."""
+    if not owner_id:
+        return None
+    try:
+        r = supabase.table("users").select("role,school_admin_id").eq("user_id", owner_id).execute()
+        if not r.data:
+            return None
+        role = r.data[0].get("role")
+        if role == "school_admin":
+            return owner_id
+        if role == "teacher":
+            return r.data[0].get("school_admin_id") or None
+    except Exception as e:
+        logger.warning(f"_school_admin_id_for_staff_owner failed for owner {owner_id}: {e}")
+    return None
+
 def _school_admin_id_for_student(student_data: dict) -> Optional[str]:
     """Resolves the school_admin_id whose school-level feature flags should gate this
     student - via their classroom's owning teacher's own school_admin_id field, the same FK
@@ -4321,7 +4340,8 @@ def _school_admin_id_for_student(student_data: dict) -> Optional[str]:
     applies", not an error."""
     classroom_id = student_data.get("classroom_id")
     if not classroom_id:
-        return None
+        # Oct 11: a student with no classroom who is owned directly by a teacher / school admin
+        return _school_admin_id_for_staff_owner(student_data.get("user_id"))
     try:
         cls = supabase.table("classrooms").select("user_id").eq("id", classroom_id).execute()
         if not cls.data:
@@ -20891,7 +20911,10 @@ def _student_school_admin_id(student_id: str) -> Optional[str]:
     student with no classroom (family-only / not linked to a school) - events then
     correctly log with no school attribution rather than crashing."""
     try:
-        s = supabase.table("students").select("classroom_id").eq("id", student_id).execute()
+        s = supabase.table("students").select("classroom_id,user_id").eq("id", student_id).execute()
+        if s.data and not s.data[0].get("classroom_id"):
+            # Oct 11: no classroom -> the teacher / school admin who owns the student (parents never resolve)
+            return _school_admin_id_for_staff_owner(s.data[0].get("user_id"))
         if not s.data or not s.data[0].get("classroom_id"):
             return None
         c = supabase.table("classrooms").select("user_id").eq("id", s.data[0]["classroom_id"]).execute()
