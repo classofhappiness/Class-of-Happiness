@@ -16578,7 +16578,7 @@ def _issue_login_code(user: dict, email: str):
     except Exception as e:
         logger.error(f"[SECURITY] Could not store login code for {email}: {e}")
         raise HTTPException(status_code=500, detail="Could not start sign-in. Please try again.")
-    sent, detail = _send_email_code(email, login_code, purpose="login")
+    sent, detail = _send_email_code(email, login_code, purpose="login", lang=_email_lang(user.get("language"), None))
     if not sent:
         logger.error(f"[SECURITY] Login code not emailed for {email}: {detail}")
         raise HTTPException(status_code=500, detail="Could not send your login code. Please try again or contact jono@classofhappiness.com.")
@@ -25296,7 +25296,7 @@ async def email_signup(request: Request):
     }
     try:
         supabase.table("users").insert(new_user).execute()
-        sent, detail = _send_email_code(email, verify_code, purpose="verify")
+        sent, detail = _send_email_code(email, verify_code, purpose="verify", lang=_email_lang(None, (body.get("lang") or body.get("language")) if isinstance(body, dict) else None))
         if not sent:
             logger.warning(f"[SECURITY] Verification email not sent for new signup {email}: {detail}")
     except Exception as e:
@@ -25335,33 +25335,213 @@ RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "Class of Happiness <onb
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
 
-def _send_password_reset_email(email: str, token: str) -> tuple:
+# --- Emails in the user's language: password reset and sign-in / verify code only (fix51) -------------------------------
+# The app's own labels ("Forgot password", "I already have a reset code") are copied from the app's translation files so the
+# email names the buttons exactly as the app shows them. Keys: r* = reset, l* = sign-in code, v* = verify email, ig = ignore line.
+# Arabic gets dir="rtl" (the code itself stays left-to-right). Anything unsupported falls back to English.
+_EMAIL_TEXTS = {
+    'en': {
+        'rs': "Reset your Class of Happiness password",
+        'rh': "Reset your password",
+        'rb': "Open the Class of Happiness app, tap <b>Forgot password</b>, then <b>\"I already have a reset code\"</b>, and enter this code:",
+        're_': "This code expires in 1 hour.",
+        'ig': "If you didn't request this, you can safely ignore this email.",
+        'ls': "Your Class of Happiness sign-in code",
+        'lh': "Your sign-in code",
+        'lb': "Enter this code to finish signing in:",
+        'le': "This code expires in 10 minutes.",
+        'vs': "Verify your Class of Happiness email",
+        'vh': "Verify your email",
+        'vb': "Enter this code in the app to verify your email address:",
+        've': "This code expires in 15 minutes.",
+    },
+    'pt': {
+        'rs': "Repor a palavra-passe do Class of Happiness",
+        'rh': "Repor a palavra-passe",
+        'rb': "Abre a aplicação Class of Happiness, toca em <b>Esqueceste-te da palavra-passe</b>, depois em <b>\"Já tenho um código de reposição\"</b> e introduz este código:",
+        're_': "Este código expira dentro de 1 hora.",
+        'ig': "Se não fizeste este pedido, podes ignorar este email em segurança.",
+        'ls': "O teu código de início de sessão do Class of Happiness",
+        'lh': "O teu código de início de sessão",
+        'lb': "Introduz este código para concluir o início de sessão:",
+        'le': "Este código expira dentro de 10 minutos.",
+        'vs': "Confirma o teu email do Class of Happiness",
+        'vh': "Confirma o teu email",
+        'vb': "Introduz este código na aplicação para confirmar o teu endereço de email:",
+        've': "Este código expira dentro de 15 minutos.",
+    },
+    'es': {
+        'rs': "Restablece tu contraseña de Class of Happiness",
+        'rh': "Restablece tu contraseña",
+        'rb': "Abre la aplicación Class of Happiness, toca <b>Olvidaste tu contraseña</b>, luego <b>\"Ya tengo un código de restablecimiento\"</b> e introduce este código:",
+        're_': "Este código caduca en 1 hora.",
+        'ig': "Si no lo solicitaste, puedes ignorar este correo con tranquilidad.",
+        'ls': "Tu código de inicio de sesión de Class of Happiness",
+        'lh': "Tu código de inicio de sesión",
+        'lb': "Introduce este código para terminar de iniciar sesión:",
+        'le': "Este código caduca en 10 minutos.",
+        'vs': "Verifica tu correo de Class of Happiness",
+        'vh': "Verifica tu correo",
+        'vb': "Introduce este código en la aplicación para verificar tu dirección de correo:",
+        've': "Este código caduca en 15 minutos.",
+    },
+    'fr': {
+        'rs': "Réinitialisez votre mot de passe Class of Happiness",
+        'rh': "Réinitialisez votre mot de passe",
+        'rb': "Ouvrez l'application Class of Happiness, touchez <b>Mot de passe oublié</b>, puis <b>« J'ai déjà un code de réinitialisation »</b>, et saisissez ce code :",
+        're_': "Ce code expire dans 1 heure.",
+        'ig': "Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet e-mail.",
+        'ls': "Votre code de connexion Class of Happiness",
+        'lh': "Votre code de connexion",
+        'lb': "Saisissez ce code pour terminer la connexion :",
+        'le': "Ce code expire dans 10 minutes.",
+        'vs': "Vérifiez votre e-mail Class of Happiness",
+        'vh': "Vérifiez votre e-mail",
+        'vb': "Saisissez ce code dans l'application pour vérifier votre adresse e-mail :",
+        've': "Ce code expire dans 15 minutes.",
+    },
+    'de': {
+        'rs': "Setzen Sie Ihr Class-of-Happiness-Passwort zurück",
+        'rh': "Passwort zurücksetzen",
+        'rb': "Öffnen Sie die Class-of-Happiness-App, tippen Sie auf <b>Passwort vergessen</b>, dann auf <b>„Ich habe bereits einen Zurücksetzungscode“</b> und geben Sie diesen Code ein:",
+        're_': "Dieser Code läuft in 1 Stunde ab.",
+        'ig': "Wenn Sie das nicht angefordert haben, können Sie diese E-Mail einfach ignorieren.",
+        'ls': "Ihr Class-of-Happiness-Anmeldecode",
+        'lh': "Ihr Anmeldecode",
+        'lb': "Geben Sie diesen Code ein, um die Anmeldung abzuschließen:",
+        'le': "Dieser Code läuft in 10 Minuten ab.",
+        'vs': "Bestätigen Sie Ihre Class-of-Happiness-E-Mail",
+        'vh': "E-Mail-Adresse bestätigen",
+        'vb': "Geben Sie diesen Code in der App ein, um Ihre E-Mail-Adresse zu bestätigen:",
+        've': "Dieser Code läuft in 15 Minuten ab.",
+    },
+    'it': {
+        'rs': "Reimposta la tua password di Class of Happiness",
+        'rh': "Reimposta la tua password",
+        'rb': "Apri l'app Class of Happiness, tocca <b>Password dimenticata</b>, poi <b>«Ho già un codice di reset»</b> e inserisci questo codice:",
+        're_': "Questo codice scade tra 1 ora.",
+        'ig': "Se non l'hai richiesto, puoi ignorare questa email.",
+        'ls': "Il tuo codice di accesso a Class of Happiness",
+        'lh': "Il tuo codice di accesso",
+        'lb': "Inserisci questo codice per completare l'accesso:",
+        'le': "Questo codice scade tra 10 minuti.",
+        'vs': "Verifica la tua email di Class of Happiness",
+        'vh': "Verifica la tua email",
+        'vb': "Inserisci questo codice nell'app per verificare il tuo indirizzo email:",
+        've': "Questo codice scade tra 15 minuti.",
+    },
+    'ru': {
+        'rs': "Сброс пароля Class of Happiness",
+        'rh': "Сброс пароля",
+        'rb': "Откройте приложение Class of Happiness, нажмите <b>Забыли пароль</b>, затем <b>«У меня уже есть код для сброса»</b> и введите этот код:",
+        're_': "Код действителен 1 час.",
+        'ig': "Если вы не запрашивали сброс, просто проигнорируйте это письмо.",
+        'ls': "Ваш код для входа в Class of Happiness",
+        'lh': "Ваш код для входа",
+        'lb': "Введите этот код, чтобы завершить вход:",
+        'le': "Код действителен 10 минут.",
+        'vs': "Подтвердите адрес электронной почты в Class of Happiness",
+        'vh': "Подтвердите адрес электронной почты",
+        'vb': "Введите этот код в приложении, чтобы подтвердить адрес электронной почты:",
+        've': "Код действителен 15 минут.",
+    },
+    'zh': {
+        'rs': "重置您的 Class of Happiness 密码",
+        'rh': "重置密码",
+        'rb': "打开 Class of Happiness 应用，点击<b>忘记密码</b>，然后点击<b>“我已有重置代码”</b>，并输入此验证码：",
+        're_': "此验证码 1 小时后失效。",
+        'ig': "如果这不是您本人的操作，请忽略此邮件。",
+        'ls': "您的 Class of Happiness 登录验证码",
+        'lh': "您的登录验证码",
+        'lb': "请输入此验证码以完成登录：",
+        'le': "此验证码 10 分钟后失效。",
+        'vs': "验证您的 Class of Happiness 邮箱",
+        'vh': "验证您的邮箱",
+        'vb': "请在应用中输入此验证码以验证您的邮箱地址：",
+        've': "此验证码 15 分钟后失效。",
+    },
+    'hi': {
+        'rs': "अपना Class of Happiness पासवर्ड रीसेट करें",
+        'rh': "अपना पासवर्ड रीसेट करें",
+        'rb': "Class of Happiness ऐप खोलें, <b>पासवर्ड भूल गए</b> पर टैप करें, फिर <b>“मेरे पास पहले से रीसेट कोड है”</b> पर टैप करें और यह कोड दर्ज करें:",
+        're_': "यह कोड 1 घंटे में समाप्त हो जाएगा।",
+        'ig': "अगर आपने यह अनुरोध नहीं किया था, तो आप इस ईमेल को सुरक्षित रूप से अनदेखा कर सकते हैं।",
+        'ls': "आपका Class of Happiness साइन-इन कोड",
+        'lh': "आपका साइन-इन कोड",
+        'lb': "साइन-इन पूरा करने के लिए यह कोड दर्ज करें:",
+        'le': "यह कोड 10 मिनट में समाप्त हो जाएगा।",
+        'vs': "अपना Class of Happiness ईमेल सत्यापित करें",
+        'vh': "अपना ईमेल सत्यापित करें",
+        'vb': "अपना ईमेल पता सत्यापित करने के लिए ऐप में यह कोड दर्ज करें:",
+        've': "यह कोड 15 मिनट में समाप्त हो जाएगा।",
+    },
+    'ar': {
+        'rs': "إعادة تعيين كلمة مرور Class of Happiness",
+        'rh': "إعادة تعيين كلمة المرور",
+        'rb': "افتح تطبيق Class of Happiness، واضغط على <b>نسيت كلمة المرور</b>، ثم على <b>«لدي رمز إعادة تعيين بالفعل»</b>، وأدخل هذا الرمز:",
+        're_': "تنتهي صلاحية هذا الرمز بعد ساعة واحدة.",
+        'ig': "إذا لم تطلب ذلك، يمكنك تجاهل هذه الرسالة بأمان.",
+        'ls': "رمز تسجيل الدخول إلى Class of Happiness",
+        'lh': "رمز تسجيل الدخول",
+        'lb': "أدخل هذا الرمز لإكمال تسجيل الدخول:",
+        'le': "تنتهي صلاحية هذا الرمز بعد 10 دقائق.",
+        'vs': "تحقق من بريدك الإلكتروني في Class of Happiness",
+        'vh': "تحقق من بريدك الإلكتروني",
+        'vb': "أدخل هذا الرمز في التطبيق للتحقق من عنوان بريدك الإلكتروني:",
+        've': "تنتهي صلاحية هذا الرمز بعد 15 دقيقة.",
+    },
+}
+
+def _email_lang(stored=None, requested=None) -> str:
+    """Language for these emails: the user's stored language when it is a deliberate non-English choice, else the language the
+    app sent with the request, else the stored value, else English (the stored value defaults to 'en' for every account)."""
+    def ok(x):
+        x = (str(x).strip().lower()[:2] if isinstance(x, str) else "")
+        return x if x in _EMAIL_TEXTS else None
+    s, r = ok(stored), ok(requested)
+    if s and s != "en":
+        return s
+    return r or s or "en"
+
+def _email_html(lang: str, heading: str, body_html: str, code_html: str, expiry: str, ignore: str) -> str:
+    rtl = lang == "ar"
+    d = ' dir="rtl"' if rtl else ""
+    align = "right" if rtl else "left"
+    return f"""
+                <div{d} style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;text-align:{align}">
+                  <h2 style="color:#1A1A2E">{heading}</h2>
+                  <p style="color:#333;font-size:15px">{body_html}</p>
+                  {code_html}
+                  <p style="color:#888;font-size:13px">{expiry} {ignore}</p>
+                </div>
+            """
+
+def _build_reset_email(lang: str, token: str) -> tuple:
+    lang = lang if lang in _EMAIL_TEXTS else "en"
+    t = _EMAIL_TEXTS[lang]
+    box = f"""<div dir="ltr" style="background:#F5F5F5;border-radius:10px;padding:16px;margin:16px 0;font-family:monospace;font-size:14px;word-break:break-all;color:#1A1A2E;text-align:left">{token}</div>"""
+    return t["rs"], _email_html(lang, t["rh"], t["rb"], box, t["re_"], t["ig"])
+
+def _build_code_email(lang: str, code: str, purpose: str) -> tuple:
+    lang = lang if lang in _EMAIL_TEXTS else "en"
+    t = _EMAIL_TEXTS[lang]
+    p = "l" if purpose == "login" else "v"
+    box = f"""<div dir="ltr" style="background:#F5F5F5;border-radius:10px;padding:16px;margin:16px 0;font-family:monospace;font-size:24px;letter-spacing:4px;text-align:center;color:#1A1A2E">{code}</div>"""
+    return t[p + "s"], _email_html(lang, t[p + "h"], t[p + "b"], box, t["le"] if p == "l" else t["ve"], t["ig"])
+
+def _send_password_reset_email(email: str, token: str, lang: str = "en") -> tuple:
     """Returns (sent: bool, detail: str). Never raises - a broken email provider must not
     break the reset-request endpoint itself (same defensive-fallback standard as everything
-    else migration/config-dependent in this codebase)."""
+    else migration/config-dependent in this codebase). fix51: lang = language of the email (see _email_lang)."""
     if not RESEND_API_KEY:
         return False, "RESEND_API_KEY not configured"
     try:
+        subject, html = _build_reset_email(lang, token)
         result = resend.Emails.send({
             "from": RESEND_FROM_EMAIL,
             "to": [email],
-            "subject": "Reset your Class of Happiness password",
-            "html": f"""
-                <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
-                  <h2 style="color:#1A1A2E">Reset your password</h2>
-                  <p style="color:#333;font-size:15px">
-                    Open the Class of Happiness app, tap <b>Forgot Password</b>, then
-                    <b>"I already have a reset code"</b>, and enter this code:
-                  </p>
-                  <div style="background:#F5F5F5;border-radius:10px;padding:16px;margin:16px 0;
-                              font-family:monospace;font-size:14px;word-break:break-all;color:#1A1A2E">
-                    {token}
-                  </div>
-                  <p style="color:#888;font-size:13px">
-                    This code expires in 1 hour. If you didn't request this, you can safely ignore this email.
-                  </p>
-                </div>
-            """,
+            "subject": subject,
+            "html": html,
         })
         email_id = result.get("id") if isinstance(result, dict) else getattr(result, "id", None)
         return True, email_id or "sent"
@@ -25369,42 +25549,21 @@ def _send_password_reset_email(email: str, token: str) -> tuple:
         logger.error(f"[SECURITY] Password reset email send failed for {email}: {e}")
         return False, str(e)[:150]
 
-def _send_email_code(email: str, code: str, purpose: str) -> tuple:
+def _send_email_code(email: str, code: str, purpose: str, lang: str = "en") -> tuple:
     """Real product fix Sep 12: shared one-time-code sender for both registration email
     verification (see /auth/signup, /auth/verify-email) and the admin-tier login second
     factor that replaced the old static PIN (see /auth/email-login, /auth/verify-login-code)
     - one primitive, two call sites, same Resend pattern as _send_password_reset_email
-    above. Returns (sent: bool, detail: str). Never raises."""
+    above. Returns (sent: bool, detail: str). Never raises. fix51: lang = language of the email (see _email_lang)."""
     if not RESEND_API_KEY:
         return False, "RESEND_API_KEY not configured"
-    if purpose == "login":
-        subject = "Your Class of Happiness sign-in code"
-        heading = "Your sign-in code"
-        body_text = "Enter this code to finish signing in:"
-        expiry_text = "This code expires in 10 minutes."
-    else:
-        subject = "Verify your Class of Happiness email"
-        heading = "Verify your email"
-        body_text = "Enter this code in the app to verify your email address:"
-        expiry_text = "This code expires in 15 minutes."
     try:
+        subject, html = _build_code_email(lang, code, purpose)
         result = resend.Emails.send({
             "from": RESEND_FROM_EMAIL,
             "to": [email],
             "subject": subject,
-            "html": f"""
-                <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
-                  <h2 style="color:#1A1A2E">{heading}</h2>
-                  <p style="color:#333;font-size:15px">{body_text}</p>
-                  <div style="background:#F5F5F5;border-radius:10px;padding:16px;margin:16px 0;
-                              font-family:monospace;font-size:24px;letter-spacing:4px;text-align:center;color:#1A1A2E">
-                    {code}
-                  </div>
-                  <p style="color:#888;font-size:13px">
-                    {expiry_text} If you didn't request this, you can safely ignore this email.
-                  </p>
-                </div>
-            """,
+            "html": html,
         })
         email_id = result.get("id") if isinstance(result, dict) else getattr(result, "id", None)
         return True, email_id or "sent"
@@ -25449,7 +25608,7 @@ async def resend_verification_email(request: Request):
         "email_code": code,
         "email_code_expires": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat(),
     }).eq("user_id", user["user_id"]).execute()
-    sent, detail = _send_email_code(user["email"], code, purpose="verify")
+    sent, detail = _send_email_code(user["email"], code, purpose="verify", lang=_email_lang(user.get("language"), None))
     if not sent:
         logger.warning(f"[SECURITY] Resend verification email failed for {user['email']}: {detail}")
         raise HTTPException(status_code=500, detail="Could not send verification email. Please try again shortly.")
@@ -25470,14 +25629,14 @@ async def reset_password_request(request: Request):
     the account owner via the email itself now, never via any API response or log line."""
     body = await request.json()
     email = body.get("email", "").strip()
-    existing = supabase.table("users").select("user_id,email").eq("email", email).execute()
+    existing = supabase.table("users").select("user_id,email,language").eq("email", email).execute()
     if existing.data:
         reset_token = secrets.token_urlsafe(32)
         supabase.table("users").update({
             "reset_token": reset_token,
             "reset_token_expires": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
         }).eq("email", email).execute()
-        sent, detail = _send_password_reset_email(email, reset_token)
+        sent, detail = _send_password_reset_email(email, reset_token, lang=_email_lang(existing.data[0].get("language"), body.get("lang") or body.get("language")))
         if sent:
             logger.info(f"Password reset email sent to {email} (resend id: {detail})")
         else:
