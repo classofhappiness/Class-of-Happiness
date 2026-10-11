@@ -11516,19 +11516,19 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     # Fetch wellbeing support requests for this period
     support_requests = []
     try:
-        alerts_r = supabase.table("student_alerts").select("*").eq("user_id", user_id).eq("alert_type", "wellbeing_alert").gte("created_at", start).lte("created_at", end).order("created_at", desc=False).execute()
+        alerts_r = supabase.table("wellbeing_alerts").select("*").eq("teacher_id", user_id).gte("created_at", start).lte("created_at", end).order("created_at", desc=False).execute()
         support_requests = alerts_r.data or []
     except Exception as e:
-        logger.warning(f"[pdf-support-requests] student_alerts query failed: {e}")
+        logger.warning(f"[pdf-support-requests] wellbeing_alerts query failed: {e}")
 
     # Fetch real strategy names from DB
     strategy_name_map = {}
     try:
-        for zone in ["blue", "green", "yellow", "red"]:
-            sr = supabase.table("strategies").select("id,name").eq("zone", zone).execute()
-            for s in (sr.data or []):
-                if s.get("id") and s.get("name"):
-                    strategy_name_map[s["id"]] = s["name"]
+        # fix51: there is no `strategies` table; the school/admin-defined teacher strategies live in admin_teacher_strategies
+        sr = supabase.table("admin_teacher_strategies").select("id,name").execute()
+        for s in (sr.data or []):
+            if s.get("id") and s.get("name"):
+                strategy_name_map[s["id"]] = s["name"]
     except Exception as e:
         logger.warning(f"[pdf-strategy-names] strategies name map build failed: {e}")
 
@@ -12714,9 +12714,8 @@ async def send_zone_alert(request: Request):
     # Parents — home context only
     if context != 'school':
         try:
-            parent_links = supabase.table("parent_links").select("parent_id").eq("student_id", student_id).execute()
-            for link in (parent_links.data or []):
-                parent_id = link["parent_id"]
+            parent_links = supabase.table("parent_links").select("parent_user_id").eq("student_id", student_id).execute()   # fix51: the column is parent_user_id (parent_id never existed, so this check always raised and no parent was ever notified)
+            for parent_id in list(dict.fromkeys(l["parent_user_id"] for l in (parent_links.data or []) if l.get("parent_user_id"))):   # one notification per parent even with duplicate link rows
                 # Real bug fix Aug 28: same setting_key/setting_value bug as the teacher
                 # check above - a parent's zone-alert push notification has never actually
                 # fired either.
@@ -12892,6 +12891,16 @@ async def test_alerts_endpoint(request: Request):
         return {"count": len(alerts), "alerts": alerts}
     except Exception as e:
         return {"error": str(e)}
+
+def _family_zone_logs_for_students(student_ids, start_date):
+    """fix51: family_zone_logs has no student_id column (it has user_id and family_member_id); a family check-in belongs to a
+    student through family_members.student_id. Returns an object with .data (list of {id}) like a query result."""
+    class _R:
+        def __init__(self, data): self.data = data
+    ids = [f["id"] for f in (supabase.table("family_members").select("id").in_("student_id", student_ids).execute().data or []) if f.get("id")]
+    if not ids:
+        return _R([])
+    return supabase.table("family_zone_logs").select("id").in_("family_member_id", ids).gte("timestamp", start_date).execute()
 
 def _cleanup_old_alerts_background():
     try:
@@ -15724,7 +15733,7 @@ async def get_admin_stats(request: Request, days: int = 7):
         # Total creatures across all students
         total_creatures = 0
         try:
-            creatures_r = supabase.table("creatures").select("id", count="exact").execute()
+            creatures_r = supabase.table("creature_unlocks").select("id", count="exact").execute()   # fix51: there is no `creatures` table; creatures students have started/collected = creature_unlocks rows
             total_creatures = creatures_r.count or 0
         except Exception as e:
             logger.warning(f"[stats-total-creatures] creatures count failed: {e}")
@@ -18547,7 +18556,7 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
         **({
             "alerts": asyncio.to_thread(lambda: supabase.table("student_alerts").select("*").in_("student_id", student_ids).gte("created_at", start_date).execute()),
             "prev_logs": asyncio.to_thread(lambda: _fetch_all_paginated("feeling_logs", "student_id,feeling_colour", lambda q: q.in_("student_id", student_ids).gte("timestamp", prev_start).lt("timestamp", start_date))),
-            "fam_logs": asyncio.to_thread(lambda: supabase.table("family_zone_logs").select("id").in_("student_id", student_ids).gte("timestamp", start_date).execute()),
+            "fam_logs": asyncio.to_thread(lambda: _family_zone_logs_for_students(student_ids, start_date)),
             "parent_links": asyncio.to_thread(lambda: supabase.table("parent_links").select("parent_user_id").in_("student_id", student_ids).execute()),
             "creature_unlocks": asyncio.to_thread(lambda: supabase.table("creature_unlocks").select("completed_at").in_("real_student_id", student_ids).execute()),
             "student_rewards": asyncio.to_thread(lambda: supabase.table("student_rewards").select("current_stage").in_("student_id", student_ids).execute()),
@@ -21750,6 +21759,24 @@ async def list_support_requests(request: Request):
         r["requested_by_name"] = teacher_names.get(r.get("requested_by"))
     return rows
 
+# fix51: static route registered BEFORE the dynamic /{request_id} one (it used to be captured by it: "staff-shortcuts" is not a uuid -> 500)
+@api_router.get("/support-requests/staff-shortcuts")
+async def get_staff_shortcuts(request: Request):
+    """Teacher-readable, school_admin-writable list of tappable staff-name shortcuts
+    for the STAFF_MEMBER request type. No feature-gate check here beyond needing a
+    resolvable school - if support_requests isn't allowed the teacher never reaches the
+    UI that calls this anyway, and an empty list is a harmless response either way."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    school_admin_id = _teacher_school_admin_id(user)
+    if not school_admin_id:
+        return []
+    try:
+        return supabase.table("support_staff_shortcuts").select("*").eq("school_admin_id", school_admin_id).order("sort_order").execute().data or []
+    except Exception:
+        return []
+
 @api_router.get("/support-requests/{request_id}")
 async def get_support_request(request_id: str, request: Request):
     """Real addition Sep 10 (build 27, design change 5): single-row lookup for the
@@ -21909,23 +21936,6 @@ async def cancel_support_request(request_id: str, request: Request):
         channel_id="default",  # cancel is always the standard channel, even if the cancelled request was an incident
     )
     return updated
-
-@api_router.get("/support-requests/staff-shortcuts")
-async def get_staff_shortcuts(request: Request):
-    """Teacher-readable, school_admin-writable list of tappable staff-name shortcuts
-    for the STAFF_MEMBER request type. No feature-gate check here beyond needing a
-    resolvable school - if support_requests isn't allowed the teacher never reaches the
-    UI that calls this anyway, and an empty list is a harmless response either way."""
-    user = await get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    school_admin_id = _teacher_school_admin_id(user)
-    if not school_admin_id:
-        return []
-    try:
-        return supabase.table("support_staff_shortcuts").select("*").eq("school_admin_id", school_admin_id).order("sort_order").execute().data or []
-    except Exception:
-        return []
 
 @api_router.post("/support-requests/staff-shortcuts")
 async def add_staff_shortcut(request: Request):
