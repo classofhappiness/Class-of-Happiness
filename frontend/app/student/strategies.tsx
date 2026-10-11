@@ -27,6 +27,7 @@ const ZONE_COLORS: Record<string, string> = {
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://class-of-happiness-production.up.railway.app';
 
+
 export default function StrategiesScreen() {
   const router = useRouter();
   const { zone, location, fromFamily, returnTo } = useLocalSearchParams<{ zone: string; location?: string; fromFamily?: string; returnTo?: string }>();
@@ -96,72 +97,23 @@ export default function StrategiesScreen() {
     setLoading(true);
     setLoadError(false);
     try {
-      // Root cause fix Sep 26 (item 23): these 3 fetches don't depend on each other's
-      // responses (only on zone/currentStudent.id/language/token, all known up front) but
-      // used to run sequentially - await genericStrats, THEN await teacher custom, THEN await
-      // family shared - so total wait was the SUM of all 3 round trips instead of the slowest
-      // one. Confirmed via the timing middleware this screen's calls individually cost
-      // 700ms-1.2s each at the already-diagnosed Railway<->Supabase region latency (item 26) -
-      // summed sequentially that's exactly the multi-second wait Jono measured. Now fired
-      // concurrently with Promise.all; per-call error handling unchanged (a failed custom/
-      // shared fetch is still silently skipped, only a failed genericStrats fetch throws to
-      // trigger the existing retry-then-error-state path).
-      const url = `${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=${language || 'en'}`;
-      const tokenPromise = currentStudent?.id ? AsyncStorage.getItem('session_token') : Promise.resolve(null);
-
-      const [response, customStrats] = await Promise.all([
-        fetch(url),
-        (async (): Promise<Strategy[]> => {
-          if (!currentStudent?.id) return [];
-          const token = await tokenPromise;
-          const headers = { 'Authorization': `Bearer ${token}` };
-          let strats: Strategy[] = [];
-          const [customRes, sharedRes] = await Promise.all([
-            fetch(`${BACKEND_URL}/api/custom-strategies?student_id=${currentStudent.id}`, { headers }).catch(() => null),
-            fetch(`${BACKEND_URL}/api/strategies/shared/${currentStudent.id}`, { headers }).catch(() => null),
-          ]);
-          try {
-            if (customRes?.ok) {
-              const customData = await customRes.json();
-              const teacherStrats = (Array.isArray(customData) ? customData : [])
-                .filter((s: any) => (s.feeling_colour || s.zone) === zone)
-                .map((s: any) => ({
-                  id: s.id,
-                  name: s.name,
-                  description: s.description || '',
-                  icon: s.icon || 'star',
-                  zone: s.feeling_colour || s.zone || zone,
-                  is_custom: true,
-                }));
-              strats = [...strats, ...teacherStrats];
-            }
-          } catch { /* custom strategies optional */ }
-          try {
-            if (sharedRes?.ok) {
-              const sharedData = await sharedRes.json();
-              const familyStrats = (Array.isArray(sharedData) ? sharedData : [])
-                .filter((s: any) => (s.feeling_colour || s.zone) === zone)
-                .map((s: any) => ({
-                  id: s.id + '_family',
-                  name: s.name,
-                  description: s.description || '',
-                  icon: s.icon || 'favorite',
-                  zone: s.feeling_colour || s.zone || zone,
-                  is_custom: true,
-                }));
-              strats = [...strats, ...familyStrats];
-            }
-          } catch { /* shared strategies optional */ }
-          return strats;
-        })(),
-      ]);
+      // Oct 11 (fix41): ONE call. The server resolves what this child may see for THIS session (school context hides
+      // home strategies the parent has not shared; home context hides school strategies not shared with home) and
+      // labels each item with origin 'home' | 'school' | 'both'. It replaces the separate /custom-strategies and
+      // /strategies/shared reads (which ignored sharing). resolve=1 is ignored by older servers: they just return the
+      // built-in cards plus what they always did.
+      const url = `${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=${language || 'en'}&resolve=1`;
+      const helpersStudentId = currentStudent ? ((currentStudent as any).student_id || currentStudent.id) : null;
+      const helpersToken = helpersStudentId ? await AsyncStorage.getItem('session_token') : null;
+      const response = await (helpersStudentId
+        ? fetch(`${url}&student_id=${encodeURIComponent(helpersStudentId)}`, helpersToken ? { headers: { 'Authorization': `Bearer ${helpersToken}` } } : undefined)
+        : fetch(url));
       if (!response.ok) throw new Error(`helpers fetch failed: ${response.status}`);
       const genericStrats: Strategy[] = await response.json();
 
-      // Merge: generic first, then custom (no duplicates by name)
-      const genericNames = new Set(genericStrats.map((s: Strategy) => s.name.toLowerCase()));
-      const uniqueCustom = customStrats.filter((s: any) => !genericNames.has(s.name.toLowerCase()));
-      setStrategies([...genericStrats, ...uniqueCustom]);
+      // one list, already filtered and labelled by the server; only guard against the same id arriving twice
+      const seenIds = new Set<string>();
+      setStrategies((Array.isArray(genericStrats) ? genericStrats : []).filter((s: Strategy) => (seenIds.has(s.id) ? false : (seenIds.add(s.id), true))));
       setLoading(false);
     } catch (error) {
       console.error('Error fetching strategies:', error);
@@ -409,6 +361,7 @@ export default function StrategiesScreen() {
                     selected={selectedStrategies.includes(strategy.id)}
                     onPress={() => toggleStrategy(strategy.id)}
                     zoneColor={zoneColor}
+                    origin={(strategy as any).origin}
                   />
                 </View>
                 {/* Hand button — sits cleanly to the right of card */}

@@ -43,7 +43,7 @@ export default function SubscriptionSuccessScreen() {
         {status === 'loading' && (
           <>
             <EmotionColourLoader visible size={64} />
-            <Text style={styles.loadingText}>Verifying your payment...</Text>
+            <Text style={styles.loadingText}>{t('verifying_payment') || 'Verifying your payment...'}</Text>
           </>
         )}
 
@@ -52,9 +52,9 @@ export default function SubscriptionSuccessScreen() {
             <View style={styles.successIcon}>
               <MaterialIcons name="check-circle" size={80} color="#4CAF50" />
             </View>
-            <Text style={styles.successTitle}>Payment Successful!</Text>
+            <Text style={styles.successTitle}>{t('payment_successful_title') || 'Payment Successful!'}</Text>
             <Text style={styles.successDesc}>
-              Your {plan || ''} subscription is now active. Enjoy all premium features!
+              {(t('payment_successful_desc') || 'Your {plan} subscription is now active. Enjoy all premium features!').replace('{plan}', plan || '')}
             </Text>
             <TouchableOpacity
               style={styles.continueButton}
@@ -77,7 +77,7 @@ export default function SubscriptionSuccessScreen() {
             </View>
             <Text style={styles.errorTitle}>{t('error') || 'Payment Issue'}</Text>
             <Text style={styles.errorDesc}>
-              We couldn't verify your payment. Please contact support if you were charged.
+              {t('payment_verify_failed_desc') || "We couldn't verify your payment. Please contact support if you were charged."}
             </Text>
             <TouchableOpacity
               style={styles.retryButton}

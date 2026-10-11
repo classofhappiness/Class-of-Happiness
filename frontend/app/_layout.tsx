@@ -12,7 +12,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SplashAnimation } from '../src/components/SplashAnimation';
 import { ColourCycleLogo } from '../src/components/ColourCycleLogo';
 import * as Notifications from 'expo-notifications';
-import { isIncidentPushData, showIncidentAlert, registerNotifeeForegroundHandler } from '../src/utils/notifeeIncidents';
+import { setupNotifeeChannels, isIncidentPushData, showIncidentAlert, registerNotifeeForegroundHandler } from '../src/utils/notifeeIncidents';
+import { requestSupportRequestsRefreshFromPush, findSupportRequestForPush } from '../src/utils/supportRequestsPoller';
 import { preloadSounds } from '../src/utils/sounds';
 import { warmGreetingAudio } from '../src/utils/voiceClips';
 import { setCurrentRouteForNotifications, getCurrentRouteForNotifications, isChildFacingRoute, getDeviceNotificationsEnabledSync } from '../src/utils/notifications';
@@ -88,7 +89,7 @@ const HeaderWithBackAndLogo = ({ canGoBack }: { canGoBack?: boolean }) => {
     <View style={styles.headerLeftContainer}>
       {canGoBack && (
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
           style={styles.backButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
@@ -102,7 +103,22 @@ const HeaderWithBackAndLogo = ({ canGoBack }: { canGoBack?: boolean }) => {
 
 // Inner component that hides splash once app is ready
 function AppContent() {
-  const { isLoading, isAuthenticated, user, language } = useApp();
+  const { isLoading, isAuthenticated, user, language, t } = useApp();
+  // Latest t for long-lived notification-listener closures (effect deps don't include language).
+  const tRef = React.useRef(t);
+  tRef.current = t;
+  // Re-create the Android notifee channels with translated names on language change
+  // (same ids => only name/description update; importance/vibration untouched).
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !t('notif_channel_support_name')) return;
+    setupNotifeeChannels({
+      supportName: t('notif_channel_support_name'),
+      supportDescription: t('notif_channel_support_desc'),
+      incidentName: t('notif_channel_incident_name'),
+      incidentDescription: t('notif_channel_incident_desc'),
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [language, t('notif_channel_support_name')]);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -209,6 +225,11 @@ function AppContent() {
   // teacher sent it (support-request.tsx already supports ?viewId= to jump straight to a
   // specific request's status); school_admin/admin/superadmin receive it (admin/dashboard's
   // support_requests tab, now deep-linkable via ?tab= - see that screen's own fix).
+  // Oct 10: all four support-request push types route/refresh the same way.
+  const isSupportRequestPushType = (type: any): boolean =>
+    type === 'support_request' || type === 'support_request_response' ||
+    type === 'support_request_cancelled' || type === 'support_request_rebuzz';
+
   const navigateToSupportRequest = (requestId: string) => {
     if (!requestId) return;
     const role = user?.role;
@@ -228,6 +249,8 @@ function AppContent() {
   useEffect(() => {
     const sub = Notifications.addNotificationReceivedListener((event) => {
       const data = event.request.content.data as Record<string, any> | undefined;
+      // Oct 10: poll is now 15s - a support-request push (new/response/cancel/re-buzz) pulls the list now.
+      if (isSupportRequestPushType(data?.type)) requestSupportRequestsRefreshFromPush();
       // Root cause fix Sep 25 (round-3 device test, item 00): backend's create_support_request
       // already only ever pushes to the school_admin's own token, so a teacher's device was
       // never actually a recipient of this push in practice - but this listener itself had no
@@ -250,11 +273,30 @@ function AppContent() {
       // would be for anyone else. The alert itself is unaffected - still recorded, still
       // visible in the Support Requests queue and dashboard badge once back on an admin route.
       const routeSuppressed = isChildFacingRoute(getCurrentRouteForNotifications()) || !getDeviceNotificationsEnabledSync();
+      // Oct 10: a FOREGROUND re-buzz rings like a new incident - admin roles only, same route gate,
+      // and (mirroring new requests: only incidents ring) only for an INCIDENT request. The re-buzz
+      // payload has no is_incident, so look the request up; ring only if still PENDING and incident.
+      // Same notifee id (incident-<id>) as the original, so it replaces rather than duplicates.
+      if (data?.type === 'support_request_rebuzz' && data?.id && isAdminRole && !routeSuppressed) {
+        const rebuzzId = String(data.id);
+        const rebuzzTitle = event.request.content.title;
+        const rebuzzBody = event.request.content.body;
+        findSupportRequestForPush(rebuzzId).then((req) => {
+          if (!req || !req.is_incident || req.status !== 'PENDING' || req.acknowledged_at) return;
+          // Re-check the route: it may have changed while the lookup was in flight.
+          if (isChildFacingRoute(getCurrentRouteForNotifications()) || !getDeviceNotificationsEnabledSync()) return;
+          showIncidentAlert({
+            requestId: rebuzzId,
+            title: rebuzzTitle || (tRef.current('support_banner_incident_title') || '🚨 Incident'),
+            body: rebuzzBody || (tRef.current('support_banner_incident_body') || 'An incident needs immediate attention.'),
+          });
+        }).catch(() => {});
+      }
       if (isIncidentPushData(data) && isAdminRole && !routeSuppressed) {
         showIncidentAlert({
           requestId: String(data?.id || ''),
-          title: event.request.content.title || '🚨 Incident',
-          body: event.request.content.body || 'An incident needs immediate attention.',
+          title: event.request.content.title || (tRef.current('support_banner_incident_title') || '🚨 Incident'),
+          body: event.request.content.body || (tRef.current('support_banner_incident_body') || 'An incident needs immediate attention.'),
         });
       }
     });
@@ -265,11 +307,17 @@ function AppContent() {
     // foregrounded.
     const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data as Record<string, any> | undefined;
-      if (data?.type === 'support_request' && data?.id) {
+      if (isSupportRequestPushType(data?.type)) requestSupportRequestsRefreshFromPush();
+      // fromIncident=1 (skips the admin-code screen) is set by navigateToSupportRequest for every
+      // admin deep-link, exactly as before for new requests; response/cancelled/rebuzz reuse it.
+      if (isSupportRequestPushType(data?.type) && data?.id) {
         navigateToSupportRequest(String(data.id));
       }
     });
-    const unsubscribeForeground = registerNotifeeForegroundHandler(navigateToSupportRequest);
+    const unsubscribeForeground = registerNotifeeForegroundHandler((requestId) => {
+      requestSupportRequestsRefreshFromPush();
+      navigateToSupportRequest(requestId);
+    });
     return () => {
       sub.remove();
       responseSub.remove();
@@ -296,7 +344,8 @@ function AppContent() {
     Notifications.getLastNotificationResponseAsync().then((response) => {
       if (!response) return;
       const data = response.notification.request.content.data as Record<string, any> | undefined;
-      if (data?.type === 'support_request' && data?.id) {
+      if (isSupportRequestPushType(data?.type) && data?.id) {
+        requestSupportRequestsRefreshFromPush();
         navigateToSupportRequest(String(data.id));
         Notifications.clearLastNotificationResponseAsync().catch(() => {});
       }
@@ -348,21 +397,21 @@ function AppContent() {
           name="auth/callback"
           options={{
             headerShown: false,
-            title: 'Signing In',
+            title: t('signing_in_title') || 'Signing In',
           }}
         />
         <Stack.Screen
           name="auth/login"
           options={{
             headerShown: false,
-            title: 'Sign In',
+            title: t('sign_in_btn') || 'Sign In',
           }}
         />
         <Stack.Screen
           name="auth/signup"
           options={{
             headerShown: false,
-            title: 'Sign Up',
+            title: t('sign_up_title') || 'Sign Up',
           }}
         />
         {/* Real fix Sep 19 (live device report): this screen had no Stack.Screen entry at
@@ -375,14 +424,14 @@ function AppContent() {
           name="auth/forgot-password"
           options={{
             headerShown: false,
-            title: 'Reset Password',
+            title: t('reset_password_title') || 'Reset Password',
           }}
         />
         <Stack.Screen
           name="auth/set-password-required"
           options={{
             headerShown: false,
-            title: 'Set Password',
+            title: t('set_password') || 'Set Password',
             gestureEnabled: false,
           }}
         />
@@ -390,52 +439,52 @@ function AppContent() {
           name="auth/verify-email-required"
           options={{
             headerShown: false,
-            title: 'Verify Email',
+            title: t('verify_email_screen_title') || 'Verify Email',
             gestureEnabled: false,
           }}
         />
         <Stack.Screen
           name="settings"
           options={{
-            title: 'Settings',
-            headerBackTitle: 'Back',
-            headerRight: () => <HomeToDashboard />,
+            title: t('settings') || 'Settings',
+            headerBackTitle: t('back') || 'Back',
+            headerRight: () => <HomeToLanding />,
           }}
         />
         <Stack.Screen
           name="about"
           options={{
-            title: 'About & Privacy',
-            headerBackTitle: 'Back',
+            title: t('about_privacy') || 'About & Privacy',
+            headerBackTitle: t('back') || 'Back',
           }}
         />
         <Stack.Screen
           name="subscription/index"
           options={{
             headerShown: false,
-            title: 'Subscription',
+            title: t('subscription') || 'Subscription',
           }}
         />
         <Stack.Screen
           name="subscription/success"
           options={{
             headerShown: false,
-            title: 'Payment Success',
+            title: t('payment_success_title') || 'Payment Success',
           }}
         />
         <Stack.Screen
           name="student/select"
           options={{
             headerShown: false,
-            title: 'Select Your Profile',
-            headerBackTitle: 'Home',
+            title: t('select_profile') || 'Select Your Profile',
+            headerBackTitle: t('home') || 'Home',
           }}
         />
         <Stack.Screen
           name="student/zone"
           options={{
-            title: 'How Are You Feeling?',
-            headerBackTitle: 'Back',
+            title: t('how_are_you_feeling_title') || 'How Are You Feeling?',
+            headerBackTitle: t('back') || 'Back',
             headerRight: () => <HomeToStudents />,
           }}
         />
@@ -443,79 +492,80 @@ function AppContent() {
           name="student/strategies"
           options={{
             headerShown: false,
-            title: 'Helpful Strategies',
-            headerBackTitle: 'Back',
+            title: t('helpful_strategies_title') || 'Helpful Strategies',
+            headerBackTitle: t('back') || 'Back',
           }}
         />
         <Stack.Screen
           name="student/rewards"
           options={{
             headerShown: false,
-            title: 'Rewards',
+            title: t('rewards') || 'Rewards',
           }}
         />
         <Stack.Screen
           name="student/creatures"
           options={{
             headerShown: false,
-            title: 'My Creatures',
+            title: t('my_creatures') || 'My Creatures',
           }}
         />
         <Stack.Screen
           name="student/submit-creature"
           options={{
             headerShown: false,
-            title: 'Submit a Creature',
+            gestureEnabled: false, // back moves between internal steps; the iOS swipe must not pop the route
+            title: t('submit_creature') || 'Submit a Creature',
           }}
         />
         <Stack.Screen
           name="student/world-creatures"
           options={{
             headerShown: false,
-            title: 'World Creatures',
+            title: t('world_creatures') || 'World Creatures',
           }}
         />
         <Stack.Screen
           name="teacher/creature-code"
           options={{
-            title: 'Manage Creatures',
+            title: t('manage_creatures_title') || 'Manage Creatures',
           }}
         />
         <Stack.Screen
           name="parent/creature-code"
           options={{
-            title: 'Manage Creatures',
+            title: t('manage_creatures_title') || 'Manage Creatures',
           }}
         />
         <Stack.Screen
           name="profiles/create"
           options={{
             headerShown: false,
-            title: 'Create Profile',
-            headerBackTitle: 'Back',
+            title: t('create_profile_button') || 'Create Profile',
+            headerBackTitle: t('back') || 'Back',
           }}
         />
         <Stack.Screen
           name="profiles/edit"
           options={{
             headerShown: false,
-            title: 'Edit Profile',
-            headerBackTitle: 'Back',
+            title: t('edit_profile_title') || 'Edit Profile',
+            headerBackTitle: t('back') || 'Back',
           }}
         />
         <Stack.Screen
           name="teacher/dashboard"
           options={{
             headerShown: false,
-            title: 'Teacher Dashboard',
-            headerBackTitle: 'Home',
+            title: t('teacher_dashboard_title') || 'Teacher Dashboard',
+            headerBackTitle: t('home') || 'Home',
           }}
         />
         <Stack.Screen
           name="teacher/alerts"
           options={{
             headerShown: false,
-            title: 'Student Alerts',
+            title: t('student_alerts_title') || 'Student Alerts',
           }}
         />
         <Stack.Screen
@@ -540,34 +590,34 @@ function AppContent() {
           name="teacher/strategies"
           options={{
             headerShown: false,
-            title: 'Manage Strategies',
+            title: t('manage_strategies_title') || 'Manage Strategies',
           }}
         />
         <Stack.Screen
           name="teacher/resources"
           options={{
             headerShown: false,
-            title: 'Teacher Resources',
+            title: t('teacher_resources') || 'Teacher Resources',
           }}
         />
         <Stack.Screen
           name="teacher/checkin"
           options={{
             headerShown: false,
-            title: 'Teacher Check-in',
+            title: t('teacher_checkin_title') || 'Teacher Check-in',
           }}
         />
         <Stack.Screen
           name="teacher/widget"
           options={{
             headerShown: false,
-            title: 'Classroom Widget',
+            title: t('classroom_widget') || 'Classroom Widget',
           }}
         />
         <Stack.Screen
           name="parent/dashboard"
           options={{
-            title: 'Family Dashboard',
+            title: t('family_dashboard_title') || 'Family Dashboard',
             headerTitleStyle: { fontWeight: '700' },
             headerRight: () => <DashboardLogoOnly />,
           }}
@@ -576,28 +626,28 @@ function AppContent() {
           name="parent/alerts"
           options={{
             headerShown: false,
-            title: 'Family Alerts',
+            title: t('family_alerts_title') || 'Family Alerts',
           }}
         />
         <Stack.Screen
           name="parent/my-wellbeing"
           options={{
             headerShown: false,
-            title: 'My Wellbeing',
+            title: t('my_wellbeing') || 'My Wellbeing',
           }}
         />
         <Stack.Screen
           name="parent/resources"
           options={{
             headerShown: false,
-            title: 'Resources',
+            title: t('resources') || 'Resources',
           }}
         />
         <Stack.Screen
           name="parent/family-strategies"
           options={{
             headerShown: false,
-            title: 'Family Strategies',
+            title: t('family_strategies') || 'Family Strategies',
           }}
         />
         <Stack.Screen
@@ -610,7 +660,7 @@ function AppContent() {
           name="parent/widget"
           options={{
             headerShown: false,
-            title: 'Family Widget',
+            title: t('family_widget') || 'Family Widget',
           }}
         />
         <Stack.Screen
@@ -627,28 +677,29 @@ function AppContent() {
           name="admin/dashboard"
           options={{
             headerShown: false,
-            title: 'Admin Dashboard',
+            title: t('admin_dashboard') || 'Admin Dashboard',
           }}
         />
         <Stack.Screen
           name="teacher/bulk-checkin"
           options={{
             headerShown: false,
-            title: 'Quick Class Check-in',
+            title: t('quick_class_checkin_title') || 'Quick Class Check-in',
           }}
         />
         <Stack.Screen
           name="teacher/support-request"
           options={{
             headerShown: false,
-            title: 'Support Request',
+            gestureEnabled: false, // back moves between internal steps; the iOS swipe must not pop the route
+            title: t('request_support') || 'Support Request',
           }}
         />
         <Stack.Screen
           name="kiosk/index"
           options={{
             headerShown: false,
-            title: 'Kiosk',
+            title: t('kiosk_title') || 'Kiosk',
           }}
         />
       </Stack>
@@ -722,19 +773,19 @@ function HomeToStudents() {
   return (
     <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginRight:12 }}>
       <ColourCycleLogo size={48.4} loop />
-      <TouchableOpacity onPress={() => r.replace('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+      <TouchableOpacity onPress={() => r.dismissTo('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <MaterialIcons name="home" size={20} color="#1A1A2E" />
       </TouchableOpacity>
     </View>
   );
 }
 
-function HomeToDashboard() {
+function HomeToLanding() {
   const r = useRouter();
   return (
     <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginRight:12 }}>
       <ColourCycleLogo size={48.4} loop />
-      <TouchableOpacity onPress={() => r.replace('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+      <TouchableOpacity onPress={() => r.dismissTo('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <MaterialIcons name="home" size={20} color="#1A1A2E" />
       </TouchableOpacity>
     </View>
@@ -745,7 +796,7 @@ function HomeToDashboard() {
 // landing screen the native back button already returns to in practice), a separate home
 // button is redundant - removed for parent/dashboard's headerRight below, logo alone now
 // sits where home used to be (the far right). Deliberately a new component rather than
-// editing HomeToDashboard in place - that one is also used by the plain 'settings' screen
+// editing HomeToLanding in place - that one is also used by the plain 'settings' screen
 // (line ~327 below), which is not a dashboard and keeps its home button.
 function DashboardLogoOnly() {
   return (

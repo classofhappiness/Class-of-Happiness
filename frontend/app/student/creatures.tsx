@@ -25,7 +25,7 @@ import { useApp } from '../../src/context/AppContext';
 import { creaturesApi } from '../../src/utils/api';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
-import { AnimatedCreatureVisual } from '../../src/components/AnimatedCreatureVisual';
+import { AnimatedCreatureVisual, EMOJI_FIT } from '../../src/components/AnimatedCreatureVisual';
 import { CreatureDetailModal, CreatureDetailEntry } from '../../src/components/CreatureDetailModal';
 import { EvolutionProgressBar, DEFAULT_CREATURE_THRESHOLDS, COMMUNITY_CREATURE_THRESHOLDS } from '../../src/components/EvolutionProgressBar';
 import { useDataGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
@@ -97,9 +97,9 @@ interface CreatureEntry {
 // hooks - a plain per-item render function can't safely call hooks, since the number of
 // entries (and therefore call count) varies between renders.
 function CreatureGridCard({
-  item, colour, width, creatureSize, onPress, t,
+  item, colour, width, creatureSize, communityCreatureSize, onPress, t,
 }: {
-  item: CreatureEntry; colour: string; width: number | string; creatureSize: number; onPress: () => void; t: (key: string) => string | undefined;
+  item: CreatureEntry; colour: string; width: number | string; creatureSize: number; communityCreatureSize: number; onPress: () => void; t: (key: string) => string | undefined;
 }) {
   const ringPulse = useRef(new Animated.Value(1)).current;
   const expired = item.was_featured && item.featured_until && new Date(item.featured_until) < new Date();
@@ -164,7 +164,7 @@ function CreatureGridCard({
         <View style={[styles.imgWrap, { backgroundColor: EMOTION_COLORS[colour] + '25' }]}>
           <AnimatedCreatureVisual
             zone={colour}
-            size={creatureSize}
+            size={item.type === 'community' ? communityCreatureSize : creatureSize}
             unlocked={item.current_stage > 0 || item.is_complete}
             emoji={item.type === 'default' ? item.emoji : undefined}
             imageUrl={imgUrl || undefined}
@@ -186,7 +186,7 @@ function CreatureGridCard({
             variable part so every card in a row ends up the same total height, confirmed by
             actually summing the worst-case combination's font sizes/margins below. */}
         <View style={{ minHeight: 90, alignItems: 'center', width: '100%' }}>
-          <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+          <Text style={styles.name} numberOfLines={1}>{item.type === 'default' ? (t(`creature_${item.id}_name`) || item.name) : item.name}</Text>
           {item.is_active ? (
             // Build 26 (Sep 6): background now matches the ring's per-creature EMOTION_COLORS
             // fix instead of the flat ACTIVE_RING_COLOUR indigo - badge and ring should agree.
@@ -228,7 +228,18 @@ export default function CreatureCollectionScreen() {
   // properly instead of sitting small in the middle of empty space.
   const { width: screenWidth } = useWindowDimensions();
   const cardPixelWidth = (screenWidth - 16 * 2 - 10 * 2 - 10 * (gridColumns - 1)) / gridColumns;
-  const creatureSize = Math.max(40, cardPixelWidth - (12 * 2) - (1 * 2));
+  // Real fix Oct 7 (emoji clipping while animating): the old value ignored the 6px ring padding
+  // each side that CreatureGridCard's TouchableOpacity adds (ACTIVE_RING_GAP + ACTIVE_RING_THICKNESS),
+  // so the emoji was ~12px wider than imgWrap before it moved at all. innerSize is imgWrap's real
+  // width; the creature is then drawn at 78% of it so the largest sway (green -16, blue +-12) has
+  // headroom inside the box instead of being clipped.
+  const innerSize = cardPixelWidth - 2 * (ACTIVE_RING_GAP + ACTIVE_RING_THICKNESS) - (12 * 2) - (1 * 2);
+  // Oct 11 (fix41): the emoji glyph is now sized to FIT its frame (EMOJI_FIT x frame, was 1.0 x frame in an oversized
+  // Text box that got clipped). Dividing by EMOJI_FIT keeps the VISIBLE emoji exactly as large as before (0.78 of the box).
+  const creatureSize = Math.max(40, Math.round(innerSize * 0.78 / EMOJI_FIT));
+  // Oct 10: the 78% headroom is for emoji only. Uploaded-image creatures fill the inner box at 110%
+  // (5% overhang each side, imgWrap is overflow:visible) like the original creatures.
+  const communityCreatureSize = Math.max(44, Math.round(innerSize * 1.10));
   const [colours, setColours] = useState<Record<string, CreatureEntry[]>>({});
   const [totalCollected, setTotalCollected] = useState(0);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -261,7 +272,7 @@ export default function CreatureCollectionScreen() {
       setTotalCollected(data?.total_collected || 0);
       return freshColours;
     } catch (err) {
-      setError('Could not load your creatures. Please try again.');
+      setError(t('could_not_load_creatures') || 'Could not load your creatures. Please try again.');
       return null;
     } finally {
       if (!silent) setLoading(false);
@@ -297,13 +308,14 @@ export default function CreatureCollectionScreen() {
       colour={colour}
       width={gridCardWidth(gridColumns)}
       creatureSize={creatureSize}
+      communityCreatureSize={communityCreatureSize}
       onPress={() => { setDetailColour(colour); setDetailEntry(item); }}
       t={t}
     />
   );
 
   const goToWorld = () => router.push('/student/world-creatures');
-  const goToSubmit = () => router.push('/student/submit-creature');
+  const goToSubmit = () => router.navigate('/student/submit-creature');
 
   return (
     <View style={styles.container}>
@@ -344,7 +356,7 @@ export default function CreatureCollectionScreen() {
                   onPress={() => toggleColour(colour)}
                 >
                   <Text style={styles.sectionTitle}>
-                    {EMOTION_EMOJI[colour]} {COLOUR_LABEL[colour]} · {collectedInColour}/{entries.length}
+                    {EMOTION_EMOJI[colour]} {t(`${colour}_short_label`) || COLOUR_LABEL[colour]} · {collectedInColour}/{entries.length}
                   </Text>
                   <MaterialIcons name={isOpen ? 'expand-less' : 'expand-more'} size={26} color="#666" />
                 </TouchableOpacity>
@@ -436,7 +448,7 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: 'center',
   },
-  imgWrap: { width: '100%', aspectRatio: 1, marginBottom: 8, borderRadius: 10, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' },
+  imgWrap: { width: '100%', aspectRatio: 1, marginBottom: 8, borderRadius: 10, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center', overflow: 'visible' },
   emoji: {
     fontSize: 40,
     marginBottom: 8,

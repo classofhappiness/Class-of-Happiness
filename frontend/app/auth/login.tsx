@@ -232,8 +232,8 @@ export default function LoginScreen() {
           not a hardcoded constant; this screen's SafeAreaView import is from plain
           'react-native', which is an iOS-only no-op on Android, so it gave zero real
           protection here despite looking safe). */}
-      <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { top: insets.top + 12 }]} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-        <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
+      <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} style={[styles.backButton, { top: insets.top + 12 }]} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <MaterialIcons name="arrow-back" size={20} color="#1A1A2E" />
       </TouchableOpacity>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -499,9 +499,18 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
+  // Real fix Oct 6 (auth-screen sweep straggler): this screen's back button was missed by
+  // the app-wide Oct 3/Oct 4 button redesign entirely (still the original solid-navy-fill/
+  // white-icon style) - updated to match TranslatedHeader's own backButton exactly (same
+  // 36x36 footprint, same transparent fill + thin #CFCFCF ring, Option 4 "Thin gray
+  // outline" pick). No shared exported style/component exists for this pattern yet - every
+  // other screen in the redesign (TranslatedHeader.tsx, _layout.tsx, kiosk/index.tsx, etc.)
+  // also keeps its own local copy of these same 5 properties, so this matches that existing
+  // convention rather than introducing a new one unprompted.
   backButton: {
     position: 'absolute', left: 12, zIndex: 10,
-    width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E',
+    width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent',
+    borderWidth: 1, borderColor: '#CFCFCF',
     alignItems: 'center', justifyContent: 'center',
   },
   inner: { flex: 1 },

@@ -35,37 +35,6 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { EvolutionProgressBar, DEFAULT_CREATURE_THRESHOLDS, COMMUNITY_CREATURE_THRESHOLDS } from '../../src/components/EvolutionProgressBar';
 
 
-// Zone-specific tips — research-backed, age appropriate (6-12), 3-4 words max
-const ZONE_TIPS: Record<string, string[]> = {
-  blue: [
-    'Rest helps you grow',
-    'Still waters run deep',
-    'Rest is productive',
-  ],
-  green: [
-    'You are doing great',
-    'Share your good energy',
-    'Help someone today',
-  ],
-  yellow: [
-    'Breathe, then decide',
-    "Slow down, you're safe",
-    'Wiggle it all out',
-  ],
-  red: [
-    "Breathe deep, you're safe",
-    'This feeling will pass',
-    'Ask for help now',
-  ],
-};
-
-const STUDENT_COLOUR_MESSAGE: Record<string, string> = {
-  blue: "It's okay to feel quiet. Rest and be kind to yourself.",
-  green: "You're in a great space! Keep sharing that energy.",
-  yellow: "Feeling wobbly is normal. Use your helpers to find calm.",
-  red: "Big feelings are okay. You are safe and supported.",
-};
-
 export default function RewardsScreen() {
   const router = useRouter();
   const { currentStudent, t, language } = useApp();
@@ -118,8 +87,6 @@ export default function RewardsScreen() {
   // creature simply stays "ready" (evolution_ready keeps coming back true) until they
   // explicitly tap Evolve somewhere, on this screen or that one - no time limit, no penalty.
   const [evolveSkipped, setEvolveSkipped] = useState(false);
-  const [tipVisible, setTipVisible] = useState(true);
-  const tipOpacityAnim = useRef(new Animated.Value(1)).current;
 
   // Real fix Sep 24 (item2, no-scroll reward screen): this screen must fit without scrolling
   // in every state (normal reward, evolve-available, evolved) on a ~6" phone - the old design
@@ -149,21 +116,6 @@ export default function RewardsScreen() {
   // container size, confirmed against each component's own styles (container padding:16
   // top+bottom, name/description/dots stack beneath).
   const creatureMaxSize = creatureAreaHeight != null ? Math.max(64, creatureAreaHeight - 100) : undefined;
-
-  const dismissTip = () => {
-    Animated.timing(tipOpacityAnim, {
-      toValue: 0,
-      duration: 500,
-      useNativeDriver: true,
-    }).start(() => setTipVisible(false));
-  };
-
-  useEffect(() => {
-    // Real fix Aug 21: bumped from 5000ms - kids weren't getting enough time to read the tip
-    // before it faded.
-    const timer = setTimeout(() => dismissTip(), 7000);
-    return () => clearTimeout(timer);
-  }, []);
 
   // Animation refs
   const pointsAnim = useRef(new Animated.Value(0)).current;
@@ -319,14 +271,14 @@ export default function RewardsScreen() {
     // fire-and-forget like every other voice clip in this app, plays over the navigation.
     playPhraseFromPool('farewell', language);
     if (params.returnTo === 'family') {
-      router.replace('/parent/dashboard');
+      router.dismissTo('/parent/dashboard');
     } else if (params.returnTo === 'kiosk') {
       // Real fix Aug 30 (build-26, kiosk restore): a kiosk device only ever has
       // kiosk_token in storage, never session_token - falling through to the default
       // /student/select below (which reads session_token) was a dead end.
-      router.replace('/kiosk');
+      router.dismissTo('/kiosk');
     } else {
-      router.replace('/student/select');
+      router.dismissTo('/student/select');
     }
   };
 
@@ -383,7 +335,7 @@ export default function RewardsScreen() {
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingEmoji}>🥚</Text>
           <EmotionColourLoader visible size={56} />
-          <Text style={styles.loadingText}>{t('loading_creature')}</Text>
+          <Text style={styles.loadingText}>{t('loading_creature') || 'Loading your creature...'}</Text>
         </View>
       </SafeAreaView>
     );
@@ -403,7 +355,7 @@ export default function RewardsScreen() {
           </Text>
           <TouchableOpacity
             style={{ backgroundColor:'#5C6BC0', borderRadius:16, padding:18, width:'100%', alignItems:'center' }}
-            onPress={() => router.replace('/parent/dashboard')}
+            onPress={() => router.dismissTo('/parent/dashboard')}
           >
             <Text style={{ color:'white', fontSize:16, fontWeight:'700' }}>
               {t('done') || 'Done'} ✓
@@ -430,7 +382,7 @@ export default function RewardsScreen() {
       <TranslatedHeader
         title=""
         showHome
-        onBackPress={() => router.back()}
+        onBackPress={() => (router.canGoBack() ? router.back() : router.replace('/student/select'))}
         homeTo={params.returnTo === 'family' ? '/parent/dashboard' : params.returnTo === 'kiosk' ? '/kiosk' : '/student/select'}
       />
       {/* Real bug fix Aug 22: this whole middle section had no ScrollView - once the Bronze
@@ -464,10 +416,10 @@ export default function RewardsScreen() {
           tight spacing that keeps it scroll-free. No-scroll wins the conflict; this is what
           "wins" looks like in practice. */}
       <View style={[styles.header, !isCompactViewport && styles.headerRoomy]}>
-        <Text style={styles.headerTitle}>🎉 {t('great_job_title')}</Text>
+        <Text style={styles.headerTitle}>🎉 {t('great_job_title') || 'Great job!'}</Text>
         <Text style={[styles.headerSubtitle, !isCompactViewport && styles.headerSubtitleRoomy]}>
           {rewardsData?.streak_days && rewardsData?.streak_days > 1
-            ? `🔥 ${rewardsData?.streak_days} ${t('day_streak')}`
+            ? `🔥 ${rewardsData?.streak_days} ${t('day_streak') || 'day streak!'}`
             : t('keep_it_up') || 'Keep it up!'}
         </Text>
       </View>
@@ -607,41 +559,12 @@ export default function RewardsScreen() {
       ) : rewardsData?.points_for_next_evolution ? (
         <View style={styles.progressHint}>
           <Text style={styles.progressHintText}>
-            {rewardsData.points_for_next_evolution} {t('more_points_until')} {rewardsData?.current_creature?.name} {t('evolves')}
+            {rewardsData.points_for_next_evolution} {t('more_points_until') || 'more points until'} {rewardsData?.current_creature?.creature_type === 'community' ? rewardsData?.current_creature?.name : (t(`creature_${rewardsData?.current_creature?.id}_name`) || rewardsData?.current_creature?.name)} {t('evolves') || 'evolves'}
           </Text>
         </View>
       ) : null}
 
-      {/* Zone-specific tip - real fix Aug 16: auto-dismisses after 5s, or tap
-          the X to close immediately. Was permanently on-screen before,
-          blocking the creature graphic below it. */}
-      {(() => {
-        const colour = (params as any)?.zone || '';
-        const tips = ZONE_TIPS[colour] || ZONE_TIPS.green;
-        const tip = tips[Math.floor(Date.now() / 1000) % tips.length];
-        const msg = STUDENT_COLOUR_MESSAGE[colour] || '';
-        // Real fix Sep 24 (item2, no-scroll reward screen): this generic zone tip and the
-        // Brave Shield badge below are both dismissible asides, never the reason a student
-        // opened this screen - the shield (their own real effort) takes priority on a
-        // shorter viewport where showing both at once, on top of the evolve-available
-        // buttons, is what actually pushed the layout budget over.
-        const shieldShowing = !!shield?.has_shield && !shieldDismissed;
-        return colour && tipVisible && !isCompactViewport && !shieldShowing ? (
-          <Animated.View style={{ opacity: tipOpacityAnim, marginHorizontal:20, marginBottom:10, padding:14, borderRadius:14,
-            backgroundColor: colour==='blue'?'#EBF5FB': colour==='green'?'#EAFAF1': colour==='yellow'?'#FEFDE7':'#FDEDEC',
-            borderLeftWidth:4, borderLeftColor: colour==='blue'?EMOTION_COLOURS.blue: colour==='green'?EMOTION_COLOURS.green: colour==='yellow'?EMOTION_COLOURS.yellow:EMOTION_COLOURS.red }}>
-            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
-              <View style={{ flex:1 }}>
-                <Text style={{ fontSize:13, fontWeight:'700', color:'#333', marginBottom:4 }}>{tip}</Text>
-                <Text style={{ fontSize:12, color:'#555', lineHeight:18 }}>{msg}</Text>
-              </View>
-              <TouchableOpacity onPress={dismissTip} style={{ padding:4, marginLeft:8 }}>
-                <Text style={{ fontSize:16, color:'#888', fontWeight:'700' }}>✕</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        ) : null;
-      })()}
+      {/* Oct 11: the zone tip / colour message banner that used to sit here was removed for every role (it faded out after a few seconds on a busy screen). */}
 
       {/* Brave Shield Badge */}
       {shield?.has_shield && !shieldDismissed && !isCompactViewport && (
@@ -708,7 +631,7 @@ export default function RewardsScreen() {
             style={[styles.collectionButton, { flex: 1, width: undefined }]}
             onPress={() => {
               playButtonFeedback();
-              router.push('/student/creatures');
+              router.navigate('/student/creatures');
             }}
           >
             <MaterialIcons name="pets" size={20} color="#FFD700" />
@@ -738,7 +661,7 @@ export default function RewardsScreen() {
             style={[styles.continueButton, { backgroundColor: rewardsData?.current_creature?.color || EMOTION_COLOURS[(rewardsData?.current_creature?.feeling_colour || rewardsData?.feeling_colour) as keyof typeof EMOTION_COLOURS] || '#5C6BC0' }]}
             onPress={handleContinue}
           >
-            <Text style={styles.continueText}>{t('continue')}</Text>
+            <Text style={styles.continueText}>{t('continue') || 'Continue'}</Text>
             <MaterialIcons name="arrow-forward" size={24} color="white" />
           </TouchableOpacity>
         )}

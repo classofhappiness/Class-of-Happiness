@@ -7,6 +7,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
+import { formatNumericDate, formatNumericDateTime } from '../../src/utils/dateLabel';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
@@ -14,20 +15,26 @@ import { SecureField } from '../../src/components/SecureField';
 import { PinConfirmModal } from '../../src/components/PinConfirmModal';
 import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
 import { supportRequestsApi, SupportRequest } from '../../src/utils/api';
-import { useSupportRequestsList } from '../../src/utils/supportRequestsPoller';
-import { registerForPushNotifications, IS_EXPO_GO } from '../../src/utils/notifications';
+import { useSupportRequestsList, refreshSupportRequestsNow } from '../../src/utils/supportRequestsPoller';
+import { registerForPushNotifications, registerForPushNotificationsDetailed, IS_EXPO_GO } from '../../src/utils/notifications';
 import { dismissIncidentAlert } from '../../src/utils/notifeeIncidents';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ColourCycleLogo } from '../../src/components/ColourCycleLogo';
 import { BarChart } from 'react-native-gifted-charts';
 import { STRAT } from '../../src/components/AlertCard';
-import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
+import { resolveStrategyName, strategyLabel } from '../../src/utils/resolveStrategyName';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const INDIGO = '#5C6BC0';
 const ZONE_COLORS: Record<string,string> = EMOTION_COLOURS;
 const ZONE_LABELS: Record<string,string> = { blue:'Blue Emotions', green:'Green Emotions', yellow:'Yellow Emotions', red:'Red Emotions' };
 const ZONES = ['blue','green','yellow','red'];
+// Real fix Sep 30 (live feedback follow-up audit): ZONE_LABELS above is a hardcoded English
+// dict read directly with no t() call - school_admin accounts (who reach this screen, not
+// just superadmin) never saw it translated. Matches the same getZoneLabel pattern already
+// used on teacher/parent screens.
+const getZoneLabel = (zone: string, t: (key: string) => string): string =>
+  t(`${zone}_zone`) || t(`${zone}_emotions`) || ZONE_LABELS[zone] || zone;
 
 async function apiCall(endpoint: string, token: string|null, options: any = {}) {
   const headers: any = { 'Content-Type':'application/json' };
@@ -80,11 +87,12 @@ function StatRow({ label, value, icon, color }: any) {
 }
 
 function ColourBar({ zone, count, total }: any) {
+  const { t } = useApp();
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
   return (
     <View style={s.colourRow}>
       <View style={[s.colourDot, { backgroundColor: ZONE_COLORS[zone] }]} />
-      <Text style={s.colourLabel}>{ZONE_LABELS[zone]}</Text>
+      <Text style={s.colourLabel}>{getZoneLabel(zone, t)}</Text>
       <View style={s.colourBarBg}>
         <View style={[s.colourBar, { width: `${pct}%` as any, backgroundColor: ZONE_COLORS[zone] }]} />
       </View>
@@ -106,12 +114,12 @@ function periodLabel(period: number, t: (k: string) => string): string {
 // backend and the portal since Sep 8/11, but had no app-side management UI at all - the only
 // way to grant a school one of these features was a direct Supabase edit. Labels match the
 // wording each feature already uses in its own SectionCard elsewhere in this file/screen.
-const FEATURE_LABELS: Record<string, { label: string; icon: keyof typeof MaterialIcons.glyphMap }> = {
-  support_requests: { label: 'Support Requests (Buzz)', icon: 'notifications-active' },
-  creature_shop: { label: 'Class of Happiness Shop', icon: 'storefront' },
-  careers_advisory: { label: 'Careers Advisory', icon: 'work' },
-  services_directory: { label: 'Services Directory', icon: 'folder-shared' },
-  wellbeing_welfare: { label: 'Wellbeing Tracker', icon: 'favorite' },
+const FEATURE_LABELS: Record<string, { labelKey: string; fallback: string; icon: keyof typeof MaterialIcons.glyphMap }> = {
+  support_requests: { labelKey: 'feature_support_requests_buzz', fallback: 'Support Requests (Buzz)', icon: 'notifications-active' },
+  creature_shop: { labelKey: 'feature_creature_shop', fallback: 'Class of Happiness Shop', icon: 'storefront' },
+  careers_advisory: { labelKey: 'feature_careers_advisory', fallback: 'Careers Advisory', icon: 'work' },
+  services_directory: { labelKey: 'feature_services_directory', fallback: 'Services Directory', icon: 'folder-shared' },
+  wellbeing_welfare: { labelKey: 'feature_wellbeing_tracker', fallback: 'Wellbeing Tracker', icon: 'favorite' },
 };
 const SCHOOL_FEATURE_KEYS = ['support_requests', 'creature_shop', 'careers_advisory', 'services_directory', 'wellbeing_welfare'];
 
@@ -430,7 +438,7 @@ const SCHOOL_STATUS_COLORS: Record<string, { bg: string, fg: string }> = {
 // from /admin/school-profiles directly, same as the portal, and merges in check-in
 // counts as supplementary info rather than as the list itself.
 function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats: any, statsLoading: boolean, authToken: string|null, statsPeriod: number }) {
-  const { t } = useApp();
+  const { t, language } = useApp();
   const breakdown = stats?.schools_breakdown || [];
   const [profiles, setProfiles] = useState<any[]>([]);
   const [profilesLoading, setProfilesLoading] = useState(true);
@@ -737,7 +745,7 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
   const field = (key: string, opts: { keyboardType?: any } = {}) => (
     <TextInput
       style={{ backgroundColor: '#F5F5F5', borderRadius: 8, padding: 10, fontSize: 13, marginBottom: 8 }}
-      placeholder={key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+      placeholder={t(`school_field_${key}`) || key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
       value={form[key] != null ? String(form[key]) : ''}
       onChangeText={v => setForm((f: any) => ({ ...f, [key]: v }))}
       keyboardType={opts.keyboardType}
@@ -972,7 +980,7 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
                         return active ? (
                           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, backgroundColor: '#EDE7F6', borderRadius: 8, padding: 8, marginBottom: 6 }}>
                             <Text style={{ fontSize: 12, fontWeight: '800', color: '#1A1A2E', flexShrink: 1 }}>
-                              {active.code} <Text style={{ fontSize: 10, fontWeight: '600', color: '#888' }}>· {tierLabel(active.tier)} · {t('until_label') || 'until'} {new Date(active.expires_at).toLocaleDateString()}</Text>
+                              {active.code} <Text style={{ fontSize: 10, fontWeight: '600', color: '#888' }}>· {tierLabel(active.tier)} · {t('until_label') || 'until'} {formatNumericDate(active.expires_at, language)}</Text>
                             </Text>
                             <TouchableOpacity onPress={() => copyToClipboard(active.code)} style={{ paddingHorizontal: 8, paddingVertical: 4, backgroundColor: 'white', borderRadius: 8 }}>
                               <Text style={{ fontSize: 11, fontWeight: '700', color: '#5C6BC0' }}>📋 {t('copy') || 'Copy'}</Text>
@@ -994,7 +1002,7 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
 
                       {codesPanelOpen[profile.id] && (
                         <View style={{ marginTop: 8, padding: 10, backgroundColor: '#FAFAFA', borderRadius: 10 }}>
-                          <Text style={{ fontSize: 11, fontWeight: '800', color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '800', color: '#999', textTransform: 'uppercase', letterSpacing: (language === 'ar' || language === 'hi') ? 0 : 0.5, marginBottom: 6 }}>
                             {t('school_provisioning_code_label') || 'School Provisioning Code'}
                           </Text>
                           <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
@@ -1036,7 +1044,7 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
 
                           {!!profile.school_admin_user_id && (
                             <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#EEE' }}>
-                              <Text style={{ fontSize: 11, fontWeight: '800', color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                              <Text style={{ fontSize: 11, fontWeight: '800', color: '#999', textTransform: 'uppercase', letterSpacing: (language === 'ar' || language === 'hi') ? 0 : 0.5, marginBottom: 6 }}>
                                 {t('school_invite_code') || 'School Invite Code'}
                               </Text>
                               {inviteCodeBySchool[profile.school_admin_user_id] === undefined ? (
@@ -1081,8 +1089,8 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
                               linked yet. */}
                           {!!profile.school_admin_user_id && (
                             <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#FFCDD2' }}>
-                              <Text style={{ fontSize: 11, fontWeight: '800', color: '#C62828', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
-                                {t('danger_zone_label') || 'Danger Zone'}
+                              <Text style={{ fontSize: 11, fontWeight: '800', color: '#C62828', textTransform: 'uppercase', letterSpacing: (language === 'ar' || language === 'hi') ? 0 : 0.5, marginBottom: 6 }}>
+                                {t('danger_zone_label') || 'Account actions'}
                               </Text>
                               <TouchableOpacity
                                 onPress={() => revokeSchoolAdmin(profile)}
@@ -1105,8 +1113,8 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
                               genuinely empty before deleting anything. */}
                           {!profile.school_admin_user_id && (
                             <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#FFCDD2' }}>
-                              <Text style={{ fontSize: 11, fontWeight: '800', color: '#C62828', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
-                                {t('danger_zone_label') || 'Danger Zone'}
+                              <Text style={{ fontSize: 11, fontWeight: '800', color: '#C62828', textTransform: 'uppercase', letterSpacing: (language === 'ar' || language === 'hi') ? 0 : 0.5, marginBottom: 6 }}>
+                                {t('danger_zone_label') || 'Account actions'}
                               </Text>
                               <Text style={{ fontSize: 11, color: '#999', marginBottom: 8 }}>
                                 {t('no_admin_linked_desc') || 'No admin is linked to this school profile.'}
@@ -1133,7 +1141,7 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
                         never linked to a real admin account has nothing to key the grant by,
                         matching GET /admin/school-features' own `if not admin_id: continue`. */}
                     <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F0F0F0' }}>
-                      <Text style={{ fontSize: 11, fontWeight: '800', color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: '#999', textTransform: 'uppercase', letterSpacing: (language === 'ar' || language === 'hi') ? 0 : 0.5, marginBottom: 8 }}>
                         {t('feature_access_label') || 'Feature Access'}
                       </Text>
                       {!profile.school_admin_user_id ? (
@@ -1152,7 +1160,7 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
                             <View key={key} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
                                 <MaterialIcons name={meta.icon} size={16} color={allowed ? '#4CAF73' : '#BBB'} />
-                                <Text style={{ fontSize: 13, color: '#333', flex: 1 }}>{meta.label}</Text>
+                                <Text style={{ fontSize: 13, color: '#333', flex: 1 }}>{t(meta.labelKey) || meta.fallback}</Text>
                                 {allowed && flags?.enabled_by_school === false && (
                                   <Text style={{ fontSize: 10, color: '#999', fontStyle: 'italic' }}>{t('school_has_it_off') || 'school has it off'}</Text>
                                 )}
@@ -1177,7 +1185,7 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
                         can never be effectively deanonymized via "the aggregate"). */}
                     {!!profile.school_admin_user_id && (
                       <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F0F0F0' }}>
-                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#999', textTransform: 'uppercase', letterSpacing: (language === 'ar' || language === 'hi') ? 0 : 0.5, marginBottom: 8 }}>
                           {t('teacher_wellbeing_aggregate_label') || 'Teacher Wellbeing (aggregate)'}
                         </Text>
                         {teacherWellbeing[profile.school_admin_user_id] === null || teacherWellbeing[profile.school_admin_user_id] === undefined ? (
@@ -1208,7 +1216,7 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
                               </View>
                               {!!(d.teacher_top_strategies || []).length && (
                                 <Text style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
-                                  {(t('top_strategies_label') || 'Top strategies:') + ' ' + d.teacher_top_strategies.map((s: any) => resolveStrategyName(s.id, t, STRAT)).join(', ')}
+                                  {(t('top_strategies_label') || 'Top strategies:') + ' ' + d.teacher_top_strategies.map((s: any) => strategyLabel(s.id, t, STRAT)).join(', ')}
                                 </Text>
                               )}
                             </>
@@ -1431,7 +1439,7 @@ function SuperAdminSettings({ authToken, stats }: { authToken: string|null, stat
 }
 
 function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, isSuperAdmin: boolean }) {
-  const { t } = useApp();
+  const { t, language } = useApp();
   const [type, setType] = useState<'teacher'|'student'|'parent'>('student');
   const [strats, setStrats] = useState<any[]>([]);
   const [zone, setZone] = useState('green');
@@ -1698,7 +1706,7 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
                     )}
                     {strat.created_at && (
                       <Text style={{ fontSize: 9, color: '#CCC', marginTop: 1 }}>
-                        {t('added_label') || 'Added'} {new Date(strat.created_at).toLocaleDateString()}
+                        {t('added_label') || 'Added'} {formatNumericDate(strat.created_at, language)}
                       </Text>
                     )}
                   </View>
@@ -1789,6 +1797,8 @@ function CreaturePendingCard({ c, onApprove, onReject, onDelete, busy }: any) {
   // _passes_creature_approval_gate/backend's awaiting-global-approval). Shown here so
   // superadmin knows WHY they're seeing it - a global-scope item legitimately has no flag.
   const flagged = c.ai_moderation_flag === 'flagged';
+  // Oct 11: a failed AI check (flag 'error') also needs a human look, so say so.
+  const aiFailed = c.ai_moderation_flag === 'error';
   return (
     <View style={s.creatureCard}>
       <View style={s.creatureTopRow}>
@@ -1796,7 +1806,12 @@ function CreaturePendingCard({ c, onApprove, onReject, onDelete, busy }: any) {
         <Text style={s.creatureName}>{c.creature_name || (t('unnamed') || 'Unnamed')}</Text>
         {flagged && (
           <View style={s.flaggedBadge}>
-            <Text style={s.flaggedBadgeText}>⚠️ {t('ai_flagged_badge') || 'AI flagged'}</Text>
+            <Text style={s.flaggedBadgeText}>⚠️ {t('ai_check_flagged_review') || 'AI check flagged this image: please review'}</Text>
+          </View>
+        )}
+        {aiFailed && (
+          <View style={s.flaggedBadge}>
+            <Text style={s.flaggedBadgeText}>⚠️ {t('ai_check_failed_review') || 'AI check could not run: please review'}</Text>
           </View>
         )}
       </View>
@@ -2294,7 +2309,7 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
           <StatRow label={t('total_creatures_collected') || 'Total creatures collected'} value={stats?.total_creatures} icon="pets" color="#9C27B0" />
           <StatRow label={t('avg_checkins_to_evolve') || 'Avg check-ins to evolve'} value={stats?.avg_checkins_to_evolve} icon="trending-up" color="#4A90D9" />
           <StatRow label={t('students_with_streak') || 'Students with 7+ day streak'} value={stats?.streak_students} icon="local-fire-department" color="#FF9800" />
-          <StatRow label={t('most_used_student_strategy') || 'Most used student strategy'} value={stats?.top_strategy} icon="lightbulb" color="#4CAF50" />
+          <StatRow label={t('most_used_student_strategy') || 'Most used student strategy'} value={stats?.top_strategy && stats.top_strategy !== '—' ? strategyLabel(stats.top_strategy, t, STRAT) : stats?.top_strategy} icon="lightbulb" color="#4CAF50" />
           <StatRow label={t('most_used_teacher_strategy') || 'Most used teacher strategy'} value={stats?.top_teacher_strategy} icon="school" color="#FFC107" />
         </SectionCard>
 
@@ -2309,7 +2324,7 @@ function SuperAdminDashboard({ authToken, stats, statsLoading, statsPeriod, setS
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
                   {ZONES.filter(z => sch.zone_counts?.[z] > 0).map(z => (
                     <View key={z} style={[s.zonePill, { backgroundColor: ZONE_COLORS[z] + '25' }]}>
-                      <Text style={[s.zonePillText, { color: ZONE_COLORS[z] }]}>{ZONE_LABELS[z]}: {sch.zone_counts[z]}</Text>
+                      <Text style={[s.zonePillText, { color: ZONE_COLORS[z] }]}>{t(`${z}_short_label`) || getZoneLabel(z, t)}: {sch.zone_counts[z]}</Text>
                     </View>
                   ))}
                 </View>
@@ -2440,7 +2455,7 @@ function SchoolAdminDashboard({ authToken, stats, statsLoading, statsPeriod, set
 
         {/* Engagement */}
         <SectionCard title={t("engagement") || "Engagement"} subtitle={t("how_school_using") || "App usage"} icon="trending-up" color="#FF9800">
-          <StatRow label={t('most_used_student_strategy') || 'Most used student strategy'} value={stats?.top_strategy} icon="lightbulb" color="#4CAF50" />
+          <StatRow label={t('most_used_student_strategy') || 'Most used student strategy'} value={stats?.top_strategy && stats.top_strategy !== '—' ? strategyLabel(stats.top_strategy, t, STRAT) : stats?.top_strategy} icon="lightbulb" color="#4CAF50" />
           <StatRow label={t('students_with_streak') || 'Students with 7+ day streak'} value={stats?.streak_students} icon="local-fire-department" color="#FF9800" />
           <StatRow label={t('total_creatures_collected') || 'Total creatures collected'} value={stats?.total_creatures} icon="pets" color="#9C27B0" />
         </SectionCard>
@@ -2523,7 +2538,7 @@ function ClassroomBreakdown({ authToken, statsPeriod }: any) {
 // absent from `teachers`, never rendered as a placeholder or counted anywhere on this card.
 // Same period pill (statsPeriod) as the rest of this tab, per Jono's explicit ask.
 function TeacherWellbeing({ authToken, statsPeriod }: any) {
-  const { t } = useApp();
+  const { t, language } = useApp();
   const [teachers, setTeachers] = useState<any[] | null>(null);
   const [failed, setFailed] = useState(false);
   const period = Math.min(statsPeriod || 30, 90);
@@ -2557,8 +2572,8 @@ function TeacherWellbeing({ authToken, statsPeriod }: any) {
             <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
               <View style={[s.colourDot, { backgroundColor: ZONE_COLORS[c.zone] || '#999' }]} />
               <Text style={s.classroomMeta}>
-                {new Date(c.timestamp).toLocaleDateString()}
-                {c.strategies_selected?.length ? ` · ${c.strategies_selected.map((sid: string) => resolveStrategyName(sid, t, STRAT)).join(', ')}` : ''}
+                {formatNumericDate(c.timestamp, language)}
+                {c.strategies_selected?.length ? ` · ${c.strategies_selected.map((sid: string) => strategyLabel(sid, t, STRAT)).join(', ')}` : ''}
               </Text>
             </View>
           ))}
@@ -2579,7 +2594,7 @@ function TeacherWellbeing({ authToken, statsPeriod }: any) {
 // button wrote into a table nothing ever read; this is the first real place a school_admin
 // sees what a teacher sent, alongside the real email POST /wellbeing-alert now also sends.
 function WellbeingSupportRequests({ authToken }: any) {
-  const { t } = useApp();
+  const { t, language } = useApp();
   const [requests, setRequests] = useState<any[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [acking, setAcking] = useState<string | null>(null);
@@ -2623,7 +2638,7 @@ function WellbeingSupportRequests({ authToken }: any) {
                 <Text style={s.classroomName}>{r.teacher_name || 'Teacher'}</Text>
               </View>
               <Text style={[s.classroomMeta, { marginTop: 4 }]}>{r.message}</Text>
-              <Text style={[s.classroomMeta, { marginTop: 2, color: '#AAA' }]}>{new Date(r.created_at).toLocaleString()}</Text>
+              <Text style={[s.classroomMeta, { marginTop: 2, color: '#AAA' }]}>{formatNumericDateTime(r.created_at, language)}</Text>
             </View>
             <TouchableOpacity
               onPress={() => acknowledge(r.id)}
@@ -2971,19 +2986,25 @@ function getAdminResourceTopics(t: (k: string) => string) {
 // superadmin cross-school buzz visibility is a separate, not-yet-scoped gap (logged in
 // the parity audit). Uses the SAME shared poller the teacher app's banner/status screen
 // already use (useSupportRequestsList) - one poll for the whole app, not a new one.
-const SR_TYPE_LABELS: Record<string, string> = {
-  CLASSROOM_SUPPORT: 'Classroom support', STAFF_MEMBER: 'Staff member requested',
-  BACK_ON_TRACK: 'Back on Track supervision', INCIDENT: 'INCIDENT', OTHER: 'Other',
-};
+const srTypeLabels = (t: (k: string) => string): Record<string, string> => ({
+  CLASSROOM_SUPPORT: t('support_banner_type_classroom_support') || 'Classroom support',
+  STAFF_MEMBER: t('support_banner_admin_type_staff') || 'Staff member requested',
+  BACK_ON_TRACK: t('support_banner_admin_type_back_on_track') || 'Back on Track supervision',
+  INCIDENT: t('support_banner_admin_type_incident') || 'INCIDENT',
+  OTHER: t('support_request_type_other') || 'Other',
+});
 const SR_OPEN_STATUSES = ['PENDING', 'ACKNOWLEDGED'];
 
-function srTimeAgo(iso: string | null): string {
+function srTimeAgo(iso: string | null, t: (k: string) => string): string {
   if (!iso) return '';
   const d = new Date(iso);
   const mins = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
-  const ago = mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : mins < 1440 ? `${Math.round(mins / 60)}h ago` : `${Math.round(mins / 1440)}d ago`;
+  const ago = mins < 1 ? (t('support_banner_ago_just_now') || 'just now')
+    : mins < 60 ? (t('support_banner_admin_ago_m') || '{count}m ago').replace('{count}', String(mins))
+    : mins < 1440 ? (t('support_banner_admin_ago_h') || '{count}h ago').replace('{count}', String(Math.round(mins / 60)))
+    : (t('support_banner_admin_ago_d') || '{count}d ago').replace('{count}', String(Math.round(mins / 1440)));
   return `${hh}:${mm} · ${ago}`;
 }
 
@@ -2991,35 +3012,35 @@ function SupportRequestCard({ r, onAck, onRespond }: { r: SupportRequest; onAck:
   const { t } = useApp();
   const [msg, setMsg] = useState('');
   const isOpen = SR_OPEN_STATUSES.includes(r.status);
-  const who = r.student_name || r.classroom_name || 'Classroom';
+  const who = r.student_name || r.classroom_name || (t('classroom') || 'Classroom');
   const zoneColor = r.checkin_colour_at_request ? ZONE_COLORS[r.checkin_colour_at_request] : null;
-  const metaParts = [SR_TYPE_LABELS[r.request_type] || r.request_type];
+  const metaParts = [srTypeLabels(t)[r.request_type] || r.request_type];
   if (r.target_text) metaParts.push(r.target_text);
   if (r.classroom_name && r.student_name) metaParts.push(r.classroom_name);
-  metaParts.push(`from ${r.requested_by_name || 'a teacher'}`);
+  metaParts.push((t('support_banner_admin_from') || 'from {name}').replace('{name}', r.requested_by_name || (t('support_banner_admin_a_teacher') || 'a teacher')));
   const statusMeta: Record<string, { label: string; bg: string; fg: string }> = {
-    PENDING: { label: 'Pending', bg: '#FFF3E0', fg: '#E65100' },
-    ACKNOWLEDGED: { label: 'Acknowledged', bg: '#E8EAF6', fg: '#3949AB' },
-    CANCELLED: { label: 'Cancelled', bg: '#F0F0F0', fg: '#757575' },
-    SUPERSEDED: { label: 'Superseded', bg: '#F0F0F0', fg: '#757575' },
-    RESOLVED: { label: `Resolved: ${r.admin_response || ''}`, bg: '#E8F5E9', fg: '#2E7D32' },
+    PENDING: { label: t('pending') || 'Pending', bg: '#FFF3E0', fg: '#E65100' },
+    ACKNOWLEDGED: { label: t('support_banner_acknowledged') || 'Acknowledged', bg: '#E8EAF6', fg: '#3949AB' },
+    CANCELLED: { label: t('support_banner_status_cancelled') || 'Cancelled', bg: '#F0F0F0', fg: '#757575' },
+    SUPERSEDED: { label: t('support_banner_superseded') || 'Superseded', bg: '#F0F0F0', fg: '#757575' },
+    RESOLVED: { label: (t('support_banner_resolved_with') || 'Resolved: {response}').replace('{response}', r.admin_response || ''), bg: '#E8F5E9', fg: '#2E7D32' },
   };
   const badge = statusMeta[r.status] || statusMeta.RESOLVED;
   const terminalIso = r.status === 'RESOLVED' ? r.responded_at : r.status === 'CANCELLED' ? r.cancelled_at : r.status === 'SUPERSEDED' ? r.superseded_at : null;
-  const terminalLabel = r.status === 'RESOLVED' ? 'Resolved' : r.status === 'CANCELLED' ? 'Cancelled' : 'Superseded';
+  const terminalLabel = r.status === 'RESOLVED' ? (t('resolved') || 'Resolved') : r.status === 'CANCELLED' ? (t('support_banner_status_cancelled') || 'Cancelled') : (t('support_banner_superseded') || 'Superseded');
 
   return (
     <View style={[srS.card, r.is_incident && srS.cardIncident]}>
       <View style={srS.cardHeaderRow}>
         <View style={{ flex: 1 }}>
-          {r.is_incident && <Text style={srS.incidentTag}>🚨 INCIDENT</Text>}
+          {r.is_incident && <Text style={srS.incidentTag}>🚨 {t('support_banner_admin_type_incident') || 'INCIDENT'}</Text>}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             {zoneColor && <View style={[srS.zoneDot, { backgroundColor: zoneColor }]} />}
             <Text style={srS.who}>{who}</Text>
           </View>
           <Text style={srS.meta}>{metaParts.join(' · ')}</Text>
-          <Text style={srS.time}>Sent {srTimeAgo(r.created_at)}</Text>
-          {terminalIso && <Text style={srS.time}>{terminalLabel} {srTimeAgo(terminalIso)}</Text>}
+          <Text style={srS.time}>{(t('support_banner_admin_sent') || 'Sent {when}').replace('{when}', srTimeAgo(r.created_at, t))}</Text>
+          {terminalIso && <Text style={srS.time}>{terminalLabel} {srTimeAgo(terminalIso, t)}</Text>}
         </View>
         <View style={[srS.badge, { backgroundColor: badge.bg }]}>
           <Text style={[srS.badgeText, { color: badge.fg }]} numberOfLines={2}>{badge.label}</Text>
@@ -3033,10 +3054,10 @@ function SupportRequestCard({ r, onAck, onRespond }: { r: SupportRequest; onAck:
             </TouchableOpacity>
           )}
           <TouchableOpacity style={[srS.actionBtn, { backgroundColor: '#4CAF73' }]} onPress={() => onRespond(r.id, 'YES')}>
-            <Text style={srS.actionBtnText}>Yes</Text>
+            <Text style={srS.actionBtnText}>{t('support_banner_yes') || 'Yes'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[srS.actionBtn, { backgroundColor: '#E05252' }]} onPress={() => onRespond(r.id, 'NO')}>
-            <Text style={srS.actionBtnText}>No</Text>
+            <Text style={srS.actionBtnText}>{t('support_banner_no') || 'No'}</Text>
           </TouchableOpacity>
           <TextInput
             style={srS.msgInput}
@@ -3068,15 +3089,15 @@ function SupportRequestsManager() {
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const onAck = async (id: string) => {
-    try { await supportRequestsApi.acknowledge(id); dismissIncidentAlert(id); } catch { Alert.alert(t('error') || 'Error', t('could_not_acknowledge') || 'Could not acknowledge.'); }
+    try { await supportRequestsApi.acknowledge(id); dismissIncidentAlert(id); refreshSupportRequestsNow(); } catch { Alert.alert(t('error') || 'Error', t('could_not_acknowledge') || 'Could not acknowledge.'); }
   };
   const onRespond = async (id: string, response: string) => {
-    try { await supportRequestsApi.respond(id, response); dismissIncidentAlert(id); } catch { Alert.alert(t('error') || 'Error', t('could_not_respond') || 'Could not respond.'); }
+    try { await supportRequestsApi.respond(id, response); dismissIncidentAlert(id); refreshSupportRequestsNow(); } catch { Alert.alert(t('error') || 'Error', t('could_not_respond') || 'Could not respond.'); }
   };
 
   return (
     <View style={{ gap: 12 }}>
-      <SectionCard title="Support Requests" subtitle={`${open.length} open`} icon="notifications-active" color={INDIGO} defaultOpen>
+      <SectionCard title={t('support_requests_plural') || 'Support Requests'} subtitle={(t('support_banner_admin_open_count') || '{count} open').replace('{count}', String(open.length))} icon="notifications-active" color={INDIGO} defaultOpen>
         {open.length === 0 ? (
           <View style={{ alignItems: 'center', padding: 20 }}>
             <MaterialIcons name="check-circle" size={28} color="#4CAF73" />
@@ -3090,7 +3111,7 @@ function SupportRequestsManager() {
       </SectionCard>
 
       <TouchableOpacity style={srS.resolvedToggle} onPress={() => setResolvedOpen(v => !v)}>
-        <Text style={srS.resolvedToggleText}>✓ Resolved ({closed.length})</Text>
+        <Text style={srS.resolvedToggleText}>{(t('support_banner_admin_resolved_toggle') || '✓ Resolved ({count})').replace('{count}', String(closed.length))}</Text>
         <MaterialIcons name={resolvedOpen ? 'expand-less' : 'expand-more'} size={20} color="#888" />
       </TouchableOpacity>
       {resolvedOpen && (
@@ -3340,6 +3361,7 @@ export default function AdminDashboard() {
   // button. isSuperAdmin excluded - same reasoning as the registration effect above,
   // they're never a support_request recipient.
   const [registeringPush, setRegisteringPush] = useState(false);
+  const [pushRegistered, setPushRegistered] = useState(false);
   const handleRetryPushRegistration = async () => {
     // Root cause fix Sep 26 (item 5, live device test): this used to call
     // registerForPushNotifications() and, on any null result, show the same "check your
@@ -3347,21 +3369,23 @@ export default function AdminDashboard() {
     // under Expo Go (no permission prompt is ever shown there at all, see that function's
     // own Expo-Go early return), which is exactly why the banner "did nothing" when tapped
     // during Expo Go testing. Checked first, with its own honest message.
-    if (IS_EXPO_GO) {
-      Alert.alert(
-        t('push_unavailable_expo_go_title') || 'Not available in this preview',
-        t('push_unavailable_expo_go_body') || "Push notifications can't be tested in Expo Go. Install the full app build to receive support request alerts."
-      );
-      return;
-    }
     setRegisteringPush(true);
     try {
-      const token = await registerForPushNotifications();
-      if (token) {
-        await checkAuth();
-      } else {
-        // Real fix Sep 26 (item 5): was a text-only instruction with no way to act on it from
-        // here - now opens the device's own notification settings for this app directly.
+      // Oct 11: every outcome gets a message. Expo Go / simulator -> not available there; blocked permission ->
+      // straight to the system notification settings; success -> refresh the user so the banner goes away.
+      const r = await registerForPushNotificationsDetailed();
+      if (r.ok) {
+        setPushRegistered(true);
+        try { await checkAuth(); } catch (e) { console.error('[admin push] checkAuth failed', e); }
+        Alert.alert(`✅ ${t('push_enable_success_title') || 'Notifications are on'}`, t('push_enable_success') || 'This device is registered. Teachers can now reach you.');
+      } else if (r.reason === 'expo_go' || r.reason === 'simulator') {
+        Alert.alert(
+          t('push_unavailable_expo_go_title') || 'Not available in this preview',
+          t('push_unavailable_here_body') || 'Push notifications are not available in Expo Go or on a simulator. Use the installed app on a real phone.'
+        );
+      } else if (r.reason === 'blocked') {
+        Linking.openSettings();
+      } else if (r.reason === 'denied') {
         Alert.alert(
           t('notifications_permission_needed') || 'Permission needed',
           t('notifications_permission_needed_body') || 'Notifications are off for Class of Happiness. Open Settings to turn them on, then try again.',
@@ -3370,7 +3394,14 @@ export default function AdminDashboard() {
             { text: t('open_settings') || 'Open Settings', onPress: () => Linking.openSettings() },
           ]
         );
+      } else if (r.reason === 'register_failed') {
+        Alert.alert(t('error') || 'Error', (t('push_enable_failed_server') || "Your phone is ready, but the server didn't accept it{status}. Please try again in a moment.").replace('{status}', r.status ? ` (${r.status})` : ''));
+      } else {
+        Alert.alert(t('error') || 'Error', t('push_enable_failed_token') || "Couldn't get a notification token from your phone. Check your connection and try again.");
       }
+    } catch (e) {
+      console.error('[admin push] registration failed', e);
+      Alert.alert(t('error') || 'Error', t('push_enable_failed_token') || "Couldn't get a notification token from your phone. Check your connection and try again.");
     } finally {
       setRegisteringPush(false);
     }
@@ -3518,7 +3549,7 @@ export default function AdminDashboard() {
           note above for why this exists instead of hiding teachers' buzz button. Sits
           above the tab content (not inside one tab) so it's visible regardless of which
           tab the admin happens to be on - reachability isn't a per-tab concern. */}
-      {!isSuperAdmin && user && !user.push_token && (
+      {!isSuperAdmin && user && !user.push_token && !(user as any).has_push_token && !pushRegistered && (
         <TouchableOpacity
           style={s.pushNudgeBanner}
           onPress={handleRetryPushRegistration}

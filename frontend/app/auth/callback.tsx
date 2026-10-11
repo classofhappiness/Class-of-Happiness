@@ -14,9 +14,9 @@ WebBrowser.maybeCompleteAuthSession();
 export default function AuthCallbackScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { checkAuth } = useApp();
+  const { checkAuth, t } = useApp();
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<string>('Checking authentication...');
+  const [status, setStatus] = useState<string>(t('auth_checking_authentication') || 'Checking authentication...');
   const localParams = useLocalSearchParams();
   const globalParams = useGlobalSearchParams();
 
@@ -43,7 +43,7 @@ export default function AuthCallbackScreen() {
 
       // Method 2: For web, check window.location
       if (!sessionId && Platform.OS === 'web' && typeof window !== 'undefined') {
-        setStatus('Checking web URL...');
+        setStatus(t('auth_checking_web_url') || 'Checking web URL...');
         
         // Check hash first (auth often returns in hash)
         const hash = window.location.hash;
@@ -73,7 +73,7 @@ export default function AuthCallbackScreen() {
 
       // Method 3: For mobile, get from Linking
       if (!sessionId && Platform.OS !== 'web') {
-        setStatus('Checking mobile deep link...');
+        setStatus(t('auth_checking_deep_link') || 'Checking mobile deep link...');
         
         // Get initial URL that opened the app
         const initialUrl = await ExpoLinking.getInitialURL();
@@ -126,12 +126,12 @@ export default function AuthCallbackScreen() {
       
       if (!sessionId) {
         console.log('[Callback] No session ID found after all methods');
-        setError('No session ID found');
+        setError(t('auth_no_session_id') || 'No session ID found');
         setTimeout(() => router.replace('/'), 3000);
         return;
       }
       
-      setStatus('Exchanging session...');
+      setStatus(t('auth_exchanging_session') || 'Exchanging session...');
       console.log('[Callback] Exchanging session with ID:', sessionId.substring(0, 8) + '...');
       
       // Exchange session
@@ -143,7 +143,7 @@ export default function AuthCallbackScreen() {
         console.log('[Callback] Session token stored');
       }
       
-      setStatus('Finalizing...');
+      setStatus(t('auth_finalizing') || 'Finalizing...');
       
       // Refresh auth state
       await checkAuth();
@@ -154,7 +154,7 @@ export default function AuthCallbackScreen() {
       router.replace('/');
     } catch (err: any) {
       console.error('[Callback] Auth error:', err);
-      setError(err.message || 'Authentication failed');
+      setError(err.message || (t('auth_failed') || 'Authentication failed'));
       setTimeout(() => router.replace('/'), 3000);
     }
   };
@@ -165,12 +165,12 @@ export default function AuthCallbackScreen() {
         {error ? (
           <>
             <Text style={styles.errorText}>{error}</Text>
-            <Text style={styles.redirectText}>Redirecting...</Text>
+            <Text style={styles.redirectText}>{t('auth_redirecting') || 'Redirecting...'}</Text>
           </>
         ) : (
           <>
             <EmotionColourLoader visible size={64} />
-            <Text style={styles.text}>Signing you in...</Text>
+            <Text style={styles.text}>{t('auth_signing_you_in') || 'Signing you in...'}</Text>
             <Text style={styles.statusText}>{status}</Text>
           </>
         )}

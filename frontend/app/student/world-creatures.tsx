@@ -17,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { creaturesApi } from '../../src/utils/api';
 import { useApp } from '../../src/context/AppContext';
+import { formatShortDate } from '../../src/utils/dateLabel';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { useZoneMovement } from '../../src/components/AnimatedCreatureVisual';
@@ -49,11 +50,15 @@ const ACTIVE_RING_COLOUR = '#5C6BC0';
 const ACTIVE_RING_THICKNESS = 3;
 const ACTIVE_RING_GAP = 3;
 
-function formatExpiry(iso?: string | null): string | null {
+// Real fix Sep 30 (live feedback follow-up audit): matches the locale fix already applied
+// across the other screens - toLocaleDateString(undefined,...) follows the DEVICE's OS
+// locale, not the app's own in-app language, so this took a locale param instead.
+const LOCALE_FOR_LANG: Record<string,string> = { en:'en-US', pt:'pt-PT', es:'es-ES', fr:'fr-FR', de:'de-DE', it:'it-IT', hi:'hi-IN', zh:'zh-CN', ar:'ar-u-nu-latn-ca-gregory', ru:'ru-RU' };
+function formatExpiry(iso: string | null | undefined, language: string): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (isNaN(d.getTime())) return null;
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return formatShortDate(d, language);
 }
 
 // Real feature Aug 27 (item 12, "keep clicking" fix): press-and-hold reveal of % complete
@@ -92,11 +97,11 @@ function ProgressRing({ percent, size, colour }: { percent: number; size: number
 // One grid card - owns its own auto-cycling stage preview so each card animates
 // independently without affecting the real, separate progress-dot row.
 function CreatureCard({
-  item, isActive, canStart, starting, onStart, cardWidth, progressPercent,
+  item, isActive, canStart, starting, onStart, cardWidth, progressPercent, showClassroomName,
 }: {
-  item: any; isActive: boolean; canStart: boolean; starting: boolean; onStart: () => void; cardWidth: number; progressPercent?: number;
+  item: any; isActive: boolean; canStart: boolean; starting: boolean; onStart: () => void; cardWidth: number; progressPercent?: number; showClassroomName?: boolean;
 }) {
-  const { t, currentStudent } = useApp();
+  const { t, currentStudent, language } = useApp();
   const [previewStage, setPreviewStage] = useState(1);
   const holdAnim = useRef(new Animated.Value(0)).current;
   // Real fix Aug 30 (build-26 candidate): initial value was 0.5, so any card whose pulse
@@ -134,7 +139,7 @@ function CreatureCard({
   // creatures, never shown at full 1120px) - falls back to the full-size url only for a
   // creature somehow missing its thumb (predates the backfill and hasn't been re-touched).
   const imgUrl = item[`stage${displayStage}_thumb_url`] || item[`stage${displayStage}_url`] || item.stage1_thumb_url || item.stage1_url;
-  const expiry = formatExpiry(item.featured_until);
+  const expiry = formatExpiry(item.featured_until, language);
   // Real feature Aug 24 (item 1, free-tier collection cap): item.locked comes straight from
   // /creatures/eligible - a free-tier account already has one fully-evolved creature for this
   // colour, so this one is shown (not hidden, per Jono's spec) but faded and non-interactive.
@@ -142,10 +147,13 @@ function CreatureCard({
   // this card, not the parent/teacher who'd actually decide to subscribe.
   const locked = !!item.locked;
   const showUpsell = () => {
+    const name = (currentStudent as any)?.name || t('this_student') || 'This student';
+    const colour = t(`${item.emotion_colour}_short_label`) || item.emotion_colour;
     Alert.alert(
-      '🔒 Locked',
-      `${(currentStudent as any)?.name || 'This student'} has already fully evolved their free ${item.emotion_colour} creature. Subscribing unlocks unlimited community creatures for every colour.`,
-      [{ text: 'OK' }]
+      `🔒 ${t('creature_locked_title') || 'Locked'}`,
+      (t('creature_locked_upsell') || '{name} has already fully evolved their free {colour} creature. Subscribing unlocks unlimited community creatures for every colour.')
+        .replace('{name}', name).replace('{colour}', colour),
+      [{ text: t('ok') || 'OK' }]
     );
   };
 
@@ -217,7 +225,7 @@ function CreatureCard({
                 ]}
               >
                 <ProgressRing percent={progressPercent ?? 0} size={Math.min(cardWidth * 0.55, 90)} colour={EMOTION_COLORS[item.emotion_colour]} />
-                <Text style={{ color: 'white', fontSize: 10, fontWeight: '700', marginTop: 4 }}>to next stage</Text>
+                <Text style={{ color: 'white', fontSize: 10, fontWeight: '700', marginTop: 4 }}>{t('to_next_stage') || 'to next stage'}</Text>
               </Animated.View>
             )}
           </Animated.View>
@@ -229,8 +237,10 @@ function CreatureCard({
           ) : (
             <>
               <View style={styles.metaRow}>
-                {item.classroom_name ? <Text style={styles.metaTag} numberOfLines={1}>🏫 {item.classroom_name}</Text> : null}
-                {item.country ? <Text style={styles.metaTag} numberOfLines={1}>🌍 {item.country}</Text> : null}
+                {/* Real privacy fix Oct 7 (defence in depth, backend also nulls it): a classroom name is only ever
+                    shown on the School and Classroom tabs - never Global, nor the mixed 'All' tab. */}
+                {showClassroomName && item.classroom_name ? <Text style={styles.metaTag} numberOfLines={1}>🏫 {item.classroom_name}</Text> : null}
+                {item.country ? <Text style={styles.metaTag} numberOfLines={1}>{/^[A-Za-z]{2}$/.test(String(item.country).trim()) ? countryFlagEmoji(String(item.country).trim()) : '🌍'} {item.country}</Text> : null}
               </View>
               {expiry ? <Text style={styles.expiryTag}>⏳ {(t('available_until') || 'Available until')} {expiry}</Text> : null}
               <View style={styles.progressRow}>
@@ -353,10 +363,10 @@ export default function GlobalCreaturesScreen() {
   useEffect(() => { load(); }, [studentId]);
 
   const SCOPE_OPTIONS = [
-    { key: 'any', label: 'Any' },
-    { key: 'classroom', label: hasClassroom ? 'My Classroom' : 'My Family' },
-    { key: 'school', label: 'My School' },
-    { key: 'global', label: 'Global' },
+    { key: 'any', label: t('all') || 'Any' },
+    { key: 'classroom', label: hasClassroom ? (t('my_classroom') || 'My Classroom') : (t('my_family') || 'My Family') },
+    { key: 'school', label: t('my_school') || 'My School' },
+    { key: 'global', label: t('global') || 'Global' },
   ];
 
   const handleScopeChange = async (pref: string) => {
@@ -392,7 +402,7 @@ export default function GlobalCreaturesScreen() {
     setStartingId(item.id);
     try {
       const res = await creaturesApi.startCreature(item.id, studentId);
-      Alert.alert(t('unlocked') || 'Started!', res?.message || `${item.creature_name} is now your active creature!`);
+      Alert.alert(t('unlocked') || 'Started!', res?.message || (t('creature_now_active') || '{name} is now your active creature!').replace('{name}', item.creature_name));
       await load();
     } catch (e: any) {
       const msg = e?.message || '';
@@ -401,10 +411,10 @@ export default function GlobalCreaturesScreen() {
       // stale list (loaded before crossing the cap) could still let a tap through. Same
       // no-subscribe-button, informational-only treatment as the locked card itself.
       if (msg.startsWith('free_tier_limit|')) {
-        Alert.alert('🔒 Locked', msg.split('|')[1] || 'Free plan is limited to one fully-evolved creature per colour.', [{ text: 'OK' }]);
+        Alert.alert('🔒 ' + (t('creature_locked_title') || 'Locked'), msg.split('|')[1] || t('free_plan_one_evolved_per_colour') || 'Free plan is limited to one fully-evolved creature per colour.', [{ text: t('ok') || 'OK' }]);
         await load();
       } else {
-        Alert.alert(t('error') || 'Error', msg || 'Could not set this creature as active right now.');
+        Alert.alert(t('error') || 'Error', msg || t('could_not_set_active_creature') || 'Could not set this creature as active right now.');
       }
     }
     setStartingId(null);
@@ -455,12 +465,12 @@ export default function GlobalCreaturesScreen() {
           {countryBoardLoading ? (
             <View style={{ marginVertical: 10 }}><EmotionColourLoader visible size={32} /></View>
           ) : !countryBoard || countryBoard.length === 0 ? (
-            <Text style={styles.countryBoardEmpty}>No country data yet.</Text>
+            <Text style={styles.countryBoardEmpty}>{t('no_country_data_yet') || 'No country data yet.'}</Text>
           ) : (
             countryBoard.map((row, idx) => {
               const isRest = row.country === 'Rest of World';
               const flag = isRest ? '🌐' : countryFlagEmoji(row.country);
-              const name = isRest ? 'Rest of World' : (COUNTRY_NAME_BY_CODE[row.country] || row.country);
+              const name = isRest ? (t('rest_of_world') || 'Rest of World') : (COUNTRY_NAME_BY_CODE[row.country] || row.country);
               const maxCount = countryBoard[0]?.count || 1;
               const barPct = Math.max(6, Math.round((row.count / maxCount) * 100));
               return (
@@ -510,7 +520,7 @@ export default function GlobalCreaturesScreen() {
               style={[styles.filterBtn, filter === f && { backgroundColor: f === 'all' ? '#1A1A2E' : EMOTION_COLORS[f] }]}
               onPress={() => setFilter(f)}>
               <Text style={[styles.filterText, filter === f && { color: f === 'yellow' ? '#333' : 'white' }]}>
-                {f === 'all' ? 'All' : `${EMOTION_EMOJI[f] || ''} ${f.charAt(0).toUpperCase() + f.slice(1)}`}
+                {f === 'all' ? (t('all') || 'All') : `${EMOTION_EMOJI[f] || ''} ${t(`${f}_short_label`) || (f.charAt(0).toUpperCase() + f.slice(1))}`}
               </Text>
             </TouchableOpacity>
           ))}
@@ -522,7 +532,7 @@ export default function GlobalCreaturesScreen() {
         // (not gated on this condition), only the grid area shows the loader.
         <View style={{ marginTop: 60, alignItems: 'center' }}><EmotionColourLoader visible size={64} /></View>
       ) : filtered.length === 0 ? (
-        <Text style={styles.empty}>No creatures available to you yet - be the first to submit one! 🦕</Text>
+        <Text style={styles.empty}>{t('no_creatures_available_yet') || 'No creatures available to you yet - be the first to submit one!'} 🦕</Text>
       ) : (
         <FlatList
           data={filtered}
@@ -541,6 +551,7 @@ export default function GlobalCreaturesScreen() {
                 onStart={() => handleSetActive(item)}
                 cardWidth={cardWidth}
                 progressPercent={colourActive?.progress_percent}
+                showClassroomName={scopePref === 'school' || scopePref === 'classroom'}
               />
             );
           }}

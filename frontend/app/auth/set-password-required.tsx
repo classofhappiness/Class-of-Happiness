@@ -20,7 +20,7 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 export default function SetPasswordRequiredScreen() {
   const router = useRouter();
-  const { checkAuth, logout, user } = useApp();
+  const { checkAuth, logout, user, t } = useApp();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [saving, setSaving] = useState(false);
@@ -28,11 +28,11 @@ export default function SetPasswordRequiredScreen() {
 
   const handleSetPassword = async () => {
     if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+      setError(t('password_too_short_error') || 'Password must be at least 8 characters');
       return;
     }
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('passwords_no_match_error') || 'Passwords do not match');
       return;
     }
     setError('');
@@ -46,14 +46,14 @@ export default function SetPasswordRequiredScreen() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.detail || 'Could not set password. Please try again.');
+        setError(data.detail || (t('set_password_retry_error') || 'Could not set password. Please try again.'));
         return;
       }
       // Refresh user state so has_password flips to true and the _layout.tsx gate clears.
       await checkAuth();
       router.replace('/');
     } catch (e) {
-      setError('Could not set password. Please check your connection and try again.');
+      setError(t('set_password_connection_error') || 'Could not set password. Please check your connection and try again.');
     } finally {
       setSaving(false);
     }
@@ -66,14 +66,14 @@ export default function SetPasswordRequiredScreen() {
           <View style={styles.iconWrap}>
             <MaterialIcons name="lock-outline" size={48} color="#5C6BC0" />
           </View>
-          <Text style={styles.title}>Set Your Password</Text>
+          <Text style={styles.title}>{t('set_your_password_title') || 'Set Your Password'}</Text>
           <Text style={styles.subtitle}>
-            To keep {user?.email ? user.email : 'your account'} secure, please create a real password before continuing. This only takes a moment.
+            {(t('set_password_required_desc') || 'To keep {account} secure, please create a real password before continuing. This only takes a moment.').replace('{account}', user?.email ? user.email : (t('your_account') || 'your account'))}
           </Text>
 
-          <Text style={styles.label}>New Password</Text>
+          <Text style={styles.label}>{t('new_password_label') || 'New Password'}</Text>
           <SecureField
-            placeholder="At least 8 characters"
+            placeholder={t('password_min_chars_placeholder') || 'At least 8 characters'}
             placeholderTextColor="#BBB"
             value={password}
             onChangeText={setPassword}
@@ -82,7 +82,7 @@ export default function SetPasswordRequiredScreen() {
             autoFocus
           />
 
-          <Text style={styles.label}>Confirm Password</Text>
+          <Text style={styles.label}>{t('confirm_password_label') || 'Confirm Password'}</Text>
           {/* Real fix Aug 26 (item 13): this is the actual screen with the reported double-
               border and oversized-field complaint - New Password was wrapped in inputWrap
               (its own border) AROUND an input that also had its own border, and Confirm
@@ -91,7 +91,7 @@ export default function SetPasswordRequiredScreen() {
               Both also shared one `showPassword` toggle state. SecureField fixes all three
               as one component: single border, independent per-field toggle. */}
           <SecureField
-            placeholder="Re-enter password"
+            placeholder={t('reenter_password_placeholder') || 'Re-enter password'}
             placeholderTextColor="#BBB"
             value={confirmPassword}
             onChangeText={setConfirmPassword}
@@ -108,11 +108,11 @@ export default function SetPasswordRequiredScreen() {
             onPress={handleSetPassword}
             disabled={saving}
           >
-            {saving ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Set Password & Continue</Text>}
+            {saving ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>{t('set_password_and_continue') || 'Set Password & Continue'}</Text>}
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.logoutLink} onPress={() => logout()}>
-            <Text style={styles.logoutLinkText}>Not you? Sign out</Text>
+            <Text style={styles.logoutLinkText}>{t('not_you_sign_out') || 'Not you? Sign out'}</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>

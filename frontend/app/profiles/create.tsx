@@ -3,7 +3,6 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  SafeAreaView, 
   ScrollView, 
   TextInput, 
   TouchableOpacity,
@@ -17,17 +16,18 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
 import { studentsApi, familyApi } from '../../src/utils/api';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 
 const PRESET_AVATARS = [
-  { id: 'cat', emoji: '🐱', name: 'Cat' },
-  { id: 'dog', emoji: '🐶', name: 'Dog' },
-  { id: 'bear', emoji: '🐻', name: 'Bear' },
-  { id: 'bunny', emoji: '🐰', name: 'Bunny' },
-  { id: 'lion', emoji: '🦁', name: 'Lion' },
-  { id: 'panda', emoji: '🐼', name: 'Panda' },
-  { id: 'monkey', emoji: '🐵', name: 'Monkey' },
-  { id: 'unicorn', emoji: '🦄', name: 'Unicorn' },
-  { id: 'star', emoji: '⭐', name: 'Star' },
+  { id: 'cat', emoji: '🐱', nameKey: 'avatar_cat' },
+  { id: 'dog', emoji: '🐶', nameKey: 'avatar_dog' },
+  { id: 'bear', emoji: '🐻', nameKey: 'avatar_bear' },
+  { id: 'bunny', emoji: '🐰', nameKey: 'avatar_bunny' },
+  { id: 'lion', emoji: '🦁', nameKey: 'avatar_lion' },
+  { id: 'panda', emoji: '🐼', nameKey: 'avatar_panda' },
+  { id: 'monkey', emoji: '🐵', nameKey: 'avatar_monkey' },
+  { id: 'unicorn', emoji: '🦄', nameKey: 'avatar_unicorn' },
+  { id: 'star', emoji: '⭐', nameKey: 'avatar_star' },
 ];
 
 export default function CreateProfileScreen() {
@@ -62,7 +62,7 @@ export default function CreateProfileScreen() {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     
     if (!permissionResult.granted) {
-      Alert.alert('Permission needed', 'Please allow access to your photos.');
+      Alert.alert(t('permission_needed_title') || 'Permission needed', t('photo_permission_desc') || 'Please allow access to your photos.');
       return;
     }
 
@@ -84,7 +84,7 @@ export default function CreateProfileScreen() {
     const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
     
     if (!permissionResult.granted) {
-      Alert.alert('Permission needed', 'Please allow access to your camera.');
+      Alert.alert(t('permission_needed_title') || 'Permission needed', t('camera_permission_desc') || 'Please allow access to your camera.');
       return;
     }
 
@@ -103,7 +103,7 @@ export default function CreateProfileScreen() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Name Required', 'Please enter a name for this profile.');
+      Alert.alert(t('name_required_title') || 'Name required', t('name_required_profile_msg') || 'Please enter a name for this profile.');
       return;
     }
     if (savingRef.current) return;
@@ -140,8 +140,8 @@ export default function CreateProfileScreen() {
       // Real fix Sep 24 (item2, second device-log pass): force bypasses refreshStudents' new
       // 30s TTL cache - a student was just created, the list must reflect it now.
       await refreshStudents({ force: true });
-      Alert.alert('Profile Created!', `${name}'s profile has been created.`, [
-        { text: 'OK', onPress: () => router.back() }
+      Alert.alert(t('profile_created_title') || 'Profile Created!', (t('profile_created_msg') || "{name}'s profile has been created.").replace('{name}', name), [
+        { text: t('ok') || 'OK', onPress: () => router.back() }
       ]);
     } catch (error: any) {
       // Free-tier limit hit — show the real upgrade prompt instead of silently falling back
@@ -150,9 +150,9 @@ export default function CreateProfileScreen() {
       // a real, intentional limit with a fake "success" message)
       const msg = error?.message || '';
       if (msg.startsWith('free_tier_limit|')) {
-        Alert.alert('Free Plan Limit Reached', msg.split('|')[1] || 'Upgrade to add more students.', [
-          { text: 'Not Now', style: 'cancel' },
-          { text: 'See Plans', onPress: () => router.push('/subscription') },
+        Alert.alert(t('free_plan_limit_title') || 'Free Plan Limit Reached', msg.split('|')[1] || (t('upgrade_add_more_students') || 'Upgrade to add more students.'), [
+          { text: t('not_now') || 'Not Now', style: 'cancel' },
+          { text: t('see_plans') || 'See Plans', onPress: () => router.push('/subscription') },
         ]);
         return;
       }
@@ -176,12 +176,12 @@ export default function CreateProfileScreen() {
         students.push(newStudent);
         await AsyncStorage.setItem('local_students', JSON.stringify(students));
         await refreshStudents({ force: true });
-        Alert.alert('Profile Created!', `${name}'s profile has been created.`, [
-          { text: 'OK', onPress: () => router.back() }
+        Alert.alert(t('profile_created_title') || 'Profile Created!', (t('profile_created_msg') || "{name}'s profile has been created.").replace('{name}', name), [
+          { text: t('ok') || 'OK', onPress: () => router.back() }
         ]);
       } catch (localError) {
         console.error('Error saving profile locally:', localError);
-        Alert.alert('Error', 'Failed to create profile. Please try again.');
+        Alert.alert(t('error') || 'Error', t('create_profile_failed') || 'Failed to create profile. Please try again.');
       }
     } finally {
       savingRef.current = false;
@@ -190,14 +190,11 @@ export default function CreateProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={{ flex: 1, textAlign: 'center', fontSize: 17, fontWeight: 'bold', color: '#333' }}>Add Profile</Text>
-        <View style={{ width: 36 }} />
-      </View>
+    // Oct 10: the shared header (back button + Class of Happiness logo), same as profiles/edit.tsx. It applies
+    // the top inset itself, so the container is a plain View (SafeAreaView on top of it would double the gap).
+    // Back = router.back(): every entry point opens this screen with router.push, so it returns to the caller.
+    <View style={styles.container}>
+      <TranslatedHeader title={t('add_profile_title') || 'Add Profile'} />
       <KeyboardAvoidingView 
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -205,10 +202,10 @@ export default function CreateProfileScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Name Input */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Name</Text>
+            <Text style={styles.sectionTitle}>{t('name') || 'Name'}</Text>
             <TextInput
               style={styles.nameInput}
-              placeholder="Enter name..."
+              placeholder={t('enter_name_placeholder') || 'Enter name...'}
               value={name}
               onChangeText={setName}
               placeholderTextColor="#999"
@@ -243,7 +240,8 @@ export default function CreateProfileScreen() {
                 onPress={() => setAvatarType('custom')}
               >
                 <Image source={{ uri: customImage }} style={styles.customImage} />
-                <Text style={styles.customLabel}>{t('photo') || t('photo') || 'Your Photo'}</Text>
+                {/* Real fix Oct 1 (Marisa S25): was "Your Photo" - she suggested "Profile Picture" instead. */}
+                <Text style={styles.customLabel}>{t('profile_picture_label') || 'Profile Picture'}</Text>
                 {avatarType === 'custom' && (
                   <View style={styles.checkBadge}>
                     <MaterialIcons name="check" size={16} color="white" />
@@ -253,7 +251,7 @@ export default function CreateProfileScreen() {
             )}
 
             {/* Preset Avatars */}
-            <Text style={styles.orText}>Or choose a character:</Text>
+            <Text style={styles.orText}>{t('or_choose_character') || 'Or choose a character:'}</Text>
             <View style={styles.avatarGrid}>
               {PRESET_AVATARS.map((avatar) => (
                 <TouchableOpacity
@@ -268,7 +266,7 @@ export default function CreateProfileScreen() {
                   }}
                 >
                   <Text style={styles.avatarEmoji}>{avatar.emoji}</Text>
-                  <Text style={styles.avatarName}>{avatar.name}</Text>
+                  <Text style={styles.avatarName}>{t(avatar.nameKey) || avatar.id}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -277,7 +275,7 @@ export default function CreateProfileScreen() {
           {/* Classroom Selection - teacher-tier accounts only */}
           {isTeacherRole && classrooms.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📚 Assign to Classroom</Text>
+              <Text style={styles.sectionTitle}>📚 {t('assign_classroom') || 'Assign to Classroom'}</Text>
               <View style={styles.classroomList}>
                 <TouchableOpacity
                   style={[
@@ -318,12 +316,12 @@ export default function CreateProfileScreen() {
             disabled={saving}
           >
             <Text style={styles.saveButtonText}>
-              {saving ? 'Creating...' : 'Create Profile'}
+              {saving ? (t('creating') || 'Creating...') : (t('create_profile_button') || 'Create Profile')}
             </Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 

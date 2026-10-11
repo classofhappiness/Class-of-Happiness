@@ -17,18 +17,19 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../src/context/AppContext';
 import { studentsApi } from '../../src/utils/api';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 
 const PRESET_AVATARS = [
-  { id: 'cat', emoji: '🐱', name: 'Cat' },
-  { id: 'dog', emoji: '🐶', name: 'Dog' },
-  { id: 'bear', emoji: '🐻', name: 'Bear' },
-  { id: 'bunny', emoji: '🐰', name: 'Bunny' },
-  { id: 'lion', emoji: '🦁', name: 'Lion' },
-  { id: 'panda', emoji: '🐼', name: 'Panda' },
-  { id: 'monkey', emoji: '🐵', name: 'Monkey' },
-  { id: 'unicorn', emoji: '🦄', name: 'Unicorn' },
-  { id: 'star', emoji: '⭐', name: 'Star' },
-  { id: 'rainbow', emoji: '🌈', name: 'Rainbow' },
+  { id: 'cat', emoji: '🐱', nameKey: 'avatar_cat' },
+  { id: 'dog', emoji: '🐶', nameKey: 'avatar_dog' },
+  { id: 'bear', emoji: '🐻', nameKey: 'avatar_bear' },
+  { id: 'bunny', emoji: '🐰', nameKey: 'avatar_bunny' },
+  { id: 'lion', emoji: '🦁', nameKey: 'avatar_lion' },
+  { id: 'panda', emoji: '🐼', nameKey: 'avatar_panda' },
+  { id: 'monkey', emoji: '🐵', nameKey: 'avatar_monkey' },
+  { id: 'unicorn', emoji: '🦄', nameKey: 'avatar_unicorn' },
+  { id: 'star', emoji: '⭐', nameKey: 'avatar_star' },
+  { id: 'rainbow', emoji: '🌈', nameKey: 'avatar_rainbow' },
 ];
 
 export default function EditProfileScreen() {
@@ -59,7 +60,7 @@ export default function EditProfileScreen() {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     
     if (!permissionResult.granted) {
-      Alert.alert('Permission needed', 'Please allow access to your photos.');
+      Alert.alert(t('permission_needed_title') || 'Permission needed', t('photo_permission_desc') || 'Please allow access to your photos.');
       return;
     }
 
@@ -81,7 +82,7 @@ export default function EditProfileScreen() {
     const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
     
     if (!permissionResult.granted) {
-      Alert.alert('Permission needed', 'Please allow access to your camera.');
+      Alert.alert(t('permission_needed_title') || 'Permission needed', t('camera_permission_desc') || 'Please allow access to your camera.');
       return;
     }
 
@@ -100,7 +101,7 @@ export default function EditProfileScreen() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Name Required', 'Please enter a name for this profile.');
+      Alert.alert(t('name_required_title') || 'Name required', t('name_required_profile_msg') || 'Please enter a name for this profile.');
       return;
     }
 
@@ -120,12 +121,12 @@ export default function EditProfileScreen() {
       // 30s TTL cache - a student was just edited, the list must reflect it now, not whenever
       // the cache happens to expire.
       await refreshStudents({ force: true });
-      Alert.alert('Profile Updated!', `${name}'s profile has been updated.`, [
-        { text: 'OK', onPress: () => router.back() }
+      Alert.alert(t('profile_updated_title') || 'Profile Updated!', (t('profile_updated_msg') || "{name}'s profile has been updated.").replace('{name}', name), [
+        { text: t('ok') || 'OK', onPress: () => router.back() }
       ]);
     } catch (error) {
       console.error('Error updating profile:', error);
-      Alert.alert('Error', 'Failed to update profile. Please try again.');
+      Alert.alert(t('error') || 'Error', t('update_profile_failed') || 'Failed to update profile. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -134,11 +135,11 @@ export default function EditProfileScreen() {
   const handleDelete = () => {
     Alert.alert(
       t('delete_student') || 'Delete Profile',
-      `Are you sure you want to delete ${name}'s profile? This will also delete all their zone logs.`,
+      (t('delete_profile_confirm') || "Are you sure you want to delete {name}'s profile? This will also delete all their check-ins.").replace('{name}', name),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('delete') || 'Delete',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -146,7 +147,7 @@ export default function EditProfileScreen() {
               await refreshStudents({ force: true });
               router.back();
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete profile.');
+              Alert.alert(t('error') || 'Error', t('delete_profile_failed') || 'Failed to delete profile.');
             }
           },
         },
@@ -165,16 +166,8 @@ export default function EditProfileScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }} />
-        <TouchableOpacity onPress={() => router.replace('/')} style={{ padding: 6 }}>
-          <MaterialIcons name="home" size={24} color="#333" />
-        </TouchableOpacity>
-      </View>
+    <View style={styles.container}>
+      <TranslatedHeader title={t('edit') || 'Edit'} showHome />
       <KeyboardAvoidingView 
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -182,10 +175,10 @@ export default function EditProfileScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Name Input */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Name</Text>
+            <Text style={styles.sectionTitle}>{t('name') || 'Name'}</Text>
             <TextInput
               style={styles.nameInput}
-              placeholder="Enter name..."
+              placeholder={t('enter_name_placeholder') || 'Enter name...'}
               value={name}
               onChangeText={setName}
               placeholderTextColor="#999"
@@ -218,7 +211,9 @@ export default function EditProfileScreen() {
                 onPress={() => setAvatarType('custom')}
               >
                 <Image source={{ uri: customImage }} style={styles.customImage} />
-                <Text style={styles.customLabel}>{t('photo') || t('photo') || 'Your Photo'}</Text>
+                {/* Real fix Oct 1 (Marisa S25, same gap on the Edit screen as Create): was
+                    "Your Photo" - she suggested "Profile Picture" instead. */}
+                <Text style={styles.customLabel}>{t('profile_picture_label') || 'Profile Picture'}</Text>
                 {avatarType === 'custom' && (
                   <View style={styles.checkBadge}>
                     <MaterialIcons name="check" size={16} color="white" />
@@ -227,7 +222,7 @@ export default function EditProfileScreen() {
               </TouchableOpacity>
             )}
 
-            <Text style={styles.orText}>Or choose a character:</Text>
+            <Text style={styles.orText}>{t('or_choose_character') || 'Or choose a character:'}</Text>
             <View style={styles.avatarGrid}>
               {PRESET_AVATARS.map((avatar) => (
                 <TouchableOpacity
@@ -242,7 +237,7 @@ export default function EditProfileScreen() {
                   }}
                 >
                   <Text style={styles.avatarEmoji}>{avatar.emoji}</Text>
-                  <Text style={styles.avatarName}>{avatar.name}</Text>
+                  <Text style={styles.avatarName}>{t(avatar.nameKey) || avatar.id}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -285,7 +280,7 @@ export default function EditProfileScreen() {
             disabled={saving}
           >
             <Text style={styles.saveButtonText}>
-              {saving ? 'Saving...' : 'Save Changes'}
+              {saving ? (t('saving') || 'Saving...') : (t('save_changes') || 'Save Changes')}
             </Text>
           </TouchableOpacity>
 
@@ -299,7 +294,7 @@ export default function EditProfileScreen() {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 

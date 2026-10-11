@@ -274,14 +274,14 @@ export default function SubscriptionScreen() {
           onPress={() => setSelectedRole('parent')}>
           <MaterialIcons name="family-restroom" size={22} color={selectedRole === 'parent' ? 'white' : '#5C6BC0'} />
           <Text style={[st.roleBtnText, selectedRole === 'parent' && st.roleBtnTextActive]}>{t('parent') || 'Parent / Family'}</Text>
-          <Text style={[st.rolePrice, selectedRole === 'parent' && { color: 'rgba(255,255,255,0.8)' }]}>{t('from_price_prefix') || 'from'} €4.99/mo</Text>
+          <Text style={[st.rolePrice, selectedRole === 'parent' && { color: 'rgba(255,255,255,0.8)' }]}>{t('from_price_prefix') || 'from'} €4.99{t('plan_per_month_short') || '/mo'}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[st.roleBtn, selectedRole === 'teacher' && st.roleBtnActive]}
           onPress={() => setSelectedRole('teacher')}>
           <MaterialIcons name="school" size={22} color={selectedRole === 'teacher' ? 'white' : '#5C6BC0'} />
           <Text style={[st.roleBtnText, selectedRole === 'teacher' && st.roleBtnTextActive]}>{t('teacher_educator_label') || 'Teacher / Educator'}</Text>
-          <Text style={[st.rolePrice, selectedRole === 'teacher' && { color: 'rgba(255,255,255,0.8)' }]}>{t('from_price_prefix') || 'from'} €7.99/mo</Text>
+          <Text style={[st.rolePrice, selectedRole === 'teacher' && { color: 'rgba(255,255,255,0.8)' }]}>{t('from_price_prefix') || 'from'} €7.99{t('plan_per_month_short') || '/mo'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -324,12 +324,12 @@ export default function SubscriptionScreen() {
                   {selectedPlan === plan.id && <View style={st.radioDot} />}
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={st.planName}>{plan.name}</Text>
+                  <Text style={st.planName}>{t('plan_monthly_name') || plan.name}</Text>
                   {plan.savings ? <View style={st.savingsPill}><Text style={st.savingsText}>{plan.savings}</Text></View> : null}
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                   <Text style={st.planPrice}>{plan.price}</Text>
-                  <Text style={st.planPeriod}>{plan.period}</Text>
+                  <Text style={st.planPeriod}>{t('plan_per_month') || plan.period}</Text>
                 </View>
               </View>
             </TouchableOpacity>

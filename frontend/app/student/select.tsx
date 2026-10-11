@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Pressable, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Pressable, Image, RefreshControl } from 'react-native';
 // Real fix Sep 24 (item4, device report): the 20-22dp community-creature thumbnails on these
 // cards were loading through plain RN <Image> - no memory/disk cache of its own, so every
 // render (and every trip back to this screen) re-fetched the SAME full-resolution 1120x1120
@@ -37,7 +37,7 @@ export default function StudentSelectScreen() {
     // fallback) now lives in AppContext, deduped by the real student-id-list content rather
     // than re-derived by this screen's own effect on every `students` reference change - see
     // AppContext's matching comment for the full root cause. This screen just reads the result.
-    studentCreatureData, studentCreaturesLoading,
+    studentCreatureData, studentCreaturesLoading, studentsStatus,
     // Real fix Sep 24 (item1, second device-log pass): the full per-student My Creatures
     // collection is now fetched once, in a batch, by AppContext (GET /students/creatures-
     // batch) - see that context's matching comment for the full root cause (a Metro log
@@ -190,7 +190,7 @@ export default function StudentSelectScreen() {
       family_member_id: (student as any).family_member_id || null,
     };
     setCurrentStudent(enriched as any);
-    router.push('/student/creatures');
+    router.navigate('/student/creatures');
   };
 
   const handleCreateProfile = () => {
@@ -311,7 +311,7 @@ export default function StudentSelectScreen() {
         <View style={styles.creatureIconsContainer}>
           {totalNeeded > 0 && !allComplete && (
             <Text style={{ fontSize: 9, color: '#888', textAlign: 'center', marginBottom: 2 }}>
-              ⭐ {currentPts}/{totalNeeded} pts to complete all
+              ⭐ {currentPts}/{totalNeeded} {t('pts_to_complete_all') || 'pts to complete all'}
             </Text>
           )}
           {/* Real fix Sep 24 (item1, second device-log pass): the "New creatures to evolve!"
@@ -497,7 +497,8 @@ export default function StudentSelectScreen() {
           ))}
         </ScrollView>
       </View>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={false} onRefresh={() => { refreshStudents({ force: true }); }} />}>
 
 
         <View style={styles.studentsGrid}>
@@ -584,7 +585,7 @@ export default function StudentSelectScreen() {
               onPress={handleCreateProfile} activeOpacity={0.7}>
               <MaterialIcons name="add-circle-outline" size={36} color="#4CAF50" />
               <Text style={{ fontSize:11, color:'#4CAF50', textAlign:'center', fontWeight:'700', lineHeight:16 }}>
-                {'Add Profile'}
+                {t('add_profile_btn') || 'Add Profile'}
               </Text>
             </TouchableOpacity>
           ) : (
@@ -597,14 +598,31 @@ export default function StudentSelectScreen() {
           )}
         </View>
 
-        {students.length === 0 && (
+        {/* Oct 11: never show "No profiles yet" while the first load is still running or after it failed. */}
+        {students.length === 0 && !!user && studentsStatus !== 'loaded' && (
+          <View style={styles.emptyState}>
+            {studentsStatus === 'error' ? (
+              <>
+                <MaterialIcons name="cloud-off" size={64} color="#CCC" />
+                <Text style={styles.emptyText}>{t('load_failed_pull_refresh') || "Couldn't load. Pull to refresh."}</Text>
+                <TouchableOpacity onPress={() => { playButtonFeedback(); refreshStudents({ force: true }); }}
+                  style={{ marginTop:16, backgroundColor:'#4CAF50', paddingHorizontal:24, paddingVertical:12, borderRadius:12 }}>
+                  <MaterialIcons name="refresh" size={20} color="white" />
+                </TouchableOpacity>
+              </>
+            ) : (
+              <EmotionColourLoader visible size={28} />
+            )}
+          </View>
+        )}
+        {students.length === 0 && (!user || studentsStatus === 'loaded') && (
           <View style={styles.emptyState}>
             <MaterialIcons name={isAdult ? 'person-add' : 'supervisor-account'} size={64} color="#CCC" />
             <Text style={styles.emptyText}>{t('no_profiles_yet') || 'No profiles yet'}</Text>
             {isAdult ? (
               <TouchableOpacity onPress={handleCreateProfile}
                 style={{ marginTop:16, backgroundColor:'#4CAF50', paddingHorizontal:24, paddingVertical:12, borderRadius:12 }}>
-                <Text style={{ color:'white', fontWeight:'700', fontSize:15 }}>Create First Profile</Text>
+                <Text style={{ color:'white', fontWeight:'700', fontSize:15 }}>{t('create_first_profile_btn') || 'Create First Profile'}</Text>
               </TouchableOpacity>
             ) : (
               <Text style={styles.emptySubtext}>{'Ask your teacher or parent\nto add a profile for you'}</Text>

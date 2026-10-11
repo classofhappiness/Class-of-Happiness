@@ -7,6 +7,7 @@ import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../src/context/AppContext';
+import { formatNumericDate } from '../src/utils/dateLabel';
 import { translationsApi, subscriptionApi, authApiExtended } from '../src/utils/api';
 import { loadVoiceEnabled, setVoiceEnabled } from '../src/utils/voiceClips';
 import { loadDeviceNotificationsEnabled, setDeviceNotificationsEnabled } from '../src/utils/notifications';
@@ -65,15 +66,15 @@ const GOOGLE_DISCOVERY = {
 // Real feature Aug 25 (item 2): "Parent Subscription Active" instead of the bare plan name -
 // subscription_plan is a lowercase machine key ("parent"/"teacher"/"school_starter") set by
 // the Stripe webhook via _get_plan_from_price, not display text on its own.
-function subscriptionStatusLabel(user: any): string {
+function subscriptionStatusLabel(user: any, t: (k: string) => string): string {
   const plan = (user?.subscription_plan || 'Subscriber') as string;
   const label = plan.charAt(0).toUpperCase() + plan.slice(1).replace(/_/g, ' ');
-  return `${label} Subscription Active`;
+  return (t('subscription_active_label') || '{plan} Subscription Active').replace('{plan}', label);
 }
 
-function renewalCountdownLabel(expiresAtIso: string): string {
+function renewalCountdownLabel(expiresAtIso: string, t: (k: string) => string): string {
   const daysLeft = Math.max(0, Math.ceil((new Date(expiresAtIso).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-  return daysLeft === 1 ? 'Renews in 1 day' : `Renews in ${daysLeft} days`;
+  return daysLeft === 1 ? (t('renews_in_one_day') || 'Renews in 1 day') : (t('renews_in_days') || 'Renews in {days} days').replace('{days}', String(daysLeft));
 }
 
 // Build 26 (Sep 6): mirrors the backend's own _trial_is_valid fallback exactly - a promo
@@ -83,16 +84,16 @@ function renewalCountdownLabel(expiresAtIso: string): string {
 // wrong the same way the backend bug (Aug 25) did would show a promo trial's days-left as if
 // it were a plain 14-day trial.
 const TRIAL_DURATION_DAYS = 14;
-function trialDaysLeftLabel(user: any): string {
+function trialDaysLeftLabel(user: any, t: (k: string) => string): string {
   let expiresAt: Date | null = null;
   if (user?.subscription_expires_at) {
     expiresAt = new Date(user.subscription_expires_at);
   } else if (user?.trial_started_at) {
     expiresAt = new Date(new Date(user.trial_started_at).getTime() + TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000);
   }
-  if (!expiresAt) return 'Trial active';
+  if (!expiresAt) return t('trial_active_label') || 'Trial active';
   const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-  return daysLeft === 1 ? 'Trial active, 1 day left' : `Trial active, ${daysLeft} days left`;
+  return daysLeft === 1 ? (t('trial_active_one_day_left') || 'Trial active, 1 day left') : (t('trial_active_days_left') || 'Trial active, {days} days left').replace('{days}', String(daysLeft));
 }
 
 export default function SettingsScreen() {
@@ -163,7 +164,7 @@ export default function SettingsScreen() {
   const handleCancelSubscription = () => {
     Alert.alert(
       t('cancel_subscription_title') || 'Cancel subscription?',
-      (t('cancel_subscription_desc') || "You'll keep full access until {date}, then your account moves to the free plan. All your existing progress, creatures and data stay exactly as they are.").replace('{date}', user?.subscription_expires_at ? new Date(user.subscription_expires_at).toLocaleDateString() : ''),
+      (t('cancel_subscription_desc') || "You'll keep full access until {date}, then your account moves to the free plan. All your existing progress, creatures and data stay exactly as they are.").replace('{date}', user?.subscription_expires_at ? formatNumericDate(user.subscription_expires_at, language) : ''),
       [
         { text: t('keep_subscription') || 'Keep Subscription', style: 'cancel' },
         {
@@ -214,7 +215,7 @@ export default function SettingsScreen() {
   const handleWellbeingSharingToggle = async () => {
     const result = await toggleWellbeingSharing();
     if (!result.ok) {
-      Alert.alert(t('error') || 'Error', result.detail || 'Could not update sharing status. Please try again.');
+      Alert.alert(t('error') || 'Error', result.detail || (t('update_sharing_error') || 'Could not update sharing status. Please try again.'));
     }
   };
 
@@ -246,10 +247,10 @@ export default function SettingsScreen() {
           [{ text: t('done') || 'OK', onPress: async () => { await logout(); router.replace('/'); } }]
         );
       } else {
-        Alert.alert(t('error') || 'Error', data.detail || 'Could not process your request.');
+        Alert.alert(t('error') || 'Error', data.detail || (t('process_request_error') || 'Could not process your request.'));
       }
     } catch {
-      Alert.alert(t('error') || 'Error', 'Could not process your request. Please try again.');
+      Alert.alert(t('error') || 'Error', t('process_request_retry_error') || 'Could not process your request. Please try again.');
     } finally {
       setDeletingAccount(false);
     }
@@ -320,7 +321,7 @@ export default function SettingsScreen() {
     // Show confirmation dialog
     Alert.alert(
       t('change_language') || 'Change Language',
-      `${t('change_language_confirm') || 'Set'} ${selectedLang.name} ${t('as_default_language') || 'as your default language?'}`,
+      (t('change_language_confirm_full') || 'Set {language} as your default language?').replace('{language}', selectedLang.name),
       [
         { 
           text: t('cancel'), 
@@ -339,7 +340,7 @@ export default function SettingsScreen() {
             if (RTL_RESTART_FLOW_READY && Platform.OS !== 'web' && needsRtlRestart(langCode)) {
               Alert.alert(
                 t('restart_required') || 'Restart Required',
-                t('restart_required_rtl') || `${selectedLang.name} needs the app to restart to switch its layout direction. Restart now?`,
+                (t('restart_required_rtl') || '{language} needs the app to restart to switch its layout direction. Restart now?').replace('{language}', selectedLang.name),
                 [
                   { text: t('cancel'), style: 'cancel' },
                   { text: t('restart') || 'Restart', onPress: () => applyRtlAndRestart(langCode) },
@@ -349,7 +350,7 @@ export default function SettingsScreen() {
             }
             Alert.alert(
               '✓ ' + (t('language_changed') || 'Language Changed'),
-              `${selectedLang.name} ${t('is_now_default') || 'is now your default language. The app will remember this choice.'}`,
+              (t('language_changed_full') || '{language} is now your default language. The app will remember this choice.').replace('{language}', selectedLang.name),
               [{ text: t('done') || 'OK' }]
             );
           },
@@ -373,7 +374,7 @@ export default function SettingsScreen() {
       Alert.alert(
         '🎉 ' + (t('success') || 'Success'),
         result.message,
-        [{ text: 'OK' }]
+        [{ text: t('ok') || 'OK' }]
       );
       setTrialCode('');
       setShowTrialCode(false);
@@ -735,8 +736,8 @@ export default function SettingsScreen() {
               <Text style={[styles.settingValue, { color: (serverIsActive ?? hasActiveSubscription) ? '#4CAF50' : '#F44336' }]}>
                 {schoolCovered ? (t('covered_by_school') || 'Covered by your school') :
                  user?.subscription_status === 'trial' ? t('free_trial')||'Free Trial' :
-                 user?.subscription_status === 'active' ? subscriptionStatusLabel(user) :
-                 'Inactive'}
+                 user?.subscription_status === 'active' ? subscriptionStatusLabel(user, t) :
+                 (t('inactive_badge') || 'Inactive')}
               </Text>
               {/* Real feature Aug 25 (item 2): "Parent"/"teacher" alone didn't say the account
                   was actually active or when it renews. subscription_expires_at already holds
@@ -746,8 +747,8 @@ export default function SettingsScreen() {
               {user?.subscription_status === 'active' && user?.subscription_expires_at && (
                 <Text style={styles.settingSubValue}>
                   {cancelAtPeriodEnd
-                    ? (t('cancels_on_label') || 'Cancels on {date}').replace('{date}', new Date(user.subscription_expires_at).toLocaleDateString())
-                    : renewalCountdownLabel(user.subscription_expires_at)}
+                    ? (t('cancels_on_label') || 'Cancels on {date}').replace('{date}', formatNumericDate(user.subscription_expires_at, language))
+                    : renewalCountdownLabel(user.subscription_expires_at, t)}
                 </Text>
               )}
             </View>
@@ -816,7 +817,7 @@ export default function SettingsScreen() {
               <Text style={styles.settingLabel}>{t('have_trial_code')}</Text>
               {user?.subscription_status === 'trial' ? (
                 <Text style={[styles.settingSubValue, { color: '#4CAF50', fontWeight: '600' }]}>
-                  {trialDaysLeftLabel(user)}
+                  {trialDaysLeftLabel(user, t)}
                 </Text>
               ) : !hasActiveSubscription && (
                 <Text style={styles.settingSubValue}>
@@ -982,7 +983,7 @@ export default function SettingsScreen() {
           >
             <Text style={styles.switchRoleButtonText}>
               {switchingRole
-                ? (t('loading') || 'Switching...')
+                ? (t('switching_ellipsis') || 'Switching...')
                 : user!.role === 'teacher'
                   ? (t('switch_to_parent') || 'Switch to Parent account')
                   : (t('switch_to_teacher') || 'Switch to Teacher account')}
@@ -1375,9 +1376,9 @@ export default function SettingsScreen() {
         {/* Join School section consolidated above */}
       </View>
 
-      {/* Delete Account */}
+      {/* Account actions */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('danger_zone') || 'Danger Zone'}</Text>
+        <Text style={styles.sectionTitle}>{t('danger_zone') || 'Account actions'}</Text>
         {(user?.role === 'teacher' || user?.role === 'parent') ? (
           <>
             <TouchableOpacity

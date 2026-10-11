@@ -80,7 +80,7 @@ export default function VerifyEmailRequiredScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.inner}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <TouchableOpacity style={[styles.backButton, { marginTop: insets.top }]} onPress={handleBackToSignup} disabled={goingBack}>
-            <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
+            <MaterialIcons name="arrow-back" size={20} color="#1A1A2E" />
           </TouchableOpacity>
 
           <View style={styles.iconWrap}>
@@ -137,8 +137,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
   inner: { flex: 1 },
   scrollContent: { flexGrow: 1, padding: 24, paddingTop: 16, alignItems: 'stretch' },
+  // Real fix Oct 6 (auth-screen sweep straggler): matches login.tsx/forgot-password.tsx -
+  // this screen's back button was missed by the app-wide button redesign entirely, still
+  // the original solid-navy-fill/white-icon style. Updated to TranslatedHeader's own
+  // backButton (same 36x36 footprint, transparent fill + thin #CFCFCF ring).
   backButton: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A2E',
+    width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent',
+    borderWidth: 1, borderColor: '#CFCFCF',
     alignItems: 'center', justifyContent: 'center', marginBottom: 8,
   },
   iconWrap: { alignItems: 'center', marginBottom: 16 },

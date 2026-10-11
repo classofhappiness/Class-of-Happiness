@@ -5,11 +5,13 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../src/context/AppContext';
 import { SecureField } from '../../src/components/SecureField';
 
 export default function SignupScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { signupWithEmail, t } = useApp();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -58,6 +60,16 @@ export default function SignupScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Real fix Oct 7: this screen never had a back button. Same 36x36 thin-grey-outline style and
+          insets.top positioning as login.tsx. canGoBack() is false when reached via
+          verify-email-required's router.replace, so fall back to the login screen. */}
+      <TouchableOpacity
+        onPress={() => (router.canGoBack() ? router.back() : router.replace('/auth/login'))}
+        style={[styles.backButton, { top: insets.top + 12 }]}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <MaterialIcons name="arrow-back" size={20} color="#1A1A2E" />
+      </TouchableOpacity>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.inner}
@@ -178,7 +190,15 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
   inner: { flex: 1 },
-  scrollContent: { flexGrow: 1, padding: 24, justifyContent: 'center', paddingBottom: 40 },
+  // paddingTop 64 (was 24 via padding) keeps the logo header clear of the 36px back button (top: insets.top + 12) when the keyboard
+  // shrinks the viewport and the centred content is pushed to the top.
+  scrollContent: { flexGrow: 1, padding: 24, paddingTop: 64, justifyContent: 'center', paddingBottom: 40 },
+  backButton: {
+    position: 'absolute', left: 12, zIndex: 10,
+    width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent',
+    borderWidth: 1, borderColor: '#CFCFCF',
+    alignItems: 'center', justifyContent: 'center',
+  },
   header: { alignItems: 'center', marginBottom: 24 },
   logo: { width: 90, height: 90, marginBottom: 10 },
   title: { fontSize: 24, fontWeight: 'bold', color: '#333', marginBottom: 4 },
