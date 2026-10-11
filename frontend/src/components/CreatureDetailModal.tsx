@@ -76,11 +76,11 @@ export interface CreatureDetailEntry {
   stage_image?: string | null;
   stage_emojis?: string[];
   stage_urls?: (string | null)[];
-  // Real feature Sep 21: community creatures only (creature_submissions has no per-language
-  // columns for default creatures' own `stages[].description`, a separate, pre-existing,
-  // unrelated gap - out of scope here). All 10 variants sent through flat, same
-  // send-everything-let-the-client-pick pattern GET /students/{id}/my-creatures already uses
-  // for stage_urls - see localizedDescription() below.
+  // Real feature Sep 21 (community), extended Oct 2 (default): all 10 language variants sent
+  // through flat for both creature types - community creatures from creature_submissions'
+  // own description_xx columns, default creatures from the CREATURES constant's matching
+  // fields (server.py's _build_creatures_colours threads both through GET
+  // /students/{id}/my-creatures the same way). See localizedDescription() below.
   description?: string | null;
   description_ar?: string | null;
   description_de?: string | null;
@@ -338,7 +338,7 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
               >
                 <Text style={[s.itemEmoji, !item.owned && { opacity: 0.35 }]}>{item.emoji}</Text>
                 {!item.owned && !canBuy && <Text style={s.lockOverlay}>🔒</Text>}
-                <Text style={[s.itemName, !item.owned && s.itemNameLocked]} numberOfLines={2}>{item.name}</Text>
+                <Text style={[s.itemName, !item.owned && s.itemNameLocked]} numberOfLines={2}>{t(`shop_item_${item.id}_name`) || item.name}</Text>
                 {item.owned ? (
                   <View style={[s.unlockedTag, { backgroundColor: color }]}>
                     <Text style={s.unlockedTagText}>✓</Text>
@@ -372,26 +372,36 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
       <View style={s.overlay}>
         <View style={s.container}>
           <View style={[s.header, { backgroundColor: color + '25' }]}>
-            <Text style={s.title} numberOfLines={1}>{entry.name}</Text>
+            <Text style={s.title} numberOfLines={1}>{entry.type === 'default' ? (t(`creature_${entry.id}_name`) || entry.name) : entry.name}</Text>
             <TouchableOpacity onPress={onClose} style={s.closeBtn}>
               <Text style={s.closeTxt}>✕</Text>
             </TouchableOpacity>
           </View>
-          <ScrollView contentContainerStyle={s.scrollPad} showsVerticalScrollIndicator={false}>
-            <View style={{ position: 'relative' }}>
-              <View style={[s.visualBox, { backgroundColor: color + '20' }]}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scrollPad} showsVerticalScrollIndicator={false}>
+            {/* fix43: this wrapper used to be content-sized (as wide as its widest child, the status pill) and the 150 px
+                visual box sat at its LEFT edge, so the circle's x followed the pill's width. It now spans the full row and
+                centres its children; the circle + creature live in ONE fixed 150 x 150 wrapper (visualBox) that is centred
+                by the page, and the pill/slot below can never influence it. */}
+            <View style={s.visualColumn}>
+              <View style={s.visualBox}>
+                {/* Oct 11: the coloured circle is its own absolutely-positioned layer BEHIND the creature (same
+                    size in every state), so no creature image/emoji/animation can cover, clip or replace it. */}
+                <View pointerEvents="none" style={[s.visualCircle, { backgroundColor: color + '20' }]} />
                 <AnimatedCreatureVisual
                   zone={colour}
-                  // Root cause fix Sep 27 (live feedback, item 1): was 110 in a 150px box
-                  // (visualBox below) - enlarged to better match "the originals'" scale/
-                  // presence, matching student/creatures.tsx's own size fix. No overflow:hidden
-                  // anywhere in this modal, so bounce already renders past the box edge.
-                  size={135}
+                  // Oct 11 (fix41 part 4): sheetMode = ONE fixed 150 x 150 frame (exactly the circle) with a 4% margin, contain-fit
+                  // for default (emoji / silhouette) and community (photo) creatures alike, the zone's movement on the creature layer only
+                  // (sheetMovement), and an opacity-only cross-fade between stages. Was 165 (community) / 135 (default).
+                  size={150}
+                  sheetMode
+                  sheetMovement
+                  circleMask={entry.type === 'community'}   // fix46: community art is clipped to the circle; emoji creatures are drawn as before
                   unlocked
                   emoji={entry.type === 'default' && displayReached ? (entry.stage_emojis?.[displayStage] ?? entry.emoji) : undefined}
                   localSource={entry.type === 'default' && !displayReached ? SILHOUETTE_ASSETS[`${entry.id}_${displayStage}`] : undefined}
                   imageUrl={entry.type === 'community' ? (entry.stage_urls?.[displayStage] ?? entry.stage_image ?? undefined) : undefined}
                   maskSilhouette={entry.type === 'community' && !displayReached}
+                  animated={false}
                 />
               </View>
               {/* Real fix Sep 21 (device report): "Active" describes the CREATURE overall
@@ -402,14 +412,24 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
                   a separate line below it. Now mutually exclusive with the preview banner
                   (only shown when actually viewing the real current stage) and folded onto
                   the SAME line/element as the banner otherwise - see previewSlot below. */}
-              {!previewingOther && entry.is_active && <Text style={[s.activeBadge, { color }]}>{t('active_badge') || '★ Active'}</Text>}
+
               {/* Real fix Sep 19 (Jono correction #2): this banner used to mount/unmount
                   directly in document flow, so appearing/disappearing pushed the "Evolution"
                   title, evoRow and progress line up/down beneath it. It now lives inside a
                   fixed-height reserved slot that always occupies the same space whether or
                   not a preview is active - toggling the preview only changes what's drawn
                   inside that slot, never the slot's own height, so nothing below it moves. */}
+              {/* Oct 11: the "Active" label used to sit OUTSIDE this slot and mount/unmount while the
+                  banner swapped in, changing the sheet's content height; the sheet is bottom-anchored with
+                  a content-driven height, so its top edge (and the circle) jumped on every stage tap. Both
+                  labels now live inside this one fixed-height slot. */}
               <View style={s.previewSlot}>
+                {/* fix41: same pill + same text style as the preview/Completed banner (was plain 13px/900 text), for default and community creatures */}
+                {!previewingOther && entry.is_active && (
+                  <View style={[s.previewBanner, { backgroundColor: color + '20' }]}>
+                    <Text style={[s.previewBannerText, { color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t('active_badge') || '★ Active'}</Text>
+                  </View>
+                )}
                 {previewingOther && (
                   <TouchableOpacity onPress={() => setPreviewStage(null)} style={[s.previewBanner, { backgroundColor: color + '20' }]}>
                     <Text
@@ -432,7 +452,13 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
               </View>
             </View>
 
-            {entry.type === 'community' && !!localizedDescription(entry, language) && (
+            {/* Real fix Oct 2 (language-gap follow-up): this used to be gated to
+                entry.type === 'community' only - a default creature had a full 10-language
+                description sitting in the CREATURES constant the whole time (server.py) but
+                it was never threaded through the API response, so nothing ever rendered here
+                for a default creature, in ANY language, not just the 4 flagged ones. Now both
+                types show it the same way, same style, once the field is actually present. */}
+            {!!localizedDescription(entry, language) && (
               <Text style={s.communityDescription}>{localizedDescription(entry, language)}</Text>
             )}
 
@@ -480,7 +506,7 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
                         />
                       )
                     ) : url ? (
-                      <AnimatedCreatureVisual zone={colour} size={32} unlocked={reached} imageUrl={url} maskSilhouette={!reached} />
+                      <AnimatedCreatureVisual zone={colour} size={32} unlocked={reached} imageUrl={url} maskSilhouette={!reached} animated={false} />
                     ) : null}
                     {!reached && <Text style={s.evoLockBadge}>🔒</Text>}
                     {/* Real fix Sep 15 (Marisa build-26, S08): idx is 0-indexed (fish=0,
@@ -599,7 +625,7 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
 
 const s = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end', alignItems: 'center' },
-  container: { backgroundColor: '#F8F9FA', borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '90%', minHeight: '60%', width: '100%', maxWidth: 480 },
+  container: { backgroundColor: '#F8F9FA', borderTopLeftRadius: 28, borderTopRightRadius: 28, height: '90%', width: '100%', maxWidth: 480 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderTopLeftRadius: 28, borderTopRightRadius: 28 },
   title: { fontSize: 19, fontWeight: '900', color: '#1A1A2E', flex: 1 },
   closeBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(0,0,0,0.12)', justifyContent: 'center', alignItems: 'center' },
@@ -607,7 +633,9 @@ const s = StyleSheet.create({
   scrollPad: { padding: 18, paddingBottom: 40, alignItems: 'center' },
   // Real fix Sep 21 (device report): marginBottom trimmed 10->4 as part of tightening the
   // gap to the "Evolution" section below - see previewSlot's note just below for the rest.
-  visualBox: { width: 150, height: 150, borderRadius: 75, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  visualColumn: { alignSelf: 'stretch', alignItems: 'center' },
+  visualBox: { position: 'relative', alignSelf: 'center', width: 150, height: 150, overflow: 'visible', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  visualCircle: { position: 'absolute', top: 0, left: 0, width: 150, height: 150, borderRadius: 75 },
   activeBadge: { fontSize: 13, fontWeight: '900', marginBottom: 8 },
   // Real feature Sep 19: the "you're looking at a stage other than your real current one"
   // banner - tappable itself (returns to current), deliberately using the creature's own
@@ -620,9 +648,9 @@ const s = StyleSheet.create({
   // marginBottom dropped to 0 - sectionTitle's own weight/colour already reads as a clear
   // section break without extra space stacked on top. Still non-zero height, so the
   // anti-layout-jump fix this slot exists for (Sep 19) is untouched.
-  previewSlot: { height: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 0 },
-  previewBanner: { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
-  previewBannerText: { fontSize: 11.5, fontWeight: '800' },
+  previewSlot: { alignSelf: 'stretch', height: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 0 },
+  previewBanner: { maxWidth: '100%', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+  previewBannerText: { fontSize: 11.5, fontWeight: '800', flexShrink: 1, textAlign: 'center' },
   sectionTitle: { alignSelf: 'flex-start', fontSize: 15, fontWeight: '900', color: '#1A1A2E', marginBottom: 10 },
   communityDescription: { alignSelf: 'stretch', textAlign: 'center', fontSize: 13, lineHeight: 18, color: '#555', marginBottom: 14 },
   evoRow: { flexDirection: 'row', gap: 8, width: '100%' },

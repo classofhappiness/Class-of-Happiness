@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Animated, 
 import { useRouter } from 'expo-router';
 import { Creature } from '../utils/api';
 import { useApp } from '../context/AppContext';
+import { creatureStageName } from '../utils/creatureStageName';
 import { pickLocalized } from '../utils/localizedText';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../utils/sounds';
 import { CreatureShowcase } from './CreatureShowcase';
@@ -134,7 +135,7 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
   const handleSubmitCreature = () => {
     playButtonFeedback();
     onClose();
-    router.push('/student/submit-creature');
+    router.navigate('/student/submit-creature');
   };
 
   const PointsGuide = () => (
@@ -142,10 +143,10 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
       <Text style={styles.pointsGuideTitle}>⭐ {t("how_grow_creature") || "How to grow your creature:"}</Text>
       <View style={styles.pointsGuideRow}>
         {[
-          {label:'🥚 Hatch', pts: 25},
-          {label:'🐣 Grow', pts: 60},
-          {label:'🐤 Evolve', pts: 120},
-          {label:'✨ Max', pts: 200},
+          {label:'🥚 ' + (t('points_guide_hatch') || 'Hatch'), pts: 25},
+          {label:'🐣 ' + (t('points_guide_grow') || 'Grow'), pts: 60},
+          {label:'🐤 ' + (t('points_guide_evolve') || 'Evolve'), pts: 120},
+          {label:'✨ ' + (t('points_guide_max') || 'Max'), pts: 200},
         ].map((item, i) => (
           <View key={i} style={styles.pointsGuideItem}>
             <Text style={styles.pointsGuidePts}>{item.pts}</Text>
@@ -153,7 +154,7 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
           </View>
         ))}
       </View>
-      <Text style={styles.pointsGuideHint}>Check in + use strategies = earn points!</Text>
+      <Text style={styles.pointsGuideHint}>{t('points_guide_hint') || 'Check in + use strategies = earn points!'}</Text>
     </View>
   );
 
@@ -170,11 +171,11 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
                 <Text style={[styles.itemEmoji, !isUnlocked && { opacity: 0.25 }]}>{item.emoji}</Text>
                 {!isUnlocked && <Text style={styles.lockOverlay}>🔒</Text>}
                 <Text style={[styles.itemName, !isUnlocked && styles.itemNameLocked]} numberOfLines={2}>
-                  {item.name}
+                  {t(`shop_item_${item.id}_name`) || item.name}
                 </Text>
                 {isUnlocked ? (
                   <View style={[styles.unlockedTag, { backgroundColor: displayColor }]}>
-                    <Text style={styles.unlockedTagText}>✓ Unlocked</Text>
+                    <Text style={styles.unlockedTagText}>{t('creature_item_unlocked_tag') || '✓ Unlocked'}</Text>
                   </View>
                 ) : (
                   <Text style={{ fontSize: 10, color: '#AAA', textAlign: 'center', marginTop: 2 }}>
@@ -279,7 +280,7 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
                         <View style={[styles.creatureEmojiBox, { backgroundColor: cColor + '25' }]}>
                           <AnimatedCreature emoji={cEmoji} zone={cZone} size="medium" unlocked={cPoints > 0} />
                         </View>
-                        <Text style={[styles.creatureName, { color: cColor }]} numberOfLines={1}>{creature.name}</Text>
+                        <Text style={[styles.creatureName, { color: cColor }]} numberOfLines={1}>{t(`creature_${creature.id}_name`) || creature.name}</Text>
                         <Text style={styles.stageLabel}>
                           {cStage >= 3 ? `⭐ ${t('fully_evolved') || 'Evolved!'}` : `${t('stage') || 'Stage'} ${cStage}`}
                         </Text>
@@ -295,12 +296,12 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
                 {/* Selected creature detail */}
                 <View style={[styles.detailCard, { borderColor: displayColor }]}>
                   <Text style={[styles.detailTitle, { color: displayColor }]}>
-                    {displayCreature.stages?.[displayStage]?.name || displayCreature.name}
+                    {displayCreature.stages?.[displayStage]?.name ? creatureStageName(t, displayCreature.id, displayStage, displayCreature.stages[displayStage].name) : (t(`creature_${displayCreature.id}_name`) || displayCreature.name)}
                   </Text>
                   <View style={[styles.detailEmojiBox, { backgroundColor: displayColor + '20' }]}>
                     <AnimatedCreature emoji={displayEmoji} zone={displayZone} size="large" unlocked={displayPoints > 0 || displayStage > 0} />
-                    {equippedOutfit && <Text style={styles.wearingTxt}>{equippedOutfit.emoji} {equippedOutfit.name}</Text>}
-                    {equippedMove && <Text style={styles.wearingTxt}>{equippedMove.emoji} {equippedMove.name}</Text>}
+                    {equippedOutfit && <Text style={styles.wearingTxt}>{equippedOutfit.emoji} {t(`shop_item_${equippedOutfit.id}_name`) || equippedOutfit.name}</Text>}
+                    {equippedMove && <Text style={styles.wearingTxt}>{equippedMove.emoji} {t(`shop_item_${equippedMove.id}_name`) || equippedMove.name}</Text>}
                   </View>
                   <Text style={styles.detailDesc}>{pickLocalized(displayCreature.stages?.[displayStage], 'description', language) || ''}</Text>
 
@@ -330,7 +331,7 @@ export const CreatureCollection: React.FC<CreatureCollectionProps> = ({
               </View>
             ) : (
               <View style={styles.scrollPad}>
-                <Text style={styles.sectionTitle}>{t('bonus_items') || 'Bonus Items'} - {displayCreature.name}</Text>
+                <Text style={styles.sectionTitle}>{t('bonus_items') || 'Bonus Items'} - {t(`creature_${displayCreature.id}_name`) || displayCreature.name}</Text>
                 <Text style={styles.hintTxt}>{t('grow_creature_hint') || 'Use helpers and share your feelings to unlock bonus items!'}</Text>
                 {renderItemGrid((displayCreature as any).moves || [], unlockedMoves, t('moves') || 'Moves', '🎬')}
                 {renderItemGrid((displayCreature as any).outfits || [], unlockedOutfits, t('outfits') || 'Outfits', '👗')}

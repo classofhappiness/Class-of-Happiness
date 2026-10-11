@@ -9,6 +9,7 @@
 // exactly; only the visual (Image instead of emoji Text) and data shape differ.
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Modal, Easing, TouchableOpacity, Image } from 'react-native';
+import { useApp } from '../context/AppContext';
 
 interface CommunityEvolutionAnimationProps {
   visible: boolean;
@@ -26,6 +27,7 @@ interface CommunityEvolutionAnimationProps {
 export const CommunityEvolutionAnimation: React.FC<CommunityEvolutionAnimationProps> = ({
   visible, name, color, stage1_url, stage2_url, stage3_url, stage4_url, fromStage, toStage, onComplete,
 }) => {
+  const { t } = useApp();
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -122,7 +124,7 @@ export const CommunityEvolutionAnimation: React.FC<CommunityEvolutionAnimationPr
 
           {animationComplete && (
             <TouchableOpacity style={[styles.continueButton, { backgroundColor: color }]} onPress={onComplete}>
-              <Text style={styles.continueText}>Amazing! Continue →</Text>
+              <Text style={styles.continueText}>{t('amazing_continue') || 'Amazing! Continue →'}</Text>
             </TouchableOpacity>
           )}
         </View>

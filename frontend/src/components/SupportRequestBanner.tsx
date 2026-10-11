@@ -109,11 +109,11 @@ export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
   };
 
   const cancelRequest = (r: SupportRequest) => Alert.alert(
-    'Cancel request?',
-    "This stops the buzzing and closes it - the admin will be told it's no longer needed.",
+    t('support_request_cancel_confirm_title') || 'Cancel request?',
+    t('support_request_cancel_confirm_message') || "This stops the buzzing and closes it - the admin will be told it's no longer needed.",
     [
-      { text: 'Keep it', style: 'cancel' },
-      { text: 'Cancel request', style: 'destructive', onPress: async () => {
+      { text: t('support_request_keep_it_btn') || 'Keep it', style: 'cancel' },
+      { text: t('support_request_cancel_btn') || 'Cancel request', style: 'destructive', onPress: async () => {
         setBusy((b) => ({ ...b, [r.id]: 'cancelling' }));
         try {
           const updated = await supportRequestsApi.cancel(r.id);
@@ -152,10 +152,10 @@ function RequestCard({ request, expanded, busy, onToggle, onArrived, onCancel }:
   onArrived: () => void;
   onCancel: () => void;
 }) {
-  const { t } = useApp();
-  const display = formatSupportRequestStatus(request);
+  const { t, language } = useApp();
+  const display = formatSupportRequestStatus(request, t);
   const isOpen = request.status === 'PENDING' || request.status === 'ACKNOWLEDGED';
-  const who = request.student_name || request.classroom_name || 'Classroom';
+  const who = request.student_name || request.classroom_name || (t('classroom') || 'Classroom');
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -174,18 +174,18 @@ function RequestCard({ request, expanded, busy, onToggle, onArrived, onCancel }:
     <View style={styles.card}>
       <TouchableOpacity style={styles.pill} onPress={onToggle} activeOpacity={0.7}>
         <Animated.View style={[styles.dot, { backgroundColor: display.color, opacity: display.pulse ? pulseAnim : 1 }]} />
-        <Text style={styles.text} numberOfLines={1}>Support request · {display.text}</Text>
+        <Text style={styles.text} numberOfLines={1}>{t('request_support') || 'Support Request'} · {display.text}</Text>
         <MaterialIcons name={expanded ? 'expand-less' : 'expand-more'} size={22} color="#999" />
       </TouchableOpacity>
       {expanded && (
         <View style={styles.details}>
           <Text style={styles.detailTitle}>{who}</Text>
-          <Text style={styles.detailLine}>{describeSupportRequest(request)}</Text>
-          <Text style={styles.detailMeta}>{formatSentLine(request.created_at)}</Text>
+          <Text style={styles.detailLine}>{describeSupportRequest(request, t)}</Text>
+          <Text style={styles.detailMeta}>{formatSentLine(request.created_at, t, language)}</Text>
           {isOpen && (
             <View style={styles.actionRow}>
               <TouchableOpacity style={styles.arrivedBtn} disabled={!!busy} onPress={onArrived}>
-                {busy === 'arriving' ? <ActivityIndicator color="white" /> : <Text style={styles.arrivedBtnText}>Support arrived ✓</Text>}
+                {busy === 'arriving' ? <ActivityIndicator color="white" /> : <Text style={styles.arrivedBtnText}>{t('support_request_arrived_btn') || 'Support arrived ✓'}</Text>}
               </TouchableOpacity>
               <TouchableOpacity style={styles.cancelBtn} disabled={!!busy} onPress={onCancel}>
                 {busy === 'cancelling' ? <ActivityIndicator color="#999" /> : <Text style={styles.cancelBtnText}>{t('cancel') || 'Cancel'}</Text>}

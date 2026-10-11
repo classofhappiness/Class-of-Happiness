@@ -1,6 +1,8 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, View, Image } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { StrategyIcon } from './StrategyIcon';
+import { useApp } from '../context/AppContext';
 
 interface StrategyCardProps {
   name: string;
@@ -11,6 +13,8 @@ interface StrategyCardProps {
   selected?: boolean;
   onPress: () => void;
   zoneColor: string;
+  /** Oct 11: where the strategy is used: only home, only school, or shared both ways (small icon, tinted in the emotion colour). */
+  origin?: 'home' | 'school' | 'both';
 }
 
 export const StrategyCard: React.FC<StrategyCardProps> = ({
@@ -22,7 +26,10 @@ export const StrategyCard: React.FC<StrategyCardProps> = ({
   selected = false,
   onPress,
   zoneColor,
+  origin,
 }) => {
+  const { t } = useApp();
+  const originLabel = origin === 'home' ? (t('origin_home_label') || 'Used at home') : origin === 'school' ? (t('origin_school_label') || 'Used at school') : (t('origin_both_label') || 'Shared between home and school');
   return (
     <TouchableOpacity
       style={[
@@ -40,7 +47,7 @@ export const StrategyCard: React.FC<StrategyCardProps> = ({
             resizeMode="cover"
           />
         ) : (
-          <MaterialIcons name={icon as any} size={22} color="white" />
+          <StrategyIcon icon={icon} size={22} color="white" />
         )}
       </View>
       <View style={styles.textContainer}>
@@ -54,6 +61,12 @@ export const StrategyCard: React.FC<StrategyCardProps> = ({
         </Text>
         <Text style={styles.description}>{description}</Text>
       </View>
+      {!!origin && (
+        <View accessible accessibilityRole="image" accessibilityLabel={originLabel}
+          style={[styles.originBadge, { backgroundColor: `${zoneColor}33`, borderColor: zoneColor }]}>
+          <MaterialIcons name={origin === 'home' ? 'home' : origin === 'school' ? 'school' : 'sync'} size={15} color="#444" />
+        </View>
+      )}
       {selected && (
         <View style={[styles.checkmark, { backgroundColor: zoneColor }]}>
           <MaterialIcons name="check" size={20} color="white" />
@@ -106,6 +119,7 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2,
   },
+  originBadge: { width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginLeft: 6 },
   checkmark: {
     width: 28,
     height: 28,

@@ -2,15 +2,26 @@ import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
+import { formatTime, formatNumericDate } from '../utils/dateLabel';
 import { EMOTION_COLOURS } from '../constants/emotionColours';
-import { resolveStrategyName } from '../utils/resolveStrategyName';
+import { resolveStrategyName, strategyLabel } from '../utils/resolveStrategyName';
+import { translateSupportAlertMessage } from '../utils/api';
 
 // Item 6 (Sep 25): extracted from teacher/alerts.tsx so teacher and parent Alerts share one
 // real implementation instead of two copy-pasted ones that can silently drift apart - parent
 // Alerts is being rebuilt this round to mirror teacher's layout exactly (see app/parent/
 // alerts.tsx), and reusing the actual component was the explicit ask rather than a second copy.
 export const ZONE_COLOR: Record<string, string> = EMOTION_COLOURS;
+// Real fix Sep 30 (live feedback, item 2): was a hardcoded English dict read directly
+// (ZONE_LABEL[alert.zone]) with no t() call at all, so "Yellow Emotions" etc never
+// translated. getZoneLabel mirrors the t('blue_zone')||t('blue_emotions') fallback pattern
+// already used for this exact same label elsewhere (eg teacher/student-detail.tsx).
 export const ZONE_LABEL: Record<string, string> = { blue: 'Blue Emotions', green: 'Green Emotions', yellow: 'Yellow Emotions', red: 'Red Emotions' };
+export const getZoneLabel = (zone: string, t: (key: string) => string): string => {
+  const key = `${zone}_zone`;
+  const emoKey = `${zone}_emotions`;
+  return t(key) || t(emoKey) || ZONE_LABEL[zone] || zone;
+};
 // Legacy fallback dictionary — kept only as a safety net for resolveStrategyName()
 // (see src/utils/resolveStrategyName.ts) so nothing that used to resolve correctly
 // can start showing blank/undefined. Real names now come from t() via that shared resolver.
@@ -25,8 +36,15 @@ export const STRAT: Record<string, string> = {
   red_1: 'Freeze', red_2: 'Big Breaths', red_3: 'Count Backwards', red_4: 'Safe Space', red_5: 'Ask for Help', red_6: 'Self Hug',
 };
 
+// Real fix Sep 30 (live feedback follow-up audit): matches the locale fix already applied to
+// teacher/student-detail.tsx, teacher/dashboard.tsx, teacher/checkin.tsx and
+// parent/linked-child/[id].tsx - toLocaleTimeString([]...)/toLocaleDateString() with no
+// locale argument both follow the DEVICE's OS locale, not the app's own in-app language.
+const LOCALE_FOR_LANG: Record<string,string> = { en:'en-US', pt:'pt-PT', es:'es-ES', fr:'fr-FR', de:'de-DE', it:'it-IT', hi:'hi-IN', zh:'zh-CN', ar:'ar-u-nu-latn-ca-gregory', ru:'ru-RU' };
+
 export const AlertCard = ({ alert, onResolve, selected, selectMode, onLongPress, onPress }: any) => {
-  const { t } = useApp();
+  const { t, language } = useApp();
+  const alertLocale = LOCALE_FOR_LANG[language] || 'en-US';
   const zc = ZONE_COLOR[alert.zone] || '#5C6BC0';
   // Real fix Sep 11 (item 3): support_request fell into the generic else branch here and
   // rendered as a bare "Message" - no distinguishing label at all. The companion alert's
@@ -37,7 +55,7 @@ export const AlertCard = ({ alert, onResolve, selected, selectMode, onLongPress,
   // branch is simply unused there rather than needing its own variant.
   const typeLabel = alert.alert_type === 'help_request' ? (t('help_request') || 'Help Request') :
                    alert.alert_type === 'zone_alert' ? (t('check_in_alert') || 'Check-in Alert') :
-                   alert.alert_type === 'support_request' ? 'Support Request' : (t('message_label') || 'Message');
+                   alert.alert_type === 'support_request' ? (t('support_request') || 'Support Request') : (t('message_label') || 'Message');
   const typeBg = alert.alert_type === 'help_request' ? '#FFF3E0' :
                  alert.alert_type === 'parent_message' ? '#EEF2FF' :
                  alert.alert_type === 'support_request' ? '#FFF3E0' : '#E8F5E9';
@@ -63,20 +81,27 @@ export const AlertCard = ({ alert, onResolve, selected, selectMode, onLongPress,
               </View>
             </View>
             <Text style={{ fontSize:12, color:'#999', marginBottom:6 }}>
-              {ZONE_LABEL[alert.zone] || alert.zone} · {new Date(alert.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} {new Date(alert.created_at).toLocaleDateString()}
+              {getZoneLabel(alert.zone, t)} · {formatTime(alert.created_at, language, { twoDigitHour: true })} {formatNumericDate(alert.created_at, language)}
             </Text>
-            {alert.strategy_name ? (
+            {(alert.strategy_id || alert.strategy_name) ? (
               <Text style={{ fontSize:13, color:'#555', marginBottom:6 }}>
-                🎯 {resolveStrategyName(alert.strategy_name, t, STRAT)}
+                {/* Real fix Sep 30 (live feedback, item 2): this used to resolve
+                    alert.strategy_name — the display text the STUDENT's own device already
+                    resolved to English/whatever language THEY were using at the moment they
+                    tapped "help", frozen into the stored alert forever. alert.strategy_id (the
+                    raw code, eg "b2"/"r3") is stored alongside it and is what resolveStrategyName
+                    actually knows how to translate — falling back to strategy_name only for
+                    older alerts stored before strategy_id existed. */}
+                🎯 {strategyLabel(alert.strategy_id || alert.strategy_name, t, STRAT)}
               </Text>
             ) : null}
             {alert.message ? (
               <View style={{ backgroundColor: alert.alert_type === 'support_request' ? '#FFF3E0' : '#EEF2FF', borderRadius:10, padding:10, marginBottom:4,
                 borderLeftWidth:4, borderLeftColor: alert.alert_type === 'support_request' ? '#FF7043' : '#5C6BC0' }}>
                 <Text style={{ fontSize:11, color: alert.alert_type === 'support_request' ? '#FF7043' : '#5C6BC0', fontWeight:'700', marginBottom:3 }}>
-                  {alert.alert_type === 'support_request' ? '🔔 Support Request' : `💬 ${t('message_label') || 'Message'}`}
+                  {alert.alert_type === 'support_request' ? `🔔 ${t('support_request') || 'Support Request'}` : `💬 ${t('message_label') || 'Message'}`}
                 </Text>
-                <Text style={{ fontSize:14, color:'#111', fontWeight:'600', lineHeight:20 }}>{alert.message}</Text>
+                <Text style={{ fontSize:14, color:'#111', fontWeight:'600', lineHeight:20 }}>{alert.alert_type === 'support_request' ? translateSupportAlertMessage(alert.message, t) : alert.message}</Text>
               </View>
             ) : null}
           </View>

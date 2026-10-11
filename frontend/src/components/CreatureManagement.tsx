@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { teacherApi, parentApi, creaturesApi } from '../utils/api';
 import { EmotionColourLoader } from './EmotionColourLoader';
 import { useApp } from '../context/AppContext';
+import { formatShortDate } from '../utils/dateLabel';
 import { EMOTION_COLOURS } from '../constants/emotionColours';
 
 // Real component, Aug 16: shared creature-management screen for both teacher and
@@ -23,11 +24,11 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 
 // Real feature Aug 23 (item 4): reviewers need to know which real child a submission is
 // for, and when it was submitted - not just the submitting account's own name.
-function formatSubDate(iso?: string): string {
+function formatSubDate(iso?: string, language: string = 'en'): string {
   if (!iso) return '';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return formatShortDate(d, language);
 }
 
 interface Props {
@@ -35,7 +36,7 @@ interface Props {
 }
 
 export const CreatureManagement: React.FC<Props> = ({ role }) => {
-  const { t } = useApp();
+  const { t, language } = useApp();
   const router = useRouter();
   // Real fix Sep 18: this screen had zero i18n anywhere - every string was hardcoded
   // English. STATUS_LABELS resolved here (not as a module constant like STATUS_COLORS)
@@ -136,7 +137,7 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
             ? (t('creature_code_hint_teacher') || 'Generate a code for your class. Students enter it in "Submit a Creature" to send in their drawing.')
             : (t('creature_code_hint_parent') || 'Generate a code for your family. Your child enters it in "Submit a Creature" to send in their drawing.')}
         </Text>
-        <TouchableOpacity style={[s.btn, { marginBottom: 14 }]} onPress={() => router.push('/student/submit-creature')}>
+        <TouchableOpacity style={[s.btn, { marginBottom: 14 }]} onPress={() => router.navigate('/student/submit-creature')}>
           <MaterialIcons name="palette" size={18} color="white" />
           <Text style={s.btnText}>{t('submit_a_creature_btn') || 'Submit a Creature'}</Text>
         </TouchableOpacity>
@@ -182,9 +183,14 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
                   <View style={[s.zoneDot, { backgroundColor: ZONE_COLORS[sub.emotion_colour] || '#999' }]} />
                   <Text style={s.subName}>{sub.creature_name}</Text>
                 </View>
+                {(sub.ai_moderation_flag === 'flagged' || sub.ai_moderation_flag === 'error') && (
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#E65100', marginTop: 2 }}>
+                    ⚠️ {t('creature_needs_extra_review') || 'Needs extra review by Class of Happiness before it goes live.'}
+                  </Text>
+                )}
                 <Text style={s.subMeta}>
                   {sub.real_student_name ? `${t('for_label') || 'For:'} ${sub.real_student_name}` : sub.student_name}
-                  {formatSubDate(sub.created_at) ? ` · ${formatSubDate(sub.created_at)}` : ''}
+                  {formatSubDate(sub.created_at, language) ? ` · ${formatSubDate(sub.created_at, language)}` : ''}
                 </Text>
                 {sub.description ? <Text style={s.subMeta}>{sub.description}</Text> : null}
               </View>
@@ -242,7 +248,7 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
                   </View>
                   <Text style={s.subMeta}>
                     {sub.real_student_name ? `${t('for_label') || 'For:'} ${sub.real_student_name}` : sub.student_name}
-                    {formatSubDate(sub.created_at) ? ` · ${formatSubDate(sub.created_at)}` : ''}
+                    {formatSubDate(sub.created_at, language) ? ` · ${formatSubDate(sub.created_at, language)}` : ''}
                   </Text>
                   {sub.status === 'rejected' && sub.rejection_reason ? (
                     <Text style={s.subMeta}>{sub.rejection_reason}</Text>

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Animated, Modal, Easing, TouchableOpacity } fro
 import { Creature, CreatureStage } from '../utils/api';
 import { useApp } from '../context/AppContext';
 import { pickLocalized } from '../utils/localizedText';
+import { creatureStageName } from '../utils/creatureStageName';
 
 interface EvolutionAnimationProps {
   visible: boolean;
@@ -19,7 +20,7 @@ export const EvolutionAnimation: React.FC<EvolutionAnimationProps> = ({
   toStage,
   onComplete,
 }) => {
-  const { language } = useApp();
+  const { language, t } = useApp();
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -123,7 +124,7 @@ export const EvolutionAnimation: React.FC<EvolutionAnimationProps> = ({
   });
 
   const currentEmoji = showNewForm ? newStageInfo.emoji : oldStageInfo.emoji;
-  const currentName = showNewForm ? newStageInfo.name : oldStageInfo.name;
+  const currentName = showNewForm ? creatureStageName(t, creature.id, toStage, newStageInfo.name) : creatureStageName(t, creature.id, fromStage, oldStageInfo.name);
 
   return (
     <Modal
@@ -194,7 +195,7 @@ export const EvolutionAnimation: React.FC<EvolutionAnimationProps> = ({
               style={[styles.continueButton, { backgroundColor: creature.color }]}
               onPress={onComplete}
             >
-              <Text style={styles.continueText}>Amazing! Continue →</Text>
+              <Text style={styles.continueText}>{t('amazing_continue') || 'Amazing! Continue →'}</Text>
             </TouchableOpacity>
           )}
         </View>

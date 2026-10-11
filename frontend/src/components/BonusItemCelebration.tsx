@@ -125,7 +125,7 @@ export const BonusItemCelebration: React.FC<Props> = ({ visible, items, colour, 
         <Animated.View style={{ opacity: opacityAnim, transform: [{ scale: scaleAnim }, { translateY: translateAnim }] }}>
           <Text style={s.emoji}>{item.emoji}</Text>
         </Animated.View>
-        <Text style={s.itemName}>{item.name}</Text>
+        <Text style={s.itemName}>{t(`shop_item_${item.id}_name`) || item.name}</Text>
         {items.length > 1 && (
           <View style={s.dots}>
             {items.map((_, i) => (

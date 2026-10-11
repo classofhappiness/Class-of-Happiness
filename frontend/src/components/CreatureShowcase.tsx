@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Modal, Animated, Easing, TouchableOpacity } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { pickLocalized } from '../utils/localizedText';
+import { creatureStageName } from '../utils/creatureStageName';
 
 const zoneColors: Record<string, string> = {
   blue: '#4FC3F7', green: '#81C784', yellow: '#FFD54F', red: '#FF7043',
@@ -37,7 +38,7 @@ export const CreatureShowcase: React.FC<CreatureShowcaseProps> = ({
   const color = zoneColors[zone] || '#4FC3F7';
   const bg = zoneBg[zone] || '#E3F2FD';
   const emoji = creature?.stages?.[stage]?.emoji || '🥚';
-  const stageName = creature?.stages?.[stage]?.name || creature?.name || '';
+  const stageName = creatureStageName(t, creature?.id, stage, creature?.stages?.[stage]?.name || creature?.name || '');
   const stageDesc = pickLocalized(creature?.stages?.[stage], 'description', language) || '';
 
   const moves = (creature?.moves || []).slice(0, 3);
@@ -53,22 +54,22 @@ export const CreatureShowcase: React.FC<CreatureShowcaseProps> = ({
   const STEPS = [
     { label: `${t('current_friend') || 'Meet'}: ${stageName}!`, sub: stageDesc, itemEmoji: null },
     {
-      label: unlockedMove ? `${t('moves') || 'Move'}: ${unlockedMove.name}!` : t('grow_creature_hint') || 'No moves yet!',
+      label: unlockedMove ? `${t('moves') || 'Move'}: ${t(`shop_item_${unlockedMove.id}_name`) || unlockedMove.name}!` : t('grow_creature_hint') || 'No moves yet!',
       sub: unlockedMove?.description || t('grow_creature_hint') || 'Keep checking in!',
       itemEmoji: unlockedMove?.emoji || '🔒'
     },
     {
-      label: unlockedOutfit ? `${t('outfits') || 'Outfit'}: ${unlockedOutfit.name}!` : t('keep_growing') || 'No outfit yet!',
+      label: unlockedOutfit ? `${t('outfits') || 'Outfit'}: ${t(`shop_item_${unlockedOutfit.id}_name`) || unlockedOutfit.name}!` : t('keep_growing') || 'No outfit yet!',
       sub: unlockedOutfit?.description || t('keep_growing') || 'Evolve to unlock!',
       itemEmoji: unlockedOutfit?.emoji || '🔒'
     },
     {
-      label: unlockedFood ? `${t('foods') || 'Food'}: ${unlockedFood.name}!` : t('grow_creature_hint') || 'No food yet!',
+      label: unlockedFood ? `${t('foods') || 'Food'}: ${t(`shop_item_${unlockedFood.id}_name`) || unlockedFood.name}!` : t('grow_creature_hint') || 'No food yet!',
       sub: unlockedFood?.description || t('grow_creature_hint') || 'Use helpers to unlock!',
       itemEmoji: unlockedFood?.emoji || '🔒'
     },
     {
-      label: unlockedHome ? `${t('homes') || 'Home'}: ${unlockedHome.name}!` : t('keep_growing') || 'No home yet!',
+      label: unlockedHome ? `${t('homes') || 'Home'}: ${t(`shop_item_${unlockedHome.id}_name`) || unlockedHome.name}!` : t('keep_growing') || 'No home yet!',
       sub: unlockedHome?.description || t('keep_growing') || 'Keep going!',
       itemEmoji: unlockedHome?.emoji || '🔒'
     },

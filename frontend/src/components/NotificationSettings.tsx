@@ -80,7 +80,7 @@ export default function NotificationSettings({ student_id, student_name, onClose
             <Switch value={helpRequest} onValueChange={setHelpRequest} trackColor={{ true: '#5C6BC0' }} />
           </View>
 
-          <Text style={[st.label, { marginTop: 12, marginBottom: 6 }]}>{t('notif_zone_alerts_label') || 'Zone alerts - notify when checks in:'}</Text>
+          <Text style={[st.label, { marginTop: 12, marginBottom: 6 }]}>{t('notif_zone_alerts_label') || 'Emotion alerts - notify when checks in:'}</Text>
           <View style={st.zones}>
             {ZONES.map(zone => (
               <TouchableOpacity

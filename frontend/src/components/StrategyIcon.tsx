@@ -16,10 +16,16 @@ import { MaterialIcons } from '@expo/vector-icons';
 // name is lowercase ascii letters/digits/hyphens only (e.g. 'self-improvement', 'chat',
 // 'star') - anything else (an emoji, any other free-text value) renders as plain text
 // instead of being handed to the icon component at all.
-const VALID_ICON_NAME = /^[a-z0-9-]+$/;
-
+// Oct 10: decided by MaterialIcons' own glyph table instead of a lowercase pattern, so a lowercase value
+// that is not a real icon (typo, another icon family's name) no longer reaches MaterialIcons.
 export function isRealIconName(icon: string | null | undefined): boolean {
-  return !!icon && VALID_ICON_NAME.test(icon);
+  return !!icon && Object.prototype.hasOwnProperty.call(MaterialIcons.glyphMap, icon);
+}
+
+// Plain-ASCII words/identifiers that are not icons (e.g. 'startt') are not emoji either: they fall back
+// to the default icon. Anything containing a non-ASCII character (an emoji) is shown as text.
+function looksLikeEmojiText(v: string): boolean {
+  return /[^\x00-\x7F]/.test(v);
 }
 
 export function StrategyIcon({ icon, size = 24, color = '#333', fallback = 'star' }: {
@@ -31,11 +37,17 @@ export function StrategyIcon({ icon, size = 24, color = '#333', fallback = 'star
   if (isRealIconName(icon)) {
     return <MaterialIcons name={icon as any} size={size} color={color} />;
   }
-  if (icon) {
-    // A non-empty value that isn't a valid icon name is treated as emoji/free text -
-    // rendered in Text, sized to roughly match the icon's visual footprint.
+  // Oct 11: the star emoji is yellow, invisible on the yellow emotion circle. It is drawn as the star glyph in the
+  // caller's colour instead (white on the coloured circles, like every other glyph icon).
+  if (icon && /^[\u2B50\u{1F31F}\u2605\u2606]\uFE0F?$/u.test(icon.trim())) {
+    return <MaterialIcons name="star" size={size} color={color} />;
+  }
+  if (icon && looksLikeEmojiText(icon)) {
+    // A value with non-ASCII characters (emoji) is rendered as Text, sized to roughly match the
+    // icon's visual footprint.
     const style: TextStyle = { fontSize: size * 0.8, lineHeight: size, textAlign: 'center' };
     return <Text style={style}>{icon}</Text>;
   }
-  return <MaterialIcons name={fallback as any} size={size} color={color} />;
+  // empty or unknown: safe default icon (the caller's fallback if it is a real icon, else 'star')
+  return <MaterialIcons name={(isRealIconName(fallback) ? fallback : 'star') as any} size={size} color={color} />;
 }

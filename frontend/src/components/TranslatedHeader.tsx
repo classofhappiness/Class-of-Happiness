@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -61,14 +61,31 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
+  // Oct 10: ~500ms lock so a double tap can't fire two back/home navigations (two pops, or two stacked
+  // entries). Back/home to a named target use dismissTo (pop to the existing instance of that route, or push
+  // it if it isn't in the stack) instead of replace, which left duplicate screens underneath.
+  const navLock = useRef(0);
+  const locked = () => {
+    const now = Date.now();
+    if (now - navLock.current < 500) return true;
+    navLock.current = now;
+    return false;
+  };
+
   const handleBack = () => {
+    if (locked()) return;
     if (onBackPress) {
       onBackPress();
     } else if (backTo) {
-      router.replace(backTo as any);
+      router.dismissTo(backTo as any);
     } else {
       router.back();
     }
+  };
+
+  const handleHome = () => {
+    if (locked()) return;
+    router.dismissTo((homeTo || '/') as any);
   };
 
   return (
@@ -173,7 +190,7 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
               genuinely the same tuned animation, looping, not a second separately-tuned one. */}
           <ColourCycleLogo size={48.4} loop />
           {showHome && (
-            <TouchableOpacity onPress={() => router.replace((homeTo || '/') as any)} style={styles.homeButton}>
+            <TouchableOpacity onPress={handleHome} style={styles.homeButton}>
               <MaterialIcons name="home" size={20} color="#1A1A2E" />
             </TouchableOpacity>
           )}
@@ -203,7 +220,7 @@ const styles = StyleSheet.create({
   },
   // Real fix Sep 18 (Marisa design feedback - spacing pass): was 6px, standardized to 8px
   // to match the other 3 places this same back/logo/home cluster appears (_layout.tsx's
-  // HomeToStudents/HomeToDashboard, teacher/checkin.tsx's restyled-in-place header) -
+  // HomeToStudents/HomeToLanding, teacher/checkin.tsx's restyled-in-place header) -
   // visually verified against the real logo art at 48.4px (composited render, not just
   // matched by number): the logo asset itself has ~8px of built-in transparent padding on
   // each side even at this larger size (its circular composition leaves the canvas corners
