@@ -24623,7 +24623,14 @@ def normalise_creature_stages(stage_bytes: list) -> Optional[list]:
             stages.append((rgba, bbox))
         ref_w, ref_h = max(((bb[2] - bb[0], bb[3] - bb[1]) for _, bb in stages), key=lambda wh: max(wh))
         scale = CREATURE_NORM_CANVAS * CREATURE_NORM_FILL / max(ref_w, ref_h)
-        bottom = (CREATURE_NORM_CANVAS + ref_h * scale) / 2.0
+        # fix46: the shared bottom line has to leave room for the TALLEST stage: a tall stage next to a wide reference used
+        # to start above the canvas and lose its top. The bottom is centred on the reference stage as before (so every
+        # creature that already fitted is unchanged, byte for byte) and is only pushed down when the tallest scaled stage
+        # would otherwise rise into the top margin ((1 - fill) / 2 of the canvas). With a tallest stage of 819 px the
+        # result equals (1024 + max_h * scale) / 2.
+        max_h = max(bb[3] - bb[1] for _, bb in stages)
+        top_margin = CREATURE_NORM_CANVAS * (1 - CREATURE_NORM_FILL) / 2.0
+        bottom = max((CREATURE_NORM_CANVAS + ref_h * scale) / 2.0, top_margin + max_h * scale)
         out_list = []
         for rgba, (l, t, r, b) in stages:
             crop = rgba.crop((l, t, r, b)).convert("RGBa")   # premultiplied: no halos when resizing
