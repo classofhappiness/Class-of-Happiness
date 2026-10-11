@@ -2871,7 +2871,7 @@ async def get_current_user(request: Request) -> Optional[dict]:
     loop without changing any of the ~306 `await get_current_user(request)` call sites."""
     return await run_in_threadpool(_get_current_user_sync, request)
 
-def _public_user(user: dict) -> dict:
+def _public_user(user: dict, include_push_flag: bool = True) -> dict:
     """CRITICAL security fix Aug 26: /auth/me, /auth/email-login, and google_auth all used to
     return the raw user row straight from the DB - including portal_password (a real bcrypt
     hash) and reset_token, sent to every client on every session check. Never caught in
@@ -2902,6 +2902,15 @@ def _public_user(user: dict) -> dict:
     # set False. Frontend force-redirects to /auth/verify-email-required on False, same
     # shape as the has_password gate just above.
     safe["email_verified"] = safe.get("email_verified", True)
+    # Oct 11: school admins / admins only - whether THIS account has at least one registered push token
+    # (the admin app's "teachers can't reach you yet" banner). One small lookup, never the token itself.
+    if include_push_flag and safe.get("role") in ("school_admin", "admin") and safe.get("user_id"):
+        try:
+            tok = supabase.table("push_tokens").select("user_id").eq("user_id", safe["user_id"]).limit(1).execute()
+            safe["has_push_token"] = bool(tok.data)
+        except Exception as e:
+            logger.debug(f"[has_push_token] lookup failed: {e}")
+            safe["has_push_token"] = bool(safe.get("push_token"))
     return safe
 
 def _trial_is_valid(user: dict) -> bool:
@@ -15946,7 +15955,7 @@ async def export_admin_data(request: Request, type: str = "checkins", format: st
 
     data = query.execute().data or []
     if export_type == "users":
-        data = [_public_user(row) for row in data]
+        data = [_public_user(row, include_push_flag=False) for row in data]
     return _format_export(export_type, format, data)
 
 
