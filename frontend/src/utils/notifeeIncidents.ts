@@ -42,7 +42,17 @@ export const INCIDENT_CHANNEL_ID = 'incidents';
 // idempotently, at app startup regardless of role (cheap, and a school_admin's own
 // channel preferences should exist before their first incident ever arrives, not be
 // created reactively on the first push).
-export async function setupNotifeeChannels(): Promise<void> {
+export interface NotifeeChannelLabels {
+  supportName?: string;
+  supportDescription?: string;
+  incidentName?: string;
+  incidentDescription?: string;
+}
+
+// labels (optional) are the user's-language channel names/descriptions. Re-calling with the same
+// channel ids is allowed on Android and only updates name/description (id, importance, sound and
+// vibration stay as first created), so this is safe to re-run on every language change.
+export async function setupNotifeeChannels(labels: NotifeeChannelLabels = {}): Promise<void> {
   if (Platform.OS !== 'android') return; // notifee channels are an Android-only concept
   // Real bug fix Sep 18 (live-test, first real push token ever obtained): notifee's own
   // validator (validators/validate.js's isValidVibratePattern) requires EVERY element
@@ -56,16 +66,16 @@ export async function setupNotifeeChannels(): Promise<void> {
   try {
     await notifee.createChannel({
       id: SUPPORT_REQUEST_CHANNEL_ID,
-      name: 'Support requests',
-      description: 'A teacher needs support - classroom help, a staff member, or Back on Track supervision.',
+      name: labels.supportName || 'Support requests',
+      description: labels.supportDescription || 'A teacher needs support - classroom help, a staff member, or Back on Track supervision.',
       importance: AndroidImportance.HIGH,
       visibility: AndroidVisibility.PUBLIC,
       vibrationPattern: [1, 250, 250, 250],
     });
     await notifee.createChannel({
       id: INCIDENT_CHANNEL_ID,
-      name: 'Incidents',
-      description: 'An urgent incident needs immediate attention. Rings until acknowledged.',
+      name: labels.incidentName || 'Incidents',
+      description: labels.incidentDescription || 'An urgent incident needs immediate attention. Rings until acknowledged.',
       importance: AndroidImportance.HIGH,
       visibility: AndroidVisibility.PUBLIC,
       vibrationPattern: [1, 500, 250, 500, 250, 500],

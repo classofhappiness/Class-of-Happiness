@@ -95,6 +95,14 @@ const STRATEGY_ID_ALIASES: Record<string, string> = {
   B8: 'strat_yellow_6', B9: 'strat_green_2',
 };
 
+import enTranslations from '../translations/en.json';
+
+// Oct 11: the app's t() returns '' for a key whose language bundle has not loaded yet (the default bundle has no
+// strat_* keys), which used to leak a bare legacy code such as "b6". Every lookup now falls back to the bundled
+// English text.
+const EN_BUNDLE = enTranslations as unknown as Record<string, string>;
+const LEGACY_CODE = /^[rgybRGYB]\d+$/;
+
 const ZONE_WORDS = new Set(['blue', 'green', 'yellow', 'red', 'Blue', 'Green', 'Yellow', 'Red']);
 
 /**
@@ -116,13 +124,15 @@ export function resolveStrategyName(
   const trimmed = String(id).trim();
   if (!trimmed || ZONE_WORDS.has(trimmed)) return '';
 
+  const tx = (key: string): string => t(key) || EN_BUNDLE[key] || '';
+
   const aliasKey = STRATEGY_ID_ALIASES[trimmed];
   if (aliasKey) {
-    const v = t(aliasKey);
+    const v = tx(aliasKey);
     if (v) return v;
   }
 
-  const direct = t(`strat_${trimmed}`);
+  const direct = tx(`strat_${trimmed}`);
   if (direct) return direct;
 
   if (customNames && customNames[trimmed]) return customNames[trimmed];
@@ -132,20 +142,67 @@ export function resolveStrategyName(
   if (clean && clean !== trimmed) {
     const cleanAliasKey = STRATEGY_ID_ALIASES[clean];
     if (cleanAliasKey) {
-      const v = t(cleanAliasKey);
+      const v = tx(cleanAliasKey);
       if (v) return v;
     }
-    const cleanDirect = t(`strat_${clean}`);
+    const cleanDirect = tx(`strat_${clean}`);
     if (cleanDirect) return cleanDirect;
     if (customNames && customNames[clean]) return customNames[clean];
     if (legacyNames && legacyNames[clean]) return legacyNames[clean];
   }
 
+  // Oct 11: never hand back an id. Legacy codes ("b6"), zone+number forms ("yellow 3", "Yellow_3"), uuids,
+  // custom_/school_/global_ ids and anything with digits but no spaces return '' so callers show their own
+  // translated neutral label (see strategyLabel below). Plain word slugs ("calm_corner") are still prettified.
+  if (isUnresolvableStrategyId(trimmed)) return '';
+
   const stripped = trimmed
-    .replace(/^[rgybRGYB]\d+$/, '')
     .replace(/^[pbs]_[rgby]\d+_?/, '')
     .replace(/_/g, ' ')
     .trim();
-  if (!stripped) return trimmed;
+  if (!stripped) return '';
   return stripped.replace(/\b\w/g, (c: string) => c.toUpperCase());
+}
+
+const ZONE_NUMBER = /^(?:(?:helper|strategy|strat|p|s)[_ -])?(?:blue|green|yellow|red|[rgyb])[ _-]?\d+$/i;
+const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PREFIXED_ID = /^(custom|school|global|family|teacher|admin)[_-]/i;
+
+/** True when the id is a machine id that must never be shown to a person. */
+export function isUnresolvableStrategyId(id: string): boolean {
+  const v = String(id || '').trim();
+  if (!v) return true;
+  if (LEGACY_CODE.test(v) || ZONE_NUMBER.test(v) || UUID_LIKE.test(v) || PREFIXED_ID.test(v)) return true;
+  return /\d/.test(v) && !/\s/.test(v);
+}
+
+/**
+ * Display name for a strategy id that is ALWAYS safe to show: the resolved name, else a translated neutral
+ * label ("Custom strategy" for custom_/school_ ids, "Strategy" otherwise). Never the raw id.
+ */
+export function strategyLabel(
+  id: string | null | undefined,
+  t: (key: string) => string,
+  legacyNames?: Record<string, string>,
+  customNames?: Record<string, string>,
+): string {
+  const name = resolveStrategyName(id, t, legacyNames, customNames);
+  if (name) return name;
+  const v = String(id || '').trim();
+  if (!v || ZONE_WORDS.has(v)) return '';
+  if (PREFIXED_ID.test(v)) return t('custom_strategy_generic') || EN_BUNDLE['custom_strategy_generic'] || 'Custom strategy';
+  return t('strategy_name_unavailable') || EN_BUNDLE['strategy_name_unavailable'] || 'Strategy';
+}
+
+/** id -> name for the teacher's own on-device strategies (AsyncStorage teacher_custom_strategies_<user_id>), deleted ones included. */
+export async function loadLocalCustomStrategyNames(userId?: string | null): Promise<Record<string, string>> {
+  if (!userId) return {};
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    const raw = await AsyncStorage.getItem(`teacher_custom_strategies_${userId}`);
+    const list = raw ? JSON.parse(raw) : [];
+    const out: Record<string, string> = {};
+    (Array.isArray(list) ? list : []).forEach((x: any) => { if (x?.id && x?.name) out[String(x.id)] = String(x.name); });
+    return out;
+  } catch { return {}; }
 }

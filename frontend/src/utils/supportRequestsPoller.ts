@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { supportRequestsApi, SupportRequest } from './api';
 
@@ -30,7 +31,9 @@ import { supportRequestsApi, SupportRequest } from './api';
 // is a pure state reader: it can request at most one immediate extra tick (rate-limited to
 // once per 5s), and can never touch setInterval/clearInterval, so this whole class of
 // stacking-timers bug is now impossible by construction, not just cooled down.
-const POLL_MS = 2500;
+// Oct 10: 15s foreground interval (was 2.5s). Push + focus + immediate ticks cover the
+// urgent paths; the interval is a safety net. Paused entirely while backgrounded.
+const POLL_MS = 15000;
 const MIN_IMMEDIATE_TICK_GAP_MS = 5000;
 
 type Listener = (list: SupportRequest[]) => void;
@@ -40,6 +43,46 @@ let intervalId: ReturnType<typeof setInterval> | null = null;
 let inFlight = false;
 let lastResult: SupportRequest[] = [];
 let lastTickAt = 0;
+let appStateSub: { remove: () => void } | null = null;
+// Oct 10: push-driven refresh (debounced, trailing) state.
+const PUSH_REFRESH_DEBOUNCE_MS = 1000;
+let pushRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let rerunAfterInFlight = false;
+
+// Oct 10: handles are mirrored on globalThis. When Metro Fast Refresh re-evaluates this module the
+// module-level variables above reset to null while the OLD copy's timers keep running (nothing could
+// clear them), so every refresh used to add one more orphaned 15s interval. Anything left on
+// globalThis by a previous copy is cleared before a new one is created. No effect on a cold start.
+const g = globalThis as any;
+
+function startInterval() {
+  if (intervalId) return; // single interval, never stacked
+  if (g.__cohSrInterval) clearInterval(g.__cohSrInterval); // orphan from a previous module copy
+  intervalId = setInterval(tick, POLL_MS);
+  g.__cohSrInterval = intervalId;
+}
+
+function clearIntervalIfAny() {
+  if (intervalId) {
+    clearInterval(intervalId);
+    intervalId = null;
+  }
+  if (g.__cohSrInterval) {
+    clearInterval(g.__cohSrInterval);
+    g.__cohSrInterval = null;
+  }
+}
+
+function handleAppStateChange(next: AppStateStatus) {
+  if (next === 'active') {
+    if (!intervalId) {
+      tick(); // one immediate catch-up tick on return to foreground, then resume
+      startInterval();
+    }
+  } else {
+    clearIntervalIfAny(); // background/inactive: no polling
+  }
+}
 
 async function tick() {
   if (inFlight) return; // never let two fetches stack, no matter how the interval fires
@@ -53,23 +96,42 @@ async function tick() {
     // transient failure - next tick retries, never throws into a caller
   } finally {
     inFlight = false;
+    // A push-driven refresh arrived while a (possibly older) fetch was in flight: run once more
+    // so the push's change is never lost behind that stale response.
+    if (rerunAfterInFlight) {
+      rerunAfterInFlight = false;
+      tick();
+    }
   }
 }
 
 // Called exactly once, from AppContext, when a support-requests-eligible role
 // (teacher/school_admin/admin/superadmin) becomes authenticated.
 export function startSupportRequestsPoller(): void {
-  if (intervalId) return;
-  tick();
-  intervalId = setInterval(tick, POLL_MS);
+  if (intervalId || appStateSub) return;
+  if (g.__cohSrAppStateSub) { g.__cohSrAppStateSub.remove(); g.__cohSrAppStateSub = null; } // orphan from a previous module copy
+  if (!appStateSub) appStateSub = AppState.addEventListener('change', handleAppStateChange);
+  g.__cohSrAppStateSub = appStateSub;
+  if (AppState.currentState === 'active') {
+    tick();
+    startInterval();
+  }
 }
 
 // Called exactly once, from AppContext, on logout or a role that never needed this poller.
 export function stopSupportRequestsPoller(): void {
-  if (intervalId) {
-    clearInterval(intervalId);
-    intervalId = null;
+  clearIntervalIfAny();
+  if (pushRefreshTimer) {
+    clearTimeout(pushRefreshTimer);
+    pushRefreshTimer = null;
   }
+  if (g.__cohSrPushTimer) { clearTimeout(g.__cohSrPushTimer); g.__cohSrPushTimer = null; }
+  rerunAfterInFlight = false;
+  if (appStateSub) {
+    appStateSub.remove();
+    appStateSub = null;
+  }
+  g.__cohSrAppStateSub = null;
   lastResult = [];
   listeners.forEach((l) => l([]));
 }
@@ -79,6 +141,44 @@ export function stopSupportRequestsPoller(): void {
 export function requestImmediateSupportRequestsTick(): void {
   if (Date.now() - lastTickAt > MIN_IMMEDIATE_TICK_GAP_MS) {
     tick();
+  }
+}
+
+// Oct 10: for the user's OWN action (acknowledge/respond) - refresh the list right after the API call
+// without the 5s gap, so the UI doesn't wait for the 15s interval. Still never touches the interval.
+export function refreshSupportRequestsNow(): void {
+  tick();
+}
+
+// Oct 10: for support_request* PUSHES (new/response/cancelled/rebuzz). Bypasses the 5s gap but is
+// debounced 1s (trailing): a burst of pushes causes ONE tick. Does nothing if the poller isn't
+// running (logged out) - the start tick covers that case. Timer is cleared in stop.
+export function requestSupportRequestsRefreshFromPush(): void {
+  if (pushRefreshTimer) clearTimeout(pushRefreshTimer);
+  if (g.__cohSrPushTimer) clearTimeout(g.__cohSrPushTimer); // pending timeout of a previous module copy
+  pushRefreshTimer = setTimeout(() => {
+    pushRefreshTimer = null;
+    g.__cohSrPushTimer = null;
+    if (!appStateSub) return;
+    if (inFlight) rerunAfterInFlight = true;
+    else tick();
+  }, PUSH_REFRESH_DEBOUNCE_MS);
+  g.__cohSrPushTimer = pushRefreshTimer;
+}
+
+// Oct 10: re-buzz pushes carry only {type, id} (no is_incident), so the app looks the request up.
+// Returns the cached row if present, else fetches the list once (also feeds subscribers).
+// Returns null if it can't be determined (not found / network error).
+export async function findSupportRequestForPush(id: string): Promise<SupportRequest | null> {
+  const cached = lastResult.find((r) => r.id === id);
+  // A cached PENDING row is only trusted as-is if present; status is re-checked by the caller.
+  try {
+    const list = await supportRequestsApi.list();
+    lastResult = list;
+    listeners.forEach((l) => l(list));
+    return list.find((r) => r.id === id) || null;
+  } catch {
+    return cached || null;
   }
 }
 

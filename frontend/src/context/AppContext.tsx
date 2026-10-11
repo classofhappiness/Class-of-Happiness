@@ -41,6 +41,8 @@ interface AppContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  // Oct 11: state of the students list so screens can tell "still loading" and "failed" from "really empty".
+  studentsStatus: 'idle' | 'loading' | 'loaded' | 'error';
   login: () => void;
   loginWithEmail: (email: string, adminPin?: string, attempt?: number, password?: string) => Promise<void>;
   // Real feature Sep 16 (minimal fix: superadmin login was completely broken - see
@@ -219,7 +221,7 @@ const defaultTranslations: Translations = {
   download: "Download",
   share: "Share",
   hi: "Hi",
-  which_zone: "Which zone are you in?",
+  which_zone: "How are you feeling?",
   tap_zone_help: "Tap the color that matches how you feel",
   choose_strategies: "Choose helpful strategies",
   save_checkin: "Save Check-in",
@@ -228,10 +230,10 @@ const defaultTranslations: Translations = {
   // New translations
   no_profiles_yet: "No profiles yet!",
   create_first_profile: "Create your first profile to get started",
-  green_zone_help: "Great! Here are ways to stay in the green zone:",
+  green_zone_help: "Great! Here are ways to keep feeling calm and ready:",
   other_zone_help: "Here are some strategies that might help:",
   tap_strategies_other: "Tap to select strategies that might help:",
-  no_zone_selected: "No zone selected",
+  no_zone_selected: "No feeling selected",
   filter_by_classroom: "Filter by Classroom",
   all_students: "All Students",
   days_7: "7 Days",
@@ -247,8 +249,8 @@ const defaultTranslations: Translations = {
   try_different_search: "Try a different search",
   add_first_student: "Add your first student to get started",
   student_not_found: "Student not found",
-  zone_distribution: "Zone Distribution",
-  zone_comparison: "Zone Comparison",
+  zone_distribution: "Emotion Distribution",
+  zone_comparison: "Emotion Comparison",
   no_data_period: "No data for this period",
   most_used_strategies: "Most Used Strategies",
   no_checkins_yet: "No check-ins yet",
@@ -367,6 +369,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   
   // Data state
   const [students, setStudents] = useState<Student[]>([]);
+  const [studentsStatus, setStudentsStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+  // Oct 11: always-current auth values for refreshStudents. The boot loader below runs from the
+  // FIRST render's closure (isAuthenticated=false, user=null), so reading the state directly there
+  // made doRefreshStudents return at once while still stamping the 30s TTL.
+  const authRef = useRef<{ isAuthenticated: boolean; user: User | null }>({ isAuthenticated: false, user: null });
+  authRef.current = { isAuthenticated, user };
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [presetAvatars, setPresetAvatars] = useState<PresetAvatar[]>([]);
   const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
@@ -420,15 +428,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const refreshStudents = async (options?: { force?: boolean }) => {
     if (!options?.force && Date.now() - lastStudentsFetchAtRef.current < STUDENTS_TTL_MS) return;
     if (refreshStudentsInFlightRef.current) return refreshStudentsInFlightRef.current;
-    const promise = doRefreshStudents().finally(() => {
+    const promise = doRefreshStudents().then((ok) => {
+      // Oct 11: only a SUCCESSFUL fetch starts the 30s window (a skipped or failed one used to,
+      // which made the select screen's own refresh a no-op over an empty list).
+      if (ok) lastStudentsFetchAtRef.current = Date.now();
+    }).finally(() => {
       refreshStudentsInFlightRef.current = null;
-      lastStudentsFetchAtRef.current = Date.now();
     });
     refreshStudentsInFlightRef.current = promise;
     return promise;
   };
-  const doRefreshStudents = async () => {
-    if (!isAuthenticated) return; // ✅ Don't fetch if not logged in
+  const doRefreshStudents = async (): Promise<boolean> => {
+    const { isAuthenticated: authed, user } = authRef.current;
+    if (!authed) return false; // ✅ Don't fetch if not logged in
+    setStudentsStatus((st) => (st === 'loaded' ? st : 'loading'));
     try {
       // Real fix (build 26, Sep 6): GET /students is teacher/school_admin/superadmin-only
       // server-side (403 "Teacher access required" otherwise) - this used to call it
@@ -468,7 +481,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               relationship: m.relationship,
             }));
         }
-      } catch { /* silent — family fetch is optional */ }
+        else throw new Error(`family members ${res.status}`);
+      } catch (e) {
+        // Oct 11: a failed family fetch used to fall through to an empty list; it is now an error
+        // state (the screen offers a retry) instead of "No profiles yet".
+        throw e;
+      }
       } // end isParentUser if block
 
       // Merge: avoid duplicates, but tag existing students that are family members
@@ -496,16 +514,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase());
       });
       setStudents(sorted);
+      setStudentsStatus('loaded');
+      return true;
     } catch (error) {
       // Silently ignore auth errors (user may not be logged in) and role-mismatch errors
       // (a stale/incorrect role hitting the teacher-only endpoint above is now prevented by
       // the isParentUser gate, but this stays as a second line of defense - console.error in
       // Expo Go's dev build surfaces as a full-screen LogBox overlay, which is what actually
       // read as a "crash" here, not a real unhandled exception. Fail quietly instead.
-      if (!String(error).includes('401') && !String(error).includes('authenticated') && !String(error).includes('Teacher access required')) {
+      if (!String(error).includes('401') && !String(error).includes('authenticated') && !String(error).includes('Teacher access required') && !String(error).includes('family members')) {
         console.error('Error fetching students:', error);
       }
-      setStudents([]);
+      // Oct 11: keep any list already shown; the status tells screens the load failed.
+      setStudentsStatus('error');
+      return false;
     }
   };
 
@@ -636,6 +658,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return '';
   };
 
+  // Localised fallback for a failed request that carried no server-provided message.
+  const serverErrorMessage = (status: number): string =>
+    (t('server_error_status') || 'Server error ({status})').replace('{status}', String(status));
+
   const checkAuth = useCallback(async () => {
     // Skip if URL has session_id on web (let AuthCallback handle it)
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.hash?.includes('session_id=')) {
@@ -693,9 +719,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           setIsLoading(false);
           const { Alert } = require('react-native');
           Alert.alert(
-            'Waking up server ☕',
-            'The server is starting. Trying again in 5 seconds...',
-            [{ text: 'OK' }]
+            t('waking_up_server_title') || 'Waking up server ☕',
+            t('waking_up_server_msg') || 'The server is starting. Trying again in 5 seconds...',
+            [{ text: t('ok') || 'OK' }]
           );
           // Real fix Sep 15: this retry call is fire-and-forget (nothing awaits it) - now that
           // loginWithEmail re-throws on failure (see below), an eventual failure on the retry
@@ -704,7 +730,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           setTimeout(() => { loginWithEmail(email, adminPin, 2, password).catch(() => {}); }, 5000);
           return;
         }
-        throw new Error('Could not reach server. Please check your connection and try again.');
+        throw new Error(t('could_not_reach_server_error') || 'Could not reach server. Please check your connection and try again.');
       }
 
       // Read body first so we can show the real error message
@@ -715,7 +741,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           data?.detail ||
           data?.message ||
           data?.error ||
-          `Server error (${response.status})`;
+          serverErrorMessage(response.status);
         throw new Error(message);
       }
 
@@ -727,7 +753,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // AsyncStorage.setItem. A distinct marker on the thrown error lets the caller
       // (login.tsx) switch to a code-entry step instead of treating this as a failure.
       if (data?.status === 'code_required') {
-        const codeRequiredError: any = new Error('Enter the code emailed to you to finish signing in.');
+        const codeRequiredError: any = new Error(t('login_code_required_msg') || 'Enter the code emailed to you to finish signing in.');
         codeRequiredError.code_required = true;
         codeRequiredError.email = data.email || email;
         throw codeRequiredError;
@@ -738,7 +764,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // password + PIN instead of an emailed code. Without this, it would hit the exact same
       // undefined-destructure crash the original superadmin bug did.
       if (data?.status === 'pin_required') {
-        const pinRequiredError: any = new Error('Enter your PIN to finish signing in.');
+        const pinRequiredError: any = new Error(t('login_pin_required_msg') || 'Enter your PIN to finish signing in.');
         pinRequiredError.pin_required = true;
         pinRequiredError.email = data.email || email;
         throw pinRequiredError;
@@ -795,7 +821,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        const message = data?.detail || data?.message || data?.error || `Server error (${response.status})`;
+        const message = data?.detail || data?.message || data?.error || serverErrorMessage(response.status);
         throw new Error(message);
       }
       const { user, session_token } = data;
@@ -829,7 +855,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        const message = data?.detail || data?.message || data?.error || `Server error (${response.status})`;
+        const message = data?.detail || data?.message || data?.error || serverErrorMessage(response.status);
         throw new Error(message);
       }
       const { user, session_token } = data;
@@ -858,7 +884,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
     const data = await response.json().catch(() => null);
     if (!response.ok) {
-      const message = data?.detail || data?.message || data?.error || `Server error (${response.status})`;
+      const message = data?.detail || data?.message || data?.error || serverErrorMessage(response.status);
       throw new Error(message);
     }
   };
@@ -886,7 +912,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        const message = data?.detail || data?.message || `Server error (${response.status})`;
+        const message = data?.detail || data?.message || serverErrorMessage(response.status);
         throw new Error(message);
       }
       const { user, session_token } = data;
@@ -899,8 +925,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (error) {
       console.error('[Login] Google login error:', error);
       const { Alert } = require('react-native');
-      const message = error instanceof Error ? error.message : 'Could not sign in. Please try again.';
-      Alert.alert('Sign In Failed', message);
+      const message = error instanceof Error ? error.message : (t('could_not_sign_in_try_again') || 'Could not sign in. Please try again.');
+      Alert.alert(t('sign_in_failed_title') || 'Sign In Failed', message);
       // Real fix Sep 15: same swallow-and-bounce bug as loginWithEmail just above (see its
       // comment) - login.tsx's own Google-response useEffect has the identical
       // try { await loginWithGoogle(...); router.replace('/'); } catch {...} pattern, which
@@ -927,7 +953,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        const message = data?.detail || data?.message || `Server error (${response.status})`;
+        const message = data?.detail || data?.message || serverErrorMessage(response.status);
         throw new Error(message);
       }
       const { user, session_token } = data;
@@ -954,7 +980,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
     const data = await response.json().catch(() => null);
     if (!response.ok) {
-      throw new Error(data?.detail || data?.message || `Server error (${response.status})`);
+      throw new Error(data?.detail || data?.message || serverErrorMessage(response.status));
     }
     setUser(data.user);
     await AsyncStorage.setItem('user_data', JSON.stringify(data.user));
@@ -968,7 +994,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
     const data = await response.json().catch(() => null);
     if (!response.ok) {
-      throw new Error(data?.detail || data?.message || `Server error (${response.status})`);
+      throw new Error(data?.detail || data?.message || serverErrorMessage(response.status));
     }
   };
 
@@ -999,6 +1025,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setUser(null);
     setIsAuthenticated(false);
     setStudents([]);
+    setStudentsStatus('idle');
+    lastStudentsFetchAtRef.current = 0;
     setClassrooms([]);
     setCurrentStudent(null);
   };
@@ -1043,6 +1071,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       stopSupportRequestsPoller();
     }
   }, [isAuthenticated, user?.role]);
+
+  // Oct 11: load the students list whenever a session starts or the role changes (login, logout then
+  // login, role switch). Before this the list was only requested by the boot loader and by the
+  // select-profile screen's own mount call, and that call is skipped inside the 30 s window.
+  useEffect(() => {
+    if (isAuthenticated && user) refreshStudents({ force: true });
+  }, [isAuthenticated, user?.user_id, user?.role]);
 
   // Pre-warm the browser for faster OAuth (mobile only)
   useEffect(() => {
@@ -1264,6 +1299,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         user,
         isAuthenticated,
         isLoading: isAppLoading,
+        studentsStatus,
         login,
         loginWithEmail,
         verifyLoginCode,

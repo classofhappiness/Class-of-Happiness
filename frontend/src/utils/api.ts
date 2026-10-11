@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { EMOTION_COLOURS } from '../constants/emotionColours';
+import { formatTime as formatTimeLabel } from './dateLabel';
 
 // Backend URL from environment variable - required for all deployments
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
@@ -213,7 +214,11 @@ async function apiRequest(endpoint: string, options: RequestInit = {}) {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Request failed' }));
-    throw new Error(error.detail || 'Request failed');
+    // Oct 11: expose the HTTP status so callers can branch on it instead of matching the message text.
+    // Same Error and same message as before; `status` is only an extra property.
+    const err: any = new Error(error.detail || 'Request failed');
+    err.status = response.status;
+    throw err;
   }
 
   return response.json();
@@ -1269,31 +1274,63 @@ export const classroomsColourMixApi = {
 // the dashboard's inline expand card and anywhere else that needs "what was asked for" in
 // plain words - mirrors backend's _support_request_readable_type exactly so app and any
 // future admin surface never disagree on wording.
-export function describeSupportRequest(r: SupportRequest): string {
+type SrT = (key: string) => string;
+const srTr = (t: SrT | undefined, key: string, fallback: string) => (t && t(key)) || fallback;
+
+export function describeSupportRequest(r: SupportRequest, t?: SrT): string {
   switch (r.request_type) {
     case 'CLASSROOM_SUPPORT':
-      return r.student_name ? `Classroom support (re: ${r.student_name})` : 'Classroom support';
+      return r.student_name
+        ? srTr(t, 'support_banner_desc_classroom_support_re', 'Classroom support (re: {student})').replace('{student}', r.student_name)
+        : srTr(t, 'support_banner_type_classroom_support', 'Classroom support');
     case 'STAFF_MEMBER':
-      return r.target_text ? `Student to a staff member (${r.target_text})` : 'Student to a staff member';
+      return r.target_text
+        ? srTr(t, 'support_banner_desc_staff_target', 'Student to a staff member ({target})').replace('{target}', r.target_text)
+        : srTr(t, 'support_request_type_staff', 'Student to a staff member');
     case 'BACK_ON_TRACK':
-      return "Student to 'Back on Track' Space";
+      return srTr(t, 'support_request_type_back_on_track', "Student to 'Back on Track' Space");
     case 'INCIDENT':
-      return r.student_name ? 'Incident' : 'Incident (classroom)';
+      return r.student_name ? srTr(t, 'support_banner_desc_incident', 'Incident') : srTr(t, 'support_banner_desc_incident_classroom', 'Incident (classroom)');
     case 'OTHER':
-      return r.target_text ? `Other (${r.target_text})` : 'Other';
+      return r.target_text
+        ? srTr(t, 'support_banner_desc_other_target', 'Other ({target})').replace('{target}', r.target_text)
+        : srTr(t, 'support_request_type_other', 'Other');
     default:
       return r.request_type;
   }
 }
 
+// Backward-compatible translation of a stored support_request alert `message`. The backend
+// stores English text from _support_request_readable_type (no type-code column on
+// student_alerts), so we recognise those exact English shapes and re-render via t().
+// Anything unrecognised is returned unchanged (older/other-format messages stay as stored).
+export function translateSupportAlertMessage(message: string, t?: SrT): string {
+  if (!message || !t) return message;
+  let m: RegExpMatchArray | null;
+  if ((m = message.match(/^Classroom support \(re: (.+)\)$/s))) return describeSupportRequest({ request_type: 'CLASSROOM_SUPPORT', student_name: m[1] } as any, t);
+  if (message === 'Classroom support') return describeSupportRequest({ request_type: 'CLASSROOM_SUPPORT' } as any, t);
+  if ((m = message.match(/^Student to a staff member \((.+)\)$/s))) return describeSupportRequest({ request_type: 'STAFF_MEMBER', target_text: m[1] } as any, t);
+  if (message === 'Student to a staff member') return describeSupportRequest({ request_type: 'STAFF_MEMBER' } as any, t);
+  if (message === "Student to 'Back on Track' Space") return describeSupportRequest({ request_type: 'BACK_ON_TRACK' } as any, t);
+  if (message === 'Incident') return describeSupportRequest({ request_type: 'INCIDENT', student_name: 'x' } as any, t);
+  if (message === 'Incident (classroom)') return describeSupportRequest({ request_type: 'INCIDENT' } as any, t);
+  if ((m = message.match(/^Other \((.+)\)$/s))) return describeSupportRequest({ request_type: 'OTHER', target_text: m[1] } as any, t);
+  if (message === 'Other') return describeSupportRequest({ request_type: 'OTHER' } as any, t);
+  return message;
+}
+
 // "Sent 9:42 · 12 min ago" - so a teacher routed to an existing request (one-open-request
 // rule) or checking the dashboard card knows which request is active and since when.
-export function formatSentLine(createdAt: string): string {
+export function formatSentLine(createdAt: string, t?: SrT, language: string = 'en'): string {
   const d = new Date(createdAt);
-  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const time = formatTimeLabel(d, language);
   const mins = Math.floor((Date.now() - d.getTime()) / 60000);
-  const ago = mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` : `${Math.floor(mins / 60)} hr ${mins % 60} min ago`;
-  return `Sent ${time} · ${ago}`;
+  const ago = mins < 1
+    ? srTr(t, 'support_banner_ago_just_now', 'just now')
+    : mins < 60
+      ? srTr(t, 'support_banner_ago_min', '{count} min ago').replace('{count}', String(mins))
+      : srTr(t, 'support_banner_ago_hr_min', '{hours} hr {mins} min ago').replace('{hours}', String(Math.floor(mins / 60))).replace('{mins}', String(mins % 60));
+  return srTr(t, 'support_banner_sent_line', 'Sent {time} · {ago}').replace('{time}', time).replace('{ago}', ago);
 }
 
 // Real addition Sep 10 (build 27, design change 5): teacher-side status wording, per
@@ -1317,45 +1354,57 @@ export interface SupportRequestStatusDisplay {
 // formatter has never been used by the admin queue/portal - those render their own
 // status badges straight from the raw row). Omitted under 1 minute so a just-sent
 // request doesn't read "· 0 min".
-function elapsedSuffix(createdAt: string): string {
+function elapsedSuffix(createdAt: string, t?: SrT): string {
   const mins = Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000);
-  return mins >= 1 ? ` · ${mins} min` : '';
+  return mins >= 1 ? ` · ${srTr(t, 'support_banner_elapsed_min', '{count} min').replace('{count}', String(mins))}` : '';
 }
 
-export function formatSupportRequestStatus(r: SupportRequest): SupportRequestStatusDisplay {
+export function formatSupportRequestStatus(r: SupportRequest, t?: SrT): SupportRequestStatusDisplay {
   const { pendingYellow, pendingRed, resolvedGreen } = SUPPORT_REQUEST_STATUS_COLOURS;
   if (r.status === 'PENDING') {
     const color = r.is_incident ? pendingRed : pendingYellow;
-    const elapsed = elapsedSuffix(r.created_at);
+    const elapsed = elapsedSuffix(r.created_at, t);
     if (r.last_rebuzz_at) {
       // Honest state once the first re-buzz has already fired unanswered - so an anxious
       // teacher can judge plan B instead of watching an endless reassuring pulse.
-      return { text: `No response yet - re-buzzing${elapsed}`, color, pulse: false };
+      return { text: `${srTr(t, 'support_banner_status_no_response_rebuzzing', 'No response yet - re-buzzing')}${elapsed}`, color, pulse: false };
     }
-    return { text: `${r.is_incident ? '🚨 Sent - waiting' : 'Sent - waiting'}${elapsed}`, color, pulse: true };
+    return { text: `${r.is_incident ? srTr(t, 'support_banner_status_sent_waiting_incident', '🚨 Sent - waiting') : srTr(t, 'support_banner_status_sent_waiting', 'Sent - waiting')}${elapsed}`, color, pulse: true };
   }
   if (r.status === 'ACKNOWLEDGED') {
     const seenOnly = r.request_type === 'STAFF_MEMBER' || r.request_type === 'BACK_ON_TRACK';
-    return { text: seenOnly ? 'Seen' : 'Seen - on the way', color: resolvedGreen, pulse: false };
+    return { text: seenOnly ? srTr(t, 'support_banner_status_seen', 'Seen') : srTr(t, 'support_banner_status_seen_on_the_way', 'Seen - on the way'), color: resolvedGreen, pulse: false };
   }
   if (r.status === 'CANCELLED') {
-    return { text: 'Cancelled', color: resolvedGreen, pulse: false };
+    return { text: srTr(t, 'support_banner_status_cancelled', 'Cancelled'), color: resolvedGreen, pulse: false };
   }
   if (r.status === 'SUPERSEDED') {
     // Should rarely if ever actually render - the banner hides SUPERSEDED rows outright
     // (focus jumps straight to the incident that superseded it), but this keeps a sane,
     // evidence-accurate string for any future history/log view that reads this row.
-    return { text: 'Superseded by incident', color: resolvedGreen, pulse: false };
+    return { text: srTr(t, 'support_banner_status_superseded', 'Superseded by incident'), color: resolvedGreen, pulse: false };
   }
   // RESOLVED - a teacher's own "Support arrived" tap always wins the display, even if the
   // admin separately said something ("On my way") before the teacher confirmed arrival -
   // arrival is the true closer, per Jono's spec.
   if (r.arrived_at) {
-    return { text: 'Help has arrived 💚', color: resolvedGreen, pulse: false };
+    return { text: srTr(t, 'support_banner_status_help_arrived', 'Help has arrived 💚'), color: resolvedGreen, pulse: false };
   }
   const resp = (r.admin_response || '').trim();
   const upper = resp.toUpperCase();
-  const text = upper === 'YES' ? 'Sorted ✓' : upper === 'NO' ? "Can't right now" : (resp || 'Resolved');
+  const text = upper === 'YES' ? srTr(t, 'support_banner_status_sorted', 'Sorted ✓') : upper === 'NO' ? srTr(t, 'support_banner_status_cant_right_now', "Can't right now") : (resp || srTr(t, 'resolved', 'Resolved'));
   return { text, color: resolvedGreen, pulse: false };
 }
 
+
+// Oct 11: teacher PERSONAL check-in strategies stored on the server (soft delete keeps history readable).
+export const teacherPersonalStrategiesApi = {
+  list: (includeInactive: boolean = true): Promise<Array<{ id: string; name: string; description: string; icon: string; colours: string[]; is_active: boolean }>> =>
+    apiRequest(`/teacher/personal-strategies?include_inactive=${includeInactive ? 'true' : 'false'}`),
+  create: (data: { id?: string; name: string; description?: string; colours: string[] | 'all' }): Promise<any> =>
+    apiRequest('/teacher/personal-strategies', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: { name?: string; description?: string; colours?: string[] | 'all'; is_active?: boolean }): Promise<any> =>
+    apiRequest(`/teacher/personal-strategies/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) }),
+  remove: (id: string): Promise<any> =>
+    apiRequest(`/teacher/personal-strategies/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+};

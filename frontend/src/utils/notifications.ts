@@ -86,18 +86,32 @@ Notifications.setNotificationHandler({
   },
 });
 
-export async function registerForPushNotifications(): Promise<string | null> {
-  if (!Device.isDevice) return null; // Simulator — skip
-  if (IS_EXPO_GO) return null; // Expo Go — remote push unsupported since SDK 53, skip silently
-  const { status: existing } = await Notifications.getPermissionsAsync();
-  let finalStatus = existing;
-  if (existing !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-  if (finalStatus !== 'granted') return null;
+export type PushRegistrationResult =
+  | { ok: true; token: string }
+  | { ok: false; reason: 'expo_go' | 'simulator' | 'blocked' | 'denied' | 'token_failed' | 'register_failed'; status?: number };
 
-  const token = (await Notifications.getExpoPushTokenAsync()).data;
+// Oct 11: the detailed version, so a screen can say WHAT failed. `blocked` = permission is denied and the system
+// will not ask again (Android after two refusals, iOS after one): the only way out is the system settings.
+export async function registerForPushNotificationsDetailed(): Promise<PushRegistrationResult> {
+  if (!Device.isDevice) return { ok: false, reason: 'simulator' }; // Simulator
+  if (IS_EXPO_GO) return { ok: false, reason: 'expo_go' }; // Expo Go — remote push unsupported since SDK 53
+  const perm = await Notifications.getPermissionsAsync();
+  let finalStatus = perm.status;
+  if (perm.status !== 'granted') {
+    if (perm.canAskAgain === false) return { ok: false, reason: 'blocked' };
+    const asked = await Notifications.requestPermissionsAsync();
+    finalStatus = asked.status;
+    if (finalStatus !== 'granted') return { ok: false, reason: asked.canAskAgain === false ? 'blocked' : 'denied' };
+  }
+
+  let token: string;
+  try {
+    token = (await Notifications.getExpoPushTokenAsync()).data;
+  } catch (e) {
+    console.warn('Push token request failed:', e);
+    return { ok: false, reason: 'token_failed' };
+  }
+  if (!token) return { ok: false, reason: 'token_failed' };
 
   if (Platform.OS === 'android') {
     Notifications.setNotificationChannelAsync('default', {
@@ -115,21 +129,30 @@ export async function registerForPushNotifications(): Promise<string | null> {
   // Store token locally
   await AsyncStorage.setItem('expo_push_token', token);
 
-  // Register with backend
+  // Register with backend. Oct 11: the response status is now checked.
   try {
     const sessionToken = await AsyncStorage.getItem('session_token');
     if (sessionToken) {
-      await fetch(`${BACKEND_URL}/api/notifications/register-token`, {
+      const res = await fetch(`${BACKEND_URL}/api/notifications/register-token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
         body: JSON.stringify({ token }),
       });
+      if (!res.ok) return { ok: false, reason: 'register_failed', status: res.status };
     }
   } catch (e) {
     console.warn('Push token registration failed:', e);
+    return { ok: false, reason: 'register_failed' };
   }
 
-  return token;
+  return { ok: true, token };
+}
+
+// Original signature, kept for every existing caller: the token, or null when anything failed (including, now, a
+// register-token call the server rejected).
+export async function registerForPushNotifications(): Promise<string | null> {
+  const r = await registerForPushNotificationsDetailed();
+  return r.ok ? r.token : null;
 }
 
 export async function sendHelpRequest(params: {
