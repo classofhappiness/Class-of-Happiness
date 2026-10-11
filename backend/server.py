@@ -2792,6 +2792,155 @@ def _auth_cache_evict_user(user_id: str) -> None:
         for tok in stale:
             del _auth_cache[tok]
 
+# --- Request-URL secrets: access-log redaction and short-lived signed download links (fix51) ---------------------------
+# Old app builds open PDFs/downloads with ?token=<session token>; uvicorn's access log prints the full request line, so a
+# live session token ended up in the logs. (1) A filter on the uvicorn.access logger (and on every root handler) removes the
+# query string of every logged request line, so even old builds stop leaking. (2) New builds ask POST /downloads/link for a
+# signed link (query param `dl`): HMAC-SHA256 over {user, GET, exact path, canonical query, issued, expiry, nonce}, valid at
+# most 120 seconds, key derived with HKDF-SHA256 from the existing server secret (no new env var, never logged or returned).
+# The legacy ?token= keeps working for old builds and is never logged.
+import hmac as _hmac, hashlib as _hashlib, secrets as _secrets_dl
+from urllib.parse import urlencode as _urlencode_dl, parse_qsl as _parse_qsl_dl, quote as _quote_dl
+
+_SECRET_QUERY_RE = re.compile(r"([?&](?:token|dl|key|apikey|api_key|code|password|secret|authorization|session_token|access_token)=)[^&\s\"']+", re.I)
+
+class _RedactRequestLogs(logging.Filter):
+    """Never raises. uvicorn.access passes (client, method, full_path, http_version, status) as args: the query string of
+    full_path is dropped entirely; any other log message that contains a secret-looking query parameter is scrubbed."""
+    def filter(self, record):
+        try:
+            a = record.args
+            if isinstance(a, tuple) and len(a) >= 3 and isinstance(a[2], str) and "?" in a[2]:
+                record.args = (*a[:2], a[2].split("?", 1)[0] + "?<redacted>", *a[3:])
+            if isinstance(record.msg, str) and "=" in record.msg:
+                record.msg = _SECRET_QUERY_RE.sub(r"\1<redacted>", record.msg)
+            if isinstance(record.args, tuple):
+                record.args = tuple(_SECRET_QUERY_RE.sub(r"\1<redacted>", x) if isinstance(x, str) and "=" in x else x for x in record.args)
+        except Exception:
+            pass
+        return True
+
+_redact_filter = _RedactRequestLogs()
+
+def install_log_redaction():
+    """Idempotent; called at import (every worker imports this module after uvicorn configured logging) and again at startup."""
+    try:
+        for name in ("uvicorn.access", "uvicorn", "uvicorn.error", "httpx", "httpcore"):
+            lg = logging.getLogger(name)
+            if _redact_filter not in lg.filters:
+                lg.addFilter(_redact_filter)
+            for h in lg.handlers:
+                if _redact_filter not in h.filters:
+                    h.addFilter(_redact_filter)
+        for h in logging.getLogger().handlers:
+            if _redact_filter not in h.filters:
+                h.addFilter(_redact_filter)
+    except Exception:
+        pass
+
+install_log_redaction()
+
+_DL_TTL_SECONDS = 120
+_DL_MAX_USES = 3          # a browser/PDF viewer may probe the same url once or twice; the 4th use is refused (per worker, best effort)
+_DL_ALLOWED_PATHS = [re.compile(p) for p in (
+    r"^/reports/pdf/family/[A-Za-z0-9_\-]{1,64}/month/\d{4}/\d{1,2}$",
+    r"^/reports/pdf/family-all/month/\d{4}/\d{1,2}$",
+    r"^/reports/pdf/student/[A-Za-z0-9_\-]{1,64}/month/\d{4}/\d{1,2}$",
+    r"^/reports/pdf/teacher-wellbeing/[A-Za-z0-9_\-]{1,64}/month/\d{4}/\d{1,2}$",
+    r"^/reports/pdf/classroom-overview/[A-Za-z0-9_\-]{1,64}/month/\d{4}/\d{1,2}$",
+    r"^/reports/pdf/school-overview$",
+    r"^/resources/[A-Za-z0-9_\-]{1,64}/download$",
+    r"^/teacher-resources/[A-Za-z0-9_\-]{1,64}/download$",
+    r"^/admin/export$",
+    r"^/admin/school-analytics/[A-Za-z0-9_\-]{1,64}/pdf$",
+    r"^/admin/school-analytics-comparison/pdf$",
+    r"^/school-admin/wellbeing-tracker/export$",
+    r"^/school-admin/services-directory/export$",
+)]
+_dl_uses: dict = {}
+_dl_uses_lock = threading.Lock()
+_dl_key_cache: dict = {}
+
+def _dl_now() -> float:
+    return time.time()
+
+def _dl_key() -> Optional[bytes]:
+    """HKDF-SHA256 (RFC 5869) of the server secret with a fixed salt/context; None when no secret is configured."""
+    if "k" in _dl_key_cache:
+        return _dl_key_cache["k"]
+    ikm = (SUPABASE_SERVICE_KEY or "").encode()
+    key = None
+    if ikm:
+        prk = _hmac.new(b"coh-download-link-v1", ikm, _hashlib.sha256).digest()
+        key = _hmac.new(prk, b"class-of-happiness downloads/link signing key\x01", _hashlib.sha256).digest()
+    _dl_key_cache["k"] = key
+    return key
+
+def _b64u(b: bytes) -> str:
+    return base64.urlsafe_b64encode(b).decode().rstrip("=")
+
+def _b64u_dec(s: str) -> bytes:
+    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+
+def _dl_canonical_query(pairs) -> str:
+    """Sorted, urlencoded query without the auth params (dl, token)."""
+    return _urlencode_dl(sorted((k, v) for k, v in pairs if k not in ("dl", "token")))
+
+def _dl_sign(user_id: str, path: str, pairs, now: Optional[float] = None) -> Optional[str]:
+    key = _dl_key()
+    if not key:
+        return None
+    now = _dl_now() if now is None else now
+    payload = {"v": 1, "u": user_id, "m": "GET", "p": path, "q": _dl_canonical_query(pairs), "i": int(now), "e": int(now) + _DL_TTL_SECONDS, "n": _secrets_dl.token_hex(12)}
+    body = _b64u(json.dumps(payload, separators=(",", ":"), sort_keys=True).encode())
+    sig = _b64u(_hmac.new(key, body.encode(), _hashlib.sha256).digest())
+    return f"{body}.{sig}"
+
+def _dl_verify(token, method: str, path: str, pairs, now: Optional[float] = None) -> Optional[str]:
+    """user_id when the link is genuine, unexpired, for exactly this method/path/query and not used up; else None. Never raises."""
+    try:
+        key = _dl_key()
+        if not key or not isinstance(token, str) or token.count(".") != 1 or len(token) > 1500:
+            return None
+        body, sig = token.split(".")
+        want = _hmac.new(key, body.encode(), _hashlib.sha256).digest()
+        if not _hmac.compare_digest(want, _b64u_dec(sig)):
+            return None
+        d = json.loads(_b64u_dec(body))
+        now = _dl_now() if now is None else now
+        if d.get("v") != 1 or d.get("m") != method or d.get("m") != "GET" or d.get("p") != path or d.get("q") != _dl_canonical_query(pairs):
+            return None
+        if not (isinstance(d.get("e"), int) and isinstance(d.get("i"), int)) or d["e"] - d["i"] > _DL_TTL_SECONDS or now > d["e"] or now < d["i"] - 5:
+            return None
+        nonce = d.get("n")
+        if not isinstance(nonce, str) or not isinstance(d.get("u"), str) or not d["u"]:
+            return None
+        with _dl_uses_lock:
+            for k in [k for k, (_, exp) in _dl_uses.items() if exp < now]:
+                _dl_uses.pop(k, None)
+            used, _ = _dl_uses.get(nonce, (0, d["e"]))
+            if used >= _DL_MAX_USES:
+                return None
+            _dl_uses[nonce] = (used + 1, d["e"])
+        return d["u"]
+    except Exception:
+        return None
+
+def _dl_authenticate_sync(request: Request) -> Optional[dict]:
+    pairs = list(request.query_params.multi_items())
+    uid = _dl_verify(request.query_params.get("dl"), request.method, request.url.path, pairs)
+    if not uid:
+        return None
+    try:
+        r = supabase.table("users").select("*").eq("user_id", uid).execute()
+        u = (r.data or [None])[0]
+        if not u or u.get("account_suspended"):
+            return None
+        return u
+    except Exception as e:
+        logger.error(f"download link user lookup failed: {e}")
+        return None
+
 def _get_current_user_sync(request: Request) -> Optional[dict]:
     """Get current user from Supabase session token"""
     session_token = request.cookies.get("session_token")
@@ -2799,8 +2948,12 @@ def _get_current_user_sync(request: Request) -> Optional[dict]:
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
             session_token = auth_header[7:]
+    if not session_token and request.query_params.get("dl"):
+        # fix51: a signed, short-lived download link (see POST /downloads/link). Invalid or expired = not authenticated; the
+        # legacy ?token= is NOT tried when a dl parameter is present.
+        return _dl_authenticate_sync(request)
     if not session_token:
-        # Also accept token as query param (for PDF downloads via Linking.openURL)
+        # Also accept token as query param (for PDF downloads via Linking.openURL) - legacy, old app builds only; never logged (see _RedactRequestLogs)
         session_token = request.query_params.get("token")
     if not session_token:
         return None
@@ -2870,6 +3023,55 @@ async def get_current_user(request: Request) -> Optional[dict]:
     genuinely slow. Wrapping it in run_in_threadpool moves that blocking work off the event
     loop without changing any of the ~306 `await get_current_user(request)` call sites."""
     return await run_in_threadpool(_get_current_user_sync, request)
+
+_dl_link_hits: dict = {}
+
+@api_router.post("/downloads/link")
+async def create_download_link(request: Request):
+    """Returns a signed link (valid 120 s) for ONE of the existing download/report endpoints. Needs the normal Authorization
+    header (or cookie); a ?token= / dl query parameter is not accepted here. The endpoint behind the link still does its own
+    authorisation for the user the link was issued to."""
+    if not (request.cookies.get("session_token") or (request.headers.get("Authorization") or "").startswith("Bearer ")):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if user.get("role") == "kiosk" or not isinstance(user.get("user_id"), str):
+        raise HTTPException(status_code=403, detail="Not available for this account")
+    now = _dl_now()
+    hits = [t for t in _dl_link_hits.get(user["user_id"], []) if now - t < 60]
+    if len(hits) >= 60:
+        raise HTTPException(status_code=429, detail="Too many requests. Please wait a moment.")
+    hits.append(now); _dl_link_hits[user["user_id"]] = hits
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid request")
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Invalid request")
+    path = body.get("path")
+    if not isinstance(path, str) or len(path) > 300 or any(ord(c) <= 32 or ord(c) == 127 for c in path) or "%" in path or "\\" in path or "?" in path or "#" in path or ".." in path or "//" in path:
+        raise HTTPException(status_code=400, detail="Invalid download")
+    if not any(rx.match(path) for rx in _DL_ALLOWED_PATHS):
+        raise HTTPException(status_code=400, detail="Invalid download")
+    q = body.get("query") or {}
+    if not isinstance(q, dict) or len(q) > 12:
+        raise HTTPException(status_code=400, detail="Invalid download")
+    pairs = []
+    for k, v in q.items():
+        if not isinstance(k, str) or not re.fullmatch(r"[A-Za-z0-9_]{1,40}", k) or k in ("dl", "token"):
+            raise HTTPException(status_code=400, detail="Invalid download")
+        if isinstance(v, bool) or not isinstance(v, (str, int, float)) or len(str(v)) > 300 or any(ord(c) < 32 for c in str(v)):
+            raise HTTPException(status_code=400, detail="Invalid download")
+        pairs.append((k, str(v)))
+    full_path = "/api" + path
+    tok = _dl_sign(user["user_id"], full_path, pairs, now)
+    if not tok:
+        raise HTTPException(status_code=503, detail="Downloads are temporarily unavailable")
+    qs = _urlencode_dl(sorted(pairs) + [("dl", tok)])
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "https").split(",")[0].strip()
+    host = request.headers.get("host") or request.url.netloc
+    return {"url": f"{proto}://{host}{full_path}?{qs}", "path_and_query": f"{full_path}?{qs}", "expires_in": _DL_TTL_SECONDS}
 
 def _public_user(user: dict, include_push_flag: bool = True) -> dict:
     """CRITICAL security fix Aug 26: /auth/me, /auth/email-login, and google_auth all used to
@@ -25316,6 +25518,7 @@ async def _start_support_requests_rebuzz():
     Railway running this as a single persistent process (not horizontally scaled) - if
     that ever changes, multiple workers would each run their own loop and double-send
     re-buzzes, so this assumption needs re-checking before scaling this service out."""
+    install_log_redaction()   # fix51: re-applied after uvicorn has finished configuring logging in this worker
     asyncio.create_task(_support_requests_rebuzz_loop())
     asyncio.create_task(_school_renewal_reminder_loop())
     asyncio.create_task(_school_checkin_nudge_loop())
