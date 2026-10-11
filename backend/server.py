@@ -23260,6 +23260,154 @@ async def toggle_shop_family_member(member_id: str, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ---- Oct 11: teacher PERSONAL check-in strategies, stored on the server ----------------------------------------
+# Rows live in custom_helpers with student_id NULL and user_id = the teacher. Delete is a SOFT delete (is_active=false,
+# row kept) so a past check-in's strategy id keeps resolving to its name (the PDF resolvers look up custom_helpers by id
+# without an is_active filter). Colours: custom_helpers has one text column (feeling_colour) and no colours column, so
+# "all" = every colour and a subset is stored comma-separated ("blue,yellow"); only these rows ever hold a list.
+# The id column is text, so an old on-device id ("custom_<ms>") can be kept as the row id (idempotent migration).
+_PERSONAL_STRATEGY_ROLES = ("teacher", "school_admin", "admin", "superadmin")
+_PERSONAL_COLOURS = ("blue", "green", "yellow", "red")
+_LEGACY_PERSONAL_ID = re.compile(r"^custom_\d{6,16}$")
+
+def _personal_colours_from_store(value) -> list:
+    v = str(value or "").strip().lower()
+    if not v or v == "all":
+        return list(_PERSONAL_COLOURS)
+    got = [c for c in _PERSONAL_COLOURS if c in [x.strip() for x in v.split(",")]]
+    return got or list(_PERSONAL_COLOURS)
+
+def _personal_colours_to_store(value) -> str:
+    if isinstance(value, str):
+        value = [x.strip() for x in value.split(",")]
+    got = [c for c in _PERSONAL_COLOURS if c in [str(x).strip().lower() for x in (value or [])]]
+    if not got or len(got) == len(_PERSONAL_COLOURS) or "all" in [str(x).strip().lower() for x in (value or [])]:
+        return "all"
+    return ",".join(got)
+
+def _personal_strategy_out(row: dict) -> dict:
+    return {
+        "id": row.get("id"), "name": row.get("name") or "", "description": row.get("description") or "",
+        "icon": row.get("icon") or "star", "colours": _personal_colours_from_store(row.get("feeling_colour")),
+        "is_active": row.get("is_active") is not False, "created_at": row.get("created_at"),
+    }
+
+async def _personal_strategy_user(request: Request) -> dict:
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if user.get("role") not in _PERSONAL_STRATEGY_ROLES:
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    return user
+
+def _personal_row_for_owner(strategy_id: str, user: dict) -> dict:
+    res = supabase.table("custom_helpers").select("*").eq("id", strategy_id).execute()
+    row = (res.data or [None])[0]
+    if not row or row.get("student_id") or row.get("user_id") != user["user_id"]:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    return row
+
+@api_router.get("/teacher/personal-strategies")
+async def list_personal_strategies(request: Request, include_inactive: bool = False):
+    user = await _personal_strategy_user(request)
+    def _q():
+        q = supabase.table("custom_helpers").select("*").eq("user_id", user["user_id"]).is_("student_id", "null")
+        if not include_inactive:
+            q = q.eq("is_active", True)
+        return q.execute().data or []
+    try:
+        rows = await asyncio.to_thread(_q)
+    except Exception as e:
+        logger.error(f"personal strategies list error: {e}")
+        raise HTTPException(status_code=500, detail="Could not load strategies")
+    rows.sort(key=lambda r: str(r.get("created_at") or ""))
+    return [_personal_strategy_out(r) for r in rows]
+
+@api_router.post("/teacher/personal-strategies")
+async def create_personal_strategy(request: Request):
+    user = await _personal_strategy_user(request)
+    body = await request.json()
+    name = str(body.get("name") or "").strip()[:120]
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    legacy_id = str(body.get("id") or "").strip()
+    def _do():
+        new_id = str(uuid.uuid4())
+        if legacy_id and _LEGACY_PERSONAL_ID.match(legacy_id):
+            existing = supabase.table("custom_helpers").select("*").eq("id", legacy_id).execute().data or []
+            if existing:
+                row = existing[0]
+                if row.get("user_id") == user["user_id"] and not row.get("student_id"):
+                    return dict(_personal_strategy_out(row), existing=True)      # idempotent: already migrated
+            else:
+                new_id = legacy_id                                               # keep the id past check-ins reference
+        row = {
+            "id": new_id, "student_id": None, "user_id": user["user_id"], "name": name,
+            "description": str(body.get("description") or "").strip()[:300],
+            "feeling_colour": _personal_colours_to_store(body.get("colours", "all")),
+            "icon": str(body.get("icon") or "star")[:60], "is_shared": False, "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        res = supabase.table("custom_helpers").insert(row).execute()
+        out = _personal_strategy_out((res.data or [row])[0])
+        out["legacy_id"] = legacy_id if (legacy_id and new_id != legacy_id) else None
+        return out
+    try:
+        return await asyncio.to_thread(_do)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"personal strategy create error: {e}")
+        raise HTTPException(status_code=500, detail="Could not save the strategy")
+
+@api_router.put("/teacher/personal-strategies/{strategy_id}")
+async def update_personal_strategy(strategy_id: str, request: Request):
+    user = await _personal_strategy_user(request)
+    body = await request.json()
+    def _do():
+        _personal_row_for_owner(strategy_id, user)
+        upd = {}
+        if "name" in body:
+            nm = str(body.get("name") or "").strip()[:120]
+            if not nm:
+                raise HTTPException(status_code=400, detail="Name is required")
+            upd["name"] = nm
+        if "description" in body:
+            upd["description"] = str(body.get("description") or "").strip()[:300]
+        if "icon" in body:
+            upd["icon"] = str(body.get("icon") or "star")[:60]
+        if "colours" in body:
+            upd["feeling_colour"] = _personal_colours_to_store(body.get("colours"))
+        if "is_active" in body:
+            upd["is_active"] = bool(body.get("is_active"))
+        if not upd:
+            return _personal_strategy_out(_personal_row_for_owner(strategy_id, user))
+        res = supabase.table("custom_helpers").update(upd).eq("id", strategy_id).eq("user_id", user["user_id"]).execute()
+        return _personal_strategy_out((res.data or [dict(_personal_row_for_owner(strategy_id, user), **upd)])[0])
+    try:
+        return await asyncio.to_thread(_do)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"personal strategy update error: {e}")
+        raise HTTPException(status_code=500, detail="Could not save the strategy")
+
+@api_router.delete("/teacher/personal-strategies/{strategy_id}")
+async def delete_personal_strategy(strategy_id: str, request: Request):
+    """SOFT delete: the row stays (is_active=false) so old check-ins and PDFs keep the name."""
+    user = await _personal_strategy_user(request)
+    def _do():
+        _personal_row_for_owner(strategy_id, user)
+        supabase.table("custom_helpers").update({"is_active": False}).eq("id", strategy_id).eq("user_id", user["user_id"]).execute()
+        return {"deleted": True, "soft": True}
+    try:
+        return await asyncio.to_thread(_do)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"personal strategy delete error: {e}")
+        raise HTTPException(status_code=500, detail="Could not delete the strategy")
+
 @api_router.post("/teacher-checkins")
 async def save_teacher_checkin(request: Request):
     """Save teacher self check-in to DB for dashboard visibility."""
