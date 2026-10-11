@@ -4,13 +4,14 @@ import {
   ScrollView, RefreshControl, useWindowDimensions, Alert, Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, usePathname } from 'expo-router';
 import { Swipeable } from 'react-native-gesture-handler';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
 import { useApp } from '../../src/context/AppContext';
+import { formatShortDate, formatTime as formatTimeLabel } from '../../src/utils/dateLabel';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { zoneLogsApi, ZoneLog, featuresApi } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
@@ -18,7 +19,7 @@ import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { registerForPushNotifications } from '../../src/utils/notifications';
 import { SupportRequestBanner } from '../../src/components/SupportRequestBanner';
 import { useSupportRequestsList } from '../../src/utils/supportRequestsPoller';
-import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
+import { resolveStrategyName, strategyLabel } from '../../src/utils/resolveStrategyName';
 
 // Real English fallback text, translated at render time via t(tipKey)/t(actionKey) below —
 // this raw dictionary only supplies the English fallback + stable tip/action keys.
@@ -96,7 +97,7 @@ const STRATEGY_NAMES: Record<string, string> = {
   set_goal:'Set a Goal', five_senses:'5 Senses', squeeze_release:'Squeeze & Release',
 };
 const resolveStrategy = (id: string, t?: (key: string) => string): string =>
-  resolveStrategyName(id, t || (() => ''), STRATEGY_NAMES);
+  strategyLabel(id, t || (() => ''), STRATEGY_NAMES);
 
 const ZONE_EMOJI: Record<string,string> = { blue:'🔵', green:'🟢', yellow:'🟡', red:'🔴' };
 type Period = 1|7|14|30;
@@ -104,7 +105,8 @@ type Period = 1|7|14|30;
 export default function TeacherDashboardScreen() {
   const { width } = useWindowDimensions();
   const router = useRouter();
-  const { user, students, classrooms, presetAvatars, refreshStudents, refreshClassrooms, t, hasActiveSubscription } = useApp();
+  const currentPath = usePathname();
+  const { user, students, classrooms, presetAvatars, refreshStudents, refreshClassrooms, t, hasActiveSubscription, language } = useApp();
 
   // CRITICAL security fix Aug 26 (item 3): role-gating - confirmed live that ANY
   // authenticated account could open either dashboard regardless of its real role, zero
@@ -113,7 +115,7 @@ export default function TeacherDashboardScreen() {
   // reach it (many real teachers are also parents and may want both views; school_admin and
   // superadmin already have broader access elsewhere in this app).
   useEffect(() => {
-    if (user && user.role === 'parent') {
+    if (user && user.role === 'parent' && currentPath !== '/parent/dashboard') {
       router.replace('/parent/dashboard');
     }
   }, [user?.role]);
@@ -414,7 +416,14 @@ export default function TeacherDashboardScreen() {
   // resolveStrategyLocal removed — was defined but never actually called anywhere, dead code that also used the now-removed STRATEGY_NAMES_LOCAL.
   const getStudentName = (id:string) => students.find(s=>s.id===id)?.name || t('student') || 'Student';
   const getStudent = (id:string) => students.find(s=>s.id===id);
-  const formatTime = (ts:string) => { try { return new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); } catch { return ''; } };
+  const formatTime = (ts:string) => { try { return formatTimeLabel(ts, language, { twoDigitHour: true }); } catch { return ''; } };
+  // Real fix Sep 30 (live feedback, item 1): the recent-check-in card's small date label used
+  // `[]` as the locale, which follows the DEVICE's OS locale rather than the app's own
+  // in-app language setting - on a phone set to English but the app set to Portuguese, this
+  // always showed English month abbreviations. LOCALE_FOR_LANG matches the map already added
+  // to teacher/student-detail.tsx for the same class of bug.
+  const LOCALE_FOR_LANG: Record<string,string> = { en:'en-US', pt:'pt-PT', es:'es-ES', fr:'fr-FR', de:'de-DE', it:'it-IT', hi:'hi-IN', zh:'zh-CN', ar:'ar-u-nu-latn-ca-gregory', ru:'ru-RU' };
+  const dashLocale = LOCALE_FOR_LANG[language] || 'en-US';
   const periodLabel = (p:Period) => p===1?(t('today')||t('today') || 'Today'):p===7?(t('week')||t('this_week') || 'Week'):p===14?(t('days_14') || '2 Weeks'):t('month') || 'Month';
 
   const zc = analytics?.zone_counts || { blue:0, green:0, yellow:0, red:0 };
@@ -441,7 +450,7 @@ export default function TeacherDashboardScreen() {
     { label: t('classrooms')||'Classrooms', icon: 'school', color: '#5C6BC0', route: '/teacher/classrooms', count: classrooms.length },
     { label: t('alerts')||'Alerts', icon: 'notifications', color: '#F44336', route: '/teacher/alerts', count: alertCount > 0 ? alertCount : null },
     { label: t('resources')||'Resources', icon: 'library-books', color: '#5C6BC0', route: '/teacher/resources', count: null },
-    { label: 'My\nCheck-In', icon: 'self-improvement', color: '#26A69A', route: '/teacher/checkin', count: null },
+    { label: t('my_checkin_tile') || 'My\nCheck-In', icon: 'self-improvement', color: '#26A69A', route: '/teacher/checkin', count: null },
     { label: t('creatures_manage')||'Creatures', icon: 'pets', color: '#9C27B0', route: '/teacher/creature-code', count: null },
   ];
 
@@ -636,8 +645,8 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
                       const l = log as any;
                       const isHome = l.location==='home' || l.logged_by==='parent' || l.logged_by==='family';
                       return isHome
-                        ? <View style={st.homeBadge}><Text style={st.homeBadgeTxt}>🏠 HOME</Text></View>
-                        : <View style={st.schoolBadge}><Text style={st.schoolBadgeTxt}>🏫 SCHOOL</Text></View>;
+                        ? <View style={st.homeBadge}><Text style={st.homeBadgeTxt}>🏠 {(t('home')||'HOME').toUpperCase()}</Text></View>
+                        : <View style={st.schoolBadge}><Text style={st.schoolBadgeTxt}>🏫 {(t('school')||'SCHOOL').toUpperCase()}</Text></View>;
                     })()}
                   </View>
                   {(() => { const s = getStudent(log.student_id); const cl = s?.classroom_id ? classrooms.find((c:any)=>c.id===s.classroom_id) : null; return cl ? <Text style={{fontSize:9,color:'#AAA'}}>{cl.name}</Text> : null; })()}
@@ -651,7 +660,7 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
                 <View style={{alignItems:'flex-end',gap:3}}>
                   <View style={[st.zonePill,{backgroundColor:ZONE_COLORS[zone]||'#999'}]} />
                   <Text style={st.logTime}>{formatTime((log as any).timestamp)}</Text>
-                  <Text style={{fontSize:9,color:'#BBB'}}>{new Date((log as any).timestamp).toLocaleDateString([],{day:'numeric',month:'short'})}</Text>
+                  <Text style={{fontSize:9,color:'#BBB'}}>{formatShortDate((log as any).timestamp, language)}</Text>
                 </View>
               </TouchableOpacity>
             );

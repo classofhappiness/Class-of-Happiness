@@ -13,9 +13,13 @@ import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { useFixedGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
 import { StrategyIcon } from '../../src/components/StrategyIcon';
-import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
+import { resolveStrategyName, strategyLabel } from '../../src/utils/resolveStrategyName';
+import { PersonalStrategy, PersonalColour, PERSONAL_COLOURS, loadLocalPersonalStrategies, syncPersonalStrategies, addPersonalStrategy, updatePersonalStrategy, deletePersonalStrategy } from '../../src/utils/personalStrategies';
+import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { useWellbeingSharing } from '../../src/utils/useWellbeingSharing';
 import { useAndroidKeyboardOffset } from '../../src/utils/useAndroidKeyboardOffset';
+import { formatMonthYear as formatMonthYearLabel } from '../../src/utils/monthLabel';
+import { formatTime as formatTimeLabel } from '../../src/utils/dateLabel';
 
 type FeelingZone = 'blue' | 'green' | 'yellow' | 'red';
 
@@ -61,12 +65,25 @@ const TEACHER_STRATEGIES: Record<FeelingZone, Array<{ id: string; name: string; 
 // All strategies flat for lookup
 const ALL_STRATEGIES = Object.values(TEACHER_STRATEGIES).flat();
 
+// Real fix Sep 30 (live feedback, item 4): the download-report month labels used
+// toLocaleDateString(undefined, ...), which follows the DEVICE's OS locale rather than the
+// app's own in-app language setting - matches the same fix already applied to
+// teacher/student-detail.tsx and teacher/dashboard.tsx for this exact class of bug.
+const LOCALE_FOR_LANG: Record<string,string> = { en:'en-US', pt:'pt-PT', es:'es-ES', fr:'fr-FR', de:'de-DE', it:'it-IT', hi:'hi-IN', zh:'zh-CN', ar:'ar-u-nu-latn-ca-gregory', ru:'ru-RU' };
+// Real fix Oct 5 (month-picker capitalisation): Intl's long-month formatting lowercases the
+// month name by default for several Latin-script locales (fr/es/it/etc. all do this
+// natively, correctly, per their own grammar rules) - capitalised here purely for this
+// picker's visual consistency with English. zh/ar/hi have no letter case, so left untouched.
+const NO_CASE_LANGS = new Set(['zh', 'ar', 'hi']);
+const capitalizeMonth = (label: string, lang: string): string =>
+  NO_CASE_LANGS.has(lang) ? label : label.charAt(0).toUpperCase() + label.slice(1);
+
 const BACKEND_URL_CONST = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 export default function TeacherCheckInScreen() {
   const zoneCardWidth = gridCardWidth(useFixedGridColumns(ZONES.length));
   const router = useRouter();
-  const { user , t} = useApp();
+  const { user , t, language } = useApp();
   // Real fix Sep 24 (item4, second device-log pass): the "Share With My School Admin" toggle
   // used to live here too - Jono's report was that it's now only in Settings. Same shared
   // hook, same backend field (teacher_wellbeing_shared_with_admin) as Settings' copy - see
@@ -75,13 +92,14 @@ export default function TeacherCheckInScreen() {
   const handleWellbeingSharingToggle = async () => {
     const result = await toggleWellbeingSharing();
     if (!result.ok) {
-      Alert.alert(t('error') || 'Error', result.detail || 'Could not update sharing status. Please try again.');
+      Alert.alert(t('error') || 'Error', result.detail || (t('update_sharing_error') || 'Could not update sharing status. Please try again.'));
     }
   };
   const [selectedZone, setSelectedZone] = useState<FeelingZone | null>(null);
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [strategyBusy, setStrategyBusy] = useState(false);   // Oct 11: add/edit/delete of a personal strategy in progress
   const [weekData, setWeekData] = useState<Record<string, { zone: FeelingZone; time: string }[]>>({});
   const [history, setHistory] = useState<any[]>([]);
   const [showAlertModal, setShowAlertModal] = useState(false);
@@ -89,10 +107,13 @@ export default function TeacherCheckInScreen() {
   const [alertMessage, setAlertMessage] = useState('');
   const [sendingAlert, setSendingAlert] = useState(false);
   const [adminStrategies, setAdminStrategies] = useState<any[]>([]);
-  const [customStrategies, setCustomStrategies] = useState<Array<{id: string; name: string; description: string}>>([]);
+  // Oct 11: ALL of the teacher's own strategies, deleted ones included (inactive ones only keep naming past check-ins)
+  const [customStrategies, setCustomStrategies] = useState<PersonalStrategy[]>([]);
+  const [newStrategyColours, setNewStrategyColours] = useState<PersonalColour[]>([...PERSONAL_COLOURS]);
   const [showAddStrategy, setShowAddStrategy] = useState(false);
   const [newStrategyName, setNewStrategyName] = useState('');
   const [newStrategyDesc, setNewStrategyDesc] = useState('');
+  const [editingStrategyId, setEditingStrategyId] = useState<string | null>(null);
   // Real fix Aug 23 (health check): these were declared much further down (originally right
   // before handlePinDigit), but referenced here by the two effects below - pinUnlocked in
   // particular sat inside a useEffect dependency array, which is evaluated eagerly during
@@ -166,13 +187,23 @@ export default function TeacherCheckInScreen() {
   // which was the real bug: teacher strategies were being resolved against student names.
   // TEACHER_STRATEGY_LOOKUP must stay checked FIRST, ahead of the shared resolver below —
   // it is deliberately NOT part of this localisation pass (out of scope).
+  // Real fix Sep 30 (live feedback, item 4): strategiesForZone below (the strategy-picker
+  // shown when LOGGING a new check-in) already translates each name via
+  // t(`teacher_strategy_${id}_name`), but this lookup - used for "Recent Check-ins" and "Most
+  // Used Strategies" on the SAME screen once a check-in is already saved - still read the raw
+  // English TEACHER_STRATEGIES.name directly. Same translation keys, already present in all
+  // 10 languages; this just needed to actually call t() the same way.
   const TEACHER_STRATEGY_LOOKUP: Record<string,string> = {};
   (Object.keys(TEACHER_STRATEGIES) as FeelingZone[]).forEach((zone) => {
-    TEACHER_STRATEGIES[zone].forEach((s) => { TEACHER_STRATEGY_LOOKUP[s.id] = s.name; });
+    TEACHER_STRATEGIES[zone].forEach((s) => {
+      TEACHER_STRATEGY_LOOKUP[s.id] = t(`teacher_strategy_${s.id}_name`) || s.name;
+    });
   });
+  // Oct 11: the teacher's own on-device strategies (custom_<timestamp>) by id, for check-ins that used them
+  const localNames = () => { const o: Record<string,string> = {}; customStrategies.forEach(c => { o[c.id] = c.name; }); return o; };
   const resolveStratName = (id: string) => {
     if (!id || ['blue','green','yellow','red'].includes(id.toLowerCase())) return null;
-    return TEACHER_STRATEGY_LOOKUP[id] || resolveStrategyName(id, t, STRATEGY_NAMES_LOCAL);
+    return TEACHER_STRATEGY_LOOKUP[id] || strategyLabel(id, t, STRATEGY_NAMES_LOCAL, localNames());
   };
 
   const loadData = async () => {
@@ -231,22 +262,71 @@ export default function TeacherCheckInScreen() {
       });
       setWeekData(grouped);
       // Load custom teacher strategies
-      const customRaw = await AsyncStorage.getItem(`teacher_custom_strategies_${user.user_id}`);
-      if (customRaw) setCustomStrategies(JSON.parse(customRaw));
+      setCustomStrategies(await loadLocalPersonalStrategies(user.user_id));
+      // one-time migration of old on-device items + reconcile with the server (idempotent, offline-safe)
+      syncPersonalStrategies(user.user_id).then(list => setCustomStrategies(list)).catch(() => {});
     } catch (e) { console.error("[silent]", e); }
   };
 
   const saveCustomStrategy = async () => {
-    if (!newStrategyName.trim()) return;
-    const newS = { id: `custom_${Date.now()}`, name: newStrategyName.trim(), description: newStrategyDesc.trim() };
-    const updated = [...customStrategies, newS];
-    setCustomStrategies(updated);
-    await AsyncStorage.setItem(`teacher_custom_strategies_${user?.user_id}`, JSON.stringify(updated));
-    setNewStrategyName('');
-    setNewStrategyDesc('');
-    setShowAddStrategy(false);
-    Alert.alert(`✅ ${t('added') || 'Added'}`, t('personal_strategy_saved') || 'Your personal strategy has been saved.');
+    if (strategyBusy || !newStrategyName.trim() || !user?.user_id) return;     // busy = ignore double taps
+    // Oct 11: the same form adds or edits one of the teacher's OWN strategies; the chosen colour(s) decide which
+    // colour screens list it. The device list changes first (shown at once), then it is mirrored to the server.
+    const colours = newStrategyColours.length ? newStrategyColours : [...PERSONAL_COLOURS];
+    const wasEditing = !!editingStrategyId;
+    setStrategyBusy(true);
+    try {
+      const list = wasEditing
+        ? await updatePersonalStrategy(user.user_id, editingStrategyId!, { name: newStrategyName.trim(), description: newStrategyDesc.trim(), colours }, setCustomStrategies)
+        : await addPersonalStrategy(user.user_id, { name: newStrategyName, description: newStrategyDesc, colours }, setCustomStrategies);
+      setCustomStrategies(list);
+      setNewStrategyName('');
+      setNewStrategyDesc('');
+      setNewStrategyColours([...PERSONAL_COLOURS]);
+      setShowAddStrategy(false);
+      setEditingStrategyId(null);
+      if (!wasEditing) Alert.alert(`✅ ${t('added') || 'Added'}`, t('personal_strategy_saved') || 'Your personal strategy has been saved.');
+    } catch (e) {
+      console.error('[personal strategy save]', e);
+      loadLocalPersonalStrategies(user.user_id).then(setCustomStrategies).catch(() => {});
+    } finally {
+      setStrategyBusy(false);
+    }
   };
+
+  const startEditCustomStrategy = (s: PersonalStrategy) => {
+    setEditingStrategyId(s.id);
+    setNewStrategyColours(s.colours?.length ? s.colours : [...PERSONAL_COLOURS]);
+    setNewStrategyName(s.name);
+    setNewStrategyDesc(s.description || '');
+    setShowAddStrategy(true);
+  };
+
+  const deleteCustomStrategy = (s: { id: string; name: string }) => {
+    Alert.alert(
+      t('delete') || 'Delete',
+      `${t('delete_personal_strategy_confirm') || 'Delete this strategy? Past check-ins will still show its name.'}\n\n"${s.name}"`,
+      [
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
+        {
+          text: t('delete') || 'Delete', style: 'destructive',
+          onPress: async () => {
+            // soft delete: the item stays (inactive) so past check-ins keep its name; it just stops being offered
+            setSelectedStrategies(prev => prev.filter(i => i !== s.id));
+            if (editingStrategyId === s.id) { setEditingStrategyId(null); setShowAddStrategy(false); setNewStrategyName(''); setNewStrategyDesc(''); }
+            if (!user?.user_id) return;
+            setStrategyBusy(true);
+            try { setCustomStrategies(await deletePersonalStrategy(user.user_id, s.id, setCustomStrategies)); }
+            catch (e) { console.error('[personal strategy delete]', e); }
+            finally { setStrategyBusy(false); }
+          },
+        },
+      ],
+    );
+  };
+
+  // Oct 11: only active personal strategies that belong to the selected colour (All colours = every colour)
+  const zonePersonalStrategies = useMemo(() => customStrategies.filter(c => c.active && !!selectedZone && c.colours.includes(selectedZone as PersonalColour)), [customStrategies, selectedZone]);
 
   const strategiesForZone = useMemo(() => {
     if (!selectedZone) return [];
@@ -272,6 +352,8 @@ export default function TeacherCheckInScreen() {
       name: s.name || 'Strategy',
       description: s.description || '',
       icon: s.icon || 'star',
+      // Oct 11: strategies the school admin added (school_ ids / source 'school') get a small school icon on the card
+      fromSchool: s.source === 'school' || String(s.id || '').startsWith('school_'),
     }))];
   }, [selectedZone, adminStrategies, t]);
 
@@ -385,12 +467,26 @@ export default function TeacherCheckInScreen() {
     setSendingAlert(false);
   };
 
-  const getStrategyName = (id: string) => ALL_STRATEGIES.find(s => s.id === id)?.name || id;
+  // Real fix Sep 30 (live feedback, item 4): same bug as TEACHER_STRATEGY_LOOKUP above - read
+  // the raw English ALL_STRATEGIES.name with no t() call, so "Recent Check-ins" always showed
+  // English strategy names regardless of app language.
+  const getStrategyName = (id: string) => {
+    const s = ALL_STRATEGIES.find(s => s.id === id);
+    if (!s) return resolveStratName(id) || '';
+    return t(`teacher_strategy_${s.id}_name`) || s.name;
+  };
 
+  // Real fix Oct 5 (time-format consistency): the time half of this was a manually built
+  // plain 24-hour "HH:MM" string regardless of language - correct for fr/pt (their own 24h
+  // convention) but wrong for English, whose normal convention is a 12-hour clock with
+  // AM/PM (eg "2:30 PM", not "14:30"). Using Intl with no hour12 override lets each
+  // language's own default convention apply, matching every other screen in this sweep;
+  // the day-name half is unchanged (already a real t() lookup, not Intl's concern).
   const formatDate = (iso: string) => {
     const d = new Date(iso);
     const day = DAYS[d.getDay()];
-    return `${t('day_' + day.toLowerCase()) || day} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    const timeStr = formatTimeLabel(d, language);
+    return `${t('day_' + day.toLowerCase()) || day} ${timeStr}`;
   };
 
   const downloadTeacherPDF = async (monthStr: string) => {
@@ -525,7 +621,7 @@ export default function TeacherCheckInScreen() {
 
   // Real fix Sep 19 (header/nav remainder): converted to the shared TranslatedHeader - the
   // coloured "Support" pill goes in its rightContent slot (kept exactly as it was, not
-  // flattened to an icon), homeTo keeps the home button on the teacher dashboard. The title
+  // flattened to an icon), showHome goes to the landing page ('/'). The title
   // is now centred like every other screen instead of left-aligned. The SafeAreaView becomes
   // the cross-platform one with no 'top' edge since TranslatedHeader applies the top inset
   // itself and React Native's own is iOS-only (the loading state above keeps it).
@@ -556,7 +652,6 @@ export default function TeacherCheckInScreen() {
         // than introducing a separate title+subtitle split, per the explicit "key stays" ask.
         titleNumberOfLines={2}
         showHome
-        homeTo="/teacher/dashboard"
         rightContent={
           <TouchableOpacity style={styles.alertBtn} onPress={() => setShowAlertModal(true)}>
             <MaterialIcons name="support-agent" size={18} color="white" />
@@ -604,7 +699,7 @@ export default function TeacherCheckInScreen() {
             <TouchableOpacity
               key={zone.id}
               style={[styles.zoneBtn, { width: zoneCardWidth, backgroundColor: zone.color }, selectedZone === zone.id && styles.zoneBtnSelected]}
-              onPress={() => { setSelectedZone(zone.id); setSelectedStrategies([]); }}
+              onPress={() => { setSelectedZone(selectedZone === zone.id ? null : zone.id); setSelectedStrategies([]); }}
               activeOpacity={0.85}
             >
               <Text style={styles.zoneEmoji}>{zone.emoji}</Text>
@@ -631,15 +726,18 @@ export default function TeacherCheckInScreen() {
                   <Text style={styles.strategyName}>{s.name}</Text>
                   <Text style={styles.strategyDesc}>{s.description}</Text>
                 </View>
+                {(s as any).fromSchool && (
+                  <MaterialIcons name="school" size={18} color="#9E9E9E" style={{ marginRight: 6 }} accessibilityLabel={t('added_by_school') || 'Added by your school'} />
+                )}
                 {selectedStrategies.includes(s.id) && <MaterialIcons name="check-circle" size={20} color={zoneConfig?.color || '#5C6BC0'} />}
               </TouchableOpacity>
             ))}
 
             {/* Custom personal strategies */}
-            {customStrategies.length > 0 && (
+            {zonePersonalStrategies.length > 0 && (
               <>
                 <Text style={styles.customStratLabel}>{t('my_strategies') || 'My Strategies'}</Text>
-                {customStrategies.map(s => (
+                {zonePersonalStrategies.map(s => (
                   <TouchableOpacity
                     key={s.id}
                     style={[styles.strategyCard, selectedStrategies.includes(s.id) && { borderColor: zoneConfig?.color, borderWidth: 2, backgroundColor: zoneConfig?.color + '15' }]}
@@ -652,21 +750,49 @@ export default function TeacherCheckInScreen() {
                       <Text style={styles.strategyName}>{s.name}</Text>
                       {s.description ? <Text style={styles.strategyDesc}>{s.description}</Text> : null}
                     </View>
+                    {/* Oct 11: pencil and bin only on the teacher's OWN strategies (school-added ones stay read-only) */}
+                    <TouchableOpacity onPress={() => startEditCustomStrategy(s)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel={t('edit') || 'Edit'} style={{ padding: 4 }}>
+                      <MaterialIcons name="edit" size={20} color="#5C6BC0" />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => deleteCustomStrategy(s)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel={t('delete') || 'Delete'} style={{ padding: 4 }}>
+                      <MaterialIcons name="delete-outline" size={20} color="#E53935" />
+                    </TouchableOpacity>
                     {selectedStrategies.includes(s.id) && <MaterialIcons name="check-circle" size={20} color={zoneConfig?.color} />}
                   </TouchableOpacity>
                 ))}
               </>
             )}
-            <TouchableOpacity style={styles.addStrategyBtn} onPress={() => setShowAddStrategy(!showAddStrategy)}>
+            <TouchableOpacity style={styles.addStrategyBtn} onPress={() => { if (showAddStrategy && editingStrategyId) { setEditingStrategyId(null); setNewStrategyName(''); setNewStrategyDesc(''); } if (!showAddStrategy && !editingStrategyId) setNewStrategyColours([...PERSONAL_COLOURS]); setShowAddStrategy(!showAddStrategy); }}>
               <MaterialIcons name="add-circle-outline" size={20} color="#5C6BC0" />
               <Text style={styles.addStrategyText}>{t('add_custom_strategy') || 'Add Custom Strategy'}</Text>
             </TouchableOpacity>
+            {strategyBusy && <View style={{ alignItems: 'center', marginVertical: 8 }}><EmotionColourLoader visible size={36} /></View>}
             {showAddStrategy && (
               <View style={styles.addStrategyForm}>
                 <TextInput style={styles.addStrategyInput} placeholder={t('strategy_name_input_ph') || 'Strategy name...'} value={newStrategyName} onChangeText={setNewStrategyName} placeholderTextColor="#AAA" />
                 <TextInput style={styles.addStrategyInput} placeholder={t('description_optional_ph') || 'Description (optional)...'} value={newStrategyDesc} onChangeText={setNewStrategyDesc} placeholderTextColor="#AAA" />
-                <TouchableOpacity style={styles.addStrategySubmit} onPress={saveCustomStrategy}>
-                  <Text style={styles.addStrategySubmitText}>{t('add_strategy') || t('add_strategy') || 'Save Strategy'}</Text>
+                {/* Oct 11: which colour(s) this strategy is offered under; all four = All colours */}
+                <Text style={styles.colourChooserLabel}>{t('strategy_colours_label') || 'Show this strategy under'}</Text>
+                <View style={styles.colourChooserRow}>
+                  {ZONES.map(z => {
+                    const on = newStrategyColours.includes(z.id as PersonalColour);
+                    return (
+                      <TouchableOpacity key={z.id} accessibilityRole="checkbox" accessibilityState={{ checked: on }}
+                        onPress={() => setNewStrategyColours(prev => on ? prev.filter(c => c !== z.id) : [...prev, z.id as PersonalColour])}
+                        style={[styles.colourChip, { backgroundColor: on ? z.color : 'white', borderColor: z.color }]}>
+                        <MaterialIcons name={on ? 'check-box' : 'check-box-outline-blank'} size={14} color={on ? 'white' : z.color} />
+                        <Text style={[styles.colourChipText, { color: on ? 'white' : '#444' }]}>{t(`${z.id}_short`) || z.id}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  <TouchableOpacity accessibilityRole="checkbox" accessibilityState={{ checked: newStrategyColours.length === PERSONAL_COLOURS.length }}
+                    onPress={() => setNewStrategyColours(newStrategyColours.length === PERSONAL_COLOURS.length ? [] : [...PERSONAL_COLOURS])}
+                    style={[styles.colourChip, { backgroundColor: newStrategyColours.length === PERSONAL_COLOURS.length ? '#5C6BC0' : 'white', borderColor: '#5C6BC0' }]}>
+                    <Text style={[styles.colourChipText, { color: newStrategyColours.length === PERSONAL_COLOURS.length ? 'white' : '#444' }]}>{t('all_colours') || 'All colours'}</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity style={[styles.addStrategySubmit, strategyBusy && { opacity: 0.5 }]} onPress={saveCustomStrategy} disabled={strategyBusy}>
+                  <Text style={styles.addStrategySubmitText}>{strategyBusy ? (t('saving') || 'Saving...') : editingStrategyId ? (t('save_changes') || 'Save changes') : (t('add_strategy') || 'Save Strategy')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -708,6 +834,14 @@ export default function TeacherCheckInScreen() {
                     : (t('only_you_see_checkin') || 'Only you can see this check-in')}
                 </Text>
               </View>
+              {/* Oct 11: on/off switch for the SAME setting Settings uses (useWellbeingSharing: GET
+                  /teacher/wellbeing-sharing-status, PUT /teacher/toggle-wellbeing-sharing). It updates at once
+                  and handleWellbeingSharingToggle shows an alert if saving fails. */}
+              {/* Oct 11: only for a teacher linked to a school, matching Settings */}
+              {!!(user as any)?.school_name && (wellbeingSharedLoading
+                ? <ActivityIndicator size="small" color="#5C6BC0" />
+                : <Switch value={wellbeingShared} onValueChange={handleWellbeingSharingToggle} trackColor={{ false: '#ddd', true: '#81C784' }} thumbColor={wellbeingShared ? '#4CAF50' : '#999'} />
+              )}
             </View>
 
             {/* Save button */}
@@ -878,7 +1012,7 @@ export default function TeacherCheckInScreen() {
               months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
             }
             return months.map(m => {
-              const label = new Date(m+'-15').toLocaleDateString(undefined, {month:'long', year:'numeric'});
+              const label = formatMonthYearLabel(parseInt(m.split('-')[0]), parseInt(m.split('-')[1]), language);
               return (
                 <TouchableOpacity key={m}
                   style={{flexDirection:'row',alignItems:'center',backgroundColor:'#FFF3F3',borderRadius:10,padding:10,gap:8,marginBottom:6,borderWidth:1,borderColor:'#FFCDD2'}}
@@ -1007,6 +1141,10 @@ const styles = StyleSheet.create({
   addStrategyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, marginBottom: 8 },
   addStrategyText: { fontSize: 14, color: '#5C6BC0', fontWeight: '600' },
   addStrategyForm: { backgroundColor: 'white', borderRadius: 12, padding: 12, marginBottom: 12, gap: 8, borderWidth: 1, borderColor: '#E8EAF6' },
+  colourChooserLabel: { fontSize: 12, fontWeight: '700', color: '#666', marginTop: 4 },
+  colourChooserRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  colourChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1.5 },
+  colourChipText: { fontSize: 12, fontWeight: '700' },
   addStrategyInput: { backgroundColor: '#F5F5F5', borderRadius: 8, padding: 10, fontSize: 14, color: '#333' },
   addStrategySubmit: { backgroundColor: '#5C6BC0', borderRadius: 8, padding: 10, alignItems: 'center' },
   addStrategySubmitText: { color: 'white', fontWeight: '600', fontSize: 14 },

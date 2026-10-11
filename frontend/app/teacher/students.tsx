@@ -56,7 +56,7 @@ export default function ManageStudentsScreen() {
   const handleDeleteStudent = (student: typeof students[0]) => {
     Alert.alert(
       t('delete_student'),
-      `Are you sure you want to delete ${student.name}? This will also delete all their data.`,
+      (t('delete_student_confirm') || 'Are you sure you want to delete {name}? This will also delete all their data.').replace('{name}', student.name),
       [
         { text: t('cancel') || 'Cancel', style: 'cancel' },
         {
@@ -136,7 +136,7 @@ export default function ManageStudentsScreen() {
       {/* Header rule (Sep 18/19): home only when back doesn't reach the dashboard in one tap.
           This screen's only entry is the teacher dashboard's Students tile (traced Sep 19,
           no other call site, notification route or deep link), so back already does that. */}
-      <TranslatedHeader title={t('students') || 'Students'} />
+      <TranslatedHeader title={t('students') || 'Students'} showHome />
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <MaterialIcons name="search" size={24} color="#999" />

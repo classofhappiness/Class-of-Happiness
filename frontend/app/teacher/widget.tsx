@@ -241,7 +241,7 @@ export default function TeacherWidgetScreen() {
         </View>
 
         {/* My wellbeing */}
-        <TouchableOpacity style={st.myWellbeing} onPress={() => router.push('/teacher/checkin')}>
+        <TouchableOpacity style={st.myWellbeing} onPress={() => router.navigate('/teacher/checkin')}>
           <MaterialIcons name="spa" size={20} color={INDIGO} />
           <Text style={st.myWellbeingText}>{t('teacher_checkin') || 'Check in on my own wellbeing'}</Text>
           <MaterialIcons name="chevron-right" size={18} color={INDIGO} />

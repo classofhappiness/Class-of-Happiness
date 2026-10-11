@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Alert,
@@ -12,40 +11,43 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { MaterialIcons } from '@expo/vector-icons';
+import { StrategyIcon } from '../../src/components/StrategyIcon';
 import { useApp } from '../../src/context/AppContext';
 import { classroomsApi, studentsApi, customStrategiesApi } from '../../src/utils/api';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 
 const ZONE_COLORS = EMOTION_COLOURS;
 
+// Oct 11: ids are the canonical ones (blue_1..red_6) chosen by NAME (they used to be b1..r4 in this list's own order, which resolveStrategyName reads as other strategies).
 const BULK_STRATEGIES = {
   blue: [
-    { id: 'b1', name: 'Gentle Stretch', icon: 'accessibility' },
-    { id: 'b2', name: 'Favourite Song', icon: 'music-note' },
-    { id: 'b3', name: 'Tell Someone', icon: 'chat' },
-    { id: 'b4', name: 'Slow Breathing', icon: 'air' },
+    { id: 'blue_1', name: 'Gentle Stretch', icon: 'accessibility' },
+    { id: 'blue_3', name: 'Favourite Song', icon: 'music-note' },
+    { id: 'blue_5', name: 'Tell Someone', icon: 'chat' },
+    { id: 'blue_6', name: 'Slow Breathing', icon: 'air' },
   ],
   green: [
-    { id: 'g1', name: 'Keep Going!', icon: 'star' },
-    { id: 'g2', name: 'Help a Friend', icon: 'people' },
-    { id: 'g3', name: 'Set a Goal', icon: 'flag' },
-    { id: 'g4', name: 'Gratitude', icon: 'favorite' },
+    { id: 'green_1', name: 'Keep Going!', icon: 'star' },
+    { id: 'green_2', name: 'Help a Friend', icon: 'people' },
+    { id: 'green_5', name: 'Set a Goal', icon: 'flag' },
+    { id: 'green_6', name: 'Gratitude', icon: 'favorite' },
   ],
   yellow: [
-    { id: 'y1', name: 'Bubble Breathing', icon: 'bubble-chart' },
-    { id: 'y2', name: 'Count to 10', icon: 'format-list-numbered' },
-    { id: 'y3', name: '5 Senses', icon: 'visibility' },
-    { id: 'y4', name: 'Talk About It', icon: 'record-voice-over' },
+    { id: 'yellow_1', name: 'Bubble Breathing', icon: 'bubble-chart' },
+    { id: 'yellow_3', name: 'Count to 10', icon: 'format-list-numbered' },
+    { id: 'yellow_4', name: '5 Senses', icon: 'visibility' },
+    { id: 'yellow_6', name: 'Talk About It', icon: 'record-voice-over' },
   ],
   red: [
-    { id: 'r1', name: 'Safe Space', icon: 'home' },
-    { id: 'r2', name: 'Deep Breaths', icon: 'air' },
-    { id: 'r3', name: 'Squeeze Something', icon: 'back-hand' },
-    { id: 'r4', name: 'Walk Away Calmly', icon: 'directions-walk' },
+    { id: 'red_4', name: 'Safe Space', icon: 'home' },
+    { id: 'deep_breaths', name: 'Deep Breaths', icon: 'air' },
+    { id: 'squeeze_something', name: 'Squeeze Something', icon: 'back-hand' },
+    { id: 'walk_away_calmly', name: 'Walk Away Calmly', icon: 'directions-walk' },
   ],
 };
 
@@ -127,7 +129,7 @@ export default function ManageClassroomsScreen() {
 
   const handleCreateClassroom = async () => {
     if (!newClassName.trim()) {
-      Alert.alert('Name Required', 'Please enter a classroom name.');
+      Alert.alert(t('name_required') || 'Name required', t('enter_classroom_name') || 'Please enter a classroom name.');
       return;
     }
     setCreating(true);
@@ -142,12 +144,12 @@ export default function ManageClassroomsScreen() {
     } catch (e: any) {
       const msg = e?.message || '';
       if (msg.startsWith('free_tier_limit|')) {
-        Alert.alert('Free Plan Limit Reached', msg.split('|')[1] || 'Upgrade to add more classrooms.', [
-          { text: 'Not Now', style: 'cancel' },
-          { text: 'See Plans', onPress: () => router.push('/subscription') },
+        Alert.alert(t('free_plan_limit_title') || 'Free Plan Limit Reached', msg.split('|')[1] || t('upgrade_add_more_classrooms') || 'Upgrade to add more classrooms.', [
+          { text: t('not_now') || 'Not Now', style: 'cancel' },
+          { text: t('see_plans') || 'See Plans', onPress: () => router.push('/subscription') },
         ]);
       } else {
-        Alert.alert('Error', 'Failed to create classroom.');
+        Alert.alert(t('error') || 'Error', t('failed_create_classroom') || 'Failed to create classroom.');
       }
     } finally {
       setCreating(false);
@@ -158,7 +160,7 @@ export default function ManageClassroomsScreen() {
     const count = getClassroomStudents(classroom.id).length;
     Alert.alert(
       t('delete_classroom') || 'Delete Classroom',
-      `Delete "${classroom.name}"?${count > 0 ? ` ${count} student(s) will be unassigned.` : ''}`,
+      `${(t('delete_classroom_confirm') || 'Delete "{name}"?').replace('{name}', classroom.name)}${count > 0 ? ` ${(t('classroom_students_unassigned') || '{count} student(s) will be unassigned.').replace('{count}', String(count))}` : ''}`,
       [
         { text: t('cancel') || 'Cancel', style: 'cancel' },
         {
@@ -170,7 +172,7 @@ export default function ManageClassroomsScreen() {
               // refreshClassrooms' new 30s TTL cache - a classroom was just deleted.
               await refreshClassrooms({ force: true });
             } catch {
-              Alert.alert('Error', 'Failed to delete classroom.');
+              Alert.alert(t('error') || 'Error', t('failed_delete_classroom') || 'Failed to delete classroom.');
             }
           },
         },
@@ -185,24 +187,24 @@ export default function ManageClassroomsScreen() {
       // 30s TTL cache - a student was just moved to a different classroom, must reflect now.
       await refreshStudents({ force: true });
     } catch {
-      Alert.alert('Error', 'Failed to update student.');
+      Alert.alert(t('error') || 'Error', t('failed_update_student') || 'Failed to update student.');
     }
   };
 
   const handleBulkAddStrategy = async () => {
     const isCustom = showCustomStrategyInput && customStrategyName.trim();
     if (!isCustom && !selectedStrategy) {
-      Alert.alert('Please select a strategy or write a custom one');
+      Alert.alert(t('select_strategy_or_custom') || 'Please select a strategy or write a custom one');
       return;
     }
     if (selectedStudentIds.size === 0) {
-      Alert.alert('Please select at least one student');
+      Alert.alert(t('select_at_least_one_student') || 'Please select at least one student');
       return;
     }
     setAddingStrategy(true);
     try {
       const stratName = isCustom ? customStrategyName.trim() : selectedStrategy!.name;
-      const stratDesc = isCustom ? customStrategyDesc.trim() : `Added by teacher for ${selectedZone} zone`;
+      const stratDesc = isCustom ? customStrategyDesc.trim() : `Added by teacher for ${selectedZone} feelings`;
       const stratIcon = isCustom ? 'star' : selectedStrategy!.icon;
 
       const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -229,7 +231,7 @@ export default function ManageClassroomsScreen() {
       );
       const failed = results.filter(r => r.status === 'rejected').length;
       if (failed > 0) throw new Error(`Failed for ${failed} student(s)`);
-      Alert.alert('✅ Done!', `"${stratName}" added to ${selectedStudentIds.size} student(s).`);
+      Alert.alert('✅ ' + (t('done_exclaim') || 'Done!'), (t('strategy_added_to_students') || '"{strategy}" added to {count} student(s).').replace('{strategy}', stratName).replace('{count}', String(selectedStudentIds.size)));
       setStrategyModalVisible(false);
       setSelectedStrategy(null);
       setSelectedStudentIds(new Set());
@@ -237,7 +239,7 @@ export default function ManageClassroomsScreen() {
       setCustomStrategyDesc('');
       setShowCustomStrategyInput(false);
     } catch {
-      Alert.alert('Error', 'Failed to add strategy to some students.');
+      Alert.alert(t('error') || 'Error', t('failed_add_strategy_some_students') || 'Failed to add strategy to some students.');
     } finally {
       setAddingStrategy(false);
     }
@@ -256,7 +258,14 @@ export default function ManageClassroomsScreen() {
   const strategyStudents = editingClassroom ? getClassroomStudents(editingClassroom.id) : students;
 
   return (
-    <SafeAreaView style={styles.container}>
+    // Real fix Oct 1 (Marisa S24, iPhone-only double top-inset): this screen's own
+    // SafeAreaView (react-native's core version, which DOES apply a top inset on iOS,
+    // unlike Android where it's a no-op) was stacking on top of TranslatedHeader's own
+    // insets.top padding - invisible on Jono's Android device, but a large gap above
+    // "Classrooms" on Marisa's iPhone. Same edges={['left','right','bottom']} fix already
+    // applied to dashboard.tsx and the other S10 screens (Sep 14, Marisa build-26) - this
+    // screen was simply missed since it postdates the original S01-S23 sweep.
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       {/* Header with logo + yellow bar */}
       <TranslatedHeader title={t('classrooms') || 'Classrooms'} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -305,45 +314,53 @@ export default function ManageClassroomsScreen() {
                 )}
                 <Text style={styles.studentCount}>{count} student{count !== 1 ? 's' : ''}</Text>
               </View>
+              {/* Real fix Oct 1 (Marisa S24): 4 action labels were squeezed into one row of
+                  fixed 34pt-wide/8px-font boxes - "Strategy" (the longest label) was getting
+                  clipped. Marisa suggested columns instead of rows, so each icon now pairs
+                  directly with its own label, arranged as a 2x2 grid with more room per label. */}
               <View style={styles.cardActionsCol}>
-                <View style={styles.cardActions}>
-                  {/* Bulk check-in */}
-                  <TouchableOpacity
-                    style={[styles.iconButton, styles.bulkCheckinBtn]}
-                    onPress={() => router.push({
-                      pathname: '/teacher/bulk-checkin',
-                      params: { classroomId: classroom.id, classroomName: classroom.name }
-                    })}
-                  >
-                    <MaterialIcons name="how-to-reg" size={20} color="white" />
-                  </TouchableOpacity>
-                  {/* Edit */}
-                  <TouchableOpacity
-                    style={styles.iconButton}
-                    onPress={() => { setEditingClassroom(classroom); setEditModalVisible(true); }}
-                  >
-                    <MaterialIcons name="edit" size={20} color="#5C6BC0" />
-                  </TouchableOpacity>
-                  {/* Strategies */}
-                  <TouchableOpacity
-                    style={styles.iconButton}
-                    onPress={() => { setEditingClassroom(classroom); setStrategyModalVisible(true); }}
-                  >
-                    <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
-                  </TouchableOpacity>
-                  {/* Delete */}
-                  <TouchableOpacity
-                    style={styles.iconButton}
-                    onPress={() => handleDeleteClassroom(classroom)}
-                  >
-                    <MaterialIcons name="delete" size={20} color="#F44336" />
-                  </TouchableOpacity>
+                <View style={styles.actionGridRow}>
+                  <View style={styles.actionItem}>
+                    <TouchableOpacity
+                      style={[styles.iconButton, styles.bulkCheckinBtn]}
+                      onPress={() => router.push({
+                        pathname: '/teacher/bulk-checkin',
+                        params: { classroomId: classroom.id, classroomName: classroom.name }
+                      })}
+                    >
+                      <MaterialIcons name="how-to-reg" size={20} color="white" />
+                    </TouchableOpacity>
+                    <Text style={[styles.iconLabel, {color:'#4CAF50'}]}>{t('checkin_btn') || 'Check-in'}</Text>
+                  </View>
+                  <View style={styles.actionItem}>
+                    <TouchableOpacity
+                      style={styles.iconButton}
+                      onPress={() => { setEditingClassroom(classroom); setEditModalVisible(true); }}
+                    >
+                      <MaterialIcons name="edit" size={20} color="#5C6BC0" />
+                    </TouchableOpacity>
+                    <Text style={[styles.iconLabel, {color:'#5C6BC0'}]}>{t('edit') || 'Edit'}</Text>
+                  </View>
                 </View>
-                <View style={styles.iconLabels}>
-                  <Text style={[styles.iconLabel, {color:'#4CAF50'}]}>{t('checkin_btn') || 'Check-in'}</Text>
-                  <Text style={[styles.iconLabel, {color:'#5C6BC0'}]}>{t('edit') || 'Edit'}</Text>
-                  <Text style={[styles.iconLabel, {color:'#FFC107'}]}>{t('strategy_btn') || 'Strategy'}</Text>
-                  <Text style={[styles.iconLabel, {color:'#F44336'}]}>{t('delete_btn') || 'Delete'}</Text>
+                <View style={styles.actionGridRow}>
+                  <View style={styles.actionItem}>
+                    <TouchableOpacity
+                      style={styles.iconButton}
+                      onPress={() => { setEditingClassroom(classroom); setStrategyModalVisible(true); }}
+                    >
+                      <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
+                    </TouchableOpacity>
+                    <Text style={[styles.iconLabel, {color:'#FFC107'}]}>{t('strategy_btn') || 'Strategy'}</Text>
+                  </View>
+                  <View style={styles.actionItem}>
+                    <TouchableOpacity
+                      style={styles.iconButton}
+                      onPress={() => handleDeleteClassroom(classroom)}
+                    >
+                      <MaterialIcons name="delete" size={20} color="#F44336" />
+                    </TouchableOpacity>
+                    <Text style={[styles.iconLabel, {color:'#F44336'}]}>{t('delete_btn') || 'Delete'}</Text>
+                  </View>
                 </View>
               </View>
             </View>
@@ -479,7 +496,7 @@ export default function ManageClassroomsScreen() {
                   style={[styles.strategyOption, selectedStrategy?.id === s.id && { borderColor: ZONE_COLORS[selectedZone as keyof typeof ZONE_COLORS], borderWidth: 2 }]}
                   onPress={() => setSelectedStrategy(s)}
                 >
-                  <MaterialIcons name={s.icon as any} size={20} color={ZONE_COLORS[selectedZone as keyof typeof ZONE_COLORS]} />
+                  <StrategyIcon icon={s.icon} size={20} color={ZONE_COLORS[selectedZone as keyof typeof ZONE_COLORS]} />
                   <Text style={styles.strategyOptionText}>{{'Gentle Stretch':t('strat_gentle_stretch'),'Favourite Song':t('strat_favourite_song'),'Tell Someone':t('strat_tell_someone'),'Slow Breathing':t('strat_slow_breathing'),'Keep Going!':t('strat_keep_going'),'Help a Friend':t('strat_help_friend'),'Set a Goal':t('strat_set_goal'),'Gratitude':t('strat_gratitude'),'Bubble Breathing':t('strat_bubble_breathing'),'Count to 10':t('strat_count_to_10'),'5 Senses':t('strat_5_senses'),'Talk About It':t('strat_talk_about_it'),'Safe Space':t('strat_safe_space_name'),'Deep Breaths':t('strat_slow_breathing'),'Squeeze Something':t('strat_squeeze_release'),'Walk Away Calmly':t('strat_walk_away')}[s.name] || s.name}</Text>
                   {selectedStrategy?.id === s.id && <MaterialIcons name="check-circle" size={20} color={ZONE_COLORS[selectedZone as keyof typeof ZONE_COLORS]} />}
                 </TouchableOpacity>
@@ -551,7 +568,7 @@ export default function ManageClassroomsScreen() {
                 disabled={addingStrategy}
               >
                 <Text style={styles.createButtonText}>
-                  {addingStrategy ? 'Adding...' : `Add to ${selectedStudentIds.size} Student(s)`}
+                  {addingStrategy ? (t('adding') || 'Adding...') : (t('add_to_n_students') || 'Add to {count} Student(s)').replace('{count}', String(selectedStudentIds.size))}
                 </Text>
               </TouchableOpacity>
             </ScrollView>
@@ -577,7 +594,6 @@ const styles = StyleSheet.create({
   classroomName: { fontSize: 18, fontWeight: '600', color: '#333' },
   teacherName: { fontSize: 14, color: '#666', marginTop: 2 },
   studentCount: { fontSize: 12, color: '#888', marginTop: 4 },
-  cardActions: { flexDirection: 'row', gap: 4 },
   iconButton: { padding: 6 },
   emptyState: { alignItems: 'center', paddingVertical: 60 },
   emptyText: { fontSize: 18, fontWeight: '600', color: '#999', marginTop: 16 },
@@ -607,7 +623,8 @@ const styles = StyleSheet.create({
   selectAllButton: { alignSelf: 'flex-end', marginBottom: 8 },
   selectAllText: { fontSize: 13, color: '#5C6BC0', fontWeight: '600' },
   bulkCheckinBtn: { backgroundColor: '#4CAF50', borderRadius: 8, padding: 6 },
-  cardActionsCol: { alignItems: 'center', gap: 2 },
-  iconLabels: { flexDirection: 'row', gap: 4 },
-  iconLabel: { fontSize: 8, fontWeight: '600', width: 34, textAlign: 'center' },
+  cardActionsCol: { alignItems: 'center', gap: 6 },
+  actionGridRow: { flexDirection: 'row', gap: 10 },
+  actionItem: { alignItems: 'center', width: 46 },
+  iconLabel: { fontSize: 9, fontWeight: '600', width: 46, textAlign: 'center', marginTop: 1 },
 });

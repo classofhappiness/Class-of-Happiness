@@ -32,9 +32,18 @@ import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
+// Real fix Sep 30 (live feedback, item 3): resource files themselves stay English-only by
+// design (Jono's explicit decision), but the app gave no indication of that in any other
+// language - a Portuguese-language teacher saw only English PDFs with no explanation. Native
+// endonyms match the exact strings already used in the language picker (app/settings.tsx).
+const NATIVE_LANG_NAMES: Record<string, string> = {
+  en: 'English', es: 'Español', fr: 'Français', pt: 'Português', de: 'Deutsch',
+  it: 'Italiano', hi: 'हिन्दी', zh: '中文', ar: 'العربية', ru: 'Русский',
+};
+
 export default function TeacherResourcesScreen() {
   const router = useRouter();
-  const { user, t } = useApp();
+  const { user, t, language } = useApp();
   
   // Real feature Aug 28: fixed order for the 4 primary categories (Emotions, Healthy
   // Relationships, Leader Online, You Are What You Eat), confirmed with Jono before building
@@ -396,9 +405,8 @@ export default function TeacherResourcesScreen() {
           being fixed - actually wiring in the shared component now, rather than patching
           the custom bar a second time. Home target changes from an explicit
           router.replace('/teacher/dashboard') to TranslatedHeader's own showHome (which
-          goes to '/', the same target every other showHome screen already uses and which
-          role-based routing at the root resolves back to this same dashboard for a
-          teacher). */}
+          goes to '/' (the landing page - '/' does NOT redirect by role), the same target every
+          other plain showHome screen uses). */}
       <TranslatedHeader title={t('teacher_resources') || 'Teacher Resources'} showHome />
 
       {/* Topic Tabs */}
@@ -433,6 +441,12 @@ export default function TeacherResourcesScreen() {
         </ScrollView>
       </View>
 
+      {language && language !== 'en' && (
+        <Text style={{ fontSize: 11, fontStyle: 'italic', color: '#999', textAlign: 'center', marginTop: 4, marginBottom: 2, paddingHorizontal: 16 }}>
+          {(t('resources_language_notice') || 'Not available in {language} yet, only in English.').replace('{language}', NATIVE_LANG_NAMES[language] || language)}
+        </Text>
+      )}
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
@@ -442,7 +456,14 @@ export default function TeacherResourcesScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerTop}>
-            <View>
+            {/* Real fix Oct 5 (live feedback, FR truncation): headerTop's two children had no
+                flex constraints at all - a long topic name (eg "Programme des Émotions",
+                7 chars longer than English) pushed uploadButton off its natural size and
+                clipped its own label. This title block now takes only the space the button
+                doesn't need (flex:1 + its own right margin) and wraps to a second line
+                instead of overflowing; uploadButton gets flexShrink:0 so it can never be
+                squeezed below its content's natural width, in any language. */}
+            <View style={{ flex: 1, marginRight: 12 }}>
               <Text style={styles.headerTitle}>{currentTopic?.name}</Text>
               <Text style={styles.headerSubtitle}>
                 {resources.length === 1
@@ -894,6 +915,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
     gap: 6,
+    flexShrink: 0,
   },
   uploadButtonText: {
     color: 'white',

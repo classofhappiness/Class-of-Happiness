@@ -9,9 +9,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
-import { strategiesApi, customStrategiesApi, strategySyncApi, CustomStrategy, Strategy } from '../../src/utils/api';
+import { strategiesApi, customStrategiesApi, strategySyncApi, teacherHomeDataApi, CustomStrategy, Strategy } from '../../src/utils/api';
 import { ZONE_CONFIG } from '../../src/components/ZoneButton';
 import { StrategyIcon } from '../../src/components/StrategyIcon';
+import { SourceChip, strategySource } from '../../src/components/SourceChip';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 
 const ZONES = ['blue', 'green', 'yellow', 'red'] as const;
 
@@ -24,15 +26,11 @@ const AVAILABLE_ICONS = [
   'emoji-emotions', 'lightbulb', 'star', 'pets', 'nature'
 ];
 
-// Translation lookup for default strategy names. Real fix (i18n sweep): every key here
-// (strat_gentle_stretch, strat_bubble_breathing, etc.) was a phantom reference - none of
-// these keys were ever created in any locale file, so every t() call below silently
-// returned '' and fell through to the raw English `strategy.name`/`.description` for every
-// non-English user, despite the code looking fully translated. The canonical
-// strat_<zone>_<n> keys already exist with the exact matching English text (six languages
-// already translated) - reused those for names instead of inventing duplicates. Description
-// keys (strat_<zone>_<n>_desc) didn't exist for these either (the canonical set only ever
-// covered names) - added as new keys, same naming convention.
+// Fallback only: the API (GET /strategies?lang=) now returns translated default names AND
+// descriptions, so these keys are used only when the API returned English (e.g. an older
+// backend). A translated API name is not in this map, so it is shown as-is. Description keys
+// (strat_<zone>_<n>_desc) may not exist in locale files; t() then yields '' and the API
+// description is used.
 const STRATEGY_KEYS: Record<string, [string, string]> = {
   'Gentle Stretch': ['strat_blue_1', 'strat_blue_1_desc'],
   'Favourite Song': ['strat_blue_3', 'strat_blue_3_desc'],
@@ -52,7 +50,7 @@ export default function ManageStrategiesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
-  const { students, t } = useApp();
+  const { students, t, language } = useApp();
   
   const student = students.find(s => s.id === studentId);
   
@@ -93,33 +91,34 @@ export default function ManageStrategiesScreen() {
 
   useEffect(() => {
     fetchStrategies();
-  }, [studentId, selectedZone]);
+  }, [studentId, selectedZone, language]);
 
   // Fallback strategies matching student app
+  // Oct 11: canonical ids chosen by NAME (were b1..r4 in this list's own order). Only used as React keys here; never sent to the backend.
   const FALLBACK_STRATEGIES: Record<string, Strategy[]> = {
     blue: [
-      {id:'b1', name:'Gentle Stretch', description:'Move your body slowly and gently', icon:'fitness-center', zone:'blue'},
-      {id:'b2', name:'Favourite Song', description:'Listen to a calming favourite song', icon:'music-note', zone:'blue'},
-      {id:'b3', name:'Tell Someone', description:'Share how you feel with a trusted person', icon:'chat', zone:'blue'},
-      {id:'b4', name:'Slow Breathing', description:'Breathe in slowly, hold, breathe out', icon:'air', zone:'blue'},
+      {id:'blue_1', name:'Gentle Stretch', description:'Move your body slowly and gently', icon:'fitness-center', zone:'blue'},
+      {id:'blue_3', name:'Favourite Song', description:'Listen to a calming favourite song', icon:'music-note', zone:'blue'},
+      {id:'blue_5', name:'Tell Someone', description:'Share how you feel with a trusted person', icon:'chat', zone:'blue'},
+      {id:'blue_6', name:'Slow Breathing', description:'Breathe in slowly, hold, breathe out', icon:'air', zone:'blue'},
     ],
     green: [
-      {id:'g1', name:'Keep Going!', description:'You are in a great zone - keep it up!', icon:'thumb-up', zone:'green'},
-      {id:'g2', name:'Help a Friend', description:'Use your good energy to help someone else', icon:'favorite', zone:'green'},
-      {id:'g3', name:'Set a Goal', description:'Plan something you want to achieve today', icon:'lightbulb', zone:'green'},
-      {id:'g4', name:'Gratitude', description:'Think of three things you are grateful for', icon:'star', zone:'green'},
+      {id:'green_1', name:'Keep Going!', description:'You are feeling great - keep it up!', icon:'thumb-up', zone:'green'},
+      {id:'green_2', name:'Help a Friend', description:'Use your good energy to help someone else', icon:'favorite', zone:'green'},
+      {id:'green_5', name:'Set a Goal', description:'Plan something you want to achieve today', icon:'lightbulb', zone:'green'},
+      {id:'green_6', name:'Gratitude', description:'Think of three things you are grateful for', icon:'star', zone:'green'},
     ],
     yellow: [
-      {id:'y1', name:'Bubble Breathing', description:'Breathe out slowly like blowing a bubble', icon:'air', zone:'yellow'},
-      {id:'y2', name:'Count to 10', description:'Count slowly from 1 to 10 before reacting', icon:'filter-9-plus', zone:'yellow'},
-      {id:'y3', name:'5 Senses', description:'Name 5 things you can see, hear, feel', icon:'visibility', zone:'yellow'},
-      {id:'y4', name:'Talk About It', description:'Find a safe person to share your feelings', icon:'chat', zone:'yellow'},
+      {id:'yellow_1', name:'Bubble Breathing', description:'Breathe out slowly like blowing a bubble', icon:'air', zone:'yellow'},
+      {id:'yellow_3', name:'Count to 10', description:'Count slowly from 1 to 10 before reacting', icon:'filter-9-plus', zone:'yellow'},
+      {id:'yellow_4', name:'5 Senses', description:'Name 5 things you can see, hear, feel', icon:'visibility', zone:'yellow'},
+      {id:'yellow_6', name:'Talk About It', description:'Find a safe person to share your feelings', icon:'chat', zone:'yellow'},
     ],
     red: [
-      {id:'r1', name:'Freeze', description:'Stop and hold very still for 10 seconds', icon:'front-hand', zone:'red'},
-      {id:'r2', name:'Big Breaths', description:'Take 3 big deep breaths right now', icon:'air', zone:'red'},
-      {id:'r3', name:'Safe Space', description:'Move to a quiet safe place to calm down', icon:'home', zone:'red'},
-      {id:'r4', name:'Ask for Help', description:'Tell an adult you need support right now', icon:'support-agent', zone:'red'},
+      {id:'red_1', name:'Freeze', description:'Stop and hold very still for 10 seconds', icon:'front-hand', zone:'red'},
+      {id:'red_2', name:'Big Breaths', description:'Take 3 big deep breaths right now', icon:'air', zone:'red'},
+      {id:'red_4', name:'Safe Space', description:'Move to a quiet safe place to calm down', icon:'home', zone:'red'},
+      {id:'red_5', name:'Ask for Help', description:'Tell an adult you need support right now', icon:'support-agent', zone:'red'},
     ],
   };
 
@@ -127,13 +126,24 @@ export default function ManageStrategiesScreen() {
     setLoading(true);
     try {
       // Fetch each independently so one failure doesn't block others
-      const defaultStrats = await strategiesApi.getByZone(selectedZone).catch(() => []);
+      const defaultStrats = await strategiesApi.getByZone(selectedZone, undefined, language || 'en').catch(() => []);
       const customStrats = studentId
         ? await customStrategiesApi.getAll(studentId).catch(() => [])
         : [];
-      const sharedStrats = studentId
-        ? await strategySyncApi.getShared(studentId).catch(() => [])
-        : [];
+      // Oct 11: family strategies come from all-strategies, which already honours the parent's choice to share
+      // with the teacher (guardian custom_helpers rows with is_shared true, and family_assigned_strategies with
+      // share_with_teacher true). /strategies/shared returned every guardian row whether shared or not.
+      const allStrats = studentId
+        ? await teacherHomeDataApi.getAllStrategies(studentId).catch(() => null)
+        : null;
+      const sharedStrats: any[] = [];
+      if (allStrats) {
+        (allStrats.school_strategies || []).filter((s: any) => s.source === 'home').forEach((s: any) => sharedStrats.push({ ...s, source: 'home' }));
+        (allStrats.family_strategies || []).forEach((s: any) => sharedStrats.push({
+          ...s, id: s.id, name: s.name || s.strategy_name, description: s.description || s.strategy_description,
+          feeling_colour: s.feeling_colour || s.zone, zone: s.zone || s.feeling_colour, source: 'home',
+        }));
+      }
 
       // Generic strategies - use fallback if API empty
       const genericStrats = (defaultStrats || []).filter((s: any) => !s.is_custom);
@@ -265,17 +275,13 @@ export default function ManageStrategiesScreen() {
   const zoneConfig = ZONE_CONFIG[selectedZone];
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <View style={styles.headerText}>
-          <Text style={styles.title}>{t('manage_strategies_title') || 'Manage Strategies'}</Text>
-          {student && <Text style={styles.subtitle}>{t('for_student') || 'for'} {student.name}</Text>}
-        </View>
-      </View>
+      <TranslatedHeader
+        title={t('manage_strategies_title') || 'Manage Strategies'}
+        subtitle={student ? `${t('for_student') || 'for'} ${student.name}` : undefined}
+        showHome
+      />
 
       {/* Zone Tabs */}
       <View style={styles.zoneTabs}>
@@ -341,6 +347,8 @@ export default function ManageStrategiesScreen() {
                 <View style={styles.strategyInfo}>
                   <Text style={styles.strategyName}>{STRATEGY_KEYS[strategy.name] ? (t(STRATEGY_KEYS[strategy.name][0]) || strategy.name) : strategy.name}</Text>
                   <Text style={styles.strategyDesc}>{STRATEGY_KEYS[strategy.name] ? (t(STRATEGY_KEYS[strategy.name][1]) || strategy.description) : strategy.description}</Text>
+                  {/* Oct 11: School/Home chip; `source` when the row carries it, otherwise school (staff-made for this student) */}
+                  <SourceChip source={strategySource(strategy)} />
                 </View>
                 <TouchableOpacity style={styles.editIcon} onPress={() => openEditModal(strategy)}>
                   <MaterialIcons name="edit" size={20} color="#5C6BC0" />
@@ -374,6 +382,7 @@ export default function ManageStrategiesScreen() {
                     <MaterialIcons name="sync" size={14} color="#9C27B0" />
                     <Text style={styles.syncText}>{t('synced')}</Text>
                   </View>
+                  <SourceChip source={(strategy as any).source || (strategy as any).creator_role ? strategySource(strategy) : 'home'} />
                 </View>
               </View>
             ))}

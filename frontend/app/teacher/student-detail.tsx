@@ -29,9 +29,12 @@ import { useApp } from '../../src/context/AppContext';
 import { analyticsApi, zoneLogsApi, ZoneLog, strategiesApi, Strategy, reportsApi, teacherApi, teacherHomeDataApi, describeSupportRequest } from '../../src/utils/api';
 import { Avatar } from '../../src/components/Avatar';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
+import { formatMonthYear as formatMonthYearLabel } from '../../src/utils/monthLabel';
+import { formatShortDate, formatShortDateTime, formatTime as formatTimeLabel } from '../../src/utils/dateLabel';
 import { StrategyIcon } from '../../src/components/StrategyIcon';
+import { SourceChip, strategySource } from '../../src/components/SourceChip';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
-import { resolveStrategyName } from '../../src/utils/resolveStrategyName';
+import { resolveStrategyName, strategyLabel, loadLocalCustomStrategyNames } from '../../src/utils/resolveStrategyName';
 
 // Complete strategy name lookup - matches student/strategies.tsx fallback IDs.
 // Kept only as a safety-net fallback for resolveStrategyName() (see
@@ -55,6 +58,38 @@ const STRATEGY_NAME_MAP: Record<string, string> = {
   p_y4: 'Feelings Journal', p_y5: 'Give Space with Love',
   p_r1: 'Stay Calm Yourself', p_r2: 'Safe Space Together', p_r3: 'Cold Water Reset',
   p_r4: 'No Teaching Now', p_r5: 'Reconnect with Warmth',
+};
+
+// Real fix Sep 30 (live feedback, item 4): maps the app's 10 supported language codes to a
+// real BCP-47 locale for Intl/date formatting (toLocaleDateString/toLocaleTimeString), so
+// dates on this screen follow the teacher's selected app language instead of always English.
+const LOCALE_FOR_LANG: Record<string, string> = {
+  en: 'en-US', pt: 'pt-PT', es: 'es-ES', fr: 'fr-FR', de: 'de-DE',
+  it: 'it-IT', hi: 'hi-IN', zh: 'zh-CN', ar: 'ar-u-nu-latn-ca-gregory', ru: 'ru-RU',
+};
+// Real fix Oct 5 (month-picker capitalisation): Intl's long-month formatting lowercases the
+// month name by default for several Latin-script locales (fr/es/it/etc. all do this
+// natively, correctly, per their own grammar rules) - capitalised here purely for this
+// picker's visual consistency with English. zh/ar/hi have no letter case, so left untouched.
+const NO_CASE_LANGS = new Set(['zh', 'ar', 'hi']);
+const capitalizeMonth = (label: string, lang: string): string =>
+  NO_CASE_LANGS.has(lang) ? label : label.charAt(0).toUpperCase() + label.slice(1);
+
+// Real fix Sep 30 (live feedback, item 4): the calendar grid used to hardcode English
+// single-letter day abbreviations ('Su','Mo',...) regardless of app language. These are the
+// translated equivalents, kept to a single letter/short form per language to match the
+// original grid's compact layout.
+const CALENDAR_DAY_LETTERS: Record<string, string[]> = {
+  en: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+  pt: ['Do', 'Se', 'Te', 'Qu', 'Qu', 'Se', 'Sa'],
+  es: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
+  fr: ['Di', 'Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa'],
+  de: ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'],
+  it: ['Do', 'Lu', 'Ma', 'Me', 'Gi', 'Ve', 'Sa'],
+  hi: ['र', 'सो', 'मं', 'बु', 'गु', 'शु', 'श'],
+  zh: ['日', '一', '二', '三', '四', '五', '六'],
+  ar: ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'],
+  ru: ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'],
 };
 
 const ZONE_COLORS = EMOTION_COLOURS;
@@ -94,7 +129,7 @@ export default function StudentDetailScreen() {
   const [secStrategies, setSecStrategies] = React.useState(false);
   const [creatureEmoji, setCreatureEmoji] = React.useState('🥚');
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
-  const { students, presetAvatars, classrooms, t, language, lastCheckinMutationAt } = useApp();
+  const { students, presetAvatars, classrooms, t, language, lastCheckinMutationAt, user } = useApp();
   
   const student = students.find(s => s.id === studentId);
 
@@ -127,6 +162,9 @@ export default function StudentDetailScreen() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [combinedLogs, setCombinedLogs] = useState<any[]>([]);
   const [allStrategies, setAllStrategies] = useState<{school: any[]; family: any[]}>({school: [], family: []});
+  // Oct 11: the viewing teacher's own on-device strategies, so a check-in that used one shows its name (custom_<timestamp> ids)
+  const [localCustomNames, setLocalCustomNames] = useState<Record<string, string>>({});
+  useEffect(() => { loadLocalCustomStrategyNames((user as any)?.user_id).then(setLocalCustomNames); }, [(user as any)?.user_id]);
   const [showAddStrategyModal, setShowAddStrategyModal] = useState(false);
   const [newStrategy, setNewStrategy] = useState({name:'', description:'', zone:'green', icon:'star', shareWithParent: false});
   const [savingStrategy, setSavingStrategy] = useState(false);
@@ -150,9 +188,11 @@ export default function StudentDetailScreen() {
     link_count: number;
     school_sharing_enabled: boolean;
   } | null>(null);
+  // Oct 10: why the data sections may be empty. 'forbidden' = the zone-logs call said this teacher is
+  // not authorised for the student; 'network' = it failed for any other reason. null = it loaded.
+  const [loadError, setLoadError] = useState<'forbidden' | 'network' | null>(null);
   const [showHomeDataTab, setShowHomeDataTab] = useState(false);
   const [secHomeCheckins, setSecHomeCheckins] = useState(false);
-  const [secFamilyStrats, setSecFamilyStrats] = useState(false);
   const [secHomeSharing, setSecHomeSharing] = useState(false);
   const [togglingSchoolSharing, setTogglingSchoolSharing] = useState(false);
   const [downloadingMonth, setDownloadingMonth] = useState<string | null>(null);
@@ -180,120 +220,175 @@ export default function StudentDetailScreen() {
     };
   }, [tooltipOpacity]);
 
-  const fetchData = async () => {
+  // Page-load restructure (Oct 10, report-oct10 section 4). Data is split by what it depends on:
+  //  - period-dependent (analytics, zone-logs, combined-checkins, home-data): fetchPeriodData
+  //  - per-student only (sharing-status, available-months, custom-strategies, all-strategies):
+  //    fetchStaticData (also starts the language-dependent helpers fetch)
+  //  - language-dependent (/api/helpers?lang=, server returns translated names): fetchHelpers
+  // Period change -> fetchPeriodData only. Language change -> fetchHelpers only (the server
+  // returns translated text, so it can't be re-mapped client-side). Student change / pull-to-
+  // refresh / check-in mutation -> everything (fetchData). Counter refs drop stale responses.
+  const periodRef = useRef<number>(selectedPeriod);
+  periodRef.current = selectedPeriod;
+  const languageRef = useRef<string>(language || 'en');
+  languageRef.current = language || 'en';
+  const periodReqRef = useRef(0);
+  const staticReqRef = useRef(0);
+  const helpersReqRef = useRef(0);
+  const customHelpersRef = useRef<any[]>([]);
+  const statusPromiseRef = useRef<Promise<any> | null>(null);
+
+  const fetchHelpers = async (): Promise<any[]> => {
+    const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+    // lang is real (see Sep 27 fix): /api/helpers is fully localized in all 10 languages.
+    // Custom/school/family strategies are user-authored text and are left as-is.
+    const results = await Promise.all(['blue', 'green', 'yellow', 'red'].map(zone =>
+      fetch(`${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=${languageRef.current}`)
+        .then(r => r.json()).catch(() => [])
+    ));
+    return results.flat();
+  };
+
+  const buildStrategies = (helpers: any[]) => ([
+    ...helpers.map((h: any) => ({ ...h, id: h.id || h.helper_id, source: 'school' })),
+    ...customHelpersRef.current.map((h: any) => ({ ...h, source: 'custom', name: h.name || h.helper_name })),
+  ]);
+
+  const helpersRawRef = useRef<any[]>([]);
+
+  const refetchHelpersOnly = async () => {
     if (!studentId) return;
+    const req = ++helpersReqRef.current;
     try {
-      const [analyticsData, logsData, months, statusData] = await Promise.all([
-        analyticsApi.getStudent(studentId, selectedPeriod),
-        zoneLogsApi.getByStudent(studentId, selectedPeriod),
-        reportsApi.getAvailableMonths(studentId).catch(() => []),
-        teacherHomeDataApi.getSharingStatus(studentId).catch(() => null),
-      ]);
-      setAnalytics(analyticsData);
-      setLogs(logsData);
-      setAvailableMonths(months);
-      // Fetch all strategies from helpers + custom helpers + family
+      const helpers = await fetchHelpers();
+      if (req !== helpersReqRef.current) return;
+      helpersRawRef.current = helpers;
+      setStrategies(buildStrategies(helpers) as any);
+    } catch (e) {
+      console.log('Helpers fetch error:', e);
+    }
+  };
+
+  const fetchStaticData = async () => {
+    if (!studentId) return;
+    const req = ++staticReqRef.current;
+    const helpersReq = ++helpersReqRef.current;
+    const isStale = () => req !== staticReqRef.current;
+
+    const statusPromise = teacherHomeDataApi.getSharingStatus(studentId).catch(() => null);
+    statusPromiseRef.current = statusPromise;
+
+    const customPromise = (async () => {
       try {
         const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
         const token = await AsyncStorage.getItem('session_token');
-        
-        // Root cause fix Sep 27 (live feedback, item 2): lang was hardcoded to 'en' here -
-        // /api/helpers itself is fully localized (confirmed for all 10 languages, same
-        // endpoint student/strategies.tsx already calls correctly), this screen just never
-        // passed the app's real current language, so every built-in strategy name/description
-        // shown anywhere on this screen (Most Used Strategies, per-check-in strategy chips)
-        // was English regardless of the teacher's language setting. Custom/school/family
-        // strategies (customHelpers, allStrats below) are real user-authored text and are
-        // deliberately left as-is - only this built-in fetch needed the real language.
-        const helperPromises = ['blue','green','yellow','red'].map(zone =>
-          fetch(`${BACKEND_URL}/api/helpers?feeling_colour=${zone}&lang=${language || 'en'}`)
-            .then(r => r.json()).catch(() => [])
-        );
-        const helperResults = await Promise.all(helperPromises);
-        const allHelpers = helperResults.flat();
-        
-        // Load custom helpers for this student
-        const customRes = await fetch(`${BACKEND_URL}/api/custom-strategies?student_id=${studentId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+        const res = await fetch(`${BACKEND_URL}/api/custom-strategies?student_id=${studentId}`, {
+          headers: { 'Authorization': `Bearer ${token}` },
         });
-        const customHelpers = customRes.ok ? await customRes.json() : [];
-        
-        // Combine all
-        const combined = [
-          ...allHelpers.map((h: any) => ({ ...h, id: h.id || h.helper_id, source: 'school' })),
-          ...customHelpers.map((h: any) => ({ ...h, source: 'custom', name: h.name || h.helper_name })),
-        ];
-        setStrategies(combined as any);
-        
-        // Also load teacher/family strategies
-        try {
-          let allStrats = await teacherHomeDataApi.getAllStrategies(studentId).catch(() => ({school_strategies:[], family_strategies:[]}));
-          const schoolStrats = (allStrats.school_strategies || []).map((s: any) => ({ ...s, source: 'school' }));
-          const familyStrats = (allStrats.family_strategies || []).map((s: any) => ({
+        return res.ok ? await res.json() : [];
+      } catch { return []; }
+    })();
+    const helpersPromise = fetchHelpers().catch(() => [] as any[]);
+    const allStratsPromise = teacherHomeDataApi.getAllStrategies(studentId)
+      .then(value => ({ ok: true as const, value }), reason => ({ ok: false as const, reason }));
+    const monthsPromise = reportsApi.getAvailableMonths(studentId).catch(() => []);
+
+    const tasks: Promise<any>[] = [
+      statusPromise.then(s => { if (!isStale() && s) setSharingStatus(s); }),
+      monthsPromise.then(m => { if (!isStale()) setAvailableMonths(m); }),
+      Promise.all([customPromise, helpersPromise]).then(([custom, helpers]) => {
+        if (isStale()) return;
+        customHelpersRef.current = custom;
+        if (helpersReq === helpersReqRef.current) {
+          helpersRawRef.current = helpers;
+          setStrategies(buildStrategies(helpers) as any);
+        }
+      }),
+      Promise.all([customPromise, allStratsPromise]).then(([custom, res]) => {
+        if (isStale()) return;
+        if (res.ok) {
+          const schoolStrats = (res.value.school_strategies || []).map((s: any) => ({ ...s, source: s.source === 'home' ? 'home' : 'school' }));
+          const familyStrats = (res.value.family_strategies || []).map((s: any) => ({
             ...s, name: s.name || s.strategy_name, description: s.description || s.strategy_description, source: 'home',
           }));
-          setAllStrategies({ school: [...schoolStrats, ...customHelpers], family: familyStrats });
-        } catch { setAllStrategies({ school: customHelpers, family: [] }); }
-        
-      } catch (stratErr) {
-        console.log('Strategies fetch error:', stratErr);
-        setStrategies([]);
-      }
-      
-      if (statusData) {
-        setSharingStatus(statusData);
-
-        // Real fix Sep 21 (device report - timeout investigation): these three calls used
-        // to run one-after-another with a full await each, and each now also carries one
-        // extra parent_links round-trip server-side (the privacy fix for home_sharing_enabled
-        // - see server.py's _filter_home_logs_for_staff_viewer). Sequential, that compounds
-        // additively on top of Railway's own cold-start latency; none of these three actually
-        // depend on each other's result (home-data's own gate is statusData.is_linked_to_parent,
-        // already resolved above), so running them together removes the compounding without
-        // touching the privacy fix itself. allSettled so one failing doesn't block the others,
-        // matching the existing per-call try/catch behaviour.
-        const [combinedResult, stratsResult, homeDataResult] = await Promise.allSettled([
-          teacherHomeDataApi.getCombinedCheckins(studentId, selectedPeriod),
-          teacherHomeDataApi.getAllStrategies(studentId),
-          statusData.is_linked_to_parent
-            ? teacherHomeDataApi.getStudentHomeData(studentId, selectedPeriod)
-            : Promise.resolve(null),
-        ]);
-
-        if (combinedResult.status === 'fulfilled') {
-          setCombinedLogs(combinedResult.value);
+          setAllStrategies({ school: [...schoolStrats, ...custom], family: familyStrats });
         } else {
-          console.log('Combined checkins:', combinedResult.reason);
+          console.log('All strategies:', res.reason);
+          setAllStrategies({ school: custom, family: [] });
         }
+      }),
+    ];
+    await Promise.allSettled(tasks);
+  };
 
-        if (stratsResult.status === 'fulfilled') {
-          setAllStrategies({ school: stratsResult.value.school_strategies || [], family: stratsResult.value.family_strategies || [] });
-        } else {
-          console.log('All strategies:', stratsResult.reason);
-        }
+  const fetchPeriodData = async () => {
+    if (!studentId) return;
+    const req = ++periodReqRef.current;
+    const days = periodRef.current;
+    const isStale = () => req !== periodReqRef.current;
+    // home-data is the only call gated on link status; it chains off sharing-status while the
+    // other period calls run in parallel (nothing waits on the slowest).
+    const statusPromise = statusPromiseRef.current || teacherHomeDataApi.getSharingStatus(studentId).catch(() => null);
+    if (!statusPromiseRef.current) statusPromiseRef.current = statusPromise;
 
-        if (statusData.is_linked_to_parent) {
-          if (homeDataResult.status === 'fulfilled' && homeDataResult.value) {
-            setHomeData(homeDataResult.value);
-          } else if (homeDataResult.status === 'rejected') {
-            console.log('Could not fetch home data:', homeDataResult.reason);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching data:', error);
+    const failures: any[] = [];
+    const tasks: Promise<any>[] = [
+      // Oct 11: analytics, zone-logs and combined-checkins all count toward loadError, so a partial
+      // failure is never shown as "No check-ins yet". 403 is read from the HTTP status, not the text.
+      analyticsApi.getStudent(studentId, days)
+        .then(d => { if (!isStale()) setAnalytics(d); })
+        .catch(e => { failures.push(e); throw e; }),
+      zoneLogsApi.getByStudent(studentId, days)
+        .then(d => { if (!isStale()) setLogs(d); })
+        .catch(e => { failures.push(e); throw e; }), // still reported by the allSettled loop below
+      teacherHomeDataApi.getCombinedCheckins(studentId, days)
+        .then(d => { if (!isStale()) setCombinedLogs(d); })
+        .catch(e => { failures.push(e); console.log('Combined checkins:', e); }),
+      statusPromise.then(async s => {
+        if (!s || !s.is_linked_to_parent) return;
+        try {
+          const d = await teacherHomeDataApi.getStudentHomeData(studentId, days);
+          if (!isStale() && d) setHomeData(d);
+        } catch (e) { console.log('Could not fetch home data:', e); }
+      }),
+    ];
+    const results = await Promise.allSettled(tasks);
+    results.forEach(r => { if (r.status === 'rejected') console.error('Error fetching data:', r.reason); });
+    if (!isStale()) {
+      setLoadError(failures.length === 0 ? null : failures.some(e => e?.status === 403) ? 'forbidden' : 'network');
     }
   };
 
+  // Full load: per-student + period data together (student change, pull-to-refresh, mutation).
+  const fetchData = async () => {
+    if (!studentId) return;
+    const statics = fetchStaticData(); // sets statusPromiseRef synchronously
+    await Promise.all([statics, fetchPeriodData()]);
+  };
+
+  const didLoadStudentRef = useRef<string | undefined>(undefined);
+  // Student change: everything.
   useEffect(() => {
+    didLoadStudentRef.current = studentId;
     fetchData();
-    // language added Sep 27 (item 2 fix): fetchData's /api/helpers calls now pass the real
-    // current language (see that fetch's own comment) - without this dependency, a teacher
-    // changing language while already on this screen wouldn't see built-in strategy names
-    // update until navigating away and back, same reactivity convention student/strategies.tsx
-    // already uses for its own /api/helpers fetch.
-  }, [studentId, selectedPeriod, language]);
+  }, [studentId]);
+
+  // Period change: only period-dependent data (skipped on the initial/student-change run above).
+  const lastPeriodRef = useRef(selectedPeriod);
+  useEffect(() => {
+    if (lastPeriodRef.current === selectedPeriod) return;
+    lastPeriodRef.current = selectedPeriod;
+    fetchPeriodData();
+  }, [selectedPeriod]);
+
+  // Language change: only the localized /api/helpers fetch.
+  const lastLanguageRef = useRef(language);
+  useEffect(() => {
+    if (lastLanguageRef.current === language) return;
+    lastLanguageRef.current = language;
+    refetchHelpersOnly();
+  }, [language]);
 
   // Real fix Sep 25 (item3, fourth device-log pass - same pattern as parent/dashboard.tsx's
   // fix, checked here per the explicit ask): fetchData only ever ran on studentId/
@@ -302,7 +397,10 @@ export default function StudentDetailScreen() {
   // whichever period was selected at the time. On focus, if AppContext's
   // lastCheckinMutationAt is newer than the last mutation this screen has already reacted
   // to, force a real refetch; otherwise a no-op, not a blanket refetch-on-every-focus.
-  const lastCheckinMutationAtRef = useRef(0);
+  // Starts at the CURRENT value: a check-in saved before this screen opened is already covered by the
+  // mount load (effect on [studentId]), so the first focus must not load a second time. A check-in saved
+  // while this screen exists still raises lastCheckinMutationAt above the ref and reloads on focus.
+  const lastCheckinMutationAtRef = useRef(lastCheckinMutationAt);
   useFocusEffect(
     React.useCallback(() => {
       if (lastCheckinMutationAt > lastCheckinMutationAtRef.current) {
@@ -335,31 +433,37 @@ export default function StudentDetailScreen() {
     if (schoolStrat?.name) return schoolStrat.name;
     const familyStrat = allStrategies.family.find((s: any) => s.id === strategyId);
     if (familyStrat?.name || familyStrat?.strategy_name) return familyStrat.name || familyStrat.strategy_name;
-    // Translated / legacy-code lookup (see src/utils/resolveStrategyName.ts)
-    const resolved = resolveStrategyName(strategyId, t, STRATEGY_NAME_MAP);
-    if (resolved) return resolved;
-    // If it looks like a readable name already, return it
-    if (strategyId.length > 5 && !strategyId.match(/^[a-z]_?\d+$/)) return strategyId;
-    // Last resort cleanup
-    return strategyId.replace(/_/g, ' ').replace(/\w/g, l => l.toUpperCase());
+    // Translated / legacy-code lookup (see src/utils/resolveStrategyName.ts). Oct 11: never returns the raw id;
+    // an unresolvable id gets a translated neutral label ("Custom strategy" / "Strategy").
+    return strategyLabel(strategyId, t, STRATEGY_NAME_MAP, localCustomNames);
   };
+
+  // Real fix Sep 30 (live feedback, item 4): both formatters were hardcoded to 'en-US',
+  // so "Recent Check-ins" always showed the weekday/date in English regardless of the
+  // teacher's selected app language. LOCALE_FOR_LANG maps each of the 10 supported app
+  // language codes to a real BCP-47 locale so Intl/date formatting matches the app's
+  // actual language everywhere this screen shows a date or time.
+  const localeCode = LOCALE_FOR_LANG[language] || 'en-US';
+
+  // Oct 10: linked to a parent, home sharing off, and nothing at all to show -> say "nothing shared yet"
+  // instead of the plain "no check-ins" (the parent may well have home check-ins that are private).
+  const nothingShared = !!sharingStatus?.is_linked_to_parent && !sharingStatus.home_sharing_enabled
+    && logs.length === 0 && combinedLogs.length === 0;
 
   const formatDate = (timestamp: string) => {
     const date = new Date(timestamp);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-    });
+    return formatShortDate(date, language, { weekday: 'short' });
   };
 
+  // Real fix Oct 5 (time-format consistency): hour12:true forced a 12-hour AM/PM clock even
+  // for locales (fr-FR, pt-PT, etc.) whose own convention is 24-hour - confirmed live via
+  // Intl that forcing it produced "2:30 PM" in French, not the normal "14:30". Omitting
+  // hour12 lets each locale's own default convention apply, matching the pattern already
+  // used correctly elsewhere on this screen (formatDate above) and in the other screens
+  // that never set hour12 at all.
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
+    return formatTimeLabel(date, language);
   };
 
   const downloadReport = async (monthStr: string) => {
@@ -377,9 +481,9 @@ export default function StudentDetailScreen() {
         let detail = '';
         try { detail = (await checkRes.json())?.detail || ''; } catch (e) { console.error('[teacher/student-detail:366]', e); }
         if (detail.startsWith('free_tier_limit|')) {
-          Alert.alert('Free Plan Limit Reached', detail.split('|')[1] || 'Upgrade for unlimited reports.', [
-            { text: 'Not Now', style: 'cancel' },
-            { text: 'See Plans', onPress: () => router.push('/subscription') },
+          Alert.alert(t('free_plan_limit_title') || 'Free Plan Limit Reached', detail.split('|')[1] || t('upgrade_unlimited_reports') || 'Upgrade for unlimited reports.', [
+            { text: t('not_now') || 'Not Now', style: 'cancel' },
+            { text: t('see_plans') || 'See Plans', onPress: () => router.push('/subscription') },
           ]);
         } else {
           Alert.alert(t('error') || 'Error', t('pdf_no_data_month') || 'Cannot generate PDF - no data may exist for this month yet');
@@ -394,9 +498,13 @@ export default function StudentDetailScreen() {
     }
   };
 
+  // Real fix Sep 30 (live feedback, item 4 + PDF question): this used to always read from
+  // the hardcoded English MONTH_NAMES array. Using Intl's own long-month formatting with the
+  // same localeCode used elsewhere on this screen makes it follow the app's selected
+  // language, matching the fix applied to formatDate/formatTime above.
   const formatMonthYear = (monthStr: string) => {
     const [year, month] = monthStr.split('-').map(Number);
-    return `${MONTH_NAMES[month - 1]} ${year}`;
+    return formatMonthYearLabel(year, month, language);
   };
 
   if (!student && !studentsSettled) {
@@ -420,10 +528,10 @@ export default function StudentDetailScreen() {
   }
 
   const pieData = analytics ? [
-    { value: analytics.zone_counts.blue || 0, color: ZONE_COLORS.blue, text: 'Blue' },
-    { value: analytics.zone_counts.green || 0, color: ZONE_COLORS.green, text: 'Green' },
-    { value: analytics.zone_counts.yellow || 0, color: ZONE_COLORS.yellow, text: 'Yellow' },
-    { value: analytics.zone_counts.red || 0, color: ZONE_COLORS.red, text: 'Red' },
+    { value: analytics.zone_counts.blue || 0, color: ZONE_COLORS.blue, text: t('blue_short_label') || 'Blue' },
+    { value: analytics.zone_counts.green || 0, color: ZONE_COLORS.green, text: t('green_short_label') || 'Green' },
+    { value: analytics.zone_counts.yellow || 0, color: ZONE_COLORS.yellow, text: t('yellow_short_label') || 'Yellow' },
+    { value: analytics.zone_counts.red || 0, color: ZONE_COLORS.red, text: t('red_short_label') || 'Red' },
   ].filter(d => d.value > 0) : [];
 
   const barData = analytics ? [
@@ -435,8 +543,8 @@ export default function StudentDetailScreen() {
 
   return (
     // Real fix Sep 19 (header/nav remainder): now the shared TranslatedHeader - the student's
-    // avatar+name+classroom identity block goes in its titleContent slot, and homeTo keeps the
-    // home button going to the teacher dashboard as before. edges omit 'top' because
+    // avatar+name+classroom identity block goes in its titleContent slot, and showHome goes
+    // to the landing page ('/'). edges omit 'top' because
     // TranslatedHeader applies the top inset itself (this SafeAreaView is the cross-platform
     // one, so leaving the default edges would double the top gap - same fix as
     // parent/family-member-stats/[id]).
@@ -444,7 +552,6 @@ export default function StudentDetailScreen() {
       <TranslatedHeader
         title={student.name}
         showHome
-        homeTo="/teacher/dashboard"
         titleContent={
           <>
             <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
@@ -477,7 +584,7 @@ export default function StudentDetailScreen() {
             })}
           >
             <MaterialIcons name="edit" size={20} color="#5C6BC0" />
-            <Text style={styles.iconBtnLabel}>{t('edit') || 'Edit'}</Text>
+            <Text style={styles.iconBtnLabel} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>{t('edit') || 'Edit'}</Text>
           </TouchableOpacity>
           
           {/* Strategies Button with Tooltip */}
@@ -487,24 +594,37 @@ export default function StudentDetailScreen() {
               onPress={() => router.push({ pathname: '/teacher/strategies', params: { studentId: student.id } })}
             >
               <MaterialIcons name="lightbulb" size={20} color="#FFC107" />
-              <Text style={styles.iconBtnLabel}>{t('strategies') || 'Helpful Strategies'}</Text>
+              <Text style={styles.iconBtnLabel} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>{t('strategies') || 'Helpful Strategies'}</Text>
             </TouchableOpacity>
 
           </View>
           
           {/* Family Button with Tooltip */}
-          <View style={styles.tooltipContainer}>
+          <View style={[styles.tooltipContainer, { flex: 1 }]}>
             <TouchableOpacity
               style={[styles.actionBtn, { flex: 1 }]}
               onPress={() => setShowLinkCodeModal(true)}
             >
               <MaterialIcons name="family-restroom" size={20} color="#4A90D9" />
-              <Text style={styles.iconBtnLabel}>{t('family') || 'School-Family Link'}</Text>
+              <Text style={styles.iconBtnLabel} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>{t('school_home_link') || 'School Home Link'}</Text>
             </TouchableOpacity>
 
           </View>
           </View>{/* end row 2 */}
         </View>
+
+        {/* Oct 10: shown once above the data sections when the check-in list could not be loaded, so an
+            empty page is never mistaken for "no check-ins". Pull to refresh retries (clears on success). */}
+        {loadError && (
+          <View style={{ marginHorizontal: 12, marginVertical: 6, padding: 12, borderRadius: 10, backgroundColor: loadError === 'forbidden' ? '#FFF3E0' : '#FDECEA', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <MaterialIcons name={loadError === 'forbidden' ? 'lock' : 'cloud-off'} size={20} color={loadError === 'forbidden' ? '#E65100' : '#C62828'} />
+            <Text style={{ flex: 1, fontSize: 13, color: '#444' }}>
+              {loadError === 'forbidden'
+                ? (t('no_access_student_data') || "You don't have access to this student's data.")
+                : (t('load_failed_pull_refresh') || "Couldn't load. Pull to refresh.")}
+            </Text>
+          </View>
+        )}
 
         {/* Period Selector */}
         <View style={{ flexDirection:'row', gap:6, paddingHorizontal:12, paddingVertical:6 }}>
@@ -579,13 +699,13 @@ export default function StudentDetailScreen() {
                     <Text style={{fontSize:12}}>{log.logged_by === 'parent' ? '🏠' : '🏫'}</Text>
                   </View>
                   <Text style={styles.logTime}>
-                    {formatDate(log.timestamp)} at {formatTime(log.timestamp)}
+                    {`${formatDate(log.timestamp)} ${t('date_time_at') || 'at'} ${formatTime(log.timestamp)}`}
                   </Text>
                   {log.support_request_type && (
                     <View style={styles.logStrategies}>
                       <MaterialIcons name="campaign" size={14} color="#FF7043" />
                       <Text style={[styles.logStrategiesText, {color:'#FF7043', fontWeight:'700'}]}>
-                        School Support Request - {describeSupportRequest({ request_type: log.support_request_type } as any)}
+                        {t('school_support_request') || 'School Support Request'} - {describeSupportRequest({ request_type: log.support_request_type } as any, t)}
                       </Text>
                     </View>
                   )}
@@ -606,10 +726,12 @@ export default function StudentDetailScreen() {
                 </View>
               </View>
             ))
-          ) : (
+          ) : loadError ? null : (
             <View style={styles.emptyLogs}>
               <MaterialIcons name="history" size={48} color="#CCC" />
-              <Text style={styles.emptyLogsText}>{t('no_checkins') || 'No check-ins yet'}</Text>
+              <Text style={styles.emptyLogsText}>{nothingShared
+                ? (t('nothing_shared_yet') || 'Nothing shared yet. Home check-ins appear here when the parent chooses to share them.')
+                : (t('no_checkins') || 'No check-ins yet')}</Text>
             </View>
           ))}
         </View>
@@ -619,7 +741,7 @@ export default function StudentDetailScreen() {
           <TouchableOpacity onPress={() => setSecEmoDistrib(e=>!e)} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
             <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
               <MaterialIcons name="donut-large" size={18} color="#5C6BC0"/>
-              <Text style={styles.sectionTitle}>{'Emotion Distribution'}</Text>
+              <Text style={styles.sectionTitle}>{t('emotion_distribution') || 'Emotion Distribution'}</Text>
             </View>
             <MaterialIcons name={secEmoDistrib?'expand-less':'expand-more'} size={20} color="#666"/>
           </TouchableOpacity>
@@ -643,9 +765,11 @@ export default function StudentDetailScreen() {
                 ))}
               </View>
             </View>
-          ) : (
+          ) : loadError ? null : (
             <View style={styles.emptyChart}>
-              <Text style={styles.emptyChartText}>{t('no_data_period')}</Text>
+              <Text style={styles.emptyChartText}>{nothingShared
+                ? (t('nothing_shared_yet') || 'Nothing shared yet. Home check-ins appear here when the parent chooses to share them.')
+                : t('no_data_period')}</Text>
             </View>
           ))}
         </View>
@@ -708,7 +832,10 @@ export default function StudentDetailScreen() {
                 return (
                   <View key={strategyId} style={styles.strategyItem}>
                     <View style={[styles.strategyZoneCircle, { backgroundColor: zoneColour }]} />
-                    <Text style={styles.strategyName}>{getStrategyName(strategyId)}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.strategyName}>{getStrategyName(strategyId)}</Text>
+                      {(() => { const row = strategies.find((x: any) => x.id === strategyId) || allStrategies.school.find((x: any) => x.id === strategyId) || allStrategies.family.find((x: any) => x.id === strategyId); return row && ((row as any).source || (row as any).creator_role || (row as any).created_by_role || allStrategies.family.includes(row)) ? <View style={{ marginLeft: 12 }}><SourceChip source={allStrategies.family.includes(row) ? 'home' : strategySource(row)} /></View> : null; })()}
+                    </View>
                     <View style={styles.strategyCount}>
                       <Text style={styles.strategyCountText}>{count as number}x</Text>
                     </View>
@@ -742,7 +869,7 @@ export default function StudentDetailScreen() {
                 return dates.map(date => {
                   const dayLogs = grouped[date];
                   const d = new Date(date);
-                  const dayName = ['Su','Mo','Tu','We','Th','Fr','Sa'][d.getDay()];
+                  const dayName = (CALENDAR_DAY_LETTERS[language] || CALENDAR_DAY_LETTERS.en)[d.getDay()];
                   const dayNum = d.getDate();
                   const homeCount = dayLogs.filter(l => l.source === 'home').length;
                   const schoolCount = dayLogs.filter(l => l.source === 'school').length;
@@ -823,7 +950,7 @@ export default function StudentDetailScreen() {
                       </View>
                     );
                   })}
-                  {total === 0 && <Text style={styles.emptyText}>No check-ins for this view</Text>}
+                  {total === 0 && <Text style={styles.emptyText}>{t('no_checkins_this_view') || 'No check-ins for this view'}</Text>}
                 </View>
               );
             })()}
@@ -837,12 +964,12 @@ export default function StudentDetailScreen() {
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{t('add_strategy') || 'Add Strategy'}</Text>
-                <TouchableOpacity onPress={() => setShowAddStrategyModal(false)}>
+                <TouchableOpacity onPress={() => setShowAddStrategyModal(false)} style={styles.modalCloseButton}>
                   <MaterialIcons name="close" size={24} color="#666" />
                 </TouchableOpacity>
               </View>
               <ScrollView style={{maxHeight:400}}>
-                <Text style={styles.inputLabel}>Strategy Name *</Text>
+                <Text style={styles.inputLabel}>{t('strategy_name_required_label') || 'Strategy Name *'}</Text>
                 <TextInput
                   style={styles.textInput}
                   value={newStrategy.name}
@@ -859,7 +986,7 @@ export default function StudentDetailScreen() {
                   placeholderTextColor="#AAA"
                   multiline
                 />
-                <Text style={styles.inputLabel}>Zone</Text>
+                <Text style={styles.inputLabel}>{t('zone_label') || 'Emotion'}</Text>
                 <View style={{flexDirection:'row', gap:8, marginBottom:16}}>
                   {(['blue','green','yellow','red'] as const).map(zone => (
                     <TouchableOpacity key={zone}
@@ -867,7 +994,7 @@ export default function StudentDetailScreen() {
                         backgroundColor: newStrategy.zone === zone ? ZONE_COLORS[zone] : '#F0F0F0'}}
                       onPress={() => setNewStrategy({...newStrategy, zone})}>
                       <Text style={{fontSize:12, fontWeight:'600', color: newStrategy.zone === zone ? 'white' : '#666'}}>
-                        {zone.charAt(0).toUpperCase() + zone.slice(1)}
+                        {t(`${zone}_short_label`) || (zone.charAt(0).toUpperCase() + zone.slice(1))}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -887,7 +1014,7 @@ export default function StudentDetailScreen() {
                   style={{backgroundColor:'#5C6BC0', borderRadius:12, padding:16, alignItems:'center',
                     opacity: savingStrategy ? 0.6 : 1}}
                   onPress={async () => {
-                    if (!newStrategy.name.trim()) { Alert.alert('Name required'); return; }
+                    if (!newStrategy.name.trim()) { Alert.alert(t('name_required') || 'Name required'); return; }
                     setSavingStrategy(true);
                     try {
                       await teacherHomeDataApi.addStrategy(studentId!, {
@@ -901,7 +1028,7 @@ export default function StudentDetailScreen() {
                       setAllStrategies({ school: strats.school_strategies || [], family: strats.family_strategies || [] });
                       setShowAddStrategyModal(false);
                       setNewStrategy({name:'', description:'', zone:'green', icon:'star', shareWithParent:false});
-                    } catch (e: any) { Alert.alert('Error', e.message); }
+                    } catch (e: any) { Alert.alert(t('error') || 'Error', e.message); }
                     finally { setSavingStrategy(false); }
                   }}
                   disabled={savingStrategy}>
@@ -1035,11 +1162,11 @@ export default function StudentDetailScreen() {
                         <View style={styles.homeCheckinDetails}>
                           <Text style={styles.homeCheckinZoneLabel}>{getZoneLabel(checkin.zone, t)}</Text>
                           <Text style={styles.homeCheckinTime}>
-                            {new Date(checkin.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {formatShortDateTime(checkin.timestamp, language, { twoDigitHour: true })}
                           </Text>
                           {(checkin.helpers_selected || checkin.strategies_selected || []).length > 0 && (
                             <Text style={{ fontSize:10, color:'#5C6BC0', marginTop:2 }}>
-                              💡 {(checkin.helpers_selected || checkin.strategies_selected).slice(0,2).map((s:string)=>s.replace(/_/g,' ')).join(', ')}
+                              💡 {(checkin.helpers_selected || checkin.strategies_selected).slice(0,2).map((s:string)=>getStrategyName(s)).join(', ')}
                             </Text>
                           )}
                         </View>
@@ -1051,30 +1178,8 @@ export default function StudentDetailScreen() {
                   </View>
                 )}
                 
-                {/* Family Strategies */}
-                {(homeData.family_strategies || []).length > 0 && (
-                  <View style={styles.familyStrategiesContainer}>
-                    <TouchableOpacity onPress={() => setSecFamilyStrats(e => !e)}
-                      style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                      <Text style={styles.homeSubtitle}>{t('family_strategies') || 'Family Strategies'}</Text>
-                      <MaterialIcons name={secFamilyStrats?'expand-less':'expand-more'} size={18} color="#888" />
-                    </TouchableOpacity>
-                    {secFamilyStrats && (homeData.family_strategies || []).map((strategy: any, index: number) => (
-                      <View key={`strategy_${strategy.id || index}`} style={styles.familyStrategyItem}>
-                        <StrategyIcon icon={strategy.icon} size={20} color="#4CAF50" />
-                        <View style={styles.familyStrategyInfo}>
-                          <Text style={styles.familyStrategyName}>{strategy.strategy_name}</Text>
-                          <Text style={styles.familyStrategyDesc}>{strategy.strategy_description}</Text>
-                        </View>
-                        <View style={[styles.strategyZoneBadge, { backgroundColor: (ZONE_COLORS[strategy.zone as keyof typeof ZONE_COLORS] || '#999') + '30' }]}>
-                          <Text style={{ color: ZONE_COLORS[strategy.zone as keyof typeof ZONE_COLORS] || '#999', fontSize: 10 }}>{strategy.zone}</Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                )}
-                
-                {(homeData.home_checkins || []).length === 0 && (homeData.family_strategies || []).length === 0 && (
+                {/* Oct 11: the duplicate Family Strategies list was removed; the lightbulb Helpful strategies page is the single place (School/Home chips). */}
+                {(homeData.home_checkins || []).length === 0 && (
                   <View style={styles.noHomeData}>
                     <MaterialIcons name="info" size={32} color="#CCC" />
                     <Text style={styles.noHomeDataText}>{t('no_home_data_yet') || 'No home data yet'}</Text>
@@ -1185,7 +1290,7 @@ export default function StudentDetailScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { maxHeight: '85%' }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('share_student_tracking') || "Share Student's Emotion Tracking"}</Text>
+              <Text style={styles.modalTitle} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75}>{t('share_student_tracking') || "Share Student's Emotion Tracking"}</Text>
               <TouchableOpacity
                 onPress={() => {
                   setShowLinkCodeModal(false);
@@ -1263,18 +1368,18 @@ export default function StudentDetailScreen() {
                 <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={true}>
                   <Text style={styles.disclaimerTitle}>{t('sharing_disclaimer_title') || 'Consent to Share Access'}</Text>
                   <Text style={styles.disclaimerText}>{t('sharing_disclaimer_text')}</Text>
-                  <View style={styles.disclaimerButtons}>
+                  <View style={[styles.disclaimerButtons, { flexDirection: 'column', alignItems: 'center' }]}>
                     <TouchableOpacity
-                      style={[styles.generateCodeButton, { backgroundColor: '#999', flex: 1, marginRight: 8 }]}
-                      onPress={() => { setShowLinkCodeModal(false); setDisclaimerAccepted(false); }}
-                    >
-                      <Text style={styles.generateCodeButtonText}>{t('cancel') || 'Cancel'}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.generateCodeButton, { flex: 1.5 }]}
+                      style={[styles.generateCodeButton, { alignSelf: 'stretch' }]}
                       onPress={() => setDisclaimerAccepted(true)}
                     >
                       <Text style={styles.generateCodeButtonText}>{t('i_agree_and_continue') || 'I Agree & Continue'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.generateCodeButton, { backgroundColor: '#999', alignSelf: 'center', marginTop: 10, minWidth: 160 }]}
+                      onPress={() => { setShowLinkCodeModal(false); setDisclaimerAccepted(false); }}
+                    >
+                      <Text style={styles.generateCodeButtonText}>{t('cancel') || 'Cancel'}</Text>
                     </TouchableOpacity>
                   </View>
                 </ScrollView>
@@ -1282,7 +1387,7 @@ export default function StudentDetailScreen() {
                 <>
                   <MaterialIcons name="family-restroom" size={64} color="#4A90D9" />
                   <Text style={styles.linkCodeDescription}>
-                    Generate a code for the parent/caregiver. They will enter this code in the Parent section of the app to view {student.name}'s emotion check-ins at home.
+                    {(t('generate_parent_code_intro') || "Generate a code for the parent/caregiver. They will enter this code in the Parent section of the app to view {name}'s emotion check-ins at home.").replace('{name}', student.name)}
                   </Text>
                   <TouchableOpacity
                     style={[styles.generateCodeButton, generatingCode && styles.generateCodeButtonDisabled]}
@@ -1294,15 +1399,15 @@ export default function StudentDetailScreen() {
                       } catch (error: any) {
                         console.error('Generate link code error:', error);
                         // Show more helpful error message
-                        let errorMessage = 'Failed to generate link code.';
+                        let errorMessage = t('failed_generate_link_code') || 'Failed to generate link code.';
                         if (error.message?.includes('Not authenticated') || error.message?.includes('401')) {
-                          errorMessage = 'Your session has expired. Please go back, log out from Settings, and log back in as a Teacher.';
+                          errorMessage = t('session_expired_relogin_teacher') || 'Your session has expired. Please go back, log out from Settings, and log back in as a Teacher.';
                         } else if (error.message?.includes('teacher') || error.message?.includes('403')) {
-                          errorMessage = 'Only teachers can generate parent link codes. Please make sure you selected "Teacher" when you logged in.';
+                          errorMessage = t('only_teachers_generate_codes') || 'Only teachers can generate parent link codes. Please make sure you selected "Teacher" when you logged in.';
                         } else {
-                          errorMessage = error.message || 'Please try again.';
+                          errorMessage = error.message || t('try_again_short') || 'Please try again.';
                         }
-                        Alert.alert('Error', errorMessage);
+                        Alert.alert(t('error') || 'Error', errorMessage);
                       } finally {
                         setGeneratingCode(false);
                       }
@@ -1369,7 +1474,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EDE7F6',
     borderRadius: 8,
   },
-  actionBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 4, borderRadius: 10, backgroundColor: '#F5F5F5' },
+  actionBtn: { flex: 1, minHeight: 64, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 4, borderRadius: 10, backgroundColor: '#F5F5F5' },
   strategiesButton: {
     padding: 8,
     backgroundColor: '#FFF8E1',
@@ -1590,13 +1695,22 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
   },
+  // Oct 10: title takes the remaining width (flex:1, minWidth:0) so a long translation wraps/shrinks
+  // instead of pushing the close X out of the section; X has a 44x44 hit area and never shrinks.
   modalTitle: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
     fontSize: 20,
     fontWeight: '600',
     color: '#333',
   },
   modalCloseButton: {
-    padding: 4,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   monthsList: {
     padding: 16,
@@ -1807,36 +1921,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#E8F5E9',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  familyStrategiesContainer: {
-    marginBottom: 8,
-  },
-  familyStrategyItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-    padding: 10,
-    borderRadius: 10,
-    marginBottom: 6,
-  },
-  familyStrategyInfo: {
-    flex: 1,
-    marginLeft: 10,
-  },
-  familyStrategyName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#333',
-  },
-  familyStrategyDesc: {
-    fontSize: 11,
-    color: '#666',
-    marginTop: 2,
-  },
-  strategyZoneBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
   },
   noHomeData: {
     alignItems: 'center',

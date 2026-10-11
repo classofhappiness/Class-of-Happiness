@@ -44,7 +44,7 @@ const REQUEST_TYPES: { type: SupportRequestType; icon: keyof typeof MaterialIcon
 // type requires picking a real student first.
 export default function SupportRequestScreen() {
   const router = useRouter();
-  const { classrooms, students, t } = useApp();
+  const { classrooms, students, t, language } = useApp();
   // Real fix Sep 18: this screen (build 27's buzz feature) had zero i18n anywhere -
   // every string below was hardcoded English. REQUEST_TYPES is a module-level constant so
   // its labels can't call the useApp() t() hook directly - resolved here, inside the
@@ -125,7 +125,7 @@ export default function SupportRequestScreen() {
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   useEffect(() => {
-    const display = sentRequest ? formatSupportRequestStatus(sentRequest) : null;
+    const display = sentRequest ? formatSupportRequestStatus(sentRequest, t) : null;
     if (!display?.pulse) { pulseAnim.setValue(1); return; }
     const loop = Animated.loop(
       Animated.sequence([
@@ -265,7 +265,7 @@ export default function SupportRequestScreen() {
   }
 
   if (step === 'status' && sentRequest) {
-    const display = formatSupportRequestStatus(sentRequest);
+    const display = formatSupportRequestStatus(sentRequest, t);
     const who = sentRequest.student_name || studentName || sentRequest.classroom_name || classroomName || (t('classroom') || 'Classroom');
     // Real fix Sep 11: open now means genuinely still in play - CANCELLED/SUPERSEDED are
     // just as terminal as RESOLVED, the Arrived/Cancel actions make no sense on either.
@@ -284,7 +284,7 @@ export default function SupportRequestScreen() {
           <Text style={styles.statusText}>{display.text}</Text>
           {/* Item 1 (Sep 11): so a teacher routed here (one-open-request 409) knows which
               request is active and since when. */}
-          <Text style={styles.sentLine}>{formatSentLine(sentRequest.created_at)}</Text>
+          <Text style={styles.sentLine}>{formatSentLine(sentRequest.created_at, t, language)}</Text>
           {isOpen && (
             <TouchableOpacity
               style={styles.arrivedBtn}

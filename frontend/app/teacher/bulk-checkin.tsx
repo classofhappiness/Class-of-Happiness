@@ -70,18 +70,21 @@ export default function BulkCheckinScreen() {
     if (selectedCount === 0) {
       Alert.alert(
         t('error') || 'Nothing selected',
-        'Please select a colour for at least one student.'
+        t('select_colour_one_student') || 'Please select a colour for at least one student.'
       );
       return;
     }
 
     Alert.alert(
-      'Check In Class',
-      `Save ${selectedCount} check-in${selectedCount !== 1 ? 's' : ''}? No points will be awarded.`,
+      t('check_in_class') || 'Check In Class',
+      (selectedCount !== 1
+        ? (t('bulk_checkin_save_confirm_plural') || 'Save {count} check-ins? No points will be awarded.')
+        : (t('bulk_checkin_save_confirm_single') || 'Save {count} check-in? No points will be awarded.')
+      ).replace('{count}', String(selectedCount)),
       [
         { text: t('cancel') || 'Cancel', style: 'cancel' },
         {
-          text: 'Check In',
+          text: t('check_in') || 'Check In',
           onPress: async () => {
             setSaving(true);
             try {
@@ -218,7 +221,7 @@ export default function BulkCheckinScreen() {
         <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#CFCFCF', alignItems: 'center', justifyContent: 'center' }}>
           <MaterialIcons name="arrow-back" size={20} color="#1A1A2E" />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.replace('/teacher/dashboard')} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#CFCFCF', alignItems: 'center', justifyContent: 'center' }}>
+        <TouchableOpacity onPress={() => router.dismissTo('/')} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#CFCFCF', alignItems: 'center', justifyContent: 'center' }}>
           <MaterialIcons name="home" size={20} color="#1A1A2E" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
