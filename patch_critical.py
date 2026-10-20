@@ -208,6 +208,7 @@ CREATE TABLE IF NOT EXISTS public.custom_helpers (
   is_shared BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+grant select, insert, update, delete on public.custom_helpers to service_role;
 """)
 
 print("Deploy: cd ~/Desktop/Class-of-Happiness && git add -A && git commit -m 'Fix critical: custom_helpers table, strategy names, consent freeze, students disappearing' && git push")

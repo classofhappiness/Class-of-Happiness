@@ -218,6 +218,7 @@ CREATE TABLE IF NOT EXISTS public.teacher_checkins (
   timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_teacher_checkins_user ON public.teacher_checkins(user_id);
+grant select, insert, update, delete on public.teacher_checkins to service_role;
 """)
 
 print("\n✅ All checkin fixes applied!")

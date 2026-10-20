@@ -6447,10 +6447,12 @@ def _is_authorized_for_classroom_sync(user: dict, classroom_id: str, classroom_d
 #   code text PRIMARY KEY, classroom_id text NOT NULL, teacher_id text NOT NULL,
 #   created_at timestamptz DEFAULT now(), expires_at timestamptz NOT NULL, used_at timestamptz
 # );
+# grant select, insert, update, delete on public.kiosk_pairing_codes to service_role;
 # CREATE TABLE kiosk_sessions (
 #   kiosk_token text PRIMARY KEY, classroom_id text NOT NULL, teacher_id text NOT NULL,
 #   created_at timestamptz DEFAULT now(), expires_at timestamptz NOT NULL, revoked_at timestamptz
 # );
+# grant select, insert, update, delete on public.kiosk_sessions to service_role;
 
 def _generate_kiosk_code() -> str:
     import secrets
@@ -16599,6 +16601,7 @@ async def redeem_trial_code(request: Request):
       created_by text,
       created_at timestamptz DEFAULT now()
     );
+    grant select, insert, update, delete on public.promo_codes to service_role;
     """
     user = await get_current_user(request)
     if not user:

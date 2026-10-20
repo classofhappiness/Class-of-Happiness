@@ -198,6 +198,7 @@ CREATE TABLE IF NOT EXISTS public.family_assigned_strategies (
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+grant select, insert, update, delete on public.family_assigned_strategies to service_role;
 
 ALTER TABLE public.parent_links 
   ADD COLUMN IF NOT EXISTS home_sharing_enabled BOOLEAN DEFAULT false;
