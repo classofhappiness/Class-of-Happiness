@@ -93,7 +93,7 @@ export default function ForgotPasswordScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={[styles.headerRow, { marginTop: insets.top, paddingHorizontal: 24, justifyContent: 'flex-end' }]}>
-          <ColourCycleLogo size={48.4} loop />
+          <ColourCycleLogo size={48} loop />
         </View>
         <View style={styles.centered}>
           <MaterialIcons name="check-circle" size={64} color="#4CAF50" />
@@ -123,7 +123,7 @@ export default function ForgotPasswordScreen() {
             <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
               <MaterialIcons name="arrow-back" size={20} color="#1A1A2E" />
             </TouchableOpacity>
-            <ColourCycleLogo size={48.4} loop />
+            <ColourCycleLogo size={48} loop />
           </View>
 
           <Text style={styles.title}>{t('reset_password_title') || 'Reset Password'}</Text>

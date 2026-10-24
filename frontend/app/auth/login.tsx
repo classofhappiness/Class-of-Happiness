@@ -257,7 +257,7 @@ export default function LoginScreen() {
           {/* ✅ Logo instead of rainbow emoji */}
           <View style={styles.header}>
             <Image
-              source={require('../../assets/images/logo_coh.png')}
+              source={require('../../assets/images/logo_mark.png')}
               style={styles.logo}
               resizeMode="contain"
             />

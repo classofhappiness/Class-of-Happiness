@@ -10582,7 +10582,7 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
     _, last_day_cal = cal_mod.monthrange(year, month)
 
     # ── HEADER with COH logo ──
-    logo_path = os.path.join(os.path.dirname(__file__), 'assets', 'logo_coh.png')
+    logo_path = os.path.join(os.path.dirname(__file__), 'assets', 'logo_mark.png')
     try:
         if not os.path.exists(logo_path): raise FileNotFoundError()
         coh_logo = RLImage(logo_path, width=44, height=44)
@@ -11145,7 +11145,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
     # HEADER BANNER
     # ════════════════════════════════════════════════════════
     # Try to load COH logo image
-    logo_path = os.path.join(os.path.dirname(__file__), 'assets', 'logo_coh.png')
+    logo_path = os.path.join(os.path.dirname(__file__), 'assets', 'logo_mark.png')
     from reportlab.platypus import Image as RLImage
 
     # Build logo cell — image if available, coloured text fallback
@@ -11861,7 +11861,7 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
     elements = []
 
     # ── HEADER with COH Logo ──
-    logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_coh.png")
+    logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_mark.png")
     try:
         if not os.path.exists(logo_path):
             raise FileNotFoundError()
@@ -13686,7 +13686,7 @@ async def school_overview_pdf(request: Request, days: int = 30, school_name: Opt
         return Paragraph(pdf_safe(xml_escape(str(text)), lang, 'Helvetica-Bold'), st or hdr_style) if lang in ('ru', 'zh', 'hi', 'ar') else text
 
     elements = []
-    logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_coh.png")
+    logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_mark.png")
     try:
         if not os.path.exists(logo_path): raise FileNotFoundError()
         coh_logo = RLImage(logo_path, width=44, height=44)
@@ -14059,7 +14059,7 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36)
     elements = []
 
-    logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_coh.png")
+    logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_mark.png")
     try:
         if not os.path.exists(logo_path):
             raise FileNotFoundError()
@@ -20309,7 +20309,7 @@ def _export_to_pdf(title: str, columns: list, rows: list, lang: str = "") -> byt
     _title_p = pdf_safe(title, lang, 'Helvetica-Bold')
 
     elements = []
-    logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_coh.png")
+    logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_mark.png")
     try:
         if not os.path.exists(logo_path): raise FileNotFoundError()
         coh_logo = RLImage(logo_path, width=44, height=44)
@@ -21309,7 +21309,7 @@ async def careers_pathway_summary_pdf(student_id: str, request: Request, lang: s
     _car_today = _pdf_date_line(_car_now.day, _car_now.month, _car_now.year, lang) or f"{_car_now.day:02d} {_car_months[_car_now.month - 1]} {_car_now.year}"
 
     elements = []
-    logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_coh.png")
+    logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_mark.png")
     try:
         if not os.path.exists(logo_path):
             raise FileNotFoundError()

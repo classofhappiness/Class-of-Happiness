@@ -211,7 +211,7 @@ export default function SubscriptionScreen() {
 
       {/* Hero */}
       <View style={st.hero}>
-        <Image source={require('../../assets/images/logo_coh.png')} style={{width:80, height:80, alignSelf:'center', marginBottom:8}} resizeMode="contain" />
+        <Image source={require('../../assets/images/logo_mark.png')} style={{width:80, height:80, alignSelf:'center', marginBottom:8}} resizeMode="contain" />
         <Text style={st.heroTitle}>{t('subscription_hero_title') || 'Emotional Wellbeing\nfor Every Child'}</Text>
         <Text style={st.heroSub}>{t('subscription_hero_sub') || 'Evidence-based check-ins that connect\nhome and school'}</Text>
       </View>

@@ -136,7 +136,7 @@ export async function showIncidentAlert(params: { requestId: string; title: stri
         // keep in sync. largeIcon is the real, full-colour logo - notifee's largeIcon (unlike
         // smallIcon) accepts a bundled asset directly, no native resource wiring needed.
         smallIcon: 'notification_icon',
-        largeIcon: require('../../assets/images/logo_coh.png'),
+        largeIcon: require('../../assets/images/logo_mark.png'),
       },
     });
   } catch (e) {

@@ -53,7 +53,7 @@ function KioskHeader() {
           {!!line2 && <Text style={kh.titleLine2} numberOfLines={1}>{line2}</Text>}
         </View>
         <View style={kh.rightSlot}>
-          <ColourCycleLogo size={48.4} loop />
+          <ColourCycleLogo size={48} loop />
           <TouchableOpacity onPress={() => router.replace('/')} style={kh.homeButton}>
             <MaterialIcons name="home" size={20} color="#1A1A2E" />
           </TouchableOpacity>

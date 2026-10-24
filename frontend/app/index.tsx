@@ -5,6 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../src/context/AppContext';
 import { ZONE_FACES } from '../src/components/ZoneButton';
+import { LogoLockup } from '../src/components/LogoLockup';
 import { EMOTION_COLOURS } from '../src/constants/emotionColours';
 import { getZoneWords, ZoneColour } from '../src/constants/zoneWords';
 
@@ -133,7 +134,7 @@ export default function HomeScreen() {
 
         {/* Logo */}
         <View style={styles.logoContainer}>
-          <Image source={require('../assets/images/logo_coh.png')} style={styles.mainLogo} resizeMode="contain" />
+          <LogoLockup />
         </View>
 
         {/* Subtitle */}
@@ -327,8 +328,7 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 4, marginBottom: 4 },
   topBarBtn: { padding: 8 },
 
-  logoContainer: { alignItems: 'center', marginBottom: 12, marginTop: 0 },
-  mainLogo: { width: 140, height: 150 },
+  logoContainer: { alignItems: 'center', marginTop: 30, marginBottom: 34 },
 
   subtitle: { fontSize: 16, color: '#333', textAlign: 'center', marginBottom: 14, fontWeight: '500' },
 

@@ -30,7 +30,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
         )}
         {showLogo && (
           <Image
-            source={require('../../assets/images/logo_coh.png')}
+            source={require('../../assets/images/logo_mark.png')}
             style={styles.logo}
             resizeMode="contain"
           />
@@ -52,7 +52,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
 export const CornerLogo: React.FC = () => {
   return (
     <Image
-      source={require('../../assets/images/logo_coh.png')}
+      source={require('../../assets/images/logo_mark.png')}
       style={cornerStyles.logo}
       resizeMode="contain"
     />

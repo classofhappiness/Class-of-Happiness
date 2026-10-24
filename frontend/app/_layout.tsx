@@ -703,7 +703,7 @@ function AppContent() {
           }}
         />
       </Stack>
-      {showSplashAnim && <SplashAnimation onFinish={() => setShowSplashAnim(false)} />}
+      {showSplashAnim && <SplashAnimation appReady={!isLoading} onFinish={() => setShowSplashAnim(false)} />}
     </>
   );
 }
@@ -772,7 +772,7 @@ function HomeToStudents() {
   const r = useRouter();
   return (
     <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginRight:12 }}>
-      <ColourCycleLogo size={48.4} loop />
+      <ColourCycleLogo size={48} loop />
       <TouchableOpacity onPress={() => r.dismissTo('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <MaterialIcons name="home" size={20} color="#1A1A2E" />
       </TouchableOpacity>
@@ -784,7 +784,7 @@ function HomeToLanding() {
   const r = useRouter();
   return (
     <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginRight:12 }}>
-      <ColourCycleLogo size={48.4} loop />
+      <ColourCycleLogo size={48} loop />
       <TouchableOpacity onPress={() => r.dismissTo('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <MaterialIcons name="home" size={20} color="#1A1A2E" />
       </TouchableOpacity>
@@ -801,7 +801,7 @@ function HomeToLanding() {
 function DashboardLogoOnly() {
   return (
     <View style={{ marginRight: 12 }}>
-      <ColourCycleLogo size={48.4} loop />
+      <ColourCycleLogo size={48} loop />
     </View>
   );
 }

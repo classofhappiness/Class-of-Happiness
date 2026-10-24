@@ -3,32 +3,27 @@ import { Animated, StyleSheet } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { ColourCycleLogo } from './ColourCycleLogo';
 
-// Real feature Aug 30: animated launch sequence, per Jono's confirmed design - logo fades
-// in, the yellow blob (and "of", which already matches the blob's colour in the source
-// artwork) cycles through colour, ends on yellow, then the whole thing fades out into the
-// home screen. Order is green -> blue -> red -> yellow, Jono's own explicit sequence.
-//
-// Real fix Sep 18: the actual phase-crossfade engine (4 keyframe PNGs, hold/crossfade
-// timings) moved into ColourCycleLogo.tsx so the TranslatedHeader logo circle can reuse the
-// exact same tuned animation instead of a second, separately-drifting copy. This component
-// now only owns what's genuinely splash-specific: the full-screen white overlay, the
-// fade-in on mount, and the fade-out once ColourCycleLogo finishes a single (non-looping)
-// pass through all 4 phases.
+// Animated launch sequence: the logo fades in and its four bars cycle colour while the app
+// loads (at least one full 3 s round). Once `appReady`, ColourCycleLogo finishes the current
+// round (or, if that wait would exceed 1.5 s, eases each bar to its resting colour over
+// 450 ms) and reports back; we hold on the resting logo briefly, then fade into the app.
 const FADE_IN_MS = 150;
+const HOLD_RESTING_MS = 700;
 const FADE_OUT_MS = 200;
 
 interface SplashAnimationProps {
+  appReady: boolean;
   onFinish: () => void;
 }
 
-export const SplashAnimation: React.FC<SplashAnimationProps> = ({ onFinish }) => {
+export const SplashAnimation: React.FC<SplashAnimationProps> = ({ appReady, onFinish }) => {
   const containerOpacity = useRef(new Animated.Value(0)).current;
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
-    // Hide the native splash the moment this component is ready to render its own first
-    // frame (same green image the native splash itself now shows, per app.json) - the
-    // closest achievable handoff given Expo's real platform limits (no native animation
-    // capability, confirmed during investigation) - then take over with the real animation.
+    // Hide the native splash the moment this component can render its own first frame
+    // (the native splash shows splash-native.png) - Expo has no native animation hook, so
+    // this is the closest achievable handoff.
     SplashScreen.hideAsync().catch(() => {});
 
     Animated.timing(containerOpacity, {
@@ -36,21 +31,24 @@ export const SplashAnimation: React.FC<SplashAnimationProps> = ({ onFinish }) =>
       duration: FADE_IN_MS,
       useNativeDriver: true,
     }).start();
+    return () => {
+      if (holdTimer.current) clearTimeout(holdTimer.current);
+    };
   }, []);
 
-  const handleCycleComplete = () => {
-    // Held on yellow (the last phase) for HOLD_MS already happened inside ColourCycleLogo
-    // before it called this - now fade the whole thing out.
-    Animated.timing(containerOpacity, {
-      toValue: 0,
-      duration: FADE_OUT_MS,
-      useNativeDriver: true,
-    }).start(() => onFinish());
+  const handleSettled = () => {
+    holdTimer.current = setTimeout(() => {
+      Animated.timing(containerOpacity, {
+        toValue: 0,
+        duration: FADE_OUT_MS,
+        useNativeDriver: true,
+      }).start(() => onFinish());
+    }, HOLD_RESTING_MS);
   };
 
   return (
     <Animated.View style={[styles.container, { opacity: containerOpacity }]} pointerEvents="none">
-      <ColourCycleLogo size={240} loop={false} onCycleComplete={handleCycleComplete} />
+      <ColourCycleLogo size={240} settleWhen={appReady} onSettled={handleSettled} />
     </Animated.View>
   );
 };

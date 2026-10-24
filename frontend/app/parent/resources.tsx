@@ -430,7 +430,7 @@ export default function ResourcesScreen() {
           // "All" excluded - it's an aggregate filter, not a real category.
           <View style={styles.emptyState}>
             <Image
-              source={require('../../assets/images/logo_coh.png')}
+              source={require('../../assets/images/logo_mark.png')}
               style={{ width: 64, height: 64, opacity: 0.5 }}
               resizeMode="contain"
             />

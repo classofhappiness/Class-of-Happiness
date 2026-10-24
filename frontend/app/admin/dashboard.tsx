@@ -3255,7 +3255,7 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
             <SectionCard key={tp.id} title={tp.name} subtitle={t('zero_resources_subtitle') || '0 resources'} icon="folder" color="#FF9800" defaultOpen>
               <View style={{ alignItems: 'center', padding: 20, gap: 8 }}>
                 <Image
-                  source={require('../../assets/images/logo_coh.png')}
+                  source={require('../../assets/images/logo_mark.png')}
                   style={{ width: 40, height: 40, opacity: 0.5 }}
                   resizeMode="contain"
                 />
@@ -3539,7 +3539,7 @@ export default function AdminDashboard() {
           </View>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <ColourCycleLogo size={48.4} loop />
+          <ColourCycleLogo size={48} loop />
           <TouchableOpacity onPress={async () => { await logout(); router.replace('/'); }} style={s.logoutBtn}>
             <MaterialIcons name="logout" size={18} color="#F44336" />
           </TouchableOpacity>

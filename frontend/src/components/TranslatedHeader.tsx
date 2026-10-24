@@ -188,7 +188,7 @@ export const TranslatedHeader: React.FC<TranslatedHeaderProps> = ({
               "CLASS of Happiness" actually reads now. Colour-cycling animation reuses
               ColourCycleLogo (extracted from SplashAnimation's own S01 fix) so this is
               genuinely the same tuned animation, looping, not a second separately-tuned one. */}
-          <ColourCycleLogo size={48.4} loop />
+          <ColourCycleLogo size={48} loop />
           {showHome && (
             <TouchableOpacity onPress={handleHome} style={styles.homeButton}>
               <MaterialIcons name="home" size={20} color="#1A1A2E" />

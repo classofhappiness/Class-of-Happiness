@@ -12,7 +12,7 @@ export const Logo: React.FC<LogoProps> = ({ size = 'medium', style }) => {
   return (
     <View style={[styles.container, style]}>
       <Image
-        source={require('../../assets/images/logo_coh.png')}
+        source={require('../../assets/images/logo_mark.png')}
         style={[styles.logo, { width: dimensions.width, height: dimensions.height }]}
         resizeMode="contain"
       />
@@ -42,7 +42,7 @@ export const CornerLogo: React.FC = () => {
   return (
     <View style={cornerStyles.container}>
       <Image
-        source={require('../../assets/images/logo_coh.png')}
+        source={require('../../assets/images/logo_mark.png')}
         style={cornerStyles.logo}
         resizeMode="contain"
       />
