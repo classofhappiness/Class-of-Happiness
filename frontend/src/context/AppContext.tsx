@@ -6,6 +6,7 @@ import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as ExpoLinking from 'expo-linking';
 import Constants from 'expo-constants';
+import { ReadingPrefsApi, useReadingPrefsState } from './ReadingPrefs';
 import {
   Student, Classroom, User, Translations,
   studentsApi, classroomsApi, avatarsApi, PresetAvatar,
@@ -97,6 +98,8 @@ interface AppContextType {
   // Translations
   language: string;
   translations: Translations;
+  // Reading font (OpenDyslexic, letter/word spacing) - device-local, all off by default.
+  reading: ReadingPrefsApi;
   setLanguage: (lang: string) => Promise<void>;
   t: (key: string) => string;
   
@@ -399,6 +402,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Translations state
   const [language, setLanguageState] = useState<string>('en');
   const [translations, setTranslations] = useState<Translations>(defaultTranslations);
+  const reading = useReadingPrefsState(language);
 
   // Real fix Sep 24 (item5, device report - /students timeout investigation): GET /students
   // was genuinely being fetched TWICE per visit to the select-profile screen - once from this
@@ -1327,6 +1331,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // Translations
         language,
         translations,
+        reading,
         setLanguage,
         t,
         

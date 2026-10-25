@@ -22,7 +22,7 @@ const WORD_CYCLE_MS = 1800;
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isLoading, isAuthenticated, user, login, t, language, hasActiveSubscription } = useApp();
+  const { isLoading, isAuthenticated, user, login, t, language, hasActiveSubscription, reading } = useApp();
 
   // ── Mood-emoji press-and-hold (Sep 27, build 27) ───────────────────────────
   const zoneOrder: ZoneColour[] = ['blue', 'green', 'yellow', 'red'];
@@ -105,6 +105,11 @@ export default function HomeScreen() {
   // instead of after a confusing silent redirect.
   // Fredoka Bold for the three role titles, Latin-script languages only (it has no
   // Devanagari/CJK/Arabic/Cyrillic glyphs; hi/zh/ar/ru keep the normal font).
+  // Reading font on (OpenDyslexic is ~1.8x wider): let the role titles/descriptions shrink further
+  // or wrap instead of overflowing a small phone. Nothing changes while the settings are off.
+  const readingOn = (reading.dyslexic && reading.dyslexicSupported) || reading.letterStep > 0 || reading.wordStep > 0;
+  const fitTitle = readingOn ? { numberOfLines: 2, adjustsFontSizeToFit: true, minimumFontScale: 0.6 } : null;
+  const fitScale = readingOn ? 0.6 : 0.8;
   const logoFont = FREDOKA_LANGS.includes(language) ? styles.fredokaTitle : null;
   const teacherLocked = isAuthenticated && user?.role === 'parent';
   // Real fix Sep 15 (Marisa build-26, S02): Free Trial moves from a bordered button to a
@@ -210,8 +215,8 @@ export default function HomeScreen() {
         >
           <MaterialIcons name="child-care" size={44} color="white" />
           <View style={styles.studentButtonText}>
-            <Text style={[styles.studentButtonTitle, logoFont]} allowFontScaling={false}>{t('student') || 'Student'}</Text>
-            <Text style={styles.studentButtonSub} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>{t('check_in_feelings') || 'Check in my feelings'}</Text>
+            <Text style={[styles.studentButtonTitle, logoFont]} allowFontScaling={false} {...fitTitle}>{t('student') || 'Student'}</Text>
+            <Text style={styles.studentButtonSub} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={fitScale}>{t('check_in_feelings') || 'Check in my feelings'}</Text>
           </View>
           <MaterialIcons name="chevron-right" size={28} color="rgba(255,255,255,0.7)" />
         </TouchableOpacity>
@@ -252,12 +257,12 @@ export default function HomeScreen() {
           >
             <MaterialIcons name="school" size={26} color="white" />
             <View style={{alignItems:'center'}}>
-              <Text style={[styles.roleButtonTitle, logoFont]}>{t('teacher') || 'Teacher'}</Text>
+              <Text style={[styles.roleButtonTitle, logoFont]} {...fitTitle}>{t('teacher') || 'Teacher'}</Text>
               <Text
                 style={{fontSize:10, color:'#1A1A2E', fontStyle:'italic', fontWeight:'600', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}
                 numberOfLines={2}
                 adjustsFontSizeToFit
-                minimumFontScale={0.8}
+                minimumFontScale={fitScale}
               >{t('teacher_dashboard_subtitle') || 'Teachers Dashboard - support your students here'}</Text>
             </View>
             {(!isAuthenticated || teacherLocked) && <MaterialIcons name="lock" size={14} color="rgba(255,255,255,0.7)" />}
@@ -273,12 +278,12 @@ export default function HomeScreen() {
           >
             <MaterialIcons name="family-restroom" size={26} color="white" />
             <View style={{alignItems:'center'}}>
-              <Text style={[styles.roleButtonTitle, logoFont]}>{t('parent') || 'Parent'}</Text>
+              <Text style={[styles.roleButtonTitle, logoFont]} {...fitTitle}>{t('parent') || 'Parent'}</Text>
               <Text
                 style={{fontSize:10, color:'#1A1A2E', fontStyle:'italic', fontWeight:'600', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}
                 numberOfLines={2}
                 adjustsFontSizeToFit
-                minimumFontScale={0.8}
+                minimumFontScale={fitScale}
               >{t('family_dashboard_subtitle') || 'Family Dashboard - support your family here'}</Text>
             </View>
             {!isAuthenticated && <MaterialIcons name="lock" size={14} color="rgba(255,255,255,0.7)" />}

@@ -1,3 +1,6 @@
+// Must stay the first import: swaps in the reading-font aware Text/TextInput (a no-op until a
+// reading setting is switched on). See src/utils/installReadingText.tsx.
+import '../src/utils/installReadingText';
 import React, { useEffect, useState } from 'react';
 import { Stack, useRouter, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -104,7 +107,7 @@ const HeaderWithBackAndLogo = ({ canGoBack }: { canGoBack?: boolean }) => {
 
 // Inner component that hides splash once app is ready
 function AppContent() {
-  const { isLoading, isAuthenticated, user, language, t } = useApp();
+  const { isLoading, isAuthenticated, user, language, t, reading } = useApp();
   // Latest t for long-lived notification-listener closures (effect deps don't include language).
   const tRef = React.useRef(t);
   tRef.current = t;
@@ -460,6 +463,13 @@ function AppContent() {
           }}
         />
         <Stack.Screen
+          name="credits"
+          options={{
+            title: t('credits_title') || 'Licences & Credits',
+            headerBackTitle: t('back') || 'Back',
+          }}
+        />
+        <Stack.Screen
           name="subscription/index"
           options={{
             headerShown: false,
@@ -704,7 +714,7 @@ function AppContent() {
           }}
         />
       </Stack>
-      {showSplashAnim && <SplashAnimation appReady={!isLoading} onFinish={() => setShowSplashAnim(false)} />}
+      {showSplashAnim && <SplashAnimation appReady={!isLoading && reading.loaded} onFinish={() => setShowSplashAnim(false)} />}
     </>
   );
 }

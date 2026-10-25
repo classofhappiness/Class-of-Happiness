@@ -14,6 +14,7 @@ import { loadDeviceNotificationsEnabled, setDeviceNotificationsEnabled } from '.
 import { useWellbeingSharing } from '../src/utils/useWellbeingSharing';
 import { SecureField } from '../src/components/SecureField';
 import { PinConfirmModal } from '../src/components/PinConfirmModal';
+import { ReadingFontSettings } from '../src/components/ReadingFontSettings';
 import { RTL_RESTART_FLOW_READY, needsRtlRestart, applyRtlAndRestart } from '../src/utils/rtl';
 
 // hasVoice matches the backend's VOICE_CLIP_LANGUAGES (server.py) - real recordings exist
@@ -1049,6 +1050,9 @@ export default function SettingsScreen() {
         )}
       </View>
 
+      {/* Reading font (OpenDyslexic, letter/word spacing) - device-local, off by default */}
+      <ReadingFontSettings languages={LANGUAGES} />
+
       {/* Voice narration (student check-in colour/helper audio) */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('voice') || 'Voice'}</Text>
@@ -1100,6 +1104,19 @@ export default function SettingsScreen() {
             <View style={styles.settingText}>
               <Text style={styles.settingLabel}>{t('about_privacy') || 'About & Privacy'}</Text>
               <Text style={styles.settingValue}>{t('disclaimer_privacy_terms') || 'Disclaimer, Privacy Policy, Terms'}</Text>
+            </View>
+          </View>
+          <MaterialIcons name="chevron-right" size={24} color="#CCC" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.settingItem}
+          onPress={() => router.push('/credits' as any)}
+        >
+          <View style={styles.settingLeft}>
+            <MaterialIcons name="description" size={24} color="#5C6BC0" />
+            <View style={styles.settingText}>
+              <Text style={styles.settingLabel}>{t('credits_title') || 'Licences & Credits'}</Text>
+              <Text style={styles.settingValue}>{t('credits_subtitle') || 'Fonts and open-source licences'}</Text>
             </View>
           </View>
           <MaterialIcons name="chevron-right" size={24} color="#CCC" />
