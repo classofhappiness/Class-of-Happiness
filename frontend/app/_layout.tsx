@@ -10,7 +10,7 @@ import { useFonts } from 'expo-font';
 import { AppProvider, useApp } from '../src/context/AppContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SplashAnimation } from '../src/components/SplashAnimation';
-import { ColourCycleLogo } from '../src/components/ColourCycleLogo';
+import { HeaderLogo } from '../src/components/ColourCycleLogo';
 import * as Notifications from 'expo-notifications';
 import { setupNotifeeChannels, isIncidentPushData, showIncidentAlert, registerNotifeeForegroundHandler } from '../src/utils/notifeeIncidents';
 import { requestSupportRequestsRefreshFromPush, findSupportRequestForPush } from '../src/utils/supportRequestsPoller';
@@ -619,7 +619,7 @@ function AppContent() {
           options={{
             title: t('family_dashboard_title') || 'Family Dashboard',
             headerTitleStyle: { fontWeight: '700' },
-            headerRight: () => <DashboardLogoOnly />,
+            headerRight: ({ canGoBack }) => <DashboardLogoOnly canGoBack={canGoBack} />,
           }}
         />
         <Stack.Screen
@@ -772,7 +772,7 @@ function HomeToStudents() {
   const r = useRouter();
   return (
     <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginRight:12 }}>
-      <ColourCycleLogo size={48} loop />
+      <HeaderLogo hasButtons />
       <TouchableOpacity onPress={() => r.dismissTo('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <MaterialIcons name="home" size={20} color="#1A1A2E" />
       </TouchableOpacity>
@@ -784,7 +784,7 @@ function HomeToLanding() {
   const r = useRouter();
   return (
     <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginRight:12 }}>
-      <ColourCycleLogo size={48} loop />
+      <HeaderLogo hasButtons />
       <TouchableOpacity onPress={() => r.dismissTo('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <MaterialIcons name="home" size={20} color="#1A1A2E" />
       </TouchableOpacity>
@@ -798,10 +798,10 @@ function HomeToLanding() {
 // sits where home used to be (the far right). Deliberately a new component rather than
 // editing HomeToLanding in place - that one is also used by the plain 'settings' screen
 // (line ~327 below), which is not a dashboard and keeps its home button.
-function DashboardLogoOnly() {
+function DashboardLogoOnly({ canGoBack }: { canGoBack?: boolean }) {
   return (
     <View style={{ marginRight: 12 }}>
-      <ColourCycleLogo size={48} loop />
+      <HeaderLogo hasButtons={!!canGoBack} />
     </View>
   );
 }

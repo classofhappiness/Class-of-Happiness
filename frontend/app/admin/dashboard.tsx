@@ -19,7 +19,7 @@ import { useSupportRequestsList, refreshSupportRequestsNow } from '../../src/uti
 import { registerForPushNotifications, registerForPushNotificationsDetailed, IS_EXPO_GO } from '../../src/utils/notifications';
 import { dismissIncidentAlert } from '../../src/utils/notifeeIncidents';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ColourCycleLogo } from '../../src/components/ColourCycleLogo';
+import { HeaderLogo } from '../../src/components/ColourCycleLogo';
 import { BarChart } from 'react-native-gifted-charts';
 import { STRAT } from '../../src/components/AlertCard';
 import { resolveStrategyName, strategyLabel } from '../../src/utils/resolveStrategyName';
@@ -3539,7 +3539,7 @@ export default function AdminDashboard() {
           </View>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <ColourCycleLogo size={48} loop />
+          <HeaderLogo hasButtons />
           <TouchableOpacity onPress={async () => { await logout(); router.replace('/'); }} style={s.logoutBtn}>
             <MaterialIcons name="logout" size={18} color="#F44336" />
           </TouchableOpacity>

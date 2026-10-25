@@ -183,3 +183,20 @@ export const ColourCycleLogo: React.FC<Props> = ({ size, loop = false, settleWhe
     </View>
   );
 };
+
+// Header logo sizing, in one place: 36 (same as the 36x36 back/home circles) when the header
+// shows a back and/or home button, 48 when it has neither. The box is always 48 tall, so a
+// header's height never changes between screens with and without buttons - the smaller logo
+// is just centred inside it - and the gap to neighbouring buttons stays whatever the header's
+// own `gap` is, since the box is only as wide as the logo.
+export const HEADER_LOGO_SIZE_WITH_BUTTONS = 36;
+export const HEADER_LOGO_SIZE_STANDALONE = 48;
+
+export const HeaderLogo: React.FC<{ hasButtons: boolean }> = ({ hasButtons }) => {
+  const size = hasButtons ? HEADER_LOGO_SIZE_WITH_BUTTONS : HEADER_LOGO_SIZE_STANDALONE;
+  return (
+    <View style={{ width: size, height: HEADER_LOGO_SIZE_STANDALONE, alignItems: 'center', justifyContent: 'center' }}>
+      <ColourCycleLogo size={size} loop />
+    </View>
+  );
+};

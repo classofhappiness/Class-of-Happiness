@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Avatar } from '../../src/components/Avatar';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { useApp } from '../../src/context/AppContext';
-import { ColourCycleLogo } from '../../src/components/ColourCycleLogo';
+import { HeaderLogo } from '../../src/components/ColourCycleLogo';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
@@ -53,7 +53,7 @@ function KioskHeader() {
           {!!line2 && <Text style={kh.titleLine2} numberOfLines={1}>{line2}</Text>}
         </View>
         <View style={kh.rightSlot}>
-          <ColourCycleLogo size={48} loop />
+          <HeaderLogo hasButtons />
           <TouchableOpacity onPress={() => router.replace('/')} style={kh.homeButton}>
             <MaterialIcons name="home" size={20} color="#1A1A2E" />
           </TouchableOpacity>
