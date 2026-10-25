@@ -74,6 +74,16 @@
           "sounds": ["./assets/sounds/support_buzz.wav"]
         }
       ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ],
+      "./plugins/withKeepNotificationResources",
       "./plugins/withAbiSplits"
     ],
     "experiments": {
