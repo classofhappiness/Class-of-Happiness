@@ -21,3 +21,4 @@ frontend/.metro-cache/
 *.swp
 COH-HANDOVER.md
 .DS_Store
+!backend/assets/logo_mark.png
