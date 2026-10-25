@@ -7,6 +7,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
+import { Fredoka_700Bold } from '@expo-google-fonts/fredoka';
 import { AppProvider, useApp } from '../src/context/AppContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SplashAnimation } from '../src/components/SplashAnimation';
@@ -807,8 +808,11 @@ function DashboardLogoOnly({ canGoBack }: { canGoBack?: boolean }) {
 }
 
 function RootLayout() {
-  const [fontsLoaded] = useFonts({
+  // Fredoka_700Bold is used ONLY for the Student/Teacher/Parent titles on the home screen
+  // (app/index.tsx). It is loaded here so the home page never renders before it is ready.
+  const [fontsLoaded, fontError] = useFonts({
     Nunito: require('../assets/fonts/Nunito.ttf'),
+    Fredoka_700Bold,
   });
 
   useEffect(() => {
@@ -818,7 +822,9 @@ function RootLayout() {
   // Splash screen (already held open by preventAutoHideAsync above) stays up until the font
   // is actually ready - AppContent's own hideAsync call happens after isLoading too, so this
   // just adds a second real condition rather than racing it.
-  if (!fontsLoaded) return null;
+  // A font that fails to load must not leave the app blank forever: fall through to the
+  // system font instead.
+  if (!fontsLoaded && !fontError) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

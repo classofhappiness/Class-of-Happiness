@@ -103,6 +103,9 @@ export default function HomeScreen() {
   // teacher_monthly) and has no real access to Teacher Dashboard - teacher/dashboard.tsx's
   // own guard already correctly blocks it, this just makes that visible before the tap
   // instead of after a confusing silent redirect.
+  // Fredoka Bold for the three role titles, Latin-script languages only (it has no
+  // Devanagari/CJK/Arabic/Cyrillic glyphs; hi/zh/ar/ru keep the normal font).
+  const logoFont = FREDOKA_LANGS.includes(language) ? styles.fredokaTitle : null;
   const teacherLocked = isAuthenticated && user?.role === 'parent';
   // Real fix Sep 15 (Marisa build-26, S02): Free Trial moves from a bordered button to a
   // small dismissible line at the bottom - local-state-only dismiss (reappears next visit),
@@ -207,7 +210,7 @@ export default function HomeScreen() {
         >
           <MaterialIcons name="child-care" size={44} color="white" />
           <View style={styles.studentButtonText}>
-            <Text style={styles.studentButtonTitle} allowFontScaling={false}>{t('student') || 'Student'}</Text>
+            <Text style={[styles.studentButtonTitle, logoFont]} allowFontScaling={false}>{t('student') || 'Student'}</Text>
             <Text style={styles.studentButtonSub} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>{t('check_in_feelings') || 'Check in my feelings'}</Text>
           </View>
           <MaterialIcons name="chevron-right" size={28} color="rgba(255,255,255,0.7)" />
@@ -249,7 +252,7 @@ export default function HomeScreen() {
           >
             <MaterialIcons name="school" size={26} color="white" />
             <View style={{alignItems:'center'}}>
-              <Text style={styles.roleButtonTitle}>{t('teacher') || 'Teacher'}</Text>
+              <Text style={[styles.roleButtonTitle, logoFont]}>{t('teacher') || 'Teacher'}</Text>
               <Text
                 style={{fontSize:10, color:'#1A1A2E', fontStyle:'italic', fontWeight:'600', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}
                 numberOfLines={2}
@@ -270,7 +273,7 @@ export default function HomeScreen() {
           >
             <MaterialIcons name="family-restroom" size={26} color="white" />
             <View style={{alignItems:'center'}}>
-              <Text style={styles.roleButtonTitle}>{t('parent') || 'Parent'}</Text>
+              <Text style={[styles.roleButtonTitle, logoFont]}>{t('parent') || 'Parent'}</Text>
               <Text
                 style={{fontSize:10, color:'#1A1A2E', fontStyle:'italic', fontWeight:'600', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}
                 numberOfLines={2}
@@ -317,6 +320,8 @@ export default function HomeScreen() {
     </View>
   );
 }
+
+const FREDOKA_LANGS = ['en', 'es', 'fr', 'pt', 'de', 'it'];
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
@@ -372,6 +377,8 @@ const styles = StyleSheet.create({
   // just clearly inactive.
   roleButtonLocked: { opacity: 0.45 },
   roleButtonTitle: { fontSize: 17, fontWeight: '900', color: '#1A1A2E' },
+  // Bold comes from the Fredoka_700Bold file itself, so no extra fontWeight on top of it.
+  fredokaTitle: { fontFamily: 'Fredoka_700Bold', fontWeight: '400' },
 
   // Real fix Sep 15 (Marisa build-26, S02): large full-width Login, takes over the position
   // the old small bordered Free Trial button used to occupy. Round 2: background changed
