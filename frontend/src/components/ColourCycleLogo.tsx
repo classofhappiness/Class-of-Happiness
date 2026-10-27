@@ -99,10 +99,14 @@ interface Props {
   // played), then lands exactly on the resting colours and calls onSettled. Ignored if `loop`.
   settleWhen?: boolean;
   onSettled?: () => void;
+  // false holds the clock (logo stays on its resting colours) until true. Default true.
+  start?: boolean;
+  // true jumps straight to the resting colours (launch overlay: tap to skip).
+  skip?: boolean;
   style?: ViewStyle;
 }
 
-export const ColourCycleLogo: React.FC<Props> = ({ size, loop = false, settleWhen, onSettled, style }) => {
+export const ColourCycleLogo: React.FC<Props> = ({ size, loop = false, settleWhen, onSettled, start = true, skip = false, style }) => {
   const reduceMotion = useReducedMotion();
   const settleMode = !loop && settleWhen !== undefined;
   const animate = (loop || settleMode) && !reduceMotion;
@@ -115,6 +119,7 @@ export const ColourCycleLogo: React.FC<Props> = ({ size, loop = false, settleWhe
   const easeStart = useSharedValue(0);
   const easing = useSharedValue(0);
   const settled = useSharedValue(0);
+  const skipFlag = useSharedValue(0);
 
   const onSettledRef = useRef(onSettled);
   onSettledRef.current = onSettled;
@@ -122,6 +127,14 @@ export const ColourCycleLogo: React.FC<Props> = ({ size, loop = false, settleWhe
 
   const frame = useFrameCallback((info) => {
     if (settled.value === 1) return;
+    if (skipFlag.value === 1) {
+      // Done on the UI thread, in the frame, so no later frame can overwrite the resting colours.
+      elapsed.value = 0;
+      easing.value = 0;
+      settled.value = 1;
+      runOnJS(notifySettled)();
+      return;
+    }
     const e = info.timeSinceFirstFrame;
     if (!settleMode) {
       elapsed.value = e;
@@ -130,9 +143,11 @@ export const ColourCycleLogo: React.FC<Props> = ({ size, loop = false, settleWhe
     if (mode.value === 0) {
       elapsed.value = e;
       if (ready.value === 1) {
-        // Always play at least one full round; after that, land on the next round boundary.
+        // Always play at least one full round - even if we were ready from the first frame
+        // (the ease-to-rest shortcut below is only for AFTER that round has played). After
+        // that, land on the next round boundary.
         const target = Math.max(ROUND_MS, Math.ceil(e / ROUND_MS) * ROUND_MS);
-        if (target - e <= MAX_SETTLE_WAIT_MS) {
+        if (e < ROUND_MS || target - e <= MAX_SETTLE_WAIT_MS) {
           mode.value = 1;
           finishAt.value = target;
         } else {
@@ -159,9 +174,13 @@ export const ColourCycleLogo: React.FC<Props> = ({ size, loop = false, settleWhe
   }, false);
 
   useEffect(() => {
-    frame.setActive(animate);
+    frame.setActive(animate && start);
     return () => frame.setActive(false);
-  }, [animate]);
+  }, [animate, start]);
+
+  useEffect(() => {
+    skipFlag.value = skip ? 1 : 0;
+  }, [skip]);
 
   useEffect(() => {
     ready.value = settleWhen ? 1 : 0;

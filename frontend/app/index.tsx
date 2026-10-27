@@ -142,7 +142,7 @@ export default function HomeScreen() {
 
         {/* Logo */}
         <View style={styles.logoContainer}>
-          <LogoLockup />
+          <LogoLockup introRound />
         </View>
 
         {/* Subtitle */}

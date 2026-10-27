@@ -14,6 +14,7 @@ import { Fredoka_700Bold } from '@expo-google-fonts/fredoka';
 import { AppProvider, useApp } from '../src/context/AppContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SplashAnimation } from '../src/components/SplashAnimation';
+import { markSplashFinished } from '../src/utils/launchState';
 import { HeaderLogo } from '../src/components/ColourCycleLogo';
 import * as Notifications from 'expo-notifications';
 import { setupNotifeeChannels, isIncidentPushData, showIncidentAlert, registerNotifeeForegroundHandler } from '../src/utils/notifeeIncidents';
@@ -714,7 +715,7 @@ function AppContent() {
           }}
         />
       </Stack>
-      {showSplashAnim && <SplashAnimation appReady={!isLoading && reading.loaded} onFinish={() => setShowSplashAnim(false)} />}
+      {showSplashAnim && <SplashAnimation appReady={!isLoading && reading.loaded} onFinish={() => { markSplashFinished(); setShowSplashAnim(false); }} />}
     </>
   );
 }
