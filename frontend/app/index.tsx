@@ -181,20 +181,20 @@ export default function HomeScreen() {
         {/* Held-word display - reserves its height even when nothing is held, so the layout
             below never jumps/shifts as a hold starts or ends. */}
         {HOME_EMOJI_INTERACTION_ENABLED && (
-          <View style={styles.moodWordSlot}>
+          <View style={[styles.moodWordSlot, readingOn && styles.moodWordSlotReading]}>
             {heldZone && (
-              <Animated.View style={{ opacity: Animated.multiply(wordFade, breathe), flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Animated.View style={[{ opacity: Animated.multiply(wordFade, breathe), flexDirection: 'row', alignItems: 'center', gap: 6 }, readingOn && { maxWidth: '100%' }]}>
                 <Text style={{ fontSize: 22 }}>{zoneWords[heldZone][wordIdx]?.emoji}</Text>
                 {/* Root cause fix (German/Russian/Arabic length check, this feature): a fixed
                     fontSize clipped/wrapped the longest real translations (e.g. German "Sehr
                     Aufgebracht", Russian "Сосредоточенность", both 16-17 chars) - same
                     adjustsFontSizeToFit + minimumFontScale + numberOfLines={1} pattern already
                     used on this exact screen's own Teacher/Parent subtitles for the same reason. */}
+                {/* Reading font on: no 220 cap, no single-line shrink - the label may use the row
+                    width and wrap onto a second line (slot height is reserved for two lines). */}
                 <Text
-                  style={styles.moodWordText}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.65}
+                  style={[styles.moodWordText, readingOn && styles.moodWordTextReading]}
+                  {...(readingOn ? { numberOfLines: 2 } : { numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.65 })}
                 >
                   {zoneWords[heldZone][wordIdx]?.label}
                 </Text>
@@ -356,6 +356,10 @@ const styles = StyleSheet.create({
   // shifts as a hold starts/ends.
   moodWordSlot: { height: 30, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   moodWordText: { fontSize: 15, fontWeight: '700', color: '#333', maxWidth: 220 },
+  // Reading font on only: OpenDyslexic + spacing makes "Sehr Aufgebracht" ~220pt wide at 15pt, so the
+  // 220 cap and the fixed 30pt slot clipped it. Two lines of 30pt line height, centred.
+  moodWordSlotReading: { height: 64 },
+  moodWordTextReading: { maxWidth: '100%', flexShrink: 1, textAlign: 'center', lineHeight: 30 },
 
   // Student — hero button
   studentButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#4CAF50', borderRadius: 22, paddingVertical: 20, paddingHorizontal: 20, marginBottom: 10 },

@@ -75,6 +75,24 @@ export const letterCapEm = (dyslexicApplies: boolean) => (dyslexicApplies ? LETT
 
 const isBold = (w: unknown) => w === 'bold' || (typeof w === 'string' && /^[6-9]00$/.test(w)) || (typeof w === 'number' && w >= 600);
 
+// True for a string that is only emoji / pictographs / arrows (plus spaces, ZWJ, variation
+// selectors). Such text is not set in a reading font: OpenDyslexic has no emoji, so the Text only
+// gets OpenDyslexic's tall line box (1.82em, up to 2.13em on Android) and letter spacing - which
+// is what pushed emoji out of their fixed-size circles and slots. Code points are checked by
+// range (no \p{} regex) so it behaves the same on every JS engine.
+export function isEmojiOnly(children: any) {
+  if (typeof children !== 'string' || children.length === 0) return false;
+  let seen = false;
+  for (const ch of children) {
+    const cp = ch.codePointAt(0) as number;
+    if (cp === 0x20 || cp === 0xfe0f || cp === 0x200d || cp === 0x20e3) continue;
+    const pictograph = cp >= 0x1f000 || (cp >= 0x2190 && cp <= 0x2bff) || cp === 0x00a9 || cp === 0x00ae || cp === 0x203c || cp === 0x2049 || cp === 0x2122 || cp === 0x2139;
+    if (!pictograph) return false;
+    seen = true;
+  }
+  return seen;
+}
+
 // Style overrides for one Text, from its flattened style. Returns null when nothing applies.
 export function computeOverrides(flat: Record<string, any>, cfg: ActiveConfig) {
   const o: Record<string, any> = {};

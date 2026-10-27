@@ -1,5 +1,5 @@
 import React from 'react';
-import { getActiveConfig, computeOverrides, spaceWords, SPACER_FONT_FAMILY } from './readingStore';
+import { getActiveConfig, computeOverrides, isEmojiOnly, spaceWords, SPACER_FONT_FAMILY } from './readingStore';
 
 // Central place that applies the "Reading font" settings (OpenDyslexic, letter and word
 // spacing) to the app's text. Import this file FIRST in app/_layout.tsx.
@@ -33,7 +33,7 @@ try {
 
   const ReadingText = (props: any) => {
     const cfg = getActiveConfig();
-    if (!cfg) return <OriginalText {...props} />;
+    if (!cfg || isEmojiOnly(props.children)) return <OriginalText {...props} />;
     const flat = StyleSheet.flatten(props.style) || {};
     const overrides = computeOverrides(flat, cfg);
     const fontSize = typeof flat.fontSize === 'number' ? flat.fontSize : 14;
