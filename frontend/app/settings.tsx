@@ -14,6 +14,7 @@ import { loadDeviceNotificationsEnabled, setDeviceNotificationsEnabled } from '.
 import { useWellbeingSharing } from '../src/utils/useWellbeingSharing';
 import { SecureField } from '../src/components/SecureField';
 import { PinConfirmModal } from '../src/components/PinConfirmModal';
+import { CollapsibleCard } from '../src/components/CollapsibleCard';
 import { ReadingFontSettings } from '../src/components/ReadingFontSettings';
 import { RTL_RESTART_FLOW_READY, needsRtlRestart, applyRtlAndRestart } from '../src/utils/rtl';
 
@@ -994,61 +995,47 @@ export default function SettingsScreen() {
       )}
 
       {/* Language */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('language')}</Text>
-        <TouchableOpacity
-          style={styles.settingItem}
-          onPress={() => setShowLanguages(!showLanguages)}
-        >
-          <View style={styles.settingLeft}>
-            <Text style={styles.langFlag}>{currentLang.flag}</Text>
-            <View style={styles.settingText}>
-              <Text style={styles.settingLabel}>{t('language')}</Text>
-              <Text style={styles.settingValue}>{currentLang.name}</Text>
-            </View>
-          </View>
-          <MaterialIcons 
-            name={showLanguages ? "expand-less" : "expand-more"} 
-            size={24} 
-            color="#CCC" 
-          />
-        </TouchableOpacity>
-
-        {showLanguages && (
-          <View style={styles.languageList}>
-            {LANGUAGES.map((lang) => (
-              <TouchableOpacity
-                key={lang.code}
-                style={[
-                  styles.languageItem,
-                  language === lang.code && styles.languageItemActive
-                ]}
-                onPress={() => handleLanguageSelect(lang.code)}
-              >
-                <Text style={styles.langFlag}>{lang.flag}</Text>
-                <Text style={styles.langName}>{lang.name}</Text>
-                {lang.isBeta && (
-                  <View style={{ backgroundColor: '#5C6BC0', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginRight: 6 }}>
-                    <Text style={{ fontSize: 9, color: '#FFF', fontWeight: '700' }}>{t('beta_badge') || 'Beta'}</Text>
-                  </View>
-                )}
-                {!lang.hasVoice && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F0F0', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginRight: 6 }}>
-                    <MaterialIcons name="volume-off" size={11} color="#999" />
-                    {/* Real feature Aug 30: unified to "No audio yet" (was "Audio coming soon")
-                        so fr/de/hi/zh/ar/ru all read consistently in the same picker, rather
-                        than two different phrases for the same real state. */}
-                    <Text style={{ fontSize: 9, color: '#999', fontWeight: '700', marginLeft: 2 }}>{t('no_audio_yet') || 'No audio yet'}</Text>
-                  </View>
-                )}
-                {language === lang.code && (
-                  <MaterialIcons name="check" size={20} color="#5C6BC0" />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-      </View>
+      <CollapsibleCard
+        sectionTitle={t('language')}
+        label={t('language')}
+        value={currentLang.name}
+        leading={<Text style={styles.langFlag}>{currentLang.flag}</Text>}
+        expanded={showLanguages}
+        onToggle={() => setShowLanguages(!showLanguages)}
+      >
+        <View style={styles.languageList}>
+          {LANGUAGES.map((lang) => (
+            <TouchableOpacity
+              key={lang.code}
+              style={[
+                styles.languageItem,
+                language === lang.code && styles.languageItemActive
+              ]}
+              onPress={() => handleLanguageSelect(lang.code)}
+            >
+              <Text style={styles.langFlag}>{lang.flag}</Text>
+              <Text style={styles.langName}>{lang.name}</Text>
+              {lang.isBeta && (
+                <View style={{ backgroundColor: '#5C6BC0', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginRight: 6 }}>
+                  <Text style={{ fontSize: 9, color: '#FFF', fontWeight: '700' }}>{t('beta_badge') || 'Beta'}</Text>
+                </View>
+              )}
+              {!lang.hasVoice && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F0F0', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginRight: 6 }}>
+                  <MaterialIcons name="volume-off" size={11} color="#999" />
+                  {/* Real feature Aug 30: unified to "No audio yet" (was "Audio coming soon")
+                      so fr/de/hi/zh/ar/ru all read consistently in the same picker, rather
+                      than two different phrases for the same real state. */}
+                  <Text style={{ fontSize: 9, color: '#999', fontWeight: '700', marginLeft: 2 }}>{t('no_audio_yet') || 'No audio yet'}</Text>
+                </View>
+              )}
+              {language === lang.code && (
+                <MaterialIcons name="check" size={20} color="#5C6BC0" />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </CollapsibleCard>
 
       {/* Reading font (OpenDyslexic, letter/word spacing) - device-local, off by default */}
       <ReadingFontSettings languages={LANGUAGES} />

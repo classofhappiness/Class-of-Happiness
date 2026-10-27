@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Switch, TouchableOpacity } from 'react-native';
+import { CollapsibleCard } from './CollapsibleCard';
 import { useApp } from '../context/AppContext';
 import { Step, isDyslexicSupported, letterCapEm, WORD_MAX_EM } from '../utils/readingStore';
 
@@ -14,6 +15,8 @@ const STEPS: Step[] = [0, 1, 2, 3];
 
 export const ReadingFontSettings: React.FC<Props> = ({ languages }) => {
   const { t, language, reading } = useApp();
+  // Collapsed every time Settings opens; purely view state, nothing is stored.
+  const [expanded, setExpanded] = useState(false);
   const supported = reading.dyslexicSupported;
   const works = languages.filter((l) => isDyslexicSupported(l.code)).map((l) => l.name).join(', ');
   const normal = languages.filter((l) => !isDyslexicSupported(l.code)).map((l) => l.name).join(', ');
@@ -51,9 +54,12 @@ export const ReadingFontSettings: React.FC<Props> = ({ languages }) => {
   );
 
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{t('reading_font') || 'Reading font'}</Text>
-
+    <CollapsibleCard
+      sectionTitle={t('reading_font') || 'Reading font'}
+      label={t('reading_font') || 'Reading font'}
+      expanded={expanded}
+      onToggle={() => setExpanded((e) => !e)}
+    >
       <View style={styles.card}>
         <View style={styles.toggleRow}>
           <Text style={styles.toggleLabel}>{t('opendyslexic_font') || 'OpenDyslexic font'}</Text>
@@ -98,14 +104,12 @@ export const ReadingFontSettings: React.FC<Props> = ({ languages }) => {
           </Text>
         </View>
       </View>
-    </View>
+    </CollapsibleCard>
   );
 };
 
 const styles = StyleSheet.create({
-  section: { marginBottom: 24 },
-  sectionTitle: { fontSize: 14, fontWeight: '600', color: '#888', marginBottom: 8, textTransform: 'uppercase' },
-  card: { backgroundColor: '#FFF', borderRadius: 12, padding: 16 },
+  card: { backgroundColor: '#FFF', borderRadius: 12, padding: 16, marginTop: 8 },
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   toggleLabel: { flex: 1, fontSize: 16, fontWeight: '600', color: '#333' },
   helper: { fontSize: 13, color: '#666', marginTop: 8, lineHeight: 18 },
