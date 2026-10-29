@@ -5610,6 +5610,42 @@ async def get_classroom_analytics(classroom_id: str, request: Request, days: int
     }
 
 # ================== RESOURCES ==================
+# Resource scope checks (one place, used by every single-resource read and every write).
+# A resource with school_admin_id NULL is global/unscoped (all 71 rows today); one with it set
+# belongs to that school (the school admin's user_id, same value _resolve_caller_school_admin_ids
+# returns). superadmin/admin are unrestricted.
+def _resource_readable_by(user: dict, resource: dict) -> bool:
+    if user.get("role") in ("admin", "superadmin"):
+        return True
+    sid = resource.get("school_admin_id")
+    if not sid:
+        return True
+    uid = user.get("user_id")
+    if resource.get("created_by") == uid or resource.get("user_id") == uid:
+        return True
+    return sid in _resolve_caller_school_admin_ids(user)
+
+def _resource_writable_by(user: dict, resource: dict) -> bool:
+    """Edit/delete/reorder. Global resources are superadmin-only - callers check that first.
+    Otherwise: superadmin/admin; the uploader; or a school_admin for resources of THEIR OWN
+    school only (previously any school_admin could change any school's non-global resource)."""
+    role = user.get("role")
+    uid = user.get("user_id")
+    if role in ("admin", "superadmin"):
+        return True
+    if resource.get("created_by") == uid or resource.get("user_id") == uid:
+        return True
+    return role == "school_admin" and resource.get("school_admin_id") == uid
+
+def _get_resource_scope_row(resource_id: str):
+    """Light row (no base64 content) for ownership/scope checks. Falls back to the
+    pre-school_admin_id column list, like the list endpoints."""
+    try:
+        r = supabase.table("resources").select("id,is_global,created_by,user_id,school_admin_id").eq("id", resource_id).execute()
+    except Exception:
+        r = supabase.table("resources").select("id,is_global,created_by,user_id").eq("id", resource_id).execute()
+    return r.data[0] if r.data else None
+
 @api_router.get("/resources")
 async def get_resources(request: Request):
     user = await get_current_user(request)
@@ -5740,12 +5776,7 @@ async def delete_resource(resource_id: str, request: Request):
     resource = existing.data[0]
     if resource.get("is_global") and user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Only superadmin can delete global resources")
-    is_owner = (
-        resource.get("created_by") == user.get("user_id") or
-        resource.get("user_id") == user.get("user_id")
-    )
-    is_admin = user.get("role") in ("admin", "superadmin", "school_admin")
-    if not is_owner and not is_admin:
+    if not _resource_writable_by(user, resource):
         raise HTTPException(status_code=403, detail="Not allowed")
     supabase.table("resources").delete().eq("id", resource_id).execute()
     return {"message": "Resource deleted"}
@@ -16961,7 +16992,7 @@ async def get_resource(resource_id: str, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     result = supabase.table("resources").select("*").eq("id", resource_id).execute()
-    if not result.data:
+    if not result.data or not _resource_readable_by(user, result.data[0]):
         raise HTTPException(status_code=404, detail="Resource not found")
     return result.data[0]
 
@@ -16971,6 +17002,17 @@ async def update_resource(resource_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Previously no role or ownership check at all: any logged-in user could edit any resource.
+    # Same rules as PUT /teacher-resources/{id}.
+    if user.get("role") not in ("teacher", "school_admin", "admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Only teachers and admins can edit resources")
+    existing_row = _get_resource_scope_row(resource_id)
+    if not existing_row:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    if existing_row.get("is_global") and user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Only superadmin can edit global resources")
+    if not _resource_writable_by(user, existing_row):
+        raise HTTPException(status_code=403, detail="Not allowed")
     body = await request.json()
     allowed = ["title", "description", "content_type", "content", "pdf_filename", "category", "topic", "target_audience", "is_active"]
     update_data = {k: v for k, v in body.items() if k in allowed}
@@ -16987,7 +17029,7 @@ async def download_resource_pdf(resource_id: str, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     result = supabase.table("resources").select("*").eq("id", resource_id).execute()
-    if not result.data:
+    if not result.data or not _resource_readable_by(user, result.data[0]):
         raise HTTPException(status_code=404, detail="Resource not found")
     resource = result.data[0]
     if resource.get("content_type") != "pdf":
@@ -17161,7 +17203,7 @@ async def get_teacher_resource(resource_id: str, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     result = supabase.table("resources").select("*").eq("id", resource_id).execute()
-    if not result.data:
+    if not result.data or not _resource_readable_by(user, result.data[0]):
         raise HTTPException(status_code=404, detail="Resource not found")
     resource = result.data[0]
     try:
@@ -17302,9 +17344,11 @@ async def reorder_teacher_resources(request: Request):
     ids = [u.get("id") for u in updates if u.get("id")]
     if not ids:
         raise HTTPException(status_code=400, detail="No valid resource ids provided")
-    existing = supabase.table("resources").select("id,topic,created_by,user_id").in_("id", ids).execute()
+    try:
+        existing = supabase.table("resources").select("id,topic,created_by,user_id,school_admin_id").in_("id", ids).execute()
+    except Exception:
+        existing = supabase.table("resources").select("id,topic,created_by,user_id").in_("id", ids).execute()
     existing_map = {r["id"]: r for r in (existing.data or [])}
-    is_admin = user.get("role") in ["admin", "superadmin", "school_admin"]
     to_update = []
     for u in updates:
         rid = u.get("id")
@@ -17316,8 +17360,7 @@ async def reorder_teacher_resources(request: Request):
             continue
         if resource.get("topic") == "emotions_program" and user.get("role") != "superadmin":
             continue
-        is_owner = (resource.get("created_by") == user.get("user_id") or resource.get("user_id") == user.get("user_id"))
-        if not is_owner and not is_admin:
+        if not _resource_writable_by(user, resource):
             continue
         to_update.append((rid, new_order))
 
@@ -17379,15 +17422,15 @@ async def update_teacher_resource(resource_id: str, request: Request):
     if not existing.data:
         raise HTTPException(status_code=404, detail="Resource not found")
     resource = existing.data[0]
+    # school_admin_id is not in the light list; fetch it for the scope check.
+    resource.update({k: v for k, v in (_get_resource_scope_row(resource_id) or {}).items() if k == "school_admin_id"})
     # Real fix Sep 11 (Phase 2.5 parity audit, P0): widened from the old hardcoded
     # topic=="emotions_program" check (Healthy Relationships/Leader Online/etc are also
     # is_global=True superadmin content and were never covered by that check) to the
     # general is_global flag - matches the equivalent fix on DELETE below.
     if resource.get("is_global") and user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Only superadmin can edit global resources")
-    is_owner = (resource.get("created_by") == user.get("user_id") or resource.get("user_id") == user.get("user_id"))
-    is_admin = user.get("role") in ["admin", "superadmin", "school_admin"]
-    if not is_owner and not is_admin:
+    if not _resource_writable_by(user, resource):
         raise HTTPException(status_code=403, detail="Not allowed")
     try:
         body = await request.json()
@@ -17431,13 +17474,8 @@ async def delete_teacher_resource(resource_id: str, request: Request):
     # gate as PUT, applied to delete.
     if resource.get("is_global") and user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Only superadmin can delete global resources")
-    # Check ownership via created_by OR user_id (backwards compat) OR admin role
-    is_owner = (
-        resource.get("created_by") == user.get("user_id") or
-        resource.get("user_id") == user.get("user_id")
-    )
-    is_admin = user.get("role") in ["admin", "superadmin", "school_admin"]
-    if not is_owner and not is_admin:
+    # Owner, superadmin/admin, or the school_admin of the resource's own school.
+    if not _resource_writable_by(user, resource):
         raise HTTPException(status_code=403, detail="Not allowed")
     supabase.table("resources").delete().eq("id", resource_id).execute()
     return {"message": "Resource deleted"}
