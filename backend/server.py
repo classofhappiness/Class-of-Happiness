@@ -23492,10 +23492,20 @@ async def get_parent_resources(request: Request, topic: Optional[str] = None):
         # this whole time — the broad except below was swallowing a timeout/oversized-response
         # failure with zero visible error. Content isn't needed for the list view — actual PDF
         # bytes are fetched separately via the already-working /download endpoint when opened.
-        resources_result = supabase.table("resources").select(
-            "id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id"
-        ).eq("is_active", True).execute()
+        # School scoping (same select, fallback and filter as GET /teacher-resources): this
+        # endpoint used to skip school_admin_id entirely, so any user saw every school's
+        # scoped resources (metadata only - downloads were already scoped).
+        try:
+            resources_result = supabase.table("resources").select(
+                "id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,week_number,school_admin_id"
+            ).eq("is_active", True).execute()
+        except Exception:
+            resources_result = supabase.table("resources").select(
+                "id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id"
+            ).eq("is_active", True).execute()
         all_resources = resources_result.data or []
+        is_unrestricted = user.get("role") in ("admin", "superadmin")
+        caller_school_ids = set() if is_unrestricted else _resolve_caller_school_admin_ids(user)
         allowed_audiences = ["parents", "both", None, ""]
         visible = []
         # Real fix Sep 24 (item6, second device-log pass - Metro log: "first GET /resources
@@ -23523,6 +23533,9 @@ async def get_parent_resources(request: Request, topic: Optional[str] = None):
                 continue
             resource_topic = r.get("topic") or r.get("category") or "general"
             if topic and topic != "all" and resource_topic != topic:
+                continue
+            r_school_id = r.get("school_admin_id")
+            if r_school_id and not is_unrestricted and r_school_id not in caller_school_ids:
                 continue
             visible.append(_resource_to_teacher_resource(r, all_ratings))
         return visible
