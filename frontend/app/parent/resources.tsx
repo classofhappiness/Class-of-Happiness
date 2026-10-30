@@ -339,8 +339,8 @@ export default function ResourcesScreen() {
     // null/0) first, newest-first within a week second. No rating/download sort, matching
     // every other resource list in the app.
     combined = combined.slice().sort((a, b) => {
-      const wa = (a.week_number != null && a.week_number > 0) ? a.week_number : 999;
-      const wb = (b.week_number != null && b.week_number > 0) ? b.week_number : 999;
+      const wa = (a.week_number != null && a.week_number < 0) ? -1 : (a.week_number != null && a.week_number > 0) ? a.week_number : 999; // -1 = Program description, always first
+      const wb = (b.week_number != null && b.week_number < 0) ? -1 : (b.week_number != null && b.week_number > 0) ? b.week_number : 999;
       if (wa !== wb) return wa - wb;
       return (b.created_at || '').localeCompare(a.created_at || '');
     });

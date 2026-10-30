@@ -119,11 +119,11 @@ export default function TeacherResourcesScreen() {
       // topic where at least one resource carries a real week_number sorts by week ascending
       // (999 sentinel for null/0, order_index as tiebreak); everything else falls back to a
       // plain order_index sort.
-      const weekSortable = merged.some((r: any) => r.week_number != null && r.week_number > 0);
+      const weekSortable = merged.some((r: any) => r.week_number != null && r.week_number !== 0);
       if (weekSortable) {
         merged = merged.slice().sort((a: any, b: any) => {
-          const wa = (a.week_number != null && a.week_number > 0) ? a.week_number : 999;
-          const wb = (b.week_number != null && b.week_number > 0) ? b.week_number : 999;
+          const wa = (a.week_number != null && a.week_number < 0) ? -1 : (a.week_number != null && a.week_number > 0) ? a.week_number : 999; // -1 = Program description, always first
+          const wb = (b.week_number != null && b.week_number < 0) ? -1 : (b.week_number != null && b.week_number > 0) ? b.week_number : 999;
           if (wa !== wb) return wa - wb;
           return (a.order_index || 0) - (b.order_index || 0);
         });
