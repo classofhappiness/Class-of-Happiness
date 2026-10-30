@@ -5632,6 +5632,24 @@ def _resource_locked_for_free_tier(r: dict) -> bool:
     week = r.get("week_number")
     return not (week is None or week <= FREE_RESOURCE_WEEKS)
 
+# Accounts that are never locked out of resources, besides superadmin/admin. Deliberately NOT
+# the whole ALWAYS_OPEN_PINS list: pembrokeadmin stays free-tier as the lock test account.
+RESOURCE_UNLOCKED_EMAILS = ("schooladmindemo@classofhappiness.com",)
+
+def _resources_lock_applies(user: dict) -> bool:
+    """Whether the resource freemium lock applies to this caller. superadmin/admin are never
+    locked. A school_admin is unlocked while their own school plan is paid and in date (the
+    same fact, _admin_is_active, that covers their teachers and parents) or their trial is
+    valid. Everyone else follows the existing free-tier rule."""
+    role = user.get("role")
+    if role in ("admin", "superadmin"):
+        return False
+    if (user.get("email") or "").strip().lower() in RESOURCE_UNLOCKED_EMAILS:
+        return False
+    if role == "school_admin":
+        return not (_admin_is_active(user["user_id"]) or _trial_is_valid(user))
+    return _is_genuinely_free_tier(user)
+
 def _clean_card_fields(body: dict) -> dict:
     """Validated card fields present in `body` (absent keys are left alone, blank clears)."""
     out = {}
@@ -5755,7 +5773,7 @@ async def get_resources(request: Request):
     # exemption this check already had, PLUS the teacher-coverage exemption this check was
     # missing) - a strict superset of the old inline logic, not a behaviour change for any
     # genuinely-covered user.
-    is_free_tier = _is_genuinely_free_tier(user)
+    is_free_tier = _resources_lock_applies(user)
     for r in items:
         if not is_free_tier:
             r["is_locked"] = False
@@ -17074,6 +17092,9 @@ async def download_resource_pdf(resource_id: str, request: Request):
     if not result.data or not _resource_readable_by(user, result.data[0]):
         raise HTTPException(status_code=404, detail="Resource not found")
     resource = result.data[0]
+    # Same freemium lock as the list and the previews: a locked resource's file is not served.
+    if _resources_lock_applies(user) and _resource_locked_for_free_tier(resource):
+        raise HTTPException(status_code=403, detail="Subscribe to unlock this resource")
     if resource.get("content_type") != "pdf":
         raise HTTPException(status_code=400, detail="Resource is not a PDF")
 
@@ -17106,7 +17127,7 @@ async def get_resource_previews(resource_id: str, request: Request):
         r = supabase.table("resources").select("id,is_global,created_by,user_id,category,week_number").eq("id", resource_id).execute()
     if not r.data or not _resource_readable_by(user, r.data[0]):
         raise HTTPException(status_code=404, detail="Resource not found")
-    if _is_genuinely_free_tier(user) and _resource_locked_for_free_tier(r.data[0]):
+    if _resources_lock_applies(user) and _resource_locked_for_free_tier(r.data[0]):
         raise HTTPException(status_code=403, detail="Subscribe to unlock this resource")
     try:
         res = supabase.table("resource_previews").select("page_order,image").eq("resource_id", resource_id).order("page_order").execute()
@@ -17183,7 +17204,7 @@ async def get_teacher_resources(request: Request, topic: Optional[str] = None, a
     # even had a school-coverage exemption. _is_genuinely_free_tier() covers both real expiry
     # and both teacher/parent school-coverage exemptions - strict superset, not a behaviour
     # change for any genuinely-covered or genuinely-active user.
-    is_free_tier = _is_genuinely_free_tier(user)
+    is_free_tier = _resources_lock_applies(user)
     for r in all_resources:
         if not is_free_tier:
             r["is_locked"] = False
