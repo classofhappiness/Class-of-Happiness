@@ -23,6 +23,10 @@ import { useApp } from '../../src/context/AppContext';
 import { formatNumericDate } from '../../src/utils/dateLabel';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
+import { ResourceFactsChips } from '../../src/components/ResourceFactsChips';
+import { ResourceDetailFacts } from '../../src/components/ResourceDetailFacts';
+import { PagePreviewStrip } from '../../src/components/PagePreviewStrip';
+import { buildSections, sectionTitle } from '../../src/utils/resourceMeta';
 import { getDownloadUrl } from '../../src/utils/downloadLink';
 import { formatRating } from '../../src/utils/numberLabel';
 
@@ -351,6 +355,82 @@ export default function ResourcesScreen() {
     return resource !== null && 'topic' in resource;
   };
 
+  const renderResourceCard = (resource: any) => (
+            <TouchableOpacity
+              key={resource.id}
+              style={[styles.resourceCard, resource.is_locked && { opacity: 0.65 }]}
+              onPress={() => {
+                if (resource.is_locked) {
+                  Alert.alert(
+                    '🔒 ' + (t('subscribe_to_unlock_title') || 'Subscribe to Unlock'),
+                    t('freemium_banner_desc') || "The Emotion Program is completely free! Every other program's first 2 weeks are free too. Subscribe to unlock everything.",
+                    [
+                      { text: t('not_now') || 'Not Now', style: 'cancel' },
+                      { text: t('see_plans') || 'See Plans', onPress: () => router.push('/subscription') },
+                    ]
+                  );
+                  return;
+                }
+                handleViewResource(resource);
+              }}
+            >
+              {/* Real bug fix Aug 29 (item 3): attribution used to be driven by _fromTeacher -
+                  which of the two merged fetches a copy happened to come from - completely
+                  disconnected from whether the resource is actually admin-uploaded. Now uses
+                  the same real signal (is_global) teacher/resources.tsx already uses, so it's
+                  correct regardless of category and shows consistently everywhere, not just
+                  when a duplicate happened to survive from the old merge. */}
+              <View style={[styles.resourceIcon, !resource.is_global && { backgroundColor: '#E8F5E9' }]}>
+                <MaterialIcons
+                  name={resource.is_locked ? 'lock' : (resource.content_type === 'pdf' ? 'picture-as-pdf' : 'article')}
+                  size={32}
+                  color={resource.is_locked ? '#AAA' : (resource.content_type === 'pdf' ? '#F44336' : (!resource.is_global ? '#4CAF50' : '#5C6BC0'))}
+                />
+              </View>
+              <View style={styles.resourceContent}>
+                <View style={styles.teacherBadge}>
+                  <MaterialIcons name="verified" size={14} color={resource.is_global ? '#5C6BC0' : '#4CAF50'} />
+                  <Text style={[styles.teacherBadgeText, resource.is_global && { color: '#5C6BC0' }]}>
+                    {resource.is_global ? (t('from_coh_admin') || 'From COH App Admin') : (t('from_teacher') || 'From Teacher')}
+                  </Text>
+                </View>
+                <Text style={styles.resourceTitle}>{resource.title}</Text>
+                {(() => { const blurb = resource.goal || (resource.description !== resource.title ? resource.description : ''); return blurb ? <Text style={styles.resourceDescription} numberOfLines={2}>{blurb}</Text> : null; })()}
+                <ResourceFactsChips facts={resource} t={t} />
+                <View style={styles.resourceMeta}>
+                  <Text style={styles.resourceType}>
+                    {resource.content_type === 'pdf' ? (t('pdf_document') || 'PDF Document') : (t('article') || 'Article')}
+                  </Text>
+                  {resource.is_locked ? (
+                    <View style={[styles.downloadBadge, { backgroundColor: '#F5F5F5' }]}>
+                      <MaterialIcons name="lock" size={12} color="#999" />
+                      <Text style={[styles.downloadBadgeText, { color: '#999' }]}>{t('subscribe_to_unlock') || 'Subscribe to unlock'}</Text>
+                    </View>
+                  ) : resource.content_type === 'pdf' && (
+                    <View style={styles.downloadBadge}>
+                      <MaterialIcons name="download" size={12} color="#4CAF50" />
+                      <Text style={styles.downloadBadgeText}>{t('download_report') || 'Download'}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+              <MaterialIcons name="chevron-right" size={24} color="#CCC" />
+            </TouchableOpacity>
+  );
+
+  // Programme tabs get "Start here" + week headers; the All tab and tabs with no weekly
+  // structure keep the flat list.
+  const renderResourceList = () => {
+    const sections = selectedTopic !== 'all' ? buildSections(filteredResources as any[]) : null;
+    if (!sections) return filteredResources.map(renderResourceCard);
+    return sections.map((s) => (
+      <View key={s.key}>
+        <Text style={styles.sectionHeader} accessibilityRole="header">{sectionTitle(s, t)}</Text>
+        {s.items.map(renderResourceCard)}
+      </View>
+    ));
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Back button — real fix Sep 27 (live device report): plain icons here never got the
@@ -445,67 +525,7 @@ export default function ResourcesScreen() {
             <Text style={styles.emptyStateSubtext}>{t('no_resources_yet') || 'No resources yet'}</Text>
           </View>
         ) : (
-          filteredResources.map((resource: any) => (
-            <TouchableOpacity
-              key={resource.id}
-              style={[styles.resourceCard, resource.is_locked && { opacity: 0.65 }]}
-              onPress={() => {
-                if (resource.is_locked) {
-                  Alert.alert(
-                    '🔒 ' + (t('subscribe_to_unlock_title') || 'Subscribe to Unlock'),
-                    t('freemium_banner_desc') || "The Emotion Program is completely free! Every other program's first 2 weeks are free too. Subscribe to unlock everything.",
-                    [
-                      { text: t('not_now') || 'Not Now', style: 'cancel' },
-                      { text: t('see_plans') || 'See Plans', onPress: () => router.push('/subscription') },
-                    ]
-                  );
-                  return;
-                }
-                handleViewResource(resource);
-              }}
-            >
-              {/* Real bug fix Aug 29 (item 3): attribution used to be driven by _fromTeacher -
-                  which of the two merged fetches a copy happened to come from - completely
-                  disconnected from whether the resource is actually admin-uploaded. Now uses
-                  the same real signal (is_global) teacher/resources.tsx already uses, so it's
-                  correct regardless of category and shows consistently everywhere, not just
-                  when a duplicate happened to survive from the old merge. */}
-              <View style={[styles.resourceIcon, !resource.is_global && { backgroundColor: '#E8F5E9' }]}>
-                <MaterialIcons
-                  name={resource.is_locked ? 'lock' : (resource.content_type === 'pdf' ? 'picture-as-pdf' : 'article')}
-                  size={32}
-                  color={resource.is_locked ? '#AAA' : (resource.content_type === 'pdf' ? '#F44336' : (!resource.is_global ? '#4CAF50' : '#5C6BC0'))}
-                />
-              </View>
-              <View style={styles.resourceContent}>
-                <View style={styles.teacherBadge}>
-                  <MaterialIcons name="verified" size={14} color={resource.is_global ? '#5C6BC0' : '#4CAF50'} />
-                  <Text style={[styles.teacherBadgeText, resource.is_global && { color: '#5C6BC0' }]}>
-                    {resource.is_global ? (t('from_coh_admin') || 'From COH App Admin') : (t('from_teacher') || 'From Teacher')}
-                  </Text>
-                </View>
-                <Text style={styles.resourceTitle}>{resource.title}</Text>
-                <Text style={styles.resourceDescription} numberOfLines={2}>{resource.description}</Text>
-                <View style={styles.resourceMeta}>
-                  <Text style={styles.resourceType}>
-                    {resource.content_type === 'pdf' ? (t('pdf_document') || 'PDF Document') : (t('article') || 'Article')}
-                  </Text>
-                  {resource.is_locked ? (
-                    <View style={[styles.downloadBadge, { backgroundColor: '#F5F5F5' }]}>
-                      <MaterialIcons name="lock" size={12} color="#999" />
-                      <Text style={[styles.downloadBadgeText, { color: '#999' }]}>{t('subscribe_to_unlock') || 'Subscribe to unlock'}</Text>
-                    </View>
-                  ) : resource.content_type === 'pdf' && (
-                    <View style={styles.downloadBadge}>
-                      <MaterialIcons name="download" size={12} color="#4CAF50" />
-                      <Text style={styles.downloadBadgeText}>{t('download_report') || 'Download'}</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-              <MaterialIcons name="chevron-right" size={24} color="#CCC" />
-            </TouchableOpacity>
-          ))
+          renderResourceList()
         )}
 
         <View style={styles.infoCard}>
@@ -527,12 +547,16 @@ export default function ResourcesScreen() {
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              <Text style={styles.modalDescription}>{selectedResource?.description}</Text>
+              {!!selectedResource && !(selectedResource as any).goal && selectedResource.description !== selectedResource.title && (
+                <Text style={styles.modalDescription}>{selectedResource.description}</Text>
+              )}
+              {!!selectedResource && <ResourceDetailFacts facts={selectedResource as any} t={t} />}
               {selectedResource?.content_type === 'text' && selectedResource?.content && (
                 <Text style={styles.modalArticle}>{selectedResource.content}</Text>
               )}
               {selectedResource?.content_type === 'pdf' && (
                 <View style={styles.pdfSection}>
+                  {selectedResource.content_type === 'pdf' && !(selectedResource as any).is_locked && <PagePreviewStrip resourceId={selectedResource.id} t={t} />}
                   <View style={styles.pdfNotice}>
                     <MaterialIcons name="picture-as-pdf" size={48} color="#F44336" />
                     <Text style={styles.pdfNoticeText}>{selectedResource.pdf_filename || (t('default_pdf_filename') || 'document.pdf')}</Text>
@@ -703,6 +727,7 @@ const styles = StyleSheet.create({
   },
   resourceContent: { flex: 1 },
   resourceTitle: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 4 },
+  sectionHeader: { fontSize: 15, fontWeight: '700', color: '#333', marginTop: 14, marginBottom: 8 },
   resourceDescription: { fontSize: 13, color: '#666', lineHeight: 18, marginBottom: 6 },
   resourceMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   resourceType: { fontSize: 12, color: '#999' },

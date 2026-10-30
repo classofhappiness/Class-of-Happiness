@@ -2197,5 +2197,18 @@
   "n_ratings": "{count} रेटिंग",
   "could_not_read_image": "छवि पढ़ी नहीं जा सकी",
   "upload_failed": "अपलोड विफल रहा",
-  "country_other": "अन्य"
+  "country_other": "अन्य",
+  "resource_start_here": "यहाँ से शुरू करें",
+  "resource_week_n": "सप्ताह {n}",
+  "resource_more": "और संसाधन",
+  "resource_ages_range": "उम्र {min}–{max}",
+  "resource_age_single": "उम्र {n}",
+  "resource_minutes": "{n} मिनट",
+  "resource_group_individual": "अकेले",
+  "resource_group_small_group": "छोटा समूह",
+  "resource_group_whole_class": "पूरी कक्षा",
+  "resource_use_when": "कब उपयोग करें",
+  "resource_outcomes": "परिणाम",
+  "resource_preview": "पूर्वावलोकन",
+  "resource_preview_page": "पृष्ठ {n} / {total}"
 }

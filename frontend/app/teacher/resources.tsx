@@ -29,6 +29,10 @@ import {
   TeacherResourceRating,
 } from '../../src/utils/api';
 import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
+import { ResourceFactsChips } from '../../src/components/ResourceFactsChips';
+import { ResourceDetailFacts } from '../../src/components/ResourceDetailFacts';
+import { PagePreviewStrip } from '../../src/components/PagePreviewStrip';
+import { buildSections, sectionTitle } from '../../src/utils/resourceMeta';
 import { getDownloadUrl } from '../../src/utils/downloadLink';
 import { formatRating } from '../../src/utils/numberLabel';
 
@@ -395,6 +399,94 @@ export default function TeacherResourcesScreen() {
 
   const currentTopic = TOPICS.find(t => t.id === selectedTopic);
 
+  const renderResourceCard = (resource: any) => (
+            <TouchableOpacity
+              key={resource.id}
+              style={[styles.resourceCard, (resource as any).is_locked && { opacity: 0.65 }]}
+              onPress={() => {
+                if ((resource as any).is_locked) {
+                  Alert.alert(
+                    '🔒 ' + (t('subscribe_to_unlock_title') || 'Subscribe to Unlock'),
+                    t('freemium_banner_desc') || "The Emotion Program is completely free! Every other program's first 2 weeks are free too. Subscribe to unlock everything.",
+                    [
+                      { text: t('not_now') || 'Not Now', style: 'cancel' },
+                      { text: t('see_plans') || 'See Plans', onPress: () => router.push('/subscription') },
+                    ]
+                  );
+                  return;
+                }
+                handleViewResource(resource);
+              }}
+            >
+              <View style={styles.resourceIcon}>
+                <MaterialIcons name={(resource as any).is_locked ? 'lock' : 'picture-as-pdf'} size={32} color={(resource as any).is_locked ? '#AAA' : '#F44336'} />
+              </View>
+              <View style={styles.resourceContent}>
+                <Text style={styles.resourceTitle}>{resource.title}</Text>
+                {(() => { const blurb = (resource as any).goal || (resource.description !== resource.title ? resource.description : ''); return blurb ? <Text style={styles.resourceDescription} numberOfLines={2}>{blurb}</Text> : null; })()}
+                <ResourceFactsChips facts={resource as any} t={t} />
+                {(resource as any).is_locked ? (
+                  <Text style={{ fontSize: 12, color: '#999', fontWeight: '600', marginTop: 2 }}>🔒 {t('subscribe_to_unlock') || 'Subscribe to unlock'}</Text>
+                ) : (
+                <View style={styles.resourceMeta}>
+                  {renderStars(resource.average_rating)}
+                  <Text style={styles.ratingText}>
+                    {formatRating(resource.average_rating, language)} ({resource.total_ratings})
+                  </Text>
+                </View>
+                )}
+                <Text style={styles.uploadedBy}>
+                  {/* Real bug fix Aug 28 (items 4/7): fell back to the generic word "Teacher"
+                      whenever created_by_name was missing, regardless of who actually
+                      uploaded it - confirmed live this mislabels real COH-admin-curated
+                      content (Emotions Program, Healthy Relationships) as if a random
+                      teacher had made it. All real admin-curated resources are is_global
+                      (confirmed: superadmin uploads always set this), so that's the correct
+                      signal to distinguish "COH App Admin" from a genuinely
+                      teacher/school_admin-uploaded resource lacking a captured name. */}
+                  {t('by') || 'By'} {resource.created_by_name || (resource.is_global ? (t('coh_app_admin') || 'COH App Admin') : (t('teacher') || 'Teacher'))}
+                  {resource.uploaded_by_me && (
+                    <TouchableOpacity
+                      onPress={async () => {
+                        Alert.alert(
+                          t('delete') || 'Delete',
+                          t('confirm_delete_resource') || 'Delete this resource?',
+                          [
+                            { text: t('cancel') || 'Cancel', style: 'cancel' },
+                            { text: t('delete') || 'Delete', style: 'destructive', onPress: async () => {
+                              try {
+                                await teacherResourcesApi.delete(resource.id);
+                                await fetchResources();
+                              } catch (e) {
+                                Alert.alert(t('error') || 'Error', t('could_not_delete_resource') || 'Could not delete resource');
+                              }
+                            }}
+                          ]
+                        );
+                      }}
+                      style={{ marginTop: 4 }}
+                    >
+                      <Text style={{ fontSize: 12, color: '#F44336', fontWeight: '600' }}>🗑️ {t('delete') || 'Delete'}</Text>
+                    </TouchableOpacity>
+                  )}
+                </Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={24} color="#CCC" />
+            </TouchableOpacity>
+  );
+
+  // "Start here" + week headers for programme tabs; tabs with no weekly structure stay flat.
+  const renderResourceList = () => {
+    const sections = buildSections(resources as any[]);
+    if (!sections) return resources.map(renderResourceCard);
+    return sections.map((s) => (
+      <View key={s.key}>
+        <Text style={styles.sectionHeader} accessibilityRole="header">{sectionTitle(s, t)}</Text>
+        {s.items.map(renderResourceCard)}
+      </View>
+    ));
+  };
+
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <SafeAreaView style={styles.container}>
@@ -517,82 +609,7 @@ export default function TeacherResourcesScreen() {
             </Text>
           </View>
         ) : (
-          resources.map((resource) => (
-            <TouchableOpacity
-              key={resource.id}
-              style={[styles.resourceCard, (resource as any).is_locked && { opacity: 0.65 }]}
-              onPress={() => {
-                if ((resource as any).is_locked) {
-                  Alert.alert(
-                    '🔒 ' + (t('subscribe_to_unlock_title') || 'Subscribe to Unlock'),
-                    t('freemium_banner_desc') || "The Emotion Program is completely free! Every other program's first 2 weeks are free too. Subscribe to unlock everything.",
-                    [
-                      { text: t('not_now') || 'Not Now', style: 'cancel' },
-                      { text: t('see_plans') || 'See Plans', onPress: () => router.push('/subscription') },
-                    ]
-                  );
-                  return;
-                }
-                handleViewResource(resource);
-              }}
-            >
-              <View style={styles.resourceIcon}>
-                <MaterialIcons name={(resource as any).is_locked ? 'lock' : 'picture-as-pdf'} size={32} color={(resource as any).is_locked ? '#AAA' : '#F44336'} />
-              </View>
-              <View style={styles.resourceContent}>
-                <Text style={styles.resourceTitle}>{resource.title}</Text>
-                <Text style={styles.resourceDescription} numberOfLines={2}>
-                  {resource.description}
-                </Text>
-                {(resource as any).is_locked ? (
-                  <Text style={{ fontSize: 12, color: '#999', fontWeight: '600', marginTop: 2 }}>🔒 {t('subscribe_to_unlock') || 'Subscribe to unlock'}</Text>
-                ) : (
-                <View style={styles.resourceMeta}>
-                  {renderStars(resource.average_rating)}
-                  <Text style={styles.ratingText}>
-                    {formatRating(resource.average_rating, language)} ({resource.total_ratings})
-                  </Text>
-                </View>
-                )}
-                <Text style={styles.uploadedBy}>
-                  {/* Real bug fix Aug 28 (items 4/7): fell back to the generic word "Teacher"
-                      whenever created_by_name was missing, regardless of who actually
-                      uploaded it - confirmed live this mislabels real COH-admin-curated
-                      content (Emotions Program, Healthy Relationships) as if a random
-                      teacher had made it. All real admin-curated resources are is_global
-                      (confirmed: superadmin uploads always set this), so that's the correct
-                      signal to distinguish "COH App Admin" from a genuinely
-                      teacher/school_admin-uploaded resource lacking a captured name. */}
-                  {t('by') || 'By'} {resource.created_by_name || (resource.is_global ? (t('coh_app_admin') || 'COH App Admin') : (t('teacher') || 'Teacher'))}
-                  {resource.uploaded_by_me && (
-                    <TouchableOpacity
-                      onPress={async () => {
-                        Alert.alert(
-                          t('delete') || 'Delete',
-                          t('confirm_delete_resource') || 'Delete this resource?',
-                          [
-                            { text: t('cancel') || 'Cancel', style: 'cancel' },
-                            { text: t('delete') || 'Delete', style: 'destructive', onPress: async () => {
-                              try {
-                                await teacherResourcesApi.delete(resource.id);
-                                await fetchResources();
-                              } catch (e) {
-                                Alert.alert(t('error') || 'Error', t('could_not_delete_resource') || 'Could not delete resource');
-                              }
-                            }}
-                          ]
-                        );
-                      }}
-                      style={{ marginTop: 4 }}
-                    >
-                      <Text style={{ fontSize: 12, color: '#F44336', fontWeight: '600' }}>🗑️ {t('delete') || 'Delete'}</Text>
-                    </TouchableOpacity>
-                  )}
-                </Text>
-              </View>
-              <MaterialIcons name="chevron-right" size={24} color="#CCC" />
-            </TouchableOpacity>
-          ))
+          renderResourceList()
         )}
       </ScrollView>
 
@@ -788,7 +805,9 @@ export default function TeacherResourcesScreen() {
               <View style={styles.resourceInfo}>
                 <MaterialIcons name="picture-as-pdf" size={48} color="#F44336" />
                 <Text style={styles.resourceInfoTitle}>{viewingResource?.title}</Text>
-                <Text style={styles.resourceInfoDesc}>{viewingResource?.description}</Text>
+                {!!viewingResource && !(viewingResource as any).goal && viewingResource.description !== viewingResource.title && (
+                  <Text style={styles.resourceInfoDesc}>{viewingResource.description}</Text>
+                )}
                 <View style={styles.currentRating}>
                   {renderStars(viewingResource?.average_rating || 0, 24)}
                   <Text style={styles.currentRatingText}>
@@ -796,6 +815,11 @@ export default function TeacherResourcesScreen() {
                   </Text>
                 </View>
               </View>
+
+              {!!viewingResource && <ResourceDetailFacts facts={viewingResource as any} t={t} />}
+              {!!viewingResource && !(viewingResource as any).is_locked && viewingResource.content_type === 'pdf' && (
+                <PagePreviewStrip resourceId={viewingResource.id} t={t} />
+              )}
 
               {/* Download Button */}
               {viewingResource?.pdf_filename && (
@@ -975,6 +999,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
   },
+  sectionHeader: { fontSize: 15, fontWeight: '700', color: '#333', marginTop: 14, marginBottom: 8 },
   resourceDescription: {
     fontSize: 13,
     color: '#666',

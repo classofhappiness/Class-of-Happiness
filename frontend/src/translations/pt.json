@@ -2345,5 +2345,18 @@
   "n_ratings": "{count} avaliações",
   "could_not_read_image": "Não foi possível ler a imagem",
   "upload_failed": "Falha no envio",
-  "country_other": "Outro"
+  "country_other": "Outro",
+  "resource_start_here": "Comece aqui",
+  "resource_week_n": "Semana {n}",
+  "resource_more": "Mais recursos",
+  "resource_ages_range": "Idades {min}–{max}",
+  "resource_age_single": "Idade {n}",
+  "resource_minutes": "{n} min",
+  "resource_group_individual": "Individual",
+  "resource_group_small_group": "Grupo pequeno",
+  "resource_group_whole_class": "Turma inteira",
+  "resource_use_when": "Use quando",
+  "resource_outcomes": "Resultados",
+  "resource_preview": "Pré-visualização",
+  "resource_preview_page": "Página {n} de {total}"
 }

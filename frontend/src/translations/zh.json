@@ -2197,5 +2197,18 @@
   "n_ratings": "{count} 条评分",
   "could_not_read_image": "无法读取图片",
   "upload_failed": "上传失败",
-  "country_other": "其他"
+  "country_other": "其他",
+  "resource_start_here": "从这里开始",
+  "resource_week_n": "第 {n} 周",
+  "resource_more": "更多资源",
+  "resource_ages_range": "年龄 {min}–{max}",
+  "resource_age_single": "年龄 {n}",
+  "resource_minutes": "{n} 分钟",
+  "resource_group_individual": "个人",
+  "resource_group_small_group": "小组",
+  "resource_group_whole_class": "全班",
+  "resource_use_when": "适用情境",
+  "resource_outcomes": "学习成果",
+  "resource_preview": "预览",
+  "resource_preview_page": "第 {n} 页，共 {total} 页"
 }

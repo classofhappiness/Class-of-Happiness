@@ -2197,5 +2197,18 @@
   "n_ratings": "оценок: {count}",
   "could_not_read_image": "Не удалось прочитать изображение",
   "upload_failed": "Не удалось загрузить",
-  "country_other": "Другое"
+  "country_other": "Другое",
+  "resource_start_here": "Начните здесь",
+  "resource_week_n": "Неделя {n}",
+  "resource_more": "Другие материалы",
+  "resource_ages_range": "Возраст {min}–{max}",
+  "resource_age_single": "Возраст {n}",
+  "resource_minutes": "{n} мин",
+  "resource_group_individual": "Индивидуально",
+  "resource_group_small_group": "Малая группа",
+  "resource_group_whole_class": "Весь класс",
+  "resource_use_when": "Когда использовать",
+  "resource_outcomes": "Результаты",
+  "resource_preview": "Предпросмотр",
+  "resource_preview_page": "Страница {n} из {total}"
 }

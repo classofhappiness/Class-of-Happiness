@@ -2197,5 +2197,18 @@
   "n_ratings": "{count} تقييمات",
   "could_not_read_image": "تعذّرت قراءة الصورة",
   "upload_failed": "فشل الرفع",
-  "country_other": "أخرى"
+  "country_other": "أخرى",
+  "resource_start_here": "ابدأ من هنا",
+  "resource_week_n": "الأسبوع {n}",
+  "resource_more": "موارد أخرى",
+  "resource_ages_range": "الأعمار {min}–{max}",
+  "resource_age_single": "العمر {n}",
+  "resource_minutes": "{n} دقيقة",
+  "resource_group_individual": "فردي",
+  "resource_group_small_group": "مجموعة صغيرة",
+  "resource_group_whole_class": "الصف كاملاً",
+  "resource_use_when": "متى تستخدمه",
+  "resource_outcomes": "النتائج",
+  "resource_preview": "معاينة",
+  "resource_preview_page": "صفحة {n} من {total}"
 }

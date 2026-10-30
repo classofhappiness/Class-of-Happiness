@@ -537,11 +537,25 @@ export interface Resource {
   // this type. Every non-"All" topic tab was silently filtering every general/admin-uploaded
   // resource out - this had been a real, live bug hiding behind a type error the whole time.
   category?: string;
+  week_number?: number | null;
+  is_locked?: boolean;
+  // Card facts (all optional). See src/utils/resourceMeta.ts.
+  age_min?: number | null;
+  age_max?: number | null;
+  duration_minutes?: number | null;
+  grouping?: string | null;
+  goal?: string | null;
+  outcomes?: string | null;
+  use_when?: string | null;
 }
 
 export const resourcesApi = {
   getAll: (): Promise<Resource[]> =>
     apiRequest('/resources'),
+
+  // Up to 3 page images (base64 JPEG). 403 when the resource is locked for this user.
+  getPreviews: (id: string): Promise<{ previews: { page_order: number; image: string }[] }> =>
+    apiRequest(`/resources/${id}/previews`),
   
   get: (id: string): Promise<Resource> =>
     apiRequest(`/resources/${id}`),
@@ -905,6 +919,15 @@ export interface TeacherResource {
   average_rating: number;
   total_ratings: number;
   created_at: string;
+  week_number?: number | null;
+  is_locked?: boolean;
+  age_min?: number | null;
+  age_max?: number | null;
+  duration_minutes?: number | null;
+  grouping?: string | null;
+  goal?: string | null;
+  outcomes?: string | null;
+  use_when?: string | null;
 }
 
 export interface TeacherResourceRating {

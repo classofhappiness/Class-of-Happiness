@@ -2354,5 +2354,18 @@
   "n_ratings": "{count} Bewertungen",
   "could_not_read_image": "Das Bild konnte nicht gelesen werden",
   "upload_failed": "Upload fehlgeschlagen",
-  "country_other": "Andere"
+  "country_other": "Andere",
+  "resource_start_here": "Hier starten",
+  "resource_week_n": "Woche {n}",
+  "resource_more": "Weitere Materialien",
+  "resource_ages_range": "Alter {min}–{max}",
+  "resource_age_single": "Alter {n}",
+  "resource_minutes": "{n} Min.",
+  "resource_group_individual": "Einzeln",
+  "resource_group_small_group": "Kleingruppe",
+  "resource_group_whole_class": "Ganze Klasse",
+  "resource_use_when": "Einsetzen, wenn",
+  "resource_outcomes": "Lernergebnisse",
+  "resource_preview": "Vorschau",
+  "resource_preview_page": "Seite {n} von {total}"
 }

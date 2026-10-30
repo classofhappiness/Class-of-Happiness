@@ -2354,5 +2354,18 @@
   "n_ratings": "{count} avis",
   "could_not_read_image": "Impossible de lire l'image",
   "upload_failed": "Échec de l'envoi",
-  "country_other": "Autre"
+  "country_other": "Autre",
+  "resource_start_here": "Commencer ici",
+  "resource_week_n": "Semaine {n}",
+  "resource_more": "Autres ressources",
+  "resource_ages_range": "Âges {min}–{max}",
+  "resource_age_single": "Âge {n}",
+  "resource_minutes": "{n} min",
+  "resource_group_individual": "Individuel",
+  "resource_group_small_group": "Petit groupe",
+  "resource_group_whole_class": "Toute la classe",
+  "resource_use_when": "À utiliser quand",
+  "resource_outcomes": "Résultats attendus",
+  "resource_preview": "Aperçu",
+  "resource_preview_page": "Page {n} sur {total}"
 }

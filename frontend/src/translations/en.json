@@ -2211,5 +2211,18 @@
   "spacing_small": "Small",
   "uses_normal_font": "Uses the normal font:",
   "word_spacing": "Word spacing",
-  "works_with_font": "Works with this font:"
+  "works_with_font": "Works with this font:",
+  "resource_start_here": "Start here",
+  "resource_week_n": "Week {n}",
+  "resource_more": "More resources",
+  "resource_ages_range": "Ages {min}–{max}",
+  "resource_age_single": "Age {n}",
+  "resource_minutes": "{n} min",
+  "resource_group_individual": "Individual",
+  "resource_group_small_group": "Small group",
+  "resource_group_whole_class": "Whole class",
+  "resource_use_when": "Use when",
+  "resource_outcomes": "Outcomes",
+  "resource_preview": "Preview",
+  "resource_preview_page": "Page {n} of {total}"
 }
