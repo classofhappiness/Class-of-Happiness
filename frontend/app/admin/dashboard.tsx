@@ -14,6 +14,7 @@ import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { SecureField } from '../../src/components/SecureField';
 import { PinConfirmModal } from '../../src/components/PinConfirmModal';
 import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
+import { ResourceFactsChips } from '../../src/components/ResourceFactsChips';
 import { supportRequestsApi, SupportRequest } from '../../src/utils/api';
 import { useSupportRequestsList, refreshSupportRequestsNow } from '../../src/utils/supportRequestsPoller';
 import { registerForPushNotifications, registerForPushNotificationsDetailed, IS_EXPO_GO } from '../../src/utils/notifications';
@@ -3271,6 +3272,8 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
                 <MaterialIcons name="description" size={16} color={INDIGO} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.stratName}>{r.title}</Text>
+                  {!!r.goal && <Text style={s.stratDesc} numberOfLines={2}>{r.goal}</Text>}
+                  <ResourceFactsChips facts={r} t={t} />
                   <Text style={s.stratDesc}>{r.target_audience === 'teacher' || r.audience === 'teacher' ? `👩‍🏫 ${t('audience_teachers') || 'Teachers'}` : r.target_audience === 'parent' || r.audience === 'parent' ? `👨‍👩‍👧 ${t('audience_parents') || 'Parents'}` : `👥 ${t('both_label') || 'Both'}`}</Text>
                 </View>
                 <TouchableOpacity onPress={() => handleDownload(r)} style={{ padding: 4 }}>
