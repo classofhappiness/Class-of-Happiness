@@ -5614,6 +5614,55 @@ async def get_classroom_analytics(classroom_id: str, request: Request, days: int
 # A resource with school_admin_id NULL is global/unscoped (all 71 rows today); one with it set
 # belongs to that school (the school admin's user_id, same value _resolve_caller_school_admin_ids
 # returns). superadmin/admin are unrestricted.
+# Resource card facts (age, time, grouping, goal, outcomes, use-when). Optional text/ints on the
+# resources row; page previews live in their own table (resource_previews) and are only served
+# by GET /resources/{id}/previews, never by a list endpoint.
+RESOURCE_CARD_FIELDS = "age_min,age_max,duration_minutes,grouping,goal,outcomes,use_when"
+RESOURCE_GROUPING_CODES = ("individual", "small_group", "whole_class")
+
+# Freemium rule for resources, in one place (used by the list endpoints and the previews
+# endpoint): fully-free topics are never locked; every other topic is free for weeks <= 2
+# (and for items with no week); week 3+ is locked for a genuinely free-tier user.
+FULLY_FREE_RESOURCE_TOPICS = ("emotions_program",)
+FREE_RESOURCE_WEEKS = 2
+
+def _resource_locked_for_free_tier(r: dict) -> bool:
+    if r.get("category") in FULLY_FREE_RESOURCE_TOPICS:
+        return False
+    week = r.get("week_number")
+    return not (week is None or week <= FREE_RESOURCE_WEEKS)
+
+def _clean_card_fields(body: dict) -> dict:
+    """Validated card fields present in `body` (absent keys are left alone, blank clears)."""
+    out = {}
+    for k in ("age_min", "age_max", "duration_minutes"):
+        if k in body:
+            v = body[k]
+            if v in (None, ""):
+                out[k] = None
+            else:
+                try:
+                    n = int(v)
+                except (TypeError, ValueError):
+                    raise HTTPException(status_code=400, detail=f"{k} must be a number")
+                if n < 0 or n > 1000:
+                    raise HTTPException(status_code=400, detail=f"{k} out of range")
+                out[k] = n
+    if "grouping" in body:
+        raw = body["grouping"]
+        codes = [c.strip() for c in (raw if isinstance(raw, list) else str(raw or "").split(",")) if str(c).strip()]
+        if any(c not in RESOURCE_GROUPING_CODES for c in codes):
+            raise HTTPException(status_code=400, detail="grouping must be individual, small_group and/or whole_class")
+        out["grouping"] = ",".join(dict.fromkeys(codes)) or None
+    for k in ("goal", "outcomes", "use_when"):
+        if k in body:
+            v = body[k]
+            v = (str(v).strip() if v is not None else "")[:2000]
+            out[k] = v or None
+    if out.get("age_min") is not None and out.get("age_max") is not None and out["age_min"] > out["age_max"]:
+        raise HTTPException(status_code=400, detail="age_min cannot be above age_max")
+    return out
+
 def _resource_readable_by(user: dict, resource: dict) -> bool:
     if user.get("role") in ("admin", "superadmin"):
         return True
@@ -5670,7 +5719,7 @@ async def get_resources(request: Request):
     try:
         try:
             result = supabase.table("resources").select(
-                "id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,week_number,school_admin_id"
+                "id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,week_number,school_admin_id," + RESOURCE_CARD_FIELDS
             ).eq("is_active", True).execute()
         except Exception:
             result = supabase.table("resources").select(
@@ -5711,14 +5760,7 @@ async def get_resources(request: Request):
         if not is_free_tier:
             r["is_locked"] = False
             continue
-        category = r.get("category")
-        week = r.get("week_number")
-        if category == "emotions_program":
-            r["is_locked"] = False
-        elif week is None or week <= 2:
-            r["is_locked"] = False
-        else:
-            r["is_locked"] = True
+        r["is_locked"] = _resource_locked_for_free_tier(r)
     return items
 
 @api_router.post("/resources")
@@ -17050,6 +17092,31 @@ async def download_resource_pdf(resource_id: str, request: Request):
     return StreamingResponse(io.BytesIO(pdf_bytes), media_type="application/pdf", headers=headers)
 
 
+@api_router.get("/resources/{resource_id}/previews")
+async def get_resource_previews(resource_id: str, request: Request):
+    """Page-preview images (base64 JPEG, up to 3) for the resource detail screen. Same read
+    scoping as the download endpoint, and refused (403) when the resource is locked for this
+    user, so previews never leak locked content."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        r = supabase.table("resources").select("id,is_global,created_by,user_id,school_admin_id,category,week_number").eq("id", resource_id).execute()
+    except Exception:
+        r = supabase.table("resources").select("id,is_global,created_by,user_id,category,week_number").eq("id", resource_id).execute()
+    if not r.data or not _resource_readable_by(user, r.data[0]):
+        raise HTTPException(status_code=404, detail="Resource not found")
+    if _is_genuinely_free_tier(user) and _resource_locked_for_free_tier(r.data[0]):
+        raise HTTPException(status_code=403, detail="Subscribe to unlock this resource")
+    try:
+        res = supabase.table("resource_previews").select("page_order,image").eq("resource_id", resource_id).order("page_order").execute()
+        rows = res.data or []
+    except Exception as e:
+        logger.warning(f"[resource-previews] fetch failed for {resource_id}: {e}")
+        rows = []
+    return {"resource_id": resource_id, "mime": "image/jpeg", "previews": rows}
+
+
 @api_router.get("/teacher-resources/topics")
 async def get_teacher_resource_topics():
     return [
@@ -17090,6 +17157,7 @@ def _resource_to_teacher_resource(r: dict, ratings: list) -> dict:
         "rating_count": len(resource_ratings),
         "week_number": r.get("week_number"),
         "is_locked": r.get("is_locked", False),
+        **{k: r.get(k) for k in RESOURCE_CARD_FIELDS.split(",")},
     }
 
 @api_router.get("/teacher-resources")  # audience filter supported
@@ -17101,7 +17169,7 @@ async def get_teacher_resources(request: Request, topic: Optional[str] = None, a
     # the select, defensively - falls back to the pre-migration column list so this
     # endpoint doesn't start hard-failing before resources-scoping/01_....sql has run.
     try:
-        resources_result = supabase.table("resources").select("id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,week_number,school_admin_id").eq("is_active", True).execute()
+        resources_result = supabase.table("resources").select("id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,week_number,school_admin_id," + RESOURCE_CARD_FIELDS).eq("is_active", True).execute()
     except Exception:
         resources_result = supabase.table("resources").select("id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,week_number").eq("is_active", True).execute()
     all_resources = resources_result.data or []
@@ -17120,14 +17188,7 @@ async def get_teacher_resources(request: Request, topic: Optional[str] = None, a
         if not is_free_tier:
             r["is_locked"] = False
             continue
-        category = r.get("category")
-        week = r.get("week_number")
-        if category == "emotions_program":
-            r["is_locked"] = False
-        elif week is None or week <= 2:
-            r["is_locked"] = False
-        else:
-            r["is_locked"] = True
+        r["is_locked"] = _resource_locked_for_free_tier(r)
 
     # Determine which audiences to show
     # If caller specifies audience=parents, show parents+both
@@ -17294,6 +17355,7 @@ async def create_teacher_resource(request: Request):
         # week_number was never set at all - meaning that paywalled week was silently treated
         # as free-tier-unlocked (week_number is None -> is_locked=False).
         "week_number": body.get("week_number"),
+        **_clean_card_fields(body),
     }
     try:
         try:
@@ -17417,7 +17479,7 @@ async def update_teacher_resource(resource_id: str, request: Request):
     # endpoint already uses - cuts real per-call payload size dramatically, which directly
     # matters now that reorder saves are sequential (A61) rather than parallel - each call's
     # cost previously overlapped, now it adds up linearly across every resource in the list.
-    _RESOURCE_LIGHT_FIELDS = "id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,week_number"
+    _RESOURCE_LIGHT_FIELDS = "id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,week_number," + RESOURCE_CARD_FIELDS
     existing = supabase.table("resources").select(_RESOURCE_LIGHT_FIELDS).eq("id", resource_id).execute()
     if not existing.data:
         raise HTTPException(status_code=404, detail="Resource not found")
@@ -17448,6 +17510,7 @@ async def update_teacher_resource(resource_id: str, request: Request):
     # session (a PUT changing topic returned 200 but the value never actually changed).
     # Both kept in sync, matching create_teacher_resource's own topic==category convention
     # (various read paths check r.get("topic") or r.get("category") inconsistently).
+    updates.update(_clean_card_fields(body))
     if "topic" in body or "category" in body:
         new_topic = body.get("topic") or body.get("category")
         if new_topic:
@@ -23497,7 +23560,7 @@ async def get_parent_resources(request: Request, topic: Optional[str] = None):
         # scoped resources (metadata only - downloads were already scoped).
         try:
             resources_result = supabase.table("resources").select(
-                "id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,week_number,school_admin_id"
+                "id,title,description,content_type,pdf_filename,topic,category,target_audience,order_index,is_global,is_active,created_at,user_id,created_by,week_number,school_admin_id," + RESOURCE_CARD_FIELDS
             ).eq("is_active", True).execute()
         except Exception:
             resources_result = supabase.table("resources").select(
