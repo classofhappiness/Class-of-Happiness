@@ -2378,5 +2378,15 @@
   "payment_issue_update_card": "Atualizar cartão",
   "payment_issue_error": "Não foi possível abrir a página do cartão. Tenta outra vez.",
   "payment_issue_banner_paused": "O teu pagamento não foi concluído, por isso as funcionalidades pagas estão em pausa. Atualiza o cartão para as reativares.",
-  "privacy_safety": "Privacidade e segurança"
+  "privacy_safety": "Privacidade e segurança",
+  "sr_off_title": "Os pedidos de apoio estão desativados na sua escola",
+  "sr_off_what": "Os pedidos de apoio permitem que um professor peça ajuda de forma discreta, com um só toque, a partir da sala de aula. O administrador da escola recebe uma notificação e pode responder, e o professor vê quando a ajuda está a caminho.",
+  "sr_staff_tool_note": "Esta é uma ferramenta de coordenação da equipa, não um sistema de emergência. Em caso de emergência, ligue 112 ou siga os procedimentos da escola.",
+  "sr_off_contact": "Contacte-nos para a ativar: {email}",
+  "sr_off_history_kept": "Os pedidos anteriores são mantidos e continuam visíveis abaixo.",
+  "sr_switch_off_title": "Desativar os pedidos de apoio?",
+  "sr_switch_off_body": "Os professores de {school} deixam de ver o botão de apoio. Os pedidos em aberto e o histórico continuam visíveis para o administrador da escola e nada é eliminado.",
+  "sr_switch_off_btn": "Desativar",
+  "feature_state_on": "Ativado",
+  "feature_state_off": "Desativado"
 }

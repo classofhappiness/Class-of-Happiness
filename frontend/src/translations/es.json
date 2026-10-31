@@ -2378,5 +2378,15 @@
   "payment_issue_update_card": "Actualizar tarjeta",
   "payment_issue_error": "No se pudo abrir la página de la tarjeta. Inténtalo de nuevo.",
   "payment_issue_banner_paused": "No se pudo procesar tu pago, así que las funciones de pago están en pausa. Actualiza tu tarjeta para volver a activarlas.",
-  "privacy_safety": "Privacidad y seguridad"
+  "privacy_safety": "Privacidad y seguridad",
+  "sr_off_title": "Las solicitudes de apoyo están desactivadas en tu centro",
+  "sr_off_what": "Las solicitudes de apoyo permiten a un docente pedir ayuda con un solo toque, de forma discreta, desde el aula. La administración del centro recibe una notificación y puede responder, y el docente ve cuándo llega la ayuda.",
+  "sr_staff_tool_note": "Esta es una herramienta de coordinación del personal, no un sistema de emergencias. En una emergencia llama al 112 o sigue los procedimientos de tu centro.",
+  "sr_off_contact": "Contáctanos para activarlas: {email}",
+  "sr_off_history_kept": "Las solicitudes anteriores se conservan y siguen visibles abajo.",
+  "sr_switch_off_title": "¿Desactivar las solicitudes de apoyo?",
+  "sr_switch_off_body": "Los docentes de {school} dejarán de ver el botón de apoyo. Las solicitudes abiertas y el historial siguen visibles para la administración del centro y no se elimina nada.",
+  "sr_switch_off_btn": "Desactivar",
+  "feature_state_on": "Activado",
+  "feature_state_off": "Desactivado"
 }

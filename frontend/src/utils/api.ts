@@ -1267,6 +1267,10 @@ export const supportRequestsApi = {
   list: (): Promise<SupportRequest[]> =>
     apiRequest('/support-requests'),
 
+  // Is Support Requests switched on for this account's school? (off = nothing to create; history stays readable)
+  status: (): Promise<{ enabled: boolean }> =>
+    apiRequest('/support-requests/status'),
+
   getOne: (id: string): Promise<SupportRequest> =>
     apiRequest(`/support-requests/${id}`),
 

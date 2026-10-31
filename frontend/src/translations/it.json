@@ -2387,5 +2387,15 @@
   "payment_issue_update_card": "Aggiorna la carta",
   "payment_issue_error": "Impossibile aprire la pagina della carta. Riprova.",
   "payment_issue_banner_paused": "Il tuo pagamento non è andato a buon fine, quindi le funzioni a pagamento sono in pausa. Aggiorna la carta per riattivarle.",
-  "privacy_safety": "Privacy e sicurezza"
+  "privacy_safety": "Privacy e sicurezza",
+  "sr_off_title": "Le richieste di supporto sono disattivate per la tua scuola",
+  "sr_off_what": "Le richieste di supporto permettono a un insegnante di chiedere aiuto con discrezione, con un solo tocco, dall'aula. L'amministratore della scuola riceve una notifica e può rispondere, e l'insegnante vede quando l'aiuto sta arrivando.",
+  "sr_staff_tool_note": "Questo è uno strumento di coordinamento del personale, non un sistema di emergenza. In caso di emergenza chiama il 112 o segui le procedure della tua scuola.",
+  "sr_off_contact": "Contattaci per attivarle: {email}",
+  "sr_off_history_kept": "Le richieste precedenti vengono conservate e restano visibili qui sotto.",
+  "sr_switch_off_title": "Disattivare le richieste di supporto?",
+  "sr_switch_off_body": "Gli insegnanti di {school} non vedranno più il pulsante di supporto. Le richieste aperte e la cronologia restano visibili all'amministratore della scuola e non viene eliminato nulla.",
+  "sr_switch_off_btn": "Disattiva",
+  "feature_state_on": "Attivo",
+  "feature_state_off": "Disattivato"
 }

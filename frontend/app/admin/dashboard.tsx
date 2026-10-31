@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, Linking, Image, Switch,
+  TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, Linking, Image, Switch, AppState,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { formatNumericDate, formatNumericDateTime } from '../../src/utils/dateLabel';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { SecureField } from '../../src/components/SecureField';
@@ -17,10 +17,13 @@ import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
 import { ResourceFactsChips } from '../../src/components/ResourceFactsChips';
 import { supportRequestsApi, SupportRequest } from '../../src/utils/api';
 import { useSupportRequestsList, refreshSupportRequestsNow } from '../../src/utils/supportRequestsPoller';
-import { registerForPushNotifications, registerForPushNotificationsDetailed, IS_EXPO_GO } from '../../src/utils/notifications';
+import { registerForPushNotifications, registerForPushNotificationsDetailed, hasNotificationPermission, IS_EXPO_GO } from '../../src/utils/notifications';
+import { useDeviceNotificationsEnabled } from '../../src/utils/useDeviceNotifications';
 import { dismissIncidentAlert } from '../../src/utils/notifeeIncidents';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HeaderLogo } from '../../src/components/ColourCycleLogo';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { BarChart } from 'react-native-gifted-charts';
 import { STRAT } from '../../src/components/AlertCard';
 import { resolveStrategyName, strategyLabel } from '../../src/utils/resolveStrategyName';
@@ -705,6 +708,22 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
 
   useEffect(() => { loadProfiles(); loadSchoolFeatures(); loadAllSchoolCodes(); }, [loadProfiles, loadSchoolFeatures, loadAllSchoolCodes]);
 
+  // Oct 31: Support Requests is a single on/off per school (superadmin only); switching OFF asks first.
+  const requestFeatureToggle = (schoolAdminId: string, featureKey: string, next: boolean, schoolName?: string) => {
+    if (featureKey === 'support_requests' && !next) {
+      Alert.alert(
+        t('sr_switch_off_title') || 'Switch off Support Requests?',
+        (t('sr_switch_off_body') || 'Teachers at {school} will no longer see the support button. Open requests and history stay visible to the school admin, and nothing is deleted.').replace('{school}', schoolName || (t('this_school') || 'this school')),
+        [
+          { text: t('cancel') || 'Cancel', style: 'cancel' },
+          { text: t('sr_switch_off_btn') || 'Switch off', style: 'destructive', onPress: () => toggleFeatureAllowed(schoolAdminId, featureKey, false) },
+        ],
+      );
+      return;
+    }
+    toggleFeatureAllowed(schoolAdminId, featureKey, next);
+  };
+
   const toggleFeatureAllowed = async (schoolAdminId: string, featureKey: string, next: boolean) => {
     const pendingKey = `${schoolAdminId}:${featureKey}`;
     setFeatureTogglePending(pendingKey);
@@ -713,7 +732,7 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
       ...prev,
       [schoolAdminId]: {
         ...prev[schoolAdminId],
-        [featureKey]: { ...(prev[schoolAdminId]?.[featureKey] || { enabled_by_school: true }), allowed_by_superadmin: next },
+        [featureKey]: { ...(prev[schoolAdminId]?.[featureKey] || { enabled_by_school: true }), allowed_by_superadmin: next, ...(featureKey === 'support_requests' ? { enabled_by_school: next } : {}) },
       },
     }));
     try {
@@ -726,7 +745,7 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
         ...prev,
         [schoolAdminId]: {
           ...prev[schoolAdminId],
-          [featureKey]: { ...(prev[schoolAdminId]?.[featureKey] || { enabled_by_school: true }), allowed_by_superadmin: !next },
+          [featureKey]: { ...(prev[schoolAdminId]?.[featureKey] || { enabled_by_school: true }), allowed_by_superadmin: !next, ...(featureKey === 'support_requests' ? { enabled_by_school: !next } : {}) },
         },
       }));
       Alert.alert(t('error') || 'Error', t('could_not_save') || 'Could not save.');
@@ -1163,14 +1182,17 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
                                 <MaterialIcons name={meta.icon} size={16} color={allowed ? '#4CAF73' : '#BBB'} />
                                 <Text style={{ fontSize: 13, color: '#333', flex: 1 }}>{t(meta.labelKey) || meta.fallback}</Text>
-                                {allowed && flags?.enabled_by_school === false && (
+                                {key === 'support_requests' && (
+                                  <Text style={{ fontSize: 11, fontWeight: '800', color: allowed ? '#2E7D32' : '#9E9E9E' }}>{allowed ? (t('feature_state_on') || 'On') : (t('feature_state_off') || 'Off')}</Text>
+                                )}
+                                {key !== 'support_requests' && allowed && flags?.enabled_by_school === false && (
                                   <Text style={{ fontSize: 10, color: '#999', fontStyle: 'italic' }}>{t('school_has_it_off') || 'school has it off'}</Text>
                                 )}
                               </View>
                               <Switch
                                 value={allowed}
                                 disabled={pending}
-                                onValueChange={(next) => toggleFeatureAllowed(profile.school_admin_user_id, key, next)}
+                                onValueChange={(next) => requestFeatureToggle(profile.school_admin_user_id, key, next, profile.school_name)}
                                 trackColor={{ false: '#E0E0E0', true: '#C8E6C9' }}
                                 thumbColor={allowed ? '#4CAF50' : '#9E9E9E'}
                               />
@@ -3091,10 +3113,12 @@ function SupportRequestCard({ r, onAck, onRespond }: { r: SupportRequest; onAck:
   );
 }
 
-function SupportRequestsManager() {
+function SupportRequestsManager({ enabled }: { enabled: boolean | null }) {
   const { t } = useApp();
   const list = useSupportRequestsList(true);
   const [resolvedOpen, setResolvedOpen] = useState(false);
+  // Same switch, same stored setting as Settings > General (shared hook).
+  const [deviceNotifications, setDeviceNotifications] = useDeviceNotificationsEnabled();
 
   const open = list
     .filter(r => SR_OPEN_STATUSES.includes(r.status))
@@ -3110,8 +3134,36 @@ function SupportRequestsManager() {
     try { await supportRequestsApi.respond(id, response); dismissIncidentAlert(id); refreshSupportRequestsNow(); } catch { Alert.alert(t('error') || 'Error', t('could_not_respond') || 'Could not respond.'); }
   };
 
+  const hasHistory = list.length > 0;
   return (
     <View style={{ gap: 12 }}>
+      {/* Oct 31: notifications on/off for this device - the same setting as Settings > General. */}
+      <View style={srS.notifRow}>
+        <MaterialIcons name="notifications-none" size={22} color={INDIGO} />
+        <View style={{ flex: 1 }}>
+          <Text style={srS.notifLabel}>{t('notifications_this_device') || 'Notifications on this device'}</Text>
+          <Text style={srS.notifDesc}>{t('notifications_this_device_desc') || 'Turns off banners, sound and vibration on this device only. Alerts still appear in the app.'}</Text>
+        </View>
+        <Switch value={deviceNotifications} onValueChange={setDeviceNotifications} trackColor={{ false: '#ddd', true: '#81C784' }} thumbColor={deviceNotifications ? '#4CAF50' : '#999'} />
+      </View>
+
+      {enabled === false && (
+        <View style={srS.offCard}>
+          <MaterialIcons name="notifications-off" size={28} color="#8A6D1D" />
+          <Text style={srS.offTitle}>{t('sr_off_title') || 'Support requests are switched off for your school'}</Text>
+          <Text style={srS.offText}>{t('sr_off_what') || 'Support requests let a teacher quietly ask for help from the classroom with one tap. The school admin is notified and can reply, and the teacher can see when help is on the way.'}</Text>
+          <Text style={srS.offText}>{t('sr_staff_tool_note') || "This is a staff coordination tool, not an emergency system. In an emergency call 112 or follow your school's procedures."}</Text>
+          <TouchableOpacity onPress={() => Linking.openURL('mailto:jono@classofhappiness.com')}>
+            <Text style={srS.offLink}>{(t('sr_off_contact') || 'Contact us to switch this on: {email}').replace('{email}', 'jono@classofhappiness.com')}</Text>
+          </TouchableOpacity>
+          {hasHistory && <Text style={[srS.offText, { fontStyle: 'italic' }]}>{t('sr_off_history_kept') || 'Earlier requests are kept and stay visible below.'}</Text>}
+        </View>
+      )}
+      {enabled !== false && (
+        <Text style={srS.standingNote}>{t('sr_staff_tool_note') || "This is a staff coordination tool, not an emergency system. In an emergency call 112 or follow your school's procedures."}</Text>
+      )}
+
+      {(enabled !== false || hasHistory) && (
       <SectionCard title={t('support_requests_plural') || 'Support Requests'} subtitle={(t('support_banner_admin_open_count') || '{count} open').replace('{count}', String(open.length))} icon="notifications-active" color={INDIGO} defaultOpen>
         {open.length === 0 ? (
           <View style={{ alignItems: 'center', padding: 20 }}>
@@ -3124,11 +3176,14 @@ function SupportRequestsManager() {
           </View>
         )}
       </SectionCard>
+      )}
 
+      {(enabled !== false || hasHistory) && (
       <TouchableOpacity style={srS.resolvedToggle} onPress={() => setResolvedOpen(v => !v)}>
         <Text style={srS.resolvedToggleText}>{(t('support_banner_admin_resolved_toggle') || '✓ Resolved ({count})').replace('{count}', String(closed.length))}</Text>
         <MaterialIcons name={resolvedOpen ? 'expand-less' : 'expand-more'} size={20} color="#888" />
       </TouchableOpacity>
+      )}
       {resolvedOpen && (
         <View style={{ gap: 8 }}>
           {closed.map(r => <SupportRequestCard key={r.id} r={r} onAck={onAck} onRespond={onRespond} />)}
@@ -3139,6 +3194,14 @@ function SupportRequestsManager() {
 }
 
 const srS = StyleSheet.create({
+  notifRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'white', borderRadius: 14, padding: 12 },
+  notifLabel: { fontSize: 14, fontWeight: '700', color: '#1A1A2E' },
+  notifDesc: { fontSize: 11.5, color: '#888', marginTop: 2 },
+  offCard: { backgroundColor: '#FFF8E1', borderWidth: 1, borderColor: '#F5D98A', borderRadius: 14, padding: 16, gap: 8, alignItems: 'flex-start' },
+  offTitle: { fontSize: 16, fontWeight: '800', color: '#5D4A12' },
+  offText: { fontSize: 13, color: '#6B5A24', lineHeight: 19 },
+  offLink: { fontSize: 13, fontWeight: '700', color: INDIGO, textDecorationLine: 'underline' },
+  standingNote: { fontSize: 11.5, color: '#888', lineHeight: 16, paddingHorizontal: 4 },
   card: { backgroundColor: 'white', borderRadius: 14, padding: 12, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   cardIncident: { borderWidth: 1.5, borderColor: '#E05252' },
   cardHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
@@ -3377,6 +3440,30 @@ export default function AdminDashboard() {
   // they're never a support_request recipient.
   const [registeringPush, setRegisteringPush] = useState(false);
   const [pushRegistered, setPushRegistered] = useState(false);
+  // Oct 31: Support Requests is switched on per school by the superadmin only. null = not known yet.
+  const [supportEnabled, setSupportEnabled] = useState<boolean | null>(null);
+  const refreshSupportStatus = useCallback(() => {
+    if (isSuperAdmin) return;
+    supportRequestsApi.status().then((r) => setSupportEnabled(!!r.enabled)).catch(() => {});
+  }, [isSuperAdmin]);
+  // Oct 31: the "Teachers can't reach you yet" banner used to stay after notifications were turned on in the phone's
+  // settings, because nothing looked again. On every focus and every return to the app, check the phone's permission;
+  // when it is granted, register this device (no prompt is shown - it is already allowed) and the banner goes.
+  const recheckPush = useCallback(async () => {
+    if (isSuperAdmin || !user || user.push_token || (user as any).has_push_token || pushRegistered) return;
+    if (!(await hasNotificationPermission())) return;
+    const r = await registerForPushNotificationsDetailed();
+    if (r.ok) {
+      setPushRegistered(true);
+      try { await checkAuth(); } catch (e) { console.error('[admin push] checkAuth failed', e); }
+    }
+  }, [isSuperAdmin, user?.user_id, user?.push_token, pushRegistered]);
+  useFocusEffect(useCallback(() => {
+    recheckPush();
+    refreshSupportStatus();
+    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') { recheckPush(); refreshSupportStatus(); } });
+    return () => sub.remove();
+  }, [recheckPush, refreshSupportStatus]));
   const handleRetryPushRegistration = async () => {
     // Root cause fix Sep 26 (item 5, live device test): this used to call
     // registerForPushNotifications() and, on any null result, show the same "check your
@@ -3564,7 +3651,7 @@ export default function AdminDashboard() {
           note above for why this exists instead of hiding teachers' buzz button. Sits
           above the tab content (not inside one tab) so it's visible regardless of which
           tab the admin happens to be on - reachability isn't a per-tab concern. */}
-      {!isSuperAdmin && user && !user.push_token && !(user as any).has_push_token && !pushRegistered && (
+      {!isSuperAdmin && user && supportEnabled !== false && !user.push_token && !(user as any).has_push_token && !pushRegistered && (
         <TouchableOpacity
           style={s.pushNudgeBanner}
           onPress={handleRetryPushRegistration}
@@ -3594,7 +3681,7 @@ export default function AdminDashboard() {
         )}
 
         {tab === 'support_requests' && !isSuperAdmin && (
-          <SupportRequestsManager />
+          <SupportRequestsManager enabled={supportEnabled} />
         )}
 
         {tab === 'strategies' && (

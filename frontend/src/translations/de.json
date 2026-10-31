@@ -2387,5 +2387,15 @@
   "payment_issue_update_card": "Karte aktualisieren",
   "payment_issue_error": "Die Kartenseite konnte nicht geöffnet werden. Bitte versuche es noch einmal.",
   "payment_issue_banner_paused": "Deine Zahlung ist nicht durchgegangen, daher sind die kostenpflichtigen Funktionen pausiert. Aktualisiere deine Karte, um sie wieder zu aktivieren.",
-  "privacy_safety": "Datenschutz & Sicherheit"
+  "privacy_safety": "Datenschutz & Sicherheit",
+  "sr_off_title": "Unterstützungsanfragen sind für Ihre Schule ausgeschaltet",
+  "sr_off_what": "Mit Unterstützungsanfragen kann eine Lehrkraft aus dem Klassenzimmer mit einem Tippen unauffällig um Hilfe bitten. Die Schulleitung wird benachrichtigt und kann antworten, und die Lehrkraft sieht, wann Hilfe unterwegs ist.",
+  "sr_staff_tool_note": "Dies ist ein Werkzeug zur Koordination des Personals, kein Notfallsystem. Rufen Sie im Notfall die 112 an oder folgen Sie den Verfahren Ihrer Schule.",
+  "sr_off_contact": "Kontaktieren Sie uns, um es einzuschalten: {email}",
+  "sr_off_history_kept": "Frühere Anfragen bleiben erhalten und sind unten weiterhin sichtbar.",
+  "sr_switch_off_title": "Unterstützungsanfragen ausschalten?",
+  "sr_switch_off_body": "Lehrkräfte an {school} sehen die Unterstützungstaste nicht mehr. Offene Anfragen und der Verlauf bleiben für die Schulleitung sichtbar, und nichts wird gelöscht.",
+  "sr_switch_off_btn": "Ausschalten",
+  "feature_state_on": "Ein",
+  "feature_state_off": "Aus"
 }

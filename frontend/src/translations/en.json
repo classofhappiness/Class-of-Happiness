@@ -2244,5 +2244,15 @@
   "payment_issue_update_card": "Update your card",
   "payment_issue_error": "Could not open the card page. Please try again.",
   "payment_issue_banner_paused": "Your payment didn't go through, so paid features are paused. Update your card to turn them back on.",
-  "privacy_safety": "Privacy & safety"
+  "privacy_safety": "Privacy & safety",
+  "sr_off_title": "Support requests are switched off for your school",
+  "sr_off_what": "Support requests let a teacher quietly ask for help from the classroom with one tap. The school admin is notified and can reply, and the teacher can see when help is on the way.",
+  "sr_staff_tool_note": "This is a staff coordination tool, not an emergency system. In an emergency call 112 or follow your school's procedures.",
+  "sr_off_contact": "Contact us to switch this on: {email}",
+  "sr_off_history_kept": "Earlier requests are kept and stay visible below.",
+  "sr_switch_off_title": "Switch off Support Requests?",
+  "sr_switch_off_body": "Teachers at {school} will no longer see the support button. Open requests and history stay visible to the school admin, and nothing is deleted.",
+  "sr_switch_off_btn": "Switch off",
+  "feature_state_on": "On",
+  "feature_state_off": "Off"
 }

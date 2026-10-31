@@ -2387,5 +2387,15 @@
   "payment_issue_update_card": "Mettre à jour la carte",
   "payment_issue_error": "Impossible d'ouvrir la page de la carte. Veuillez réessayer.",
   "payment_issue_banner_paused": "Votre paiement n'a pas abouti, les fonctionnalités payantes sont donc suspendues. Mettez à jour votre carte pour les réactiver.",
-  "privacy_safety": "Confidentialité et sécurité"
+  "privacy_safety": "Confidentialité et sécurité",
+  "sr_off_title": "Les demandes de soutien sont désactivées pour votre école",
+  "sr_off_what": "Les demandes de soutien permettent à un enseignant de demander de l'aide discrètement, d'un seul geste, depuis la classe. L'administrateur de l'école est notifié et peut répondre, et l'enseignant voit quand l'aide arrive.",
+  "sr_staff_tool_note": "Il s'agit d'un outil de coordination du personnel, pas d'un système d'urgence. En cas d'urgence, appelez le 112 ou suivez les procédures de votre école.",
+  "sr_off_contact": "Contactez-nous pour l'activer : {email}",
+  "sr_off_history_kept": "Les demandes précédentes sont conservées et restent visibles ci-dessous.",
+  "sr_switch_off_title": "Désactiver les demandes de soutien ?",
+  "sr_switch_off_body": "Les enseignants de {school} ne verront plus le bouton de soutien. Les demandes ouvertes et l'historique restent visibles pour l'administrateur de l'école, et rien n'est supprimé.",
+  "sr_switch_off_btn": "Désactiver",
+  "feature_state_on": "Activé",
+  "feature_state_off": "Désactivé"
 }
