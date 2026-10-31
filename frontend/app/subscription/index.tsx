@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Linking, Image, Modal, TextInput, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -62,7 +62,7 @@ export default function SubscriptionScreen() {
   const [selectedPlan, setSelectedPlan] = useState('parent_monthly');
   const [loading, setLoading] = useState(false);
   const [trialLoading, setTrialLoading] = useState(false);
-  const [trialDays, setTrialDays] = useState(30);
+  const [trialDays, setTrialDays] = useState(14);   // the standard opt-in trial (the real figure comes from /subscription/plans)
   // Real fix Aug 18: parents are free when their child's school has an active package
   // (linked via invite code) — only unlinked parents should ever see the €4.99 paywall.
   const [parentCoverageLoading, setParentCoverageLoading] = useState(true);
@@ -80,7 +80,7 @@ export default function SubscriptionScreen() {
   const [enquirySent, setEnquirySent] = useState(false);
 
   useEffect(() => {
-    subscriptionApi.getPlans().then(d => setTrialDays(d.trial_days || 30)).catch(() => {});
+    subscriptionApi.getPlans().then(d => setTrialDays(d.trial_days || 14)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -94,6 +94,23 @@ export default function SubscriptionScreen() {
   useEffect(() => {
     setSelectedPlan(selectedRole === 'parent' ? 'parent_monthly' : 'teacher_monthly');
   }, [selectedRole]);
+
+  // Oct 31: arriving from a lock ("See plans") lands on the plan that fits the account: teacher -> Teacher plan,
+  // parent -> Parent plan, school admin -> the school plans (scrolled into view, enquiry open). Done once per visit,
+  // so the person can still switch plans afterwards.
+  const scrollRef = useRef<ScrollView>(null);
+  const schoolY = useRef(0);
+  const preselected = useRef(false);
+  useEffect(() => {
+    if (preselected.current || !user?.role) return;
+    preselected.current = true;
+    if (user.role === 'teacher') setSelectedRole('teacher');
+    else if (user.role === 'parent') setSelectedRole('parent');
+    else if (user.role === 'school_admin') {
+      setShowSchoolEnquiry(true);
+      setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, schoolY.current - 12), animated: true }), 350);
+    }
+  }, [user?.role]);
 
   const plans = selectedRole === 'parent' ? PARENT_PLANS : TEACHER_PLANS;
   // Teachers can also subscribe as parents — show note
@@ -217,7 +234,7 @@ export default function SubscriptionScreen() {
   const selectedPrice = plans.find(p => p.id === selectedPlan)?.price || '';
 
   return (
-    <ScrollView style={[st.container, { paddingTop: insets.top }]} contentContainerStyle={st.scroll}>
+    <ScrollView ref={scrollRef} style={[st.container, { paddingTop: insets.top }]} contentContainerStyle={st.scroll}>
 
       {/* Header */}
       <View style={st.header}>
@@ -386,7 +403,7 @@ export default function SubscriptionScreen() {
       )}
 
       {/* School Package CTA */}
-      <Text style={[st.sectionLabel, { marginTop: 8 }]}>{t('for_schools_districts') || 'For schools & districts'}</Text>
+      <Text style={[st.sectionLabel, { marginTop: 8 }]} onLayout={(e) => { schoolY.current = e.nativeEvent.layout.y; }}>{t('for_schools_districts') || 'For schools & districts'}</Text>
       <TouchableOpacity
         style={st.schoolCard}
         onPress={() => setShowSchoolEnquiry(true)}>
