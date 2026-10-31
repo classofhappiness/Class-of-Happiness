@@ -20794,6 +20794,8 @@ ALL_SCHOOL_FEATURE_KEYS = ["careers_advisory", "services_directory", "wellbeing_
 # addressed by the toggle existing at all, not by defaulting it off before anyone's touched
 # the setting.
 _FEATURE_FAIL_OPEN_KEYS = {"services_directory", "wellbeing_welfare", "creature_shop"}
+# Oct 31: features only the superadmin may switch (one switch: allowed_by_superadmin and enabled_by_school move together).
+SUPERADMIN_ONLY_FEATURES = {"support_requests"}
 # support_requests fails CLOSED (not added above) - it's a new feature, same as
 # careers_advisory, not a long-standing always-on tab like the two fail-open keys.
 
@@ -20902,6 +20904,9 @@ async def set_my_school_feature(feature_key: str, request: Request):
     flags = _get_school_feature_flags(user["user_id"], feature_key)
     if not flags["allowed_by_superadmin"]:
         raise HTTPException(status_code=403, detail="This feature is not enabled for your school")
+    if feature_key in SUPERADMIN_ONLY_FEATURES:
+        # Oct 31: Support Requests is opt-in per school and switched on/off ONLY by the superadmin.
+        raise HTTPException(status_code=403, detail="Only the Class of Happiness team can switch Support Requests on or off for a school")
     body = await request.json()
     # Real fix Sep 11: these two are independent now - the Portal Tabs panel sends only
     # tab_visible_to_school (hide/show MY OWN portal tab), a separate "Enable X for your
@@ -20966,6 +20971,8 @@ async def set_school_feature_allowed(school_admin_id: str, feature_key: str, req
     # a superadmin's first-ever grant for a fail-closed feature (support_requests) must
     # NOT auto-enable it at the school level; the school_admin still has to opt in.
     enabled_by_school = existing.data[0]["enabled_by_school"] if existing.data else (feature_key in _FEATURE_FAIL_OPEN_KEYS)
+    if feature_key in SUPERADMIN_ONLY_FEATURES:
+        enabled_by_school = allowed   # Oct 31: the school has no switch of its own for these - one on/off, kept in step
     supabase.table("school_features").upsert({
         "school_admin_id": school_admin_id,
         "feature_key": feature_key,
@@ -21912,6 +21919,21 @@ async def get_engagement_analytics(school_admin_id: str, request: Request, days:
         "top_items": [{"item_id": iid, "view_count": c} for iid, c in top_items],
     }
 
+def _support_requests_enabled(school_admin_id: str) -> bool:
+    flags = _get_school_feature_flags(school_admin_id, "support_requests")
+    return bool(flags["allowed_by_superadmin"] and flags["enabled_by_school"])
+
+@api_router.get("/support-requests/status")
+async def support_requests_status(request: Request):
+    """Is Support Requests switched on for this caller's school? (the school admin uses it to show the 'switched off'
+    explainer instead of the queue; the toggle itself lives with the superadmin). Registered before the
+    /support-requests/{request_id} route so 'status' is never read as an id."""
+    user = await get_current_user(request)
+    if not user or user.get("role") not in ("school_admin", "teacher"):
+        raise HTTPException(status_code=403, detail="School admin or teacher access required")
+    school_admin_id = _teacher_school_admin_id(user) if user.get("role") == "teacher" else user["user_id"]
+    return {"enabled": bool(school_admin_id) and _support_requests_enabled(school_admin_id)}
+
 @api_router.post("/support-requests")
 async def create_support_request(request: Request):
     user = await get_current_user(request)
@@ -22163,7 +22185,10 @@ async def list_support_requests(request: Request):
     school_admin_id = _teacher_school_admin_id(user) if is_teacher else user["user_id"]
     if is_teacher and not school_admin_id:
         return []
-    _require_feature_access(user, "support_requests", "Support Requests", school_admin_id=school_admin_id)
+    # Oct 31: with the feature OFF a teacher simply gets nothing (the app doesn't even ask), while the school admin can
+    # still read the existing open requests and history - nothing is deleted by switching it off.
+    if is_teacher and not _support_requests_enabled(school_admin_id):
+        return []
     try:
         query = supabase.table("support_requests").select("*").order("created_at", desc=True).limit(200)
         query = query.eq("requested_by", user["user_id"]) if is_teacher else query.eq("school_admin_id", school_admin_id)
