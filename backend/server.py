@@ -3211,6 +3211,23 @@ def _past_due_grace_ends_at(user: dict):
     since = _parse_iso(user.get("past_due_since"))
     return since + timedelta(days=PAST_DUE_GRACE_DAYS) if since else None
 
+# Oct 31: accounts that always have full access - never locked out of resources, downloads or previews, and never
+# lose paid features when a trial ends or a plan lapses. Editable WITHOUT a new app build: set the FULL_ACCESS_EMAILS
+# variable on the Railway service (comma-separated emails; the service restarts when it is saved). If the variable is
+# not set, the list below is used. Exact email match, case-insensitive; nothing else (no domains, no patterns).
+_DEFAULT_FULL_ACCESS_EMAILS = (
+    "jono@classofhappiness.com", "jono@gmail.com", "jono+teacher@gmail.com",
+    "schooladmindemo@classofhappiness.com", "pembrokeadmin@classofhappiness.com",
+)
+def _load_full_access_emails() -> frozenset:
+    raw = os.environ.get("FULL_ACCESS_EMAILS")
+    items = raw.split(",") if raw is not None else _DEFAULT_FULL_ACCESS_EMAILS
+    return frozenset(e.strip().lower() for e in items if e and e.strip())
+FULL_ACCESS_EMAILS = _load_full_access_emails()
+
+def _has_full_access(user: dict) -> bool:
+    return (user.get("email") or "").strip().lower() in FULL_ACCESS_EMAILS if user else False
+
 def _paid_plan_in_force(user: dict) -> bool:
     """The ONE rule for 'this account's own paid plan currently grants access'. Used by
     check_subscription_active, _is_genuinely_free_tier, _personal_sub_is_active and
@@ -3219,6 +3236,8 @@ def _paid_plan_in_force(user: dict) -> bool:
                    no expiry recorded = in force
       past_due  -> for PAST_DUE_GRACE_DAYS after past_due_since; no since recorded = no grace
       anything else (none/free/trial/cancelled) -> not a paid plan (trial has _trial_is_valid)"""
+    if _has_full_access(user):
+        return True
     status = user.get("subscription_status") or "none"
     now = datetime.now(timezone.utc)
     if status == "active":
@@ -3251,7 +3270,7 @@ def check_subscription_active(user: dict) -> bool:
     if user.get("role") == "superadmin":
         return True
     # The 4 permanent always-open accounts (PIN-protected at login, see ALWAYS_OPEN_PINS)
-    if (user.get("email") or "").strip().lower() in ALWAYS_OPEN_PINS:
+    if (user.get("email") or "").strip().lower() in ALWAYS_OPEN_PINS or _has_full_access(user):
         return True
     # Covered by their school's paid plan. Oct 31: this used to return True for ANY
     # school_admin_id/invite_code, whether or not the school still paid - so school teachers
@@ -5682,10 +5701,6 @@ def _resource_locked_for_free_tier(r: dict) -> bool:
     week = r.get("week_number")
     return not (week is None or week <= FREE_RESOURCE_WEEKS)
 
-# Accounts that are never locked out of resources, besides superadmin/admin. Deliberately NOT
-# the whole ALWAYS_OPEN_PINS list: pembrokeadmin stays free-tier as the lock test account.
-RESOURCE_UNLOCKED_EMAILS = ("schooladmindemo@classofhappiness.com",)
-
 def _resources_lock_applies(user: dict) -> bool:
     """Whether the resource freemium lock applies to this caller. superadmin/admin are never
     locked. A school_admin is unlocked while their own school plan is paid and in date (the
@@ -5694,7 +5709,7 @@ def _resources_lock_applies(user: dict) -> bool:
     role = user.get("role")
     if role in ("admin", "superadmin"):
         return False
-    if (user.get("email") or "").strip().lower() in RESOURCE_UNLOCKED_EMAILS:
+    if _has_full_access(user):
         return False
     if role == "school_admin":
         return not (_admin_is_active(user["user_id"]) or _trial_is_valid(user))
@@ -6876,10 +6891,12 @@ def _admin_is_active_uncached(admin_id: str) -> bool:
     uncapped indefinitely. Same active-branch pattern as check_subscription_active()."""
     if not admin_id:
         return False
-    r = supabase.table("users").select("subscription_status,subscription_expires_at").eq("user_id", admin_id).execute()
+    r = supabase.table("users").select("email,subscription_status,subscription_expires_at").eq("user_id", admin_id).execute()
     if not r.data:
         return False
     admin = r.data[0]
+    if _has_full_access(admin):
+        return True   # a full-access school admin keeps covering its teachers and parents
     if admin.get("subscription_status") != "active":
         return False
     # Oct 31: the 10-day grace used to be dead code - this returned False the moment
