@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, AppState, Dimensions, Image, NativeScrollEvent, NativeSyntheticEvent, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import { MaterialIcons } from '@expo/vector-icons';
 import { loadThumbs, cachedThumbs } from '../utils/resourceThumbs';
 
 // Page-preview thumbnail on a resource list card. A ThumbRegistry (one per list screen) works out which
@@ -82,10 +83,12 @@ interface Props {
   resourceId: string;
   // Shown until the images arrive, and kept when there are none (no previews, locked, offline).
   fallback: React.ReactNode;
+  // Locked card: small lock badge over the corner of the thumbnail.
+  locked?: boolean;
   style?: any;
 }
 
-export const ResourceThumb: React.FC<Props> = ({ resourceId, fallback, style }) => {
+export const ResourceThumb: React.FC<Props> = ({ resourceId, fallback, locked, style }) => {
   const registry = useContext(Ctx);
   const boxRef = useRef<View>(null);
   const [status, setStatus] = useState<Status>('hidden');
@@ -162,6 +165,9 @@ export const ResourceThumb: React.FC<Props> = ({ resourceId, fallback, style }) 
           )}
         </>
       ) : fallback}
+      {locked && ready && (
+        <View style={styles.lockBadge}><MaterialIcons name="lock" size={14} color="#fff" /></View>
+      )}
     </View>
   );
 };
@@ -169,4 +175,5 @@ export const ResourceThumb: React.FC<Props> = ({ resourceId, fallback, style }) 
 const styles = StyleSheet.create({
   box: { width: THUMB_W, height: THUMB_H, borderRadius: 8, overflow: 'hidden', backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   img: { width: '100%', height: '100%' },
+  lockBadge: { position: 'absolute', right: 3, bottom: 3, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
 });

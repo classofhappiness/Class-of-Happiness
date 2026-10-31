@@ -415,18 +415,13 @@ export default function TeacherResourcesScreen() {
                 handleViewResource(resource);
               }}
             >
-              {(resource as any).is_locked ? (
-              <View style={styles.resourceIcon}>
-                <MaterialIcons name="lock" size={32} color="#AAA" />
-              </View>
-              ) : (
-                // Page-preview thumbnail (still, or slideshow when most in view); the icon until it loads / if there are no previews.
-                <ResourceThumb
-                  resourceId={resource.id}
-                  style={{ backgroundColor: '#FFEBEE', marginRight: 0 }}
-                  fallback={<MaterialIcons name="picture-as-pdf" size={32} color="#F44336" />}
-                />
-              )}
+              {/* Locked cards get the thumbnail too (small 240px teaser + lock badge); the lock icon until it loads. */}
+              <ResourceThumb
+                resourceId={resource.id}
+                locked={!!(resource as any).is_locked}
+                style={{ backgroundColor: (resource as any).is_locked ? '#F5F5F5' : '#FFEBEE', marginRight: 0 }}
+                fallback={<MaterialIcons name={(resource as any).is_locked ? 'lock' : 'picture-as-pdf'} size={32} color={(resource as any).is_locked ? '#AAA' : '#F44336'} />}
+              />
               <View style={styles.resourceContent}>
                 <Text style={styles.resourceTitle}>{resource.title}</Text>
                 {(() => { const blurb = (resource as any).goal || (resource.description !== resource.title ? resource.description : ''); return blurb ? <Text style={styles.resourceDescription} numberOfLines={2}>{blurb}</Text> : null; })()}
