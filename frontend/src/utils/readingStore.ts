@@ -105,6 +105,12 @@ export function computeOverrides(flat: Record<string, any>, cfg: ActiveConfig) {
     // The weight/slant is in the file; asking for it again would fake-bold it on Android.
     o.fontWeight = 'normal';
     o.fontStyle = 'normal';
+    // OpenDyslexic's built-in line box is much taller than the normal fonts', which pushes
+    // text out of fixed-height buttons and cards. A Text with no lineHeight of its own gets
+    // one close to the normal font's, so layouts keep their shape; an explicit lineHeight wins.
+    if (flat.lineHeight === undefined) {
+      o.lineHeight = Math.round((typeof flat.fontSize === 'number' ? flat.fontSize : 14) * 1.3);
+    }
   }
   if (cfg.letterEm > 0 && flat.letterSpacing === undefined) {
     o.letterSpacing = (typeof flat.fontSize === 'number' ? flat.fontSize : 14) * cfg.letterEm;
