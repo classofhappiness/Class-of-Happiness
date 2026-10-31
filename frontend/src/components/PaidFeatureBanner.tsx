@@ -4,18 +4,23 @@ import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EMOTION_COLOURS, EMOTION_LIGHT_COLOURS } from '../constants/emotionColours';
 
-// One slim line for adults on the Resources screens, shown only when something in the loaded
-// list is locked (the caller passes that fact in). Closing it hides it for 7 days; the
+// One slim line for adults on the Resources screens (used for "some activities are paid" and for
+// "your payment didn't go through"). The caller decides when it is visible (something is locked /
+// a payment failed). Closing it hides it for 7 days under the caller's own storage key; the
 // timestamp lives in AsyncStorage, and every read/write is in try/catch (without storage it
 // simply shows each visit). Never placed on a child-facing screen.
-const KEY = 'coh.paidBanner.dismissedAt';
+const DEFAULT_KEY = 'coh.paidBanner.dismissedAt';
 const HIDE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const PaidFeatureBanner: React.FC<{
   visible: boolean;
   t: (k: string) => string;
-  onSeePlans: () => void;
-}> = ({ visible, t, onSeePlans }) => {
+  onPress: () => void;
+  text?: string;
+  buttonLabel?: string;
+  storageKey?: string;
+}> = ({ visible, t, onPress, text, buttonLabel, storageKey }) => {
+  const KEY = storageKey || DEFAULT_KEY;
   const [hidden, setHidden] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -30,7 +35,7 @@ export const PaidFeatureBanner: React.FC<{
       }
     })();
     return () => { alive = false; };
-  }, []);
+  }, [KEY]);
 
   if (!visible || hidden !== false) return null;
 
@@ -45,9 +50,9 @@ export const PaidFeatureBanner: React.FC<{
 
   return (
     <View style={styles.bar}>
-      <Text style={styles.text} numberOfLines={2}>{t('paid_banner_text') || 'Some activities are part of a paid plan.'}</Text>
-      <TouchableOpacity style={styles.btn} onPress={onSeePlans}>
-        <Text style={styles.btnText}>{t('see_plans') || 'See Plans'}</Text>
+      <Text style={styles.text} numberOfLines={2}>{text ?? (t('paid_banner_text') || 'Some activities are part of a paid plan.')}</Text>
+      <TouchableOpacity style={styles.btn} onPress={onPress}>
+        <Text style={styles.btnText}>{buttonLabel ?? (t('see_plans') || 'See Plans')}</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={dismiss} accessibilityLabel={t('paid_banner_dismiss') || 'Dismiss'} style={styles.close}>
         <MaterialIcons name="close" size={18} color="#8D6E63" />

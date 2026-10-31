@@ -30,6 +30,7 @@ import { buildSections, sectionTitle } from '../../src/utils/resourceMeta';
 import { getDownloadUrl } from '../../src/utils/downloadLink';
 import { formatRating } from '../../src/utils/numberLabel';
 import { PaidFeatureBanner } from '../../src/components/PaidFeatureBanner';
+import { PaymentIssueBanner } from '../../src/components/PaymentIssueBanner';
 import { showLockedResourceAlert } from '../../src/utils/lockedSummary';
 
 // Real fix Sep 30 (live feedback, item 3): matches the same notice added to
@@ -474,8 +475,9 @@ export default function ResourcesScreen() {
           </Text>
         )}
 
-        {/* Adult-only slim banner: only when something in the loaded list is locked */}
-        <PaidFeatureBanner visible={[...resources, ...parentTeacherResources].some((r: any) => r.is_locked)} t={t} onSeePlans={() => router.push('/subscription')} />
+        {/* Adult-only slim banners: payment trouble, and "some activities are paid" (only when something loaded is locked) */}
+        <PaymentIssueBanner />
+        <PaidFeatureBanner visible={[...resources, ...parentTeacherResources].some((r: any) => r.is_locked)} t={t} onPress={() => router.push('/subscription')} />
 
         {/* Resources List — unified single list, real fix Aug 14 (see above) */}
         {loading ? (

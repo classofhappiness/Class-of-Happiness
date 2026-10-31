@@ -2239,5 +2239,8 @@
   "parent_gate_title": "For grown-ups",
   "parent_gate_prompt": "To continue, please answer: {a} + {b} = ?",
   "parent_gate_wrong": "That's not right. Please try again.",
-  "trial_ends_on": "Your free trial ends on {date}"
+  "trial_ends_on": "Your free trial ends on {date}",
+  "payment_issue_banner": "Your payment didn't go through. Update your card to keep your plan.",
+  "payment_issue_update_card": "Update your card",
+  "payment_issue_error": "Could not open the card page. Please try again."
 }

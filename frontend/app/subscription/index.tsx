@@ -9,6 +9,7 @@ import { useApp } from '../../src/context/AppContext';
 import { subscriptionApi } from '../../src/utils/api';
 import { ParentGate } from '../../src/components/ParentGate';
 import { trialEndsAt } from '../../src/utils/trialEnd';
+import { openBillingPortal } from '../../src/utils/billingPortal';
 import { formatShortDate } from '../../src/utils/dateLabel';
 
 // Real fix Aug 18: annual billing isn't offered yet — neither the backend's
@@ -140,8 +141,16 @@ export default function SubscriptionScreen() {
   // Every way to checkout ends here, so the one parent check sits in front of Stripe. Starting the
   // free trial is not a purchase and stays ungated.
   const [showGate, setShowGate] = useState(false);
+  const [gateAction, setGateAction] = useState<'checkout' | 'portal'>('checkout');
+  const isPastDue = user?.subscription_status === 'past_due';
   const handleSubscribe = () => {
     if (!isAuthenticated) { login(); return; }
+    setGateAction('checkout');
+    setShowGate(true);
+  };
+
+  const handleUpdateCard = () => {
+    setGateAction('portal');
     setShowGate(true);
   };
 
@@ -356,7 +365,17 @@ export default function SubscriptionScreen() {
           </View>
 
           {/* Subscribe Button */}
-          {canSubscribe && (
+          {isPastDue && (
+            <>
+              <Text style={{ fontSize: 14, color: '#5D4037', textAlign: 'center', marginBottom: 10 }}>
+                {t('payment_issue_banner') || "Your payment didn't go through. Update your card to keep your plan."}
+              </Text>
+              <TouchableOpacity style={st.subscribeBtn} onPress={handleUpdateCard}>
+                <Text style={st.subscribeBtnText}>{t('payment_issue_update_card') || 'Update your card'}</Text>
+              </TouchableOpacity>
+            </>
+          )}
+          {canSubscribe && !isPastDue && (
             <TouchableOpacity style={st.subscribeBtn} onPress={handleSubscribe} disabled={loading}>
               {loading
                 ? <ActivityIndicator color="white" />
@@ -444,7 +463,7 @@ export default function SubscriptionScreen() {
         </View>
       </Modal>
 
-      <ParentGate visible={showGate} t={t} onCancel={() => setShowGate(false)} onPass={() => { setShowGate(false); startCheckout(); }} />
+      <ParentGate visible={showGate} t={t} onCancel={() => setShowGate(false)} onPass={() => { setShowGate(false); if (gateAction === 'portal') openBillingPortal(t); else startCheckout(); }} />
     </ScrollView>
   );
 }

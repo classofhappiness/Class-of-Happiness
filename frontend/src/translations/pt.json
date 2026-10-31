@@ -2373,5 +2373,8 @@
   "parent_gate_title": "Para adultos",
   "parent_gate_prompt": "Para continuar, responde: {a} + {b} = ?",
   "parent_gate_wrong": "Isso não está certo. Tenta outra vez.",
-  "trial_ends_on": "O teu teste gratuito termina em {date}"
+  "trial_ends_on": "O teu teste gratuito termina em {date}",
+  "payment_issue_banner": "O teu pagamento não foi concluído. Atualiza o cartão para manteres o teu plano.",
+  "payment_issue_update_card": "Atualizar cartão",
+  "payment_issue_error": "Não foi possível abrir a página do cartão. Tenta outra vez."
 }

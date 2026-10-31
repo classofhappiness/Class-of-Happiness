@@ -2382,5 +2382,8 @@
   "parent_gate_title": "Per gli adulti",
   "parent_gate_prompt": "Per continuare, rispondi: {a} + {b} = ?",
   "parent_gate_wrong": "Non è corretto. Riprova.",
-  "trial_ends_on": "La tua prova gratuita termina il {date}"
+  "trial_ends_on": "La tua prova gratuita termina il {date}",
+  "payment_issue_banner": "Il tuo pagamento non è andato a buon fine. Aggiorna la carta per mantenere il tuo piano.",
+  "payment_issue_update_card": "Aggiorna la carta",
+  "payment_issue_error": "Impossibile aprire la pagina della carta. Riprova."
 }

@@ -2225,5 +2225,8 @@
   "parent_gate_title": "للبالغين",
   "parent_gate_prompt": "للمتابعة، أجب: {a} + {b} = ?",
   "parent_gate_wrong": "هذا غير صحيح. حاول مرة أخرى.",
-  "trial_ends_on": "تنتهي تجربتك المجانية في {date}"
+  "trial_ends_on": "تنتهي تجربتك المجانية في {date}",
+  "payment_issue_banner": "لم تتم عملية الدفع. حدّث بطاقتك للحفاظ على خطتك.",
+  "payment_issue_update_card": "تحديث البطاقة",
+  "payment_issue_error": "تعذّر فتح صفحة البطاقة. حاول مرة أخرى."
 }
