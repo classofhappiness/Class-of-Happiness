@@ -2240,5 +2240,8 @@
   "sr_switch_off_body": "لن يرى معلمو {school} زر الدعم بعد الآن. تبقى الطلبات المفتوحة والسجل ظاهرين لمسؤول المدرسة، ولا يُحذف أي شيء.",
   "sr_switch_off_btn": "إيقاف",
   "feature_state_on": "مفعّل",
-  "feature_state_off": "متوقف"
+  "feature_state_off": "متوقف",
+  "resource_choose_file": "اختر ملف PDF",
+  "resource_file_or_link_required": "يرجى إضافة ملف PDF أو رابط",
+  "resource_or_link": "أو الصق رابطًا"
 }

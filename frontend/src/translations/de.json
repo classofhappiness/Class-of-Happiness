@@ -2397,5 +2397,8 @@
   "sr_switch_off_body": "Lehrkräfte an {school} sehen die Unterstützungstaste nicht mehr. Offene Anfragen und der Verlauf bleiben für die Schulleitung sichtbar, und nichts wird gelöscht.",
   "sr_switch_off_btn": "Ausschalten",
   "feature_state_on": "Ein",
-  "feature_state_off": "Aus"
+  "feature_state_off": "Aus",
+  "resource_choose_file": "PDF-Datei auswählen",
+  "resource_file_or_link_required": "Bitte füge eine PDF-Datei oder einen Link hinzu",
+  "resource_or_link": "oder füge einen Link ein"
 }

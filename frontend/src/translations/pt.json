@@ -2388,5 +2388,8 @@
   "sr_switch_off_body": "Os professores de {school} deixam de ver o botão de apoio. Os pedidos em aberto e o histórico continuam visíveis para o administrador da escola e nada é eliminado.",
   "sr_switch_off_btn": "Desativar",
   "feature_state_on": "Ativado",
-  "feature_state_off": "Desativado"
+  "feature_state_off": "Desativado",
+  "resource_choose_file": "Escolher um ficheiro PDF",
+  "resource_file_or_link_required": "Adicione um ficheiro PDF ou uma ligação",
+  "resource_or_link": "ou cole uma ligação"
 }

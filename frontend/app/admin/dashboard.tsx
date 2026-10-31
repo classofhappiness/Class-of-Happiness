@@ -3225,10 +3225,34 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
   const ADMIN_RESOURCE_TOPICS = getAdminResourceTopics(t);
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
+  // Oct 31: a resource is a title plus EITHER a PDF file OR a link. Choosing a file fills the title from the file name
+  // (still editable) and clears the link; typing a link clears the file.
+  const [pdf, setPdf] = useState<{ content: string; filename: string } | null>(null);
+  const [autoTitle, setAutoTitle] = useState('');
   const [audience, setAudience] = useState<'teacher'|'parent'|'both'>('teacher');
   const [topic, setTopic] = useState('general');
   const [saving, setSaving] = useState(false);
   const [resources, setResources] = useState<any[]>([]);
+
+  const pickPdf = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true });
+      if (result.canceled || !result.assets?.length) return;
+      const file = result.assets[0];
+      const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: 'base64' });
+      if (!base64) { Alert.alert(t('error') || 'Error', t('pdf_read_error') || 'Could not read PDF file. Please try again.'); return; }
+      if (base64.length > 2000000) { Alert.alert(t('file_too_large_title') || 'File Too Large', t('pdf_too_large_desc') || 'Please use a PDF under 1MB. Tip: compress it at smallpdf.com first.'); return; }
+      const name = file.name || 'document.pdf';
+      const fromName = name.replace(/\.pdf$/i, '');
+      setPdf({ content: base64, filename: name });
+      setUrl('');
+      // only overwrite a title the person has not typed themselves
+      if (!title.trim() || title === autoTitle) { setTitle(fromName); setAutoTitle(fromName); }
+    } catch (e) {
+      console.error('[admin resource pick]', e);
+      Alert.alert(t('error') || 'Error', t('pick_document_error') || 'Failed to pick document');
+    }
+  };
 
   const loadResources = () => {
     apiCall('/teacher-resources', authToken)
@@ -3251,14 +3275,18 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
   };
 
   const save = async () => {
-    if (!title.trim() || !url.trim()) { Alert.alert(t('title_and_url_required') || 'Title and URL required'); return; }
+    if (!title.trim()) { Alert.alert(t('error') || 'Error', t('enter_title_prompt') || 'Please enter a title'); return; }
+    if (!pdf && !url.trim()) { Alert.alert(t('error') || 'Error', t('resource_file_or_link_required') || 'Please add a PDF file or a link'); return; }
     setSaving(true);
     try {
       // Real fix Aug 15: added a real topic field so admin-created resources are
       // categorized the same way as everywhere else (teacher/parent screens, portal) —
       // matches Jono's explicit design-sync principle, instead of one flat uncategorized list.
-      await apiCall('/teacher-resources', authToken, { method: 'POST', body: JSON.stringify({ title, url, content: url, audience, target_audience: audience, topic, category: topic }) });
-      setTitle(''); setUrl('');
+      const body = pdf
+        ? { title, description: title, content_type: 'pdf', content: pdf.content, pdf_filename: pdf.filename, audience, target_audience: audience, topic, category: topic }
+        : { title, url, content: url, audience, target_audience: audience, topic, category: topic };
+      await apiCall('/teacher-resources', authToken, { method: 'POST', body: JSON.stringify(body) });
+      setTitle(''); setUrl(''); setPdf(null); setAutoTitle('');
       loadResources();
       Alert.alert(`✅ ${t('added') || 'Added'}`);
     } catch { Alert.alert(t('error') || 'Error', t('could_not_add_resource') || 'Could not add resource.'); }
@@ -3281,7 +3309,12 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
     <View style={{ gap: 12 }}>
       <SectionCard title={t("add_resource") || "Add Resource"} subtitle={t("share_pdfs") || "Share PDFs or links"} icon="add-circle" color={INDIGO} defaultOpen>
         <TextInput style={s.input} placeholder={t('title_placeholder') || 'Title'} value={title} onChangeText={setTitle} placeholderTextColor="#AAA" />
-        <TextInput style={s.input} placeholder={t('url_or_pdf_link_placeholder') || 'URL or PDF link'} value={url} onChangeText={setUrl} autoCapitalize="none" placeholderTextColor="#AAA" />
+        <TouchableOpacity style={[s.chip, { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }, pdf && s.chipActive]} onPress={pickPdf}>
+          <MaterialIcons name="upload-file" size={16} color={pdf ? 'white' : INDIGO} />
+          <Text style={[s.chipText, pdf && s.chipTextActive]} numberOfLines={1}>{pdf ? pdf.filename : (t('resource_choose_file') || 'Choose a PDF file')}</Text>
+        </TouchableOpacity>
+        <Text style={{ fontSize: 11, color: '#999', marginBottom: 4 }}>{t('resource_or_link') || 'or paste a link'}</Text>
+        <TextInput style={s.input} placeholder={t('url_or_pdf_link_placeholder') || 'URL or PDF link'} value={url} onChangeText={(v) => { setUrl(v); if (v.trim()) setPdf(null); }} autoCapitalize="none" placeholderTextColor="#AAA" />
         <Text style={s.fieldLabel}>{t('category_label') || 'Category'}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
           <View style={{ flexDirection: 'row', gap: 6 }}>

@@ -2388,5 +2388,8 @@
   "sr_switch_off_body": "Los docentes de {school} dejarán de ver el botón de apoyo. Las solicitudes abiertas y el historial siguen visibles para la administración del centro y no se elimina nada.",
   "sr_switch_off_btn": "Desactivar",
   "feature_state_on": "Activado",
-  "feature_state_off": "Desactivado"
+  "feature_state_off": "Desactivado",
+  "resource_choose_file": "Elegir un archivo PDF",
+  "resource_file_or_link_required": "Añade un archivo PDF o un enlace",
+  "resource_or_link": "o pega un enlace"
 }

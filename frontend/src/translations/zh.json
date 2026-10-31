@@ -2240,5 +2240,8 @@
   "sr_switch_off_body": "{school} 的老师将不再看到支持按钮。未处理的请求和历史记录仍对学校管理员可见，不会删除任何内容。",
   "sr_switch_off_btn": "关闭",
   "feature_state_on": "开",
-  "feature_state_off": "关"
+  "feature_state_off": "关",
+  "resource_choose_file": "选择 PDF 文件",
+  "resource_file_or_link_required": "请添加 PDF 文件或链接",
+  "resource_or_link": "或粘贴链接"
 }

@@ -2240,5 +2240,8 @@
   "sr_switch_off_body": "Учителя школы {school} больше не увидят кнопку поддержки. Открытые запросы и история останутся видны администратору школы, ничего не удаляется.",
   "sr_switch_off_btn": "Отключить",
   "feature_state_on": "Включено",
-  "feature_state_off": "Выключено"
+  "feature_state_off": "Выключено",
+  "resource_choose_file": "Выбрать PDF-файл",
+  "resource_file_or_link_required": "Добавьте PDF-файл или ссылку",
+  "resource_or_link": "или вставьте ссылку"
 }

@@ -2397,5 +2397,8 @@
   "sr_switch_off_body": "Gli insegnanti di {school} non vedranno più il pulsante di supporto. Le richieste aperte e la cronologia restano visibili all'amministratore della scuola e non viene eliminato nulla.",
   "sr_switch_off_btn": "Disattiva",
   "feature_state_on": "Attivo",
-  "feature_state_off": "Disattivato"
+  "feature_state_off": "Disattivato",
+  "resource_choose_file": "Scegli un file PDF",
+  "resource_file_or_link_required": "Aggiungi un file PDF o un link",
+  "resource_or_link": "oppure incolla un link"
 }

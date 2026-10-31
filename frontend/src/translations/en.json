@@ -2254,5 +2254,8 @@
   "sr_switch_off_body": "Teachers at {school} will no longer see the support button. Open requests and history stay visible to the school admin, and nothing is deleted.",
   "sr_switch_off_btn": "Switch off",
   "feature_state_on": "On",
-  "feature_state_off": "Off"
+  "feature_state_off": "Off",
+  "resource_choose_file": "Choose a PDF file",
+  "resource_file_or_link_required": "Please add a PDF file or a link",
+  "resource_or_link": "or paste a link"
 }

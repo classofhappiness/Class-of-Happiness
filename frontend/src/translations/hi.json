@@ -2240,5 +2240,8 @@
   "sr_switch_off_body": "{school} के शिक्षकों को अब सहायता बटन नहीं दिखेगा। खुले अनुरोध और इतिहास स्कूल एडमिन को दिखते रहेंगे, और कुछ भी हटाया नहीं जाएगा।",
   "sr_switch_off_btn": "बंद करें",
   "feature_state_on": "चालू",
-  "feature_state_off": "बंद"
+  "feature_state_off": "बंद",
+  "resource_choose_file": "PDF फ़ाइल चुनें",
+  "resource_file_or_link_required": "कृपया PDF फ़ाइल या लिंक जोड़ें",
+  "resource_or_link": "या लिंक चिपकाएँ"
 }
