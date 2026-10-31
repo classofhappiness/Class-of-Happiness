@@ -2258,5 +2258,7 @@
   "upload_too_large": "حجم هذا الملف {size} ميجابايت. الحد الأقصى {limit} ميجابايت.",
   "link_unavailable": "هذا الرابط غير متاح.",
   "web_link": "رابط ويب",
-  "open_link": "فتح الرابط"
+  "open_link": "فتح الرابط",
+  "support_reply_from_admin": "رد مسؤول مدرستك",
+  "got_it": "حسنًا"
 }

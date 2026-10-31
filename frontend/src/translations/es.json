@@ -2406,5 +2406,7 @@
   "upload_too_large": "Este archivo pesa {size} MB. El límite es {limit} MB.",
   "link_unavailable": "Este enlace no está disponible.",
   "web_link": "Enlace web",
-  "open_link": "Abrir enlace"
+  "open_link": "Abrir enlace",
+  "support_reply_from_admin": "Respuesta de la administración de tu centro",
+  "got_it": "Entendido"
 }

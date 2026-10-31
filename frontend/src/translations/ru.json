@@ -2258,5 +2258,7 @@
   "upload_too_large": "Размер файла — {size} МБ. Ограничение — {limit} МБ.",
   "link_unavailable": "Эта ссылка недоступна.",
   "web_link": "Веб-ссылка",
-  "open_link": "Открыть ссылку"
+  "open_link": "Открыть ссылку",
+  "support_reply_from_admin": "Ответ администратора вашей школы",
+  "got_it": "Понятно"
 }

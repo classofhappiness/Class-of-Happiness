@@ -2415,5 +2415,7 @@
   "upload_too_large": "Ce fichier fait {size} Mo. La limite est de {limit} Mo.",
   "link_unavailable": "Ce lien n'est pas disponible.",
   "web_link": "Lien web",
-  "open_link": "Ouvrir le lien"
+  "open_link": "Ouvrir le lien",
+  "support_reply_from_admin": "Réponse de l'administration de votre école",
+  "got_it": "Compris"
 }

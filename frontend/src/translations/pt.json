@@ -2406,5 +2406,7 @@
   "upload_too_large": "Este ficheiro tem {size} MB. O limite é {limit} MB.",
   "link_unavailable": "Esta ligação não está disponível.",
   "web_link": "Ligação web",
-  "open_link": "Abrir ligação"
+  "open_link": "Abrir ligação",
+  "support_reply_from_admin": "Resposta do administrador da sua escola",
+  "got_it": "Entendi"
 }

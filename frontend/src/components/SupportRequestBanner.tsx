@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, ActivityIndicator, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   SupportRequest, formatSupportRequestStatus, describeSupportRequest, formatSentLine,
   supportRequestsApi,
@@ -10,6 +11,11 @@ import { EMOTION_COLOURS } from '../constants/emotionColours';
 import { useApp } from '../context/AppContext';
 
 const FLASH_MS = 4000; // how long a just-RESOLVED request stays visible before it self-removes
+// Oct 31: an admin's written reply ("I'll be 5 minutes") is NOT flashed for 4 seconds any more. The card stays on the
+// dashboard, open, showing the reply, until the teacher taps "Got it" (remembered on the phone) or an hour has passed.
+const REPLY_KEEP_MS = 60 * 60 * 1000;
+const DISMISSED_KEY = 'coh_sr_dismissed_replies';
+const isReplied = (r: SupportRequest) => r.status === 'RESOLVED' && !r.arrived_at && !!(r.admin_response || '').trim();
 
 // Real revision Sep 11 (Jono's lifecycle spec): PENDING and ACKNOWLEDGED both now persist
 // indefinitely - "Seen — on the way" is a real waiting state, not a 4s toast, and stays
@@ -38,6 +44,15 @@ export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState<Record<string, 'arriving' | 'cancelling' | undefined>>({});
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [dismissed, setDismissed] = useState<string[]>([]);
+  useEffect(() => {
+    AsyncStorage.getItem(DISMISSED_KEY).then((v) => { if (v) { try { setDismissed(JSON.parse(v)); } catch {} } }).catch(() => {});
+  }, []);
+  const dismissReply = (id: string) => setDismissed((d) => {
+    const n = d.includes(id) ? d : [...d, id].slice(-50);
+    AsyncStorage.setItem(DISMISSED_KEY, JSON.stringify(n)).catch(() => {});
+    return n;
+  });
 
   // Real fix Sep 11 (stop-ship): this used to run its own setInterval + fetch. Now purely
   // derives from the one shared poller (supportRequestsPoller.ts) - see that file for why.
@@ -58,7 +73,7 @@ export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
   //     re-render. This is real defense in depth, not just a mirror of fix (1): flipTimestamp-
   //     driven entries (RESOLVED/CANCELLED) can still legitimately re-add the same id on a
   //     later tick before its flash timer fires, which fix (1) alone wouldn't catch.
-  const listSignature = list.map((r) => `${r.id}:${r.status}`).join('|');
+  const listSignature = list.map((r) => `${r.id}:${r.status}:${(r.admin_response || '').length}`).join('|') + '#' + dismissed.length;
   useEffect(() => {
     const now = Date.now();
     const next: Record<string, SupportRequest> = {};
@@ -67,6 +82,12 @@ export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
       if (r.status === 'PENDING' || r.status === 'ACKNOWLEDGED') {
         next[r.id] = r; // persist until the request actually resolves
         if (timers.current[r.id]) { clearTimeout(timers.current[r.id]); delete timers.current[r.id]; }
+        return;
+      }
+      // An admin's written reply stays until the teacher dismisses it.
+      if (isReplied(r)) {
+        const at = r.responded_at ? new Date(r.responded_at).getTime() : null;
+        if (!dismissed.includes(r.id) && at !== null && now - at < REPLY_KEEP_MS) next[r.id] = r;
         return;
       }
       // RESOLVED or CANCELLED - brief flash, then gone for good
@@ -82,8 +103,8 @@ export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
       }, msRemaining);
     });
     setActive((prev) => {
-      const prevSig = Object.values(prev).map((r) => `${r.id}:${r.status}`).sort().join('|');
-      const nextSig = Object.values(next).map((r) => `${r.id}:${r.status}`).sort().join('|');
+      const prevSig = Object.values(prev).map((r) => `${r.id}:${r.status}:${r.admin_response || ''}`).sort().join('|');
+      const nextSig = Object.values(next).map((r) => `${r.id}:${r.status}:${r.admin_response || ''}`).sort().join('|');
       return prevSig === nextSig ? prev : next;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -133,24 +154,26 @@ export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
         <RequestCard
           key={r.id}
           request={r}
-          expanded={!!expanded[r.id]}
+          expanded={expanded[r.id] !== undefined ? !!expanded[r.id] : isReplied(r)}
           busy={busy[r.id]}
           onToggle={() => toggle(r.id)}
           onArrived={() => markArrived(r)}
           onCancel={() => cancelRequest(r)}
+          onDismiss={() => dismissReply(r.id)}
         />
       ))}
     </View>
   );
 }
 
-function RequestCard({ request, expanded, busy, onToggle, onArrived, onCancel }: {
+function RequestCard({ request, expanded, busy, onToggle, onArrived, onCancel, onDismiss }: {
   request: SupportRequest;
   expanded: boolean;
   busy: 'arriving' | 'cancelling' | undefined;
   onToggle: () => void;
   onArrived: () => void;
   onCancel: () => void;
+  onDismiss: () => void;
 }) {
   const { t, language } = useApp();
   const display = formatSupportRequestStatus(request, t);
@@ -182,6 +205,17 @@ function RequestCard({ request, expanded, busy, onToggle, onArrived, onCancel }:
           <Text style={styles.detailTitle}>{who}</Text>
           <Text style={styles.detailLine}>{describeSupportRequest(request, t)}</Text>
           <Text style={styles.detailMeta}>{formatSentLine(request.created_at, t, language)}</Text>
+          {isReplied(request) && (
+            <>
+              <Text style={styles.replyLabel}>{t('support_reply_from_admin') || 'Reply from your school admin'}</Text>
+              <Text style={styles.replyText}>{request.admin_response}</Text>
+              <View style={styles.actionRow}>
+                <TouchableOpacity style={styles.arrivedBtn} onPress={onDismiss}>
+                  <Text style={styles.arrivedBtnText}>{t('got_it') || 'Got it'}</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
           {isOpen && (
             <View style={styles.actionRow}>
               <TouchableOpacity style={styles.arrivedBtn} disabled={!!busy} onPress={onArrived}>
@@ -220,6 +254,8 @@ const styles = StyleSheet.create({
   detailTitle: { fontSize: 14, fontWeight: '700', color: '#333', marginTop: 8 },
   detailLine: { fontSize: 13, color: '#555', marginTop: 2 },
   detailMeta: { fontSize: 11, color: '#999', marginTop: 4 },
+  replyLabel: { fontSize: 11, fontWeight: '700', color: '#2E7D32', marginTop: 10 },
+  replyText: { fontSize: 15, fontWeight: '600', color: '#1A1A2E', marginTop: 2 },
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
   arrivedBtn: {
     flex: 1, backgroundColor: EMOTION_COLOURS.green, borderRadius: 10,

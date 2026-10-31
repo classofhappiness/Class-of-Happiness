@@ -2272,5 +2272,7 @@
   "upload_too_large": "This file is {size} MB. The limit is {limit} MB.",
   "link_unavailable": "This link is not available.",
   "web_link": "Web link",
-  "open_link": "Open link"
+  "open_link": "Open link",
+  "support_reply_from_admin": "Reply from your school admin",
+  "got_it": "Got it"
 }

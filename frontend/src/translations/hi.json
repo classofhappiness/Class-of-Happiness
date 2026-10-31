@@ -2258,5 +2258,7 @@
   "upload_too_large": "यह फ़ाइल {size} MB की है। सीमा {limit} MB है।",
   "link_unavailable": "यह लिंक उपलब्ध नहीं है।",
   "web_link": "वेब लिंक",
-  "open_link": "लिंक खोलें"
+  "open_link": "लिंक खोलें",
+  "support_reply_from_admin": "आपके स्कूल के एडमिन का उत्तर",
+  "got_it": "समझ गया"
 }

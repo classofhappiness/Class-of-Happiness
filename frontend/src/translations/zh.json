@@ -2258,5 +2258,7 @@
   "upload_too_large": "此文件为 {size} MB，上限为 {limit} MB。",
   "link_unavailable": "此链接不可用。",
   "web_link": "网页链接",
-  "open_link": "打开链接"
+  "open_link": "打开链接",
+  "support_reply_from_admin": "学校管理员的回复",
+  "got_it": "知道了"
 }
