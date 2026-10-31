@@ -14377,6 +14377,19 @@ async def create_subscription_checkout(request: Request):
     price_id = STRIPE_PRICE_IDS.get(plan, "")
     if not price_id:
         raise HTTPException(status_code=500, detail=f"Stripe price for '{plan}' is not configured yet")
+    # Stripe only accepts http(s) return URLs. The phone app sends its own classofhappiness://
+    # link, which Stripe rejects ("Not a valid URL" on success_url) - that was the "Could not
+    # start checkout" on every phone. For those, return through an https page on this server
+    # (/subscription/return) that hands the person back to the app.
+    if origin_url.startswith(("https://", "http://")):
+        success_url = f"{origin_url}/subscription/success?session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url = f"{origin_url}/subscription"
+    else:
+        proto = request.headers.get("x-forwarded-proto", request.url.scheme).split(",")[0].strip()
+        host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+        base = f"{proto}://{host}/api/subscription/return"
+        success_url = f"{base}?to=success&session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url = f"{base}?to=cancel"
     try:
         session = stripe_lib.checkout.Session.create(
             mode="subscription",
@@ -14385,13 +14398,31 @@ async def create_subscription_checkout(request: Request):
             customer_email=user.get("email"),
             client_reference_id=user["user_id"],
             metadata={"user_id": user["user_id"], "plan": plan},
-            success_url=f"{origin_url}/subscription/success?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{origin_url}/subscription",
+            success_url=success_url,
+            cancel_url=cancel_url,
         )
     except Exception as e:
         logger.error(f"Stripe checkout session creation failed for {user['user_id']} ({plan}): {e}")
         raise HTTPException(status_code=500, detail="Could not start checkout. Try again.")
     return {"url": session.url, "session_id": session.id}
+
+@api_router.get("/subscription/return")
+async def subscription_return(to: str = "cancel", session_id: str = ""):
+    """Where Stripe sends the person after checkout when the request came from the phone app.
+    Opens the app on the matching screen; shows a plain 'return to the app' link as a fallback."""
+    from fastapi.responses import HTMLResponse
+    import html as _html
+    safe_sid = "".join(ch for ch in session_id if ch.isalnum() or ch == "_")[:200]
+    link = "classofhappiness://subscription/success?session_id=" + safe_sid if (to == "success" and safe_sid) else "classofhappiness://subscription"
+    page = (
+        '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<title>Class of Happiness</title></head>'
+        '<body style="font-family:sans-serif;text-align:center;padding:48px 24px">'
+        '<h2>' + ("Payment received" if to == "success" else "Checkout cancelled") + '</h2>'
+        '<p><a href="' + _html.escape(link) + '" style="font-size:18px">Return to the Class of Happiness app</a></p>'
+        '<script>window.location.replace(' + json.dumps(link) + ');</script></body></html>'
+    )
+    return HTMLResponse(page)
 
 _PORTAL_RETURN_SCHEMES = ("https://", "classofhappiness://", "exp://", "exps://")
 
@@ -25192,6 +25223,20 @@ async def request_account_deletion(request: Request):
     if role == "teacher" and not user.get("school_admin_id"):
         raise HTTPException(status_code=400, detail="We can't automatically reassign your classrooms yet — please contact jono@classofhappiness.com to delete this account.")
 
+    # Stripe first: a paid plan (active, in trial, past due or unpaid) must be cancelled before the
+    # account is marked for deletion. If Stripe can't be reached or a cancel fails, refuse and change
+    # nothing, so the person is never left charged for an account that is closing.
+    stripe_customer_id = user.get("stripe_customer_id")
+    if stripe_customer_id and STRIPE_SECRET_KEY:
+        try:
+            subs = stripe_lib.Subscription.list(customer=stripe_customer_id, status="all", limit=100)
+            for sub in _sget(subs, "data", []):
+                if _sget(sub, "status") in ("active", "trialing", "past_due", "unpaid"):
+                    stripe_lib.Subscription.delete(_sget(sub, "id"))
+        except Exception as e:
+            logger.error(f"Could not cancel Stripe subscription during account deletion for {user['user_id']}: {e}")
+            raise HTTPException(status_code=502, detail="We couldn't cancel your subscription, so your account has not been deleted. Please try again, or contact jono@classofhappiness.com.")
+
     # Write the deletion marker FIRST, before any other mutation. Deliberate ordering:
     # this column (deletion_requested_at) requires a migration this app can't run itself
     # (no DDL access from code - see the module comment above). If it's missing, this call
@@ -25204,17 +25249,6 @@ async def request_account_deletion(request: Request):
         school_admin_id = user["school_admin_id"]
         supabase.table("classrooms").update({"user_id": school_admin_id}).eq("user_id", user["user_id"]).execute()
         supabase.table("students").update({"user_id": school_admin_id}).eq("user_id", user["user_id"]).execute()
-
-    # Cancel any active Stripe subscription now rather than waiting for the purge -
-    # nothing else in this app currently cancels a subscription on account closure.
-    stripe_customer_id = user.get("stripe_customer_id")
-    if stripe_customer_id and STRIPE_SECRET_KEY:
-        try:
-            subs = stripe_lib.Subscription.list(customer=stripe_customer_id, status="active")
-            for sub in _sget(subs, "data", []):
-                stripe_lib.Subscription.delete(_sget(sub, "id"))
-        except Exception as e:
-            logger.warning(f"Could not cancel Stripe subscription during account deletion for {user['user_id']}: {e}")
 
     # Immediate lockout - revoke every existing session. Future logins are already
     # blocked via deletion_requested_at (see /auth/email-login and /auth/google).
