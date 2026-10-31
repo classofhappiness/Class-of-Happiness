@@ -32,6 +32,7 @@ import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
 import { ResourceFactsChips } from '../../src/components/ResourceFactsChips';
 import { ResourceDetailFacts } from '../../src/components/ResourceDetailFacts';
 import { PagePreviewStrip } from '../../src/components/PagePreviewStrip';
+import { ResourceThumb, ThumbRegistryProvider, useThumbPlayback } from '../../src/components/ResourceThumb';
 import { buildSections, sectionTitle } from '../../src/utils/resourceMeta';
 import { getDownloadUrl } from '../../src/utils/downloadLink';
 import { formatRating } from '../../src/utils/numberLabel';
@@ -97,6 +98,7 @@ export default function TeacherResourcesScreen() {
   
   // View resource modal
   const [showViewModal, setShowViewModal] = useState(false);
+  const thumbPlayback = useThumbPlayback(showUploadModal || showRatingModal || showViewModal);
   const [viewingResource, setViewingResource] = useState<TeacherResource | null>(null);
 
   // Real fix Aug 26 (item 1, silent role auto-sync): removed - this silently overwrote the
@@ -413,9 +415,18 @@ export default function TeacherResourcesScreen() {
                 handleViewResource(resource);
               }}
             >
+              {(resource as any).is_locked ? (
               <View style={styles.resourceIcon}>
-                <MaterialIcons name={(resource as any).is_locked ? 'lock' : 'picture-as-pdf'} size={32} color={(resource as any).is_locked ? '#AAA' : '#F44336'} />
+                <MaterialIcons name="lock" size={32} color="#AAA" />
               </View>
+              ) : (
+                // Page-preview thumbnail (still, or slideshow when most in view); the icon until it loads / if there are no previews.
+                <ResourceThumb
+                  resourceId={resource.id}
+                  style={{ backgroundColor: '#FFEBEE', marginRight: 0 }}
+                  fallback={<MaterialIcons name="picture-as-pdf" size={32} color="#F44336" />}
+                />
+              )}
               <View style={styles.resourceContent}>
                 <Text style={styles.resourceTitle}>{resource.title}</Text>
                 {(() => { const blurb = (resource as any).goal || (resource.description !== resource.title ? resource.description : ''); return blurb ? <Text style={styles.resourceDescription} numberOfLines={2}>{blurb}</Text> : null; })()}
@@ -536,7 +547,10 @@ export default function TeacherResourcesScreen() {
         </Text>
       )}
 
+      <ThumbRegistryProvider value={thumbPlayback.registry}>
       <ScrollView
+        ref={thumbPlayback.viewportRef}
+        {...thumbPlayback.scrollProps}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#5C6BC0" colors={['#5C6BC0']} />
@@ -598,6 +612,7 @@ export default function TeacherResourcesScreen() {
           renderResourceList()
         )}
       </ScrollView>
+      </ThumbRegistryProvider>
 
       {/* Upload Modal */}
       <Modal

@@ -26,6 +26,7 @@ import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
 import { ResourceFactsChips } from '../../src/components/ResourceFactsChips';
 import { ResourceDetailFacts } from '../../src/components/ResourceDetailFacts';
 import { PagePreviewStrip } from '../../src/components/PagePreviewStrip';
+import { ResourceThumb, ThumbRegistryProvider, useThumbPlayback } from '../../src/components/ResourceThumb';
 import { buildSections, sectionTitle } from '../../src/utils/resourceMeta';
 import { getDownloadUrl } from '../../src/utils/downloadLink';
 import { formatRating } from '../../src/utils/numberLabel';
@@ -137,6 +138,7 @@ export default function ResourcesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedResource, setSelectedResource] = useState<Resource | TeacherResource | null>(null);
+  const thumbPlayback = useThumbPlayback(!!selectedResource);
   const [selectedTopic, setSelectedTopic] = useState('all');
   const [downloading, setDownloading] = useState(false);
 
@@ -375,6 +377,14 @@ export default function ResourcesScreen() {
                   the same real signal (is_global) teacher/resources.tsx already uses, so it's
                   correct regardless of category and shows consistently everywhere, not just
                   when a duplicate happened to survive from the old merge. */}
+              {!resource.is_locked && resource.content_type === 'pdf' ? (
+                // Unlocked PDF: page-preview thumbnail (still, or slideshow when most in view); the icon until it loads / if there are no previews.
+                <ResourceThumb
+                  resourceId={resource.id}
+                  style={!resource.is_global ? { backgroundColor: '#E8F5E9' } : undefined}
+                  fallback={<MaterialIcons name="picture-as-pdf" size={32} color="#F44336" />}
+                />
+              ) : (
               <View style={[styles.resourceIcon, !resource.is_global && { backgroundColor: '#E8F5E9' }]}>
                 <MaterialIcons
                   name={resource.is_locked ? 'lock' : (resource.content_type === 'pdf' ? 'picture-as-pdf' : 'article')}
@@ -382,6 +392,7 @@ export default function ResourcesScreen() {
                   color={resource.is_locked ? '#AAA' : (resource.content_type === 'pdf' ? '#F44336' : (!resource.is_global ? '#4CAF50' : '#5C6BC0'))}
                 />
               </View>
+              )}
               <View style={styles.resourceContent}>
                 <View style={styles.teacherBadge}>
                   <MaterialIcons name="verified" size={14} color={resource.is_global ? '#5C6BC0' : '#4CAF50'} />
@@ -449,7 +460,10 @@ export default function ResourcesScreen() {
         </TouchableOpacity>
       </View>
 
+      <ThumbRegistryProvider value={thumbPlayback.registry}>
       <ScrollView
+        ref={thumbPlayback.viewportRef}
+        {...thumbPlayback.scrollProps}
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#5C6BC0" colors={['#5C6BC0']} />}
       >
@@ -521,6 +535,7 @@ export default function ResourcesScreen() {
           </Text>
         </View>
       </ScrollView>
+      </ThumbRegistryProvider>
 
       {/* Resource Detail Modal */}
       <Modal visible={!!selectedResource} transparent animationType="slide" onRequestClose={() => setSelectedResource(null)}>

@@ -560,6 +560,10 @@ export const resourcesApi = {
   // Up to 3 page images (base64 JPEG). 403 when the resource is locked for this user.
   getPreviews: (id: string): Promise<{ previews: { page_order: number; image: string }[] }> =>
     apiRequest(`/resources/${id}/previews`),
+
+  // The same pages downscaled to about `width` px (small JPEGs for the list-card thumbnails).
+  getPreviewThumbnails: (id: string, width = 240): Promise<{ previews: { page_order: number; image: string }[] }> =>
+    apiRequest(`/resources/${id}/previews?width=${width}`),
   
   get: (id: string): Promise<Resource> =>
     apiRequest(`/resources/${id}`),
