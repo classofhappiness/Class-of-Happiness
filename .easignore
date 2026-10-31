@@ -1,0 +1,81 @@
+# EAS upload rules. An .easignore REPLACES .gitignore for EAS uploads, so this starts with the rules from
+# the repo's .gitignore and frontend/.gitignore, then adds what must never be uploaded.
+
+# --- from .gitignore
+node_modules/
+.env
+__pycache__/
+*.pyc
+.expo/
+dist/
+build/
+*.jpg
+*.png
+*.mp3
+*.wav
+ios/
+android/
+frontend/.metro-cache/
+
+# Allow app assets
+!frontend/assets/**/*.png
+!frontend/assets/**/*.jpg
+!frontend/assets/**/*.wav
+!frontend/assets/**/*.mp3
+*.swp
+COH-HANDOVER.md
+.DS_Store
+!backend/assets/logo_mark.png
+
+# --- from frontend/.gitignore
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Firebase Admin SDK service-account keys (real secret - full admin access to the Firebase
+# project - unlike google-services.json, which IS committed on purpose, see app.json's
+# googleServicesFile: that one's a client identifier extractable from any installed APK,
+# this one is not). Matches the exact filename Firebase Console generates.
+*firebase-adminsdk*.json
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+app-example
+
+# --- not part of the app: working notes and marketing material
+report-*.md
+report-*.json
+report-*/
+frontend/assets/marketing-photos/
