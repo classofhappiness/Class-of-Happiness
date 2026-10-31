@@ -406,10 +406,9 @@ ALWAYS_OPEN_PINS = {
 # set and the full login + /admin/verify flow confirmed working before this line changed.
 ADMIN_PIN_ROLES = ("superadmin", "school_admin")
 
-PROMO_CODES = {
-    "HAPPYCLASS2026": {"type": "trial", "days": 30},
-    "CLASSOFHAPPINESS2026": {"type": "trial", "days": 30},
-}
+# Oct 31: the two built-in trial codes (HAPPYCLASS2026, CLASSOFHAPPINESS2026) now live in the
+# promo_codes table like any other code - see trials-and-codes/01_*.sql. max_uses null =
+# unlimited, expires_at null = never; edit them in the admin promo-codes screen.
 
 # ================== FEELINGS / COLOURS ==================
 # Internal code still uses 'blue/green/yellow/red' for DB compatibility
@@ -13328,17 +13327,53 @@ async def get_plans():
     # TRIAL_DURATION_DAYS (14), the actual duration enforced everywhere else in this file.
     return {"plans": SUBSCRIPTION_PLANS, "trial_days": TRIAL_DURATION_DAYS}
 
+def _trial_refusal_reason(user: dict):
+    """Why this account must NOT be given a trial or promo code, or None. A trial/code never
+    shortens or downgrades a paid plan, a school admin or a superadmin (it would overwrite
+    subscription_status and subscription_expires_at), so those are refused with nothing
+    changed. A lapsed plan (active but past its expiry) is fine."""
+    if user.get("role") in ("school_admin", "superadmin", "admin"):
+        return "Your account already has full access, so a free trial or code isn't needed. Nothing was changed."
+    status = user.get("subscription_status") or "none"
+    if status == "past_due" or (status == "active" and _personal_sub_is_active(user)):
+        return "You already have a paid plan, so a free trial or code isn't needed. Nothing was changed."
+    return None
+
+def _current_trial_end(user: dict):
+    """End of a trial that is running right now, else None."""
+    if user.get("subscription_status") != "trial" or not _trial_is_valid(user):
+        return None
+    exp = user.get("subscription_expires_at")
+    if exp:
+        return datetime.fromisoformat(exp.replace("Z", "+00:00"))
+    return datetime.fromisoformat(user["trial_started_at"].replace("Z", "+00:00")) + timedelta(days=TRIAL_DURATION_DAYS)
+
 @api_router.post("/subscription/start-trial")
 async def start_trial(request: Request):
+    """Standard trial: TRIAL_DURATION_DAYS, once per account. The end date is written to
+    subscription_expires_at (the one expiry field), which also replaces any stale expiry
+    left by an old plan or code."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    reason = _trial_refusal_reason(user)
+    if reason:
+        raise HTTPException(status_code=409, detail=reason)
+    if user.get("trial_used_at"):
+        raise HTTPException(status_code=409, detail="Your free trial has already been used.")
     now = datetime.now(timezone.utc)
-    supabase.table("users").update({
+    ends = now + timedelta(days=TRIAL_DURATION_DAYS)
+    # Conditional on trial_used_at still being empty, so two quick taps cannot both succeed.
+    res = supabase.table("users").update({
         "subscription_status": "trial",
-        "trial_started_at": now.isoformat()
-    }).eq("user_id", user["user_id"]).execute()
-    return {"message": "Trial started", "trial_ends": (now + timedelta(days=TRIAL_DURATION_DAYS)).isoformat()}
+        "trial_started_at": now.isoformat(),
+        "subscription_expires_at": ends.isoformat(),
+        "trial_used_at": now.isoformat(),
+    }).eq("user_id", user["user_id"]).is_("trial_used_at", "null").execute()
+    if not res.data:
+        raise HTTPException(status_code=409, detail="Your free trial has already been used.")
+    _auth_cache_evict_user(user["user_id"])
+    return {"message": "Trial started", "trial_ends": ends.isoformat()}
 
 # Oct 10 (PDF translation, G3): abbreviated month names per PDF language (en matches strftime("%b")).
 _PDF_MONTH_ABBR = {
@@ -16581,82 +16616,101 @@ def _format_export(export_type: str, fmt: str, data: list):
 
 @api_router.post("/subscription/redeem-trial-code")
 async def redeem_trial_code(request: Request):
-    """Real feature Aug 27 (item 11): promo codes now check the DB-backed promo_codes
-    table first (superadmin-manageable via /admin/promo-codes, no deploy needed to add
-    one), falling back to the hardcoded PROMO_CODES dict for the two original codes so
-    those keep working even before the migration below runs. Same defensive-fallback
-    pattern as everything else migration-dependent in this codebase - the table lookup is
-    wrapped so a missing table degrades to hardcoded-only, not a 500.
-
-    Migration (not run by me, see COH-REVIEW-PLAN.md):
-    CREATE TABLE promo_codes (
-      code text PRIMARY KEY,
-      type text DEFAULT 'trial',
-      days integer DEFAULT 30,
-      max_uses integer,
-      uses integer DEFAULT 0,
-      is_active boolean DEFAULT true,
-      expires_at timestamptz,
-      notes text,
-      created_by text,
-      created_at timestamptz DEFAULT now()
-    );
-    grant select, insert, update, delete on public.promo_codes to service_role;
-    """
+    """Redeem a trial code from the promo_codes table (superadmin-managed via /admin/promo-codes).
+    Rules (Oct 31): each code once per account (promo_redemptions primary key); never on a
+    paid plan, school admin or superadmin; if the code would give fewer days than the running
+    trial has left, the later end date is kept. The end date goes into subscription_expires_at."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     body = await request.json()
-    code = body.get("code", "").upper().strip()
-
-    days = None
-    db_row = None
+    code = (body.get("code") or "").upper().strip()
+    reason = _trial_refusal_reason(user)
+    if reason:
+        raise HTTPException(status_code=409, detail=reason)
     try:
         db_r = supabase.table("promo_codes").select("*").eq("code", code).execute()
-        if db_r.data:
-            db_row = db_r.data[0]
-    except Exception:
-        db_row = None
-
-    if db_row:
-        if not db_row.get("is_active", True):
-            raise HTTPException(status_code=400, detail="This trial code is no longer active")
-        expires_at = db_row.get("expires_at")
-        if expires_at and datetime.fromisoformat(str(expires_at).replace("Z", "+00:00")) < datetime.now(timezone.utc):
-            raise HTTPException(status_code=400, detail="This trial code has expired")
-        max_uses = db_row.get("max_uses")
-        uses = db_row.get("uses", 0) or 0
-        if max_uses is not None and uses >= max_uses:
-            raise HTTPException(status_code=400, detail="This trial code has reached its usage limit")
-        days = db_row.get("days", 30)
-        try:
-            supabase.table("promo_codes").update({"uses": uses + 1}).eq("code", code).execute()
-        except Exception as e:
-            logger.warning(f"[promo-code-use] could not increment uses for {code}: {e}")
-    elif code in PROMO_CODES:
-        days = PROMO_CODES[code].get("days", 30)
-    else:
+    except Exception as e:
+        logger.error(f"[promo-code] lookup failed: {e}")
+        raise HTTPException(status_code=503, detail="Trial codes are temporarily unavailable. Please try again later.")
+    db_row = db_r.data[0] if db_r.data else None
+    if not db_row:
         raise HTTPException(status_code=400, detail="Invalid trial code")
+    if not db_row.get("is_active", True):
+        raise HTTPException(status_code=400, detail="This trial code is no longer active")
+    expires_at = db_row.get("expires_at")
+    if expires_at and datetime.fromisoformat(str(expires_at).replace("Z", "+00:00")) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="This trial code has expired")
+    max_uses = db_row.get("max_uses")
+    if max_uses is not None and (db_row.get("uses") or 0) >= max_uses:
+        raise HTTPException(status_code=400, detail="This trial code has reached its usage limit")
+    days = db_row.get("days") or 30
+
+    # Once per account: the (user_id, code) primary key is the lock.
+    try:
+        supabase.table("promo_redemptions").insert({"user_id": user["user_id"], "code": code, "redeemed_at": datetime.now(timezone.utc).isoformat()}).execute()
+    except Exception as e:
+        if "duplicate" in str(e).lower() or "23505" in str(e):
+            raise HTTPException(status_code=409, detail="You've already used this code on this account.")
+        logger.error(f"[promo-code] redemption insert failed: {e}")
+        raise HTTPException(status_code=503, detail="Trial codes are temporarily unavailable. Please try again later.")
+
+    def _undo():
+        try:
+            supabase.table("promo_redemptions").delete().eq("user_id", user["user_id"]).eq("code", code).execute()
+        except Exception as ue:
+            logger.error(f"[promo-code] could not undo redemption row for {user['user_id']}/{code}: {ue}")
+
+    # Count the use; compare-and-set on `uses` so a max_uses limit holds under concurrency.
+    claimed = False
+    try:
+        for _ in range(4):
+            cur = supabase.table("promo_codes").select("uses,max_uses").eq("code", code).execute().data[0]
+            uses = cur.get("uses") or 0
+            if cur.get("max_uses") is not None and uses >= cur["max_uses"]:
+                break
+            if supabase.table("promo_codes").update({"uses": uses + 1}).eq("code", code).eq("uses", uses).execute().data:
+                claimed = True
+                break
+    except Exception as e:
+        logger.error(f"[promo-code] use count failed for {code}: {e}")
+        _undo()
+        raise HTTPException(status_code=503, detail="Trial codes are temporarily unavailable. Please try again later.")
+    if not claimed:
+        _undo()
+        raise HTTPException(status_code=400, detail="This trial code has reached its usage limit")
 
     now = datetime.now(timezone.utc)
-    trial_ends = now + timedelta(days=days)
-    supabase.table("users").update({
+    new_end = now + timedelta(days=days)
+    running_end = _current_trial_end(user)
+    keep_running = running_end is not None and running_end > new_end
+    end = running_end if keep_running else new_end
+    update = {
         "subscription_status": "trial",
-        "trial_started_at": now.isoformat(),
-        "subscription_expires_at": trial_ends.isoformat()
-    }).eq("user_id", user["user_id"]).execute()
-    return {
-        "message": f"Trial activated! {days} days free access.",
-        "trial_days": days,
-        "trial_ends_at": trial_ends.isoformat()
+        "trial_started_at": user.get("trial_started_at") if running_end else now.isoformat(),
+        "subscription_expires_at": end.isoformat(),
     }
+    if not user.get("trial_used_at"):
+        update["trial_used_at"] = now.isoformat()
+    try:
+        supabase.table("users").update(update).eq("user_id", user["user_id"]).execute()
+    except Exception as e:
+        logger.error(f"[promo-code] could not apply trial for {user['user_id']}: {e}")
+        _undo()
+        try:
+            supabase.table("promo_codes").update({"uses": max(0, (uses + 1) - 1)}).eq("code", code).execute()
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail="Could not apply the code. Please try again.")
+    _auth_cache_evict_user(user["user_id"])
+    days_left = max(1, (end - now).days)
+    msg = "Your trial already runs longer than this code, so nothing was shortened." if keep_running else f"Trial activated! {days} days free access."
+    return {"message": msg, "trial_days": days_left if keep_running else days, "trial_ends_at": end.isoformat()}
 
 @api_router.get("/admin/promo-codes")
 async def list_promo_codes(request: Request):
-    """Superadmin-manageable promo/trial codes. See /subscription/redeem-trial-code's
-    docstring for the migration. Includes the two legacy hardcoded codes (marked
-    is_builtin, not deletable/editable here) alongside real DB rows, so superadmin sees
-    the full picture in one list."""
+    """Superadmin-manageable promo/trial codes (all of them, including the two original
+    codes, which now live in the promo_codes table and are editable like any other)."""
     user = await get_current_user(request)
     if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
@@ -16665,8 +16719,7 @@ async def list_promo_codes(request: Request):
         rows = db_r.data or []
     except Exception:
         rows = []
-    builtin = [{"code": k, "type": v.get("type", "trial"), "days": v.get("days", 30), "max_uses": None, "uses": None, "is_active": True, "is_builtin": True} for k, v in PROMO_CODES.items()]
-    return rows + builtin
+    return rows
 
 @api_router.post("/admin/promo-codes")
 async def create_promo_code(request: Request):
@@ -16677,8 +16730,6 @@ async def create_promo_code(request: Request):
     code = (body.get("code") or "").upper().strip()
     if not code:
         raise HTTPException(status_code=400, detail="Code is required")
-    if code in PROMO_CODES:
-        raise HTTPException(status_code=400, detail="This code collides with a built-in code")
     row = {
         "code": code,
         "type": "trial",
@@ -16708,8 +16759,6 @@ async def update_promo_code(code: str, request: Request):
     if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
     code = code.upper().strip()
-    if code in PROMO_CODES:
-        raise HTTPException(status_code=400, detail="Built-in codes can't be edited")
     body = await request.json()
     allowed = ["days", "max_uses", "is_active", "expires_at", "notes"]
     updates = {k: v for k, v in body.items() if k in allowed}
@@ -16725,8 +16774,6 @@ async def delete_promo_code(code: str, request: Request):
     if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
     code = code.upper().strip()
-    if code in PROMO_CODES:
-        raise HTTPException(status_code=400, detail="Built-in codes can't be deleted")
     try:
         supabase.table("promo_codes").delete().eq("code", code).execute()
         return {"status": "deleted", "code": code}
@@ -22741,32 +22788,8 @@ async def parent_dashboard_stats(request: Request):
 
 # ================== TRIAL SYSTEM ==================
 
-@api_router.post("/trial/start")
-async def start_trial(request: Request):
-    """Start a trial for a user based on their role"""
-    user = await get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Must be logged in")
-    body = await request.json()
-    trial_type = body.get("type", "teacher")  # teacher, parent, school
-    
-    # Trial lengths
-    trial_days = {"teacher": 7, "parent": 7, "school": 30}.get(trial_type, 7)
-    expires_at = (datetime.now(timezone.utc) + timedelta(days=trial_days)).isoformat()
-    
-    supabase.table("users").update({
-        "subscription_status": "trial",
-        "trial_type": trial_type,
-        "trial_expires_at": expires_at,
-    }).eq("user_id", user["user_id"]).execute()
-    
-    return {
-        "status": "trial_started",
-        "trial_type": trial_type,
-        "expires_at": expires_at,
-        "days": trial_days,
-        "message": f"Your {trial_days}-day free trial has started!"
-    }
+# Oct 31: POST /trial/start retired. It promised a 7-day trial but only wrote trial_expires_at, which
+# no access check reads, so it granted nothing. The one trial path is POST /subscription/start-trial.
 
 @api_router.get("/trial/status")
 async def get_trial_status(request: Request):
