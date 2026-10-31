@@ -17461,6 +17461,7 @@ def _attach_rating_summary(items: list) -> list:
         n = cnt.get(r.get("id"), 0)
         r["average_rating"] = round(tot.get(r.get("id"), 0) / n, 1) if n else 0.0
         r["rating_count"] = n
+        r["total_ratings"] = n
     return items
 
 def _resource_to_teacher_resource(r: dict, ratings: list) -> dict:
@@ -17488,6 +17489,7 @@ def _resource_to_teacher_resource(r: dict, ratings: list) -> dict:
         "created_by_name": r.get("created_by_name"),
         "average_rating": round(avg_rating, 1),
         "rating_count": len(resource_ratings),
+        "total_ratings": len(resource_ratings),   # the app's cards read this name
         "week_number": r.get("week_number"),
         "is_locked": r.get("is_locked", False),
         **{k: r.get(k) for k in RESOURCE_CARD_FIELDS.split(",")},
