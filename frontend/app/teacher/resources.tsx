@@ -39,6 +39,7 @@ import { formatRating } from '../../src/utils/numberLabel';
 import { PaidFeatureBanner } from '../../src/components/PaidFeatureBanner';
 import { PaymentIssueBanner } from '../../src/components/PaymentIssueBanner';
 import { showLockedResourceAlert } from '../../src/utils/lockedSummary';
+import { useLinkGate } from '../../src/components/LinkGate';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
@@ -54,6 +55,9 @@ const NATIVE_LANG_NAMES: Record<string, string> = {
 export default function TeacherResourcesScreen() {
   const router = useRouter();
   const { user, t, language } = useApp();
+  const linkGate = useLinkGate(t);
+  // Upload size limit (also enforced by the server): 10 MB for the superadmin, 4 MB for everyone else.
+  const uploadLimitMb = user?.role === 'superadmin' || user?.role === 'admin' ? 10 : 4;
   
   // Real feature Aug 28: fixed order for the 4 primary categories (Emotions, Healthy
   // Relationships, Leader Online, You Are What You Eat), confirmed with Jono before building
@@ -83,6 +87,7 @@ export default function TeacherResourcesScreen() {
     description: '',
     content: '',
     pdf_filename: '',
+    link: '',
     audience: 'teachers',
   });
   const [uploading, setUploading] = useState(false);
@@ -176,7 +181,17 @@ export default function TeacherResourcesScreen() {
       
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const file = result.assets[0];
-        
+
+        // Check the size before the file is read into memory: reading a very large file as one
+        // base64 string is what made the app crash instead of showing a message.
+        if (typeof file.size === 'number' && file.size > uploadLimitMb * 1024 * 1024) {
+          Alert.alert(
+            t('file_too_large_title') || 'File Too Large',
+            (t('upload_too_large') || 'This file is {size} MB. The limit is {limit} MB.').replace('{size}', (file.size / (1024 * 1024)).toFixed(1)).replace('{limit}', String(uploadLimitMb)),
+          );
+          return;
+        }
+
         let base64 = '';
         try {
           // Try FileSystem first (most reliable)
@@ -207,7 +222,8 @@ export default function TeacherResourcesScreen() {
           ...uploadData,
           content: base64,
           pdf_filename: file.name,
-          title: uploadData.title || file.name.replace('.pdf', ''),
+          link: '',
+          title: uploadData.title || file.name.replace(/\.pdf$/i, ''),
         });
 
         Alert.alert('✅ ' + (t('selected_title') || 'Selected'), (t('ready_to_upload') || 'Ready to upload: {name}').replace('{name}', file.name));
@@ -223,27 +239,28 @@ export default function TeacherResourcesScreen() {
       Alert.alert(t('error') || 'Error', t('enter_title_prompt') || 'Please enter a title');
       return;
     }
-    if (!uploadData.description.trim()) {
-      Alert.alert(t('error') || 'Error', t('enter_description_prompt') || 'Please enter a description');
+    const hasFile = !!(uploadData.content && uploadData.pdf_filename);
+    if (!hasFile && !uploadData.link.trim()) {
+      Alert.alert(t('error') || 'Error', t('resource_file_or_link_required') || 'Please add a PDF file or a link');
       return;
     }
 
     setUploading(true);
     try {
-      // If PDF selected, upload as base64 content
-      // If no PDF, upload as text resource
       const payload: any = {
         title: uploadData.title,
-        description: uploadData.description,
+        description: uploadData.description.trim() || uploadData.title,
         topic: selectedTopic,
         target_audience: uploadData.audience || 'teachers',
         audience: uploadData.audience || 'teachers',
       };
 
       if (uploadData.content && uploadData.pdf_filename) {
-        // Limit PDF size to 1.5MB base64 (~1MB file)
-        if (uploadData.content.length > 2000000) {
-          Alert.alert(t('file_too_large_title') || 'File Too Large', t('pdf_too_large_desc') || 'Please use a PDF under 1MB. Tip: compress it at smallpdf.com first.');
+        if (uploadData.content.length * 0.75 > uploadLimitMb * 1024 * 1024) {
+          Alert.alert(
+            t('file_too_large_title') || 'File Too Large',
+            (t('upload_too_large') || 'This file is {size} MB. The limit is {limit} MB.').replace('{size}', (uploadData.content.length * 0.75 / (1024 * 1024)).toFixed(1)).replace('{limit}', String(uploadLimitMb)),
+          );
           setUploading(false);
           return;
         }
@@ -251,8 +268,8 @@ export default function TeacherResourcesScreen() {
         payload.content = uploadData.content;
         payload.pdf_filename = uploadData.pdf_filename;
       } else {
-        payload.content_type = 'text';
-        payload.content = uploadData.description;
+        payload.content_type = 'link';
+        payload.content = uploadData.link.trim();
       }
 
       await teacherResourcesApi.create(payload);
@@ -260,12 +277,12 @@ export default function TeacherResourcesScreen() {
       setLoading(true);
       await fetchResources();
       setShowUploadModal(false);
-      setUploadData({ title: '', description: '', content: '', pdf_filename: '', audience: 'teachers' });
+      setUploadData({ title: '', description: '', content: '', pdf_filename: '', link: '', audience: 'teachers' });
       fetchResources();
     } catch (error: any) {
       const msg = error.message || (t('upload_resource_error') || 'Failed to upload resource');
       if (msg.includes('too large') || msg.includes('413')) {
-        Alert.alert(t('file_too_large_title') || 'File Too Large', t('compress_pdf_desc') || 'Please compress your PDF first at smallpdf.com');
+        Alert.alert(t('file_too_large_title') || 'File Too Large', msg.includes('too large') ? msg : (t('compress_pdf_desc') || 'Please compress your PDF first at smallpdf.com'));
       } else {
         Alert.alert(t('upload_failed_title') || 'Upload Failed', msg);
       }
@@ -412,20 +429,31 @@ export default function TeacherResourcesScreen() {
                   showLockedResourceAlert(resource, resources, t, () => router.push('/subscription'));
                   return;
                 }
+                if (resource.content_type === 'link') { linkGate.requestOpen(resource.link_url); return; }
                 handleViewResource(resource);
               }}
             >
               {/* Locked cards get the thumbnail too (small 240px teaser + lock badge); the lock icon until it loads. */}
+              {resource.content_type === 'link' ? (
+                // Link: an icon and the website name, never a preview image from another site.
+                <View style={{ width: 64, height: 64, borderRadius: 12, backgroundColor: (resource as any).is_locked ? '#F5F5F5' : '#E8EAF6', alignItems: 'center', justifyContent: 'center', marginRight: 0 }}>
+                  <MaterialIcons name={(resource as any).is_locked ? 'lock' : 'link'} size={32} color={(resource as any).is_locked ? '#AAA' : '#5C6BC0'} />
+                </View>
+              ) : (
               <ResourceThumb
                 resourceId={resource.id}
                 locked={!!(resource as any).is_locked}
                 style={{ backgroundColor: (resource as any).is_locked ? '#F5F5F5' : '#FFEBEE', marginRight: 0 }}
                 fallback={<MaterialIcons name={(resource as any).is_locked ? 'lock' : 'picture-as-pdf'} size={32} color={(resource as any).is_locked ? '#AAA' : '#F44336'} />}
               />
+              )}
               <View style={styles.resourceContent}>
                 <Text style={styles.resourceTitle}>{resource.title}</Text>
                 {(() => { const blurb = (resource as any).goal || (resource.description !== resource.title ? resource.description : ''); return blurb ? <Text style={styles.resourceDescription} numberOfLines={2}>{blurb}</Text> : null; })()}
                 <ResourceFactsChips facts={resource as any} t={t} />
+                {resource.content_type === 'link' && !(resource as any).is_locked && (
+                  <Text style={{ fontSize: 12, color: '#5C6BC0', fontWeight: '600', marginTop: 2 }}>🔗 {resource.link_host || (t('web_link') || 'Web link')}</Text>
+                )}
                 {(resource as any).is_locked ? (
                   <Text style={{ fontSize: 12, color: '#999', fontWeight: '600', marginTop: 2 }}>🔒 {t('subscribe_to_unlock') || 'Subscribe to unlock'}</Text>
                 ) : (
@@ -491,6 +519,7 @@ export default function TeacherResourcesScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <SafeAreaView style={styles.container}>
+      {linkGate.gate}
       {/* Real fix Sep 18: this screen imported TranslatedHeader (which is where the COH logo
           actually comes from) but never once rendered it - it always used a separate,
           custom-built top bar instead, with its own plain back/home icons and a hardcoded
@@ -651,6 +680,16 @@ export default function TeacherResourcesScreen() {
                   {uploadData.pdf_filename || (t('select_pdf') || 'Select PDF file')}
                 </Text>
               </TouchableOpacity>
+              <Text style={[styles.inputLabel, { marginTop: 4 }]}>{t('resource_or_link') || 'or paste a link'}</Text>
+              <TextInput
+                style={styles.textInput}
+                value={uploadData.link}
+                onChangeText={(text) => setUploadData({ ...uploadData, link: text, ...(text.trim() ? { content: '', pdf_filename: '' } : {}) })}
+                placeholder={t('url_or_pdf_link_placeholder') || 'URL or PDF link'}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+              />
 
               {/* Audience Selector */}
               <Text style={styles.inputLabel}>{t('share_toggle_label') || 'Share'}</Text>

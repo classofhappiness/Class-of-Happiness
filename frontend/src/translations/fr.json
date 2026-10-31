@@ -2411,5 +2411,9 @@
   "sr_admin_switch_label": "Demandes de soutien pour mon école",
   "sr_override_follow": "Suivre le choix de l'école",
   "sr_state_school_choice": "{state} · choix de l'école",
-  "sr_state_override": "{state} · imposé"
+  "sr_state_override": "{state} · imposé",
+  "upload_too_large": "Ce fichier fait {size} Mo. La limite est de {limit} Mo.",
+  "link_unavailable": "Ce lien n'est pas disponible.",
+  "web_link": "Lien web",
+  "open_link": "Ouvrir le lien"
 }

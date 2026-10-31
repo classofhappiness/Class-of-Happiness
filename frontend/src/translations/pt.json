@@ -2402,5 +2402,9 @@
   "sr_admin_switch_label": "Pedidos de apoio para a minha escola",
   "sr_override_follow": "Seguir a escolha da escola",
   "sr_state_school_choice": "{state} · escolha da escola",
-  "sr_state_override": "{state} · forçado"
+  "sr_state_override": "{state} · forçado",
+  "upload_too_large": "Este ficheiro tem {size} MB. O limite é {limit} MB.",
+  "link_unavailable": "Esta ligação não está disponível.",
+  "web_link": "Ligação web",
+  "open_link": "Abrir ligação"
 }

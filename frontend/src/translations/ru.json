@@ -2254,5 +2254,9 @@
   "sr_admin_switch_label": "Запросы поддержки для моей школы",
   "sr_override_follow": "Как решит школа",
   "sr_state_school_choice": "{state} · выбор школы",
-  "sr_state_override": "{state} · задано принудительно"
+  "sr_state_override": "{state} · задано принудительно",
+  "upload_too_large": "Размер файла — {size} МБ. Ограничение — {limit} МБ.",
+  "link_unavailable": "Эта ссылка недоступна.",
+  "web_link": "Веб-ссылка",
+  "open_link": "Открыть ссылку"
 }

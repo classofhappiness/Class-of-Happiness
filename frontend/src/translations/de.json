@@ -2411,5 +2411,9 @@
   "sr_admin_switch_label": "Unterstützungsanfragen für meine Schule",
   "sr_override_follow": "Wahl der Schule übernehmen",
   "sr_state_school_choice": "{state} · Wahl der Schule",
-  "sr_state_override": "{state} · festgelegt"
+  "sr_state_override": "{state} · festgelegt",
+  "upload_too_large": "Diese Datei ist {size} MB groß. Das Limit liegt bei {limit} MB.",
+  "link_unavailable": "Dieser Link ist nicht verfügbar.",
+  "web_link": "Weblink",
+  "open_link": "Link öffnen"
 }

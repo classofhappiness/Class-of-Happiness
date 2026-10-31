@@ -2254,5 +2254,9 @@
   "sr_admin_switch_label": "طلبات الدعم لمدرستي",
   "sr_override_follow": "اتباع اختيار المدرسة",
   "sr_state_school_choice": "{state} · اختيار المدرسة",
-  "sr_state_override": "{state} · قرار الإدارة"
+  "sr_state_override": "{state} · قرار الإدارة",
+  "upload_too_large": "حجم هذا الملف {size} ميجابايت. الحد الأقصى {limit} ميجابايت.",
+  "link_unavailable": "هذا الرابط غير متاح.",
+  "web_link": "رابط ويب",
+  "open_link": "فتح الرابط"
 }

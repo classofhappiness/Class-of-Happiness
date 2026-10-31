@@ -3273,7 +3273,10 @@ const srS = StyleSheet.create({
 });
 
 function ResourceUpload({ authToken }: { authToken: string|null }) {
-  const { t } = useApp();
+  const { t, user } = useApp();
+  // Upload size limit (also enforced by the server): 10 MB for the superadmin, 4 MB for a school admin.
+  const limitMb = user?.role === 'superadmin' || user?.role === 'admin' ? 10 : 4;
+  const tooLargeMessage = (mb: number) => (t('upload_too_large') || 'This file is {size} MB. The limit is {limit} MB.').replace('{size}', mb.toFixed(1)).replace('{limit}', String(limitMb));
   const ADMIN_RESOURCE_TOPICS = getAdminResourceTopics(t);
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
@@ -3291,9 +3294,12 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
       const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true });
       if (result.canceled || !result.assets?.length) return;
       const file = result.assets[0];
+      // Size is checked BEFORE the file is read: turning a very large file into one base64 string in memory is
+      // what crashed the app, and the old limit (about 1 MB) only ran after that read.
+      if (typeof file.size === 'number' && file.size > limitMb * 1024 * 1024) { Alert.alert(t('file_too_large_title') || 'File Too Large', tooLargeMessage(file.size / (1024 * 1024))); return; }
       const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: 'base64' });
       if (!base64) { Alert.alert(t('error') || 'Error', t('pdf_read_error') || 'Could not read PDF file. Please try again.'); return; }
-      if (base64.length > 2000000) { Alert.alert(t('file_too_large_title') || 'File Too Large', t('pdf_too_large_desc') || 'Please use a PDF under 1MB. Tip: compress it at smallpdf.com first.'); return; }
+      if (base64.length * 0.75 > limitMb * 1024 * 1024) { Alert.alert(t('file_too_large_title') || 'File Too Large', tooLargeMessage(base64.length * 0.75 / (1024 * 1024))); return; }
       const name = file.name || 'document.pdf';
       const fromName = name.replace(/\.pdf$/i, '');
       setPdf({ content: base64, filename: name });
@@ -3336,12 +3342,16 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
       // matches Jono's explicit design-sync principle, instead of one flat uncategorized list.
       const body = pdf
         ? { title, description: title, content_type: 'pdf', content: pdf.content, pdf_filename: pdf.filename, audience, target_audience: audience, topic, category: topic }
-        : { title, url, content: url, audience, target_audience: audience, topic, category: topic };
+        : { title, content_type: 'link', content: url.trim(), audience, target_audience: audience, topic, category: topic };
       await apiCall('/teacher-resources', authToken, { method: 'POST', body: JSON.stringify(body) });
       setTitle(''); setUrl(''); setPdf(null); setAutoTitle('');
       loadResources();
       Alert.alert(`✅ ${t('added') || 'Added'}`);
-    } catch { Alert.alert(t('error') || 'Error', t('could_not_add_resource') || 'Could not add resource.'); }
+    } catch (e: any) {
+      // Server messages for a too-large file or a bad link say exactly what to fix.
+      const msg = String(e?.message || '');
+      Alert.alert(t('error') || 'Error', /too large|valid link/i.test(msg) ? msg : (t('could_not_add_resource') || 'Could not add resource.'));
+    }
     setSaving(false);
   };
 

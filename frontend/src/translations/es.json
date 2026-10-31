@@ -2402,5 +2402,9 @@
   "sr_admin_switch_label": "Solicitudes de apoyo para mi centro",
   "sr_override_follow": "Seguir la elección del centro",
   "sr_state_school_choice": "{state} · elección del centro",
-  "sr_state_override": "{state} · forzado"
+  "sr_state_override": "{state} · forzado",
+  "upload_too_large": "Este archivo pesa {size} MB. El límite es {limit} MB.",
+  "link_unavailable": "Este enlace no está disponible.",
+  "web_link": "Enlace web",
+  "open_link": "Abrir enlace"
 }

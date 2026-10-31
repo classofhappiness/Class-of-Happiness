@@ -530,8 +530,12 @@ export interface Resource {
   id: string;
   title: string;
   description: string;
-  content_type: 'text' | 'pdf';
+  content_type: 'text' | 'pdf' | 'link';
   content?: string;
+  link_url?: string | null;
+  link_host?: string | null;
+  average_rating?: number;
+  total_ratings?: number;
   pdf_filename?: string;
   created_at: string;
   // Real bug fix Sep 24 (tsc baseline cleanup): the backend (ResourceCreate.category,
@@ -916,6 +920,8 @@ export interface TeacherResource {
   topic: string;
   content_type: string;
   content?: string;
+  link_url?: string | null;
+  link_host?: string | null;
   pdf_filename?: string;
   created_by: string;
   created_by_name?: string;

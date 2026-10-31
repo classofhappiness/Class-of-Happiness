@@ -34,6 +34,7 @@ import { formatRating } from '../../src/utils/numberLabel';
 import { PaidFeatureBanner } from '../../src/components/PaidFeatureBanner';
 import { PaymentIssueBanner } from '../../src/components/PaymentIssueBanner';
 import { showLockedResourceAlert } from '../../src/utils/lockedSummary';
+import { useLinkGate } from '../../src/components/LinkGate';
 
 // Real fix Sep 30 (live feedback, item 3): matches the same notice added to
 // teacher/resources.tsx - resource files stay English-only by design, so a non-English
@@ -131,6 +132,7 @@ async function fetchResourcesShared(force: boolean): Promise<{ generalData: Reso
 export default function ResourcesScreen() {
   const router = useRouter();
   const { t, isAuthenticated, user, language } = useApp();
+  const linkGate = useLinkGate(t);
   const TOPICS = getTopics(t);
   const [resources, setResources] = useState<Resource[]>([]);
   // Parent-targeted teacher resources (audience=parents or both)
@@ -355,6 +357,7 @@ export default function ResourcesScreen() {
                   showLockedResourceAlert(resource, [...resources, ...parentTeacherResources], t, () => router.push('/subscription'));
                   return;
                 }
+                if (resource.content_type === 'link') { linkGate.requestOpen(resource.link_url); return; }
                 handleViewResource(resource);
               }}
             >
@@ -376,7 +379,7 @@ export default function ResourcesScreen() {
               ) : (
               <View style={[styles.resourceIcon, !resource.is_global && { backgroundColor: '#E8F5E9' }]}>
                 <MaterialIcons
-                  name={resource.is_locked ? 'lock' : (resource.content_type === 'pdf' ? 'picture-as-pdf' : 'article')}
+                  name={resource.is_locked ? 'lock' : (resource.content_type === 'pdf' ? 'picture-as-pdf' : (resource.content_type === 'link' ? 'link' : 'article'))}
                   size={32}
                   color={resource.is_locked ? '#AAA' : (resource.content_type === 'pdf' ? '#F44336' : (!resource.is_global ? '#4CAF50' : '#5C6BC0'))}
                 />
@@ -400,12 +403,17 @@ export default function ResourcesScreen() {
                 )}
                 <View style={styles.resourceMeta}>
                   <Text style={styles.resourceType}>
-                    {resource.content_type === 'pdf' ? (t('pdf_document') || 'PDF Document') : (t('article') || 'Article')}
+                    {resource.content_type === 'pdf' ? (t('pdf_document') || 'PDF Document') : resource.content_type === 'link' ? (resource.link_host || (t('web_link') || 'Web link')) : (t('article') || 'Article')}
                   </Text>
                   {resource.is_locked ? (
                     <View style={[styles.downloadBadge, { backgroundColor: '#F5F5F5' }]}>
                       <MaterialIcons name="lock" size={12} color="#999" />
                       <Text style={[styles.downloadBadgeText, { color: '#999' }]}>{t('subscribe_to_unlock') || 'Subscribe to unlock'}</Text>
+                    </View>
+                  ) : resource.content_type === 'link' ? (
+                    <View style={styles.downloadBadge}>
+                      <MaterialIcons name="open-in-new" size={12} color="#5C6BC0" />
+                      <Text style={[styles.downloadBadgeText, { color: '#5C6BC0' }]}>{t('open_link') || 'Open link'}</Text>
                     </View>
                   ) : resource.content_type === 'pdf' && (
                     <View style={styles.downloadBadge}>
@@ -434,6 +442,7 @@ export default function ResourcesScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {linkGate.gate}
       {/* Back button — real fix Sep 27 (live device report): plain icons here never got the
           black-circle treatment the header/nav consistency pass (Sep 15-18) applied
           everywhere else via TranslatedHeader - this screen has its own hand-rolled header

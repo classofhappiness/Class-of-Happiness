@@ -2254,5 +2254,9 @@
   "sr_admin_switch_label": "मेरे स्कूल के लिए सहायता अनुरोध",
   "sr_override_follow": "स्कूल की पसंद के अनुसार",
   "sr_state_school_choice": "{state} · स्कूल की पसंद",
-  "sr_state_override": "{state} · ओवरराइड"
+  "sr_state_override": "{state} · ओवरराइड",
+  "upload_too_large": "यह फ़ाइल {size} MB की है। सीमा {limit} MB है।",
+  "link_unavailable": "यह लिंक उपलब्ध नहीं है।",
+  "web_link": "वेब लिंक",
+  "open_link": "लिंक खोलें"
 }

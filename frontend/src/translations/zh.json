@@ -2254,5 +2254,9 @@
   "sr_admin_switch_label": "为我的学校开启支持请求",
   "sr_override_follow": "跟随学校的选择",
   "sr_state_school_choice": "{state} · 学校的选择",
-  "sr_state_override": "{state} · 强制设置"
+  "sr_state_override": "{state} · 强制设置",
+  "upload_too_large": "此文件为 {size} MB，上限为 {limit} MB。",
+  "link_unavailable": "此链接不可用。",
+  "web_link": "网页链接",
+  "open_link": "打开链接"
 }
