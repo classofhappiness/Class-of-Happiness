@@ -5844,7 +5844,8 @@ async def get_resources(request: Request):
             r["is_locked"] = False
             continue
         r["is_locked"] = _resource_locked_for_free_tier(r)
-    return items
+    _attach_rating_summary(items)
+    return _attach_link_urls(items)
 
 @api_router.post("/resources")
 async def create_resource(resource: ResourceCreate, request: Request):
@@ -16444,6 +16445,11 @@ async def create_admin_resource(request: Request):
         raise HTTPException(status_code=400, detail="Title is required")
 
     content_type = body.get("content_type", "text")
+    if content_type == "pdf":
+        _payload = body.get("pdf_data") or body.get("content") or ""
+        _limit_mb = _upload_limit_mb(user)
+        if len(_payload) > _limit_mb * 1024 * 1024 * 4 // 3:
+            raise HTTPException(status_code=413, detail=f"File too large. The limit is {_limit_mb} MB and this file is {len(_payload) * 3 / 4 / (1024 * 1024):.1f} MB.")
     target_audience = body.get("target_audience", "both")
     topic = body.get("topic") or body.get("category") or "general"
     # Real fix Sep 11 (Phase 2.5 resource scoping): was unconditionally is_global=True for
@@ -17394,6 +17400,69 @@ async def get_teacher_resource_topics():
 
 
 
+# Uploads: 4 MB for school admin / teacher / parent, 10 MB for superadmin. The same numbers are
+# shown to the person in the 413 message (the app reads them from there).
+UPLOAD_MAX_MB_DEFAULT = 4
+UPLOAD_MAX_MB_SUPERADMIN = 10
+
+def _upload_limit_mb(user: dict) -> int:
+    return UPLOAD_MAX_MB_SUPERADMIN if user.get("role") in ("admin", "superadmin") else UPLOAD_MAX_MB_DEFAULT
+
+def _clean_link_url(raw: str) -> str:
+    """http(s) link only, no spaces, at most 2000 characters; "" when it is not one."""
+    u = (raw or "").strip()
+    if not u or len(u) > 2000 or any(ch.isspace() for ch in u):
+        return ""
+    from urllib.parse import urlparse
+    try:
+        parsed = urlparse(u)
+    except Exception:
+        return ""
+    return u if parsed.scheme in ("http", "https") and parsed.netloc else ""
+
+def _attach_link_urls(items: list) -> list:
+    """List queries leave out `content` (it can be megabytes of PDF). A link resource's content is
+    just the URL, so it is fetched for link rows only and returned as link_url / link_host.
+    Locked link resources do not get their address."""
+    link_ids = [r["id"] for r in items if r.get("content_type") == "link" and not r.get("is_locked")]
+    urls = {}
+    if link_ids:
+        try:
+            res = supabase.table("resources").select("id,content").eq("content_type", "link").execute()
+            urls = {x["id"]: x.get("content") or "" for x in (res.data or [])}
+        except Exception as e:
+            logger.warning(f"[resource-links] could not read link addresses: {e}")
+    from urllib.parse import urlparse
+    for r in items:
+        if r.get("content_type") != "link":
+            continue
+        url = urls.get(r.get("id"), "") if not r.get("is_locked") else ""
+        r["link_url"] = url or None
+        host = ""
+        try:
+            host = (urlparse(url).hostname or "") if url else ""
+        except Exception:
+            pass
+        r["link_host"] = host[4:] if host.startswith("www.") else (host or None)
+    return items
+
+def _attach_rating_summary(items: list) -> list:
+    """average_rating / rating_count on every row (the card shows them without opening the file)."""
+    try:
+        rows = supabase.table("teacher_resource_ratings").select("resource_id,rating").execute().data or []
+    except Exception:
+        rows = []
+    tot, cnt = {}, {}
+    for x in rows:
+        rid = x.get("resource_id")
+        tot[rid] = tot.get(rid, 0) + (x.get("rating") or 0)
+        cnt[rid] = cnt.get(rid, 0) + 1
+    for r in items:
+        n = cnt.get(r.get("id"), 0)
+        r["average_rating"] = round(tot.get(r.get("id"), 0) / n, 1) if n else 0.0
+        r["rating_count"] = n
+    return items
+
 def _resource_to_teacher_resource(r: dict, ratings: list) -> dict:
     resource_id = r.get("id", "")
     resource_ratings = [x for x in ratings if x.get("resource_id") == resource_id]
@@ -17496,7 +17565,7 @@ async def get_teacher_resources(request: Request, topic: Optional[str] = None, a
     except Exception:
         ratings = []
 
-    return [_resource_to_teacher_resource(r, ratings) for r in visible]
+    return _attach_link_urls([_resource_to_teacher_resource(r, ratings) for r in visible])
 
 
 
@@ -17517,7 +17586,7 @@ async def get_my_teacher_resource_uploads(request: Request):
         except Exception as e:
             logger.warning(f"[resource-ratings] teacher_resource_ratings fetch failed: {e}")
             ratings = []
-        return [_resource_to_teacher_resource(r, ratings) for r in resources]
+        return _attach_link_urls([_resource_to_teacher_resource(r, ratings) for r in resources])
     except Exception as e:
         logger.error(f"My uploads error: {e}")
         return []
@@ -17573,10 +17642,15 @@ async def create_teacher_resource(request: Request):
     # (13,000,000 base64 chars) actually allowed ~9.3MB raw files already, not the 2MB the
     # error message claimed - the message was simply wrong/stale relative to the real
     # enforced limit. RESOURCE_MAX_FILE_MB is the real, source-of-truth raw-file cap now.
-    RESOURCE_MAX_FILE_MB = 10
+    RESOURCE_MAX_FILE_MB = _upload_limit_mb(user)
     max_b64_chars = RESOURCE_MAX_FILE_MB * 1024 * 1024 * 4 // 3
-    if _content_type != 'video' and len(content) > max_b64_chars:
-        raise HTTPException(status_code=413, detail=f"File too large. Please use a PDF under {RESOURCE_MAX_FILE_MB}MB.")
+    if _content_type == "link":
+        content = _clean_link_url(content)
+        if not content:
+            raise HTTPException(status_code=400, detail="Please enter a valid link starting with http:// or https://")
+    elif _content_type != 'video' and len(content) > max_b64_chars:
+        size_mb = len(content) * 3 / 4 / (1024 * 1024)
+        raise HTTPException(status_code=413, detail=f"File too large. The limit is {RESOURCE_MAX_FILE_MB} MB and this file is {size_mb:.1f} MB.")
     # Real fix Sep 11 (Phase 2.5 resource scoping, step 1 - schema/write-side only, read-
     # side filtering NOT yet enforced, see plan doc): is_global used to be entirely
     # client-trusted (bool(body.get("is_global", False))) - this is the ONE working
@@ -23955,7 +24029,7 @@ async def get_parent_resources(request: Request, topic: Optional[str] = None):
             if r_school_id and not is_unrestricted and r_school_id not in caller_school_ids:
                 continue
             visible.append(_resource_to_teacher_resource(r, all_ratings))
-        return visible
+        return _attach_link_urls(visible)
     except Exception as e:
         logger.error(f"get_parent_resources error: {e}")
         return []
