@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ExpoLinking from 'expo-linking';
 import { useApp } from '../../src/context/AppContext';
 import { subscriptionApi } from '../../src/utils/api';
+import { ParentGate } from '../../src/components/ParentGate';
 
 // Real fix Aug 18: annual billing isn't offered yet — neither the backend's
 // SUBSCRIPTION_PLANS nor Stripe have annual prices configured, and the old $39.99/$59.99
@@ -134,8 +135,15 @@ export default function SubscriptionScreen() {
     } finally { setTrialLoading(false); }
   };
 
-  const handleSubscribe = async () => {
+  // Every way to checkout ends here, so the one parent check sits in front of Stripe. Starting the
+  // free trial is not a purchase and stays ungated.
+  const [showGate, setShowGate] = useState(false);
+  const handleSubscribe = () => {
     if (!isAuthenticated) { login(); return; }
+    setShowGate(true);
+  };
+
+  const startCheckout = async () => {
     setLoading(true);
     try {
       // Real fix Aug 18: window.location.origin is undefined on native, so origin_url was
@@ -437,6 +445,7 @@ export default function SubscriptionScreen() {
         </View>
       </Modal>
 
+      <ParentGate visible={showGate} t={t} onCancel={() => setShowGate(false)} onPass={() => { setShowGate(false); startCheckout(); }} />
     </ScrollView>
   );
 }

@@ -23,6 +23,7 @@ import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { useZoneMovement } from '../../src/components/AnimatedCreatureVisual';
 import { countryFlagEmoji, COUNTRIES } from '../../src/constants/countries';
 import { useDataGridColumns } from '../../src/utils/globalStyles';
+import { creatureLimitAlreadyShown, markCreatureLimitShown, showCreatureLimitNotice } from '../../src/utils/creatureLimit';
 
 const COUNTRY_NAME_BY_CODE: Record<string, string> = COUNTRIES.reduce((acc, c) => {
   acc[c.code] = c.name;
@@ -102,6 +103,7 @@ function CreatureCard({
   item: any; isActive: boolean; canStart: boolean; starting: boolean; onStart: () => void; cardWidth: number; progressPercent?: number; showClassroomName?: boolean;
 }) {
   const { t, currentStudent, language } = useApp();
+  const router = useRouter();
   const [previewStage, setPreviewStage] = useState(1);
   const holdAnim = useRef(new Animated.Value(0)).current;
   // Real fix Aug 30 (build-26 candidate): initial value was 0.5, so any card whose pulse
@@ -146,16 +148,9 @@ function CreatureCard({
   // Deliberately no "Subscribe" button in the upsell itself - a kid could be the one tapping
   // this card, not the parent/teacher who'd actually decide to subscribe.
   const locked = !!item.locked;
-  const showUpsell = () => {
-    const name = (currentStudent as any)?.name || t('this_student') || 'This student';
-    const colour = t(`${item.emotion_colour}_short_label`) || item.emotion_colour;
-    Alert.alert(
-      `🔒 ${t('creature_locked_title') || 'Locked'}`,
-      (t('creature_locked_upsell') || '{name} has already fully evolved their free {colour} creature. Subscribing unlocks unlimited community creatures for every colour.')
-        .replace('{name}', name).replace('{colour}', colour),
-      [{ text: t('ok') || 'OK' }]
-    );
-  };
+  // One calm message, no subscribe button here: the only way on is "Ask a grown-up", which opens the
+  // subscribe screen where the parent check sits in front of checkout.
+  const showUpsell = () => showCreatureLimitNotice(t, () => router.push('/subscription'));
 
   // Real feature Aug 28: gentle looping glow on the active-creature ring - kept slow and
   // low-amplitude (0.5-1 opacity, ~1.2s per leg) on purpose. Motion draws a young kid's eye
@@ -233,7 +228,7 @@ function CreatureCard({
         <View style={styles.cardBody}>
           <Text style={[styles.creatureName, locked && styles.textLocked]} numberOfLines={1}>{item.creature_name}</Text>
           {locked ? (
-            <Text style={styles.lockedHint} numberOfLines={2}>Free plan limit reached for {item.emotion_colour} - tap to learn more</Text>
+            <Text style={styles.lockedHint} numberOfLines={2}>{(t('creature_locked_hint') || 'Ask a grown-up to see more {colour} creatures').replace('{colour}', t(`${item.emotion_colour}_short_label`) || item.emotion_colour)}</Text>
           ) : (
             <>
               <View style={styles.metaRow}>
@@ -345,6 +340,11 @@ export default function GlobalCreaturesScreen() {
       const cj = data?.countries_joined || 0;
       const pref = data?.scope_pref || 'any';
       setCreatures(list);
+      // First time this child reaches the free limit on this device: one calm message, never again.
+      if (studentId && list.some((c: any) => c.locked) && !(await creatureLimitAlreadyShown(studentId))) {
+        await markCreatureLimitShown(studentId);
+        showCreatureLimitNotice(t, () => router.push('/subscription'));
+      }
       setScopePref(pref);
       setHasClassroom(!!data?.has_classroom);
       setCountriesJoined(cj);
@@ -411,7 +411,7 @@ export default function GlobalCreaturesScreen() {
       // stale list (loaded before crossing the cap) could still let a tap through. Same
       // no-subscribe-button, informational-only treatment as the locked card itself.
       if (msg.startsWith('free_tier_limit|')) {
-        Alert.alert('🔒 ' + (t('creature_locked_title') || 'Locked'), msg.split('|')[1] || t('free_plan_one_evolved_per_colour') || 'Free plan is limited to one fully-evolved creature per colour.', [{ text: t('ok') || 'OK' }]);
+        showCreatureLimitNotice(t, () => router.push('/subscription'));
         await load();
       } else {
         Alert.alert(t('error') || 'Error', msg || t('could_not_set_active_creature') || 'Could not set this creature as active right now.');

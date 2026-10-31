@@ -2210,5 +2210,19 @@
   "resource_use_when": "适用情境",
   "resource_outcomes": "学习成果",
   "resource_preview": "预览",
-  "resource_preview_page": "第 {n} 页，共 {total} 页"
+  "resource_preview_page": "第 {n} 页，共 {total} 页",
+  "resource_locked_title": "付费计划的一部分",
+  "resource_locked_body_range": "解锁第{from}–{to}周：另有{count}个活动",
+  "resource_locked_body_week": "解锁第{from}周：另有{count}个活动",
+  "resource_locked_body_one": "解锁另外1个活动",
+  "resource_locked_body_count": "解锁另外{count}个活动",
+  "resource_locked_free_note": "情绪课程以及每个课程的前2周始终免费。",
+  "paid_banner_text": "部分活动属于付费计划。",
+  "paid_banner_dismiss": "关闭",
+  "creature_limit_message": "你已收集了所有免费的小生物！请让大人带你看更多。",
+  "creature_limit_ask": "请大人帮忙",
+  "creature_locked_hint": "请让大人带你看更多小生物（{colour}）",
+  "parent_gate_title": "成人专用",
+  "parent_gate_prompt": "请回答以继续：{a} + {b} = ?",
+  "parent_gate_wrong": "答案不对，请再试一次。"
 }

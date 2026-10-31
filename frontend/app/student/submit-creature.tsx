@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { useApp } from '../../src/context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
+import { showCreatureLimitNotice } from '../../src/utils/creatureLimit';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { COUNTRIES, countryFlagEmoji } from '../../src/constants/countries';
 import { useFixedGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
@@ -222,10 +223,8 @@ export default function SubmitCreatureScreen() {
       // not a bug.
       const msg = err.message || '';
       if (msg.startsWith('free_tier_limit|')) {
-        Alert.alert(t('free_plan_limit_title') || 'Free Plan Limit Reached', msg.split('|')[1] || (t('upgrade_unlimited_creatures') || 'Upgrade for unlimited creature submissions.'), [
-          { text: t('not_now') || 'Not Now', style: 'cancel' },
-          { text: t('see_plans') || 'See Plans', onPress: () => router.push('/subscription') },
-        ]);
+        // Their own action hit the limit: the same calm message, no direct subscribe button.
+        showCreatureLimitNotice(t, () => router.push('/subscription'));
         return;
       }
       Alert.alert(t('error') || 'Error', `${err.message || 'Please try again.'}\n\nURL used: ${API_URL}/api/creatures/submit`);

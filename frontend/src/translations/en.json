@@ -2224,5 +2224,19 @@
   "resource_use_when": "Use when",
   "resource_outcomes": "Outcomes",
   "resource_preview": "Preview",
-  "resource_preview_page": "Page {n} of {total}"
+  "resource_preview_page": "Page {n} of {total}",
+  "resource_locked_title": "Part of a paid plan",
+  "resource_locked_body_range": "Unlock weeks {from}–{to}: {count} more activities",
+  "resource_locked_body_week": "Unlock week {from}: {count} more activities",
+  "resource_locked_body_one": "Unlock 1 more activity",
+  "resource_locked_body_count": "Unlock {count} more activities",
+  "resource_locked_free_note": "The Emotions Program and the first 2 weeks of every program are always free.",
+  "paid_banner_text": "Some activities are part of a paid plan.",
+  "paid_banner_dismiss": "Dismiss",
+  "creature_limit_message": "You've collected all your free creatures! Ask a grown-up to see more.",
+  "creature_limit_ask": "Ask a grown-up",
+  "creature_locked_hint": "Ask a grown-up to see more {colour} creatures",
+  "parent_gate_title": "For grown-ups",
+  "parent_gate_prompt": "To continue, please answer: {a} + {b} = ?",
+  "parent_gate_wrong": "That's not right. Please try again."
 }

@@ -2210,5 +2210,19 @@
   "resource_use_when": "متى تستخدمه",
   "resource_outcomes": "النتائج",
   "resource_preview": "معاينة",
-  "resource_preview_page": "صفحة {n} من {total}"
+  "resource_preview_page": "صفحة {n} من {total}",
+  "resource_locked_title": "جزء من خطة مدفوعة",
+  "resource_locked_body_range": "افتح الأسابيع {from}–{to}: {count} أنشطة إضافية",
+  "resource_locked_body_week": "افتح الأسبوع {from}: {count} أنشطة إضافية",
+  "resource_locked_body_one": "افتح نشاطًا إضافيًا واحدًا",
+  "resource_locked_body_count": "افتح {count} أنشطة إضافية",
+  "resource_locked_free_note": "برنامج المشاعر وأول أسبوعين من كل برنامج مجانية دائمًا.",
+  "paid_banner_text": "بعض الأنشطة جزء من خطة مدفوعة.",
+  "paid_banner_dismiss": "إغلاق",
+  "creature_limit_message": "لقد جمعت كل مخلوقاتك المجانية! اطلب من شخص بالغ أن يُريك المزيد.",
+  "creature_limit_ask": "اسأل شخصًا بالغًا",
+  "creature_locked_hint": "اطلب من شخص بالغ أن يُريك المزيد من المخلوقات ({colour})",
+  "parent_gate_title": "للبالغين",
+  "parent_gate_prompt": "للمتابعة، أجب: {a} + {b} = ?",
+  "parent_gate_wrong": "هذا غير صحيح. حاول مرة أخرى."
 }

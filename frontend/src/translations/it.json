@@ -2367,5 +2367,19 @@
   "resource_use_when": "Da usare quando",
   "resource_outcomes": "Risultati",
   "resource_preview": "Anteprima",
-  "resource_preview_page": "Pagina {n} di {total}"
+  "resource_preview_page": "Pagina {n} di {total}",
+  "resource_locked_title": "Parte di un piano a pagamento",
+  "resource_locked_body_range": "Sblocca le settimane {from}–{to}: altre {count} attività",
+  "resource_locked_body_week": "Sblocca la settimana {from}: altre {count} attività",
+  "resource_locked_body_one": "Sblocca 1 altra attività",
+  "resource_locked_body_count": "Sblocca altre {count} attività",
+  "resource_locked_free_note": "Il Programma delle Emozioni e le prime 2 settimane di ogni programma sono sempre gratuiti.",
+  "paid_banner_text": "Alcune attività fanno parte di un piano a pagamento.",
+  "paid_banner_dismiss": "Chiudi",
+  "creature_limit_message": "Hai raccolto tutte le tue creature gratuite! Chiedi a un adulto di vederne altre.",
+  "creature_limit_ask": "Chiedi a un adulto",
+  "creature_locked_hint": "Chiedi a un adulto di vedere altre creature ({colour})",
+  "parent_gate_title": "Per gli adulti",
+  "parent_gate_prompt": "Per continuare, rispondi: {a} + {b} = ?",
+  "parent_gate_wrong": "Non è corretto. Riprova."
 }

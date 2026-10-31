@@ -2210,5 +2210,19 @@
   "resource_use_when": "कब उपयोग करें",
   "resource_outcomes": "परिणाम",
   "resource_preview": "पूर्वावलोकन",
-  "resource_preview_page": "पृष्ठ {n} / {total}"
+  "resource_preview_page": "पृष्ठ {n} / {total}",
+  "resource_locked_title": "सशुल्क प्लान का हिस्सा",
+  "resource_locked_body_range": "सप्ताह {from}–{to} अनलॉक करें: {count} और गतिविधियाँ",
+  "resource_locked_body_week": "सप्ताह {from} अनलॉक करें: {count} और गतिविधियाँ",
+  "resource_locked_body_one": "1 और गतिविधि अनलॉक करें",
+  "resource_locked_body_count": "{count} और गतिविधियाँ अनलॉक करें",
+  "resource_locked_free_note": "इमोशन्स प्रोग्राम और हर प्रोग्राम के पहले 2 सप्ताह हमेशा मुफ़्त हैं।",
+  "paid_banner_text": "कुछ गतिविधियाँ सशुल्क प्लान का हिस्सा हैं।",
+  "paid_banner_dismiss": "बंद करें",
+  "creature_limit_message": "आपने अपने सभी मुफ़्त जीव इकट्ठा कर लिए हैं! और देखने के लिए किसी बड़े से पूछें।",
+  "creature_limit_ask": "किसी बड़े से पूछें",
+  "creature_locked_hint": "और जीव ({colour}) देखने के लिए किसी बड़े से पूछें",
+  "parent_gate_title": "बड़ों के लिए",
+  "parent_gate_prompt": "जारी रखने के लिए कृपया उत्तर दें: {a} + {b} = ?",
+  "parent_gate_wrong": "यह सही नहीं है। कृपया फिर कोशिश करें।"
 }

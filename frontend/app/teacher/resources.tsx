@@ -35,6 +35,8 @@ import { PagePreviewStrip } from '../../src/components/PagePreviewStrip';
 import { buildSections, sectionTitle } from '../../src/utils/resourceMeta';
 import { getDownloadUrl } from '../../src/utils/downloadLink';
 import { formatRating } from '../../src/utils/numberLabel';
+import { PaidFeatureBanner } from '../../src/components/PaidFeatureBanner';
+import { showLockedResourceAlert } from '../../src/utils/lockedSummary';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
@@ -68,7 +70,6 @@ export default function TeacherResourcesScreen() {
   ]);
   
   const [selectedTopic, setSelectedTopic] = useState(TOPICS[0].id);
-  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [resources, setResources] = useState<TeacherResource[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -405,14 +406,7 @@ export default function TeacherResourcesScreen() {
               style={[styles.resourceCard, (resource as any).is_locked && { opacity: 0.65 }]}
               onPress={() => {
                 if ((resource as any).is_locked) {
-                  Alert.alert(
-                    '🔒 ' + (t('subscribe_to_unlock_title') || 'Subscribe to Unlock'),
-                    t('freemium_banner_desc') || "The Emotion Program is completely free! Every other program's first 2 weeks are free too. Subscribe to unlock everything.",
-                    [
-                      { text: t('not_now') || 'Not Now', style: 'cancel' },
-                      { text: t('see_plans') || 'See Plans', onPress: () => router.push('/subscription') },
-                    ]
-                  );
+                  showLockedResourceAlert(resource, resources, t, () => router.push('/subscription'));
                   return;
                 }
                 handleViewResource(resource);
@@ -575,18 +569,8 @@ export default function TeacherResourcesScreen() {
           </View>
         </View>
 
-        {/* Freemium notice banner — dismissible, reappears each visit unless subscribed */}
-        {!bannerDismissed && !(user?.subscription_status === 'active' || user?.subscription_status === 'trial') && (
-          <View style={{ backgroundColor: '#FFF8E1', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#FFE082', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <MaterialIcons name="info" size={20} color="#F9A825" />
-            <Text style={{ flex: 1, fontSize: 12, color: '#5D4037', lineHeight: 17 }}>
-              {t('freemium_banner_desc') || "The Emotion Program is completely free! Every other program's first 2 weeks are free too. Subscribe to unlock everything."}
-            </Text>
-            <TouchableOpacity onPress={() => setBannerDismissed(true)} style={{ padding: 4 }}>
-              <MaterialIcons name="close" size={18} color="#8D6E63" />
-            </TouchableOpacity>
-          </View>
-        )}
+        {/* Adult-only slim banner: only when something in the loaded list is locked */}
+        <PaidFeatureBanner visible={resources.some((r: any) => r.is_locked)} t={t} onSeePlans={() => router.push('/subscription')} />
 
         {/* Resources List */}
         {loading ? (

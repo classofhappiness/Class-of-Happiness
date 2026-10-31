@@ -2358,5 +2358,19 @@
   "resource_use_when": "Úsalo cuando",
   "resource_outcomes": "Resultados",
   "resource_preview": "Vista previa",
-  "resource_preview_page": "Página {n} de {total}"
+  "resource_preview_page": "Página {n} de {total}",
+  "resource_locked_title": "Parte de un plan de pago",
+  "resource_locked_body_range": "Desbloquea las semanas {from}–{to}: {count} actividades más",
+  "resource_locked_body_week": "Desbloquea la semana {from}: {count} actividades más",
+  "resource_locked_body_one": "Desbloquea 1 actividad más",
+  "resource_locked_body_count": "Desbloquea {count} actividades más",
+  "resource_locked_free_note": "El Programa de Emociones y las 2 primeras semanas de cada programa son siempre gratis.",
+  "paid_banner_text": "Algunas actividades forman parte de un plan de pago.",
+  "paid_banner_dismiss": "Descartar",
+  "creature_limit_message": "¡Has reunido todas tus criaturas gratis! Pide a un adulto que te enseñe más.",
+  "creature_limit_ask": "Pedir a un adulto",
+  "creature_locked_hint": "Pide a un adulto que te enseñe más criaturas ({colour})",
+  "parent_gate_title": "Para adultos",
+  "parent_gate_prompt": "Para continuar, responde: {a} + {b} = ?",
+  "parent_gate_wrong": "Eso no es correcto. Inténtalo de nuevo."
 }

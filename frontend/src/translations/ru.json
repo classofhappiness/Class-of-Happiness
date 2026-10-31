@@ -2210,5 +2210,19 @@
   "resource_use_when": "Когда использовать",
   "resource_outcomes": "Результаты",
   "resource_preview": "Предпросмотр",
-  "resource_preview_page": "Страница {n} из {total}"
+  "resource_preview_page": "Страница {n} из {total}",
+  "resource_locked_title": "Часть платного плана",
+  "resource_locked_body_range": "Откройте недели {from}–{to}. Ещё занятий: {count}",
+  "resource_locked_body_week": "Откройте неделю {from}. Ещё занятий: {count}",
+  "resource_locked_body_one": "Откройте ещё 1 занятие",
+  "resource_locked_body_count": "Ещё занятий: {count}",
+  "resource_locked_free_note": "Программа «Эмоции» и первые 2 недели каждой программы всегда бесплатны.",
+  "paid_banner_text": "Некоторые занятия входят в платный план.",
+  "paid_banner_dismiss": "Закрыть",
+  "creature_limit_message": "Все бесплатные существа собраны! Попроси взрослого показать больше.",
+  "creature_limit_ask": "Попросить взрослого",
+  "creature_locked_hint": "Попроси взрослого показать больше существ ({colour})",
+  "parent_gate_title": "Для взрослых",
+  "parent_gate_prompt": "Чтобы продолжить, ответьте: {a} + {b} = ?",
+  "parent_gate_wrong": "Неверно. Попробуйте ещё раз."
 }

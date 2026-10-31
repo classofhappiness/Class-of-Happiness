@@ -2367,5 +2367,19 @@
   "resource_use_when": "Einsetzen, wenn",
   "resource_outcomes": "Lernergebnisse",
   "resource_preview": "Vorschau",
-  "resource_preview_page": "Seite {n} von {total}"
+  "resource_preview_page": "Seite {n} von {total}",
+  "resource_locked_title": "Teil eines kostenpflichtigen Plans",
+  "resource_locked_body_range": "Schalte die Wochen {from}–{to} frei: {count} weitere Aktivitäten",
+  "resource_locked_body_week": "Schalte Woche {from} frei: {count} weitere Aktivitäten",
+  "resource_locked_body_one": "Schalte 1 weitere Aktivität frei",
+  "resource_locked_body_count": "Schalte {count} weitere Aktivitäten frei",
+  "resource_locked_free_note": "Das Emotionen-Programm und die ersten 2 Wochen jedes Programms sind immer kostenlos.",
+  "paid_banner_text": "Einige Aktivitäten sind Teil eines kostenpflichtigen Plans.",
+  "paid_banner_dismiss": "Schließen",
+  "creature_limit_message": "Du hast alle deine kostenlosen Kreaturen gesammelt! Bitte einen Erwachsenen, dir mehr zu zeigen.",
+  "creature_limit_ask": "Einen Erwachsenen fragen",
+  "creature_locked_hint": "Frag einen Erwachsenen nach mehr Kreaturen ({colour})",
+  "parent_gate_title": "Für Erwachsene",
+  "parent_gate_prompt": "Zum Fortfahren bitte beantworten: {a} + {b} = ?",
+  "parent_gate_wrong": "Das stimmt nicht. Bitte versuche es noch einmal."
 }

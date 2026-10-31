@@ -2367,5 +2367,19 @@
   "resource_use_when": "À utiliser quand",
   "resource_outcomes": "Résultats attendus",
   "resource_preview": "Aperçu",
-  "resource_preview_page": "Page {n} sur {total}"
+  "resource_preview_page": "Page {n} sur {total}",
+  "resource_locked_title": "Inclus dans un abonnement payant",
+  "resource_locked_body_range": "Débloquez les semaines {from}–{to} : {count} activités de plus",
+  "resource_locked_body_week": "Débloquez la semaine {from} : {count} activités de plus",
+  "resource_locked_body_one": "Débloquez 1 activité de plus",
+  "resource_locked_body_count": "Débloquez {count} activités de plus",
+  "resource_locked_free_note": "Le programme Émotions et les 2 premières semaines de chaque programme sont toujours gratuits.",
+  "paid_banner_text": "Certaines activités font partie d'un abonnement payant.",
+  "paid_banner_dismiss": "Fermer",
+  "creature_limit_message": "Tu as ramassé toutes tes créatures gratuites ! Demande à un adulte d'en voir plus.",
+  "creature_limit_ask": "Demander à un adulte",
+  "creature_locked_hint": "Demande à un adulte de voir plus de créatures ({colour})",
+  "parent_gate_title": "Pour les adultes",
+  "parent_gate_prompt": "Pour continuer, veuillez répondre : {a} + {b} = ?",
+  "parent_gate_wrong": "Ce n'est pas correct. Veuillez réessayer."
 }
