@@ -20811,12 +20811,52 @@ ALL_SCHOOL_FEATURE_KEYS = ["careers_advisory", "services_directory", "wellbeing_
 # addressed by the toggle existing at all, not by defaulting it off before anyone's touched
 # the setting.
 _FEATURE_FAIL_OPEN_KEYS = {"services_directory", "wellbeing_welfare", "creature_shop"}
-# Oct 31: features only the superadmin may switch (one switch: allowed_by_superadmin and enabled_by_school move together).
-SUPERADMIN_ONLY_FEATURES = {"support_requests"}
+# Oct 31: Support Requests has TWO settings per school, both on its school_features row:
+#   enabled_by_school   - the school admin's own on/off choice (default OFF for a new school)
+#   superadmin_override - NULL (no override), 'on' or 'off'
+# Effective state = the override when set, else the school admin's choice. allowed_by_superadmin is no longer read for
+# this feature; the flags the rest of the code sees (_get_school_feature_flags) are derived from the effective state,
+# so every existing gate (_require_feature_access, the teacher's /features list) keeps working unchanged.
+SR_ACK_VERSION = "sr-ack-2026-10-31-v1"   # id of the "staff coordination tool, not an emergency system" wording the admin ticks
+SR_FEATURE = "support_requests"
+
+def _support_settings(school_admin_id: str) -> dict:
+    row = None
+    try:
+        try:
+            r = supabase.table("school_features").select(
+                "enabled_by_school,tab_visible_to_school,superadmin_override,ack_by,ack_at,ack_version"
+            ).eq("school_admin_id", school_admin_id).eq("feature_key", SR_FEATURE).execute()
+        except Exception:
+            # the new columns are not there yet (migration not run): behave as "no override, never acknowledged"
+            r = supabase.table("school_features").select("enabled_by_school,tab_visible_to_school") \
+                .eq("school_admin_id", school_admin_id).eq("feature_key", SR_FEATURE).execute()
+        row = r.data[0] if r.data else None
+    except Exception as e:
+        logger.error(f"_support_settings error: {e}")
+    row = row or {}
+    override = row.get("superadmin_override")
+    override = override if override in ("on", "off") else None
+    choice = bool(row.get("enabled_by_school", False))
+    tvs = row.get("tab_visible_to_school")
+    return {
+        "admin_choice": choice,
+        "override": override,
+        "effective": (override == "on") if override else choice,
+        "acknowledged": bool(row.get("ack_at")),
+        "ack_at": row.get("ack_at"),
+        "ack_by": row.get("ack_by"),
+        "ack_version": row.get("ack_version"),
+        "tab_visible_to_school": True if tvs is None else bool(tvs),
+    }
 # support_requests fails CLOSED (not added above) - it's a new feature, same as
 # careers_advisory, not a long-standing always-on tab like the two fail-open keys.
 
 def _get_school_feature_flags(school_admin_id: str, feature_key: str) -> dict:
+    if feature_key == SR_FEATURE:
+        st = _support_settings(school_admin_id)
+        return {"allowed_by_superadmin": st["effective"], "enabled_by_school": st["effective"],
+                "tab_visible_to_school": st["tab_visible_to_school"]}
     # Real fix Sep 11: tab_visible_to_school is a NEW, separate column (this school
     # admin's own portal display preference) - independent of enabled_by_school (the
     # real functional switch, checked by _require_feature_access below). Selected
@@ -20918,12 +20958,11 @@ async def set_my_school_feature(feature_key: str, request: Request):
         raise HTTPException(status_code=403, detail="School admin access required")
     if feature_key not in ALL_SCHOOL_FEATURE_KEYS:
         raise HTTPException(status_code=404, detail="Unknown feature")
+    if feature_key == SR_FEATURE:
+        return await _set_support_requests_as_admin(user, request)
     flags = _get_school_feature_flags(user["user_id"], feature_key)
     if not flags["allowed_by_superadmin"]:
         raise HTTPException(status_code=403, detail="This feature is not enabled for your school")
-    if feature_key in SUPERADMIN_ONLY_FEATURES:
-        # Oct 31: Support Requests is opt-in per school and switched on/off ONLY by the superadmin.
-        raise HTTPException(status_code=403, detail="Only the Class of Happiness team can switch Support Requests on or off for a school")
     body = await request.json()
     # Real fix Sep 11: these two are independent now - the Portal Tabs panel sends only
     # tab_visible_to_school (hide/show MY OWN portal tab), a separate "Enable X for your
@@ -20948,6 +20987,31 @@ async def set_my_school_feature(feature_key: str, request: Request):
         supabase.table("school_features").upsert(payload, on_conflict="school_admin_id,feature_key").execute()
     return {"feature_key": feature_key, "enabled_by_school": enabled, "tab_visible_to_school": tab_visible}
 
+async def _set_support_requests_as_admin(user: dict, request: Request):
+    """The school admin's own on/off choice for Support Requests. Refused (403) while Class of Happiness has overridden
+    it OFF. The first time it is switched ON the admin must have ticked the 'staff coordination tool, not an emergency
+    system' box: who/when/which wording is stored on the school's settings row."""
+    body = await request.json()
+    st = _support_settings(user["user_id"])
+    now_iso = datetime.now(timezone.utc).isoformat()
+    payload = {"school_admin_id": user["user_id"], "feature_key": SR_FEATURE, "allowed_by_superadmin": True, "updated_at": now_iso}
+    if "tab_visible_to_school" in body:
+        payload["tab_visible_to_school"] = bool(body["tab_visible_to_school"])
+    if "enabled_by_school" in body:
+        want = bool(body["enabled_by_school"])
+        if want and st["override"] == "off":
+            raise HTTPException(status_code=403, detail="Switched off by Class of Happiness support")
+        if want and not st["acknowledged"]:
+            if body.get("acknowledged") is not True:
+                raise HTTPException(status_code=400, detail="Please confirm that this is a staff coordination tool, not an emergency system")
+            payload.update({"ack_by": user["user_id"], "ack_at": now_iso, "ack_version": SR_ACK_VERSION})
+        payload["enabled_by_school"] = want
+    elif not st["admin_choice"]:
+        payload["enabled_by_school"] = False
+    supabase.table("school_features").upsert(payload, on_conflict="school_admin_id,feature_key").execute()
+    st = _support_settings(user["user_id"])
+    return {"feature_key": SR_FEATURE, "enabled_by_school": st["admin_choice"], "override": st["override"], "effective": st["effective"]}
+
 @api_router.get("/admin/school-features")
 async def get_all_school_features(request: Request):
     user = await get_current_user(request)
@@ -20966,7 +21030,11 @@ async def get_all_school_features(request: Request):
         features = {}
         for key in ALL_SCHOOL_FEATURE_KEYS:
             row = by_admin.get(admin_id, {}).get(key)
-            if row:
+            if key == SR_FEATURE:
+                st = _support_settings(admin_id)
+                features[key] = {"allowed_by_superadmin": st["effective"], "enabled_by_school": st["admin_choice"],
+                                 "override": st["override"], "effective": st["effective"]}
+            elif row:
                 features[key] = {"allowed_by_superadmin": row["allowed_by_superadmin"], "enabled_by_school": row["enabled_by_school"]}
             else:
                 features[key] = _get_school_feature_flags(admin_id, key)
@@ -20981,6 +21049,25 @@ async def set_school_feature_allowed(school_admin_id: str, feature_key: str, req
     if feature_key not in ALL_SCHOOL_FEATURE_KEYS:
         raise HTTPException(status_code=404, detail="Unknown feature")
     body = await request.json()
+    if feature_key == SR_FEATURE:
+        # override: 'on' | 'off' | null (unset). The older allowed_by_superadmin boolean (still sent by the previous portal
+        # file) maps to on/off.
+        if "override" in body:
+            ov = body["override"]
+        elif "allowed_by_superadmin" in body:
+            ov = "on" if body["allowed_by_superadmin"] else "off"
+        else:
+            raise HTTPException(status_code=400, detail="override must be 'on', 'off' or null")
+        if ov not in ("on", "off", None):
+            raise HTTPException(status_code=400, detail="override must be 'on', 'off' or null")
+        supabase.table("school_features").upsert({
+            "school_admin_id": school_admin_id, "feature_key": SR_FEATURE, "allowed_by_superadmin": True,
+            "superadmin_override": ov, "updated_at": datetime.now(timezone.utc).isoformat(),
+        }, on_conflict="school_admin_id,feature_key").execute()
+        st = _support_settings(school_admin_id)
+        return {"school_admin_id": school_admin_id, "feature_key": SR_FEATURE, "override": st["override"],
+                "enabled_by_school": st["admin_choice"], "effective": st["effective"],
+                "allowed_by_superadmin": st["effective"]}
     allowed = bool(body.get("allowed_by_superadmin", False))
     existing = supabase.table("school_features").select("enabled_by_school") \
         .eq("school_admin_id", school_admin_id).eq("feature_key", feature_key).execute()
@@ -20988,8 +21075,6 @@ async def set_school_feature_allowed(school_admin_id: str, feature_key: str, req
     # a superadmin's first-ever grant for a fail-closed feature (support_requests) must
     # NOT auto-enable it at the school level; the school_admin still has to opt in.
     enabled_by_school = existing.data[0]["enabled_by_school"] if existing.data else (feature_key in _FEATURE_FAIL_OPEN_KEYS)
-    if feature_key in SUPERADMIN_ONLY_FEATURES:
-        enabled_by_school = allowed   # Oct 31: the school has no switch of its own for these - one on/off, kept in step
     supabase.table("school_features").upsert({
         "school_admin_id": school_admin_id,
         "feature_key": feature_key,
@@ -21937,19 +22022,23 @@ async def get_engagement_analytics(school_admin_id: str, request: Request, days:
     }
 
 def _support_requests_enabled(school_admin_id: str) -> bool:
-    flags = _get_school_feature_flags(school_admin_id, "support_requests")
-    return bool(flags["allowed_by_superadmin"] and flags["enabled_by_school"])
+    return _support_settings(school_admin_id)["effective"]
 
 @api_router.get("/support-requests/status")
 async def support_requests_status(request: Request):
-    """Is Support Requests switched on for this caller's school? (the school admin uses it to show the 'switched off'
-    explainer instead of the queue; the toggle itself lives with the superadmin). Registered before the
-    /support-requests/{request_id} route so 'status' is never read as an id."""
+    """Support Requests state for the caller's school. Teachers only learn whether it is on. The school admin also gets
+    their own choice, the Class of Happiness override (null/'on'/'off') and whether the 'not an emergency system' box
+    has been ticked, so the app/portal can show the right switch or the 'switched off by support' message.
+    Registered before /support-requests/{request_id} so 'status' is never read as an id."""
     user = await get_current_user(request)
     if not user or user.get("role") not in ("school_admin", "teacher"):
         raise HTTPException(status_code=403, detail="School admin or teacher access required")
-    school_admin_id = _teacher_school_admin_id(user) if user.get("role") == "teacher" else user["user_id"]
-    return {"enabled": bool(school_admin_id) and _support_requests_enabled(school_admin_id)}
+    if user.get("role") == "teacher":
+        school_admin_id = _teacher_school_admin_id(user)
+        return {"enabled": bool(school_admin_id) and _support_requests_enabled(school_admin_id)}
+    st = _support_settings(user["user_id"])
+    return {"enabled": st["effective"], "admin_choice": st["admin_choice"], "override": st["override"],
+            "acknowledged": st["acknowledged"], "ack_version": SR_ACK_VERSION}
 
 @api_router.post("/support-requests")
 async def create_support_request(request: Request):
