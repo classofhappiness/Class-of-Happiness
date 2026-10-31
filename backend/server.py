@@ -24824,6 +24824,29 @@ def _past_due_since_for(user: dict, new_status: str):
         return datetime.now(timezone.utc).isoformat()
     return None
 
+def _live_subscription(sub_id):
+    """Stripe's CURRENT view of a subscription, or None if it cannot be read (no id, no key, Stripe
+    unreachable). Webhooks can arrive out of order or be re-sent, so the payment handlers below trust
+    this over the event's own (possibly stale) snapshot and fall back to the event only on None."""
+    if not sub_id or not STRIPE_SECRET_KEY:
+        return None
+    try:
+        return stripe_lib.Subscription.retrieve(sub_id)
+    except Exception as e:
+        logger.warning(f"[stripe] could not re-read subscription {sub_id}, using the event instead: {e}")
+        return None
+
+def _sub_period_end(sub):
+    items = _sget(_sget(sub, "items", {}), "data", [])
+    return _sget(sub, "current_period_end") or (_sget(items[0], "current_period_end") if items else None)
+
+def _invoice_subscription_id(inv):
+    """The subscription an invoice belongs to (older API: invoice.subscription; newer: invoice.parent.subscription_details.subscription)."""
+    sid = _sget(inv, "subscription")
+    if sid:
+        return sid if isinstance(sid, str) else _sget(sid, "id")
+    return _sget(_sget(_sget(inv, "parent"), "subscription_details"), "subscription")
+
 @api_router.post("/stripe/webhook")
 async def stripe_webhook(request: Request):
     if not STRIPE_WEBHOOK_SECRET:
@@ -24859,8 +24882,11 @@ async def stripe_webhook(request: Request):
 
     if event_type in ("customer.subscription.created", "customer.subscription.updated"):
         customer_id = _sget(data_obj, "customer")
-        status = _sget(data_obj, "status")
-        items = _sget(_sget(data_obj, "items", {}), "data", [])
+        # Stale-event guard (Oct 31): use Stripe's CURRENT subscription, not this event's snapshot.
+        live = _live_subscription(_sget(data_obj, "id"))
+        src = live if live is not None else data_obj
+        status = _sget(src, "status")
+        items = _sget(_sget(src, "items", {}), "data", [])
         # Real bug fix Aug 26 (found live-testing item 1, cancel-to-free): Stripe's newer API
         # versions moved current_period_end off the subscription object onto each item
         # (items[0].current_period_end) - confirmed live, a real cancel_at_period_end update
@@ -24871,7 +24897,7 @@ async def stripe_webhook(request: Request):
         # renewal/cancellation-date display. Falls back to the per-item field, and now never
         # overwrites a real value with nothing just because this particular event didn't
         # carry it either way.
-        current_period_end = _sget(data_obj, "current_period_end") or (_sget(items[0], "current_period_end") if items else None)
+        current_period_end = _sub_period_end(src)
         user = _find_user(customer_id)
         if user:
             sub_status = "active" if status in ("active", "trialing") else ("past_due" if status == "past_due" else "none")
@@ -24893,15 +24919,21 @@ async def stripe_webhook(request: Request):
 
     elif event_type == "customer.subscription.deleted":
         user = _find_user(_sget(data_obj, "customer"))
-        if user:
+        live = _live_subscription(_sget(data_obj, "id"))
+        if live is not None and _sget(live, "status") not in ("canceled", "incomplete_expired"):
+            print(f"[Stripe] ignoring stale {event_type}: Stripe now says {_sget(live, 'status')}")
+        elif user:
             _billing_update(user["user_id"], {"subscription_status": "none", "subscription_expires_at": None, "past_due_since": None})
 
     elif event_type == "invoice.payment_succeeded":
         customer_id = _sget(data_obj, "customer")
         user = _find_user(customer_id)
-        if user:
+        live = _live_subscription(_invoice_subscription_id(data_obj))
+        if live is not None and _sget(live, "status") not in ("active", "trialing"):
+            print(f"[Stripe] ignoring stale {event_type}: Stripe now says {_sget(live, 'status')}")
+        elif user:
             lines = _sget(_sget(data_obj, "lines", {}), "data", [])
-            period_end = _sget(_sget(lines[0], "period", {}), "end") if lines else None
+            period_end = (_sub_period_end(live) if live is not None else None) or (_sget(_sget(lines[0], "period", {}), "end") if lines else None)
             # Real fix Aug 26: same unconditional-null-write bug as the subscription.updated
             # handler above - never overwrite a real subscription_expires_at with nothing
             # just because this event didn't carry a period end.
@@ -24912,7 +24944,10 @@ async def stripe_webhook(request: Request):
 
     elif event_type == "invoice.payment_failed":
         user = _find_user(_sget(data_obj, "customer"))
-        if user:
+        live = _live_subscription(_invoice_subscription_id(data_obj))
+        if live is not None and _sget(live, "status") != "past_due":
+            print(f"[Stripe] ignoring stale {event_type}: Stripe now says {_sget(live, 'status')}")
+        elif user:
             _billing_update(user["user_id"], {"subscription_status": "past_due", "past_due_since": _past_due_since_for(user, "past_due")})
 
     return {"status": "ok", "event": event_type}
