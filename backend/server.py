@@ -17264,6 +17264,7 @@ async def download_resource_pdf(resource_id: str, request: Request):
 
 
 PREVIEW_MIN_WIDTH = 100
+LOCKED_PREVIEW_MAX_WIDTH = 240     # the only size a LOCKED resource's previews are ever served at
 PREVIEW_FULL_WIDTH = 600           # stored previews are ~600 px wide: this width and above is served as stored
 _PREVIEW_THUMB_TTL = 3600
 _PREVIEW_THUMB_MAX = 600
@@ -17302,7 +17303,8 @@ def _preview_thumbnail(resource_id: str, page_order: int, image_b64: str, width:
 async def get_resource_previews(resource_id: str, request: Request, width: Optional[int] = None):
     """Page-preview images (base64 JPEG, up to 3) for the resource detail screen. Same read
     scoping as the download endpoint, and refused (403) when the resource is locked for this
-    user, so previews never leak locked content. Optional ?width=N (100-600) returns the same
+    user, so previews never leak locked content - except thumbnails at width <= 240 (LOCKED_PREVIEW_MAX_WIDTH), which
+    the lists show on locked cards to tempt. Optional ?width=N (100-600) returns the same
     pages downscaled to about N px wide - the small thumbnails the resource lists load on demand
     (cached server-side for an hour, after the access checks)."""
     user = await get_current_user(request)
@@ -17315,7 +17317,10 @@ async def get_resource_previews(resource_id: str, request: Request, width: Optio
     if not r.data or not _resource_readable_by(user, r.data[0]):
         raise HTTPException(status_code=404, detail="Resource not found")
     if _resources_lock_applies(user) and _resource_locked_for_free_tier(r.data[0]):
-        raise HTTPException(status_code=403, detail="Subscribe to unlock this resource")
+        # A locked resource may only be teased with the small list-card thumbnails (width up to 240, never the stored
+        # image, never anything larger), so its content cannot be read. Everything else stays refused.
+        if width is None or width > LOCKED_PREVIEW_MAX_WIDTH:
+            raise HTTPException(status_code=403, detail="Subscribe to unlock this resource")
     try:
         res = supabase.table("resource_previews").select("page_order,image").eq("resource_id", resource_id).order("page_order").execute()
         rows = res.data or []
