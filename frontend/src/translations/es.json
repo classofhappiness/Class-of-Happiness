@@ -367,7 +367,7 @@
   "super_admin": "Superadministrador",
   "school_admin_label": "Administrador Escolar",
   "free_trial_label": "Prueba Gratis",
-  "start_free_trial": "Comienza Tu Prueba Gratis de 7 Días",
+  "start_free_trial": "Comienza Tu Prueba Gratis de 14 Días",
   "full_access_no_card": "Acceso completo a todas las funciones. Sin tarjeta de crédito.",
   "starting": "Iniciando...",
   "start_free_trial_btn": "🌟 Iniciar Prueba Gratis",
@@ -712,7 +712,7 @@
   "select_feeling": "¿Cómo te sientes?",
   "teachers": "Profesores",
   "trial": "Prueba Gratis",
-  "trial_desc": "Sin tarjeta de crédito",
+  "trial_desc": "14 días gratis, sin tarjeta de crédito",
   "upload": "Subir",
   "view_progress": "Ver Progreso",
   "your_family_emotions": "Las emociones de tu familia",
@@ -2377,5 +2377,6 @@
   "payment_issue_banner": "No se pudo procesar tu pago. Actualiza tu tarjeta para mantener tu plan.",
   "payment_issue_update_card": "Actualizar tarjeta",
   "payment_issue_error": "No se pudo abrir la página de la tarjeta. Inténtalo de nuevo.",
-  "payment_issue_banner_paused": "No se pudo procesar tu pago, así que las funciones de pago están en pausa. Actualiza tu tarjeta para volver a activarlas."
+  "payment_issue_banner_paused": "No se pudo procesar tu pago, así que las funciones de pago están en pausa. Actualiza tu tarjeta para volver a activarlas.",
+  "privacy_safety": "Privacidad y seguridad"
 }

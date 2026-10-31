@@ -384,7 +384,7 @@
   "super_admin": "Superadministrador",
   "school_admin_label": "Administrador Escolar",
   "free_trial_label": "Teste Grátis",
-  "start_free_trial": "Começar o Teu Teste Grátis de 7 Dias",
+  "start_free_trial": "Começar o Teu Teste Grátis de 14 Dias",
   "full_access_no_card": "Acesso completo a todas as funcionalidades. Sem cartão de crédito.",
   "starting": "A iniciar...",
   "start_free_trial_btn": "🌟 Iniciar Teste Grátis",
@@ -726,7 +726,7 @@
   "select_feeling": "Como te sentes?",
   "teachers": "Professores",
   "trial": "Teste Grátis",
-  "trial_desc": "Sem cartão de crédito",
+  "trial_desc": "14 dias grátis, sem cartão de crédito",
   "upload": "Carregar",
   "alerts": "Alertas",
   "no_alerts": "Sem alertas pendentes",
@@ -2377,5 +2377,6 @@
   "payment_issue_banner": "O teu pagamento não foi concluído. Atualiza o cartão para manteres o teu plano.",
   "payment_issue_update_card": "Atualizar cartão",
   "payment_issue_error": "Não foi possível abrir a página do cartão. Tenta outra vez.",
-  "payment_issue_banner_paused": "O teu pagamento não foi concluído, por isso as funcionalidades pagas estão em pausa. Atualiza o cartão para as reativares."
+  "payment_issue_banner_paused": "O teu pagamento não foi concluído, por isso as funcionalidades pagas estão em pausa. Atualiza o cartão para as reativares.",
+  "privacy_safety": "Privacidade e segurança"
 }

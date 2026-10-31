@@ -1209,7 +1209,7 @@
   "stage_3_label": "Stage 3 - Growing",
   "stage_4_label": "Stage 4 - Full creature",
   "start_checking_in_creature": "Start checking in!",
-  "start_free_trial": "Start Your 7-Day Free Trial",
+  "start_free_trial": "Start Your 14-Day Free Trial",
   "start_free_trial_banner": "Start your free trial",
   "start_free_trial_btn": "🌟 Start Free Trial",
   "start_trial_error": "Could not start trial.",
@@ -1569,7 +1569,7 @@
   "trial_days_free_badge": "{days} Days Free",
   "trial_days_placeholder": "Trial days",
   "trial_days_remaining": "{days} days remaining",
-  "trial_desc": "No credit card needed",
+  "trial_desc": "14 days free, no credit card needed",
   "trial_no_card_hint": "No credit card · No commitment · Cancel anytime",
   "trial_started_msg": "You have {days} days free to explore all features. No credit card needed.",
   "trial_started_title": "🎉 Trial Started!",
@@ -2243,5 +2243,6 @@
   "payment_issue_banner": "Your payment didn't go through. Update your card to keep your plan.",
   "payment_issue_update_card": "Update your card",
   "payment_issue_error": "Could not open the card page. Please try again.",
-  "payment_issue_banner_paused": "Your payment didn't go through, so paid features are paused. Update your card to turn them back on."
+  "payment_issue_banner_paused": "Your payment didn't go through, so paid features are paused. Update your card to turn them back on.",
+  "privacy_safety": "Privacy & safety"
 }

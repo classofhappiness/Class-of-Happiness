@@ -10,6 +10,7 @@ import { useApp } from '../src/context/AppContext';
 import { formatNumericDate } from '../src/utils/dateLabel';
 import { translationsApi, subscriptionApi, authApiExtended } from '../src/utils/api';
 import { trialEndsAt } from '../src/utils/trialEnd';
+import { appVersionLabel } from '../src/utils/appVersion';
 import { loadVoiceEnabled, setVoiceEnabled } from '../src/utils/voiceClips';
 import { loadDeviceNotificationsEnabled, setDeviceNotificationsEnabled } from '../src/utils/notifications';
 import { useWellbeingSharing } from '../src/utils/useWellbeingSharing';
@@ -781,7 +782,7 @@ export default function SettingsScreen() {
           <View style={styles.settingLeft}>
             <MaterialIcons name="card-giftcard" size={24} color="#FF9800" />
             <View style={styles.settingText}>
-              <Text style={styles.settingLabel}>{t('have_trial_code')}</Text>
+              <Text style={styles.settingLabel}>{t('have_trial_code') || 'Have a trial code?'}</Text>
               {user?.subscription_status === 'trial' ? (
                 <Text style={[styles.settingSubValue, { color: '#4CAF50', fontWeight: '600' }]}>
                   {trialDaysLeftLabel(user, t)}
@@ -817,7 +818,7 @@ export default function SettingsScreen() {
               disabled={redeemingCode}
             >
               <Text style={styles.redeemButtonText}>
-                {redeemingCode ? t('redeeming') : t('redeem_code')}
+                {redeemingCode ? (t('redeeming') || 'Redeeming...') : (t('redeem_code') || 'Redeem code')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1044,9 +1045,9 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* {t('about_app')||'About'} & {t('legal')||'Legal'} */}
+      {/* Privacy & safety (was "Legal", renamed Oct 31) */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('legal') || 'Legal'}</Text>
+        <Text style={styles.sectionTitle}>{t('privacy_safety') || 'Privacy & safety'}</Text>
         <TouchableOpacity
           style={styles.settingItem}
           onPress={() => router.push('/about' as any)}
@@ -1375,6 +1376,10 @@ export default function SettingsScreen() {
         <MaterialIcons name="logout" size={24} color="#F44336" />
         <Text style={styles.logoutText}>{t('logout')}</Text>
       </TouchableOpacity>
+
+      <Text style={{ textAlign: 'center', color: '#999', fontSize: 12, marginTop: 8, marginBottom: 24 }} selectable>
+        {appVersionLabel(t('version') || 'Version')}
+      </Text>
     </ScrollView>
     </SafeAreaView>
   );

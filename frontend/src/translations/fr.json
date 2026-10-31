@@ -14,7 +14,7 @@
   "your_family_emotions": "Check-ins familiaux",
   "login_required": "Connexion requise",
   "trial": "Essai gratuit",
-  "trial_desc": "Sans carte de crédit",
+  "trial_desc": "14 jours gratuits, sans carte bancaire",
   "blue_label": "Peu d'énergie",
   "green_label": "Calme et prêt",
   "yellow_label": "Stressé",
@@ -537,7 +537,7 @@
   "super_admin": "Super-administrateur",
   "school_admin_label": "Administrateur Scolaire",
   "free_trial_label": "Essai Gratuit",
-  "start_free_trial": "Commence Ton Essai Gratuit de 7 Jours",
+  "start_free_trial": "Commence Ton Essai Gratuit de 14 Jours",
   "full_access_no_card": "Accès complet à toutes les fonctionnalités. Sans carte de crédit.",
   "starting": "Démarrage...",
   "start_free_trial_btn": "🌟 Commencer l'Essai Gratuit",
@@ -2386,5 +2386,6 @@
   "payment_issue_banner": "Votre paiement n'a pas abouti. Mettez à jour votre carte pour conserver votre abonnement.",
   "payment_issue_update_card": "Mettre à jour la carte",
   "payment_issue_error": "Impossible d'ouvrir la page de la carte. Veuillez réessayer.",
-  "payment_issue_banner_paused": "Votre paiement n'a pas abouti, les fonctionnalités payantes sont donc suspendues. Mettez à jour votre carte pour les réactiver."
+  "payment_issue_banner_paused": "Votre paiement n'a pas abouti, les fonctionnalités payantes sont donc suspendues. Mettez à jour votre carte pour les réactiver.",
+  "privacy_safety": "Confidentialité et sécurité"
 }

@@ -1274,7 +1274,7 @@
   "stage_3_label": "阶段 3 - 成长",
   "stage_4_label": "阶段 4 - 完整的生物",
   "start_checking_in_creature": "开始签到吧！",
-  "start_free_trial": "开始 7 天免费试用",
+  "start_free_trial": "开始 14 天免费试用",
   "start_free_trial_banner": "开始免费试用",
   "start_free_trial_btn": "🌟 开始免费试用",
   "start_trial_error": "无法开始试用。",
@@ -1659,7 +1659,7 @@
   "trial_days_free_badge": "{days} 天免费",
   "trial_days_placeholder": "试用天数",
   "trial_days_remaining": "剩余 {days} 天",
-  "trial_desc": "无需信用卡",
+  "trial_desc": "免费 14 天，无需信用卡",
   "trial_no_card_hint": "无需信用卡 · 无需承诺 · 随时可取消",
   "trial_started_msg": "你有 {days} 天可以免费体验全部功能，无需信用卡。",
   "trial_started_title": "🎉 试用已开始！",
@@ -2229,5 +2229,6 @@
   "payment_issue_banner": "您的付款未成功。请更新银行卡以保留您的计划。",
   "payment_issue_update_card": "更新银行卡",
   "payment_issue_error": "无法打开银行卡页面，请重试。",
-  "payment_issue_banner_paused": "您的付款未成功，因此付费功能已暂停。请更新银行卡以重新开启。"
+  "payment_issue_banner_paused": "您的付款未成功，因此付费功能已暂停。请更新银行卡以重新开启。",
+  "privacy_safety": "隐私与安全"
 }

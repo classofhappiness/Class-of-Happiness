@@ -245,7 +245,7 @@
   "teachers": "Insegnanti",
   "this_week": "Questa settimana",
   "trial": "Prova Gratuita",
-  "trial_desc": "Nessuna carta di credito",
+  "trial_desc": "14 giorni gratis, senza carta di credito",
   "upload": "Carica",
   "version": "Versione",
   "view_progress": "Vedi progressi",
@@ -537,7 +537,7 @@
   "super_admin": "Super Amministratore",
   "school_admin_label": "Amministratore Scolastico",
   "free_trial_label": "Prova Gratuita",
-  "start_free_trial": "Inizia la Tua Prova Gratuita di 7 Giorni",
+  "start_free_trial": "Inizia la Tua Prova Gratuita di 14 Giorni",
   "full_access_no_card": "Accesso completo a tutte le funzionalità. Senza carta di credito.",
   "starting": "Avvio in corso...",
   "start_free_trial_btn": "🌟 Inizia Prova Gratuita",
@@ -2386,5 +2386,6 @@
   "payment_issue_banner": "Il tuo pagamento non è andato a buon fine. Aggiorna la carta per mantenere il tuo piano.",
   "payment_issue_update_card": "Aggiorna la carta",
   "payment_issue_error": "Impossibile aprire la pagina della carta. Riprova.",
-  "payment_issue_banner_paused": "Il tuo pagamento non è andato a buon fine, quindi le funzioni a pagamento sono in pausa. Aggiorna la carta per riattivarle."
+  "payment_issue_banner_paused": "Il tuo pagamento non è andato a buon fine, quindi le funzioni a pagamento sono in pausa. Aggiorna la carta per riattivarle.",
+  "privacy_safety": "Privacy e sicurezza"
 }

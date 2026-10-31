@@ -185,7 +185,7 @@ const defaultTranslations: Translations = {
   login_required: "Login required",
   sign_in_google: "Sign in with Google",
   trial: "Free Trial",
-  trial_desc: "7 days free trial",
+  trial_desc: "14 days free, no credit card needed",
   monthly: "Monthly",
   six_months: "6 Months",
   annual: "Annual",
@@ -401,7 +401,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Translations state
   const [language, setLanguageState] = useState<string>('en');
-  const [translations, setTranslations] = useState<Translations>(defaultTranslations);
+  // Oct 31: start from the full English file (not just the small inline defaults), so a fresh install or a logged-out
+  // screen never shows blank labels (t() returns '' for a missing key) or an older wording than the logged-in app.
+  const [translations, setTranslations] = useState<Translations>({ ...defaultTranslations, ...((LANG_TRANSLATIONS as any).en || {}) });
   const reading = useReadingPrefsState(language);
 
   // Real fix Sep 24 (item5, device report - /students timeout investigation): GET /students

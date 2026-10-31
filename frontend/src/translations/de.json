@@ -245,7 +245,7 @@
   "teachers": "Lehrer",
   "this_week": "Diese Woche",
   "trial": "Kostenlose Testversion",
-  "trial_desc": "Keine Kreditkarte erforderlich",
+  "trial_desc": "14 Tage kostenlos, keine Kreditkarte nötig",
   "upload": "Hochladen",
   "version": "Version",
   "view_progress": "Fortschritt ansehen",
@@ -537,7 +537,7 @@
   "super_admin": "Super-Admin",
   "school_admin_label": "Schulverwalter",
   "free_trial_label": "Kostenlose Testversion",
-  "start_free_trial": "Starte Deine 7-Tage Kostenlose Testversion",
+  "start_free_trial": "Starte Deine 14-Tage Kostenlose Testversion",
   "full_access_no_card": "Voller Zugriff auf alle Funktionen. Ohne Kreditkarte.",
   "starting": "Wird gestartet...",
   "start_free_trial_btn": "🌟 Kostenlose Testversion Starten",
@@ -2386,5 +2386,6 @@
   "payment_issue_banner": "Deine Zahlung ist nicht durchgegangen. Aktualisiere deine Karte, um deinen Plan zu behalten.",
   "payment_issue_update_card": "Karte aktualisieren",
   "payment_issue_error": "Die Kartenseite konnte nicht geöffnet werden. Bitte versuche es noch einmal.",
-  "payment_issue_banner_paused": "Deine Zahlung ist nicht durchgegangen, daher sind die kostenpflichtigen Funktionen pausiert. Aktualisiere deine Karte, um sie wieder zu aktivieren."
+  "payment_issue_banner_paused": "Deine Zahlung ist nicht durchgegangen, daher sind die kostenpflichtigen Funktionen pausiert. Aktualisiere deine Karte, um sie wieder zu aktivieren.",
+  "privacy_safety": "Datenschutz & Sicherheit"
 }
