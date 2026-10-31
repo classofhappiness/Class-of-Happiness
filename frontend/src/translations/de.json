@@ -2381,5 +2381,6 @@
   "creature_locked_hint": "Frag einen Erwachsenen nach mehr Kreaturen ({colour})",
   "parent_gate_title": "Für Erwachsene",
   "parent_gate_prompt": "Zum Fortfahren bitte beantworten: {a} + {b} = ?",
-  "parent_gate_wrong": "Das stimmt nicht. Bitte versuche es noch einmal."
+  "parent_gate_wrong": "Das stimmt nicht. Bitte versuche es noch einmal.",
+  "trial_ends_on": "Deine kostenlose Testphase endet am {date}"
 }

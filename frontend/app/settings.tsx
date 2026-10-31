@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../src/context/AppContext';
 import { formatNumericDate } from '../src/utils/dateLabel';
 import { translationsApi, subscriptionApi, authApiExtended } from '../src/utils/api';
+import { trialEndsAt } from '../src/utils/trialEnd';
 import { loadVoiceEnabled, setVoiceEnabled } from '../src/utils/voiceClips';
 import { loadDeviceNotificationsEnabled, setDeviceNotificationsEnabled } from '../src/utils/notifications';
 import { useWellbeingSharing } from '../src/utils/useWellbeingSharing';
@@ -79,20 +80,10 @@ function renewalCountdownLabel(expiresAtIso: string, t: (k: string) => string): 
   return daysLeft === 1 ? (t('renews_in_one_day') || 'Renews in 1 day') : (t('renews_in_days') || 'Renews in {days} days').replace('{days}', String(daysLeft));
 }
 
-// Build 26 (Sep 6): mirrors the backend's own _trial_is_valid fallback exactly - a promo
-// code (e.g. HAPPYCLASS2026) writes a real expiry into subscription_expires_at (checked
-// first), a regular trial (POST /subscription/start-trial) never sets that field at all and
-// falls back to trial_started_at + the standard 14-day TRIAL_DURATION_DAYS. Getting this
-// wrong the same way the backend bug (Aug 25) did would show a promo trial's days-left as if
-// it were a plain 14-day trial.
-const TRIAL_DURATION_DAYS = 14;
+// Oct 31: the end date comes from the one shared reader (src/utils/trialEnd.ts), which prefers
+// subscription_expires_at - the single field the server writes for every trial.
 function trialDaysLeftLabel(user: any, t: (k: string) => string): string {
-  let expiresAt: Date | null = null;
-  if (user?.subscription_expires_at) {
-    expiresAt = new Date(user.subscription_expires_at);
-  } else if (user?.trial_started_at) {
-    expiresAt = new Date(new Date(user.trial_started_at).getTime() + TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000);
-  }
+  const expiresAt = trialEndsAt(user);
   if (!expiresAt) return t('trial_active_label') || 'Trial active';
   const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
   return daysLeft === 1 ? (t('trial_active_one_day_left') || 'Trial active, 1 day left') : (t('trial_active_days_left') || 'Trial active, {days} days left').replace('{days}', String(daysLeft));
@@ -582,32 +573,6 @@ export default function SettingsScreen() {
     })();
   }, [isAuthenticated, user?.role]);
 
-  // Start trial
-  const [startingTrial, setStartingTrial] = useState(false);
-
-  const handleStartTrial = async (trialType: string) => {
-    setStartingTrial(true);
-    try {
-      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-      const token = await AsyncStorage.getItem('session_token');
-      const res = await fetch(`${BACKEND_URL}/api/trial/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ type: trialType }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        Alert.alert('🌟 ' + (t('trial_started_title') || 'Trial Started!'), data.message);
-        await checkAuth();
-      } else {
-        Alert.alert(t('error') || 'Error', data.detail || (t('start_trial_error') || 'Could not start trial.'));
-      }
-    } catch {
-      Alert.alert(t('error') || 'Error', t('start_trial_error') || 'Could not start trial.');
-    } finally {
-      setStartingTrial(false);
-    }
-  };
 
   const handleSetPassword = async () => {
     if (newPassword.length < 8) {
@@ -1146,35 +1111,6 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         )}
         
-
-        {/* Trial Section - show for free teachers and parents */}
-        {isAuthenticated && user?.subscription_status === 'free' && (user?.role === 'teacher' || user?.role === 'parent') && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <MaterialIcons name="star" size={20} color="#FF9800" />
-              <Text style={styles.sectionTitle}>{t('free_trial_label') || 'Free Trial'}</Text>
-            </View>
-            <View style={[styles.settingItem, { backgroundColor: '#FFF8E1', borderRadius: 12, margin: 8 }]}>
-              <View style={styles.settingLeft}>
-                <View style={styles.settingText}>
-                  <Text style={styles.settingLabel}>{t('start_free_trial') || 'Start Your 7-Day Free Trial'}</Text>
-                  <Text style={styles.settingValue}>
-                    {t('full_access_no_card') || 'Full access to all features. No credit card needed.'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={[styles.settingItem, { backgroundColor: '#FF9800', borderRadius: 12, margin: 8, justifyContent: 'center' }]}
-              onPress={() => handleStartTrial(user?.role || 'teacher')}
-              disabled={startingTrial}
-            >
-              <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16, textAlign: 'center' }}>
-                {startingTrial ? (t('starting') || 'Starting...') : (t('start_free_trial_btn') || '🌟 Start Free Trial')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
 
         {/* Trial Status - show days remaining */}
         {isAuthenticated && user?.subscription_status === 'trial' && (

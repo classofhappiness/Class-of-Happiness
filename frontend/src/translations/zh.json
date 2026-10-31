@@ -2224,5 +2224,6 @@
   "creature_locked_hint": "请让大人带你看更多小生物（{colour}）",
   "parent_gate_title": "成人专用",
   "parent_gate_prompt": "请回答以继续：{a} + {b} = ?",
-  "parent_gate_wrong": "答案不对，请再试一次。"
+  "parent_gate_wrong": "答案不对，请再试一次。",
+  "trial_ends_on": "您的免费试用将于 {date} 结束"
 }

@@ -2372,5 +2372,6 @@
   "creature_locked_hint": "Pide a un adulto que te enseñe más criaturas ({colour})",
   "parent_gate_title": "Para adultos",
   "parent_gate_prompt": "Para continuar, responde: {a} + {b} = ?",
-  "parent_gate_wrong": "Eso no es correcto. Inténtalo de nuevo."
+  "parent_gate_wrong": "Eso no es correcto. Inténtalo de nuevo.",
+  "trial_ends_on": "Tu prueba gratuita termina el {date}"
 }

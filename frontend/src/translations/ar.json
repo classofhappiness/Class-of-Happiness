@@ -2224,5 +2224,6 @@
   "creature_locked_hint": "اطلب من شخص بالغ أن يُريك المزيد من المخلوقات ({colour})",
   "parent_gate_title": "للبالغين",
   "parent_gate_prompt": "للمتابعة، أجب: {a} + {b} = ?",
-  "parent_gate_wrong": "هذا غير صحيح. حاول مرة أخرى."
+  "parent_gate_wrong": "هذا غير صحيح. حاول مرة أخرى.",
+  "trial_ends_on": "تنتهي تجربتك المجانية في {date}"
 }

@@ -2238,5 +2238,6 @@
   "creature_locked_hint": "Ask a grown-up to see more {colour} creatures",
   "parent_gate_title": "For grown-ups",
   "parent_gate_prompt": "To continue, please answer: {a} + {b} = ?",
-  "parent_gate_wrong": "That's not right. Please try again."
+  "parent_gate_wrong": "That's not right. Please try again.",
+  "trial_ends_on": "Your free trial ends on {date}"
 }

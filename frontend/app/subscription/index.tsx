@@ -8,6 +8,8 @@ import * as ExpoLinking from 'expo-linking';
 import { useApp } from '../../src/context/AppContext';
 import { subscriptionApi } from '../../src/utils/api';
 import { ParentGate } from '../../src/components/ParentGate';
+import { trialEndsAt } from '../../src/utils/trialEnd';
+import { formatShortDate } from '../../src/utils/dateLabel';
 
 // Real fix Aug 18: annual billing isn't offered yet — neither the backend's
 // SUBSCRIPTION_PLANS nor Stripe have annual prices configured, and the old $39.99/$59.99
@@ -54,7 +56,7 @@ const TEACHER_FEATURE_FALLBACKS = [
 export default function SubscriptionScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user, t, checkAuth, isAuthenticated, login } = useApp();
+  const { user, t, checkAuth, isAuthenticated, login, language } = useApp();
   const [selectedRole, setSelectedRole] = useState<'parent' | 'teacher'>('parent');
   const [selectedPlan, setSelectedPlan] = useState('parent_monthly');
   const [loading, setLoading] = useState(false);
@@ -96,7 +98,7 @@ export default function SubscriptionScreen() {
   // Teachers can also subscribe as parents — show note
   const featureKeys = selectedRole === 'parent' ? PARENT_FEATURE_KEYS : TEACHER_FEATURE_KEYS;
   const featureFallbacks = selectedRole === 'parent' ? PARENT_FEATURE_FALLBACKS : TEACHER_FEATURE_FALLBACKS;
-  const isTrialUsed = user?.trial_started_at != null;
+  const isTrialUsed = user?.trial_used_at != null || user?.trial_started_at != null;
   // Real bug fix Aug 23 (CRITICAL, item 1): this used to trust subscription_status alone -
   // 'trial' or 'active' meant "hide the Subscribe button," permanently, with no expiry
   // check at all. Nothing in the backend ever flips subscription_status away from 'trial'
@@ -106,8 +108,8 @@ export default function SubscriptionScreen() {
   // real expiry against the same trial_days the backend actually enforces (from
   // /subscription/plans, not a guessed default), and against subscription_expires_at for a
   // lapsed paid plan, matching the "Expires in X days" logic already used below.
-  const trialExpired = user?.subscription_status === 'trial' && !!user?.trial_started_at
-    && (Date.now() - new Date(user.trial_started_at).getTime()) > trialDays * 24 * 60 * 60 * 1000;
+  const trialEnd = trialEndsAt(user);
+  const trialExpired = !!trialEnd && trialEnd.getTime() < Date.now();
   const subscriptionExpired = user?.subscription_status === 'active' && !!user?.subscription_expires_at
     && new Date(user.subscription_expires_at).getTime() < Date.now();
   // isActive drives the status banner (accurate "trial active"/"plan active" info) - stays
@@ -244,12 +246,9 @@ export default function SubscriptionScreen() {
                   ? `✅ ${user.subscription_plan} ${t('plan_active_suffix')||'plan active'}`
                   : `✅ ${t('access_active_banner')||'Access active'}`}
             </Text>
-            {user?.subscription_status === 'trial' && user?.trial_started_at && (() => {
-              const start = new Date(user.trial_started_at);
-              const daysUsed = Math.floor((Date.now() - start.getTime()) / (1000*60*60*24));
-              const daysLeft = Math.max(0, trialDays - daysUsed);
-              return <Text style={{fontSize:12, color:'#388E3C', marginTop:2}}>{(t('trial_days_remaining') || '{days} days remaining').replace('{days}', String(daysLeft))}</Text>;
-            })()}
+            {user?.subscription_status === 'trial' && trialEnd && (
+              <Text style={{fontSize:12, color:'#388E3C', marginTop:2}}>{(t('trial_ends_on') || 'Your free trial ends on {date}').replace('{date}', formatShortDate(trialEnd, language, { year: true }))}</Text>
+            )}
             {user?.subscription_expires_at && user?.subscription_status !== 'trial' && (() => {
               const exp = new Date(user.subscription_expires_at);
               const daysLeft = Math.max(0, Math.floor((exp.getTime() - Date.now()) / (1000*60*60*24)));

@@ -70,6 +70,7 @@ export interface User {
   subscription_plan?: string;
   subscription_expires_at?: string;
   trial_started_at?: string;
+  trial_used_at?: string | null;
   created_at: string;
   // Real feature Sep 21 (device report): _public_user (server.py) already sends this
   // straight through - it was never in this interface, not because it's hidden, just
