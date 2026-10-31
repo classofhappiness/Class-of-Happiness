@@ -60,8 +60,26 @@ export async function loadDeviceNotificationsEnabled(): Promise<boolean> {
 export function getDeviceNotificationsEnabledSync(): boolean {
   return deviceNotificationsEnabled;
 }
+// Oct 31: screens that show this switch (Settings > General, the school admin's Support Requests tab) share ONE state:
+// every change is announced here, so whichever one is on screen always matches.
+const deviceNotificationListeners = new Set<(v: boolean) => void>();
+export function subscribeDeviceNotifications(fn: (v: boolean) => void): () => void {
+  deviceNotificationListeners.add(fn);
+  return () => { deviceNotificationListeners.delete(fn); };
+}
+
+// Whether the phone's own notification permission is granted right now (the system setting, not the in-app switch).
+export async function hasNotificationPermission(): Promise<boolean> {
+  try {
+    return (await Notifications.getPermissionsAsync()).status === 'granted';
+  } catch {
+    return false;
+  }
+}
+
 export async function setDeviceNotificationsEnabled(enabled: boolean): Promise<void> {
   deviceNotificationsEnabled = enabled;
+  deviceNotificationListeners.forEach((fn) => { try { fn(enabled); } catch {} });
   try {
     await AsyncStorage.setItem(DEVICE_NOTIFICATIONS_KEY, enabled ? 'true' : 'false');
   } catch (e) {

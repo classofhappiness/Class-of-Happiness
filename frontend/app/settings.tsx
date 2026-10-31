@@ -12,7 +12,7 @@ import { translationsApi, subscriptionApi, authApiExtended } from '../src/utils/
 import { trialEndsAt } from '../src/utils/trialEnd';
 import { appVersionLabel } from '../src/utils/appVersion';
 import { loadVoiceEnabled, setVoiceEnabled } from '../src/utils/voiceClips';
-import { loadDeviceNotificationsEnabled, setDeviceNotificationsEnabled } from '../src/utils/notifications';
+import { useDeviceNotificationsEnabled } from '../src/utils/useDeviceNotifications';
 import { useWellbeingSharing } from '../src/utils/useWellbeingSharing';
 import { SecureField } from '../src/components/SecureField';
 import { PinConfirmModal } from '../src/components/PinConfirmModal';
@@ -97,10 +97,9 @@ export default function SettingsScreen() {
   const { user, language, setLanguage, logout, t, hasActiveSubscription, translations, checkAuth, isAuthenticated, setAdminPin } = useApp();
   const [showLanguages, setShowLanguages] = useState(false);
   const [voiceEnabled, setVoiceEnabledState] = useState(true);
-  const [deviceNotificationsEnabled, setDeviceNotificationsEnabledState] = useState(true);
+  const [deviceNotificationsEnabled, setDeviceNotificationsEnabled] = useDeviceNotificationsEnabled();
 
   useEffect(() => { loadVoiceEnabled().then(setVoiceEnabledState); }, []);
-  useEffect(() => { loadDeviceNotificationsEnabled().then(setDeviceNotificationsEnabledState); }, []);
 
   const handleVoiceToggle = async (value: boolean) => {
     setVoiceEnabledState(value);
@@ -1038,7 +1037,7 @@ export default function SettingsScreen() {
           </View>
           <Switch
             value={deviceNotificationsEnabled}
-            onValueChange={(next) => { setDeviceNotificationsEnabledState(next); setDeviceNotificationsEnabled(next); }}
+            onValueChange={setDeviceNotificationsEnabled}
             trackColor={{ false: '#ddd', true: '#81C784' }}
             thumbColor={deviceNotificationsEnabled ? '#4CAF50' : '#999'}
           />
