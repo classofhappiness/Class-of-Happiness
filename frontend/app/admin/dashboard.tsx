@@ -708,31 +708,49 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
 
   useEffect(() => { loadProfiles(); loadSchoolFeatures(); loadAllSchoolCodes(); }, [loadProfiles, loadSchoolFeatures, loadAllSchoolCodes]);
 
-  // Oct 31: Support Requests is a single on/off per school (superadmin only); switching OFF asks first.
-  const requestFeatureToggle = (schoolAdminId: string, featureKey: string, next: boolean, schoolName?: string) => {
-    if (featureKey === 'support_requests' && !next) {
+  // Oct 31: Support Requests has the school admin's own choice plus a Class of Happiness override (follow school / on / off).
+  // Forcing it OFF asks first.
+  const requestSupportOverride = (schoolAdminId: string, next: 'on' | 'off' | null, schoolName?: string) => {
+    if (next === 'off') {
       Alert.alert(
         t('sr_switch_off_title') || 'Switch off Support Requests?',
         (t('sr_switch_off_body') || 'Teachers at {school} will no longer see the support button. Open requests and history stay visible to the school admin, and nothing is deleted.').replace('{school}', schoolName || (t('this_school') || 'this school')),
         [
           { text: t('cancel') || 'Cancel', style: 'cancel' },
-          { text: t('sr_switch_off_btn') || 'Switch off', style: 'destructive', onPress: () => toggleFeatureAllowed(schoolAdminId, featureKey, false) },
+          { text: t('sr_switch_off_btn') || 'Switch off', style: 'destructive', onPress: () => setSupportOverride(schoolAdminId, 'off') },
         ],
       );
       return;
     }
-    toggleFeatureAllowed(schoolAdminId, featureKey, next);
+    setSupportOverride(schoolAdminId, next);
+  };
+
+  const setSupportOverride = async (schoolAdminId: string, next: 'on' | 'off' | null) => {
+    setFeatureTogglePending(`${schoolAdminId}:support_requests`);
+    try {
+      const r: any = await apiCall(`/admin/school-features/${schoolAdminId}/support_requests`, authToken, {
+        method: 'PUT',
+        body: JSON.stringify({ override: next }),
+      });
+      setSchoolFeatures(prev => ({
+        ...prev,
+        [schoolAdminId]: { ...prev[schoolAdminId], support_requests: { allowed_by_superadmin: !!r.effective, enabled_by_school: !!r.enabled_by_school, override: r.override ?? null, effective: !!r.effective } },
+      }));
+    } catch {
+      Alert.alert(t('error') || 'Error', t('could_not_save') || 'Could not save.');
+    }
+    setFeatureTogglePending(null);
   };
 
   const toggleFeatureAllowed = async (schoolAdminId: string, featureKey: string, next: boolean) => {
     const pendingKey = `${schoolAdminId}:${featureKey}`;
     setFeatureTogglePending(pendingKey);
-    // Optimistic - same pattern as the school_admin-side buzz/Shop toggles.
+    // Optimistic - same pattern as the school_admin-side Shop toggle.
     setSchoolFeatures(prev => ({
       ...prev,
       [schoolAdminId]: {
         ...prev[schoolAdminId],
-        [featureKey]: { ...(prev[schoolAdminId]?.[featureKey] || { enabled_by_school: true }), allowed_by_superadmin: next, ...(featureKey === 'support_requests' ? { enabled_by_school: next } : {}) },
+        [featureKey]: { ...(prev[schoolAdminId]?.[featureKey] || { enabled_by_school: true }), allowed_by_superadmin: next },
       },
     }));
     try {
@@ -745,7 +763,7 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
         ...prev,
         [schoolAdminId]: {
           ...prev[schoolAdminId],
-          [featureKey]: { ...(prev[schoolAdminId]?.[featureKey] || { enabled_by_school: true }), allowed_by_superadmin: !next, ...(featureKey === 'support_requests' ? { enabled_by_school: !next } : {}) },
+          [featureKey]: { ...(prev[schoolAdminId]?.[featureKey] || { enabled_by_school: true }), allowed_by_superadmin: !next },
         },
       }));
       Alert.alert(t('error') || 'Error', t('could_not_save') || 'Could not save.');
@@ -1177,22 +1195,44 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
                           const allowed = flags?.allowed_by_superadmin ?? false;
                           const pending = featureTogglePending === `${profile.school_admin_user_id}:${key}`;
                           const meta = FEATURE_LABELS[key];
+                          if (key === 'support_requests') {
+                            const ov: 'on' | 'off' | null = (flags as any)?.override ?? null;
+                            const choice = !!flags?.enabled_by_school;
+                            const eff = ov ? ov === 'on' : choice;
+                            const stateText = eff ? (t('feature_state_on') || 'On') : (t('feature_state_off') || 'Off');
+                            const why = ov ? (t('sr_state_override') || '{state} · override').replace('{state}', stateText) : (t('sr_state_school_choice') || "{state} · school's choice").replace('{state}', stateText);
+                            const opts: Array<[('on' | 'off' | null), string]> = [[null, t('sr_override_follow') || "Follow school's choice"], ['on', t('feature_state_on') || 'On'], ['off', t('feature_state_off') || 'Off']];
+                            return (
+                              <View key={key} style={{ paddingVertical: 6, gap: 6 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                  <MaterialIcons name={meta.icon} size={16} color={eff ? '#4CAF73' : '#BBB'} />
+                                  <Text style={{ fontSize: 13, color: '#333', flex: 1 }}>{t(meta.labelKey) || meta.fallback}</Text>
+                                  <Text style={{ fontSize: 11, fontWeight: '800', color: eff ? '#2E7D32' : '#9E9E9E' }}>{why}</Text>
+                                </View>
+                                <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                                  {opts.map(([val, label]) => (
+                                    <TouchableOpacity key={String(val)} disabled={pending || ov === val} onPress={() => requestSupportOverride(profile.school_admin_user_id, val, profile.school_name)}
+                                      style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: ov === val ? '#5C6BC0' : '#EEE', opacity: pending ? 0.5 : 1 }}>
+                                      <Text style={{ fontSize: 12, fontWeight: '700', color: ov === val ? 'white' : '#555' }}>{label}</Text>
+                                    </TouchableOpacity>
+                                  ))}
+                                </View>
+                              </View>
+                            );
+                          }
                           return (
                             <View key={key} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
                                 <MaterialIcons name={meta.icon} size={16} color={allowed ? '#4CAF73' : '#BBB'} />
                                 <Text style={{ fontSize: 13, color: '#333', flex: 1 }}>{t(meta.labelKey) || meta.fallback}</Text>
-                                {key === 'support_requests' && (
-                                  <Text style={{ fontSize: 11, fontWeight: '800', color: allowed ? '#2E7D32' : '#9E9E9E' }}>{allowed ? (t('feature_state_on') || 'On') : (t('feature_state_off') || 'Off')}</Text>
-                                )}
-                                {key !== 'support_requests' && allowed && flags?.enabled_by_school === false && (
+                                {allowed && flags?.enabled_by_school === false && (
                                   <Text style={{ fontSize: 10, color: '#999', fontStyle: 'italic' }}>{t('school_has_it_off') || 'school has it off'}</Text>
                                 )}
                               </View>
                               <Switch
                                 value={allowed}
                                 disabled={pending}
-                                onValueChange={(next) => requestFeatureToggle(profile.school_admin_user_id, key, next, profile.school_name)}
+                                onValueChange={(next) => toggleFeatureAllowed(profile.school_admin_user_id, key, next)}
                                 trackColor={{ false: '#E0E0E0', true: '#C8E6C9' }}
                                 thumbColor={allowed ? '#4CAF50' : '#9E9E9E'}
                               />
@@ -2733,16 +2773,6 @@ function SchoolSettings({ authToken, user }: any) {
   const [shopEnabledBySchool, setShopEnabledBySchool] = useState(true);
   const [shopFeatureAllowed, setShopFeatureAllowed] = useState(true);
   const [shopTogglePending, setShopTogglePending] = useState(false);
-  // Real feature Sep 18: Support Requests ("buzz") school-level toggle - same
-  // allowed_by_superadmin/enabled_by_school pattern and same generic GET /features +
-  // PUT /features/{key} endpoints as the Shop toggle above (this was the actual first
-  // app-side consumer the api.ts featuresApi comment anticipated). Until now this toggle
-  // only existed on the portal - school_admin had no way to turn buzz off for their
-  // teachers from the app itself.
-  const [buzzEnabledBySchool, setBuzzEnabledBySchool] = useState(true);
-  const [buzzFeatureAllowed, setBuzzFeatureAllowed] = useState(true);
-  const [buzzTogglePending, setBuzzTogglePending] = useState(false);
-
   // Real fix Sep 25 (item 12): regenerating a code now invalidates whatever code was
   // previously live (server-side, see /school/generate-invite-code) - a teacher with the old
   // code printed/saved will stop being able to use it, so this is now behind an explicit
@@ -2817,9 +2847,6 @@ function SchoolSettings({ authToken, user }: any) {
         const shop = (features || []).find(f => f.feature_key === 'creature_shop');
         setShopFeatureAllowed(!!shop);
         setShopEnabledBySchool(shop ? shop.enabled_by_school !== false : true);
-        const buzz = (features || []).find(f => f.feature_key === 'support_requests');
-        setBuzzFeatureAllowed(!!buzz);
-        setBuzzEnabledBySchool(buzz ? buzz.enabled_by_school !== false : true);
       }).catch(() => {});
   }, [authToken]);
 
@@ -2836,21 +2863,6 @@ function SchoolSettings({ authToken, user }: any) {
       Alert.alert(t('error') || 'Error', t('could_not_save') || 'Could not save.');
     }
     setShopTogglePending(false);
-  };
-
-  const toggleBuzzForSchool = async (next: boolean) => {
-    setBuzzTogglePending(true);
-    setBuzzEnabledBySchool(next); // optimistic - this is a simple on/off, not worth a spinner delay
-    try {
-      await apiCall('/features/support_requests', authToken, {
-        method: 'PUT',
-        body: JSON.stringify({ enabled_by_school: next }),
-      });
-    } catch {
-      setBuzzEnabledBySchool(!next); // revert on failure
-      Alert.alert(t('error') || 'Error', t('could_not_save') || 'Could not save.');
-    }
-    setBuzzTogglePending(false);
   };
 
   const save = async () => {
@@ -2949,27 +2961,6 @@ function SchoolSettings({ authToken, user }: any) {
             <Switch value={shopEnabledBySchool} onValueChange={toggleShopForSchool} disabled={shopTogglePending}
               trackColor={{ false: '#E0E0E0', true: '#C8E6C9' }}
               thumbColor={shopEnabledBySchool ? '#4CAF50' : '#9E9E9E'} />
-          </View>
-        </SectionCard>
-      )}
-
-      {/* Real feature Sep 18: Support Requests ("buzz") school-level toggle - simple on/off,
-          same pattern as the Shop toggle above. Only shown once a superadmin has allowed the
-          feature for this school at all (buzzFeatureAllowed) - a school that hasn't been
-          granted buzz access just doesn't see this card, same as Shop. */}
-      {buzzFeatureAllowed && (
-        <SectionCard title={t('buzz_title') || '🔔 Support Requests'} subtitle={t('buzz_school_toggle_subtitle') || 'Let teachers buzz you for support'} icon="notifications" color="#F4511E">
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <View style={{ flex: 1, marginRight: 12 }}>
-              <Text style={s.hint}>
-                {buzzEnabledBySchool
-                  ? (t('buzz_school_toggle_desc_on') || 'Teachers at your school can send you a Support Request when they need help.')
-                  : (t('buzz_school_toggle_desc_off') || 'Support Requests are off for your whole school - teachers cannot buzz you for support until you turn this back on.')}
-              </Text>
-            </View>
-            <Switch value={buzzEnabledBySchool} onValueChange={toggleBuzzForSchool} disabled={buzzTogglePending}
-              trackColor={{ false: '#E0E0E0', true: '#FFCCBC' }}
-              thumbColor={buzzEnabledBySchool ? '#F4511E' : '#9E9E9E'} />
           </View>
         </SectionCard>
       )}
@@ -3113,8 +3104,42 @@ function SupportRequestCard({ r, onAck, onRespond }: { r: SupportRequest; onAck:
   );
 }
 
-function SupportRequestsManager({ enabled }: { enabled: boolean | null }) {
-  const { t } = useApp();
+type SupportStatus = { enabled: boolean; admin_choice?: boolean; override?: 'on' | 'off' | null; acknowledged?: boolean };
+
+function SupportRequestsManager({ status, onStatusChange }: { status: SupportStatus | null; onStatusChange: () => void }) {
+  const { t, user } = useApp();
+  const enabled = status ? status.enabled : null;
+  const lockedOff = status?.override === 'off';
+  // Oct 31: the school admin's own on/off. First time ON needs the "not an emergency system" box ticked.
+  const [ackOpen, setAckOpen] = useState(false);
+  const [ackTick, setAckTick] = useState(false);
+  const [savingChoice, setSavingChoice] = useState(false);
+  const saveChoice = async (next: boolean, acknowledged?: boolean) => {
+    setSavingChoice(true);
+    try {
+      await supportRequestsApi.setMine({ enabled_by_school: next, ...(acknowledged ? { acknowledged: true } : {}) });
+      setAckOpen(false); setAckTick(false);
+      await onStatusChange();
+    } catch (e: any) {
+      Alert.alert(t('error') || 'Error', e?.message || (t('could_not_save') || 'Could not save.'));
+    }
+    setSavingChoice(false);
+  };
+  const onChoice = (next: boolean) => {
+    if (next) {
+      if (!status?.acknowledged) { setAckOpen(true); return; }
+      saveChoice(true);
+      return;
+    }
+    Alert.alert(
+      t('sr_switch_off_title') || 'Switch off Support Requests?',
+      (t('sr_switch_off_body') || 'Teachers at {school} will no longer see the support button. Open requests and history stay visible to the school admin, and nothing is deleted.').replace('{school}', (user as any)?.school_name || (t('this_school') || 'this school')),
+      [
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
+        { text: t('sr_switch_off_btn') || 'Switch off', style: 'destructive', onPress: () => saveChoice(false) },
+      ],
+    );
+  };
   const list = useSupportRequestsList(true);
   const [resolvedOpen, setResolvedOpen] = useState(false);
   // Same switch, same stored setting as Settings > General (shared hook).
@@ -3147,20 +3172,47 @@ function SupportRequestsManager({ enabled }: { enabled: boolean | null }) {
         <Switch value={deviceNotifications} onValueChange={setDeviceNotifications} trackColor={{ false: '#ddd', true: '#81C784' }} thumbColor={deviceNotifications ? '#4CAF50' : '#999'} />
       </View>
 
-      {enabled === false && (
+      {status && (
         <View style={srS.offCard}>
-          <MaterialIcons name="notifications-off" size={28} color="#8A6D1D" />
-          <Text style={srS.offTitle}>{t('sr_off_title') || 'Support requests are switched off for your school'}</Text>
+          <MaterialIcons name={enabled ? 'notifications-active' : 'notifications-off'} size={28} color="#8A6D1D" />
+          {lockedOff ? (
+            <>
+              <Text style={srS.offTitle}>{t('sr_switched_off_by_support') || 'Switched off by Class of Happiness support'}</Text>
+              <TouchableOpacity onPress={() => Linking.openURL('mailto:jono@classofhappiness.com')}>
+                <Text style={srS.offLink}>{(t('sr_off_contact') || 'Contact us to switch this on: {email}').replace('{email}', 'jono@classofhappiness.com')}</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <Text style={srS.offTitle}>{enabled ? (t('sr_on_title') || 'Support requests are switched on for your school') : (t('sr_off_title') || 'Support requests are switched off for your school')}</Text>
+          )}
           <Text style={srS.offText}>{t('sr_off_what') || 'Support requests let a teacher quietly ask for help from the classroom with one tap. The school admin is notified and can reply, and the teacher can see when help is on the way.'}</Text>
-          <Text style={srS.offText}>{t('sr_staff_tool_note') || "This is a staff coordination tool, not an emergency system. In an emergency call 112 or follow your school's procedures."}</Text>
-          <TouchableOpacity onPress={() => Linking.openURL('mailto:jono@classofhappiness.com')}>
-            <Text style={srS.offLink}>{(t('sr_off_contact') || 'Contact us to switch this on: {email}').replace('{email}', 'jono@classofhappiness.com')}</Text>
-          </TouchableOpacity>
-          {hasHistory && <Text style={[srS.offText, { fontStyle: 'italic' }]}>{t('sr_off_history_kept') || 'Earlier requests are kept and stay visible below.'}</Text>}
+          <Text style={srS.offText}>{t('sr_how_teachers_use') || 'Teachers tap the support button in the app, choose what they need, and you are notified straight away.'}</Text>
+          <Text style={[srS.offText, { fontWeight: '700' }]}>{t('sr_staff_tool_note') || "This is a staff coordination tool, not an emergency system. In an emergency call 112 or follow your school's procedures."}</Text>
+          {!lockedOff && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, alignSelf: 'stretch' }}>
+              <Text style={[srS.offText, { flex: 1, fontWeight: '700' }]}>{t('sr_admin_switch_label') || 'Support requests for my school'}</Text>
+              <Switch value={!!enabled || ackOpen} disabled={savingChoice} onValueChange={onChoice} trackColor={{ false: '#E0E0E0', true: '#C8E6C9' }} thumbColor={enabled ? '#4CAF50' : '#9E9E9E'} />
+            </View>
+          )}
+          {ackOpen && !lockedOff && (
+            <View style={{ alignSelf: 'stretch', gap: 10 }}>
+              <TouchableOpacity style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }} onPress={() => setAckTick(v => !v)} accessibilityRole="checkbox" accessibilityState={{ checked: ackTick }}>
+                <MaterialIcons name={ackTick ? 'check-box' : 'check-box-outline-blank'} size={24} color={ackTick ? '#2E7D32' : '#8A6D1D'} />
+                <Text style={[srS.offText, { flex: 1 }]}>{t('sr_ack_text') || 'I understand this is a staff coordination tool, not an emergency system'}</Text>
+              </TouchableOpacity>
+              {!ackTick && <Text style={[srS.offText, { fontStyle: 'italic' }]}>{t('sr_ack_required') || 'Tick the box to switch this on.'}</Text>}
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity style={[srS.actionBtn, { opacity: ackTick && !savingChoice ? 1 : 0.4 }]} disabled={!ackTick || savingChoice} onPress={() => saveChoice(true, true)}>
+                  <Text style={srS.actionBtnText}>{t('feature_state_on') || 'On'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={srS.actionBtn} onPress={() => { setAckOpen(false); setAckTick(false); }}>
+                  <Text style={srS.actionBtnText}>{t('cancel') || 'Cancel'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+          {!enabled && hasHistory && <Text style={[srS.offText, { fontStyle: 'italic' }]}>{t('sr_off_history_kept') || 'Earlier requests are kept and stay visible below.'}</Text>}
         </View>
-      )}
-      {enabled !== false && (
-        <Text style={srS.standingNote}>{t('sr_staff_tool_note') || "This is a staff coordination tool, not an emergency system. In an emergency call 112 or follow your school's procedures."}</Text>
       )}
 
       {(enabled !== false || hasHistory) && (
@@ -3473,11 +3525,12 @@ export default function AdminDashboard() {
   // they're never a support_request recipient.
   const [registeringPush, setRegisteringPush] = useState(false);
   const [pushRegistered, setPushRegistered] = useState(false);
-  // Oct 31: Support Requests is switched on per school by the superadmin only. null = not known yet.
-  const [supportEnabled, setSupportEnabled] = useState<boolean | null>(null);
+  // Oct 31: Support Requests state for this school (effective on/off, the school admin's choice, any Class of Happiness override). null = not known yet.
+  const [supportStatus, setSupportStatus] = useState<SupportStatus | null>(null);
+  const supportEnabled: boolean | null = supportStatus ? !!supportStatus.enabled : null;
   const refreshSupportStatus = useCallback(() => {
     if (isSuperAdmin) return;
-    supportRequestsApi.status().then((r) => setSupportEnabled(!!r.enabled)).catch(() => {});
+    supportRequestsApi.status().then((r) => setSupportStatus(r as SupportStatus)).catch(() => {});
   }, [isSuperAdmin]);
   // Oct 31: the "Teachers can't reach you yet" banner used to stay after notifications were turned on in the phone's
   // settings, because nothing looked again. On every focus and every return to the app, check the phone's permission;
@@ -3714,7 +3767,7 @@ export default function AdminDashboard() {
         )}
 
         {tab === 'support_requests' && !isSuperAdmin && (
-          <SupportRequestsManager enabled={supportEnabled} />
+          <SupportRequestsManager status={supportStatus} onStatusChange={refreshSupportStatus} />
         )}
 
         {tab === 'strategies' && (

@@ -2245,5 +2245,14 @@
   "ask_adult_login_body": "Class of Happiness इस्तेमाल करने से पहले किसी बड़े को लॉग इन करना होगा।",
   "resource_choose_file": "PDF फ़ाइल चुनें",
   "resource_file_or_link_required": "कृपया PDF फ़ाइल या लिंक जोड़ें",
-  "resource_or_link": "या लिंक चिपकाएँ"
+  "resource_or_link": "या लिंक चिपकाएँ",
+  "sr_on_title": "आपके स्कूल के लिए सहायता अनुरोध चालू हैं",
+  "sr_how_teachers_use": "शिक्षक ऐप में सहायता बटन दबाते हैं, चुनते हैं कि उन्हें क्या चाहिए (कक्षा में सहायता, कोई स्टाफ़ सदस्य, Back on Track निगरानी या कोई घटना), और आपको तुरंत सूचना मिल जाती है।",
+  "sr_ack_text": "मैं समझता/समझती हूँ कि यह स्टाफ़ के समन्वय का साधन है, आपातकालीन प्रणाली नहीं",
+  "sr_ack_required": "इसे चालू करने के लिए बॉक्स पर टिक करें।",
+  "sr_switched_off_by_support": "Class of Happiness सहायता टीम द्वारा बंद किया गया",
+  "sr_admin_switch_label": "मेरे स्कूल के लिए सहायता अनुरोध",
+  "sr_override_follow": "स्कूल की पसंद के अनुसार",
+  "sr_state_school_choice": "{state} · स्कूल की पसंद",
+  "sr_state_override": "{state} · ओवरराइड"
 }

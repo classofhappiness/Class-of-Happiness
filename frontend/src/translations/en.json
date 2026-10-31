@@ -2259,5 +2259,14 @@
   "ask_adult_login_body": "Class of Happiness needs a grown-up to log in before it can be used.",
   "resource_choose_file": "Choose a PDF file",
   "resource_file_or_link_required": "Please add a PDF file or a link",
-  "resource_or_link": "or paste a link"
+  "resource_or_link": "or paste a link",
+  "sr_on_title": "Support requests are switched on for your school",
+  "sr_how_teachers_use": "Teachers tap the support button in the app, choose what they need (classroom support, a staff member, Back on Track supervision or an incident), and you are notified straight away.",
+  "sr_ack_text": "I understand this is a staff coordination tool, not an emergency system",
+  "sr_ack_required": "Tick the box to switch this on.",
+  "sr_switched_off_by_support": "Switched off by Class of Happiness support",
+  "sr_admin_switch_label": "Support requests for my school",
+  "sr_override_follow": "Follow school's choice",
+  "sr_state_school_choice": "{state} · school's choice",
+  "sr_state_override": "{state} · override"
 }

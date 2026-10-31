@@ -2402,5 +2402,14 @@
   "ask_adult_login_body": "Class of Happiness richiede che un adulto acceda prima di poterla usare.",
   "resource_choose_file": "Scegli un file PDF",
   "resource_file_or_link_required": "Aggiungi un file PDF o un link",
-  "resource_or_link": "oppure incolla un link"
+  "resource_or_link": "oppure incolla un link",
+  "sr_on_title": "Le richieste di supporto sono attive per la tua scuola",
+  "sr_how_teachers_use": "Gli insegnanti toccano il pulsante di supporto nell'app, scelgono di cosa hanno bisogno (supporto in classe, un membro dello staff, supervisione Back on Track o un incidente) e tu ricevi subito una notifica.",
+  "sr_ack_text": "Capisco che questo è uno strumento di coordinamento del personale, non un sistema di emergenza",
+  "sr_ack_required": "Spunta la casella per attivarle.",
+  "sr_switched_off_by_support": "Disattivate dal supporto di Class of Happiness",
+  "sr_admin_switch_label": "Richieste di supporto per la mia scuola",
+  "sr_override_follow": "Segui la scelta della scuola",
+  "sr_state_school_choice": "{state} · scelta della scuola",
+  "sr_state_override": "{state} · forzato"
 }

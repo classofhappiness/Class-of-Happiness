@@ -2245,5 +2245,14 @@
   "ask_adult_login_body": "Чтобы пользоваться Class of Happiness, сначала должен войти взрослый.",
   "resource_choose_file": "Выбрать PDF-файл",
   "resource_file_or_link_required": "Добавьте PDF-файл или ссылку",
-  "resource_or_link": "или вставьте ссылку"
+  "resource_or_link": "или вставьте ссылку",
+  "sr_on_title": "Запросы поддержки включены для вашей школы",
+  "sr_how_teachers_use": "Учителя нажимают кнопку поддержки в приложении, выбирают, что им нужно (помощь в классе, сотрудник, присмотр Back on Track или происшествие), и вы сразу получаете уведомление.",
+  "sr_ack_text": "Я понимаю, что это инструмент координации сотрудников, а не система экстренной помощи",
+  "sr_ack_required": "Поставьте галочку, чтобы включить.",
+  "sr_switched_off_by_support": "Отключено службой поддержки Class of Happiness",
+  "sr_admin_switch_label": "Запросы поддержки для моей школы",
+  "sr_override_follow": "Как решит школа",
+  "sr_state_school_choice": "{state} · выбор школы",
+  "sr_state_override": "{state} · задано принудительно"
 }

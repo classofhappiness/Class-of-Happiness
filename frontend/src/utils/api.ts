@@ -1268,8 +1268,12 @@ export const supportRequestsApi = {
     apiRequest('/support-requests'),
 
   // Is Support Requests switched on for this account's school? (off = nothing to create; history stays readable)
-  status: (): Promise<{ enabled: boolean }> =>
+  status: (): Promise<{ enabled: boolean; admin_choice?: boolean; override?: 'on' | 'off' | null; acknowledged?: boolean }> =>
     apiRequest('/support-requests/status'),
+
+  // The school admin's own on/off (the first time ON needs acknowledged: true). 403 while Class of Happiness has it overridden OFF.
+  setMine: (data: { enabled_by_school: boolean; acknowledged?: boolean }): Promise<{ enabled_by_school: boolean; override: 'on' | 'off' | null; effective: boolean }> =>
+    apiRequest('/features/support_requests', { method: 'PUT', body: JSON.stringify(data) }),
 
   getOne: (id: string): Promise<SupportRequest> =>
     apiRequest(`/support-requests/${id}`),

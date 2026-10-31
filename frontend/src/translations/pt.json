@@ -2393,5 +2393,14 @@
   "ask_adult_login_body": "A Class of Happiness precisa que um adulto inicie sessão antes de poder ser usada.",
   "resource_choose_file": "Escolher um ficheiro PDF",
   "resource_file_or_link_required": "Adicione um ficheiro PDF ou uma ligação",
-  "resource_or_link": "ou cole uma ligação"
+  "resource_or_link": "ou cole uma ligação",
+  "sr_on_title": "Os pedidos de apoio estão ativados na sua escola",
+  "sr_how_teachers_use": "Os professores tocam no botão de apoio na app, escolhem do que precisam (apoio na sala, um elemento da equipa, supervisão Back on Track ou um incidente) e o administrador é avisado de imediato.",
+  "sr_ack_text": "Compreendo que esta é uma ferramenta de coordenação da equipa, não um sistema de emergência",
+  "sr_ack_required": "Assinale a caixa para ativar.",
+  "sr_switched_off_by_support": "Desativado pelo suporte da Class of Happiness",
+  "sr_admin_switch_label": "Pedidos de apoio para a minha escola",
+  "sr_override_follow": "Seguir a escolha da escola",
+  "sr_state_school_choice": "{state} · escolha da escola",
+  "sr_state_override": "{state} · forçado"
 }

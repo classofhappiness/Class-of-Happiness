@@ -2245,5 +2245,14 @@
   "ask_adult_login_body": "يحتاج تطبيق Class of Happiness إلى أن يسجّل شخص بالغ الدخول قبل استخدامه.",
   "resource_choose_file": "اختر ملف PDF",
   "resource_file_or_link_required": "يرجى إضافة ملف PDF أو رابط",
-  "resource_or_link": "أو الصق رابطًا"
+  "resource_or_link": "أو الصق رابطًا",
+  "sr_on_title": "طلبات الدعم مفعّلة في مدرستك",
+  "sr_how_teachers_use": "يضغط المعلّمون على زر الدعم في التطبيق ويختارون ما يحتاجونه (دعم داخل الصف أو أحد الموظفين أو إشراف Back on Track أو حادثة)، ويصلك إشعار فورًا.",
+  "sr_ack_text": "أفهم أن هذه أداة لتنسيق عمل الموظفين وليست نظام طوارئ",
+  "sr_ack_required": "ضع علامة في المربع لتفعيلها.",
+  "sr_switched_off_by_support": "تم إيقافها من قِبل دعم Class of Happiness",
+  "sr_admin_switch_label": "طلبات الدعم لمدرستي",
+  "sr_override_follow": "اتباع اختيار المدرسة",
+  "sr_state_school_choice": "{state} · اختيار المدرسة",
+  "sr_state_override": "{state} · قرار الإدارة"
 }
