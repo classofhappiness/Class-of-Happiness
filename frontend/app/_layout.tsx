@@ -2,7 +2,8 @@
 // reading setting is switched on). See src/utils/installReadingText.tsx.
 import '../src/utils/installReadingText';
 import React, { useEffect, useState } from 'react';
-import { Stack, useRouter, usePathname } from 'expo-router';
+import { Stack, useRouter, usePathname, useGlobalSearchParams } from 'expo-router';
+import { rememberRoute, takeResumeRoute } from '../src/utils/resumeRoute';
 import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet, Platform, TouchableOpacity, Text, TextInput, I18nManager } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -126,6 +127,8 @@ function AppContent() {
   }, [language, t('notif_channel_support_name')]);
   const router = useRouter();
   const pathname = usePathname();
+  const pathnameRef = React.useRef(pathname);
+  pathnameRef.current = pathname;
 
   // Real feature Sep 25 (item 18a): keeps notifications.ts's own module-level route cache in
   // sync - its setNotificationHandler callback has no React context of its own to read
@@ -133,6 +136,29 @@ function AppContent() {
   useEffect(() => {
     setCurrentRouteForNotifications(pathname || '');
   }, [pathname]);
+
+  // Leaving the app for another one (or a PDF viewer) can end the app's process on Android; the
+  // next open then lands on Home. Remember the current screen, and on a launch that starts at
+  // Home go back to it when it was left less than 30 minutes ago.
+  const searchParams = useGlobalSearchParams();
+  const searchKey = Object.keys(searchParams || {}).length
+    ? '?' + Object.entries(searchParams).filter(([, v]) => typeof v === 'string').map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v as string)}`).join('&')
+    : '';
+  useEffect(() => {
+    if (pathname) rememberRoute(pathname, searchKey);
+  }, [pathname, searchKey]);
+  useEffect(() => {
+    if (isLoading || !isAuthenticated || !user) return;
+    let cancelled = false;
+    takeResumeRoute().then((target) => {
+      if (!target || cancelled) return;
+      setTimeout(() => {
+        if (!cancelled && pathnameRef.current === '/') router.push(target as any);
+      }, 400);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, isAuthenticated, user?.role]);
 
   // Real fix Aug 29 (build-25): AppContent is inside AppProvider, so it's the first place
   // with real access to `language` - RootLayout below (where fonts first load) sits outside
