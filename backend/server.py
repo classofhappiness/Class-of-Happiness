@@ -3188,6 +3188,62 @@ def _trial_is_valid(user: dict) -> bool:
         return datetime.now(timezone.utc) < datetime.fromisoformat(start.replace("Z", "+00:00")) + timedelta(days=TRIAL_DURATION_DAYS)
     return False
 
+# Billing grace (Jono-approved, Oct 31): a failed renewal does not lock a parent/teacher plan
+# at once. PAST_DUE_GRACE_DAYS runs from users.past_due_since (stamped on the FIRST failure,
+# never moved by Stripe's retries, cleared on recovery). RENEWAL_SLACK_HOURS covers the gap
+# between a normal renewal's period end and its invoice.payment_succeeded webhook, so a good
+# renewal never flickers to free tier. Schools get SCHOOL_RENEWAL_GRACE_DAYS instead (below).
+PAST_DUE_GRACE_DAYS = 7
+RENEWAL_SLACK_HOURS = 24
+
+def _parse_iso(value):
+    """Aware datetime from an ISO string, or None when missing/unparseable."""
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+def _past_due_grace_ends_at(user: dict):
+    """When this account's payment grace ends (past_due_since + PAST_DUE_GRACE_DAYS), or None."""
+    since = _parse_iso(user.get("past_due_since"))
+    return since + timedelta(days=PAST_DUE_GRACE_DAYS) if since else None
+
+def _paid_plan_in_force(user: dict) -> bool:
+    """The ONE rule for 'this account's own paid plan currently grants access'. Used by
+    check_subscription_active, _is_genuinely_free_tier, _personal_sub_is_active and
+    _can_switch_to_teacher so they can never drift apart again.
+      active    -> until subscription_expires_at + 1 day (school_admin: + SCHOOL_RENEWAL_GRACE_DAYS);
+                   no expiry recorded = in force
+      past_due  -> for PAST_DUE_GRACE_DAYS after past_due_since; no since recorded = no grace
+      anything else (none/free/trial/cancelled) -> not a paid plan (trial has _trial_is_valid)"""
+    status = user.get("subscription_status") or "none"
+    now = datetime.now(timezone.utc)
+    if status == "active":
+        end = _parse_iso(user.get("subscription_expires_at"))
+        if end is None:
+            return True
+        if user.get("role") == "school_admin":
+            return end + timedelta(days=SCHOOL_RENEWAL_GRACE_DAYS) > now
+        return end + timedelta(hours=RENEWAL_SLACK_HOURS) > now
+    if status == "past_due":
+        grace_end = _past_due_grace_ends_at(user)
+        return grace_end is not None and grace_end > now
+    return False
+
+def _covered_by_school_plan(user: dict) -> bool:
+    """True when a school's own paid plan (in date, incl. its grace) covers this account.
+    Teachers and parents use the same strict helpers as every other cap; any other role that
+    carries a school_admin_id is judged on that admin's plan directly."""
+    role = user.get("role")
+    if role == "teacher":
+        return _teacher_is_school_covered(user)
+    if role == "parent":
+        return _parent_is_school_covered(user)
+    return _admin_is_active(user.get("school_admin_id"))
+
 def check_subscription_active(user: dict) -> bool:
     if not user:
         return False
@@ -3197,17 +3253,14 @@ def check_subscription_active(user: dict) -> bool:
     # The 4 permanent always-open accounts (PIN-protected at login, see ALWAYS_OPEN_PINS)
     if (user.get("email") or "").strip().lower() in ALWAYS_OPEN_PINS:
         return True
-    # Covered by their school's paid plan (real column is school_admin_id — school_id doesn't exist)
-    if user.get("school_admin_id") or user.get("invite_code"):
+    # Covered by their school's paid plan. Oct 31: this used to return True for ANY
+    # school_admin_id/invite_code, whether or not the school still paid - so school teachers
+    # and parents stayed "active" forever. Now it asks the real school-coverage helpers.
+    if _covered_by_school_plan(user):
         return True
-    sub_status = user.get("subscription_status", "none")
-    if sub_status == "active":
-        exp = user.get("subscription_expires_at")
-        if exp:
-            exp_dt = datetime.fromisoformat(exp.replace("Z", "+00:00"))
-            return exp_dt > datetime.now(timezone.utc)
+    if _paid_plan_in_force(user):
         return True
-    if sub_status == "trial":
+    if (user.get("subscription_status") or "none") == "trial":
         return _trial_is_valid(user)
     return False
 
@@ -3225,11 +3278,9 @@ def _personal_sub_is_active(user: dict) -> bool:
     already ORs in separately. This is just the real, expiry-aware personal-subscription
     fact, same active/trial logic check_subscription_active/_is_genuinely_free_tier both
     use internally."""
-    sub_status = user.get("subscription_status") or "none"
-    if sub_status == "active":
-        exp = user.get("subscription_expires_at")
-        return not exp or datetime.fromisoformat(exp.replace("Z", "+00:00")) > datetime.now(timezone.utc)
-    if sub_status == "trial":
+    if _paid_plan_in_force(user):
+        return True
+    if (user.get("subscription_status") or "none") == "trial":
         return _trial_is_valid(user)
     return False
 
@@ -6831,10 +6882,11 @@ def _admin_is_active_uncached(admin_id: str) -> bool:
     admin = r.data[0]
     if admin.get("subscription_status") != "active":
         return False
-    exp = admin.get("subscription_expires_at")
-    if exp:
-        if datetime.fromisoformat(exp.replace("Z", "+00:00")) <= datetime.now(timezone.utc):
-            return False
+    # Oct 31: the 10-day grace used to be dead code - this returned False the moment
+    # subscription_expires_at passed, before the grace check below could run. The expiry now
+    # carries the grace itself (expires_at + SCHOOL_RENEWAL_GRACE_DAYS).
+    if not _school_expiry_in_grace(admin.get("subscription_expires_at")):
+        return False
     # Real feature Sep 20 (subscription renewal system, Jono-approved policy): a school
     # whose renewal date has passed by more than the grace period loses school-wide coverage
     # here - the ONE shared choke point _parent_is_school_covered/_teacher_is_school_covered
@@ -6855,6 +6907,12 @@ def _admin_is_active_uncached(admin_id: str) -> bool:
 # considered expired by this check - only a school that HAD a real date and passed it by
 # more than the grace period.
 SCHOOL_RENEWAL_GRACE_DAYS = 10
+
+def _school_expiry_in_grace(exp) -> bool:
+    """True when a school plan with this expiry still counts: no expiry recorded, or less than
+    SCHOOL_RENEWAL_GRACE_DAYS past it."""
+    end = _parse_iso(exp)
+    return end is None or end + timedelta(days=SCHOOL_RENEWAL_GRACE_DAYS) > datetime.now(timezone.utc)
 
 def _school_grace_period_expired(school_admin_id: str) -> bool:
     """Cached per-request - see _admin_is_active's own comment for why."""
@@ -6885,12 +6943,10 @@ def _any_school_admin_active_by_name_uncached(school_name: str) -> bool:
     if not school_name:
         return False
     admins = supabase.table("users").select("subscription_status,subscription_expires_at").eq("role", "school_admin").eq("school_name", school_name).execute()
-    now = datetime.now(timezone.utc)
     for a in (admins.data or []):
         if a.get("subscription_status") != "active":
             continue
-        exp = a.get("subscription_expires_at")
-        if not exp or datetime.fromisoformat(exp.replace("Z", "+00:00")) > now:
+        if _school_expiry_in_grace(a.get("subscription_expires_at")):
             return True
     return False
 
@@ -7011,10 +7067,8 @@ def _can_switch_to_teacher(user: dict) -> bool:
     the same way here), (3) the account's own school already covers it as a teacher.
     Switching TO parent is deliberately NOT gated the same way elsewhere - parent is the
     cheaper/free-available tier, so moving to it is never itself a bypass."""
-    if user.get("subscription_status") == "active" and user.get("subscription_plan") == "teacher":
-        exp = user.get("subscription_expires_at")
-        if not exp or datetime.fromisoformat(exp.replace("Z", "+00:00")) > datetime.now(timezone.utc):
-            return True
+    if user.get("subscription_plan") == "teacher" and _paid_plan_in_force(user):
+        return True
     if _trial_is_valid(user):
         return True
     if _teacher_is_school_covered(user):
@@ -7038,13 +7092,9 @@ def _is_genuinely_free_tier(user: dict) -> bool:
     which correctly honours a promo-code trial's real (e.g. 30-day) expiry via
     subscription_expires_at instead of always assuming the standard 14-day window - see
     _trial_is_valid's own docstring for the full story."""
-    sub_status = user.get("subscription_status") or "none"
-    now = datetime.now(timezone.utc)
-    if sub_status == "active":
-        exp = user.get("subscription_expires_at")
-        if not exp or datetime.fromisoformat(exp.replace("Z", "+00:00")) > now:
-            return False  # genuinely active, not free tier
-    elif sub_status == "trial" and _trial_is_valid(user):
+    if _paid_plan_in_force(user):
+        return False  # paid plan in date (incl. the 1-day renewal slack) or inside the 7-day payment grace
+    if (user.get("subscription_status") or "none") == "trial" and _trial_is_valid(user):
         return False  # genuinely still in a valid trial, not free tier
     role = user.get("role")
     if role == "teacher" and _teacher_is_school_covered(user):
@@ -14277,6 +14327,11 @@ async def get_subscription_status(request: Request):
         "trial_started_at": user.get("trial_started_at"),
         "cancel_at_period_end": cancel_at_period_end,
         "school_covered": school_covered,
+        # Payment trouble: true from the first failed renewal. in_grace = still has full access;
+        # grace_ends_at is when it stops (7 days from the first failure).
+        "past_due": user.get("subscription_status") == "past_due",
+        "in_grace": user.get("subscription_status") == "past_due" and _paid_plan_in_force(user),
+        "grace_ends_at": (_past_due_grace_ends_at(user).isoformat() if user.get("subscription_status") == "past_due" and _past_due_grace_ends_at(user) else None),
     }
 
 # Real fix Aug 18: the app's subscription screen has always called these two endpoints
@@ -14298,6 +14353,10 @@ async def create_subscription_checkout(request: Request):
         raise HTTPException(status_code=400, detail="Invalid plan. Only teacher_monthly and parent_monthly are available for self-serve checkout.")
     if not origin_url:
         raise HTTPException(status_code=400, detail="origin_url required")
+    # A paying account whose card failed must fix the card, not start a second subscription
+    # (checkout would create a new Stripe customer and orphan the failing one).
+    if user.get("subscription_status") == "past_due" and user.get("stripe_customer_id"):
+        raise HTTPException(status_code=409, detail="past_due|Your last payment didn't go through. Update your card to keep your plan.")
     price_id = STRIPE_PRICE_IDS.get(plan, "")
     if not price_id:
         raise HTTPException(status_code=500, detail=f"Stripe price for '{plan}' is not configured yet")
@@ -14316,6 +14375,47 @@ async def create_subscription_checkout(request: Request):
         logger.error(f"Stripe checkout session creation failed for {user['user_id']} ({plan}): {e}")
         raise HTTPException(status_code=500, detail="Could not start checkout. Try again.")
     return {"url": session.url, "session_id": session.id}
+
+_PORTAL_RETURN_SCHEMES = ("https://", "classofhappiness://", "exp://", "exps://")
+
+@api_router.post("/subscription/billing-portal")
+async def create_billing_portal_session(request: Request):
+    """Stripe-hosted page where the customer updates their card. Used for past_due accounts
+    (instead of Subscribe/Checkout) and available to any account that has a Stripe customer.
+    Returns {"url": ...}; the app opens it in the browser. return_url (optional) is where Stripe
+    sends the person back to; only https and the app's own schemes are accepted."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if user.get("role") not in ("teacher", "parent"):
+        raise HTTPException(status_code=403, detail="Only teacher and parent accounts can manage a subscription here.")
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=500, detail="Payments are not configured")
+    customer_id = user.get("stripe_customer_id")
+    if not customer_id:
+        raise HTTPException(status_code=400, detail="No billing account found for this user.")
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    return_url = (body.get("return_url") or "").strip()
+    if return_url and not return_url.startswith(_PORTAL_RETURN_SCHEMES):
+        raise HTTPException(status_code=400, detail="Invalid return_url")
+    session = None
+    try:
+        if return_url:
+            try:
+                session = stripe_lib.billing_portal.Session.create(customer=customer_id, return_url=return_url)
+            except Exception as e:
+                # Stripe only accepts app-scheme URLs that have a host (classofhappiness://subscription);
+                # anything it rejects falls back to its own default return link rather than failing.
+                logger.warning(f"Stripe rejected portal return_url {return_url!r}: {e}")
+        if session is None:
+            session = stripe_lib.billing_portal.Session.create(customer=customer_id)
+    except Exception as e:
+        logger.error(f"Stripe billing portal session failed for {user['user_id']}: {e}")
+        raise HTTPException(status_code=500, detail="Could not open the card page. Try again.")
+    return {"url": session.url}
 
 @api_router.get("/subscription/status/{session_id}")
 async def get_checkout_session_status(session_id: str, request: Request):
@@ -24698,6 +24798,32 @@ def _sget(obj, key, default=None):
     except (KeyError, TypeError, IndexError):
         return default
 
+def _billing_update(user_id: str, update: dict):
+    """users update for billing state. past_due_since is a newer column: if the database does not
+    have it yet, the rest of the update still goes through (the account then simply has no
+    grace). Always evicts the login cache so the new state is seen at once."""
+    try:
+        supabase.table("users").update(update).eq("user_id", user_id).execute()
+    except Exception as e:
+        if "past_due_since" in update and "past_due_since" in str(e):
+            logger.warning(f"[stripe] past_due_since column missing, saved without it: {e}")
+            supabase.table("users").update({k: v for k, v in update.items() if k != "past_due_since"}).eq("user_id", user_id).execute()
+        else:
+            raise
+    _auth_cache_evict_user(user_id)
+
+def _past_due_since_for(user: dict, new_status: str):
+    """Value to store in past_due_since for this status change. The grace clock starts on the FIRST
+    failure of a paying account and is never moved by Stripe's later retries; any other status
+    clears it. A failure on an account that was not paying (trial/none) starts no grace."""
+    if new_status != "past_due":
+        return None
+    if user.get("past_due_since"):
+        return user["past_due_since"]
+    if (user.get("subscription_status") or "none") in ("active", "past_due"):
+        return datetime.now(timezone.utc).isoformat()
+    return None
+
 @api_router.post("/stripe/webhook")
 async def stripe_webhook(request: Request):
     if not STRIPE_WEBHOOK_SECRET:
@@ -24758,16 +24884,17 @@ async def stripe_webhook(request: Request):
             price_obj = _sget(items[0], "price", {}) if items else {}
             price_key = " ".join(filter(None, [_sget(price_obj, "nickname"), _sget(price_obj, "lookup_key"), _sget(price_obj, "id")]))
             plan = _get_plan_from_price(price_key)
-            update = {"subscription_status": sub_status, "subscription_plan": plan, "stripe_customer_id": customer_id}
+            update = {"subscription_status": sub_status, "subscription_plan": plan, "stripe_customer_id": customer_id,
+                      "past_due_since": _past_due_since_for(user, sub_status)}
             if current_period_end:
                 update["subscription_expires_at"] = datetime.fromtimestamp(current_period_end, tz=timezone.utc).isoformat()
-            supabase.table("users").update(update).eq("user_id", user["user_id"]).execute()
+            _billing_update(user["user_id"], update)
             print(f"[Stripe] {event_type}: {user['user_id']} -> {sub_status} ({plan})")
 
     elif event_type == "customer.subscription.deleted":
         user = _find_user(_sget(data_obj, "customer"))
         if user:
-            supabase.table("users").update({"subscription_status": "none", "subscription_expires_at": None}).eq("user_id", user["user_id"]).execute()
+            _billing_update(user["user_id"], {"subscription_status": "none", "subscription_expires_at": None, "past_due_since": None})
 
     elif event_type == "invoice.payment_succeeded":
         customer_id = _sget(data_obj, "customer")
@@ -24778,15 +24905,15 @@ async def stripe_webhook(request: Request):
             # Real fix Aug 26: same unconditional-null-write bug as the subscription.updated
             # handler above - never overwrite a real subscription_expires_at with nothing
             # just because this event didn't carry a period end.
-            update = {"subscription_status": "active"}
+            update = {"subscription_status": "active", "past_due_since": None}
             if period_end:
                 update["subscription_expires_at"] = datetime.fromtimestamp(period_end, tz=timezone.utc).isoformat()
-            supabase.table("users").update(update).eq("user_id", user["user_id"]).execute()
+            _billing_update(user["user_id"], update)
 
     elif event_type == "invoice.payment_failed":
         user = _find_user(_sget(data_obj, "customer"))
         if user:
-            supabase.table("users").update({"subscription_status": "past_due"}).eq("user_id", user["user_id"]).execute()
+            _billing_update(user["user_id"], {"subscription_status": "past_due", "past_due_since": _past_due_since_for(user, "past_due")})
 
     return {"status": "ok", "event": event_type}
 
