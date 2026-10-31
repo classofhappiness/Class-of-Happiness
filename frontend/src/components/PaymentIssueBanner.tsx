@@ -9,8 +9,8 @@ import { ParentGate } from './ParentGate';
 // "Your payment didn't go through" - the same slim adult banner as the paid-feature one, shown to
 // teacher/parent accounts for as long as their renewal payment is failed (past_due). Inside the 7-day
 // grace the wording says the plan is kept; after it, that paid features are paused. It hides itself
-// as soon as the status says the payment is sorted. Dismissal is remembered for 7 days per failure
-// episode. Adult screens only.
+// as soon as the status says the payment is sorted. Dismissal is remembered for 7 days separately for each phase
+// (in grace / after grace), so dismissing it during the grace does not hide it once access is paused. Adult screens only.
 export const PaymentIssueBanner: React.FC = () => {
   const { t, user } = useApp();
   const [info, setInfo] = useState<{ past_due?: boolean; in_grace?: boolean; grace_ends_at?: string | null } | null>(null);
@@ -37,7 +37,7 @@ export const PaymentIssueBanner: React.FC = () => {
         t={t}
         text={text}
         buttonLabel={t('payment_issue_update_card') || 'Update your card'}
-        storageKey={`coh.paymentBanner.${info?.grace_ends_at || 'none'}`}
+        storageKey={`coh.paymentBanner.${info?.in_grace ? 'grace' : 'paused'}.${info?.grace_ends_at || 'none'}`}
         onPress={() => setGate(true)}
       />
       <ParentGate visible={gate} t={t} onCancel={() => setGate(false)} onPass={() => { setGate(false); openBillingPortal(t); }} />
