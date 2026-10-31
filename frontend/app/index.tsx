@@ -108,7 +108,9 @@ export default function HomeScreen() {
   // Reading font on (OpenDyslexic is ~1.8x wider): let the role titles/descriptions shrink further
   // or wrap instead of overflowing a small phone. Nothing changes while the settings are off.
   const readingOn = (reading.dyslexic && reading.dyslexicSupported) || reading.letterStep > 0 || reading.wordStep > 0;
-  const fitTitle = readingOn ? { numberOfLines: 2, adjustsFontSizeToFit: true, minimumFontScale: 0.6 } : null;
+  // Oct 31: titles are one line in BOTH modes (they used to wrap to two lines with the Reading font, which is what pushed the
+  // buttons around); the font shrinks to fit instead.
+  const fitTitle = { numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.6 };
   const fitScale = readingOn ? 0.6 : 0.8;
   const logoFont = FREDOKA_LANGS.includes(language) ? styles.fredokaTitle : null;
   const teacherLocked = isAuthenticated && user?.role === 'parent';
@@ -259,7 +261,7 @@ export default function HomeScreen() {
             <View style={{alignItems:'center'}}>
               <Text style={[styles.roleButtonTitle, logoFont]} {...fitTitle}>{t('teacher') || 'Teacher'}</Text>
               <Text
-                style={{fontSize:10, color:'#1A1A2E', fontStyle:'italic', fontWeight:'600', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}
+                style={styles.roleButtonSub}
                 numberOfLines={2}
                 adjustsFontSizeToFit
                 minimumFontScale={fitScale}
@@ -280,7 +282,7 @@ export default function HomeScreen() {
             <View style={{alignItems:'center'}}>
               <Text style={[styles.roleButtonTitle, logoFont]} {...fitTitle}>{t('parent') || 'Parent'}</Text>
               <Text
-                style={{fontSize:10, color:'#1A1A2E', fontStyle:'italic', fontWeight:'600', textAlign:'center', marginTop:1, lineHeight:14, opacity:0.95}}
+                style={styles.roleButtonSub}
                 numberOfLines={2}
                 adjustsFontSizeToFit
                 minimumFontScale={fitScale}
@@ -362,10 +364,12 @@ const styles = StyleSheet.create({
   moodWordTextReading: { maxWidth: '100%', flexShrink: 1, textAlign: 'center', lineHeight: 30 },
 
   // Student — hero button
-  studentButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#4CAF50', borderRadius: 22, paddingVertical: 20, paddingHorizontal: 20, marginBottom: 10 },
+  // Oct 31: fixed height + explicit line heights + no letter spacing, so the Reading font (taller line boxes, wider letters)
+  // can no longer resize or shift the three role buttons: same layout as the normal font.
+  studentButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#4CAF50', borderRadius: 22, paddingVertical: 20, paddingHorizontal: 20, marginBottom: 10, height: 112 },
   studentButtonText: { flex: 1, marginLeft: 14 },
-  studentButtonTitle: { fontSize: 26, fontWeight: '900', color: '#1A1A2E' },
-  studentButtonSub: { fontSize: 13, color: '#1A1A2E', marginTop: 2, fontStyle: 'italic', fontWeight: '600', opacity: 0.95 },
+  studentButtonTitle: { fontSize: 26, lineHeight: 32, letterSpacing: 0, fontWeight: '900', color: '#1A1A2E' },
+  studentButtonSub: { fontSize: 13, lineHeight: 18, letterSpacing: 0, color: '#1A1A2E', marginTop: 2, fontStyle: 'italic', fontWeight: '600', opacity: 0.95 },
 
   // Teacher + Parent — side by side smaller
   roleRow: { flexDirection: 'row', gap: 10, marginBottom: 0, marginTop: 0 },
@@ -377,7 +381,7 @@ const styles = StyleSheet.create({
   // get identical breathing room regardless of which one's translated text is longest for
   // a given language, instead of a fix that only ever covered whichever button happened to
   // be reported at the time.
-  roleButton: { flex: 1, borderRadius: 18, paddingVertical: 16, paddingHorizontal: 6, alignItems: 'center', gap: 4 },
+  roleButton: { flex: 1, borderRadius: 18, paddingVertical: 16, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', gap: 4, height: 132 },
   teacherButton: { backgroundColor: '#FFC107', elevation: 0 },
   parentButton: { backgroundColor: '#4A90D9', elevation: 0 },
   // Real feature Aug 28 (item 5): visually lighter/disabled treatment for a button that's
@@ -385,7 +389,8 @@ const styles = StyleSheet.create({
   // state - opacity alone (rather than a colour swap) keeps it recognisably the same button,
   // just clearly inactive.
   roleButtonLocked: { opacity: 0.45 },
-  roleButtonTitle: { fontSize: 17, fontWeight: '900', color: '#1A1A2E' },
+  roleButtonTitle: { fontSize: 17, lineHeight: 22, letterSpacing: 0, fontWeight: '900', color: '#1A1A2E' },
+  roleButtonSub: { fontSize: 10, color: '#1A1A2E', fontStyle: 'italic', fontWeight: '600', textAlign: 'center', marginTop: 1, lineHeight: 14, letterSpacing: 0, opacity: 0.95 },
   // Bold comes from the Fredoka_700Bold file itself, so no extra fontWeight on top of it.
   fredokaTitle: { fontFamily: 'Fredoka_700Bold', fontWeight: '400' },
 
