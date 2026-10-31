@@ -17263,11 +17263,48 @@ async def download_resource_pdf(resource_id: str, request: Request):
     return StreamingResponse(io.BytesIO(pdf_bytes), media_type="application/pdf", headers=headers)
 
 
+PREVIEW_MIN_WIDTH = 100
+PREVIEW_FULL_WIDTH = 600           # stored previews are ~600 px wide: this width and above is served as stored
+_PREVIEW_THUMB_TTL = 3600
+_PREVIEW_THUMB_MAX = 600
+_preview_thumb_cache: dict = {}    # (resource_id, page_order, width) -> (expires_at, base64 JPEG)
+
+def _preview_thumbnail(resource_id: str, page_order: int, image_b64: str, width: int) -> str:
+    """Downscale one stored preview (base64 JPEG) to `width` px wide. Falls back to the stored
+    image if Pillow cannot read it. In-memory cache, keyed by size; not a security boundary (the
+    caller has already passed the read/lock checks)."""
+    key = (resource_id, page_order, width)
+    now = time.time()
+    hit = _preview_thumb_cache.get(key)
+    if hit and hit[0] > now:
+        return hit[1]
+    try:
+        from PIL import Image
+        im = Image.open(io.BytesIO(base64.b64decode(image_b64)))
+        if im.width <= width:
+            out = image_b64
+        else:
+            im = im.convert("RGB")
+            im = im.resize((width, max(1, round(im.height * width / im.width))), Image.LANCZOS)
+            buf = io.BytesIO()
+            im.save(buf, format="JPEG", quality=70, optimize=True)
+            out = base64.b64encode(buf.getvalue()).decode()
+    except Exception as e:
+        logger.warning(f"[resource-previews] thumbnail failed for {resource_id}/{page_order}: {e}")
+        return image_b64
+    if len(_preview_thumb_cache) >= _PREVIEW_THUMB_MAX:
+        for k in [k for k, v in _preview_thumb_cache.items() if v[0] <= now] or list(_preview_thumb_cache)[:_PREVIEW_THUMB_MAX // 4]:
+            _preview_thumb_cache.pop(k, None)
+    _preview_thumb_cache[key] = (now + _PREVIEW_THUMB_TTL, out)
+    return out
+
 @api_router.get("/resources/{resource_id}/previews")
-async def get_resource_previews(resource_id: str, request: Request):
+async def get_resource_previews(resource_id: str, request: Request, width: Optional[int] = None):
     """Page-preview images (base64 JPEG, up to 3) for the resource detail screen. Same read
     scoping as the download endpoint, and refused (403) when the resource is locked for this
-    user, so previews never leak locked content."""
+    user, so previews never leak locked content. Optional ?width=N (100-600) returns the same
+    pages downscaled to about N px wide - the small thumbnails the resource lists load on demand
+    (cached server-side for an hour, after the access checks)."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -17285,6 +17322,9 @@ async def get_resource_previews(resource_id: str, request: Request):
     except Exception as e:
         logger.warning(f"[resource-previews] fetch failed for {resource_id}: {e}")
         rows = []
+    if width is not None and width < PREVIEW_FULL_WIDTH:
+        w = max(PREVIEW_MIN_WIDTH, width)
+        rows = [{"page_order": x["page_order"], "image": _preview_thumbnail(resource_id, x["page_order"], x["image"], w)} for x in rows]
     return {"resource_id": resource_id, "mime": "image/jpeg", "previews": rows}
 
 
