@@ -6,9 +6,11 @@ import { openBillingPortal } from '../utils/billingPortal';
 import { PaidFeatureBanner } from './PaidFeatureBanner';
 import { ParentGate } from './ParentGate';
 
-// "Your payment didn't go through" - the same slim adult banner as the paid-feature one, shown only
-// to teacher/parent accounts whose renewal payment failed and who are still inside the 7-day grace.
-// It hides itself as soon as the status says the payment is sorted. Adult screens only.
+// "Your payment didn't go through" - the same slim adult banner as the paid-feature one, shown to
+// teacher/parent accounts for as long as their renewal payment is failed (past_due). Inside the 7-day
+// grace the wording says the plan is kept; after it, that paid features are paused. It hides itself
+// as soon as the status says the payment is sorted. Dismissal is remembered for 7 days per failure
+// episode. Adult screens only.
 export const PaymentIssueBanner: React.FC = () => {
   const { t, user } = useApp();
   const [info, setInfo] = useState<{ past_due?: boolean; in_grace?: boolean; grace_ends_at?: string | null } | null>(null);
@@ -24,13 +26,16 @@ export const PaymentIssueBanner: React.FC = () => {
     }, [adult, user?.user_id]),
   );
 
-  const visible = adult && !!info?.past_due && !!info?.in_grace;
+  const visible = adult && !!info?.past_due;
+  const text = info?.in_grace
+    ? (t('payment_issue_banner') || "Your payment didn't go through. Update your card to keep your plan.")
+    : (t('payment_issue_banner_paused') || "Your payment didn't go through, so paid features are paused. Update your card to turn them back on.");
   return (
     <>
       <PaidFeatureBanner
         visible={visible}
         t={t}
-        text={t('payment_issue_banner') || "Your payment didn't go through. Update your card to keep your plan."}
+        text={text}
         buttonLabel={t('payment_issue_update_card') || 'Update your card'}
         storageKey={`coh.paymentBanner.${info?.grace_ends_at || 'none'}`}
         onPress={() => setGate(true)}

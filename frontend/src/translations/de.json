@@ -2385,5 +2385,6 @@
   "trial_ends_on": "Deine kostenlose Testphase endet am {date}",
   "payment_issue_banner": "Deine Zahlung ist nicht durchgegangen. Aktualisiere deine Karte, um deinen Plan zu behalten.",
   "payment_issue_update_card": "Karte aktualisieren",
-  "payment_issue_error": "Die Kartenseite konnte nicht geöffnet werden. Bitte versuche es noch einmal."
+  "payment_issue_error": "Die Kartenseite konnte nicht geöffnet werden. Bitte versuche es noch einmal.",
+  "payment_issue_banner_paused": "Deine Zahlung ist nicht durchgegangen, daher sind die kostenpflichtigen Funktionen pausiert. Aktualisiere deine Karte, um sie wieder zu aktivieren."
 }

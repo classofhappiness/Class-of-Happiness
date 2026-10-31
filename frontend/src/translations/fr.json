@@ -2385,5 +2385,6 @@
   "trial_ends_on": "Votre essai gratuit se termine le {date}",
   "payment_issue_banner": "Votre paiement n'a pas abouti. Mettez à jour votre carte pour conserver votre abonnement.",
   "payment_issue_update_card": "Mettre à jour la carte",
-  "payment_issue_error": "Impossible d'ouvrir la page de la carte. Veuillez réessayer."
+  "payment_issue_error": "Impossible d'ouvrir la page de la carte. Veuillez réessayer.",
+  "payment_issue_banner_paused": "Votre paiement n'a pas abouti, les fonctionnalités payantes sont donc suspendues. Mettez à jour votre carte pour les réactiver."
 }

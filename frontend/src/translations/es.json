@@ -2376,5 +2376,6 @@
   "trial_ends_on": "Tu prueba gratuita termina el {date}",
   "payment_issue_banner": "No se pudo procesar tu pago. Actualiza tu tarjeta para mantener tu plan.",
   "payment_issue_update_card": "Actualizar tarjeta",
-  "payment_issue_error": "No se pudo abrir la página de la tarjeta. Inténtalo de nuevo."
+  "payment_issue_error": "No se pudo abrir la página de la tarjeta. Inténtalo de nuevo.",
+  "payment_issue_banner_paused": "No se pudo procesar tu pago, así que las funciones de pago están en pausa. Actualiza tu tarjeta para volver a activarlas."
 }

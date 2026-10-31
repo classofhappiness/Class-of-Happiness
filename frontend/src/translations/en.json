@@ -2242,5 +2242,6 @@
   "trial_ends_on": "Your free trial ends on {date}",
   "payment_issue_banner": "Your payment didn't go through. Update your card to keep your plan.",
   "payment_issue_update_card": "Update your card",
-  "payment_issue_error": "Could not open the card page. Please try again."
+  "payment_issue_error": "Could not open the card page. Please try again.",
+  "payment_issue_banner_paused": "Your payment didn't go through, so paid features are paused. Update your card to turn them back on."
 }

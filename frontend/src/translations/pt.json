@@ -2376,5 +2376,6 @@
   "trial_ends_on": "O teu teste gratuito termina em {date}",
   "payment_issue_banner": "O teu pagamento não foi concluído. Atualiza o cartão para manteres o teu plano.",
   "payment_issue_update_card": "Atualizar cartão",
-  "payment_issue_error": "Não foi possível abrir a página do cartão. Tenta outra vez."
+  "payment_issue_error": "Não foi possível abrir a página do cartão. Tenta outra vez.",
+  "payment_issue_banner_paused": "O teu pagamento não foi concluído, por isso as funcionalidades pagas estão em pausa. Atualiza o cartão para as reativares."
 }
