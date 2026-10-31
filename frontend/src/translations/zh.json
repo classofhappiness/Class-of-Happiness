@@ -2247,7 +2247,7 @@
   "resource_file_or_link_required": "请添加 PDF 文件或链接",
   "resource_or_link": "或粘贴链接",
   "sr_on_title": "贵校已开启支持请求功能",
-  "sr_how_teachers_use": "老师在应用中点按支持按钮，选择所需的帮助（课堂支持、一位教职工、Back on Track 看护或突发事件），您会立即收到通知。",
+  "sr_how_teachers_use": "老师在应用中点按支持按钮，选择所需的帮助（课堂支持、一位教职工、Back on Track 看护或突发事件），您会收到一条通知。",
   "sr_ack_text": "我了解这是教职工协调工具，不是紧急求助系统",
   "sr_ack_required": "请勾选此框以开启。",
   "sr_switched_off_by_support": "已被 Class of Happiness 支持团队关闭",
