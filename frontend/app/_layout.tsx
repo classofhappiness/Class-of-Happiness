@@ -464,6 +464,13 @@ function AppContent() {
           }}
         />
         <Stack.Screen
+          name="ask-adult-login"
+          options={{
+            title: t('ask_adult_login_title') || 'Please ask an adult to log in',
+            headerBackTitle: t('back') || 'Back',
+          }}
+        />
+        <Stack.Screen
           name="credits"
           options={{
             title: t('credits_title') || 'Licences & Credits',

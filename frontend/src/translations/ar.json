@@ -2241,6 +2241,8 @@
   "sr_switch_off_btn": "إيقاف",
   "feature_state_on": "مفعّل",
   "feature_state_off": "متوقف",
+  "ask_adult_login_title": "اطلب من شخص بالغ تسجيل الدخول",
+  "ask_adult_login_body": "يحتاج تطبيق Class of Happiness إلى أن يسجّل شخص بالغ الدخول قبل استخدامه.",
   "resource_choose_file": "اختر ملف PDF",
   "resource_file_or_link_required": "يرجى إضافة ملف PDF أو رابط",
   "resource_or_link": "أو الصق رابطًا"

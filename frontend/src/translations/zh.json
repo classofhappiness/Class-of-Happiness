@@ -2241,6 +2241,8 @@
   "sr_switch_off_btn": "关闭",
   "feature_state_on": "开",
   "feature_state_off": "关",
+  "ask_adult_login_title": "请让大人先登录",
+  "ask_adult_login_body": "需要先由大人登录，才能使用 Class of Happiness。",
   "resource_choose_file": "选择 PDF 文件",
   "resource_file_or_link_required": "请添加 PDF 文件或链接",
   "resource_or_link": "或粘贴链接"

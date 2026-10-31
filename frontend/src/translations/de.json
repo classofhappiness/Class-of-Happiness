@@ -2398,6 +2398,8 @@
   "sr_switch_off_btn": "Ausschalten",
   "feature_state_on": "Ein",
   "feature_state_off": "Aus",
+  "ask_adult_login_title": "Bitte einen Erwachsenen, sich anzumelden",
+  "ask_adult_login_body": "Class of Happiness kann erst genutzt werden, wenn sich ein Erwachsener angemeldet hat.",
   "resource_choose_file": "PDF-Datei auswählen",
   "resource_file_or_link_required": "Bitte füge eine PDF-Datei oder einen Link hinzu",
   "resource_or_link": "oder füge einen Link ein"

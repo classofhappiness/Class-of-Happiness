@@ -212,7 +212,7 @@ export default function HomeScreen() {
         {/* STUDENT — hero button, much bigger */}
         <TouchableOpacity
           style={styles.studentButton}
-          onPress={() => router.push('/student/select')}
+          onPress={() => router.push(isAuthenticated ? '/student/select' : ('/ask-adult-login' as any))}
           activeOpacity={0.85}
         >
           <MaterialIcons name="child-care" size={44} color="white" />

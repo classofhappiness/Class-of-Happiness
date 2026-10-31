@@ -2241,6 +2241,8 @@
   "sr_switch_off_btn": "बंद करें",
   "feature_state_on": "चालू",
   "feature_state_off": "बंद",
+  "ask_adult_login_title": "कृपया किसी बड़े से लॉग इन करने को कहें",
+  "ask_adult_login_body": "Class of Happiness इस्तेमाल करने से पहले किसी बड़े को लॉग इन करना होगा।",
   "resource_choose_file": "PDF फ़ाइल चुनें",
   "resource_file_or_link_required": "कृपया PDF फ़ाइल या लिंक जोड़ें",
   "resource_or_link": "या लिंक चिपकाएँ"

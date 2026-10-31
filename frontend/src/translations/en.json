@@ -2255,6 +2255,8 @@
   "sr_switch_off_btn": "Switch off",
   "feature_state_on": "On",
   "feature_state_off": "Off",
+  "ask_adult_login_title": "Please ask an adult to log in",
+  "ask_adult_login_body": "Class of Happiness needs a grown-up to log in before it can be used.",
   "resource_choose_file": "Choose a PDF file",
   "resource_file_or_link_required": "Please add a PDF file or a link",
   "resource_or_link": "or paste a link"

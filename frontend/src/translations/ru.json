@@ -2241,6 +2241,8 @@
   "sr_switch_off_btn": "Отключить",
   "feature_state_on": "Включено",
   "feature_state_off": "Выключено",
+  "ask_adult_login_title": "Попроси взрослого войти в приложение",
+  "ask_adult_login_body": "Чтобы пользоваться Class of Happiness, сначала должен войти взрослый.",
   "resource_choose_file": "Выбрать PDF-файл",
   "resource_file_or_link_required": "Добавьте PDF-файл или ссылку",
   "resource_or_link": "или вставьте ссылку"

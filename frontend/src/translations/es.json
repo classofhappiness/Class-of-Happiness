@@ -2389,6 +2389,8 @@
   "sr_switch_off_btn": "Desactivar",
   "feature_state_on": "Activado",
   "feature_state_off": "Desactivado",
+  "ask_adult_login_title": "Pide a un adulto que inicie sesión",
+  "ask_adult_login_body": "Class of Happiness necesita que un adulto inicie sesión antes de poder usarla.",
   "resource_choose_file": "Elegir un archivo PDF",
   "resource_file_or_link_required": "Añade un archivo PDF o un enlace",
   "resource_or_link": "o pega un enlace"
