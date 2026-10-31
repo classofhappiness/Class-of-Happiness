@@ -781,14 +781,22 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
     return [p.school_name, p.city, p.country].some((v: any) => (v || '').toLowerCase().includes(q));
   });
 
+  // Every box has its own label above it (the same wording as the portal), so a filled-in box still says what it is;
+  // the placeholder only gives an example where the portal does.
+  const FIELD_HINTS: Record<string, string> = { lat: '38.7169', lng: '-9.1395', subscription_seats: '5', subscription_renewal_date: 'YYYY-MM-DD' };
+  const fieldLabel = (key: string) => (t(`school_field_${key}`) || key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())) + (key === 'school_name' ? ' *' : '');
   const field = (key: string, opts: { keyboardType?: any } = {}) => (
-    <TextInput
-      style={{ backgroundColor: '#F5F5F5', borderRadius: 8, padding: 10, fontSize: 13, marginBottom: 8 }}
-      placeholder={t(`school_field_${key}`) || key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-      value={form[key] != null ? String(form[key]) : ''}
-      onChangeText={v => setForm((f: any) => ({ ...f, [key]: v }))}
-      keyboardType={opts.keyboardType}
-    />
+    <View>
+      <Text style={{ fontSize: 11, fontWeight: '700', color: '#999', marginBottom: 3 }}>{fieldLabel(key)}</Text>
+      <TextInput
+        style={{ backgroundColor: '#F5F5F5', borderRadius: 8, padding: 10, fontSize: 13, marginBottom: 8 }}
+        placeholder={FIELD_HINTS[key] || ''}
+        placeholderTextColor="#BBB"
+        value={form[key] != null ? String(form[key]) : ''}
+        onChangeText={v => setForm((f: any) => ({ ...f, [key]: v }))}
+        keyboardType={opts.keyboardType}
+      />
+    </View>
   );
 
   const openAddForm = () => {
@@ -921,9 +929,10 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
               </TouchableOpacity>
             ))}
           </View>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: '#999', marginBottom: 3 }}>{t('notes') || 'Notes'}</Text>
           <TextInput
             style={{ backgroundColor: '#F5F5F5', borderRadius: 8, padding: 10, fontSize: 13, marginBottom: 8, minHeight: 50, textAlignVertical: 'top' }}
-            placeholder={t('notes') || 'Notes'}
+            placeholder=""
             multiline
             value={form.notes || ''}
             onChangeText={v => setForm((f: any) => ({ ...f, notes: v }))}
