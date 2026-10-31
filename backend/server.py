@@ -24912,7 +24912,9 @@ async def stripe_webhook(request: Request):
             plan = _get_plan_from_price(price_key)
             update = {"subscription_status": sub_status, "subscription_plan": plan, "stripe_customer_id": customer_id,
                       "past_due_since": _past_due_since_for(user, sub_status)}
-            if current_period_end:
+            if sub_status == "none":
+                update["subscription_expires_at"] = None   # a cancelled/ended subscription leaves no expiry behind (same as the deleted handler)
+            elif current_period_end:
                 update["subscription_expires_at"] = datetime.fromtimestamp(current_period_end, tz=timezone.utc).isoformat()
             _billing_update(user["user_id"], update)
             print(f"[Stripe] {event_type}: {user['user_id']} -> {sub_status} ({plan})")
