@@ -6,7 +6,9 @@ import { EMOTION_COLOURS } from '../constants/emotionColours';
 // Swipeable strip of up to 3 page images with dots. Fetches GET /resources/{id}/previews when
 // shown; hides itself silently if there are none or the request is refused (locked / error).
 // Plain core ScrollView paging (no extra dependency); the dots row mirrors automatically in RTL.
-const PAGE_HEIGHT = 300;
+// Oct 31: every page is fitted (contain) into the SAME fixed box with explicit pixel sizes, so a landscape page or one with
+// wide margins can no longer collapse to a small image, and the dots always show for 2+ pages.
+const PAGE_HEIGHT = 340;
 
 export const PagePreviewStrip: React.FC<{ resourceId: string; t: (k: string) => string }> = ({ resourceId, t }) => {
   const [images, setImages] = useState<string[] | null>(null);
@@ -48,7 +50,7 @@ export const PagePreviewStrip: React.FC<{ resourceId: string; t: (k: string) => 
           >
             {images.map((uri, i) => (
               <View key={i} style={[styles.page, { width }]}>
-                <Image source={{ uri }} style={styles.image} resizeMode="contain" />
+                <Image source={{ uri }} style={{ width: Math.max(0, width - 16), height: PAGE_HEIGHT - 16 }} resizeMode="contain" />
               </View>
             ))}
           </ScrollView>
@@ -69,8 +71,7 @@ const styles = StyleSheet.create({
   wrap: { marginBottom: 14 },
   title: { fontSize: 12, fontWeight: '700', color: '#666', marginBottom: 6 },
   page: { height: PAGE_HEIGHT, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F5F5', borderRadius: 12 },
-  image: { height: PAGE_HEIGHT - 16, width: '100%' },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 8 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#D0D0D0' },
+  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#D0D0D0' },
   dotActive: { backgroundColor: EMOTION_COLOURS.blue },
 });

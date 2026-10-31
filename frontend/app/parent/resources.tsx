@@ -16,8 +16,9 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { File, Directory, Paths } from 'expo-file-system/next';
 import * as Sharing from 'expo-sharing';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system/legacy';
 import { resourcesApi, teacherResourcesApi, Resource, TeacherResource, TeacherResourceRating } from '../../src/utils/api';
 import { useApp } from '../../src/context/AppContext';
 import { formatNumericDate } from '../../src/utils/dateLabel';
@@ -53,15 +54,14 @@ const NATIVE_LANG_NAMES: Record<string, string> = {
 // unchanged (still 'emotions_program') - that's also the exact string the backend's free-tier
 // gate checks for "this whole category is always free", so relabelling only the display text
 // carries zero backend/data risk.
-// Real feature Aug 28: 'all' stays pinned first (it's the "show everything" filter, not a
-// real category), then the 4 primary categories follow in the fixed order confirmed with
+// Real feature Aug 28: the 4 primary categories come first (the "All" tab was removed Oct 31 to match the teacher screen),
+// then the 4 primary categories follow in the fixed order confirmed with
 // Jono (Emotions, Healthy Relationships, Leader Online, You Are What You Eat), then every
 // other existing topic unchanged - see resourceTopics.ts for the shared ordering logic.
 // Real fix (i18n sweep): this list was the one place these topic names weren't wired to
 // t() - teacher/resources.tsx's identical list already was. Kept as a plain function (not a
 // module-level const) since it needs the t() closure; called once per render below.
 const getTopics = (t: (key: string) => string) => [
-  { id: 'all', name: t('all') || 'All', icon: 'apps' as const },
   ...orderPrimaryTopicsFirst([
     { id: 'general', name: t('general_topic') || 'General', icon: 'folder' as const },
     { id: 'emotions_program', name: t('emotions') || 'Emotions', icon: 'auto-stories' as const },
@@ -139,7 +139,7 @@ export default function ResourcesScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedResource, setSelectedResource] = useState<Resource | TeacherResource | null>(null);
   const thumbPlayback = useThumbPlayback(!!selectedResource);
-  const [selectedTopic, setSelectedTopic] = useState('all');
+  const [selectedTopic, setSelectedTopic] = useState(() => getTopics(t)[0].id);
   const [downloading, setDownloading] = useState(false);
 
   // Rating state
@@ -195,7 +195,7 @@ export default function ResourcesScreen() {
       }
     }
 
-    if ('topic' in resource) {
+    {
       setLoadingRatings(true);
       try {
         const resourceRatings = await teacherResourcesApi.getRatings(resource.id);
@@ -208,75 +208,51 @@ export default function ResourcesScreen() {
     }
   };
 
+  // Same download as the teacher screen (which is confirmed working on devices): a short-lived signed link, then the
+  // share sheet. Oct 31: replaces the parent-only expo-file-system/next variant.
   const handleDownloadPdf = async (resource: Resource | TeacherResource) => {
-    const isTeacherResource = 'topic' in resource;
-    const isGeneralResource = 'content_type' in resource && (resource as Resource).content_type === 'pdf';
-
-    if (!isTeacherResource && !isGeneralResource) {
-      Alert.alert(t('error') || 'Error', t('no_pdf_available') || 'No PDF available for download');
-      return;
-    }
-
     setDownloading(true);
-
     try {
-      const resourceId = resource.id;
-      const endpoint = isTeacherResource
-        ? `/api/teacher-resources/${resourceId}/download`
-        : `/api/resources/${resourceId}/download`;
-      const AsyncStorage2 = (await import("@react-native-async-storage/async-storage")).default;
-      const token2 = await AsyncStorage2.getItem("session_token");
-      const downloadUrl = `${BACKEND_URL}${endpoint}`;
-
+      const dlToken = await AsyncStorage.getItem('session_token');
+      const pdfUrl = await getDownloadUrl(`/teacher-resources/${resource.id}/download`, {}, () => `${BACKEND_URL}/api/teacher-resources/${resource.id}/download?token=${encodeURIComponent(dlToken || '')}`);
+      const filename = (resource as any).pdf_filename || `${resource.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
       if (Platform.OS === 'web') {
-        // fix51: the web branch sends no Authorization header: use a short-lived signed link (falls back to the plain url as before)
-        Linking.openURL(await getDownloadUrl(endpoint.replace(/^\/api/, ''), {}, () => downloadUrl));
+        Linking.openURL(pdfUrl);
       } else {
-        // Real bug fix Aug 28 (item 10): `timestamp` was already declared here but never
-        // actually used - downloadFileAsync was passed a bare Directory, which derives its
-        // own (consistently the SAME) filename from the URL, and the newer expo-file-system
-        // API refuses to overwrite an existing file rather than silently replacing it. Any
-        // earlier attempt for the SAME resource - including one that failed partway through
-        // (e.g. the /resources list timeout just fixed above, or a dropped connection) -
-        // left a stale file sitting at that exact path, so every retry hit "Destination
-        // already exists" instead of ever succeeding. teacher/resources.tsx's own download
-        // (confirmed working) already does exactly this - a timestamp-qualified unique
-        // filename per attempt - just via the older expo-file-system API; same fix, adapted
-        // to this file's newer File/Directory API.
-        const timestamp = Date.now();
-        const safeName = ((resource as any).pdf_filename || `${resource.title}.pdf`).replace(/[^a-zA-Z0-9._-]/g, '_');
-        const cacheDir = new Directory(Paths.cache);
-        const destFile = new File(cacheDir, `${timestamp}_${safeName}`);
-        const downloadedFile = await File.downloadFileAsync(downloadUrl, destFile, {
-          headers: { 'Authorization': `Bearer ${token2}` }
-        });
-
-        if (!downloadedFile.exists) {
-          throw new Error(t('downloaded_file_missing') || 'Downloaded file does not exist');
+        const timestamp = Date.now();   // unique name per attempt: a failed earlier attempt never blocks a retry
+        const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const localUri = `${(FileSystem as any).cacheDirectory || (FileSystem as any).documentDirectory}${timestamp}_${safeFilename}`;
+        const downloadResult = await FileSystem.downloadAsync(pdfUrl, localUri);
+        if (downloadResult.status !== 200) {
+          throw new Error(`Download failed with status ${downloadResult.status}`);
         }
-
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
-          await Sharing.shareAsync(downloadedFile.uri, {
+          await Sharing.shareAsync(downloadResult.uri, {
             mimeType: 'application/pdf',
             dialogTitle: (t('share_resource_title') || 'Share {title}').replace('{title}', resource.title),
             UTI: 'com.adobe.pdf',
           });
         } else {
-          Alert.alert(t('success') || 'Success', (t('pdf_saved_to') || 'PDF saved to: {path}').replace('{path}', downloadedFile.uri));
+          Alert.alert(t('success') || 'Success', t('pdf_downloaded_success') || 'PDF downloaded successfully to your device');
         }
       }
     } catch (error: any) {
       console.error('Download error:', error);
-      Alert.alert(t('download_error') || 'Download Error', (t('pdf_download_failed_detail') || 'Failed to download PDF: {error}').replace('{error}', error.message || (t('unknown_error') || 'Unknown error')));
+      Alert.alert(
+        t('download_error') || 'Download Error',
+        (t('pdf_download_error_detail') || 'Failed to download PDF: {error}. Please check your internet connection.').replace('{error}', error.message || (t('unknown_error') || 'Unknown error'))
+      );
     } finally {
       setDownloading(false);
     }
   };
 
   const handleOpenRatingModal = () => {
-    setSelectedRating(0);
-    setRatingComment('');
+    // Editable: start from this person's own earlier rating, if there is one (the backend updates it in place).
+    const mine = ratings.find((r: any) => r.user_id && r.user_id === user?.user_id);
+    setSelectedRating(mine?.rating || 0);
+    setRatingComment(mine?.comment || '');
     setShowRatingModal(true);
   };
 
@@ -292,6 +268,7 @@ export default function ResourcesScreen() {
       const newRatings = await teacherResourcesApi.getRatings(selectedResource.id);
       setRatings(newRatings);
       setShowRatingModal(false);
+      fetchResources(true);   // refresh the stars on the cards
       Alert.alert(t('thank_you') || 'Thank you!', t('rating_submitted') || 'Your rating has been submitted.');
     } catch (error) {
       Alert.alert(t('error') || 'Error', t('rating_submit_error') || 'Failed to submit rating. Please try again.');
@@ -336,7 +313,9 @@ export default function ResourcesScreen() {
     // created_by/is_locked that /parent/resources' doesn't.
     const byId = new Map<string, any>();
     for (const r of teacherBase as any[]) byId.set(r.id, r);
-    for (const r of generalBase as any[]) byId.set(r.id, r);
+    // Oct 31: the general copy wins (it has is_locked / week_number), but only the /parent/resources copy carries the
+    // ratings, so keep those - otherwise ratings never showed on parent cards.
+    for (const r of generalBase as any[]) byId.set(r.id, { ...(byId.get(r.id) || {}), ...r });
     let combined: any[] = Array.from(byId.values());
 
     // Real bug fix Aug 29 (item 2): previously ONLY emotions_program was sorted at all - every
@@ -354,6 +333,14 @@ export default function ResourcesScreen() {
     });
     return combined;
   })();
+
+  const renderStars = (rating: number, size: number = 16) => (
+    <View style={{ flexDirection: 'row' }}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <MaterialIcons key={i} name={i <= Math.round(rating || 0) ? 'star' : 'star-border'} size={size} color="#FFD700" />
+      ))}
+    </View>
+  );
 
   const isTeacherResource = (resource: Resource | TeacherResource | null): resource is TeacherResource => {
     return resource !== null && 'topic' in resource;
@@ -377,12 +364,14 @@ export default function ResourcesScreen() {
                   the same real signal (is_global) teacher/resources.tsx already uses, so it's
                   correct regardless of category and shows consistently everywhere, not just
                   when a duplicate happened to survive from the old merge. */}
-              {!resource.is_locked && resource.content_type === 'pdf' ? (
-                // Unlocked PDF: page-preview thumbnail (still, or slideshow when most in view); the icon until it loads / if there are no previews.
+              {resource.content_type === 'pdf' ? (
+                // PDF: page-preview thumbnail (still, or slideshow when most in view) - locked cards get it too, as a
+                // small 240px teaser with a lock badge; the icon until it loads / if there are no previews.
                 <ResourceThumb
                   resourceId={resource.id}
+                  locked={!!resource.is_locked}
                   style={!resource.is_global ? { backgroundColor: '#E8F5E9' } : undefined}
-                  fallback={<MaterialIcons name="picture-as-pdf" size={32} color="#F44336" />}
+                  fallback={<MaterialIcons name={resource.is_locked ? 'lock' : 'picture-as-pdf'} size={32} color={resource.is_locked ? '#AAA' : '#F44336'} />}
                 />
               ) : (
               <View style={[styles.resourceIcon, !resource.is_global && { backgroundColor: '#E8F5E9' }]}>
@@ -403,6 +392,12 @@ export default function ResourcesScreen() {
                 <Text style={styles.resourceTitle}>{resource.title}</Text>
                 {(() => { const blurb = resource.goal || (resource.description !== resource.title ? resource.description : ''); return blurb ? <Text style={styles.resourceDescription} numberOfLines={2}>{blurb}</Text> : null; })()}
                 <ResourceFactsChips facts={resource} t={t} />
+                {!resource.is_locked && (
+                  <View style={[styles.resourceMeta, { marginBottom: 4 }]}>
+                    {renderStars(resource.average_rating)}
+                    <Text style={styles.resourceType}>{formatRating(resource.average_rating, language)} ({resource.total_ratings || 0})</Text>
+                  </View>
+                )}
                 <View style={styles.resourceMeta}>
                   <Text style={styles.resourceType}>
                     {resource.content_type === 'pdf' ? (t('pdf_document') || 'PDF Document') : (t('article') || 'Article')}
@@ -548,25 +543,30 @@ export default function ResourcesScreen() {
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              {!!selectedResource && !(selectedResource as any).goal && selectedResource.description !== selectedResource.title && (
-                <Text style={styles.modalDescription}>{selectedResource.description}</Text>
-              )}
+              {/* Same layout as the teacher screen's detail: info + rating, facts, preview strip, download, reviews, rate. */}
+              <View style={styles.resourceInfo}>
+                <MaterialIcons name={selectedResource?.content_type === 'text' ? 'article' : 'picture-as-pdf'} size={48} color={selectedResource?.content_type === 'text' ? '#5C6BC0' : '#F44336'} />
+                <Text style={styles.resourceInfoTitle}>{selectedResource?.title}</Text>
+                {!!selectedResource && !(selectedResource as any).goal && selectedResource.description !== selectedResource.title && (
+                  <Text style={styles.resourceInfoDesc}>{selectedResource.description}</Text>
+                )}
+                <View style={styles.currentRating}>
+                  {renderStars((selectedResource as any)?.average_rating || 0, 24)}
+                  <Text style={styles.currentRatingText}>
+                    {formatRating((selectedResource as any)?.average_rating, language)} ({(t('n_ratings') || '{count} ratings').replace('{count}', String((selectedResource as any)?.total_ratings || ratings.length || 0))})
+                  </Text>
+                </View>
+              </View>
               {!!selectedResource && <ResourceDetailFacts facts={selectedResource as any} t={t} />}
               {selectedResource?.content_type === 'text' && selectedResource?.content && (
                 <Text style={styles.modalArticle}>{selectedResource.content}</Text>
               )}
-              {selectedResource?.content_type === 'pdf' && (
-                <View style={styles.pdfSection}>
-                  {selectedResource.content_type === 'pdf' && !(selectedResource as any).is_locked && <PagePreviewStrip resourceId={selectedResource.id} t={t} />}
-                  <View style={styles.pdfNotice}>
-                    <MaterialIcons name="picture-as-pdf" size={48} color="#F44336" />
-                    <Text style={styles.pdfNoticeText}>{selectedResource.pdf_filename || (t('default_pdf_filename') || 'document.pdf')}</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.downloadButton}
-                    onPress={() => handleDownloadPdf(selectedResource)}
-                    disabled={downloading}
-                  >
+              {!!selectedResource && !(selectedResource as any).is_locked && selectedResource.content_type !== 'text' && (
+                <PagePreviewStrip resourceId={selectedResource.id} t={t} />
+              )}
+              {!!selectedResource && !(selectedResource as any).is_locked && selectedResource.content_type !== 'text' && (
+                <View style={styles.downloadSection}>
+                  <TouchableOpacity style={styles.downloadButton} onPress={() => handleDownloadPdf(selectedResource)} disabled={downloading}>
                     <MaterialIcons name={downloading ? 'hourglass-empty' : 'file-download'} size={24} color="white" />
                     <Text style={styles.downloadButtonText}>{downloading ? (t('preparing') || 'Preparing...') : (t('download_report') || 'Download & Share PDF')}</Text>
                   </TouchableOpacity>
@@ -575,49 +575,47 @@ export default function ResourcesScreen() {
                     <Text style={styles.sharingInfoText}>{t('sharing_info_text') || 'Save to phone, email, Google Drive, WhatsApp & more'}</Text>
                   </View>
                   <Text style={styles.ipDisclaimer}>
-                    {(t('ip_disclaimer') || '© {year} Class of Happiness. All rights reserved. This material is protected intellectual property.').replace('{year}', String(new Date().getFullYear()))}
+                    {(t('ip_disclaimer_extended') || '© {year} Class of Happiness. All rights reserved. This material is protected intellectual property. Unauthorized reproduction, distribution, or commercial use is strictly prohibited.').replace('{year}', String(new Date().getFullYear()))}
                   </Text>
                 </View>
               )}
-              {isTeacherResource(selectedResource) && (
-                <View style={styles.ratingsSection}>
-                  <View style={styles.ratingsSummary}>
-                    <Text style={styles.ratingsTitle}>{t('ratings_and_reviews') || 'Ratings & Reviews'}</Text>
-                    {ratings.length > 0 ? (
-                      <View style={styles.averageRating}>
-                        <MaterialIcons name="star" size={24} color="#FFB300" />
-                        <Text style={styles.averageRatingText}>{getAverageRating()}</Text>
-                        <Text style={styles.ratingsCount}>({(t('reviews_count') || '{count} reviews').replace('{count}', String(ratings.length))})</Text>
-                      </View>
-                    ) : (
-                      <Text style={styles.noRatingsText}>{t('no_data_yet') || t('no_data_yet') || 'No ratings yet'}</Text>
-                    )}
-                  </View>
-                  {isAuthenticated && (
-                    <TouchableOpacity style={styles.rateButton} onPress={handleOpenRatingModal}>
-                      <MaterialIcons name="rate-review" size={20} color="#5C6BC0" />
-                      <Text style={styles.rateButtonText}>{t('research_basis') || 'Rate'}</Text>
-                    </TouchableOpacity>
-                  )}
-                  {ratings.length > 0 && (
-                    <View style={styles.reviewsList}>
-                      {ratings.slice(0, 5).map((rating, index) => (
-                        <View key={index} style={styles.reviewCard}>
-                          <View style={styles.reviewHeader}>
-                            <View style={styles.reviewStars}>
-                              {[1,2,3,4,5].map((star) => (
-                                <MaterialIcons key={star} name={star <= rating.rating ? 'star' : 'star-border'} size={16} color="#4CAF50" />
-                              ))}
-                            </View>
-                            <Text style={styles.reviewDate}>{formatNumericDate(rating.created_at, language)}</Text>
-                          </View>
-                          {rating.comment && <Text style={styles.reviewComment}>{rating.comment}</Text>}
-                        </View>
-                      ))}
+              <View style={styles.ratingsSection}>
+                <View style={styles.ratingsSummary}>
+                  <Text style={styles.ratingsTitle}>{t('ratings_and_reviews') || 'Ratings & Reviews'}</Text>
+                  {ratings.length > 0 ? (
+                    <View style={styles.averageRating}>
+                      <MaterialIcons name="star" size={24} color="#FFB300" />
+                      <Text style={styles.averageRatingText}>{getAverageRating()}</Text>
+                      <Text style={styles.ratingsCount}>({(t('reviews_count') || '{count} reviews').replace('{count}', String(ratings.length))})</Text>
                     </View>
+                  ) : (
+                    <Text style={styles.noRatingsText}>{loadingRatings ? '' : (t('no_data_yet') || 'No ratings yet')}</Text>
                   )}
                 </View>
-              )}
+                {isAuthenticated && (
+                  <TouchableOpacity style={styles.rateButton} onPress={handleOpenRatingModal}>
+                    <MaterialIcons name="rate-review" size={20} color="#5C6BC0" />
+                    <Text style={styles.rateButtonText}>{t('research_basis') || 'Rate'}</Text>
+                  </TouchableOpacity>
+                )}
+                {ratings.length > 0 && (
+                  <View style={styles.reviewsList}>
+                    {ratings.slice(0, 5).map((rating, index) => (
+                      <View key={index} style={styles.reviewCard}>
+                        <View style={styles.reviewHeader}>
+                          <View style={styles.reviewStars}>
+                            {[1,2,3,4,5].map((star) => (
+                              <MaterialIcons key={star} name={star <= rating.rating ? 'star' : 'star-border'} size={16} color="#4CAF50" />
+                            ))}
+                          </View>
+                          <Text style={styles.reviewDate}>{formatNumericDate(rating.created_at, language)}</Text>
+                        </View>
+                        {rating.comment && <Text style={styles.reviewComment}>{rating.comment}</Text>}
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
             </ScrollView>
           </View>
         </View>
@@ -813,4 +811,10 @@ const styles = StyleSheet.create({
   submitButton: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: '#5C6BC0', alignItems: 'center' },
   submitButtonDisabled: { backgroundColor: '#CCC' },
   submitButtonText: { color: 'white', fontSize: 16, fontWeight: '600' },
+  resourceInfo: { alignItems: 'center', paddingVertical: 20, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', marginBottom: 20 },
+  resourceInfoTitle: { fontSize: 18, fontWeight: '600', color: '#333', marginTop: 12, textAlign: 'center' },
+  resourceInfoDesc: { fontSize: 14, color: '#666', marginTop: 8, textAlign: 'center', lineHeight: 20 },
+  currentRating: { flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 8 },
+  currentRatingText: { fontSize: 14, color: '#666' },
+  downloadSection: { alignItems: 'center', marginVertical: 20, paddingVertical: 16, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#F0F0F0' },
 });
